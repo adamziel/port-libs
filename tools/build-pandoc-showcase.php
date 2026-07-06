@@ -259,6 +259,24 @@ RIS;
             upstream_sample('docx-tables', 'docx', 'test/docx/tables.docx', 'DOCX tables', 'DOCX table coverage from upstream Pandoc reader tests.'),
             upstream_sample('docx-notes', 'docx', 'test/docx/notes.docx', 'DOCX footnotes and endnotes', 'DOCX notes fixture from upstream Pandoc reader tests.'),
             upstream_sample('docx-inline-images', 'docx', 'test/docx/inline_images.docx', 'DOCX inline images', 'DOCX fixture with packaged image relationships from upstream Pandoc tests.'),
+            [
+                'id' => 'docx-oasis-kmip-spec',
+                'format' => 'docx',
+                'label' => 'OASIS KMIP specification DOCX',
+                'description' => 'Real standards-track DOCX with many sections, tables, lists, references, styles, and packaged media.',
+                'url' => 'https://docs.oasis-open.org/kmip/spec/v1.4/os/kmip-spec-v1.4-os.docx',
+                'source' => 'OASIS KMIP Specification v1.4 editable DOCX',
+                'filename' => 'kmip-spec-v1.4-os.docx',
+            ],
+            [
+                'id' => 'docx-microsoft-excel-migration',
+                'format' => 'docx',
+                'label' => 'Microsoft Excel migration guide DOCX',
+                'description' => 'Real Microsoft Office guide with styled headings, lists, notes, package relationships, and embedded media.',
+                'url' => 'https://download.microsoft.com/download/2/C/4/2C44D34C-BDF0-4A64-9241-3F9E0FEA7B5E/Migrating%20to%20Excel%202010.docx',
+                'source' => 'Microsoft Download Center Migrating to Excel 2010.docx',
+                'filename' => 'Migrating-to-Excel-2010.docx',
+            ],
         ],
         'endnotexml' => [
             upstream_sample('endnotexml-reader', 'endnotexml', 'test/endnotexml-reader.xml', 'EndNote XML reader fixture', 'Bibliography XML fixture from upstream Pandoc tests.'),
@@ -269,6 +287,15 @@ RIS;
             upstream_sample('epub-features', 'epub', 'test/epub/features.epub', 'EPUB feature coverage', 'EPUB feature fixture from upstream Pandoc tests.'),
             upstream_sample('epub-picture', 'epub', 'test/epub/epub2_picture.epub', 'EPUB 2 picture book', 'EPUB fixture with packaged image content from upstream Pandoc tests.'),
             upstream_sample('epub-image', 'epub', 'test/epub/img.epub', 'EPUB image coverage', 'EPUB fixture focused on embedded image handling.'),
+            [
+                'id' => 'epub-gutenberg-alice-illustrated',
+                'format' => 'epub',
+                'label' => 'Illustrated Alice EPUB',
+                'description' => 'Real Project Gutenberg EPUB3 with chapter XHTML, CSS, navigation, cover art, and dozens of illustrations.',
+                'url' => 'https://www.gutenberg.org/ebooks/28885.epub3.images',
+                'source' => 'Project Gutenberg illustrated Alice EPUB3 with images',
+                'filename' => 'alice-illustrated.epub',
+            ],
         ],
         'fb2' => [
             upstream_sample('fb2-basic', 'fb2', 'test/fb2/basic.fb2', 'FB2 basic book', 'FictionBook XML sample from upstream Pandoc tests.'),
@@ -309,6 +336,15 @@ RIS;
         'markdown' => [
             inline_sample('markdown-notes', 'markdown', 'markdown-notes.md', 'Markdown migration note', $markdownOne, 'Inline documentation-style Markdown sample.'),
             inline_sample('markdown-release', 'markdown', 'markdown-release.md', 'Markdown release note', $markdownTwo, 'Inline release-note Markdown sample.'),
+            [
+                'id' => 'markdown-pandoc-manual',
+                'format' => 'markdown',
+                'label' => 'Pandoc manual Markdown',
+                'description' => 'Real 293 KB Markdown manual with dense sections, tables, links, code, lists, and metadata; currently exposes PHP writer memory limits.',
+                'url' => 'https://raw.githubusercontent.com/jgm/pandoc/' . PandocFormatRegistry::UPSTREAM_SOURCE_COMMIT . '/MANUAL.txt',
+                'source' => 'jgm/pandoc MANUAL.txt at upstream source commit',
+                'filename' => 'MANUAL.txt',
+            ],
         ],
         'markdown_mmd' => [
             inline_sample('markdown-mmd-notes', 'markdown_mmd', 'markdown-mmd-notes.md', 'MultiMarkdown profile', $markdownOne, 'Inline Markdown read through the MultiMarkdown profile.'),
@@ -329,6 +365,15 @@ RIS;
         'odt' => [
             upstream_sample('odt-headers', 'odt', 'test/odt/odt/headers.odt', 'ODT headers', 'OpenDocument text fixture from upstream Pandoc tests.'),
             upstream_sample('odt-table-spans', 'odt', 'test/odt/odt/tableWithSpans.odt', 'ODT table spans', 'ODT table fixture from upstream Pandoc tests.'),
+            [
+                'id' => 'odt-oasis-opendocument-schema',
+                'format' => 'odt',
+                'label' => 'OASIS OpenDocument schema ODT',
+                'description' => 'Real 930 KB editable ODT specification with thousands of headings, long prose, lists, tables, styles, and package metadata.',
+                'url' => 'https://docs.oasis-open.org/office/OpenDocument/v1.3/os/part3-schema/OpenDocument-v1.3-os-part3-schema.odt',
+                'source' => 'OASIS OpenDocument v1.3 Part 3 schema editable ODT',
+                'filename' => 'OpenDocument-v1.3-os-part3-schema.odt',
+            ],
         ],
         'opml' => [
             upstream_sample('opml-reader', 'opml', 'test/opml-reader.opml', 'OPML reader fixture', 'OPML outline fixture from upstream Pandoc tests.'),
@@ -337,6 +382,24 @@ RIS;
         'pptx' => [
             upstream_sample('pptx-basic', 'pptx', 'test/pptx-reader/basic.pptx', 'Basic PPTX', 'Presentation fixture from upstream Pandoc tests.'),
             upstream_sample('pptx-tables', 'pptx', 'test/pptx/tables/output.pptx', 'PPTX tables', 'Generated presentation fixture from upstream Pandoc tests.'),
+            [
+                'id' => 'pptx-cdc-food-safety-slides',
+                'format' => 'pptx',
+                'label' => 'CDC food safety classroom slides',
+                'description' => 'Real CDC PowerPoint deck with 16 slides, many images, list-heavy slides, and a data table.',
+                'url' => 'https://www.cdc.gov/museum/pdf/cdcm-pha-stem-keeping-food-healthy-slides.pptx',
+                'source' => 'CDC Museum Public Health Academy Keeping Food Healthy slides',
+                'filename' => 'cdc-food-healthy-slides.pptx',
+            ],
+            [
+                'id' => 'pptx-who-bfhi-session-1',
+                'format' => 'pptx',
+                'label' => 'WHO BFHI training slides',
+                'description' => 'Real WHO training PowerPoint with 13 slides, photographic assets, speaker metadata, lists, and structured slide text.',
+                'url' => 'https://www.who.int/docs/default-source/breastfeeding/publication/bfhi-training-curriculum/bfhi-session-1-slides.pptx?sfvrsn=d2535153_6',
+                'source' => 'WHO Baby-friendly Hospital Initiative training curriculum session 1 slides',
+                'filename' => 'bfhi-session-1-slides.pptx',
+            ],
         ],
         'ris' => [
             inline_sample('ris-texbook', 'ris', 'texbook.ris', 'RIS book record', $ris, 'Inline RIS record for a real published book.'),
@@ -357,14 +420,30 @@ RIS;
                 'source' => 'jasperbaes/jasperbaes.github.io ConditionalAccessBlueprint-Template.xlsx',
                 'filename' => 'ConditionalAccessBlueprint-Template.xlsx',
             ],
+            [
+                'id' => 'xlsx-census-tax-parameter-workbook',
+                'format' => 'xlsx',
+                'label' => 'Census tax parameter workbook',
+                'description' => 'Real Census Bureau workbook with 102 worksheets of federal and state tax parameters.',
+                'url' => 'https://www2.census.gov/library/working-papers/2024/demo/Federal_and_State_Tax_Parameter_Workbook_TY2023.xlsx',
+                'source' => 'U.S. Census Bureau Federal and State Tax Parameter Workbook TY2023',
+                'filename' => 'Federal_and_State_Tax_Parameter_Workbook_TY2023.xlsx',
+            ],
         ],
         'xml' => [
             inline_sample('xml-docbook-generic', 'xml', 'generic-docbook.xml', 'Generic XML document', $docbook, 'Inline XML document read through the generic XML path.'),
             inline_sample('xml-outline-generic', 'xml', 'generic-outline.xml', 'Generic XML outline', "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<document><title>Generic XML outline</title><section><heading>Inventory</heading><p>Plain XML read through the generic XML path.</p></section></document>\n", 'Inline generic XML document.'),
         ],
         'pdf' => [
-            local_sample('pdf-wrapped-content', 'pdf', 'lanes/markerpdf/fixtures/wordpress-wrapped-content.pdf', 'Wrapped-content PDF fixture', 'Small PDF fixture from the local markerpdf lane used to exercise PDF text handoff.'),
-            local_sample('pdf-import-content', 'pdf', 'lanes/markerpdf/fixtures/wordpress-import-content.pdf', 'Import-content PDF fixture', 'Second small PDF fixture from the local markerpdf lane.'),
+            [
+                'id' => 'pdf-irs-publication-17',
+                'format' => 'pdf',
+                'label' => 'IRS Publication 17 PDF',
+                'description' => 'Real multi-page IRS tax publication with dense prose, headings, tables, forms-style layouts, links, and extraction stress.',
+                'url' => 'https://www.irs.gov/pub/irs-pdf/p17.pdf',
+                'source' => 'Internal Revenue Service Publication 17 PDF',
+                'filename' => 'irs-publication-17.pdf',
+            ],
             [
                 'id' => 'pdf-tracemonkey',
                 'format' => 'pdf',
@@ -811,6 +890,25 @@ h1 {
   color: var(--ink);
   text-decoration: none;
 }
+.stress-samples {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 18px;
+  padding: 0;
+  list-style: none;
+}
+.stress-samples a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 5px 9px;
+  border: 1px solid var(--line);
+  background: #fbfcfd;
+  color: var(--ink);
+  text-decoration: none;
+  font-size: 13px;
+}
 .layout {
   width: min(1180px, calc(100% - 32px));
   margin: 24px auto 64px;
@@ -1069,13 +1167,25 @@ $totalConversions = count($records) * 3;
 $html = '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">';
 $html .= '<title>Pandoc PHP Port Conversion Showcase</title><link rel="stylesheet" href="styles.css"></head><body>';
 $html .= '<header class="hero"><div class="hero-inner"><p class="eyebrow">adamziel/port-libs</p><h1>Pandoc PHP port conversion showcase</h1>';
-$html .= '<p class="lede">Real and upstream fixture files are converted three ways: Haskell Pandoc to HTML, the local PHP port to HTML, and the local PHP port to WordPress block markup. The WordPress block render is the default tab for each sample.</p>';
+$html .= '<p class="lede">Real public documents and upstream fixtures are converted three ways: Haskell Pandoc to HTML, the local PHP port to HTML, and the local PHP port to WordPress block markup. The stress samples are intentionally messy enough to expose timeouts, memory limits, package complexity, and block coverage.</p>';
 $html .= '<div class="stats">';
 $html .= '<div class="stat"><strong>' . count($coveredFormats) . '</strong><span>covered input formats</span></div>';
 $html .= '<div class="stat"><strong>' . count($records) . '</strong><span>source files</span></div>';
 $html .= '<div class="stat"><strong>' . $successCount . '/' . $totalConversions . '</strong><span>successful conversions</span></div>';
 $html .= '<div class="stat"><strong>' . gmdate('Y-m-d') . '</strong><span>generated</span></div>';
-$html .= '</div><div class="hero-actions"><a href="block-usage.html">WordPress block usage guide</a><a href="manifest.json">Manifest JSON</a></div></div></header><main class="layout">';
+$html .= '</div><ul class="stress-samples" aria-label="Real-world stress samples">';
+foreach ([
+    'docx-oasis-kmip-spec' => 'OASIS KMIP DOCX',
+    'epub-gutenberg-alice-illustrated' => 'Illustrated Alice EPUB',
+    'markdown-pandoc-manual' => 'Pandoc manual Markdown',
+    'odt-oasis-opendocument-schema' => 'OASIS OpenDocument ODT',
+    'pdf-irs-publication-17' => 'IRS Publication 17 PDF',
+    'pptx-cdc-food-safety-slides' => 'CDC PPTX',
+    'xlsx-census-tax-parameter-workbook' => 'Census XLSX',
+] as $id => $label) {
+    $html .= '<li><a href="#' . h($id) . '">' . h($label) . '</a></li>';
+}
+$html .= '</ul><div class="hero-actions"><a href="block-usage.html">WordPress block usage guide</a><a href="manifest.json">Manifest JSON</a></div></div></header><main class="layout">';
 $html .= '<nav class="format-nav" aria-label="Formats">';
 foreach (array_keys($byFormat) as $format) {
     $html .= '<a href="#format-' . h($format) . '">' . h($format) . '</a>';

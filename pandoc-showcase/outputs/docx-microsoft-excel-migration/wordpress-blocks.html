@@ -1,0 +1,1023 @@
+<!-- wp:paragraph -->
+<p>Migrating to Microsoft Excel 2010</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p><em>The IT Professional’s Guide</em></p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>This document is provided “as-is”. Information and views expressed in this document, including URL and other Internet Web site references, may change without notice. You bear the risk of using it.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>Some examples depicted herein are provided for illustration only and are fictitious.  No real association or connection is intended or should be inferred.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>This document does not provide you with any legal rights to any intellectual property in any Microsoft product. You may copy and use this document for your internal, reference purposes.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>© 2010 Microsoft Corporation. All rights reserved.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading {"level":1} -->
+<h1 id="executive-summary">Executive Summary</h1>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>Microsoft® Excel® 2010 is a robust program that differs in both appearance and function from earlier versions. With the ECMA/ISO Office Open XML File Formats, Business Intelligence functionality, and enhanced visualization tools, the new Excel 2010 spreadsheet program provides a comprehensive set of tools that empowers users to create and format workbooks for analyzing and sharing information, leading to more informed decisions than ever before.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>While these changes are designed to improve the performance and experience of the program, there will be times when users encounter compatibility issues while working with workbooks that are created in different versions of Excel. Microsoft has developed special features to maximize compatibility and minimize any disruption to the workflow. Even so, the scope of change is significant, and users will encounter functional differences during migration.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>This paper has been developed to aid in the migration process. Here you will find descriptions of the primary functional differences and how those variances might affect workbooks. This paper also explains some of the more common issues that may arise during migration and offers solutions where applicable. A similar paper, “<a href="http://technet.microsoft.com/en-us/library/cc179206.aspx">Migrating to Office Excel 2007</a>” was written for Microsoft Office Excel 2007 and provides useful background content related to this paper. Additional resources are provided in Chapter 6 to help diagnose any issues that are not described in this paper.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading {"level":1} -->
+<h1 id="contents">Contents</h1>
+<!-- /wp:heading -->
+
+<!-- wp:heading {"level":1} -->
+<h1 id="contents-1" class="TOC-Heading">Contents</h1>
+<!-- /wp:heading -->
+
+<!-- wp:heading {"level":2} -->
+<h2 id="executive-summary-ii" class="toc-1"><span class="docx-field docx-field-toc docx-generated-field docx-generated-field-toc docx-field-hyperlink docx-field-outline-levels docx-field-hide-web-layout" data-docx-field="toc" data-docx-field-instruction="TOC \o &quot;1-3&quot; \h \z \u" data-docx-generated-field-type="table-of-contents" data-docx-field-hyperlink="true" data-docx-field-outline-levels="1-3" data-docx-field-hide-web-layout="true" data-docx-field-use-outline-levels="true"><a href="#executive-summary">Executive Summary <span>ii</span></a></span></h2>
+<!-- /wp:heading -->
+
+<!-- wp:heading {"level":2} -->
+<h2 id="contents-iii" class="toc-1"><a href="#contents">Contents <span>iii</span></a></h2>
+<!-- /wp:heading -->
+
+<!-- wp:heading {"level":2} -->
+<h2 id="chapter-1-what-to-know-before-migration-v" class="toc-1"><a href="#chapter-1-what-to-know-before-migration">Chapter 1: What to Know Before Migration <span>v</span></a></h2>
+<!-- /wp:heading -->
+
+<!-- wp:heading {"level":3} -->
+<h3 id="excel-2007-2010-file-format-v" class="toc-2"><a href="#excel-2007-2010-file-format">Excel 2007-2010 File Format <span>v</span></a></h3>
+<!-- /wp:heading -->
+
+<!-- wp:heading {"level":3} -->
+<h3 id="introducing-the-32-bit-and-64-bit-versions-of-microsoft-office-2010-v" class="toc-2"><a href="#introducing-the-32-bit-and-64-bit-versions-of-microsoft-office-2010">Introducing the 32-bit and 64-bit Versions of Microsoft Office 2010 <span>v</span></a></h3>
+<!-- /wp:heading -->
+
+<!-- wp:heading {"level":3} -->
+<h3 id="file-and-solutions-compatibility-vi" class="toc-3"><a href="#file-and-solutions-compatibility">File and Solutions Compatibility <span>vi</span></a></h3>
+<!-- /wp:heading -->
+
+<!-- wp:heading {"level":3} -->
+<h3 id="deployment-considerations-vi" class="toc-3"><a href="#deployment-considerations">Deployment considerations <span>vi</span></a></h3>
+<!-- /wp:heading -->
+
+<!-- wp:heading {"level":3} -->
+<h3 id="conclusion-vii" class="toc-3"><a href="#conclusion">Conclusion <span>vii</span></a></h3>
+<!-- /wp:heading -->
+
+<!-- wp:heading {"level":3} -->
+<h3 id="excel-97-2003-file-format-xls-vii" class="toc-2"><a href="#excel-97-2003-file-format-xls">Excel 97-2003 File Format (XLS) <span>vii</span></a></h3>
+<!-- /wp:heading -->
+
+<!-- wp:heading {"level":3} -->
+<h3 id="compatibility-tools-vii" class="toc-3"><a href="#compatibility-tools">Compatibility Tools <span>vii</span></a></h3>
+<!-- /wp:heading -->
+
+<!-- wp:heading {"level":2} -->
+<h2 id="chapter-2-opening-excel-97-2003-workbooks-in-excel-2010-viii" class="toc-1"><a href="#chapter-2-opening-excel-97-2003-workbooks-in-excel-2010">Chapter 2: Opening Excel 97-2003 Workbooks in Excel 2010 <span>viii</span></a></h2>
+<!-- /wp:heading -->
+
+<!-- wp:heading {"level":3} -->
+<h3 id="compatibility-tools-viii" class="toc-2"><a href="#compatibility-tools-1">Compatibility Tools <span>viii</span></a></h3>
+<!-- /wp:heading -->
+
+<!-- wp:heading {"level":3} -->
+<h3 id="compatibility-mode-viii" class="toc-3"><a href="#compatibility-mode">Compatibility Mode <span>viii</span></a></h3>
+<!-- /wp:heading -->
+
+<!-- wp:heading {"level":3} -->
+<h3 id="compatibility-checker-x" class="toc-3"><a href="#compatibility-checker">Compatibility Checker <span>x</span></a></h3>
+<!-- /wp:heading -->
+
+<!-- wp:heading {"level":3} -->
+<h3 id="feature-removal-x" class="toc-2"><a href="#feature-removal">Feature Removal <span>x</span></a></h3>
+<!-- /wp:heading -->
+
+<!-- wp:heading {"level":3} -->
+<h3 id="conditional-sum-and-lookup-wizard-add-ins-x" class="toc-3"><a href="#conditional-sum-and-lookup-wizard-add-ins">Conditional Sum and Lookup Wizard Add-ins <span>x</span></a></h3>
+<!-- /wp:heading -->
+
+<!-- wp:heading {"level":3} -->
+<h3 id="additional-actions-smart-tags-xi" class="toc-3"><a href="#additional-actions-smart-tags">Additional Actions (Smart Tags) <span>xi</span></a></h3>
+<!-- /wp:heading -->
+
+<!-- wp:heading {"level":3} -->
+<h3 id="document-workspaces-xi" class="toc-3"><a href="#document-workspaces">Document Workspaces <span>xi</span></a></h3>
+<!-- /wp:heading -->
+
+<!-- wp:heading {"level":3} -->
+<h3 id="pattern-fills-interface-back-in-excel-2010-xi" class="toc-3"><a href="#pattern-fills-interface-back-in-excel-2010">Pattern Fills Interface: Back in Excel 2010 <span>xi</span></a></h3>
+<!-- /wp:heading -->
+
+<!-- wp:heading {"level":3} -->
+<h3 id="pivottable-views-xi" class="toc-2"><a href="#pivottable-views">PivotTable views <span>xi</span></a></h3>
+<!-- /wp:heading -->
+
+<!-- wp:heading {"level":3} -->
+<h3 id="office-art-xii" class="toc-2"><a href="#office-art">Office Art <span>xii</span></a></h3>
+<!-- /wp:heading -->
+
+<!-- wp:heading {"level":2} -->
+<h2 id="chapter-3-opening-excel-2007-workbooks-in-excel-2010-xiii" class="toc-1"><a href="#chapter-3-opening-excel-2007-workbooks-in-excel-2010">Chapter 3: Opening Excel 2007 Workbooks in Excel 2010 <span>xiii</span></a></h2>
+<!-- /wp:heading -->
+
+<!-- wp:heading {"level":3} -->
+<h3 id="pivotchart-views-xiii" class="toc-2"><a href="#pivotchart-views">PivotChart views <span>xiii</span></a></h3>
+<!-- /wp:heading -->
+
+<!-- wp:heading {"level":3} -->
+<h3 id="shapes-xiii" class="toc-2"><a href="#_Toc264643662">Shapes <span>xiii</span></a></h3>
+<!-- /wp:heading -->
+
+<!-- wp:heading {"level":2} -->
+<h2 id="chapter-4-opening-excel-2010-workbooks-in-earlier-versions-of-excel-xiv" class="toc-1"><a href="#chapter-4-opening-excel-2010-workbooks-in-earlier-versions-of-excel">Chapter 4: Opening Excel 2010 Workbooks in Earlier Versions of Excel <span>xiv</span></a></h2>
+<!-- /wp:heading -->
+
+<!-- wp:heading {"level":3} -->
+<h3 id="excel-97-2003-file-format-xiv" class="toc-2"><a href="#excel-97-2003-file-format">Excel 97-2003 File Format <span>xiv</span></a></h3>
+<!-- /wp:heading -->
+
+<!-- wp:heading {"level":3} -->
+<h3 id="conditional-formatting-xiv" class="toc-2"><a href="#conditional-formatting-1">Conditional Formatting <span>xiv</span></a></h3>
+<!-- /wp:heading -->
+
+<!-- wp:heading {"level":3} -->
+<h3 id="cross-sheet-references-xv" class="toc-3"><a href="#cross-sheet-references">Cross-Sheet References <span>xv</span></a></h3>
+<!-- /wp:heading -->
+
+<!-- wp:heading {"level":3} -->
+<h3 id="data-bars-xv" class="toc-3"><a href="#data-bars">Data Bars <span>xv</span></a></h3>
+<!-- /wp:heading -->
+
+<!-- wp:heading {"level":3} -->
+<h3 id="icon-sets-xvi" class="toc-3"><a href="#icon-sets">Icon Sets <span>xvi</span></a></h3>
+<!-- /wp:heading -->
+
+<!-- wp:heading {"level":3} -->
+<h3 id="sparklines-xvi" class="toc-2"><a href="#sparklines-1">Sparklines <span>xvi</span></a></h3>
+<!-- /wp:heading -->
+
+<!-- wp:heading {"level":3} -->
+<h3 id="data-validation-xvi" class="toc-2"><a href="#data-validation">Data Validation <span>xvi</span></a></h3>
+<!-- /wp:heading -->
+
+<!-- wp:heading {"level":3} -->
+<h3 id="formulas-and-functions-xvi" class="toc-2"><a href="#formulas-and-functions">Formulas and Functions <span>xvi</span></a></h3>
+<!-- /wp:heading -->
+
+<!-- wp:heading {"level":3} -->
+<h3 id="new-icons-in-formula-autocomplete-xvii" class="toc-3"><a href="#new-icons-in-formula-autocomplete">New Icons in Formula AutoComplete <span>xvii</span></a></h3>
+<!-- /wp:heading -->
+
+<!-- wp:heading {"level":3} -->
+<h3 id="new-limit-for-nonadjacent-cell-selection-xvii" class="toc-3"><a href="#new-limit-for-nonadjacent-cell-selection">New Limit for nonadjacent cell selection <span>xvii</span></a></h3>
+<!-- /wp:heading -->
+
+<!-- wp:heading {"level":3} -->
+<h3 id="filtering-xvii" class="toc-2"><a href="#filtering">Filtering <span>xvii</span></a></h3>
+<!-- /wp:heading -->
+
+<!-- wp:heading {"level":3} -->
+<h3 id="pivottable-views-xvii" class="toc-2"><a href="#pivottable-views-1">PivotTable views <span>xvii</span></a></h3>
+<!-- /wp:heading -->
+
+<!-- wp:heading {"level":3} -->
+<h3 id="named-sets-xviii" class="toc-3"><a href="#named-sets">Named Sets <span>xviii</span></a></h3>
+<!-- /wp:heading -->
+
+<!-- wp:heading {"level":3} -->
+<h3 id="enhanced-show-as-xviii" class="toc-3"><a href="#enhanced-show-as">Enhanced show as <span>xviii</span></a></h3>
+<!-- /wp:heading -->
+
+<!-- wp:heading {"level":3} -->
+<h3 id="repeating-labels-xix" class="toc-3"><a href="#repeating-labels">Repeating Labels <span>xix</span></a></h3>
+<!-- /wp:heading -->
+
+<!-- wp:heading {"level":3} -->
+<h3 id="visual-totals-for-pivottable-and-sets-xix" class="toc-3"><a href="#visual-totals-for-pivottable-and-sets">Visual Totals for PivotTable and Sets <span>xix</span></a></h3>
+<!-- /wp:heading -->
+
+<!-- wp:heading {"level":3} -->
+<h3 id="pivottable-what-if-analysis-writeback-xix" class="toc-3"><a href="#pivottable-what-if-analysis-writeback">PivotTable What-if Analysis (Writeback) <span>xix</span></a></h3>
+<!-- /wp:heading -->
+
+<!-- wp:heading {"level":3} -->
+<h3 id="slicers-xix" class="toc-2"><a href="#slicers-1">Slicers <span>xix</span></a></h3>
+<!-- /wp:heading -->
+
+<!-- wp:heading {"level":3} -->
+<h3 id="slicers-and-the-excel-97-2003-format-xix" class="toc-3"><a href="#slicers-and-the-excel-97-2003-format">Slicers and the Excel 97-2003 format <span>xix</span></a></h3>
+<!-- /wp:heading -->
+
+<!-- wp:heading {"level":3} -->
+<h3 id="slicers-with-current-excel-workbook-formats-xix" class="toc-3"><a href="#slicers-with-current-excel-workbook-formats">Slicers with current Excel Workbook Formats <span>xix</span></a></h3>
+<!-- /wp:heading -->
+
+<!-- wp:heading {"level":3} -->
+<h3 id="charting-xx" class="toc-2"><a href="#charting">Charting <span>xx</span></a></h3>
+<!-- /wp:heading -->
+
+<!-- wp:heading {"level":3} -->
+<h3 id="data-points-in-a-series-limits-removed-xx" class="toc-3"><a href="#data-points-in-a-series-limits-removed">Data Points in a Series Limits Removed <span>xx</span></a></h3>
+<!-- /wp:heading -->
+
+<!-- wp:heading {"level":3} -->
+<h3 id="pivotchart-settings-xx" class="toc-3"><a href="#pivotchart-settings">PivotChart Settings <span>xx</span></a></h3>
+<!-- /wp:heading -->
+
+<!-- wp:heading {"level":3} -->
+<h3 id="custom-data-parts-xx" class="toc-2"><a href="#custom-data-parts">Custom Data Parts <span>xx</span></a></h3>
+<!-- /wp:heading -->
+
+<!-- wp:heading {"level":3} -->
+<h3 id="saving-custom-data-parts-xxi" class="toc-3"><a href="#saving-custom-data-parts">Saving Custom Data Parts <span>xxi</span></a></h3>
+<!-- /wp:heading -->
+
+<!-- wp:heading {"level":3} -->
+<h3 id="alternative-text-properties-xxi" class="toc-2"><a href="#alternative-text-properties">Alternative text properties <span>xxi</span></a></h3>
+<!-- /wp:heading -->
+
+<!-- wp:heading {"level":2} -->
+<h2 id="chapter-5-additional-resources-xxi" class="toc-1"><a href="#chapter-5-additional-resources">Chapter 5: Additional Resources <span>xxi</span></a></h2>
+<!-- /wp:heading -->
+
+<!-- wp:heading {"level":1} -->
+<h1 id="chapter-1-what-to-know-before-migration">Chapter 1: What to Know Before Migration</h1>
+<!-- /wp:heading -->
+
+<!-- wp:heading {"level":2} -->
+<h2 id="excel-2007-2010-file-format">Excel 2007-2010 File Format</h2>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>Microsoft Excel 2010 uses the same ISO/ECMA Office Open XML format that was introduced in Microsoft Office Word 2007, Microsoft Office PowerPoint® 2007, and Office Excel 2007. Distinct from the binary-based file format that has been a mainstay of past versions of the Microsoft Office suites; the Open XML Formats are compact and robust file formats that enable better data integration between documents and back-end systems. The Office Open XML Format is an open standard developed by ECMA International and later adopted in collaboration with many technology vendors. The Office Open XML format has also been adopted as IS-29500 by the International Organization for Standardization (ISO). The standard maximizes interoperability in a heterogeneous environment, enabling technology providers to integrate the files created in the Microsoft Office 2010 release into their solutions.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>After the installation of Office 2010, users will still be able to open, edit, and save workbooks that were generated in the earlier binary file format. These workbooks can be converted to the Open XML Formats, which will enable better interoperability among applications from different vendors and make the Open XML Formats a better long-term solution. To convert a workbook from an earlier format to the Open XML Formats, use the <strong>Convert</strong> command: Click the <strong>File tab,</strong> and on the <strong>Info tab,</strong> click <strong>Convert</strong>.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading {"level":3} -->
+<h3 id="caution-workbook-formula-links" class="MS2---Heading3">Caution: Workbook Formula Links</h3>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>Before your organization converts any existing workbooks to the Open XML Formats, users should take into account any existing links between workbooks. Because earlier versions of Excel cannot update links to workbooks saved in the Open XML Formats, all linked workbooks should be simultaneously converted.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading {"level":2} -->
+<h2 id="introducing-the-32-bit-and-64-bit-versions-of-microsoft-office-2010">Introducing the 32-bit and 64-bit Versions of Microsoft Office 2010</h2>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>The Microsoft Office 2010 system is available in both 32-bit and 64-bit versions. The 64-bit version enables you to work with much larger sets of data. This need is especially true when working with large numbers in Excel 2010.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>With the introduction of the new 64-bit version of Microsoft Office 2010, a new version of Microsoft Visual Basic for Applications (VBA), known as Microsoft Visual Basic for Applications 7.0 (VBA 7), is being released to work with both 32-bit and 64-bit applications.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p><strong>Note:</strong> In a default installation of Office 2010, the 32-bit version is installed, even on 64-bit systems. You must <em>explicitly</em> select the Office 2010 64-bit version installation option.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading {"level":3} -->
+<h3 id="file-and-solutions-compatibility">File and Solutions Compatibility</h3>
+<!-- /wp:heading -->
+
+<!-- wp:heading {"level":4} -->
+<h4 id="file-compatibility">File Compatibility</h4>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>Workbooks without embedded VBA are generally interchangeable between 32-bit and 64-bit. There’s no setting in the file marking it as a 64-bit workbook. Your average, every day, smaller-sized workbooks will be fine in both environments. However, with 64-bit Excel you will be able to create workbooks that are too big for 32-bit Excel to open (you’ll hit “out of memory” alerts before getting the file open completely). Note that even prior to having a 64-bit version of Excel, I can create a workbook using 32-bit Excel on a computer with more RAM that someone else might have serious performance issues opening using the same 32-bit Excel on a machine with less RAM . For example, performance issues could be encountered if the workbook was created on a computer with 2GB of RAM and opened on a computer with 1GB of RAM.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading {"level":4} -->
+<h4 id="running-solutions-on-64-bit-excel">Running Solutions on 64-Bit Excel</h4>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>You might need to review your VBA code and make updates in order for it to work correctly in 64-bit Excel. You may also need to have 64-bit versions of any Microsoft ActiveX© controls, COM Add-ins, or XLLs if these are used in your solutions.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading {"level":3} -->
+<h3 id="deployment-considerations">Deployment considerations</h3>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>Before you deploy 64-bit editions of Office 2010, you must evaluate the advantages and disadvantages and determine whether it is an appropriate deployment option for your specific environment. The following sections highlight benefits and issues that might affect compatibility. You can find additional information in the TechNet topic <a href="file:///C:\Users\chucked\AppData\Local\Microsoft\Windows\Temporary%20Internet%20Files\Content.Outlook\DMSHKJCA\64-bit%20editions%20of%20Office%202010">64-bit editions of Office 2010</a>.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>A key consideration is that you cannot install native 64-bit Office 2010 on computers that have 32-bit Office applications and third-party add-ins installed. You must uninstall the 32-bit Office applications and add-ins before you can install 64-bit Office 2010. If you have 32-bit third-party Office applications and add-ins that are required for users, you can install the default option, which is 32-bit Office 2010 on computers that run supported 64-bit editions of Windows</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading {"level":4} -->
+<h4 id="advantages">Advantages</h4>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>Running Office 2010 64-bit provides the following advantages:</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:list -->
+<ul><li>Ability to use additional memory, physical and virtual.</li><li>Excel 2010 can load much larger workbooks. Excel 2010 made updates to use 64-bit memory addressing in order to move beyond the 2-GB addressable memory boundary that limits 32-bit applications.</li><li>Enhanced default security protections through Hardware Data Execution Prevention (DEP).</li></ul>
+<!-- /wp:list -->
+
+<!-- wp:heading {"level":4} -->
+<h4 id="disadvantages">Disadvantages</h4>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>The following issues might affect compatibility:</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:list -->
+<ul><li><strong>Visual Basic for Applications (VBA)</strong>   VBA code that uses the <strong>Declare</strong> statement to access the Windows application programming interface (API) or other DLL entry points will see differences between 32-bit and 64-bit versions. The <strong>Declare</strong> statement must be updated with the <strong>PtrSafe</strong> attribute after inputs and outputs to the API have been reviewed and updated. <strong>Declare</strong> statements will not work in 64-bit VBA without the <strong>PtrSafe</strong> attribute. New data types are added to 64-bit Office 2010 VBA: <strong>LongLong</strong> and <strong>LongPtr</strong>. For more information about VBA, see the “64-bit VBA Overview” and “Declare Statement” articles in the Microsoft Visual Basic for Applications online Help in Office applications.</li><li><strong>ActiveX controls and COM add-ins</strong>   ActiveX controls and add-in (COM) dynamic link libraries (DLLs) that were written for 32-bit Office will not work in a 64-bit process. As a result, Office 2010 64-bit solutions that try to load 32-bit ActiveX controls or DLLs will not work. Installations of 64-bit Office 2010 will run only 64-bit controls. Computers can have 64-bit and 32-bit controls installed, and Office 2010 64-bit can only run the 64-bit versions of the controls. The workaround for resolving these issues is to obtain 64-bit compatible controls and add-ins or to install Office 2010 32-bit (WOW).</li><li><strong>Graphics rendering</strong>   There are differences between the 32-bit and 64-bit Graphics Device Interface (GDI) that might have performance implications because of the lack of MMX support on 64-bit. Intel&#039;s MMX technology is an extension of the Intel architecture (IA) instruction set. The technology uses a single-instruction, multiple-data (SIMD) technique to speed up multimedia and communications software by processing data elements in parallel.</li></ul>
+<!-- /wp:list -->
+
+<!-- wp:heading {"level":3} -->
+<h3 id="conclusion">Conclusion</h3>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>The addition of a 64-bit version of Office 2010 lets you analyze larger, more complex datasets. When writing 32-bit code, you can use the 64-bit version of Microsoft Office without any changes. However, when you write 64-bit code, you should ensure that your code contains specific keywords and conditional compilation constants to ensure that the code is backward compatible with earlier versions of Microsoft Office, and that the correct code is being executed if you mix 32-bit and 64-bit code.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading {"level":2} -->
+<h2 id="excel-97-2003-file-format-xls">Excel 97-2003 File Format (XLS)</h2>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>As described above, Excel 2010 uses an Open XML workbook format by default. Beginning with Excel 2010, the older Excel 97-2003 file format will no longer be updated to include support for new functionality. This was not the case for past versions of Excel. For example, in Excel 2007, Icon Sets (a new type of conditional formatting) were saved to the Excel 97-2003 file format. While Icon Sets were not displayed when the workbook was opened in versions of Excel prior to 2007, there was no loss of functionality when the file was re-opened in Excel 2007.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading {"level":3} -->
+<h3 id="compatibility-tools">Compatibility Tools</h3>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>Users may still have a need to share files with others using versions of Excel prior to 2007. Given that new functionality will not be saved to the Excel 97-2003 file format, several tools in Excel have been enhanced to provide feedback that will aid in saving files to this format.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:list -->
+<ul><li>Compatibility Mode (enabled when an Excel 97-2003 file is opened) will disable the insertion of features not saved to the Excel 97-2003 file format.</li><li>Compatibility Checker will show details about objects in the spreadsheet that are not saved to the Excel 97-3003 file format.</li></ul>
+<!-- /wp:list -->
+
+<!-- wp:paragraph -->
+<p>Chapter 2 contains additional details about the Compatibility Tools and their effect on the new features in Excel 2010.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading {"level":1} -->
+<h1 id="chapter-2-opening-excel-97-2003-workbooks-in-excel-2010">Chapter 2: Opening Excel 97-2003 Workbooks in Excel 2010</h1>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>Most of the features available in earlier versions of Excel will still exist when a workbook is opened in Excel 2010. This chapter describes features of earlier versions of Excel that are not available beginning in Excel 2010, and it also explains how workbooks will behave in the absence of such features. If you are migrating to Excel 2010 from a version prior to Excel 2007, you should first read <a href="http://technet.microsoft.com/en-us/library/cc179206.aspx">Migrating to Excel 2007</a> for a similar list of changes made in that release. Because this chapter covers a number of topics, the information has been divided into four categories: Compatibility Tools, Feature Removal, PivotTable views, and Office Art.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading {"level":2} -->
+<h2 id="compatibility-tools-1">Compatibility Tools</h2>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>In Excel 2007, Microsoft developers engineered a number of compatibility tools to aid those migrating documents and working with documents in several file formats. The Compatibility Mode and Compatibility Checker tools help to identify features and functionality that behave differently to raise awareness and prevent loss of data when moving between versions.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading {"level":3} -->
+<h3 id="compatibility-mode">Compatibility Mode</h3>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>Introduced in Excel 2007, Compatibility Mode effectively disables any new features in Excel 2007 and Excel 2010 that are not compatible with earlier versions of Excel. Compatibility Mode is tied to the Excel 97-2003 file format. For example, if a workbook opened in Excel 2010 is running in Compatibility Mode, the larger grid size will be suppressed so that users cannot enter data, formulas, or references outside the smaller grid boundary of earlier versions of Excel. The Sparkline feature added in Excel 2010 is another example of a feature that is disabled while in Compatibility Mode.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>Users that open a workbook saved in the Excel 97-2003 file format (.xls) will note the workbook automatically functions in Compatibility Mode. Similarly, when working with a new workbook destined for use in earlier versions of Excel, users may turn on Compatibility Mode (by saving the file in the Excel 97-2003 file format, and then closing and re-opening the file) to prevent accidental use of functions and features that are incompatible with the earlier versions of Excel. This is critical for users that plan to share workbooks with others who have not yet migrated to Excel 2007 or later.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>When working in Compatibility Mode, users will still be able to work with the Office Fluent user interface and have access to most of the features in Excel. Only features that are incompatible and will not be saved into the Excel 97-2003 file format—such as the larger grid size—will be turned off for that particular workbook. Similarly, when a new workbook is saved to the Excel 97–2003 file format, that workbook will automatically be placed into Compatibility Mode the next time it is opened.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading {"level":4} -->
+<h4 id="disabled-features-in-compatibility-mode">Disabled Features in Compatibility Mode</h4>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>Chapter 1 of this document describes how features new to Excel 2010 will not be saved to the Excel 97-2003 format. To aid people in recognizing the features that are not saved in that format the interface has been modified for the affected features. In general, the commands in the interface for these features have been disabled and ScreenTips are provided to indicate the reason for the disabled feature. Features that were improved in Excel 2010 may have the new functionality enabled but will have a ScreenTip that indicates the functionality will not be saved in the Excel 97-2003 file format.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading {"level":5} -->
+<h5 id="sparklines">Sparklines</h5>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>Sparklines are a new type of data visualization in Excel 2010. These small, cell-size graphs are not saved to the Excel 97-2003 file format. Insertion of Sparklines is disabled in the interface.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading {"level":5} -->
+<h5 id="slicers">Slicers</h5>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>Slicers are a new feature in Excel 2010 that provide filtering for PivotTable™ and PivotChart™ views and CUBE functions within the workbook. Insertion of Slicers is disabled. If Slicers already exist in the workbook they are not saved to the Excel 97-2003 file format and any formulas that reference them will return a #NAME? error.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading {"level":5} -->
+<h5 id="conditional-formatting">Conditional Formatting</h5>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>Excel 2010 has a number of improvements in the area of Conditional Formatting including Data Bars and Icon Sets. In general, the interface for these improvements will be enabled in Compatibility Mode and ScreenTips will indicate that the new functionality will not be saved in the Excel 97-2003 file format.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading {"level":5} -->
+<h5 id="new-pivot-features">New Pivot Features</h5>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>A number of the PivotTable improvements made in Excel 2010 will be disabled while in Compatibility Mode to indicate that they will not be saved to the Excel 97-2003 format. Those features include Named Sets, What-If Analysis, and new Show Values As functions. The new Search Filter will not be disabled because the feature is used to filter a PivotTable field while running the application, not a setting that is stored with the file.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading {"level":4} -->
+<h4 id="converting-workbooks">Converting Workbooks</h4>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>To exit Compatibility Mode and enable the disabled commands, convert the workbook to one of the new file formats and then re-open the workbook. This can be accomplished in one step using the <strong>Convert</strong> command: Click the <strong>File tab</strong> and on the <strong>Info Tab</strong>, click <strong>Convert</strong>.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading {"level":3} -->
+<h3 id="compatibility-checker">Compatibility Checker</h3>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>By default, the Compatibility Checker will function automatically when saving a workbook to the Excel 97-2003 file format, scanning for features and characteristics that are not supported by earlier versions of Excel. Users also have the option to disable the Compatibility Checker so that it does not run automatically when saving the workbook to an earlier file format.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>The Compatibility Checker will identify two types of compatibility issues: features that are retained but function differently in earlier versions of Excel, and functions that are disabled in Compatibility Mode and therefore not functional in earlier versions of Excel. These issues will be displayed in a dialog box that allows the user to respond and take action before any data or functions are lost. The Compatibility Checker will list the issues identified in the workbook, summarize the number of occurrences of each issue, identify tools to help locate the issues, and provide additional help for the types of issues identified.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading {"level":4} -->
+<h4 id="new-version-attribute-for-compatibility-checker">New “Version” attribute for Compatibility Checker</h4>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>In Excel 2010, the Compatibility Checker has been improved to include a version attribute for each of the issues listed in the Compatibility Checker. Each issue will indicate whether it applies to Excel 97-2003, Excel 2007 or both. The list may be filtered by version to show the specified issues.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading {"level":2} -->
+<h2 id="feature-removal">Feature Removal</h2>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>Removing functionality in a product is never a decision that is made lightly. We rarely remove functionality and strive for backwards compatibility with every version. When we do make changes to functionality that has been in the product we do so when we believe it will be a benefit to the majority of our customers by helping us to make forward progress.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading {"level":3} -->
+<h3 id="conditional-sum-and-lookup-wizard-add-ins">Conditional Sum and Lookup Wizard Add-ins</h3>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>The following add-ins that were previously shipped with Excel are no longer included in Excel 2010:</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:list -->
+<ul><li>The Conditional Sum Wizard: Helps users create formulas that calculated the sums of values that meet specified conditions.</li><li>The Lookup Wizard: Helps users create formulas that finds a value at the intersection of a row and column by looking up specified values.</li></ul>
+<!-- /wp:list -->
+
+<!-- wp:paragraph -->
+<p>These add-ins are out of date, having been replaced by the function wizard and with the introduction of several functions including SUMIF and SUMIFS.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>These wizards stepped people through the process of creating specific types of formulas, with the result being a formula entered into a cell in the worksheet. The formulas generated by these two wizards will continue to work in Excel 2010 and can be edited using other methods.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading {"level":3} -->
+<h3 id="additional-actions-smart-tags">Additional Actions (Smart Tags)</h3>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>Text and Values are no longer automatically recognized by a smart tag recognizer and will no longer display an indicator. Instead, users will be able to trigger recognition and view actions associated with text by right-clicking selected text and then clicking <strong>Additional actions</strong> on the context menu. There are also changes to the object model that may affect solutions that use Additional Actions. This information will no longer be stored in the file and solutions will no longer be able to programmatically manipulate actions attached to cell text.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading {"level":3} -->
+<h3 id="document-workspaces">Document Workspaces</h3>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>The functionality to create and manage Document Workspaces has been changed in Excel 2010. Document Workspaces provided the ability to work with a local copy of a file and periodically update the local copy with changes from the server or update the server with changes from the local copy.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>In Office 2010, SharePoint Workspaces will replace the previous Document Workspaces functionality. The SharePoint Workspaces feature will work without the need to create or manage the workspace from within Excel. This provides the ability for users to continue editing a document even when offline and automatically syncing these changes to WSS on the next connection.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>The SharedWorkspace Object Model will be deprecated. Existing macros which utilize it will silently fail.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading {"level":3} -->
+<h3 id="pattern-fills-interface-back-in-excel-2010">Pattern Fills Interface: Back in Excel 2010</h3>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>In Excel 2007 the pattern fills interface for shape objects was not re-implemented for the new Office Art technology. Excel 2007 did allow programmatic access to pattern fills. In Excel 2010, we have finished implementing the feature, making the interface available once again. Existing files will appear the same when loaded.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading {"level":2} -->
+<h2 id="pivottable-views">PivotTable views</h2>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>Many changes have been made to the architecture of PivotTable views starting in Excel 2007 and continuing in Excel 2010. These changes will allow users to do more with PivotTable views, but the changes may also cause some problems when migrating from earlier versions of Excel.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>To ensure a PivotTable remains whole and functional, the version property of a PivotTable is completely separate from the version property of Excel. PivotTable views in Excel 2010 will be version 14 (xlPivotTableVersion14). Whereas a PivotTable created in an earlier version of Excel will have a different version number. For example, a version 10 PivotTable (xlPivotTableVersion10) is created in either Excel 2002 or Excel 2003 and a version 12 PivotTable (xlPivotTableVersion12) is created in Excel 2007.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>When using Excel 2010, the version of the PivotTable will be determined by whether the user is working in Compatibility Mode. If the current workbook is in Compatibility Mode, new PivotTable views created in that workbook will be version 10. When the current workbook is not in Compatibility Mode, new PivotTable views will be version 14.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>When the user saves a workbook in Compatibility Mode to one of the new file formats, the PivotTable views in that workbook will be marked for upgrade. When each PivotTable is refreshed, it will then be upgraded to version 14 and new functionality will be enabled for that PivotTable.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>It is important to note that version 14 PivotTable views cannot be downgraded to version 10, even when saving the workbook using an older file format. This means that a version 14 PivotTable created in Excel 2010 may not be modified or refreshed when opened in an version of Excel prior to 2007. However, the PivotTable will maintain all functionality and may be modified or refreshed when re-opened in Excel 2010. If the user plans to share PivotTable views with others using a version of Excel prior to Excel 2007 <em>and</em> they need to refresh the PivotTable views, it is important to make sure that these PivotTable views are created as version 10 PivotTable views. The simplest way to do this is by using Compatibility Mode. (Please refer to Compatibility Mode in this chapter for more information.)</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading {"level":2} -->
+<h2 id="office-art">Office Art</h2>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>Beginning in 2007 the applications in Office featured a new version of shapes, with new formatting capabilities, a better user interface, integration with new Microsoft Office styles and themes, and compatibility with other features not present in earlier versions of Office Art.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>Upon opening an Excel 97-2003 workbook in Excel 2010, most of the shapes within the workbook will be automatically converted to the newer version of shapes. This enables users to take advantage of features available in the Office Art Shape galleries.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>There are a few exceptions to the automatic upgrade and in these instances, Office Art Shapes will remain whole and usable in their previous format. These features include: comments, dialog sheet backgrounds, shapes used internally by Excel for various features (such as filter drop-down lists, auditing and circular reference arrows, and data validation ovals), ink annotations, header pictures, organization charts, and older diagrams.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>It is important to note that shapes drawn in earlier versions of Excel that are not upgraded cannot be grouped with shapes drawn in Excel 2010, or with shapes that have been upgraded. As a result, when users mix object types they will be layered, with the earlier version of shapes drawn on top of all later version shapes. This also means that charts (new version) cannot be shown on top of dialog sheets (old version).</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>Although the charts will still be there, users will not be able to view the charts layered underneath the dialog sheets. Using <strong>Select Objects</strong>, users will only be able to access the new shapes. In order to select shapes from an earlier version of Excel, in Excel Options, you must add the <strong>Select Multiple Objects</strong> command to your Ribbon or Quick Access Toolbar.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading {"level":1} -->
+<h1 id="chapter-3-opening-excel-2007-workbooks-in-excel-2010">Chapter 3: Opening Excel 2007 Workbooks in Excel 2010</h1>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>Excel 2007 included many architectural changes such as support for additional rows and columns and new file formats that had an impact on migrating documents from previous versions of Excel. While Excel 2010 has many improvements, the changes have less of an impact when migrating documents from Excel 2007. This chapter describes the changes when opening Excel 2007 workbooks in Excel 2010.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading {"level":2} -->
+<h2 id="pivotchart-views">PivotChart views</h2>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>Excel 2010 has the ability to show field controls directly on a PivotChart to enable filtering and moving fields, similar to the functionality that was in versions of Excel prior to Excel 2007. In contrast, Excel 2007 provided a modeless dialog which allowed you to pivot the chart but the inline controls proved to be a more intuitive way to do this which is why we moved back to this model.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>When Excel 2007 workbooks containing PivotChart views are opened in Excel 2010, field controls will be displayed on the PivotChart. Excel 2010 allows you to use the Show/Hide Field Buttons command to hide specific buttons on the chart or all at once.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p><span id="_Toc264643662" class="anchor" data-pandoc-anchor="empty-target"></span><strong>Shapes</strong></p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>As described in Chapter 2, most of the shapes within a workbook are converted to the new shape type that enable users to take advantage of the features available in the Shape Style galleries.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>In Excel 2007 there were a few exceptions to the automatic upgrade. These features included: comments, forms controls (including dialog sheet backgrounds), ActiveX objects, shapes used internally by Excel for various features (such as filter drop-down lists, auditing and circular reference arrows, and data validation ovals), OLE objects, camera tool objects, ink annotations, header pictures, organization charts, and older diagrams.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>When opening Excel 2007 files in Excel 2010, forms controls, ActiveX objects, OLE objects and camera tool objects are now also converted.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>It is important to note that shapes drawn in earlier versions of Excel that are not upgraded cannot be grouped with shapes drawn in Excel 2010, or with shapes that have been upgraded. Similarly, users will not be able to select upgraded and non-upgraded charts at the same time. As a result, when users mix object types they will be layered, with the earlier version of shapes drawn on top of all later version shapes. This also means that charts (new version) cannot be shown on top of dialog sheets (old version).</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>Although the charts will still be there, users will not be able to view the charts layered underneath the dialog sheets. Using <strong>Select Objects</strong>, users will only be able to access the new shapes. In order to select shapes from an earlier version of Excel, in Excel Options, you must add the <strong>Select Multiple Objects</strong> command to your Ribbon or Quick Access Toolbar.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading {"level":1} -->
+<h1 id="chapter-4-opening-excel-2010-workbooks-in-earlier-versions-of-excel">Chapter 4: Opening Excel 2010 Workbooks in Earlier Versions of Excel</h1>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>It is reasonable to expect that after migrating to Excel 2010, users will continue to share workbooks with others that are still working with earlier versions of Excel. The Excel workbook formats (XLSX, XLSB, XLSM) in Excel 2010 are the same formats introduced in Excel 2007. Excel workbooks saved in Excel 2010 can be opened directly in Excel 2007.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>There are two ways to facilitate sharing files across versions of Excel prior to Excel 2007: The Excel 2010 user can use the <strong>Save As</strong>command to save the workbook in an earlier file format, or Excel 2000–Excel 2003 users can download the Compatibility Pack to open a workbook saved in the Excel 2007–2010 file format. Download the <a href="http://go.microsoft.com/fwlink/?LinkID=78517&amp;clcid=0x409">Compatibility Pack</a> from the Microsoft Web site (http://go.microsoft.com/fwlink/?LinkID=78517&amp;clcid=0x409).</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>The workbook will behave the same whether the file is saved as an Excel 97-2003 workbook or whether the user opens it with the Compatibility Pack. It should be noted, however, that some of the features, functions, and data entered in an Excel 2010 workbook may not be visible or usable in earlier versions of Excel. Users can expect the following issues to arise when opening an Excel 2010 workbook in earlier versions of Excel.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading {"level":2} -->
+<h2 id="excel-97-2003-file-format">Excel 97-2003 File Format</h2>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>As described in Chapter 1 &amp; 2, features new to Excel 2010 will not be saved to the Excel 97-2003 file format and in general these features are disabled when in Compatibility Mode.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading {"level":2} -->
+<h2 id="conditional-formatting-1">Conditional Formatting</h2>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>In Excel 2010 there are additional improvements to Conditional Formatting including new data bar visualizations, additional Icon Set combinations as well as the ability to reference values on worksheets other than the one that conditional formatting is displayed on. When workbooks with conditional formatting are opened in earlier versions of Excel, some of the visualizations simply will not be visible; and others may appear slightly different, when the new feature is not available. For example, Data Bars created in Excel 2010 can have a solid fill. When a file with Data Bars of this type is opened in Excel 2007, the Data Bars will be visible, but a gradient fill will be substituted for the solid fill.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading {"level":3} -->
+<h3 id="cross-sheet-references">Cross-Sheet References</h3>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>In Excel 2010, you can create conditional formatting with references to a different sheet in the same workbook. This means that you no longer need to copy or link your data to the same sheet when using conditional formatting. This applies to all type of conditional formatting including Data Bars and Icon Sets. Conditional formats that use cross-sheet references will not be saved to the Excel 97-2003 file format. Conditional formats of this type will be saved to the newer Excel workbook formats, but the conditional formatting will not be shown when opened in Excel 2007.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading {"level":3} -->
+<h3 id="data-bars">Data Bars</h3>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>Data bars are a type of conditional formatting that was introduced in Excel 2007. Excel draws a bar in each cell with the length based on the value of cell relative to the other cells in the selected range. Data Bars are a great way to spot trends and outliers in your data. In Excel 2010, several improvements have been made to data bars which make them an even better choice for your data analysis.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading {"level":4} -->
+<h4 id="proportional-data-bar-lengths">Proportional Data Bar Lengths</h4>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>In Excel 2007, Data Bars by default used the Lowest Value and Highest Value in the Data Bar group to determine the Data Bar length and filled 10% of the cell with the shortest bar and 90% with the longest bar. This method is good for quickly finding outliers, but can be misleading for some data sets. Data Bars do not exist in version of Excel prior to 2007 and will not be displayed when workbooks containing them are opened in these versions.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading {"level":5} -->
+<h5 id="bar-length-type">Bar Length Type</h5>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>In Excel 2010, Data Bars default to a new Automatic setting for Type that uses the minimum of zero or the lowest negative value in the data set. Data Bars using this automatic setting will be changed to use Lowest Value and Highest Value opened in Excel 2007. This may change the appearance of the Data Bars depending on the data set being used. Saving Data Bars to the Excel 97-2003 format will also convert them to use the Lowest and Highest Value settings as in Excel 2007.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading {"level":5} -->
+<h5 id="minimum-and-maximum-bar-lengths">Minimum and Maximum Bar Lengths</h5>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>Excel 2010 changed the length of the minimum and maximum bar lengths from 10% to 0% and from 90% to 100%. These settings were available for Data Bars using the Object Model in Excel 2007 and will be respected when files containing Data Bars are opened in Excel 2007. Similarly, these settings are stored when saving to the Excel 97-2003 format.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading {"level":4} -->
+<h4 id="formatting-options--solid-fills-and-borders">Formatting Options – Solid Fills and Borders</h4>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>Excel 2010 now has the ability to create Data Bars with different formatting, including Solid Fills in addition to Gradient Fills as well as the ability to add Borders. Data Bars with formatting of this type will be show using a Gradient Fill when opened in Excel 2007. Solid Fills and Borders for Data Bars will not be saved to the Excel 97-2003 file format.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading {"level":4} -->
+<h4 id="negative-value-data-bars">Negative Value Data Bars</h4>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>In Excel 2010, we have introduced negative value data bars which can help analyze trends when negative values are involved. By default, we position the axis in the cell so that a small negative value will not occupy half the cell lengths when bigger positives values are also in the range. If you prefer, we let you position the axis in the center of the cell. Negative Value Data Bars will be displayed as regular Data Bars when opened in Excel 2007</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading {"level":3} -->
+<h3 id="icon-sets">Icon Sets</h3>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>Excel 2007 introduced a new type of visual conditional formatting called Icon Sets. Excel draws an icon in each cell representing the value of the cell relative to the other cells in the selected range. Excel 2010 now offers more flexibility, allowing the icons in different sets to be combined and the ability to only show some of the icons in a group of cells formatted with Icon Sets. These new Custom Icon Sets that can be created in Excel 2010 will not be displayed when opened in Excel 2007. Custom Icon Sets will not be saved to the Excel 97-2003 file format.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading {"level":2} -->
+<h2 id="sparklines-1">Sparklines</h2>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>In Excel 2010 we’ve added a new type of data visualization, Sparklines. Sparklines are small, cell-sized charts that are placed within cells, next to your data to show information about a lot of data at a glance. As with the other new features in Excel 2010, Sparklines will not be saved to the Excel 97-2003 file format and inserting Sparklines will be disabled in Compatibility Mode. Sparklines will be saved to the new Excel workbook formats but will not be shown when Excel workbooks are opened in Excel 2007.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading {"level":2} -->
+<h2 id="data-validation">Data Validation</h2>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>Data Validation in Excel 2010 has been improved to allow cross sheet references, similar to Conditional Formatting. Data Validation that uses cross-sheet references will not be saved to the Excel 97-2003 file format. Data validation of this type will be saved to the newer Excel workbook formats, but will not be shown when opened in Excel 2007.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading {"level":2} -->
+<h2 id="formulas-and-functions">Formulas and Functions</h2>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>In Excel 2010, a number of new worksheet functions have been added. These functions when used in formulas will return a #NAME! error when files containing them are opened in previous versions of Excel, consistent with the way that any new or un-recognized function is treated. These functions will also have the string, “xlfn_” preceding the function name when opened in previous versions of Excel to identify it and to prevent it from conflicting with any user-defined functions that may be present. For example, T.DIST.RT will become xlfn_T.DIST.RT when viewed in previous versions of Excel.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading {"level":3} -->
+<h3 id="new-icons-in-formula-autocomplete">New Icons in Formula AutoComplete</h3>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>As a result of the changes we’ve made to improve the consistency of Excel’s function library, we have introduced a whole new set of functions. Often these new functions look very similar to functions that existed in Excel 2007 and earlier, except with more accurate and consistent names. For example, in Excel 2007 we have the FDIST function and in Excel 2010 we introduced the F.DIST.RT function which has equivalent functionality, but it has a more appropriate function name. We want to promote the use of the Excel 2010 version of the functions. With accurate and consistent names, spreadsheets will be easier to debug and it will also be easier to teach functions to new users. To help users distinguish between the new and old versions of a function, we created a new function category called compatibility functions. Compatibility functions can be used so that workbooks remain compatible with earlier versions of Excel.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>The concept of compatibility functions comes into play in the Formula AutoComplete. Once a user starts typing =, and the name of the function, the AutoComplete list provides suggestions as to what function the user may want. Compatibility functions appear at the end of the AutoComplete list even if alphabetically they should be higher on the list, since we want to make it easier for users to access the new functions. We know that some users will still want to use the compatibility functions and felt it was a good idea they remain visible in AutoComplete. You’ll also see a new icon to the left of compatibility functions in the AutoComplete list to differentiate them from other functions.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading {"level":3} -->
+<h3 id="new-limit-for-nonadjacent-cell-selection">New Limit for nonadjacent cell selection</h3>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>In Excel 2010 there is a new limit to the number of separate ranges that can be selected or referred to simultaneously. An example of a nonadjacent selection is when you select a cell range, hold CTRL, and then select a subsequent range. In Excel 2010 this limit has now been extended to 8k or 8192 separate ranges. These types of selections will not be saved to the Excel 97-2003 file format. Opening files with selections or references of this type in Excel 2010 will produce different results. For example, selecting 5000 separate ranges and saving the file with this as the active selection will change the current selection to be just the single active cell when opened in Excel 2007. The Compatibility Checker (see Chapter 2) can provide a warning if the previous limit has been exceeded.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading {"level":2} -->
+<h2 id="filtering">Filtering</h2>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>In Excel 2010, there have been a number of improvements to filtering for Tables, PivotTable and PivotChart views. Tables, PivotTable and PivotChart views now have a new search functionality that easily enables you to find what you need and then filter and repeat. This results in a faster and more efficient way of navigating those enormous data sets. Another improvement is that text filters are no longer limited to 256 characters. In general, filters created using the search mechanism will produce similar results in earlier versions of Excel, with one exception. Only filters created in Excel 2010 that are greater than 256 characters will behave differently in earlier versions of Excel. These filters are discarded and when the associated object is updated, it may filter differently.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading {"level":2} -->
+<h2 id="pivottable-views-1">PivotTable views</h2>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>Chapter 2 of this document describes in detail how PivotTable views have a version number associated with them. A PivotTable created while not in Compatibility Mode will have the same general appearance when opened in Excel versions prior to 2007 but will be static (not refreshable). A PivotTable created in Compatibility mode will function in previous versions of Excel but may change appearance after being refreshed. Additional information is provided below for each of the new PivotTable features introduced in Excel 2010.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading {"level":3} -->
+<h3 id="named-sets">Named Sets</h3>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>When working with a PivotTable, you often come across scenarios where you want to work with the same set of items from the data over and over again. Named Sets are a very flexible tool that allows users to do a lot more than just create a re-usable group of items for a PivotTable. With Named Sets in Excel 2010 you can:</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:list -->
+<ul><li>Create simple, re-usable, groupings of common sets of items for re-use in a PivotTable—even when those sets are not present in the data.</li><li>Create a PivotTable that combine items from different hierarchies in ways that otherwise wouldn’t be possible (what is sometimes called “asymmetric reporting”).</li><li>Create a PivotTable based on your own custom MDX.</li></ul>
+<!-- /wp:list -->
+
+<!-- wp:paragraph -->
+<p>You may be saying to yourself “haven’t I used Named Sets in Excel before?” Well, Excel has allowed you to access some Named Sets that exist on an OLAP data source for a number of versions. In fact, you could even create Named Sets using the Excel object model in previous versions of Excel, so long as you could figure out how to do so, write MDX for the set, and so long as your set was one that previous versions of Excel could support. The named set consisted only of members from a single hierarchy and was not dynamic.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading {"level":4} -->
+<h4 id="saving-named-sets">Saving Named Sets</h4>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>Only the subset of Named Sets that was supported in previous versions of Excel will be saved to the Excel 97-2003 file format. Viewing a PivotTable with Named Sets in previous versions of Excel will appear similar when opened, but may produce different results after refreshing the PivotTable.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading {"level":3} -->
+<h3 id="enhanced-show-as">Enhanced show as</h3>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>Excel 2010 also has introduced 6 new calculations for the “Show Values As” feature:</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:list -->
+<ul><li><strong>% of Parent Row Total / % of Parent Column Total:</strong> These calculations display all the values in each column or row as a percentage of the total for the column or row.</li><li><strong>% of Parent Total:</strong> This calculation displays a value as a percentage of the parent item value of a chosen base field. We can choose a base field that serves as a starting point for the calculation.</li><li><strong>% Running Total in:</strong> This calculation displays a value as a running total percentage for a chosen base field.</li><li><strong>Rank Smallest to Largest / Rank Largest to Smallest:</strong> Gives us the ability to assign a ranked number based on the field the calculation is applied to. I would want to do this in cases where I am interested in finding out where my largest or smallest values are.</li></ul>
+<!-- /wp:list -->
+
+<!-- wp:paragraph -->
+<p>When saving a workbook with these new calculations to the Excel 97-2003 workbook format, these custom outputs will not be saved, and will be replaced by the original values from the data source. Viewing a PivotTable with new calculations in previous versions of Excel will appear similar when opened, but may produce different results after refreshing the PivotTable.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading {"level":3} -->
+<h3 id="repeating-labels">Repeating Labels</h3>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>In Excel 2010 a new Repeating Labels feature has been added for PivotTable views. Repeating labels in a PivotTable is the ability to show the item captions of outer nested fields in all rows/columns. Viewing a PivotTable with Repeating Labels in previous versions of Excel will appear similar when opened, but may produce different results after refreshing the PivotTable.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading {"level":3} -->
+<h3 id="visual-totals-for-pivottable-and-sets">Visual Totals for PivotTable and Sets</h3>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>In Excel 2010 we have added some visual total settings in PivotTable options. Visual Totals refer to how displayed totals calculate when one or more members are filtered. In the case of Visual Totals being ON all my totals will reflect the aggregation of only the members present and visible in the PivotTable at that time. In the case of having Visual Totals OFF all filtered items will also count towards the aggregation of totals. Viewing a PivotTable with Visual Totals in previous versions of Excel will appear similar when opened, but may produce different results after refreshing the PivotTable.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading {"level":3} -->
+<h3 id="pivottable-what-if-analysis-writeback">PivotTable What-if Analysis (Writeback)</h3>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>When thinking of Excel as an OLAP analytical tool the first thing that usually comes to mind is the ability to quickly and easily analyze data from an OLAP data source. With the introduction of PivotTable What-If Analysis in Excel 2010 you can now easily modify this data as well. PivotTable What-If Analysis is the ability to modify values in PivotTable cells, recalculate the PivotTable with those values and, if the results are satisfactory, publish the changes so that they are reflected in the OLAP data source for other people to see.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading {"level":4} -->
+<h4 id="saving-what-if-analysis">Saving What-if Analysis</h4>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>If you modify the values within a PivotTable using What-if Analysis and save the workbook to the Excel 97-2003 format, the values will be persisted but as with all version 14 PivotTable views, the PivotTable will be static when reopened. Modified values opened in Excel 2007 will be unchanged until the PivotTable is refreshed, at which point the original values from the cube will replace the modified values.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading {"level":2} -->
+<h2 id="slicers-1">Slicers</h2>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>New to Excel 2010 are slicers, which are visual controls that allow you to quickly and easily filter your data in an interactive way. They float above the grid, like charts and shapes. A Slicer acts like a report filter, so you can connect it to a PivotTable, PivotChart, or CUBE function to create an interactive report.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading {"level":3} -->
+<h3 id="slicers-and-the-excel-97-2003-format">Slicers and the Excel 97-2003 format</h3>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>As with most other new features in Excel 2010, Slicers will not be saved to the Excel 97-2003 file format. When saving to this format, the compatibility checker will warn that Slicers will not be saved and any references to them will return a #REF error. Insertion of Slicers is disabled while in Compatibility Mode.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading {"level":3} -->
+<h3 id="slicers-with-current-excel-workbook-formats">Slicers with current Excel Workbook Formats</h3>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>Slicers will be included when saving to the Excel Workbook formats. If you open such a file in an earlier version of Excel, either directly in the case of Excel 2007 or using the Compatibility Pack in earlier versions, a text box indicating the location of the Slicer will be displayed in place of the Slicer object. Some operations in previous versions of Excel may cause a Slicer to be disconnected from its data source or removed. Slicers disconnected in this way may be re-connected when re-opened in Excel 2010.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading {"level":2} -->
+<h2 id="charting">Charting</h2>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>With the Office 2007 release, charting became part of a shared Microsoft Office drawing layer. In Excel 2010 there are only a few charting issues that may affect migration.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading {"level":3} -->
+<h3 id="data-points-in-a-series-limits-removed">Data Points in a Series Limits Removed</h3>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>In previous versions of Excel, charts were limited to 32,000 data points per series (4,000 for 3-D charts). Excel 2010 has removed this limitation, with available memory now being the limit. Charts that reference more data points than were previously allowed will only display the first 32,000 data points per series in 2-D charts, and the first 4,000 data points per series in 3-D charts, when the workbook is opened in a version of Excel prior to Excel 2010.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading {"level":3} -->
+<h3 id="pivotchart-settings">PivotChart Settings</h3>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>Excel 2010 has the ability to show field controls directly on a PivotChart to enable filtering and moving fields, similar to the functionality that was in versions of Excel prior to Excel 2007. In contrast, Excel 2007 provided a modeless dialog which allowed you to pivot the chart but the inline controls proved to be a more intuitive way to do this which is why we moved back to this model.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>When Excel 2010 workbooks containing PivotChart views are opened in versions of Excel prior to 2007, field controls will be displayed on the PivotChart based on their visibility in Excel 2010. Excel 2010 allows you to use the Show/Hide Field Buttons command to hide specific buttons on the chart or all at once. If any of the field controls were visible when the file was saved in Excel 2010, all of the controls will be visible when opened in the prior version of Excel. If all of the controls were hidden in Excel 2010, none of the controls will be displayed in the prior version of Excel. Excel 2007 will not display any field controls regardless of their state when saved in Excel 2010.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading {"level":2} -->
+<h2 id="custom-data-parts">Custom Data Parts</h2>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>Custom Data Parts enable the storage of custom data inside an Excel Workbook file without Excel having to understand the format or contents of the data. Custom Data Parts are snippets of XML which are stored inside the file and can be used to store custom data for that workbook. The data in Custom Data Parts is accessed via an OLEDB provider.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>Designed by SQL Server’s Analysis Services team in collaboration with the Excel team, <strong>PowerPivot for Excel 2010</strong> is a data analysis tool that can transform enormous quantities of data from virtually any source with incredible speed into meaningful information to get the answers they need in seconds. During the import process, a snapshot of all the data is imported into PowerPivot and stored in memory using a highly scalable engine. Saving the file will not only save any contents on the workbook but also all PowerPivot data. i.e. the PowerPivot data is stored as a Custom Data Part within the Excel workbook to simplify transport as well as remove the management overhead of managing separate database services.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading {"level":3} -->
+<h3 id="saving-custom-data-parts">Saving Custom Data Parts</h3>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>Custom Data Parts are not saved into the Excel 97-2003 workbook format. The Compatibility Checker will warn when Custom Data Parts are lost when saving. When saving to the newer Excel workbook formats, Custom Data Parts must be associated with a Data connection or Data Object (PivotTable, Cube Functions, etc.) to be saved with the file. For example, if you use PowerPivot to insert a PivotTable in your workbook that is connected to data in a Custom Data Part, and you then delete the PivotTable from the workbook, saving the workbook will remove the Custom Data Part if it is no longer referenced by anything.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>Excel workbooks containing object referencing Custom Data Parts cannot be refreshed when opened in previous versions of Excel.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading {"level":2} -->
+<h2 id="alternative-text-properties">Alternative text properties</h2>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>Excel 2010 now has the ability to add alternative text to Tables and PivotTable views for use in Accessibility applications. As with other new features in Excel 2010, the Alternative Text Properties will not be saved to the Excel 97-2003 file format.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading {"level":1} -->
+<h1 id="chapter-5-additional-resources">Chapter 5: Additional Resources</h1>
+<!-- /wp:heading -->
+
+<!-- wp:heading {"level":4} -->
+<h4 id="selected-technical-articles-for-office-2010-development">Selected Technical Articles for Office 2010 Development</h4>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p><strong>Introduction to the Office 2010 Backstage View for Developers</strong></p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p><a href="http://msdnstage.redmond.corp.microsoft.com/en-us/library/ee691833(office.14).aspx">http://msdnstage.redmond.corp.microsoft.com/en-us/library/ee691833(office.14).aspx</a></p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p><strong>Ribbon Extensibility in Office 2010: Tab Activation and Auto-Scaling</strong></p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p><a href="http://msdnstage.redmond.corp.microsoft.com/en-us/library/ee691834(office.14).aspx">http://msdnstage.redmond.corp.microsoft.com/en-us/library/ee691834(office.14).aspx</a></p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p><strong>Deploying a Customized Ribbon and Quick Access Toolbar in Office 2010</strong></p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p><a href="http://msdnstage.redmond.corp.microsoft.com/en-us/library/ee704589(office.14).aspx">http://msdnstage.redmond.corp.microsoft.com/en-us/library/ee704589(office.14).aspx</a></p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p><strong>Customizing the Office 2010 Backstage View for Developers</strong></p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p><a href="http://msdnstage.redmond.corp.microsoft.com/en-us/library/ee815851(office.14).aspx">http://msdnstage.redmond.corp.microsoft.com/en-us/library/ee815851(office.14).aspx</a></p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading {"level":4} -->
+<h4 id="compatibility-resources">Compatibility Resources</h4>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p><strong>Office 2010 Resource Kit</strong></p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p><a href="http://technet.microsoft.com/en-us/library/cc303401.aspx">http://technet.microsoft.com/en-us/library/cc303401.aspx</a></p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p><strong>Compatibility for Microsoft Office 2010</strong></p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p><a href="http://technet.microsoft.com/en-us/office/ff460851.aspx#tab=1">http://technet.microsoft.com/en-us/office/ff460851.aspx#tab=1</a></p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p><strong>2007 Migration Whitepaper</strong></p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p><a href="http://technet.microsoft.com/en-us/library/cc179206.aspx">http://technet.microsoft.com/en-us/library/cc179206.aspx</a></p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p><strong>Office 2010 Tool: Compatibility Inspector</strong></p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p><a href="http://www.microsoft.com/downloads/info.aspx?na=47&amp;p=1&amp;SrcDisplayLang=en&amp;SrcCategoryId=&amp;SrcFamilyId=ea33f615-188d-464e-bc64-3ab06aa43961&amp;u=details.aspx%3ffamilyid%3d23C8A7F6-88B3-48EF-9710-9742340562C0%26displaylang%3den">http://www.microsoft.com/downloads/info.aspx?na=47&amp;p=1&amp;SrcDisplayLang=en&amp;SrcCategoryId=&amp;SrcFamilyId=ea33f615-188d-464e-bc64-3ab06aa43961&amp;u=details.aspx%3ffamilyid%3d23C8A7F6-88B3-48EF-9710-9742340562C0%26displaylang%3den</a></p>
+<!-- /wp:paragraph -->

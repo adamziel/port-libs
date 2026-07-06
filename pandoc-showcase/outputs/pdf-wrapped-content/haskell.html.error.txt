@@ -1,2 +1,0 @@
-Unknown input format 'pdf'
-Pandoc can convert to PDF, but not from PDF.

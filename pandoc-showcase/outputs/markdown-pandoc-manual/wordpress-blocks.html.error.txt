@@ -1,0 +1,26 @@
+PHP Fatal error:  Allowed memory size of 134217728 bytes exhausted (tried to allocate 20480 bytes) in $REPO/lanes/pandoc/src/TableGeometry.php on line 13310
+Stack trace:
+#0 $REPO/lanes/pandoc/src/TableGeometry.php(202): PortLibs\Pandoc\TableGeometry::sectionGridForEntries(Array, 2)
+#1 $REPO/lanes/pandoc/src/TableGeometry.php(548): PortLibs\Pandoc\TableGeometry::sectionGrids(Object(PortLibs\Pandoc\AstNode))
+#2 $REPO/lanes/pandoc/src/WordPressBlockWriter.php(1598): PortLibs\Pandoc\TableGeometry::accessibilityAttributes(Object(PortLibs\Pandoc\AstNode))
+#3 $REPO/lanes/pandoc/src/WordPressBlockWriter.php(1129): PortLibs\Pandoc\WordPressBlockWriter->tableAccessibilityByCell(Object(PortLibs\Pandoc\AstNode))
+#4 $REPO/lanes/pandoc/src/WordPressBlockWriter.php(999): PortLibs\Pandoc\WordPressBlockWriter->renderTableHtml(Object(PortLibs\Pandoc\AstNode))
+#5 $REPO/lanes/pandoc/src/WordPressBlockWriter.php(76): PortLibs\Pandoc\WordPressBlockWriter->renderTable(Object(PortLibs\Pandoc\AstNode))
+#6 $REPO/lanes/pandoc/src/PandocConverter.php(63): PortLibs\Pandoc\WordPressBlockWriter->write(Object(PortLibs\Pandoc\AstNode))
+#7 $REPO/lanes/pandoc/src/PandocConverter.php(80): PortLibs\Pandoc\PandocConverter::write(Object(PortLibs\Pandoc\AstNode), 'wordpress', Array)
+#8 $REPO/lanes/pandoc/src/PandocConverter.php(99): PortLibs\Pandoc\PandocConverter::convert('---\ntitle: Pand...', 'markdown', 'wordpress', Array)
+#9 $REPO/tools/build-pandoc-showcase.php(21): PortLibs\Pandoc\PandocConverter::convertFile('$TMP', 'markdown', 'wordpress')
+#10 {main}
+Fatal error: Allowed memory size of 134217728 bytes exhausted (tried to allocate 20480 bytes) in $REPO/lanes/pandoc/src/TableGeometry.php on line 13310
+Stack trace:
+#0 $REPO/lanes/pandoc/src/TableGeometry.php(202): PortLibs\Pandoc\TableGeometry::sectionGridForEntries(Array, 2)
+#1 $REPO/lanes/pandoc/src/TableGeometry.php(548): PortLibs\Pandoc\TableGeometry::sectionGrids(Object(PortLibs\Pandoc\AstNode))
+#2 $REPO/lanes/pandoc/src/WordPressBlockWriter.php(1598): PortLibs\Pandoc\TableGeometry::accessibilityAttributes(Object(PortLibs\Pandoc\AstNode))
+#3 $REPO/lanes/pandoc/src/WordPressBlockWriter.php(1129): PortLibs\Pandoc\WordPressBlockWriter->tableAccessibilityByCell(Object(PortLibs\Pandoc\AstNode))
+#4 $REPO/lanes/pandoc/src/WordPressBlockWriter.php(999): PortLibs\Pandoc\WordPressBlockWriter->renderTableHtml(Object(PortLibs\Pandoc\AstNode))
+#5 $REPO/lanes/pandoc/src/WordPressBlockWriter.php(76): PortLibs\Pandoc\WordPressBlockWriter->renderTable(Object(PortLibs\Pandoc\AstNode))
+#6 $REPO/lanes/pandoc/src/PandocConverter.php(63): PortLibs\Pandoc\WordPressBlockWriter->write(Object(PortLibs\Pandoc\AstNode))
+#7 $REPO/lanes/pandoc/src/PandocConverter.php(80): PortLibs\Pandoc\PandocConverter::write(Object(PortLibs\Pandoc\AstNode), 'wordpress', Array)
+#8 $REPO/lanes/pandoc/src/PandocConverter.php(99): PortLibs\Pandoc\PandocConverter::convert('---\ntitle: Pand...', 'markdown', 'wordpress', Array)
+#9 $REPO/tools/build-pandoc-showcase.php(21): PortLibs\Pandoc\PandocConverter::convertFile('$TMP', 'markdown', 'wordpress')
+#10 {main}

@@ -1,5 +1,5 @@
 {
-    "generatedAt": "2026-07-06T18:59:31+00:00",
+    "generatedAt": "2026-07-06T22:12:57+00:00",
     "pandocVersion": "pandoc 3.10\nFeatures: +server +lua\nScripting engine: Lua 5.4\nUser data directory: $REPO\nCopyright (C) 2006-2025 John MacFarlane. Web:  https://pandoc.org\nThis is free software; see the source for copying conditions. There is no\nwarranty, not even for merchantability or fitness for a particular purpose.",
     "formats": [
         "biblatex",
@@ -89,18 +89,18 @@
     ],
     "blockUsage": {
         "totals": {
-            "code": 26,
-            "group": 247,
-            "heading": 246,
-            "image": 8,
-            "list": 87,
-            "paragraph": 665,
-            "quote": 8,
-            "separator": 35,
-            "table": 71,
+            "code": 28,
+            "group": 403,
+            "heading": 3511,
+            "image": 92,
+            "list": 853,
+            "paragraph": 13711,
+            "quote": 21,
+            "separator": 55,
+            "table": 551,
             "verse": 1
         },
-        "sampleCount": 71
+        "sampleCount": 76
     },
     "records": [
         {
@@ -820,6 +820,75 @@
             }
         },
         {
+            "id": "docx-oasis-kmip-spec",
+            "format": "docx",
+            "label": "OASIS KMIP specification DOCX",
+            "description": "Real standards-track DOCX with many sections, tables, lists, references, styles, and packaged media.",
+            "source": "OASIS KMIP Specification v1.4 editable DOCX",
+            "sourceUrl": "https://docs.oasis-open.org/kmip/spec/v1.4/os/kmip-spec-v1.4-os.docx",
+            "samplePath": "samples/docx-oasis-kmip-spec-kmip-spec-v1.4-os.docx",
+            "sampleSize": 482355,
+            "preview": "",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\DocxReader",
+                "notes": "Bounded DOCX package reader parses document.xml, styles, numbering levels/start/style/delimiter attributes, relationships, notes/comments, headers/footers, media references, bookmarks, simple reference fields, OMML equations, and core properties into the shared AST. Full DOCX parity remains open."
+            },
+            "haskell": {
+                "ok": true,
+                "path": "outputs/docx-oasis-kmip-spec/haskell.html"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/docx-oasis-kmip-spec/php.html"
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/docx-oasis-kmip-spec/wordpress-blocks.html"
+            },
+            "wpBlockCounts": {
+                "heading": 300,
+                "image": 1,
+                "list": 50,
+                "paragraph": 1294,
+                "quote": 12,
+                "table": 384
+            }
+        },
+        {
+            "id": "docx-microsoft-excel-migration",
+            "format": "docx",
+            "label": "Microsoft Excel migration guide DOCX",
+            "description": "Real Microsoft Office guide with styled headings, lists, notes, package relationships, and embedded media.",
+            "source": "Microsoft Download Center Migrating to Excel 2010.docx",
+            "sourceUrl": "https://download.microsoft.com/download/2/C/4/2C44D34C-BDF0-4A64-9241-3F9E0FEA7B5E/Migrating%20to%20Excel%202010.docx",
+            "samplePath": "samples/docx-microsoft-excel-migration-Migrating-to-Excel-2010.docx",
+            "sampleSize": 84112,
+            "preview": "",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\DocxReader",
+                "notes": "Bounded DOCX package reader parses document.xml, styles, numbering levels/start/style/delimiter attributes, relationships, notes/comments, headers/footers, media references, bookmarks, simple reference fields, OMML equations, and core properties into the shared AST. Full DOCX parity remains open."
+            },
+            "haskell": {
+                "ok": true,
+                "path": "outputs/docx-microsoft-excel-migration/haskell.html"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/docx-microsoft-excel-migration/php.html"
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/docx-microsoft-excel-migration/wordpress-blocks.html"
+            },
+            "wpBlockCounts": {
+                "heading": 125,
+                "list": 6,
+                "paragraph": 125
+            }
+        },
+        {
             "id": "endnotexml-reader",
             "format": "endnotexml",
             "label": "EndNote XML reader fixture",
@@ -1020,6 +1089,45 @@
                 "heading": 5,
                 "image": 4,
                 "paragraph": 7
+            }
+        },
+        {
+            "id": "epub-gutenberg-alice-illustrated",
+            "format": "epub",
+            "label": "Illustrated Alice EPUB",
+            "description": "Real Project Gutenberg EPUB3 with chapter XHTML, CSS, navigation, cover art, and dozens of illustrations.",
+            "source": "Project Gutenberg illustrated Alice EPUB3 with images",
+            "sourceUrl": "https://www.gutenberg.org/ebooks/28885.epub3.images",
+            "samplePath": "samples/epub-gutenberg-alice-illustrated-alice-illustrated.epub",
+            "sampleSize": 1475122,
+            "preview": "",
+            "support": {
+                "status": "reader-equivalent",
+                "implementation": "PortLibs\\Pandoc\\EpubReader",
+                "notes": "EPUB reader implementation-equivalence gate covers 76/76 checked-in package/native pairs plus the upstream media-bag tuples; the reader resolves the OPF rootfile, metadata, XHTML spine, package-relative href/src resources, EPUB3 nav, and NCX fallback entries through the shared HTML-capable reader path."
+            },
+            "haskell": {
+                "ok": true,
+                "path": "outputs/epub-gutenberg-alice-illustrated/haskell.html"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/epub-gutenberg-alice-illustrated/php.html"
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/epub-gutenberg-alice-illustrated/wordpress-blocks.html"
+            },
+            "wpBlockCounts": {
+                "code": 2,
+                "group": 155,
+                "heading": 7,
+                "image": 26,
+                "list": 1,
+                "paragraph": 903,
+                "quote": 1,
+                "separator": 20,
+                "table": 16
             }
         },
         {
@@ -1686,6 +1794,36 @@
             }
         },
         {
+            "id": "markdown-pandoc-manual",
+            "format": "markdown",
+            "label": "Pandoc manual Markdown",
+            "description": "Real 293 KB Markdown manual with dense sections, tables, links, code, lists, and metadata; currently exposes PHP writer memory limits.",
+            "source": "jgm/pandoc MANUAL.txt at upstream source commit",
+            "sourceUrl": "https://raw.githubusercontent.com/jgm/pandoc/912bfa5e2e3f5c74eb125dfc19404f67c61ca58b/MANUAL.txt",
+            "samplePath": "samples/markdown-pandoc-manual-MANUAL.txt",
+            "sampleSize": 300541,
+            "preview": "---\ntitle: Pandoc User's Guide\nauthor: John MacFarlane\ndate: 2026-06-03\n---\n\n# Synopsis\n\n`pandoc` [*options*] [*input-file*]...\n\n# Description\n\nPandoc is a [Haskell] library for converting from one markup format to\nanother, and a command-line tool that uses this library.\n\nPandoc can convert between numerous markup and word processing formats,\nincluding, but not limited to, various flavors of [Markdown], [HTML],\n[LaTeX] and [Word docx]. For the full lists of input and output formats,\nsee the `--from` and `--to` [options below][General options].\nPandoc can also produce [PDF] output: see [creating a PDF], below.\n\nPandoc's enhanced version of Markdown includes syntax for [tables],\n[definition lists], [metadata blocks], [footnotes], [citations], [math],\nand much more.  See below under [Pandoc's Markdown].\n\nPandoc has a modular design: it consists of a set of readers, which parse\ntext in a given format and produce a native representation of the document\n(an _abstract syntax tree_ or AST), and a set of writers, which convert\nthis native representation into a target format. Thus, adding an input\nor output format requires only adding a reader or writer. Users can also\nrun custom [pandoc filters] to modify the intermediate AST.\n\nBecause pandoc's intermediate representation of a document is less\nexpressive than many of the formats it converts between, one should\nnot expect perfect conversions between every format and every other.\nPandoc attempts to preserve the structural elements of a document, but\nnot formatting details such as margin size.  And some document elements,\nsuch as complex tables, may not fit into pandoc's simple document\nmodel.  While conversions from pandoc's Markdown to all formats aspire\nto be perfect, conversions from formats more expressive than pandoc's\nMarkdown can be expected to be lossy.\n\n## Using pandoc\n\nIf no *input-files* are specified, input is read from *stdin*.\nOutput goes to *stdout* by default. For output to a file,\nuse the `-o`/`--output` option:\n\n    pandoc -o output.html input.txt\n\nBy default, pandoc produces a document fragment. To produce a standalone\ndocument (e.g. a valid HTML file including `<head>` and `<body>`),\nuse the `-s` or `--standalone` flag:\n\n    pandoc -s -o output.html input.txt\n\nFor more information on how standalone documents are produced, see\n[Templates] below.\n\nIf multiple input files are given, pandoc will concatenate them all (with\nblank lines between them) before parsing. (Use `--file-scope` to parse files\nindividually.)\n\n## Specifying formats\n\nThe format of the input and output can be specified explicitly using\ncommand-line options.  The input format can be specified using the\n`-f/--from` option, the output format using the `-t/--to` option.\nThus, to convert `hello.txt` from Markdown to LaTeX, you could type:\n\n    pandoc -f markdown -t latex hello.txt\n\nTo convert `hello.html` from HTML to Markdown:\n\n    pandoc -f html -t markdown hello.html\n\nSupported input and output formats are listed below under [Options]\n(see `-f` for input formats and `-t` for output formats).  You\ncan also use `pandoc --list-input-formats` and\n`pandoc --list-output-formats` to print lists of supported\n...",
+            "support": {
+                "status": "reader-equivalent",
+                "implementation": "PortLibs\\Pandoc\\MarkdownReader",
+                "notes": "Primary native PHP reader; the Markdown reader implementation-equivalence gate covers 137/137 checked-in Markdown/native pairs across the selected Pandoc Markdown dialect profiles."
+            },
+            "haskell": {
+                "ok": true,
+                "path": "outputs/markdown-pandoc-manual/haskell.html"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/markdown-pandoc-manual/php.html"
+            },
+            "wpBlocks": {
+                "ok": false,
+                "error": "PHP Fatal error:  Allowed memory size of 134217728 bytes exhausted (tried to allocate 20480 bytes) in $REPO/lanes/pandoc/src/TableGeometry.php on line 13310\nStack trace:\n#0 $REPO/lanes/pandoc/src/TableGeometry.php(202): PortLibs\\Pandoc\\TableGeometry::sectionGridForEntries(Array, 2)\n#1 $REPO/lanes/pandoc/src/TableGeometry.php(548): PortLibs\\Pandoc\\TableGeometry::sectionGrids(Object(PortLibs\\Pandoc\\AstNode))\n#2 $REPO/lanes/pandoc/src/WordPressBlockWriter.php(1598): PortLibs\\Pandoc\\TableGeometry::accessibilityAttributes(Object(PortLibs\\Pandoc\\AstNode))\n#3 $REPO/lanes/pandoc/src/WordPressBlockWriter.php(1129): PortLibs\\Pandoc\\WordPressBlockWriter->tableAccessibilityByCell(Object(PortLibs\\Pandoc\\AstNode))\n#4 $REPO/lanes/pandoc/src/WordPressBlockWriter.php(999): PortLibs\\Pandoc\\WordPressBlockWriter->renderTableHtml(Object(PortLibs\\Pandoc\\AstNode))\n#5 $REPO/lanes/pandoc/src/WordPressBlockWriter.php(76): PortLibs\\Pandoc\\WordPressBlockWriter->renderTable(Object(PortLibs\\Pandoc\\AstNode))\n#6 $REPO/lanes/pandoc/src/PandocConverter.php(63): PortLibs\\Pandoc\\WordPressBlockWriter->write(Object(PortLibs\\Pandoc\\AstNode))\n#7 $REPO/lanes/pandoc/src/PandocConverter.php(80): PortLibs\\Pandoc\\PandocConverter::write(Object(PortLibs\\Pandoc\\AstNode), 'wordpress', Array)\n#8 $REPO/lanes/pandoc/src/PandocConverter.php(99): PortLibs\\Pandoc\\PandocConverter::convert('---\\ntitle: Pand...', 'markdown', 'wordpress', Array)\n#9 $REPO/tools/build-pandoc-showcase.php(21): PortLibs\\Pandoc\\PandocConverter::convertFile('$TMP', 'markdown', 'wordpress')\n#10 {main}\nFatal error: Allowed memory size of 134217728 bytes exhausted (tried to allocate 20480 bytes) in $REPO/lanes/pandoc/src/TableGeometry.php on line 13310\nStack trace:\n#0 $REPO/lanes/pandoc/src/TableGeometry.php(202): PortLibs\\Pandoc\\TableGeometry::sectionGridForEntries(Array, 2)\n#1 $REPO/lanes/pandoc/src/TableGeometry.php(548): PortLibs\\Pandoc\\TableGeometry::sectionGrids(Object(PortLibs\\Pandoc\\AstNode))\n#2 $REPO/lanes/pandoc/src/WordPressBlockWriter.php(1598): PortLibs\\Pandoc\\TableGeometry::accessibilityAttributes(Object(PortLibs\\Pandoc\\AstNode))\n#3 $REPO/lanes/pandoc/src/WordPressBlockWriter.php(1129): PortLibs\\Pandoc\\WordPressBlockWriter->tableAccessibilityByCell(Object(PortLibs\\Pandoc\\AstNode))\n#4 $REPO/lanes/pandoc/src/WordPressBlockWriter.php(999): PortLibs\\Pandoc\\WordPressBlockWriter->renderTableHtml(Object(PortLibs\\Pandoc\\AstNode))\n#5 $REPO/lanes/pandoc/src/WordPressBlockWriter.php(76): PortLibs\\Pandoc\\WordPressBlockWriter->renderTable(Object(PortLibs\\Pandoc\\AstNode))\n#6 $REPO/lanes/pandoc/src/PandocConverter.php(63): PortLibs\\Pandoc\\WordPressBlockWriter->write(Object(PortLibs\\Pandoc\\AstNode))\n#7 $REPO/lanes/pandoc/src/PandocConverter.php(80): PortLibs\\Pandoc\\PandocConverter::write(Object(PortLibs\\Pandoc\\AstNode), 'wordpress', Array)\n#8 $REPO/lanes/pandoc/src/PandocConverter.php(99): PortLibs\\Pandoc\\PandocConverter::convert('---\\ntitle: Pand...', 'markdown', 'wordpress', Array)\n#9 $REPO/tools/build-pandoc-showcase.php(21): PortLibs\\Pandoc\\PandocConverter::convertFile('$TMP', 'markdown', 'wordpress')\n#10 {main}",
+                "path": "outputs/markdown-pandoc-manual/wordpress-blocks.html.error.txt"
+            },
+            "wpBlockCounts": []
+        },
+        {
             "id": "markdown-mmd-notes",
             "format": "markdown_mmd",
             "label": "MultiMarkdown profile",
@@ -2025,6 +2163,42 @@
             }
         },
         {
+            "id": "odt-oasis-opendocument-schema",
+            "format": "odt",
+            "label": "OASIS OpenDocument schema ODT",
+            "description": "Real 930 KB editable ODT specification with thousands of headings, long prose, lists, tables, styles, and package metadata.",
+            "source": "OASIS OpenDocument v1.3 Part 3 schema editable ODT",
+            "sourceUrl": "https://docs.oasis-open.org/office/OpenDocument/v1.3/os/part3-schema/OpenDocument-v1.3-os-part3-schema.odt",
+            "samplePath": "samples/odt-oasis-opendocument-schema-OpenDocument-v1.3-os-part3-schema.odt",
+            "sampleSize": 953195,
+            "preview": "",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\OdtReader",
+                "notes": "Bounded ODT package reader parses content.xml, meta.xml, optional META-INF/manifest.xml package metadata, text/list styles, headings, paragraphs, ordered and bullet lists, tables, links, styled spans, line breaks, images, and image/resource package references into the shared AST. Full ODT parity remains open."
+            },
+            "haskell": {
+                "ok": false,
+                "error": "Timed out after 35s.",
+                "path": "outputs/odt-oasis-opendocument-schema/haskell.html.error.txt"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/odt-oasis-opendocument-schema/php.html"
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/odt-oasis-opendocument-schema/wordpress-blocks.html"
+            },
+            "wpBlockCounts": {
+                "heading": 2758,
+                "image": 1,
+                "list": 694,
+                "paragraph": 10588,
+                "table": 27
+            }
+        },
+        {
             "id": "opml-reader",
             "format": "opml",
             "label": "OPML reader fixture",
@@ -2154,6 +2328,77 @@
                 "heading": 2,
                 "paragraph": 1,
                 "table": 2
+            }
+        },
+        {
+            "id": "pptx-cdc-food-safety-slides",
+            "format": "pptx",
+            "label": "CDC food safety classroom slides",
+            "description": "Real CDC PowerPoint deck with 16 slides, many images, list-heavy slides, and a data table.",
+            "source": "CDC Museum Public Health Academy Keeping Food Healthy slides",
+            "sourceUrl": "https://www.cdc.gov/museum/pdf/cdcm-pha-stem-keeping-food-healthy-slides.pptx",
+            "samplePath": "samples/pptx-cdc-food-safety-slides-cdc-food-healthy-slides.pptx",
+            "sampleSize": 862210,
+            "preview": "",
+            "support": {
+                "status": "reader-equivalent",
+                "implementation": "PortLibs\\Pandoc\\PptxReader",
+                "notes": "PPTX reader implementation-equivalence gate covers 109/109 checked-in PPTX/native pairs. The OpenXML reader maps upstream-style root officeDocument discovery, presentation and slide relationships, slide order, visible shapes, DrawingML text, tables, images, SmartArt, charts, speaker-note/comment review metadata, and grouped drawable descendants into the shared AST."
+            },
+            "haskell": {
+                "ok": true,
+                "path": "outputs/pptx-cdc-food-safety-slides/haskell.html"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/pptx-cdc-food-safety-slides/php.html"
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/pptx-cdc-food-safety-slides/wordpress-blocks.html"
+            },
+            "wpBlockCounts": {
+                "group": 1,
+                "heading": 16,
+                "image": 51,
+                "list": 13,
+                "paragraph": 62,
+                "table": 1
+            }
+        },
+        {
+            "id": "pptx-who-bfhi-session-1",
+            "format": "pptx",
+            "label": "WHO BFHI training slides",
+            "description": "Real WHO training PowerPoint with 13 slides, photographic assets, speaker metadata, lists, and structured slide text.",
+            "source": "WHO Baby-friendly Hospital Initiative training curriculum session 1 slides",
+            "sourceUrl": "https://www.who.int/docs/default-source/breastfeeding/publication/bfhi-training-curriculum/bfhi-session-1-slides.pptx?sfvrsn=d2535153_6",
+            "samplePath": "samples/pptx-who-bfhi-session-1-bfhi-session-1-slides.pptx",
+            "sampleSize": 291774,
+            "preview": "",
+            "support": {
+                "status": "reader-equivalent",
+                "implementation": "PortLibs\\Pandoc\\PptxReader",
+                "notes": "PPTX reader implementation-equivalence gate covers 109/109 checked-in PPTX/native pairs. The OpenXML reader maps upstream-style root officeDocument discovery, presentation and slide relationships, slide order, visible shapes, DrawingML text, tables, images, SmartArt, charts, speaker-note/comment review metadata, and grouped drawable descendants into the shared AST."
+            },
+            "haskell": {
+                "ok": true,
+                "path": "outputs/pptx-who-bfhi-session-1/haskell.html"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/pptx-who-bfhi-session-1/php.html"
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/pptx-who-bfhi-session-1/wordpress-blocks.html"
+            },
+            "wpBlockCounts": {
+                "heading": 13,
+                "image": 5,
+                "list": 2,
+                "paragraph": 76,
+                "table": 1
             }
         },
         {
@@ -2349,6 +2594,38 @@
             }
         },
         {
+            "id": "xlsx-census-tax-parameter-workbook",
+            "format": "xlsx",
+            "label": "Census tax parameter workbook",
+            "description": "Real Census Bureau workbook with 102 worksheets of federal and state tax parameters.",
+            "source": "U.S. Census Bureau Federal and State Tax Parameter Workbook TY2023",
+            "sourceUrl": "https://www2.census.gov/library/working-papers/2024/demo/Federal_and_State_Tax_Parameter_Workbook_TY2023.xlsx",
+            "samplePath": "samples/xlsx-census-tax-parameter-workbook-Federal_and_State_Tax_Parameter_Workbook_TY2023.xlsx",
+            "sampleSize": 382962,
+            "preview": "",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\XlsxReader",
+                "notes": "Bounded XLSX OpenXML package reader maps workbook sheets, shared strings, direct font bold/italic style indexes, dense sheet grids, first-row table headers, numeric cells, empty cells, and trailing empty-row trimming into the shared AST with pinned upstream xlsx-reader/basic fixture parity."
+            },
+            "haskell": {
+                "ok": true,
+                "path": "outputs/xlsx-census-tax-parameter-workbook/haskell.html"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/xlsx-census-tax-parameter-workbook/php.html"
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/xlsx-census-tax-parameter-workbook/wordpress-blocks.html"
+            },
+            "wpBlockCounts": {
+                "heading": 51,
+                "table": 51
+            }
+        },
+        {
             "id": "xml-docbook-generic",
             "format": "xml",
             "label": "Generic XML document",
@@ -2415,15 +2692,15 @@
             }
         },
         {
-            "id": "pdf-wrapped-content",
+            "id": "pdf-irs-publication-17",
             "format": "pdf",
-            "label": "Wrapped-content PDF fixture",
-            "description": "Small PDF fixture from the local markerpdf lane used to exercise PDF text handoff.",
-            "source": "Checked-in port-libs fixture at lanes/markerpdf/fixtures/wordpress-wrapped-content.pdf",
-            "sourceUrl": "",
-            "samplePath": "samples/pdf-wrapped-content-wordpress-wrapped-content.pdf",
-            "sampleSize": 199,
-            "preview": "%PDF-1.4\n1 0 obj\n<< /Length 133 >>\nstream\nBT /F1 16 Tf 72 720 Td (Migration Notes) Tj T* (Clean hyphen-) Tj T* (ated paragraphs keep) Tj T* (WordPress imports readable.) Tj ET\nendstream\nendobj\n%%EOF\n",
+            "label": "IRS Publication 17 PDF",
+            "description": "Real multi-page IRS tax publication with dense prose, headings, tables, forms-style layouts, links, and extraction stress.",
+            "source": "Internal Revenue Service Publication 17 PDF",
+            "sourceUrl": "https://www.irs.gov/pub/irs-pdf/p17.pdf",
+            "samplePath": "samples/pdf-irs-publication-17-irs-publication-17.pdf",
+            "sampleSize": 3088632,
+            "preview": "",
             "support": {
                 "status": "partial",
                 "implementation": "PortLibs\\Pandoc\\PdfReader",
@@ -2432,52 +2709,19 @@
             "haskell": {
                 "ok": false,
                 "error": "Unknown input format 'pdf'\nPandoc can convert to PDF, but not from PDF.",
-                "path": "outputs/pdf-wrapped-content/haskell.html.error.txt"
+                "path": "outputs/pdf-irs-publication-17/haskell.html.error.txt"
             },
             "phpHtml": {
-                "ok": true,
-                "path": "outputs/pdf-wrapped-content/php.html"
-            },
-            "wpBlocks": {
-                "ok": true,
-                "path": "outputs/pdf-wrapped-content/wordpress-blocks.html"
-            },
-            "wpBlockCounts": {
-                "heading": 2,
-                "paragraph": 2
-            }
-        },
-        {
-            "id": "pdf-import-content",
-            "format": "pdf",
-            "label": "Import-content PDF fixture",
-            "description": "Second small PDF fixture from the local markerpdf lane.",
-            "source": "Checked-in port-libs fixture at lanes/markerpdf/fixtures/wordpress-import-content.pdf",
-            "sourceUrl": "",
-            "samplePath": "samples/pdf-import-content-wordpress-import-content.pdf",
-            "sampleSize": 234,
-            "preview": "%PDF-1.4\n1 0 obj\n<< /Length 175 >>\nstream\nBT /F1 16 Tf 72 720 Td <FEFF005700500020004D006900670072006100740069006F006E> Tj T* (Clean blocks from PDF imports) Tj T* [(Media) -50 ( library ) 120 (captions)] TJ ET\nendstream\nendobj\n%%EOF\n",
-            "support": {
-                "status": "partial",
-                "implementation": "PortLibs\\Pandoc\\PdfReader",
-                "notes": "Project-local markerPDF bridge extracts searchable PDF text lines, records basic PDF structural provenance, and maps simple headings, paragraphs, lists, links, and aligned text-table rows into the shared AST. PDF is not an upstream Pandoc input format."
-            },
-            "haskell": {
                 "ok": false,
-                "error": "Unknown input format 'pdf'\nPandoc can convert to PDF, but not from PDF.",
-                "path": "outputs/pdf-import-content/haskell.html.error.txt"
-            },
-            "phpHtml": {
-                "ok": true,
-                "path": "outputs/pdf-import-content/php.html"
+                "error": "Timed out after 25s.",
+                "path": "outputs/pdf-irs-publication-17/php.html.error.txt"
             },
             "wpBlocks": {
-                "ok": true,
-                "path": "outputs/pdf-import-content/wordpress-blocks.html"
+                "ok": false,
+                "error": "Timed out after 25s.",
+                "path": "outputs/pdf-irs-publication-17/wordpress-blocks.html.error.txt"
             },
-            "wpBlockCounts": {
-                "heading": 3
-            }
+            "wpBlockCounts": []
         },
         {
             "id": "pdf-tracemonkey",
