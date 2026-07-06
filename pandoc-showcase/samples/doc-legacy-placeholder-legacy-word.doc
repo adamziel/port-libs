@@ -1,1 +1,0 @@
-This fallback is intentionally plain text with a .doc extension because no stable public binary .doc sample is bundled with Pandoc. It still exercises the local legacy-doc path and records any conversion failure.

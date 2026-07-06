@@ -363,8 +363,24 @@ RIS;
             local_sample('pdf-import-content', 'pdf', 'lanes/markerpdf/fixtures/wordpress-import-content.pdf', 'Import-content PDF fixture', 'Second small PDF fixture from the local markerpdf lane.'),
         ],
         'doc' => [
-            inline_sample('doc-legacy-placeholder', 'doc', 'legacy-word.doc', "Legacy Word binary placeholder", "This fallback is intentionally plain text with a .doc extension because no stable public binary .doc sample is bundled with Pandoc. It still exercises the local legacy-doc path and records any conversion failure.\n", 'Inline fallback pending a stable public legacy Word binary sample.'),
-            inline_sample('doc-legacy-placeholder-2', 'doc', 'legacy-word-2.doc', "Legacy Word second placeholder", "Second .doc placeholder pending a stable public binary .doc sample.\n", 'Inline fallback pending a stable public legacy Word binary sample.'),
+            [
+                'id' => 'doc-poi-52117',
+                'format' => 'doc',
+                'label' => 'Apache POI legacy Word sample',
+                'description' => 'Small real Word 97-2003 binary fixture from Apache POI test data.',
+                'url' => 'https://raw.githubusercontent.com/apache/poi/trunk/test-data/document/52117.doc',
+                'source' => 'apache/poi test-data/document/52117.doc',
+                'filename' => '52117.doc',
+            ],
+            [
+                'id' => 'doc-poi-bug60936',
+                'format' => 'doc',
+                'label' => 'Apache POI bug 60936 Word sample',
+                'description' => 'Second real Word 97-2003 binary fixture from Apache POI test data.',
+                'url' => 'https://raw.githubusercontent.com/apache/poi/trunk/test-data/document/Bug60936.doc',
+                'source' => 'apache/poi test-data/document/Bug60936.doc',
+                'filename' => 'Bug60936.doc',
+            ],
         ],
     ];
 

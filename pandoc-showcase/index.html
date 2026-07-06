@@ -3263,165 +3263,163 @@ crunchy, now would it?&lt;/td&gt;
 &lt;/table&gt;
 &lt;/body&gt;
 &lt;/html&gt;
-</pre></div><div class="note">Delimited text reader maps CSV rows into the shared table AST with Pandoc-compatible delimiter, quote, escape, keep-space, multiline-cell, row repair, control-character, and provenance diagnostics. The pinned direct CSV reader and shared CSV parser option fixtures are covered; RST csv-table integration is tracked with the RST reader gap.</div></section></article></section><section class="format-section" id="format-doc"><div class="format-heading"><h2>doc</h2><span>2 samples</span></div><article class="comparison" id="doc-legacy-placeholder"><section class="original"><div class="panel-head"><h3>Legacy Word binary placeholder</h3><p class="meta">213 bytes | Inline fallback pending a stable public legacy Word binary sample.</p></div><div class="original-body"><pre class="source-preview">This fallback is intentionally plain text with a .doc extension because no stable public binary .doc sample is bundled with Pandoc. It still exercises the local legacy-doc path and records any conversion failure.
-</pre><p class="meta"><a href="samples/doc-legacy-placeholder-legacy-word.doc">Download original file</a></p></div></section><section class="converted" data-sample="doc-legacy-placeholder"><div class="tabs" role="tablist"><button class="tab status-fail" type="button" role="tab" aria-selected="true" data-tab-target="doc-legacy-placeholder-wpBlocks">WP blocks</button><button class="tab status-fail" type="button" role="tab" aria-selected="false" data-tab-target="doc-legacy-placeholder-phpHtml">PHP HTML</button><button class="tab status-fail" type="button" role="tab" aria-selected="false" data-tab-target="doc-legacy-placeholder-haskell">Haskell HTML</button><button class="tab view-source" type="button" data-source-toggle>View source</button></div><div class="tab-panel active" id="doc-legacy-placeholder-wpBlocks" role="tabpanel"><pre class="error-box">PHP Fatal error:  Uncaught InvalidArgumentException: CFB file is missing the compound-file signature in $REPO/lanes/pandoc/src/CompoundFileBinary.php:56
+</pre></div><div class="note">Delimited text reader maps CSV rows into the shared table AST with Pandoc-compatible delimiter, quote, escape, keep-space, multiline-cell, row repair, control-character, and provenance diagnostics. The pinned direct CSV reader and shared CSV parser option fixtures are covered; RST csv-table integration is tracked with the RST reader gap.</div></section></article></section><section class="format-section" id="format-doc"><div class="format-heading"><h2>doc</h2><span>2 samples</span></div><article class="comparison" id="doc-poi-52117"><section class="original"><div class="panel-head"><h3>Apache POI legacy Word sample</h3><p class="meta">7168 bytes | <a href="https://raw.githubusercontent.com/apache/poi/trunk/test-data/document/52117.doc">apache/poi test-data/document/52117.doc</a></p></div><div class="original-body"><div class="download-only"><p>No local thumbnail is available for this binary or packaged file.</p><p><a href="samples/doc-poi-52117-52117.doc">Download original file</a></p></div><p class="meta">Small real Word 97-2003 binary fixture from Apache POI test data.</p></div></section><section class="converted" data-sample="doc-poi-52117"><div class="tabs" role="tablist"><button class="tab status-fail" type="button" role="tab" aria-selected="true" data-tab-target="doc-poi-52117-wpBlocks">WP blocks</button><button class="tab status-fail" type="button" role="tab" aria-selected="false" data-tab-target="doc-poi-52117-phpHtml">PHP HTML</button><button class="tab status-fail" type="button" role="tab" aria-selected="false" data-tab-target="doc-poi-52117-haskell">Haskell HTML</button><button class="tab view-source" type="button" data-source-toggle>View source</button></div><div class="tab-panel active" id="doc-poi-52117-wpBlocks" role="tabpanel"><pre class="error-box">PHP Fatal error:  Uncaught InvalidArgumentException: CFB file uses an unsupported minor version in $REPO/lanes/pandoc/src/CompoundFileBinary.php:74
 Stack trace:
-#0 $REPO/lanes/pandoc/src/LegacyDocReader.php(228): PortLibs\Pandoc\CompoundFileBinary::fromBytes(&#039;This fallback i...&#039;)
-#1 $REPO/lanes/pandoc/src/LegacyDocReader.php(220): PortLibs\Pandoc\LegacyDocReader-&gt;readBytes(&#039;This fallback i...&#039;)
-#2 $REPO/lanes/pandoc/src/PandocConverter.php(36): PortLibs\Pandoc\LegacyDocReader-&gt;read(&#039;This fallback i...&#039;)
-#3 $REPO/lanes/pandoc/src/PandocConverter.php(79): PortLibs\Pandoc\PandocConverter::read(&#039;This fallback i...&#039;, &#039;doc&#039;, Array)
-#4 $REPO/lanes/pandoc/src/PandocConverter.php(98): PortLibs\Pandoc\PandocConverter::convert(&#039;This fallback i...&#039;, &#039;doc&#039;, &#039;wordpress&#039;, Array)
+#0 $REPO/lanes/pandoc/src/LegacyDocReader.php(228): PortLibs\Pandoc\CompoundFileBinary::fromBytes(&#039;\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1\x00\x00\x00\x00\x00\x00\x00...&#039;)
+#1 $REPO/lanes/pandoc/src/LegacyDocReader.php(220): PortLibs\Pandoc\LegacyDocReader-&gt;readBytes(&#039;\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1\x00\x00\x00\x00\x00\x00\x00...&#039;)
+#2 $REPO/lanes/pandoc/src/PandocConverter.php(36): PortLibs\Pandoc\LegacyDocReader-&gt;read(&#039;\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1\x00\x00\x00\x00\x00\x00\x00...&#039;)
+#3 $REPO/lanes/pandoc/src/PandocConverter.php(79): PortLibs\Pandoc\PandocConverter::read(&#039;\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1\x00\x00\x00\x00\x00\x00\x00...&#039;, &#039;doc&#039;, Array)
+#4 $REPO/lanes/pandoc/src/PandocConverter.php(98): PortLibs\Pandoc\PandocConverter::convert(&#039;\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1\x00\x00\x00\x00\x00\x00\x00...&#039;, &#039;doc&#039;, &#039;wordpress&#039;, Array)
 #5 $REPO/tools/build-pandoc-showcase.php(21): PortLibs\Pandoc\PandocConverter::convertFile(&#039;$REPO&#039;, &#039;doc&#039;, &#039;wordpress&#039;)
 #6 {main}
-  thrown in $REPO/lanes/pandoc/src/CompoundFileBinary.php on line 56
-Fatal error: Uncaught InvalidArgumentException: CFB file is missing the compound-file signature in $REPO/lanes/pandoc/src/CompoundFileBinary.php:56
+  thrown in $REPO/lanes/pandoc/src/CompoundFileBinary.php on line 74
+Fatal error: Uncaught InvalidArgumentException: CFB file uses an unsupported minor version in $REPO/lanes/pandoc/src/CompoundFileBinary.php:74
 Stack trace:
-#0 $REPO/lanes/pandoc/src/LegacyDocReader.php(228): PortLibs\Pandoc\CompoundFileBinary::fromBytes(&#039;This fallback i...&#039;)
-#1 $REPO/lanes/pandoc/src/LegacyDocReader.php(220): PortLibs\Pandoc\LegacyDocReader-&gt;readBytes(&#039;This fallback i...&#039;)
-#2 $REPO/lanes/pandoc/src/PandocConverter.php(36): PortLibs\Pandoc\LegacyDocReader-&gt;read(&#039;This fallback i...&#039;)
-#3 $REPO/lanes/pandoc/src/PandocConverter.php(79): PortLibs\Pandoc\PandocConverter::read(&#039;This fallback i...&#039;, &#039;doc&#039;, Array)
-#4 $REPO/lanes/pandoc/src/PandocConverter.php(98): PortLibs\Pandoc\PandocConverter::convert(&#039;This fallback i...&#039;, &#039;doc&#039;, &#039;wordpress&#039;, Array)
+#0 $REPO/lanes/pandoc/src/LegacyDocReader.php(228): PortLibs\Pandoc\CompoundFileBinary::fromBytes(&#039;\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1\x00\x00\x00\x00\x00\x00\x00...&#039;)
+#1 $REPO/lanes/pandoc/src/LegacyDocReader.php(220): PortLibs\Pandoc\LegacyDocReader-&gt;readBytes(&#039;\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1\x00\x00\x00\x00\x00\x00\x00...&#039;)
+#2 $REPO/lanes/pandoc/src/PandocConverter.php(36): PortLibs\Pandoc\LegacyDocReader-&gt;read(&#039;\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1\x00\x00\x00\x00\x00\x00\x00...&#039;)
+#3 $REPO/lanes/pandoc/src/PandocConverter.php(79): PortLibs\Pandoc\PandocConverter::read(&#039;\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1\x00\x00\x00\x00\x00\x00\x00...&#039;, &#039;doc&#039;, Array)
+#4 $REPO/lanes/pandoc/src/PandocConverter.php(98): PortLibs\Pandoc\PandocConverter::convert(&#039;\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1\x00\x00\x00\x00\x00\x00\x00...&#039;, &#039;doc&#039;, &#039;wordpress&#039;, Array)
 #5 $REPO/tools/build-pandoc-showcase.php(21): PortLibs\Pandoc\PandocConverter::convertFile(&#039;$REPO&#039;, &#039;doc&#039;, &#039;wordpress&#039;)
 #6 {main}
-  thrown in $REPO/lanes/pandoc/src/CompoundFileBinary.php on line 56</pre><pre class="source-box">PHP Fatal error:  Uncaught InvalidArgumentException: CFB file is missing the compound-file signature in $REPO/lanes/pandoc/src/CompoundFileBinary.php:56
+  thrown in $REPO/lanes/pandoc/src/CompoundFileBinary.php on line 74</pre><pre class="source-box">PHP Fatal error:  Uncaught InvalidArgumentException: CFB file uses an unsupported minor version in $REPO/lanes/pandoc/src/CompoundFileBinary.php:74
 Stack trace:
-#0 $REPO/lanes/pandoc/src/LegacyDocReader.php(228): PortLibs\Pandoc\CompoundFileBinary::fromBytes(&#039;This fallback i...&#039;)
-#1 $REPO/lanes/pandoc/src/LegacyDocReader.php(220): PortLibs\Pandoc\LegacyDocReader-&gt;readBytes(&#039;This fallback i...&#039;)
-#2 $REPO/lanes/pandoc/src/PandocConverter.php(36): PortLibs\Pandoc\LegacyDocReader-&gt;read(&#039;This fallback i...&#039;)
-#3 $REPO/lanes/pandoc/src/PandocConverter.php(79): PortLibs\Pandoc\PandocConverter::read(&#039;This fallback i...&#039;, &#039;doc&#039;, Array)
-#4 $REPO/lanes/pandoc/src/PandocConverter.php(98): PortLibs\Pandoc\PandocConverter::convert(&#039;This fallback i...&#039;, &#039;doc&#039;, &#039;wordpress&#039;, Array)
+#0 $REPO/lanes/pandoc/src/LegacyDocReader.php(228): PortLibs\Pandoc\CompoundFileBinary::fromBytes(&#039;\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1\x00\x00\x00\x00\x00\x00\x00...&#039;)
+#1 $REPO/lanes/pandoc/src/LegacyDocReader.php(220): PortLibs\Pandoc\LegacyDocReader-&gt;readBytes(&#039;\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1\x00\x00\x00\x00\x00\x00\x00...&#039;)
+#2 $REPO/lanes/pandoc/src/PandocConverter.php(36): PortLibs\Pandoc\LegacyDocReader-&gt;read(&#039;\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1\x00\x00\x00\x00\x00\x00\x00...&#039;)
+#3 $REPO/lanes/pandoc/src/PandocConverter.php(79): PortLibs\Pandoc\PandocConverter::read(&#039;\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1\x00\x00\x00\x00\x00\x00\x00...&#039;, &#039;doc&#039;, Array)
+#4 $REPO/lanes/pandoc/src/PandocConverter.php(98): PortLibs\Pandoc\PandocConverter::convert(&#039;\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1\x00\x00\x00\x00\x00\x00\x00...&#039;, &#039;doc&#039;, &#039;wordpress&#039;, Array)
 #5 $REPO/tools/build-pandoc-showcase.php(21): PortLibs\Pandoc\PandocConverter::convertFile(&#039;$REPO&#039;, &#039;doc&#039;, &#039;wordpress&#039;)
 #6 {main}
-  thrown in $REPO/lanes/pandoc/src/CompoundFileBinary.php on line 56
-Fatal error: Uncaught InvalidArgumentException: CFB file is missing the compound-file signature in $REPO/lanes/pandoc/src/CompoundFileBinary.php:56
+  thrown in $REPO/lanes/pandoc/src/CompoundFileBinary.php on line 74
+Fatal error: Uncaught InvalidArgumentException: CFB file uses an unsupported minor version in $REPO/lanes/pandoc/src/CompoundFileBinary.php:74
 Stack trace:
-#0 $REPO/lanes/pandoc/src/LegacyDocReader.php(228): PortLibs\Pandoc\CompoundFileBinary::fromBytes(&#039;This fallback i...&#039;)
-#1 $REPO/lanes/pandoc/src/LegacyDocReader.php(220): PortLibs\Pandoc\LegacyDocReader-&gt;readBytes(&#039;This fallback i...&#039;)
-#2 $REPO/lanes/pandoc/src/PandocConverter.php(36): PortLibs\Pandoc\LegacyDocReader-&gt;read(&#039;This fallback i...&#039;)
-#3 $REPO/lanes/pandoc/src/PandocConverter.php(79): PortLibs\Pandoc\PandocConverter::read(&#039;This fallback i...&#039;, &#039;doc&#039;, Array)
-#4 $REPO/lanes/pandoc/src/PandocConverter.php(98): PortLibs\Pandoc\PandocConverter::convert(&#039;This fallback i...&#039;, &#039;doc&#039;, &#039;wordpress&#039;, Array)
+#0 $REPO/lanes/pandoc/src/LegacyDocReader.php(228): PortLibs\Pandoc\CompoundFileBinary::fromBytes(&#039;\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1\x00\x00\x00\x00\x00\x00\x00...&#039;)
+#1 $REPO/lanes/pandoc/src/LegacyDocReader.php(220): PortLibs\Pandoc\LegacyDocReader-&gt;readBytes(&#039;\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1\x00\x00\x00\x00\x00\x00\x00...&#039;)
+#2 $REPO/lanes/pandoc/src/PandocConverter.php(36): PortLibs\Pandoc\LegacyDocReader-&gt;read(&#039;\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1\x00\x00\x00\x00\x00\x00\x00...&#039;)
+#3 $REPO/lanes/pandoc/src/PandocConverter.php(79): PortLibs\Pandoc\PandocConverter::read(&#039;\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1\x00\x00\x00\x00\x00\x00\x00...&#039;, &#039;doc&#039;, Array)
+#4 $REPO/lanes/pandoc/src/PandocConverter.php(98): PortLibs\Pandoc\PandocConverter::convert(&#039;\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1\x00\x00\x00\x00\x00\x00\x00...&#039;, &#039;doc&#039;, &#039;wordpress&#039;, Array)
 #5 $REPO/tools/build-pandoc-showcase.php(21): PortLibs\Pandoc\PandocConverter::convertFile(&#039;$REPO&#039;, &#039;doc&#039;, &#039;wordpress&#039;)
 #6 {main}
-  thrown in $REPO/lanes/pandoc/src/CompoundFileBinary.php on line 56</pre></div><div class="tab-panel" id="doc-legacy-placeholder-phpHtml" role="tabpanel"><pre class="error-box">PHP Fatal error:  Uncaught InvalidArgumentException: CFB file is missing the compound-file signature in $REPO/lanes/pandoc/src/CompoundFileBinary.php:56
+  thrown in $REPO/lanes/pandoc/src/CompoundFileBinary.php on line 74</pre></div><div class="tab-panel" id="doc-poi-52117-phpHtml" role="tabpanel"><pre class="error-box">PHP Fatal error:  Uncaught InvalidArgumentException: CFB file uses an unsupported minor version in $REPO/lanes/pandoc/src/CompoundFileBinary.php:74
 Stack trace:
-#0 $REPO/lanes/pandoc/src/LegacyDocReader.php(228): PortLibs\Pandoc\CompoundFileBinary::fromBytes(&#039;This fallback i...&#039;)
-#1 $REPO/lanes/pandoc/src/LegacyDocReader.php(220): PortLibs\Pandoc\LegacyDocReader-&gt;readBytes(&#039;This fallback i...&#039;)
-#2 $REPO/lanes/pandoc/src/PandocConverter.php(36): PortLibs\Pandoc\LegacyDocReader-&gt;read(&#039;This fallback i...&#039;)
-#3 $REPO/lanes/pandoc/src/PandocConverter.php(79): PortLibs\Pandoc\PandocConverter::read(&#039;This fallback i...&#039;, &#039;doc&#039;, Array)
-#4 $REPO/lanes/pandoc/src/PandocConverter.php(98): PortLibs\Pandoc\PandocConverter::convert(&#039;This fallback i...&#039;, &#039;doc&#039;, &#039;html&#039;, Array)
+#0 $REPO/lanes/pandoc/src/LegacyDocReader.php(228): PortLibs\Pandoc\CompoundFileBinary::fromBytes(&#039;\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1\x00\x00\x00\x00\x00\x00\x00...&#039;)
+#1 $REPO/lanes/pandoc/src/LegacyDocReader.php(220): PortLibs\Pandoc\LegacyDocReader-&gt;readBytes(&#039;\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1\x00\x00\x00\x00\x00\x00\x00...&#039;)
+#2 $REPO/lanes/pandoc/src/PandocConverter.php(36): PortLibs\Pandoc\LegacyDocReader-&gt;read(&#039;\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1\x00\x00\x00\x00\x00\x00\x00...&#039;)
+#3 $REPO/lanes/pandoc/src/PandocConverter.php(79): PortLibs\Pandoc\PandocConverter::read(&#039;\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1\x00\x00\x00\x00\x00\x00\x00...&#039;, &#039;doc&#039;, Array)
+#4 $REPO/lanes/pandoc/src/PandocConverter.php(98): PortLibs\Pandoc\PandocConverter::convert(&#039;\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1\x00\x00\x00\x00\x00\x00\x00...&#039;, &#039;doc&#039;, &#039;html&#039;, Array)
 #5 $REPO/tools/build-pandoc-showcase.php(21): PortLibs\Pandoc\PandocConverter::convertFile(&#039;$REPO&#039;, &#039;doc&#039;, &#039;html&#039;)
 #6 {main}
-  thrown in $REPO/lanes/pandoc/src/CompoundFileBinary.php on line 56
-Fatal error: Uncaught InvalidArgumentException: CFB file is missing the compound-file signature in $REPO/lanes/pandoc/src/CompoundFileBinary.php:56
+  thrown in $REPO/lanes/pandoc/src/CompoundFileBinary.php on line 74
+Fatal error: Uncaught InvalidArgumentException: CFB file uses an unsupported minor version in $REPO/lanes/pandoc/src/CompoundFileBinary.php:74
 Stack trace:
-#0 $REPO/lanes/pandoc/src/LegacyDocReader.php(228): PortLibs\Pandoc\CompoundFileBinary::fromBytes(&#039;This fallback i...&#039;)
-#1 $REPO/lanes/pandoc/src/LegacyDocReader.php(220): PortLibs\Pandoc\LegacyDocReader-&gt;readBytes(&#039;This fallback i...&#039;)
-#2 $REPO/lanes/pandoc/src/PandocConverter.php(36): PortLibs\Pandoc\LegacyDocReader-&gt;read(&#039;This fallback i...&#039;)
-#3 $REPO/lanes/pandoc/src/PandocConverter.php(79): PortLibs\Pandoc\PandocConverter::read(&#039;This fallback i...&#039;, &#039;doc&#039;, Array)
-#4 $REPO/lanes/pandoc/src/PandocConverter.php(98): PortLibs\Pandoc\PandocConverter::convert(&#039;This fallback i...&#039;, &#039;doc&#039;, &#039;html&#039;, Array)
+#0 $REPO/lanes/pandoc/src/LegacyDocReader.php(228): PortLibs\Pandoc\CompoundFileBinary::fromBytes(&#039;\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1\x00\x00\x00\x00\x00\x00\x00...&#039;)
+#1 $REPO/lanes/pandoc/src/LegacyDocReader.php(220): PortLibs\Pandoc\LegacyDocReader-&gt;readBytes(&#039;\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1\x00\x00\x00\x00\x00\x00\x00...&#039;)
+#2 $REPO/lanes/pandoc/src/PandocConverter.php(36): PortLibs\Pandoc\LegacyDocReader-&gt;read(&#039;\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1\x00\x00\x00\x00\x00\x00\x00...&#039;)
+#3 $REPO/lanes/pandoc/src/PandocConverter.php(79): PortLibs\Pandoc\PandocConverter::read(&#039;\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1\x00\x00\x00\x00\x00\x00\x00...&#039;, &#039;doc&#039;, Array)
+#4 $REPO/lanes/pandoc/src/PandocConverter.php(98): PortLibs\Pandoc\PandocConverter::convert(&#039;\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1\x00\x00\x00\x00\x00\x00\x00...&#039;, &#039;doc&#039;, &#039;html&#039;, Array)
 #5 $REPO/tools/build-pandoc-showcase.php(21): PortLibs\Pandoc\PandocConverter::convertFile(&#039;$REPO&#039;, &#039;doc&#039;, &#039;html&#039;)
 #6 {main}
-  thrown in $REPO/lanes/pandoc/src/CompoundFileBinary.php on line 56</pre><pre class="source-box">PHP Fatal error:  Uncaught InvalidArgumentException: CFB file is missing the compound-file signature in $REPO/lanes/pandoc/src/CompoundFileBinary.php:56
+  thrown in $REPO/lanes/pandoc/src/CompoundFileBinary.php on line 74</pre><pre class="source-box">PHP Fatal error:  Uncaught InvalidArgumentException: CFB file uses an unsupported minor version in $REPO/lanes/pandoc/src/CompoundFileBinary.php:74
 Stack trace:
-#0 $REPO/lanes/pandoc/src/LegacyDocReader.php(228): PortLibs\Pandoc\CompoundFileBinary::fromBytes(&#039;This fallback i...&#039;)
-#1 $REPO/lanes/pandoc/src/LegacyDocReader.php(220): PortLibs\Pandoc\LegacyDocReader-&gt;readBytes(&#039;This fallback i...&#039;)
-#2 $REPO/lanes/pandoc/src/PandocConverter.php(36): PortLibs\Pandoc\LegacyDocReader-&gt;read(&#039;This fallback i...&#039;)
-#3 $REPO/lanes/pandoc/src/PandocConverter.php(79): PortLibs\Pandoc\PandocConverter::read(&#039;This fallback i...&#039;, &#039;doc&#039;, Array)
-#4 $REPO/lanes/pandoc/src/PandocConverter.php(98): PortLibs\Pandoc\PandocConverter::convert(&#039;This fallback i...&#039;, &#039;doc&#039;, &#039;html&#039;, Array)
+#0 $REPO/lanes/pandoc/src/LegacyDocReader.php(228): PortLibs\Pandoc\CompoundFileBinary::fromBytes(&#039;\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1\x00\x00\x00\x00\x00\x00\x00...&#039;)
+#1 $REPO/lanes/pandoc/src/LegacyDocReader.php(220): PortLibs\Pandoc\LegacyDocReader-&gt;readBytes(&#039;\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1\x00\x00\x00\x00\x00\x00\x00...&#039;)
+#2 $REPO/lanes/pandoc/src/PandocConverter.php(36): PortLibs\Pandoc\LegacyDocReader-&gt;read(&#039;\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1\x00\x00\x00\x00\x00\x00\x00...&#039;)
+#3 $REPO/lanes/pandoc/src/PandocConverter.php(79): PortLibs\Pandoc\PandocConverter::read(&#039;\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1\x00\x00\x00\x00\x00\x00\x00...&#039;, &#039;doc&#039;, Array)
+#4 $REPO/lanes/pandoc/src/PandocConverter.php(98): PortLibs\Pandoc\PandocConverter::convert(&#039;\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1\x00\x00\x00\x00\x00\x00\x00...&#039;, &#039;doc&#039;, &#039;html&#039;, Array)
 #5 $REPO/tools/build-pandoc-showcase.php(21): PortLibs\Pandoc\PandocConverter::convertFile(&#039;$REPO&#039;, &#039;doc&#039;, &#039;html&#039;)
 #6 {main}
-  thrown in $REPO/lanes/pandoc/src/CompoundFileBinary.php on line 56
-Fatal error: Uncaught InvalidArgumentException: CFB file is missing the compound-file signature in $REPO/lanes/pandoc/src/CompoundFileBinary.php:56
+  thrown in $REPO/lanes/pandoc/src/CompoundFileBinary.php on line 74
+Fatal error: Uncaught InvalidArgumentException: CFB file uses an unsupported minor version in $REPO/lanes/pandoc/src/CompoundFileBinary.php:74
 Stack trace:
-#0 $REPO/lanes/pandoc/src/LegacyDocReader.php(228): PortLibs\Pandoc\CompoundFileBinary::fromBytes(&#039;This fallback i...&#039;)
-#1 $REPO/lanes/pandoc/src/LegacyDocReader.php(220): PortLibs\Pandoc\LegacyDocReader-&gt;readBytes(&#039;This fallback i...&#039;)
-#2 $REPO/lanes/pandoc/src/PandocConverter.php(36): PortLibs\Pandoc\LegacyDocReader-&gt;read(&#039;This fallback i...&#039;)
-#3 $REPO/lanes/pandoc/src/PandocConverter.php(79): PortLibs\Pandoc\PandocConverter::read(&#039;This fallback i...&#039;, &#039;doc&#039;, Array)
-#4 $REPO/lanes/pandoc/src/PandocConverter.php(98): PortLibs\Pandoc\PandocConverter::convert(&#039;This fallback i...&#039;, &#039;doc&#039;, &#039;html&#039;, Array)
+#0 $REPO/lanes/pandoc/src/LegacyDocReader.php(228): PortLibs\Pandoc\CompoundFileBinary::fromBytes(&#039;\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1\x00\x00\x00\x00\x00\x00\x00...&#039;)
+#1 $REPO/lanes/pandoc/src/LegacyDocReader.php(220): PortLibs\Pandoc\LegacyDocReader-&gt;readBytes(&#039;\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1\x00\x00\x00\x00\x00\x00\x00...&#039;)
+#2 $REPO/lanes/pandoc/src/PandocConverter.php(36): PortLibs\Pandoc\LegacyDocReader-&gt;read(&#039;\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1\x00\x00\x00\x00\x00\x00\x00...&#039;)
+#3 $REPO/lanes/pandoc/src/PandocConverter.php(79): PortLibs\Pandoc\PandocConverter::read(&#039;\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1\x00\x00\x00\x00\x00\x00\x00...&#039;, &#039;doc&#039;, Array)
+#4 $REPO/lanes/pandoc/src/PandocConverter.php(98): PortLibs\Pandoc\PandocConverter::convert(&#039;\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1\x00\x00\x00\x00\x00\x00\x00...&#039;, &#039;doc&#039;, &#039;html&#039;, Array)
 #5 $REPO/tools/build-pandoc-showcase.php(21): PortLibs\Pandoc\PandocConverter::convertFile(&#039;$REPO&#039;, &#039;doc&#039;, &#039;html&#039;)
 #6 {main}
-  thrown in $REPO/lanes/pandoc/src/CompoundFileBinary.php on line 56</pre></div><div class="tab-panel" id="doc-legacy-placeholder-haskell" role="tabpanel"><pre class="error-box">Unknown input format &#039;doc&#039;
+  thrown in $REPO/lanes/pandoc/src/CompoundFileBinary.php on line 74</pre></div><div class="tab-panel" id="doc-poi-52117-haskell" role="tabpanel"><pre class="error-box">Unknown input format &#039;doc&#039;
 Pandoc can convert from DOCX, but not from DOC.
 Try using Word to save your DOC file as DOCX, and convert that with pandoc.</pre><pre class="source-box">Unknown input format &#039;doc&#039;
 Pandoc can convert from DOCX, but not from DOC.
-Try using Word to save your DOC file as DOCX, and convert that with pandoc.</pre></div><div class="note">Project-local legacy binary Word reader parses Compound File Binary containers, WordDocument text, OLE properties, metadata, fields, lists, notes, comments, sections, bookmarks, and review provenance into the shared AST. Legacy .doc is not an upstream Pandoc input format token.</div></section></article><article class="comparison" id="doc-legacy-placeholder-2"><section class="original"><div class="panel-head"><h3>Legacy Word second placeholder</h3><p class="meta">68 bytes | Inline fallback pending a stable public legacy Word binary sample.</p></div><div class="original-body"><pre class="source-preview">Second .doc placeholder pending a stable public binary .doc sample.
-</pre><p class="meta"><a href="samples/doc-legacy-placeholder-2-legacy-word-2.doc">Download original file</a></p></div></section><section class="converted" data-sample="doc-legacy-placeholder-2"><div class="tabs" role="tablist"><button class="tab status-fail" type="button" role="tab" aria-selected="true" data-tab-target="doc-legacy-placeholder-2-wpBlocks">WP blocks</button><button class="tab status-fail" type="button" role="tab" aria-selected="false" data-tab-target="doc-legacy-placeholder-2-phpHtml">PHP HTML</button><button class="tab status-fail" type="button" role="tab" aria-selected="false" data-tab-target="doc-legacy-placeholder-2-haskell">Haskell HTML</button><button class="tab view-source" type="button" data-source-toggle>View source</button></div><div class="tab-panel active" id="doc-legacy-placeholder-2-wpBlocks" role="tabpanel"><pre class="error-box">PHP Fatal error:  Uncaught InvalidArgumentException: CFB file is missing the compound-file signature in $REPO/lanes/pandoc/src/CompoundFileBinary.php:56
+Try using Word to save your DOC file as DOCX, and convert that with pandoc.</pre></div><div class="note">Project-local legacy binary Word reader parses Compound File Binary containers, WordDocument text, OLE properties, metadata, fields, lists, notes, comments, sections, bookmarks, and review provenance into the shared AST. Legacy .doc is not an upstream Pandoc input format token.</div></section></article><article class="comparison" id="doc-poi-bug60936"><section class="original"><div class="panel-head"><h3>Apache POI bug 60936 Word sample</h3><p class="meta">6656 bytes | <a href="https://raw.githubusercontent.com/apache/poi/trunk/test-data/document/Bug60936.doc">apache/poi test-data/document/Bug60936.doc</a></p></div><div class="original-body"><div class="download-only"><p>No local thumbnail is available for this binary or packaged file.</p><p><a href="samples/doc-poi-bug60936-Bug60936.doc">Download original file</a></p></div><p class="meta">Second real Word 97-2003 binary fixture from Apache POI test data.</p></div></section><section class="converted" data-sample="doc-poi-bug60936"><div class="tabs" role="tablist"><button class="tab status-fail" type="button" role="tab" aria-selected="true" data-tab-target="doc-poi-bug60936-wpBlocks">WP blocks</button><button class="tab status-fail" type="button" role="tab" aria-selected="false" data-tab-target="doc-poi-bug60936-phpHtml">PHP HTML</button><button class="tab status-fail" type="button" role="tab" aria-selected="false" data-tab-target="doc-poi-bug60936-haskell">Haskell HTML</button><button class="tab view-source" type="button" data-source-toggle>View source</button></div><div class="tab-panel active" id="doc-poi-bug60936-wpBlocks" role="tabpanel"><pre class="error-box">PHP Fatal error:  Uncaught InvalidArgumentException: CFB file uses an unsupported minor version in $REPO/lanes/pandoc/src/CompoundFileBinary.php:74
 Stack trace:
-#0 $REPO/lanes/pandoc/src/LegacyDocReader.php(228): PortLibs\Pandoc\CompoundFileBinary::fromBytes(&#039;Second .doc pla...&#039;)
-#1 $REPO/lanes/pandoc/src/LegacyDocReader.php(220): PortLibs\Pandoc\LegacyDocReader-&gt;readBytes(&#039;Second .doc pla...&#039;)
-#2 $REPO/lanes/pandoc/src/PandocConverter.php(36): PortLibs\Pandoc\LegacyDocReader-&gt;read(&#039;Second .doc pla...&#039;)
-#3 $REPO/lanes/pandoc/src/PandocConverter.php(79): PortLibs\Pandoc\PandocConverter::read(&#039;Second .doc pla...&#039;, &#039;doc&#039;, Array)
-#4 $REPO/lanes/pandoc/src/PandocConverter.php(98): PortLibs\Pandoc\PandocConverter::convert(&#039;Second .doc pla...&#039;, &#039;doc&#039;, &#039;wordpress&#039;, Array)
+#0 $REPO/lanes/pandoc/src/LegacyDocReader.php(228): PortLibs\Pandoc\CompoundFileBinary::fromBytes(&#039;\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1\x00\x00\x00\x00\x00\x00\x00...&#039;)
+#1 $REPO/lanes/pandoc/src/LegacyDocReader.php(220): PortLibs\Pandoc\LegacyDocReader-&gt;readBytes(&#039;\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1\x00\x00\x00\x00\x00\x00\x00...&#039;)
+#2 $REPO/lanes/pandoc/src/PandocConverter.php(36): PortLibs\Pandoc\LegacyDocReader-&gt;read(&#039;\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1\x00\x00\x00\x00\x00\x00\x00...&#039;)
+#3 $REPO/lanes/pandoc/src/PandocConverter.php(79): PortLibs\Pandoc\PandocConverter::read(&#039;\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1\x00\x00\x00\x00\x00\x00\x00...&#039;, &#039;doc&#039;, Array)
+#4 $REPO/lanes/pandoc/src/PandocConverter.php(98): PortLibs\Pandoc\PandocConverter::convert(&#039;\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1\x00\x00\x00\x00\x00\x00\x00...&#039;, &#039;doc&#039;, &#039;wordpress&#039;, Array)
 #5 $REPO/tools/build-pandoc-showcase.php(21): PortLibs\Pandoc\PandocConverter::convertFile(&#039;$REPO&#039;, &#039;doc&#039;, &#039;wordpress&#039;)
 #6 {main}
-  thrown in $REPO/lanes/pandoc/src/CompoundFileBinary.php on line 56
-Fatal error: Uncaught InvalidArgumentException: CFB file is missing the compound-file signature in $REPO/lanes/pandoc/src/CompoundFileBinary.php:56
+  thrown in $REPO/lanes/pandoc/src/CompoundFileBinary.php on line 74
+Fatal error: Uncaught InvalidArgumentException: CFB file uses an unsupported minor version in $REPO/lanes/pandoc/src/CompoundFileBinary.php:74
 Stack trace:
-#0 $REPO/lanes/pandoc/src/LegacyDocReader.php(228): PortLibs\Pandoc\CompoundFileBinary::fromBytes(&#039;Second .doc pla...&#039;)
-#1 $REPO/lanes/pandoc/src/LegacyDocReader.php(220): PortLibs\Pandoc\LegacyDocReader-&gt;readBytes(&#039;Second .doc pla...&#039;)
-#2 $REPO/lanes/pandoc/src/PandocConverter.php(36): PortLibs\Pandoc\LegacyDocReader-&gt;read(&#039;Second .doc pla...&#039;)
-#3 $REPO/lanes/pandoc/src/PandocConverter.php(79): PortLibs\Pandoc\PandocConverter::read(&#039;Second .doc pla...&#039;, &#039;doc&#039;, Array)
-#4 $REPO/lanes/pandoc/src/PandocConverter.php(98): PortLibs\Pandoc\PandocConverter::convert(&#039;Second .doc pla...&#039;, &#039;doc&#039;, &#039;wordpress&#039;, Array)
+#0 $REPO/lanes/pandoc/src/LegacyDocReader.php(228): PortLibs\Pandoc\CompoundFileBinary::fromBytes(&#039;\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1\x00\x00\x00\x00\x00\x00\x00...&#039;)
+#1 $REPO/lanes/pandoc/src/LegacyDocReader.php(220): PortLibs\Pandoc\LegacyDocReader-&gt;readBytes(&#039;\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1\x00\x00\x00\x00\x00\x00\x00...&#039;)
+#2 $REPO/lanes/pandoc/src/PandocConverter.php(36): PortLibs\Pandoc\LegacyDocReader-&gt;read(&#039;\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1\x00\x00\x00\x00\x00\x00\x00...&#039;)
+#3 $REPO/lanes/pandoc/src/PandocConverter.php(79): PortLibs\Pandoc\PandocConverter::read(&#039;\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1\x00\x00\x00\x00\x00\x00\x00...&#039;, &#039;doc&#039;, Array)
+#4 $REPO/lanes/pandoc/src/PandocConverter.php(98): PortLibs\Pandoc\PandocConverter::convert(&#039;\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1\x00\x00\x00\x00\x00\x00\x00...&#039;, &#039;doc&#039;, &#039;wordpress&#039;, Array)
 #5 $REPO/tools/build-pandoc-showcase.php(21): PortLibs\Pandoc\PandocConverter::convertFile(&#039;$REPO&#039;, &#039;doc&#039;, &#039;wordpress&#039;)
 #6 {main}
-  thrown in $REPO/lanes/pandoc/src/CompoundFileBinary.php on line 56</pre><pre class="source-box">PHP Fatal error:  Uncaught InvalidArgumentException: CFB file is missing the compound-file signature in $REPO/lanes/pandoc/src/CompoundFileBinary.php:56
+  thrown in $REPO/lanes/pandoc/src/CompoundFileBinary.php on line 74</pre><pre class="source-box">PHP Fatal error:  Uncaught InvalidArgumentException: CFB file uses an unsupported minor version in $REPO/lanes/pandoc/src/CompoundFileBinary.php:74
 Stack trace:
-#0 $REPO/lanes/pandoc/src/LegacyDocReader.php(228): PortLibs\Pandoc\CompoundFileBinary::fromBytes(&#039;Second .doc pla...&#039;)
-#1 $REPO/lanes/pandoc/src/LegacyDocReader.php(220): PortLibs\Pandoc\LegacyDocReader-&gt;readBytes(&#039;Second .doc pla...&#039;)
-#2 $REPO/lanes/pandoc/src/PandocConverter.php(36): PortLibs\Pandoc\LegacyDocReader-&gt;read(&#039;Second .doc pla...&#039;)
-#3 $REPO/lanes/pandoc/src/PandocConverter.php(79): PortLibs\Pandoc\PandocConverter::read(&#039;Second .doc pla...&#039;, &#039;doc&#039;, Array)
-#4 $REPO/lanes/pandoc/src/PandocConverter.php(98): PortLibs\Pandoc\PandocConverter::convert(&#039;Second .doc pla...&#039;, &#039;doc&#039;, &#039;wordpress&#039;, Array)
+#0 $REPO/lanes/pandoc/src/LegacyDocReader.php(228): PortLibs\Pandoc\CompoundFileBinary::fromBytes(&#039;\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1\x00\x00\x00\x00\x00\x00\x00...&#039;)
+#1 $REPO/lanes/pandoc/src/LegacyDocReader.php(220): PortLibs\Pandoc\LegacyDocReader-&gt;readBytes(&#039;\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1\x00\x00\x00\x00\x00\x00\x00...&#039;)
+#2 $REPO/lanes/pandoc/src/PandocConverter.php(36): PortLibs\Pandoc\LegacyDocReader-&gt;read(&#039;\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1\x00\x00\x00\x00\x00\x00\x00...&#039;)
+#3 $REPO/lanes/pandoc/src/PandocConverter.php(79): PortLibs\Pandoc\PandocConverter::read(&#039;\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1\x00\x00\x00\x00\x00\x00\x00...&#039;, &#039;doc&#039;, Array)
+#4 $REPO/lanes/pandoc/src/PandocConverter.php(98): PortLibs\Pandoc\PandocConverter::convert(&#039;\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1\x00\x00\x00\x00\x00\x00\x00...&#039;, &#039;doc&#039;, &#039;wordpress&#039;, Array)
 #5 $REPO/tools/build-pandoc-showcase.php(21): PortLibs\Pandoc\PandocConverter::convertFile(&#039;$REPO&#039;, &#039;doc&#039;, &#039;wordpress&#039;)
 #6 {main}
-  thrown in $REPO/lanes/pandoc/src/CompoundFileBinary.php on line 56
-Fatal error: Uncaught InvalidArgumentException: CFB file is missing the compound-file signature in $REPO/lanes/pandoc/src/CompoundFileBinary.php:56
+  thrown in $REPO/lanes/pandoc/src/CompoundFileBinary.php on line 74
+Fatal error: Uncaught InvalidArgumentException: CFB file uses an unsupported minor version in $REPO/lanes/pandoc/src/CompoundFileBinary.php:74
 Stack trace:
-#0 $REPO/lanes/pandoc/src/LegacyDocReader.php(228): PortLibs\Pandoc\CompoundFileBinary::fromBytes(&#039;Second .doc pla...&#039;)
-#1 $REPO/lanes/pandoc/src/LegacyDocReader.php(220): PortLibs\Pandoc\LegacyDocReader-&gt;readBytes(&#039;Second .doc pla...&#039;)
-#2 $REPO/lanes/pandoc/src/PandocConverter.php(36): PortLibs\Pandoc\LegacyDocReader-&gt;read(&#039;Second .doc pla...&#039;)
-#3 $REPO/lanes/pandoc/src/PandocConverter.php(79): PortLibs\Pandoc\PandocConverter::read(&#039;Second .doc pla...&#039;, &#039;doc&#039;, Array)
-#4 $REPO/lanes/pandoc/src/PandocConverter.php(98): PortLibs\Pandoc\PandocConverter::convert(&#039;Second .doc pla...&#039;, &#039;doc&#039;, &#039;wordpress&#039;, Array)
+#0 $REPO/lanes/pandoc/src/LegacyDocReader.php(228): PortLibs\Pandoc\CompoundFileBinary::fromBytes(&#039;\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1\x00\x00\x00\x00\x00\x00\x00...&#039;)
+#1 $REPO/lanes/pandoc/src/LegacyDocReader.php(220): PortLibs\Pandoc\LegacyDocReader-&gt;readBytes(&#039;\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1\x00\x00\x00\x00\x00\x00\x00...&#039;)
+#2 $REPO/lanes/pandoc/src/PandocConverter.php(36): PortLibs\Pandoc\LegacyDocReader-&gt;read(&#039;\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1\x00\x00\x00\x00\x00\x00\x00...&#039;)
+#3 $REPO/lanes/pandoc/src/PandocConverter.php(79): PortLibs\Pandoc\PandocConverter::read(&#039;\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1\x00\x00\x00\x00\x00\x00\x00...&#039;, &#039;doc&#039;, Array)
+#4 $REPO/lanes/pandoc/src/PandocConverter.php(98): PortLibs\Pandoc\PandocConverter::convert(&#039;\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1\x00\x00\x00\x00\x00\x00\x00...&#039;, &#039;doc&#039;, &#039;wordpress&#039;, Array)
 #5 $REPO/tools/build-pandoc-showcase.php(21): PortLibs\Pandoc\PandocConverter::convertFile(&#039;$REPO&#039;, &#039;doc&#039;, &#039;wordpress&#039;)
 #6 {main}
-  thrown in $REPO/lanes/pandoc/src/CompoundFileBinary.php on line 56</pre></div><div class="tab-panel" id="doc-legacy-placeholder-2-phpHtml" role="tabpanel"><pre class="error-box">PHP Fatal error:  Uncaught InvalidArgumentException: CFB file is missing the compound-file signature in $REPO/lanes/pandoc/src/CompoundFileBinary.php:56
+  thrown in $REPO/lanes/pandoc/src/CompoundFileBinary.php on line 74</pre></div><div class="tab-panel" id="doc-poi-bug60936-phpHtml" role="tabpanel"><pre class="error-box">PHP Fatal error:  Uncaught InvalidArgumentException: CFB file uses an unsupported minor version in $REPO/lanes/pandoc/src/CompoundFileBinary.php:74
 Stack trace:
-#0 $REPO/lanes/pandoc/src/LegacyDocReader.php(228): PortLibs\Pandoc\CompoundFileBinary::fromBytes(&#039;Second .doc pla...&#039;)
-#1 $REPO/lanes/pandoc/src/LegacyDocReader.php(220): PortLibs\Pandoc\LegacyDocReader-&gt;readBytes(&#039;Second .doc pla...&#039;)
-#2 $REPO/lanes/pandoc/src/PandocConverter.php(36): PortLibs\Pandoc\LegacyDocReader-&gt;read(&#039;Second .doc pla...&#039;)
-#3 $REPO/lanes/pandoc/src/PandocConverter.php(79): PortLibs\Pandoc\PandocConverter::read(&#039;Second .doc pla...&#039;, &#039;doc&#039;, Array)
-#4 $REPO/lanes/pandoc/src/PandocConverter.php(98): PortLibs\Pandoc\PandocConverter::convert(&#039;Second .doc pla...&#039;, &#039;doc&#039;, &#039;html&#039;, Array)
+#0 $REPO/lanes/pandoc/src/LegacyDocReader.php(228): PortLibs\Pandoc\CompoundFileBinary::fromBytes(&#039;\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1\x00\x00\x00\x00\x00\x00\x00...&#039;)
+#1 $REPO/lanes/pandoc/src/LegacyDocReader.php(220): PortLibs\Pandoc\LegacyDocReader-&gt;readBytes(&#039;\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1\x00\x00\x00\x00\x00\x00\x00...&#039;)
+#2 $REPO/lanes/pandoc/src/PandocConverter.php(36): PortLibs\Pandoc\LegacyDocReader-&gt;read(&#039;\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1\x00\x00\x00\x00\x00\x00\x00...&#039;)
+#3 $REPO/lanes/pandoc/src/PandocConverter.php(79): PortLibs\Pandoc\PandocConverter::read(&#039;\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1\x00\x00\x00\x00\x00\x00\x00...&#039;, &#039;doc&#039;, Array)
+#4 $REPO/lanes/pandoc/src/PandocConverter.php(98): PortLibs\Pandoc\PandocConverter::convert(&#039;\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1\x00\x00\x00\x00\x00\x00\x00...&#039;, &#039;doc&#039;, &#039;html&#039;, Array)
 #5 $REPO/tools/build-pandoc-showcase.php(21): PortLibs\Pandoc\PandocConverter::convertFile(&#039;$REPO&#039;, &#039;doc&#039;, &#039;html&#039;)
 #6 {main}
-  thrown in $REPO/lanes/pandoc/src/CompoundFileBinary.php on line 56
-Fatal error: Uncaught InvalidArgumentException: CFB file is missing the compound-file signature in $REPO/lanes/pandoc/src/CompoundFileBinary.php:56
+  thrown in $REPO/lanes/pandoc/src/CompoundFileBinary.php on line 74
+Fatal error: Uncaught InvalidArgumentException: CFB file uses an unsupported minor version in $REPO/lanes/pandoc/src/CompoundFileBinary.php:74
 Stack trace:
-#0 $REPO/lanes/pandoc/src/LegacyDocReader.php(228): PortLibs\Pandoc\CompoundFileBinary::fromBytes(&#039;Second .doc pla...&#039;)
-#1 $REPO/lanes/pandoc/src/LegacyDocReader.php(220): PortLibs\Pandoc\LegacyDocReader-&gt;readBytes(&#039;Second .doc pla...&#039;)
-#2 $REPO/lanes/pandoc/src/PandocConverter.php(36): PortLibs\Pandoc\LegacyDocReader-&gt;read(&#039;Second .doc pla...&#039;)
-#3 $REPO/lanes/pandoc/src/PandocConverter.php(79): PortLibs\Pandoc\PandocConverter::read(&#039;Second .doc pla...&#039;, &#039;doc&#039;, Array)
-#4 $REPO/lanes/pandoc/src/PandocConverter.php(98): PortLibs\Pandoc\PandocConverter::convert(&#039;Second .doc pla...&#039;, &#039;doc&#039;, &#039;html&#039;, Array)
+#0 $REPO/lanes/pandoc/src/LegacyDocReader.php(228): PortLibs\Pandoc\CompoundFileBinary::fromBytes(&#039;\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1\x00\x00\x00\x00\x00\x00\x00...&#039;)
+#1 $REPO/lanes/pandoc/src/LegacyDocReader.php(220): PortLibs\Pandoc\LegacyDocReader-&gt;readBytes(&#039;\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1\x00\x00\x00\x00\x00\x00\x00...&#039;)
+#2 $REPO/lanes/pandoc/src/PandocConverter.php(36): PortLibs\Pandoc\LegacyDocReader-&gt;read(&#039;\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1\x00\x00\x00\x00\x00\x00\x00...&#039;)
+#3 $REPO/lanes/pandoc/src/PandocConverter.php(79): PortLibs\Pandoc\PandocConverter::read(&#039;\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1\x00\x00\x00\x00\x00\x00\x00...&#039;, &#039;doc&#039;, Array)
+#4 $REPO/lanes/pandoc/src/PandocConverter.php(98): PortLibs\Pandoc\PandocConverter::convert(&#039;\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1\x00\x00\x00\x00\x00\x00\x00...&#039;, &#039;doc&#039;, &#039;html&#039;, Array)
 #5 $REPO/tools/build-pandoc-showcase.php(21): PortLibs\Pandoc\PandocConverter::convertFile(&#039;$REPO&#039;, &#039;doc&#039;, &#039;html&#039;)
 #6 {main}
-  thrown in $REPO/lanes/pandoc/src/CompoundFileBinary.php on line 56</pre><pre class="source-box">PHP Fatal error:  Uncaught InvalidArgumentException: CFB file is missing the compound-file signature in $REPO/lanes/pandoc/src/CompoundFileBinary.php:56
+  thrown in $REPO/lanes/pandoc/src/CompoundFileBinary.php on line 74</pre><pre class="source-box">PHP Fatal error:  Uncaught InvalidArgumentException: CFB file uses an unsupported minor version in $REPO/lanes/pandoc/src/CompoundFileBinary.php:74
 Stack trace:
-#0 $REPO/lanes/pandoc/src/LegacyDocReader.php(228): PortLibs\Pandoc\CompoundFileBinary::fromBytes(&#039;Second .doc pla...&#039;)
-#1 $REPO/lanes/pandoc/src/LegacyDocReader.php(220): PortLibs\Pandoc\LegacyDocReader-&gt;readBytes(&#039;Second .doc pla...&#039;)
-#2 $REPO/lanes/pandoc/src/PandocConverter.php(36): PortLibs\Pandoc\LegacyDocReader-&gt;read(&#039;Second .doc pla...&#039;)
-#3 $REPO/lanes/pandoc/src/PandocConverter.php(79): PortLibs\Pandoc\PandocConverter::read(&#039;Second .doc pla...&#039;, &#039;doc&#039;, Array)
-#4 $REPO/lanes/pandoc/src/PandocConverter.php(98): PortLibs\Pandoc\PandocConverter::convert(&#039;Second .doc pla...&#039;, &#039;doc&#039;, &#039;html&#039;, Array)
+#0 $REPO/lanes/pandoc/src/LegacyDocReader.php(228): PortLibs\Pandoc\CompoundFileBinary::fromBytes(&#039;\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1\x00\x00\x00\x00\x00\x00\x00...&#039;)
+#1 $REPO/lanes/pandoc/src/LegacyDocReader.php(220): PortLibs\Pandoc\LegacyDocReader-&gt;readBytes(&#039;\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1\x00\x00\x00\x00\x00\x00\x00...&#039;)
+#2 $REPO/lanes/pandoc/src/PandocConverter.php(36): PortLibs\Pandoc\LegacyDocReader-&gt;read(&#039;\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1\x00\x00\x00\x00\x00\x00\x00...&#039;)
+#3 $REPO/lanes/pandoc/src/PandocConverter.php(79): PortLibs\Pandoc\PandocConverter::read(&#039;\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1\x00\x00\x00\x00\x00\x00\x00...&#039;, &#039;doc&#039;, Array)
+#4 $REPO/lanes/pandoc/src/PandocConverter.php(98): PortLibs\Pandoc\PandocConverter::convert(&#039;\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1\x00\x00\x00\x00\x00\x00\x00...&#039;, &#039;doc&#039;, &#039;html&#039;, Array)
 #5 $REPO/tools/build-pandoc-showcase.php(21): PortLibs\Pandoc\PandocConverter::convertFile(&#039;$REPO&#039;, &#039;doc&#039;, &#039;html&#039;)
 #6 {main}
-  thrown in $REPO/lanes/pandoc/src/CompoundFileBinary.php on line 56
-Fatal error: Uncaught InvalidArgumentException: CFB file is missing the compound-file signature in $REPO/lanes/pandoc/src/CompoundFileBinary.php:56
+  thrown in $REPO/lanes/pandoc/src/CompoundFileBinary.php on line 74
+Fatal error: Uncaught InvalidArgumentException: CFB file uses an unsupported minor version in $REPO/lanes/pandoc/src/CompoundFileBinary.php:74
 Stack trace:
-#0 $REPO/lanes/pandoc/src/LegacyDocReader.php(228): PortLibs\Pandoc\CompoundFileBinary::fromBytes(&#039;Second .doc pla...&#039;)
-#1 $REPO/lanes/pandoc/src/LegacyDocReader.php(220): PortLibs\Pandoc\LegacyDocReader-&gt;readBytes(&#039;Second .doc pla...&#039;)
-#2 $REPO/lanes/pandoc/src/PandocConverter.php(36): PortLibs\Pandoc\LegacyDocReader-&gt;read(&#039;Second .doc pla...&#039;)
-#3 $REPO/lanes/pandoc/src/PandocConverter.php(79): PortLibs\Pandoc\PandocConverter::read(&#039;Second .doc pla...&#039;, &#039;doc&#039;, Array)
-#4 $REPO/lanes/pandoc/src/PandocConverter.php(98): PortLibs\Pandoc\PandocConverter::convert(&#039;Second .doc pla...&#039;, &#039;doc&#039;, &#039;html&#039;, Array)
+#0 $REPO/lanes/pandoc/src/LegacyDocReader.php(228): PortLibs\Pandoc\CompoundFileBinary::fromBytes(&#039;\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1\x00\x00\x00\x00\x00\x00\x00...&#039;)
+#1 $REPO/lanes/pandoc/src/LegacyDocReader.php(220): PortLibs\Pandoc\LegacyDocReader-&gt;readBytes(&#039;\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1\x00\x00\x00\x00\x00\x00\x00...&#039;)
+#2 $REPO/lanes/pandoc/src/PandocConverter.php(36): PortLibs\Pandoc\LegacyDocReader-&gt;read(&#039;\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1\x00\x00\x00\x00\x00\x00\x00...&#039;)
+#3 $REPO/lanes/pandoc/src/PandocConverter.php(79): PortLibs\Pandoc\PandocConverter::read(&#039;\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1\x00\x00\x00\x00\x00\x00\x00...&#039;, &#039;doc&#039;, Array)
+#4 $REPO/lanes/pandoc/src/PandocConverter.php(98): PortLibs\Pandoc\PandocConverter::convert(&#039;\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1\x00\x00\x00\x00\x00\x00\x00...&#039;, &#039;doc&#039;, &#039;html&#039;, Array)
 #5 $REPO/tools/build-pandoc-showcase.php(21): PortLibs\Pandoc\PandocConverter::convertFile(&#039;$REPO&#039;, &#039;doc&#039;, &#039;html&#039;)
 #6 {main}
-  thrown in $REPO/lanes/pandoc/src/CompoundFileBinary.php on line 56</pre></div><div class="tab-panel" id="doc-legacy-placeholder-2-haskell" role="tabpanel"><pre class="error-box">Unknown input format &#039;doc&#039;
+  thrown in $REPO/lanes/pandoc/src/CompoundFileBinary.php on line 74</pre></div><div class="tab-panel" id="doc-poi-bug60936-haskell" role="tabpanel"><pre class="error-box">Unknown input format &#039;doc&#039;
 Pandoc can convert from DOCX, but not from DOC.
 Try using Word to save your DOC file as DOCX, and convert that with pandoc.</pre><pre class="source-box">Unknown input format &#039;doc&#039;
 Pandoc can convert from DOCX, but not from DOC.
