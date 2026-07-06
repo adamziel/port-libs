@@ -1,5 +1,5 @@
 {
-    "generatedAt": "2026-07-06T22:47:32+00:00",
+    "generatedAt": "2026-07-06T23:58:26+00:00",
     "pandocVersion": "pandoc 3.10\nFeatures: +server +lua\nScripting engine: Lua 5.4\nUser data directory: $REPO\nCopyright (C) 2006-2025 John MacFarlane. Web:  https://pandoc.org\nThis is free software; see the source for copying conditions. There is no\nwarranty, not even for merchantability or fitness for a particular purpose.",
     "formats": [
         "biblatex",
@@ -64,11 +64,13 @@
         "jira",
         "json",
         "latex",
+        "man",
         "markdown",
         "markdown_github",
         "markdown_mmd",
         "markdown_phpextra",
         "markdown_strict",
+        "mediawiki",
         "native",
         "odt",
         "opml",
@@ -82,25 +84,24 @@
     ],
     "missingFormats": [
         "dokuwiki",
-        "man",
         "mdoc",
-        "mediawiki",
         "rst"
     ],
     "blockUsage": {
         "totals": {
-            "code": 28,
-            "group": 224,
-            "heading": 3511,
+            "code": 260,
+            "group": 255,
+            "heading": 3710,
+            "html": 5,
             "image": 92,
-            "list": 853,
-            "paragraph": 13556,
-            "quote": 21,
-            "separator": 55,
-            "table": 551,
+            "list": 1051,
+            "paragraph": 14138,
+            "quote": 25,
+            "separator": 57,
+            "table": 543,
             "verse": 1
         },
-        "sampleCount": 76
+        "sampleCount": 80
     },
     "records": [
         {
@@ -300,6 +301,43 @@
             }
         },
         {
+            "id": "commonmark-feature-packet",
+            "format": "commonmark",
+            "label": "CommonMark feature packet",
+            "description": "",
+            "source": "Inline CommonMark packet covering reference links, block quotes, lists, fenced code, hard breaks, thematic breaks, and HTML blocks.",
+            "sourceUrl": "",
+            "samplePath": "samples/commonmark-feature-packet-commonmark-feature-packet.md",
+            "sampleSize": 451,
+            "preview": "# CommonMark feature packet\n\nParagraph one has *emphasis*, **strong**, `code`, an autolink\n<https://commonmark.org/>, and a reference link to [the spec][spec].\n\n> A quote with lazy continuation\n> and a nested list:\n>\n> - one\n> - two\n\n1. Ordered item\n2. Second item with a hard break\\\n   next visual line\n\n```json\n{\"format\":\"commonmark\",\"tables\":false}\n```\n\n---\n\n<section>\nHTML block retained as source HTML.\n</section>\n\n[spec]: https://commonmark.org/",
+            "support": {
+                "status": "reader-equivalent",
+                "implementation": "PortLibs\\Pandoc\\MarkdownReader",
+                "notes": "Uses the shared Markdown reader; the Markdown reader implementation-equivalence gate covers 137/137 checked-in Markdown/native pairs including CommonMark-oriented profile fixtures."
+            },
+            "haskell": {
+                "ok": true,
+                "path": "outputs/commonmark-feature-packet/haskell.html"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/commonmark-feature-packet/php.html"
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/commonmark-feature-packet/wordpress-blocks.html"
+            },
+            "wpBlockCounts": {
+                "code": 1,
+                "heading": 1,
+                "html": 1,
+                "list": 1,
+                "paragraph": 1,
+                "quote": 1,
+                "separator": 1
+            }
+        },
+        {
             "id": "commonmark-notes",
             "format": "commonmark",
             "label": "CommonMark migration note",
@@ -333,38 +371,38 @@
             }
         },
         {
-            "id": "commonmark-release",
-            "format": "commonmark",
-            "label": "CommonMark release note",
+            "id": "commonmarkx-feature-packet",
+            "format": "commonmark_x",
+            "label": "CommonMark X feature packet",
             "description": "",
-            "source": "Inline release-note Markdown sample.",
+            "source": "Inline CommonMark X packet covering task lists, pipe tables, strikeout, fenced divs, bracketed spans, definition lists, and footnotes.",
             "sourceUrl": "",
-            "samplePath": "samples/commonmark-release-commonmark-release.md",
-            "sampleSize": 226,
-            "preview": "---\ntitle: Release notes excerpt\n---\n\n## Highlights\n\nGitHub-flavored Markdown commonly mixes task lists, fenced code, and tables.\n\n- [x] Import document text\n- [ ] Preserve richer layout\n\n```php\necho \"portable conversion\";\n```",
+            "samplePath": "samples/commonmarkx-feature-packet-commonmarkx-feature-packet.md",
+            "sampleSize": 325,
+            "preview": "# CommonMark X extension packet {#cmx .import}\n\n- [x] task item\n- [ ] unchecked task item\n\n| Extension | Evidence |\n| --- | --- |\n| pipe table | yes |\n| strikeout | ~~removed~~ |\n\n::: note\nFenced div content with a [bracketed span]{.flag}.\n:::\n\nTerm\n: Definition list entry\n\n[^cmx]: Footnote text.\n\nReference with note.[^cmx]",
             "support": {
                 "status": "reader-equivalent",
                 "implementation": "PortLibs\\Pandoc\\MarkdownReader",
-                "notes": "Uses the shared Markdown reader; the Markdown reader implementation-equivalence gate covers 137/137 checked-in Markdown/native pairs including CommonMark-oriented profile fixtures."
+                "notes": "Uses the shared Markdown reader; the Markdown reader implementation-equivalence gate covers 137/137 checked-in Markdown/native pairs including CommonMark extension profile fixtures."
             },
             "haskell": {
                 "ok": true,
-                "path": "outputs/commonmark-release/haskell.html"
+                "path": "outputs/commonmarkx-feature-packet/haskell.html"
             },
             "phpHtml": {
                 "ok": true,
-                "path": "outputs/commonmark-release/php.html"
+                "path": "outputs/commonmarkx-feature-packet/php.html"
             },
             "wpBlocks": {
                 "ok": true,
-                "path": "outputs/commonmark-release/wordpress-blocks.html"
+                "path": "outputs/commonmarkx-feature-packet/wordpress-blocks.html"
             },
             "wpBlockCounts": {
-                "code": 1,
-                "heading": 2,
-                "list": 1,
-                "paragraph": 1,
-                "separator": 1
+                "group": 2,
+                "heading": 1,
+                "list": 3,
+                "paragraph": 3,
+                "table": 1
             }
         },
         {
@@ -399,40 +437,6 @@
                 "heading": 1,
                 "list": 1,
                 "paragraph": 1
-            }
-        },
-        {
-            "id": "commonmarkx-notes",
-            "format": "commonmark_x",
-            "label": "CommonMark extensions notes",
-            "description": "",
-            "source": "Inline documentation-style Markdown sample.",
-            "sourceUrl": "",
-            "samplePath": "samples/commonmarkx-notes-commonmarkx-notes.md",
-            "sampleSize": 418,
-            "preview": "# WordPress data liberation checklist\n\nThis note mirrors the kind of Markdown found in migration docs and issue\ntrackers.\n\n- Preserve headings, paragraphs, lists, and inline emphasis.\n- Keep [links](https://wordpress.org/) readable.\n- Convert source content to clean WordPress blocks.\n\n| Source | Expected handoff |\n| --- | --- |\n| Markdown | paragraphs and lists |\n| CSV | table fallback |\n| HTML | native structure |",
-            "support": {
-                "status": "reader-equivalent",
-                "implementation": "PortLibs\\Pandoc\\MarkdownReader",
-                "notes": "Uses the shared Markdown reader; the Markdown reader implementation-equivalence gate covers 137/137 checked-in Markdown/native pairs including CommonMark extension profile fixtures."
-            },
-            "haskell": {
-                "ok": true,
-                "path": "outputs/commonmarkx-notes/haskell.html"
-            },
-            "phpHtml": {
-                "ok": true,
-                "path": "outputs/commonmarkx-notes/php.html"
-            },
-            "wpBlocks": {
-                "ok": true,
-                "path": "outputs/commonmarkx-notes/wordpress-blocks.html"
-            },
-            "wpBlockCounts": {
-                "heading": 1,
-                "list": 1,
-                "paragraph": 1,
-                "table": 1
             }
         },
         {
@@ -1199,6 +1203,41 @@
             }
         },
         {
+            "id": "gfm-feature-packet",
+            "format": "gfm",
+            "label": "GFM feature packet",
+            "description": "",
+            "source": "Inline GitHub-flavored Markdown packet covering task lists, pipe tables, strikethrough, autolinks, fenced code, and quotes.",
+            "sourceUrl": "",
+            "samplePath": "samples/gfm-feature-packet-gfm-feature-packet.md",
+            "sampleSize": 263,
+            "preview": "# GFM feature packet\n\n- [x] task list item\n- [ ] open task list item\n\n| GitHub feature | Example |\n| --- | --- |\n| strikethrough | ~~old copy~~ |\n| autolink | https://github.com/ |\n\n```diff\n- old block\n+ new block\n```\n\n> GFM quote with `code` and **strong** text.",
+            "support": {
+                "status": "reader-equivalent",
+                "implementation": "PortLibs\\Pandoc\\MarkdownReader",
+                "notes": "Uses the shared Markdown reader; the Markdown reader implementation-equivalence gate covers 137/137 checked-in Markdown/native pairs including GFM profile fixtures."
+            },
+            "haskell": {
+                "ok": true,
+                "path": "outputs/gfm-feature-packet/haskell.html"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/gfm-feature-packet/php.html"
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/gfm-feature-packet/wordpress-blocks.html"
+            },
+            "wpBlockCounts": {
+                "code": 1,
+                "heading": 1,
+                "list": 1,
+                "quote": 1,
+                "table": 1
+            }
+        },
+        {
             "id": "gfm-release",
             "format": "gfm",
             "label": "GFM release notes",
@@ -1233,34 +1272,35 @@
             }
         },
         {
-            "id": "gfm-notes",
-            "format": "gfm",
-            "label": "GFM migration note",
+            "id": "markdown-github-feature-packet",
+            "format": "markdown_github",
+            "label": "GitHub Markdown alias feature packet",
             "description": "",
-            "source": "Inline documentation-style GitHub-flavored Markdown sample.",
+            "source": "Inline GitHub Markdown alias packet covering task lists, tables, strikethrough, and details HTML.",
             "sourceUrl": "",
-            "samplePath": "samples/gfm-notes-gfm-notes.md",
-            "sampleSize": 418,
-            "preview": "# WordPress data liberation checklist\n\nThis note mirrors the kind of Markdown found in migration docs and issue\ntrackers.\n\n- Preserve headings, paragraphs, lists, and inline emphasis.\n- Keep [links](https://wordpress.org/) readable.\n- Convert source content to clean WordPress blocks.\n\n| Source | Expected handoff |\n| --- | --- |\n| Markdown | paragraphs and lists |\n| CSV | table fallback |\n| HTML | native structure |",
+            "samplePath": "samples/markdown-github-feature-packet-markdown-github-feature-packet.md",
+            "sampleSize": 348,
+            "preview": "# GitHub Markdown alias packet\n\nIssue-style content mixes task lists, tables, mentions, and raw HTML.\n\n- [x] Parse checklist\n- [ ] Preserve pending item\n\n| Field | Value |\n| --- | --- |\n| repository | adamziel/port-libs |\n| status | ~~draft~~ ready |\n\n<details>\n<summary>Review note</summary>\n\nNested Markdown inside an HTML disclosure.\n\n</details>",
             "support": {
                 "status": "reader-equivalent",
                 "implementation": "PortLibs\\Pandoc\\MarkdownReader",
-                "notes": "Uses the shared Markdown reader; the Markdown reader implementation-equivalence gate covers 137/137 checked-in Markdown/native pairs including GFM profile fixtures."
+                "notes": "Deprecated upstream token handled as a GFM-family Markdown variant by the shared Markdown reader implementation-equivalence gate."
             },
             "haskell": {
                 "ok": true,
-                "path": "outputs/gfm-notes/haskell.html"
+                "path": "outputs/markdown-github-feature-packet/haskell.html"
             },
             "phpHtml": {
                 "ok": true,
-                "path": "outputs/gfm-notes/php.html"
+                "path": "outputs/markdown-github-feature-packet/php.html"
             },
             "wpBlocks": {
                 "ok": true,
-                "path": "outputs/gfm-notes/wordpress-blocks.html"
+                "path": "outputs/markdown-github-feature-packet/wordpress-blocks.html"
             },
             "wpBlockCounts": {
                 "heading": 1,
+                "html": 1,
                 "list": 1,
                 "paragraph": 1,
                 "table": 1
@@ -1298,40 +1338,6 @@
                 "heading": 1,
                 "list": 1,
                 "paragraph": 1
-            }
-        },
-        {
-            "id": "markdown-github-notes",
-            "format": "markdown_github",
-            "label": "GitHub Markdown notes",
-            "description": "",
-            "source": "Inline GitHub Markdown alias sample.",
-            "sourceUrl": "",
-            "samplePath": "samples/markdown-github-notes-markdown-github-notes.md",
-            "sampleSize": 418,
-            "preview": "# WordPress data liberation checklist\n\nThis note mirrors the kind of Markdown found in migration docs and issue\ntrackers.\n\n- Preserve headings, paragraphs, lists, and inline emphasis.\n- Keep [links](https://wordpress.org/) readable.\n- Convert source content to clean WordPress blocks.\n\n| Source | Expected handoff |\n| --- | --- |\n| Markdown | paragraphs and lists |\n| CSV | table fallback |\n| HTML | native structure |",
-            "support": {
-                "status": "reader-equivalent",
-                "implementation": "PortLibs\\Pandoc\\MarkdownReader",
-                "notes": "Deprecated upstream token handled as a GFM-family Markdown variant by the shared Markdown reader implementation-equivalence gate."
-            },
-            "haskell": {
-                "ok": true,
-                "path": "outputs/markdown-github-notes/haskell.html"
-            },
-            "phpHtml": {
-                "ok": true,
-                "path": "outputs/markdown-github-notes/php.html"
-            },
-            "wpBlocks": {
-                "ok": true,
-                "path": "outputs/markdown-github-notes/wordpress-blocks.html"
-            },
-            "wpBlockCounts": {
-                "heading": 1,
-                "list": 1,
-                "paragraph": 1,
-                "table": 1
             }
         },
         {
@@ -1726,15 +1732,15 @@
             }
         },
         {
-            "id": "markdown-notes",
+            "id": "markdown-feature-packet",
             "format": "markdown",
-            "label": "Markdown migration note",
+            "label": "Pandoc Markdown feature packet",
             "description": "",
-            "source": "Inline documentation-style Markdown sample.",
+            "source": "Inline Pandoc Markdown packet covering metadata, attributes, definition lists, task lists, tables, fenced divs, footnotes, code, and reference links.",
             "sourceUrl": "",
-            "samplePath": "samples/markdown-notes-markdown-notes.md",
-            "sampleSize": 418,
-            "preview": "# WordPress data liberation checklist\n\nThis note mirrors the kind of Markdown found in migration docs and issue\ntrackers.\n\n- Preserve headings, paragraphs, lists, and inline emphasis.\n- Keep [links](https://wordpress.org/) readable.\n- Convert source content to clean WordPress blocks.\n\n| Source | Expected handoff |\n| --- | --- |\n| Markdown | paragraphs and lists |\n| CSV | table fallback |\n| HTML | native structure |",
+            "samplePath": "samples/markdown-feature-packet-markdown-feature-packet.md",
+            "sampleSize": 628,
+            "preview": "---\ntitle: Pandoc Markdown feature packet\nauthor:\n  - Migration Team\nkeywords: [markdown, pandoc, blocks]\n---\n\n# Pandoc Markdown feature packet {#pandoc-feature-packet .review}\n\nTerm\n: Definition with *emphasis*, **strong text**, and an inline footnote.^[Inline\n  note with continuation text.]\n\n1. Ordered item with a nested task.\n   - [x] Preserve extension syntax\n   - [ ] Review block output\n\n| Feature | Writer expectation |\n|:--|--:|\n| pipe table | table block |\n| footnote | generated note |\n\n::: warning\nFenced div content with a [reference link][wp].\n:::\n\n```php\necho \"pandoc markdown\";\n```\n\n[wp]: https://wordpress.org/",
             "support": {
                 "status": "reader-equivalent",
                 "implementation": "PortLibs\\Pandoc\\MarkdownReader",
@@ -1742,20 +1748,22 @@
             },
             "haskell": {
                 "ok": true,
-                "path": "outputs/markdown-notes/haskell.html"
+                "path": "outputs/markdown-feature-packet/haskell.html"
             },
             "phpHtml": {
                 "ok": true,
-                "path": "outputs/markdown-notes/php.html"
+                "path": "outputs/markdown-feature-packet/php.html"
             },
             "wpBlocks": {
                 "ok": true,
-                "path": "outputs/markdown-notes/wordpress-blocks.html"
+                "path": "outputs/markdown-feature-packet/wordpress-blocks.html"
             },
             "wpBlockCounts": {
+                "code": 1,
+                "group": 2,
                 "heading": 1,
-                "list": 1,
-                "paragraph": 1,
+                "list": 3,
+                "paragraph": 2,
                 "table": 1
             }
         },
@@ -1797,7 +1805,7 @@
             "id": "markdown-pandoc-manual",
             "format": "markdown",
             "label": "Pandoc manual Markdown",
-            "description": "Real 293 KB Markdown manual with dense sections, tables, links, code, lists, and metadata; currently exposes PHP writer memory limits.",
+            "description": "Real 293 KB Markdown manual with dense sections, tables, links, code, lists, metadata, and large generated tables.",
             "source": "jgm/pandoc MANUAL.txt at upstream source commit",
             "sourceUrl": "https://raw.githubusercontent.com/jgm/pandoc/912bfa5e2e3f5c74eb125dfc19404f67c61ca58b/MANUAL.txt",
             "samplePath": "samples/markdown-pandoc-manual-MANUAL.txt",
@@ -1817,22 +1825,30 @@
                 "path": "outputs/markdown-pandoc-manual/php.html"
             },
             "wpBlocks": {
-                "ok": false,
-                "error": "PHP Fatal error:  Allowed memory size of 134217728 bytes exhausted (tried to allocate 20480 bytes) in $REPO/lanes/pandoc/src/TableGeometry.php on line 13310\nStack trace:\n#0 $REPO/lanes/pandoc/src/TableGeometry.php(202): PortLibs\\Pandoc\\TableGeometry::sectionGridForEntries(Array, 2)\n#1 $REPO/lanes/pandoc/src/TableGeometry.php(548): PortLibs\\Pandoc\\TableGeometry::sectionGrids(Object(PortLibs\\Pandoc\\AstNode))\n#2 $REPO/lanes/pandoc/src/WordPressBlockWriter.php(1598): PortLibs\\Pandoc\\TableGeometry::accessibilityAttributes(Object(PortLibs\\Pandoc\\AstNode))\n#3 $REPO/lanes/pandoc/src/WordPressBlockWriter.php(1129): PortLibs\\Pandoc\\WordPressBlockWriter->tableAccessibilityByCell(Object(PortLibs\\Pandoc\\AstNode))\n#4 $REPO/lanes/pandoc/src/WordPressBlockWriter.php(999): PortLibs\\Pandoc\\WordPressBlockWriter->renderTableHtml(Object(PortLibs\\Pandoc\\AstNode))\n#5 $REPO/lanes/pandoc/src/WordPressBlockWriter.php(76): PortLibs\\Pandoc\\WordPressBlockWriter->renderTable(Object(PortLibs\\Pandoc\\AstNode))\n#6 $REPO/lanes/pandoc/src/PandocConverter.php(63): PortLibs\\Pandoc\\WordPressBlockWriter->write(Object(PortLibs\\Pandoc\\AstNode))\n#7 $REPO/lanes/pandoc/src/PandocConverter.php(80): PortLibs\\Pandoc\\PandocConverter::write(Object(PortLibs\\Pandoc\\AstNode), 'wordpress', Array)\n#8 $REPO/lanes/pandoc/src/PandocConverter.php(99): PortLibs\\Pandoc\\PandocConverter::convert('---\\ntitle: Pand...', 'markdown', 'wordpress', Array)\n#9 $REPO/tools/build-pandoc-showcase.php(21): PortLibs\\Pandoc\\PandocConverter::convertFile('$TMP', 'markdown', 'wordpress')\n#10 {main}\nFatal error: Allowed memory size of 134217728 bytes exhausted (tried to allocate 20480 bytes) in $REPO/lanes/pandoc/src/TableGeometry.php on line 13310\nStack trace:\n#0 $REPO/lanes/pandoc/src/TableGeometry.php(202): PortLibs\\Pandoc\\TableGeometry::sectionGridForEntries(Array, 2)\n#1 $REPO/lanes/pandoc/src/TableGeometry.php(548): PortLibs\\Pandoc\\TableGeometry::sectionGrids(Object(PortLibs\\Pandoc\\AstNode))\n#2 $REPO/lanes/pandoc/src/WordPressBlockWriter.php(1598): PortLibs\\Pandoc\\TableGeometry::accessibilityAttributes(Object(PortLibs\\Pandoc\\AstNode))\n#3 $REPO/lanes/pandoc/src/WordPressBlockWriter.php(1129): PortLibs\\Pandoc\\WordPressBlockWriter->tableAccessibilityByCell(Object(PortLibs\\Pandoc\\AstNode))\n#4 $REPO/lanes/pandoc/src/WordPressBlockWriter.php(999): PortLibs\\Pandoc\\WordPressBlockWriter->renderTableHtml(Object(PortLibs\\Pandoc\\AstNode))\n#5 $REPO/lanes/pandoc/src/WordPressBlockWriter.php(76): PortLibs\\Pandoc\\WordPressBlockWriter->renderTable(Object(PortLibs\\Pandoc\\AstNode))\n#6 $REPO/lanes/pandoc/src/PandocConverter.php(63): PortLibs\\Pandoc\\WordPressBlockWriter->write(Object(PortLibs\\Pandoc\\AstNode))\n#7 $REPO/lanes/pandoc/src/PandocConverter.php(80): PortLibs\\Pandoc\\PandocConverter::write(Object(PortLibs\\Pandoc\\AstNode), 'wordpress', Array)\n#8 $REPO/lanes/pandoc/src/PandocConverter.php(99): PortLibs\\Pandoc\\PandocConverter::convert('---\\ntitle: Pand...', 'markdown', 'wordpress', Array)\n#9 $REPO/tools/build-pandoc-showcase.php(21): PortLibs\\Pandoc\\PandocConverter::convertFile('$TMP', 'markdown', 'wordpress')\n#10 {main}",
-                "path": "outputs/markdown-pandoc-manual/wordpress-blocks.html.error.txt"
+                "ok": true,
+                "path": "outputs/markdown-pandoc-manual/wordpress-blocks.html"
             },
-            "wpBlockCounts": []
+            "wpBlockCounts": {
+                "code": 227,
+                "group": 20,
+                "heading": 206,
+                "html": 3,
+                "list": 186,
+                "paragraph": 708,
+                "quote": 1,
+                "table": 10
+            }
         },
         {
-            "id": "markdown-mmd-notes",
+            "id": "markdown-mmd-feature-packet",
             "format": "markdown_mmd",
-            "label": "MultiMarkdown profile",
+            "label": "MultiMarkdown feature packet",
             "description": "",
-            "source": "Inline Markdown read through the MultiMarkdown profile.",
+            "source": "Inline MultiMarkdown packet covering metadata, footnotes, table captions, alignment, definitions, and reference links.",
             "sourceUrl": "",
-            "samplePath": "samples/markdown-mmd-notes-markdown-mmd-notes.md",
-            "sampleSize": 418,
-            "preview": "# WordPress data liberation checklist\n\nThis note mirrors the kind of Markdown found in migration docs and issue\ntrackers.\n\n- Preserve headings, paragraphs, lists, and inline emphasis.\n- Keep [links](https://wordpress.org/) readable.\n- Convert source content to clean WordPress blocks.\n\n| Source | Expected handoff |\n| --- | --- |\n| Markdown | paragraphs and lists |\n| CSV | table fallback |\n| HTML | native structure |",
+            "samplePath": "samples/markdown-mmd-feature-packet-markdown-mmd-feature-packet.md",
+            "sampleSize": 392,
+            "preview": "Title: MultiMarkdown feature packet\nAuthor: Migration Team\n\n# MultiMarkdown feature packet\n\nThis paragraph uses a footnote.[^mmd] It also uses a reference link [WordPress][].\n\n| Left | Right |\n|:-----|------:|\n| alpha | 1 |\n| beta | 2 |\n[Table: Alignment table]\n\nTerm\n: Definition text with **strong** emphasis.\n\n[^mmd]: MultiMarkdown-style footnote text.\n\n[WordPress]: https://wordpress.org/",
             "support": {
                 "status": "reader-equivalent",
                 "implementation": "PortLibs\\Pandoc\\MarkdownReader",
@@ -1840,20 +1856,21 @@
             },
             "haskell": {
                 "ok": true,
-                "path": "outputs/markdown-mmd-notes/haskell.html"
+                "path": "outputs/markdown-mmd-feature-packet/haskell.html"
             },
             "phpHtml": {
                 "ok": true,
-                "path": "outputs/markdown-mmd-notes/php.html"
+                "path": "outputs/markdown-mmd-feature-packet/php.html"
             },
             "wpBlocks": {
                 "ok": true,
-                "path": "outputs/markdown-mmd-notes/wordpress-blocks.html"
+                "path": "outputs/markdown-mmd-feature-packet/wordpress-blocks.html"
             },
             "wpBlockCounts": {
+                "group": 2,
                 "heading": 1,
-                "list": 1,
-                "paragraph": 1,
+                "list": 2,
+                "paragraph": 3,
                 "table": 1
             }
         },
@@ -1893,15 +1910,15 @@
             }
         },
         {
-            "id": "markdown-phpextra-notes",
+            "id": "markdown-phpextra-feature-packet",
             "format": "markdown_phpextra",
-            "label": "PHP Markdown Extra profile",
+            "label": "PHP Markdown Extra feature packet",
             "description": "",
-            "source": "Inline Markdown read through the PHP Markdown Extra profile.",
+            "source": "Inline PHP Markdown Extra packet covering attributes, definition lists, tables, fenced code, and footnotes.",
             "sourceUrl": "",
-            "samplePath": "samples/markdown-phpextra-notes-markdown-phpextra-notes.md",
-            "sampleSize": 418,
-            "preview": "# WordPress data liberation checklist\n\nThis note mirrors the kind of Markdown found in migration docs and issue\ntrackers.\n\n- Preserve headings, paragraphs, lists, and inline emphasis.\n- Keep [links](https://wordpress.org/) readable.\n- Convert source content to clean WordPress blocks.\n\n| Source | Expected handoff |\n| --- | --- |\n| Markdown | paragraphs and lists |\n| CSV | table fallback |\n| HTML | native structure |",
+            "samplePath": "samples/markdown-phpextra-feature-packet-markdown-phpextra-feature-packet.md",
+            "sampleSize": 340,
+            "preview": "# PHP Markdown Extra feature packet {#php-extra .profile}\n\nDefinition term\n: Definition body with *emphasis* and `code`.\n\n| Column A | Column B |\n| -------- | -------- |\n| alpha | beta |\n\nParagraph with an attribute block.\n{#paragraph-id .review}\n\n~~~php\necho \"php markdown extra\";\n~~~\n\nFootnote reference.[^extra]\n\n[^extra]: Footnote body.",
             "support": {
                 "status": "reader-equivalent",
                 "implementation": "PortLibs\\Pandoc\\MarkdownReader",
@@ -1909,20 +1926,22 @@
             },
             "haskell": {
                 "ok": true,
-                "path": "outputs/markdown-phpextra-notes/haskell.html"
+                "path": "outputs/markdown-phpextra-feature-packet/haskell.html"
             },
             "phpHtml": {
                 "ok": true,
-                "path": "outputs/markdown-phpextra-notes/php.html"
+                "path": "outputs/markdown-phpextra-feature-packet/php.html"
             },
             "wpBlocks": {
                 "ok": true,
-                "path": "outputs/markdown-phpextra-notes/wordpress-blocks.html"
+                "path": "outputs/markdown-phpextra-feature-packet/wordpress-blocks.html"
             },
             "wpBlockCounts": {
+                "code": 1,
+                "group": 2,
                 "heading": 1,
-                "list": 1,
-                "paragraph": 1,
+                "list": 2,
+                "paragraph": 3,
                 "table": 1
             }
         },
@@ -1962,15 +1981,15 @@
             }
         },
         {
-            "id": "markdown-strict-notes",
+            "id": "markdown-strict-feature-packet",
             "format": "markdown_strict",
-            "label": "Strict Markdown profile",
+            "label": "Strict Markdown feature packet",
             "description": "",
-            "source": "Inline Markdown read through the strict profile.",
+            "source": "Inline strict Markdown packet covering original Markdown headings, emphasis, links, block quotes, nested lists, indented code, and thematic breaks.",
             "sourceUrl": "",
-            "samplePath": "samples/markdown-strict-notes-markdown-strict-notes.md",
-            "sampleSize": 418,
-            "preview": "# WordPress data liberation checklist\n\nThis note mirrors the kind of Markdown found in migration docs and issue\ntrackers.\n\n- Preserve headings, paragraphs, lists, and inline emphasis.\n- Keep [links](https://wordpress.org/) readable.\n- Convert source content to clean WordPress blocks.\n\n| Source | Expected handoff |\n| --- | --- |\n| Markdown | paragraphs and lists |\n| CSV | table fallback |\n| HTML | native structure |",
+            "samplePath": "samples/markdown-strict-feature-packet-markdown-strict-feature-packet.md",
+            "sampleSize": 457,
+            "preview": "Strict Markdown feature packet\n==============================\n\nThis sample avoids extension syntax and sticks to original Markdown constructs:\ninline *emphasis*, **strong text**, `code`, and [reference links][ref].\n\n> Block quote first line\n> second line\n\n* Bullet one\n* Bullet two with nested content\n    * Nested bullet\n\n    Indented code block\n    with two lines\n\n1. Ordered item\n2. Ordered item\n\n---\n\n[ref]: https://daringfireball.net/projects/markdown/",
             "support": {
                 "status": "reader-equivalent",
                 "implementation": "PortLibs\\Pandoc\\MarkdownReader",
@@ -1978,20 +1997,22 @@
             },
             "haskell": {
                 "ok": true,
-                "path": "outputs/markdown-strict-notes/haskell.html"
+                "path": "outputs/markdown-strict-feature-packet/haskell.html"
             },
             "phpHtml": {
                 "ok": true,
-                "path": "outputs/markdown-strict-notes/php.html"
+                "path": "outputs/markdown-strict-feature-packet/php.html"
             },
             "wpBlocks": {
                 "ok": true,
-                "path": "outputs/markdown-strict-notes/wordpress-blocks.html"
+                "path": "outputs/markdown-strict-feature-packet/wordpress-blocks.html"
             },
             "wpBlockCounts": {
                 "heading": 1,
-                "list": 1,
-                "paragraph": 2
+                "list": 2,
+                "paragraph": 1,
+                "quote": 1,
+                "separator": 1
             }
         },
         {
@@ -2027,6 +2048,144 @@
                 "list": 1,
                 "paragraph": 1,
                 "separator": 1
+            }
+        },
+        {
+            "id": "man-generated-fixture",
+            "format": "man",
+            "label": "Generated roff manpage fixture",
+            "description": "Checked-in roff manpage exercising TH/SH, font escapes, tagged paragraphs, indentation, no-fill code, and generated-man requests.",
+            "source": "Checked-in port-libs fixture at lanes/pandoc/fixtures/man-corpus-smoke/generated.5",
+            "sourceUrl": "",
+            "samplePath": "samples/man-generated-fixture-generated.5",
+            "sampleSize": 453,
+            "preview": ".\\\" Synthetic generated-man fixture for corpus audit coverage.\n.TH \"GENERATED\" \"5\" \"July 2026\" \"generated 1.0\" \"File Formats Manual\"\n.nh\n.if n .ad l\n.SH \"NAME\"\n\\fBgenerated\\fR\n\\- generated manpage fixture\n.SH \"DESCRIPTION\"\nThe\n\\fBgenerated\\fR\nfixture exercises common generated man requests.\n.PP\nThe path is\n\\fI/etc/generated.conf\\fR\nand quotes use \\(dqroff\\(dq escapes.\n.TP\n.BI -o \" file\"\nWrite output to\n\\fIfile\\fR.\n.nf\n.sp\n.RS 4n\nkey = value\n.RE\n.fi\n",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\ManReader",
+                "notes": "Bounded roff man reader maps the pinned upstream Tests.Readers.Man macro, escape, list, definition-list, title metadata, link, synopsis option, code block, and table unit semantics into the shared AST. Full roff/man parity remains open."
+            },
+            "haskell": {
+                "ok": true,
+                "path": "outputs/man-generated-fixture/haskell.html"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/man-generated-fixture/php.html"
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/man-generated-fixture/wordpress-blocks.html"
+            },
+            "wpBlockCounts": {
+                "group": 1,
+                "heading": 2,
+                "list": 1,
+                "paragraph": 4
+            }
+        },
+        {
+            "id": "man-simple-fixture",
+            "format": "man",
+            "label": "Simple roff manpage fixture",
+            "description": "Checked-in compact roff manpage with title, section, name, and description macros.",
+            "source": "Checked-in port-libs fixture at lanes/pandoc/fixtures/man-corpus-smoke/simple.1",
+            "sourceUrl": "",
+            "samplePath": "samples/man-simple-fixture-simple.1",
+            "sampleSize": 127,
+            "preview": ".TH \"SIMPLE\" \"1\" \"July 2026\" \"simple 1.0\" \"User Commands\"\n.SH NAME\nsimple \\- small command\n.SH DESCRIPTION\nsimple prints text.\n",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\ManReader",
+                "notes": "Bounded roff man reader maps the pinned upstream Tests.Readers.Man macro, escape, list, definition-list, title metadata, link, synopsis option, code block, and table unit semantics into the shared AST. Full roff/man parity remains open."
+            },
+            "haskell": {
+                "ok": true,
+                "path": "outputs/man-simple-fixture/haskell.html"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/man-simple-fixture/php.html"
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/man-simple-fixture/wordpress-blocks.html"
+            },
+            "wpBlockCounts": {
+                "heading": 2,
+                "paragraph": 2
+            }
+        },
+        {
+            "id": "mediawiki-feature-packet",
+            "format": "mediawiki",
+            "label": "MediaWiki feature packet",
+            "description": "",
+            "source": "Inline MediaWiki packet covering headings, emphasis, links, lists, definitions, syntaxhighlight code, horizontal rules, tables, and images.",
+            "sourceUrl": "",
+            "samplePath": "samples/mediawiki-feature-packet-mediawiki-feature-packet.wiki",
+            "sampleSize": 584,
+            "preview": "= MediaWiki feature packet =\n\nIntro with ''emphasis'', '''strong''', <code>literal</code>, [[Target Page|Target label]], [https://example.org external link], and https://pandoc.org.\n\n* first item\n* second with [[Nested]]\n\n# one\n# two\n\n; Term : Definition body with '''strong''' text.\n: Orphan definition\n\n<syntaxhighlight lang=\"php\">\necho '<x>';\n</syntaxhighlight>\n\n----\n\n{|\n|+ Caption text\n! scope=\"col\" style=\"text-align:left\" | Name\n! style=\"text-align:right\" | Value\n|-\n| style=\"text-align:center\" | Alpha || 42\n|-\n! Row head || Beta\n|}\n\nImage [[File:cover.png|thumb|Cover image]]",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\MediaWikiReader",
+                "notes": "Bounded MediaWiki reader maps headings, paragraphs, bold/italic/code-like inlines, internal/external links, image/file links, bullet and ordered lists, definition lists, preformatted blocks, horizontal rules, and simple wiki tables into the shared AST. Full MediaWiki template, parser-function, transclusion, role, and table-attribute parity remains open."
+            },
+            "haskell": {
+                "ok": true,
+                "path": "outputs/mediawiki-feature-packet/haskell.html"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/mediawiki-feature-packet/php.html"
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/mediawiki-feature-packet/wordpress-blocks.html"
+            },
+            "wpBlockCounts": {
+                "code": 1,
+                "group": 1,
+                "heading": 1,
+                "list": 3,
+                "paragraph": 3,
+                "separator": 1,
+                "table": 1
+            }
+        },
+        {
+            "id": "mediawiki-template-math-note",
+            "format": "mediawiki",
+            "label": "MediaWiki templates math and notes",
+            "description": "",
+            "source": "Inline MediaWiki packet covering comments, nowiki, math, references, line breaks, templates, and raw parser-function fallback.",
+            "sourceUrl": "",
+            "samplePath": "samples/mediawiki-template-math-note-mediawiki-template-math-note.wiki",
+            "sampleSize": 184,
+            "preview": "= Parser features =\n\nBefore <!-- hidden markup --> after &amp;.\n\n<nowiki>''raw'' [[x]] &amp;</nowiki> <math>E=mc^2</math> <ref>Note ''body''</ref> A<br />B {{tmpl|x}}\n\n{{CURRENTYEAR}}\n",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\MediaWikiReader",
+                "notes": "Bounded MediaWiki reader maps headings, paragraphs, bold/italic/code-like inlines, internal/external links, image/file links, bullet and ordered lists, definition lists, preformatted blocks, horizontal rules, and simple wiki tables into the shared AST. Full MediaWiki template, parser-function, transclusion, role, and table-attribute parity remains open."
+            },
+            "haskell": {
+                "ok": true,
+                "path": "outputs/mediawiki-template-math-note/haskell.html"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/mediawiki-template-math-note/php.html"
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/mediawiki-template-math-note/wordpress-blocks.html"
+            },
+            "wpBlockCounts": {
+                "code": 1,
+                "group": 1,
+                "heading": 1,
+                "list": 1,
+                "paragraph": 2
             }
         },
         {
@@ -2704,7 +2863,7 @@
             "support": {
                 "status": "partial",
                 "implementation": "PortLibs\\Pandoc\\PdfReader",
-                "notes": "Project-local markerPDF bridge extracts searchable PDF text lines, records basic PDF structural provenance, and maps simple headings, paragraphs, lists, links, and aligned text-table rows into the shared AST. PDF is not an upstream Pandoc input format."
+                "notes": "Project-local markerPDF bridge extracts searchable PDF text lines and structural provenance for simple PDFs. Complex multi-column or untagged PDFs may lose spacing/order or be exposed only as extraction diagnostics. PDF is not an upstream Pandoc input format."
             },
             "haskell": {
                 "ok": false,
@@ -2727,7 +2886,7 @@
             "id": "pdf-tracemonkey",
             "format": "pdf",
             "label": "TraceMonkey technical PDF",
-            "description": "Larger multi-page public PDF fixture from Mozilla pdf.js tests; local extraction may be partial.",
+            "description": "Known hard untagged two-column PDF from Mozilla pdf.js tests; the local PDF bridge currently produces a diagnostic extraction preview, not a faithful final document.",
             "source": "mozilla/pdf.js test/pdfs/tracemonkey.pdf",
             "sourceUrl": "https://raw.githubusercontent.com/mozilla/pdf.js/master/test/pdfs/tracemonkey.pdf",
             "samplePath": "samples/pdf-tracemonkey-tracemonkey.pdf",
@@ -2736,7 +2895,7 @@
             "support": {
                 "status": "partial",
                 "implementation": "PortLibs\\Pandoc\\PdfReader",
-                "notes": "Project-local markerPDF bridge extracts searchable PDF text lines, records basic PDF structural provenance, and maps simple headings, paragraphs, lists, links, and aligned text-table rows into the shared AST. PDF is not an upstream Pandoc input format."
+                "notes": "Project-local markerPDF bridge extracts searchable PDF text lines and structural provenance for simple PDFs. Complex multi-column or untagged PDFs may lose spacing/order or be exposed only as extraction diagnostics. PDF is not an upstream Pandoc input format."
             },
             "haskell": {
                 "ok": false,
@@ -2748,14 +2907,11 @@
                 "path": "outputs/pdf-tracemonkey/php.html"
             },
             "wpBlocks": {
-                "ok": true,
-                "path": "outputs/pdf-tracemonkey/wordpress-blocks.html"
+                "ok": false,
+                "error": "Timed out after 25s.",
+                "path": "outputs/pdf-tracemonkey/wordpress-blocks.html.error.txt"
             },
-            "wpBlockCounts": {
-                "heading": 12,
-                "paragraph": 142,
-                "table": 19
-            }
+            "wpBlockCounts": []
         },
         {
             "id": "doc-poi-47304",

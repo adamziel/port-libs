@@ -6,6 +6,8 @@ namespace PortLibs\Pandoc;
 
 final class WordPressBlockWriter
 {
+    private const MAX_TABLE_ACCESSIBILITY_SLOTS = 2000;
+
     /** @var list<string> */
     private const SAFE_GLOBAL_HTML_ATTRIBUTES = [
         'autocapitalize',
@@ -1595,6 +1597,10 @@ final class WordPressBlockWriter
      */
     private function tableAccessibilityByCell(AstNode $table): array
     {
+        if ($this->tableAccessibilitySlotCount($table) > self::MAX_TABLE_ACCESSIBILITY_SLOTS) {
+            return [];
+        }
+
         $accessibility = TableGeometry::accessibilityAttributes($table);
         if ($accessibility === []) {
             return [];
@@ -1637,6 +1643,26 @@ final class WordPressBlockWriter
         }
 
         return $byCell;
+    }
+
+    private function tableAccessibilitySlotCount(AstNode $table): int
+    {
+        $columnCount = TableGeometry::columnCount($table);
+        if ($columnCount <= 0) {
+            return 0;
+        }
+
+        return $columnCount * $this->tableRowCount($table);
+    }
+
+    private function tableRowCount(AstNode $node): int
+    {
+        $count = $node->type === 'table_row' ? 1 : 0;
+        foreach ($node->children as $child) {
+            $count += $this->tableRowCount($child);
+        }
+
+        return $count;
     }
 
     /**

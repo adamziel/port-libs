@@ -115,6 +115,234 @@ echo "portable conversion";
 ```
 MD;
 
+    $markdownPandocFeature = <<<'MD'
+---
+title: Pandoc Markdown feature packet
+author:
+  - Migration Team
+keywords: [markdown, pandoc, blocks]
+---
+
+# Pandoc Markdown feature packet {#pandoc-feature-packet .review}
+
+Term
+: Definition with *emphasis*, **strong text**, and an inline footnote.^[Inline
+  note with continuation text.]
+
+1. Ordered item with a nested task.
+   - [x] Preserve extension syntax
+   - [ ] Review block output
+
+| Feature | Writer expectation |
+|:--|--:|
+| pipe table | table block |
+| footnote | generated note |
+
+::: warning
+Fenced div content with a [reference link][wp].
+:::
+
+```php
+echo "pandoc markdown";
+```
+
+[wp]: https://wordpress.org/
+MD;
+
+    $commonmarkFeature = <<<'MD'
+# CommonMark feature packet
+
+Paragraph one has *emphasis*, **strong**, `code`, an autolink
+<https://commonmark.org/>, and a reference link to [the spec][spec].
+
+> A quote with lazy continuation
+> and a nested list:
+>
+> - one
+> - two
+
+1. Ordered item
+2. Second item with a hard break\
+   next visual line
+
+```json
+{"format":"commonmark","tables":false}
+```
+
+---
+
+<section>
+HTML block retained as source HTML.
+</section>
+
+[spec]: https://commonmark.org/
+MD;
+
+    $commonmarkXFeature = <<<'MD'
+# CommonMark X extension packet {#cmx .import}
+
+- [x] task item
+- [ ] unchecked task item
+
+| Extension | Evidence |
+| --- | --- |
+| pipe table | yes |
+| strikeout | ~~removed~~ |
+
+::: note
+Fenced div content with a [bracketed span]{.flag}.
+:::
+
+Term
+: Definition list entry
+
+[^cmx]: Footnote text.
+
+Reference with note.[^cmx]
+MD;
+
+    $gfmFeature = <<<'MD'
+# GFM feature packet
+
+- [x] task list item
+- [ ] open task list item
+
+| GitHub feature | Example |
+| --- | --- |
+| strikethrough | ~~old copy~~ |
+| autolink | https://github.com/ |
+
+```diff
+- old block
++ new block
+```
+
+> GFM quote with `code` and **strong** text.
+MD;
+
+    $githubMarkdownFeature = <<<'MD'
+# GitHub Markdown alias packet
+
+Issue-style content mixes task lists, tables, mentions, and raw HTML.
+
+- [x] Parse checklist
+- [ ] Preserve pending item
+
+| Field | Value |
+| --- | --- |
+| repository | adamziel/port-libs |
+| status | ~~draft~~ ready |
+
+<details>
+<summary>Review note</summary>
+
+Nested Markdown inside an HTML disclosure.
+
+</details>
+MD;
+
+    $mmdFeature = <<<'MD'
+Title: MultiMarkdown feature packet
+Author: Migration Team
+
+# MultiMarkdown feature packet
+
+This paragraph uses a footnote.[^mmd] It also uses a reference link [WordPress][].
+
+| Left | Right |
+|:-----|------:|
+| alpha | 1 |
+| beta | 2 |
+[Table: Alignment table]
+
+Term
+: Definition text with **strong** emphasis.
+
+[^mmd]: MultiMarkdown-style footnote text.
+
+[WordPress]: https://wordpress.org/
+MD;
+
+    $phpExtraFeature = <<<'MD'
+# PHP Markdown Extra feature packet {#php-extra .profile}
+
+Definition term
+: Definition body with *emphasis* and `code`.
+
+| Column A | Column B |
+| -------- | -------- |
+| alpha | beta |
+
+Paragraph with an attribute block.
+{#paragraph-id .review}
+
+~~~php
+echo "php markdown extra";
+~~~
+
+Footnote reference.[^extra]
+
+[^extra]: Footnote body.
+MD;
+
+    $strictMarkdownFeature = <<<'MD'
+Strict Markdown feature packet
+==============================
+
+This sample avoids extension syntax and sticks to original Markdown constructs:
+inline *emphasis*, **strong text**, `code`, and [reference links][ref].
+
+> Block quote first line
+> second line
+
+* Bullet one
+* Bullet two with nested content
+    * Nested bullet
+
+    Indented code block
+    with two lines
+
+1. Ordered item
+2. Ordered item
+
+---
+
+[ref]: https://daringfireball.net/projects/markdown/
+MD;
+
+    $mediaWikiFeature = <<<'WIKI'
+= MediaWiki feature packet =
+
+Intro with ''emphasis'', '''strong''', <code>literal</code>, [[Target Page|Target label]], [https://example.org external link], and https://pandoc.org.
+
+* first item
+* second with [[Nested]]
+
+# one
+# two
+
+; Term : Definition body with '''strong''' text.
+: Orphan definition
+
+<syntaxhighlight lang="php">
+echo '<x>';
+</syntaxhighlight>
+
+----
+
+{|
+|+ Caption text
+! scope="col" style="text-align:left" | Name
+! style="text-align:right" | Value
+|-
+| style="text-align:center" | Alpha || 42
+|-
+! Row head || Beta
+|}
+
+Image [[File:cover.png|thumb|Cover image]]
+WIKI;
+
     $docbook = <<<'XML'
 <?xml version="1.0" encoding="UTF-8"?>
 <article xmlns="http://docbook.org/ns/docbook" version="5.0">
@@ -231,12 +459,12 @@ RIS;
             inline_sample('bits-section', 'bits', 'bits-section.xml', 'BITS section fragment', "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<book><book-meta><book-title-group><book-title>Second BITS fragment</book-title></book-title-group></book-meta><book-body><book-part><body><sec><title>Methods</title><p>A second compact BITS sample.</p></sec></body></book-part></book-body></book>\n", 'Inline BITS XML fragment.'),
         ],
         'commonmark' => [
+            inline_sample('commonmark-feature-packet', 'commonmark', 'commonmark-feature-packet.md', 'CommonMark feature packet', $commonmarkFeature, 'Inline CommonMark packet covering reference links, block quotes, lists, fenced code, hard breaks, thematic breaks, and HTML blocks.'),
             inline_sample('commonmark-notes', 'commonmark', 'commonmark-notes.md', 'CommonMark migration note', $markdownOne, 'Inline documentation-style Markdown sample.'),
-            inline_sample('commonmark-release', 'commonmark', 'commonmark-release.md', 'CommonMark release note', $markdownTwo, 'Inline release-note Markdown sample.'),
         ],
         'commonmark_x' => [
+            inline_sample('commonmarkx-feature-packet', 'commonmark_x', 'commonmarkx-feature-packet.md', 'CommonMark X feature packet', $commonmarkXFeature, 'Inline CommonMark X packet covering task lists, pipe tables, strikeout, fenced divs, bracketed spans, definition lists, and footnotes.'),
             inline_sample('commonmarkx-release', 'commonmark_x', 'commonmarkx-release.md', 'CommonMark extensions sample', $markdownTwo, 'Inline release-note Markdown with extension-oriented constructs.'),
-            inline_sample('commonmarkx-notes', 'commonmark_x', 'commonmarkx-notes.md', 'CommonMark extensions notes', $markdownOne, 'Inline documentation-style Markdown sample.'),
         ],
         'csljson' => [
             inline_sample('csljson-book', 'csljson', 'csljson-book.json', 'CSL JSON book item', $csl, 'Inline CSL JSON item using a real published book.'),
@@ -302,12 +530,12 @@ RIS;
             upstream_sample('fb2-notes', 'fb2', 'test/fb2/reader/notes.fb2', 'FB2 notes', 'FictionBook notes fixture from upstream Pandoc tests.'),
         ],
         'gfm' => [
+            inline_sample('gfm-feature-packet', 'gfm', 'gfm-feature-packet.md', 'GFM feature packet', $gfmFeature, 'Inline GitHub-flavored Markdown packet covering task lists, pipe tables, strikethrough, autolinks, fenced code, and quotes.'),
             inline_sample('gfm-release', 'gfm', 'gfm-release.md', 'GFM release notes', $markdownTwo, 'Inline GitHub-flavored Markdown sample.'),
-            inline_sample('gfm-notes', 'gfm', 'gfm-notes.md', 'GFM migration note', $markdownOne, 'Inline documentation-style GitHub-flavored Markdown sample.'),
         ],
         'markdown_github' => [
+            inline_sample('markdown-github-feature-packet', 'markdown_github', 'markdown-github-feature-packet.md', 'GitHub Markdown alias feature packet', $githubMarkdownFeature, 'Inline GitHub Markdown alias packet covering task lists, tables, strikethrough, and details HTML.'),
             inline_sample('markdown-github-release', 'markdown_github', 'markdown-github-release.md', 'GitHub Markdown alias', $markdownTwo, 'Inline GitHub Markdown alias sample.'),
-            inline_sample('markdown-github-notes', 'markdown_github', 'markdown-github-notes.md', 'GitHub Markdown notes', $markdownOne, 'Inline GitHub Markdown alias sample.'),
         ],
         'html' => [
             upstream_sample('html-reader', 'html', 'test/html-reader.html', 'HTML reader fixture', 'HTML fixture from upstream Pandoc tests.'),
@@ -334,29 +562,37 @@ RIS;
             upstream_sample('latex-bar', 'latex', 'test/command/bar.tex', 'LaTeX included file fixture', 'Small TeX file from upstream Pandoc command tests.'),
         ],
         'markdown' => [
-            inline_sample('markdown-notes', 'markdown', 'markdown-notes.md', 'Markdown migration note', $markdownOne, 'Inline documentation-style Markdown sample.'),
+            inline_sample('markdown-feature-packet', 'markdown', 'markdown-feature-packet.md', 'Pandoc Markdown feature packet', $markdownPandocFeature, 'Inline Pandoc Markdown packet covering metadata, attributes, definition lists, task lists, tables, fenced divs, footnotes, code, and reference links.'),
             inline_sample('markdown-release', 'markdown', 'markdown-release.md', 'Markdown release note', $markdownTwo, 'Inline release-note Markdown sample.'),
             [
                 'id' => 'markdown-pandoc-manual',
                 'format' => 'markdown',
                 'label' => 'Pandoc manual Markdown',
-                'description' => 'Real 293 KB Markdown manual with dense sections, tables, links, code, lists, and metadata; currently exposes PHP writer memory limits.',
+                'description' => 'Real 293 KB Markdown manual with dense sections, tables, links, code, lists, metadata, and large generated tables.',
                 'url' => 'https://raw.githubusercontent.com/jgm/pandoc/' . PandocFormatRegistry::UPSTREAM_SOURCE_COMMIT . '/MANUAL.txt',
                 'source' => 'jgm/pandoc MANUAL.txt at upstream source commit',
                 'filename' => 'MANUAL.txt',
             ],
         ],
         'markdown_mmd' => [
-            inline_sample('markdown-mmd-notes', 'markdown_mmd', 'markdown-mmd-notes.md', 'MultiMarkdown profile', $markdownOne, 'Inline Markdown read through the MultiMarkdown profile.'),
+            inline_sample('markdown-mmd-feature-packet', 'markdown_mmd', 'markdown-mmd-feature-packet.md', 'MultiMarkdown feature packet', $mmdFeature, 'Inline MultiMarkdown packet covering metadata, footnotes, table captions, alignment, definitions, and reference links.'),
             inline_sample('markdown-mmd-release', 'markdown_mmd', 'markdown-mmd-release.md', 'MultiMarkdown release note', $markdownTwo, 'Inline Markdown read through the MultiMarkdown profile.'),
         ],
         'markdown_phpextra' => [
-            inline_sample('markdown-phpextra-notes', 'markdown_phpextra', 'markdown-phpextra-notes.md', 'PHP Markdown Extra profile', $markdownOne, 'Inline Markdown read through the PHP Markdown Extra profile.'),
+            inline_sample('markdown-phpextra-feature-packet', 'markdown_phpextra', 'markdown-phpextra-feature-packet.md', 'PHP Markdown Extra feature packet', $phpExtraFeature, 'Inline PHP Markdown Extra packet covering attributes, definition lists, tables, fenced code, and footnotes.'),
             inline_sample('markdown-phpextra-release', 'markdown_phpextra', 'markdown-phpextra-release.md', 'PHP Markdown Extra release note', $markdownTwo, 'Inline Markdown read through the PHP Markdown Extra profile.'),
         ],
         'markdown_strict' => [
-            inline_sample('markdown-strict-notes', 'markdown_strict', 'markdown-strict-notes.md', 'Strict Markdown profile', $markdownOne, 'Inline Markdown read through the strict profile.'),
+            inline_sample('markdown-strict-feature-packet', 'markdown_strict', 'markdown-strict-feature-packet.md', 'Strict Markdown feature packet', $strictMarkdownFeature, 'Inline strict Markdown packet covering original Markdown headings, emphasis, links, block quotes, nested lists, indented code, and thematic breaks.'),
             inline_sample('markdown-strict-release', 'markdown_strict', 'markdown-strict-release.md', 'Strict Markdown release note', $markdownTwo, 'Inline Markdown read through the strict profile.'),
+        ],
+        'man' => [
+            local_sample('man-generated-fixture', 'man', 'lanes/pandoc/fixtures/man-corpus-smoke/generated.5', 'Generated roff manpage fixture', 'Checked-in roff manpage exercising TH/SH, font escapes, tagged paragraphs, indentation, no-fill code, and generated-man requests.'),
+            local_sample('man-simple-fixture', 'man', 'lanes/pandoc/fixtures/man-corpus-smoke/simple.1', 'Simple roff manpage fixture', 'Checked-in compact roff manpage with title, section, name, and description macros.'),
+        ],
+        'mediawiki' => [
+            inline_sample('mediawiki-feature-packet', 'mediawiki', 'mediawiki-feature-packet.wiki', 'MediaWiki feature packet', $mediaWikiFeature, 'Inline MediaWiki packet covering headings, emphasis, links, lists, definitions, syntaxhighlight code, horizontal rules, tables, and images.'),
+            inline_sample('mediawiki-template-math-note', 'mediawiki', 'mediawiki-template-math-note.wiki', 'MediaWiki templates math and notes', "= Parser features =\n\nBefore <!-- hidden markup --> after &amp;.\n\n<nowiki>''raw'' [[x]] &amp;</nowiki> <math>E=mc^2</math> <ref>Note ''body''</ref> A<br />B {{tmpl|x}}\n\n{{CURRENTYEAR}}\n", 'Inline MediaWiki packet covering comments, nowiki, math, references, line breaks, templates, and raw parser-function fallback.'),
         ],
         'native' => [
             inline_sample('native-basic', 'native', 'native-basic.native', 'Pandoc native AST', $native, 'Inline Pandoc native AST fixture.'),
@@ -448,7 +684,7 @@ RIS;
                 'id' => 'pdf-tracemonkey',
                 'format' => 'pdf',
                 'label' => 'TraceMonkey technical PDF',
-                'description' => 'Larger multi-page public PDF fixture from Mozilla pdf.js tests; local extraction may be partial.',
+                'description' => 'Known hard untagged two-column PDF from Mozilla pdf.js tests; the local PDF bridge currently produces a diagnostic extraction preview, not a faithful final document.',
                 'url' => 'https://raw.githubusercontent.com/mozilla/pdf.js/master/test/pdfs/tracemonkey.pdf',
                 'source' => 'mozilla/pdf.js test/pdfs/tracemonkey.pdf',
                 'filename' => 'tracemonkey.pdf',

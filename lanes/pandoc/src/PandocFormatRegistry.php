@@ -462,7 +462,7 @@ final class PandocFormatRegistry
         'pdf' => [
             'status' => 'partial',
             'implementation' => PdfReader::class,
-            'notes' => 'Project-local markerPDF bridge extracts searchable PDF text lines, records basic PDF structural provenance, and maps simple headings, paragraphs, lists, links, and aligned text-table rows into the shared AST. PDF is not an upstream Pandoc input format.',
+            'notes' => 'Project-local markerPDF bridge extracts searchable PDF text lines and structural provenance for simple PDFs. Complex multi-column or untagged PDFs may lose spacing/order or be exposed only as extraction diagnostics. PDF is not an upstream Pandoc input format.',
         ],
         'doc' => [
             'status' => 'partial',

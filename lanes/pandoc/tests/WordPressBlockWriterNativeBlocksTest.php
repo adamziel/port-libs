@@ -8,6 +8,8 @@ use PortLibs\Pandoc\WordPressBlockWriter;
 $text = static fn (string $value): AstNode => new AstNode('text', ['text' => $value]);
 
 $paragraph = static fn (string $value): AstNode => new AstNode('paragraph', [], [new AstNode('text', ['text' => $value])]);
+$tableCell = static fn (string $value, array $attrs = []): AstNode => new AstNode('table_cell', $attrs, [$paragraph($value)]);
+$tableRow = static fn (array $cells): AstNode => new AstNode('table_row', [], $cells);
 
 return [
     'renders metadata review as native group and list blocks' => static function (TestRunner $t) use ($text): void {
@@ -111,5 +113,28 @@ return [
         $t->contains('<p>You gave me hyacinths first<br/>They called me the hyacinth girl</p>', $blocks);
         $t->same(2, substr_count($blocks, '<!-- wp:paragraph -->'));
         $t->same(1, substr_count($blocks, '<!-- wp:group -->'));
+    },
+
+    'renders large tables without generated accessibility geometry blowups' => static function (TestRunner $t) use ($tableCell, $tableRow): void {
+        $rows = [];
+        for ($index = 0; $index < 1002; $index++) {
+            $rows[] = $tableRow([
+                $tableCell('Name ' . $index, ['header' => $index === 0]),
+                $tableCell('Value ' . $index),
+            ]);
+        }
+
+        $document = new AstNode('document', [], [
+            new AstNode('table', ['alignments' => ['left', 'left']], [
+                new AstNode('table_body', [], $rows),
+            ]),
+        ]);
+
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->contains('<!-- wp:table -->', $blocks);
+        $t->contains('<table>', $blocks);
+        $t->contains('Name 1001', $blocks);
+        $t->same(false, str_contains($blocks, 'headers="pandoc-table-'), 'large generated tables should skip expensive generated headers');
     },
 ];
