@@ -6597,6 +6597,95 @@ NATIVE;
         $t->same('delimited-text-format-inferred', $csvPacket['diagnostics'][0]['code'] ?? null);
         $t->same('10', $csvDocument->children[0]->children[1]->children[0]->children[1]->attr('text'));
     },
+    'infers popular custom delimiters and quote bytes from stable row profiles' => static function (TestRunner $t): void {
+        $reader = new DelimitedTextReader();
+        $semicolonDocument = $reader->readAuto(implode("\n", [
+            'id;title;status',
+            "1;'Alpha; Beta';open",
+            "2;'Gamma';closed",
+            '',
+        ]));
+        $pipeDocument = $reader->readAuto(implode("\n", [
+            'key|value|flag',
+            'A|"x|y"|yes',
+            'B|plain|no',
+            '',
+        ]));
+        $spaceDocument = $reader->readAuto(implode("\n", [
+            'name qty flag',
+            'A 10 yes',
+            'B 25 no',
+            '',
+        ]));
+
+        $semicolonTable = $semicolonDocument->children[0];
+        $semicolonPacket = $semicolonTable->attr('delimitedText');
+        $pipeTable = $pipeDocument->children[0];
+        $pipePacket = $pipeTable->attr('delimitedText');
+        $spaceTable = $spaceDocument->children[0];
+        $spacePacket = $spaceTable->attr('delimitedText');
+
+        $t->same('csv', $semicolonDocument->attr('sourceFormat'));
+        $t->same(';', $semicolonPacket['delimiter'] ?? null);
+        $t->same('semicolon', $semicolonPacket['delimiterName'] ?? null);
+        $t->same("'", $semicolonPacket['quote'] ?? null);
+        $t->same('semicolon', $semicolonPacket['formatInference']['selectedDelimiterName'] ?? null);
+        $t->same("'", $semicolonPacket['formatInference']['selectedQuote'] ?? null);
+        $t->same('content', $semicolonPacket['formatInference']['source'] ?? null);
+        $t->same('high', $semicolonPacket['formatInference']['confidence'] ?? null);
+        $t->same(3, $semicolonPacket['formatInference']['modalColumnCount'] ?? null);
+        $t->same('delimited-text-format-inferred', $semicolonPacket['diagnostics'][0]['code'] ?? null);
+        $t->same('Alpha; Beta', $semicolonTable->children[1]->children[0]->children[1]->attr('text'));
+
+        $t->same('csv', $pipeDocument->attr('sourceFormat'));
+        $t->same('|', $pipePacket['delimiter'] ?? null);
+        $t->same('pipe', $pipePacket['delimiterName'] ?? null);
+        $t->same('"', $pipePacket['quote'] ?? null);
+        $t->same('pipe', $pipePacket['formatInference']['selectedDelimiterName'] ?? null);
+        $t->same('"', $pipePacket['formatInference']['selectedQuote'] ?? null);
+        $t->same('x|y', $pipeTable->children[1]->children[0]->children[1]->attr('text'));
+
+        $t->same('csv', $spaceDocument->attr('sourceFormat'));
+        $t->same(' ', $spacePacket['delimiter'] ?? null);
+        $t->same('space', $spacePacket['delimiterName'] ?? null);
+        $t->same('space', $spacePacket['formatInference']['selectedDelimiterName'] ?? null);
+        $t->same(['name', 'qty', 'flag'], $spaceTable->attr('columnNames'));
+        $t->same('25', $spaceTable->children[1]->children[1]->children[1]->attr('text'));
+    },
+    'rejects ambiguous auto dialect detection instead of silently defaulting' => static function (TestRunner $t): void {
+        $reader = new DelimitedTextReader();
+        foreach ([
+            "plain text only\nanother line here\nthird sample row\n",
+            "a,b\n1;2\n",
+            "name value\nA beta\nC delta\n",
+        ] as $input) {
+            $message = '';
+            try {
+                $reader->readAuto($input);
+            } catch (InvalidArgumentException $exception) {
+                $message = $exception->getMessage();
+            }
+
+            $t->contains('Unable to infer delimited text dialect confidently', $message);
+            $t->contains('pass delimiter and quote options explicitly', $message);
+        }
+    },
+    'lets explicit auto delimiter options bypass dialect guessing stop conditions' => static function (TestRunner $t): void {
+        $document = (new DelimitedTextReader())->readAuto('id|title|status', [
+            'delimiter' => 'pipe',
+            'quote' => false,
+        ]);
+        $table = $document->children[0];
+        $packet = $table->attr('delimitedText');
+
+        $t->same('csv', $document->attr('sourceFormat'));
+        $t->same('|', $packet['delimiter'] ?? null);
+        $t->same('pipe', $packet['delimiterName'] ?? null);
+        $t->same(null, $packet['quote'] ?? null);
+        $t->same('option', $packet['formatInference']['source'] ?? null);
+        $t->same('explicit', $packet['formatInference']['confidence'] ?? null);
+        $t->same(['id', 'title', 'status'], $table->attr('columnNames'));
+    },
     'routes tab input format alias through tsv reader' => static function (TestRunner $t): void {
         $document = PandocConverter::read("name\tqty\nA\t10\n", 'tab');
         $table = $document->children[0];

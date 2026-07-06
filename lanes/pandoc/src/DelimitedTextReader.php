@@ -10,6 +10,11 @@ final class DelimitedTextReader
     private const INPUT_PREFIX_PREVIEW_BYTE_LIMIT = 32;
     private const CONTROL_CHARACTER_SAMPLE_LIMIT = 8;
     private const CONTROL_CHARACTER_SAMPLE_RADIUS = 4;
+    private const DIALECT_DETECTION_BYTE_LIMIT = 65536;
+    private const DIALECT_DETECTION_ROW_LIMIT = 200;
+    private const DIALECT_DETECTION_MIN_MODAL_RATIO = 0.7;
+    private const DIALECT_DETECTION_MAX_RAGGED_RATIO = 0.1;
+    private const DIALECT_DETECTION_MIN_SCORE_MARGIN = 0.15;
 
     /**
      * @param array{header?:bool, extension?:string, sourcePath?:string, delimiter?:string, quote?:string|null|false, escape?:string|null|false, keepSpace?:bool, strictParsing?:bool, cellLineBreak?:string} $options
@@ -48,7 +53,7 @@ final class DelimitedTextReader
         $sourceText = $this->pandocSourceText($prefixText, $inputPrefix);
         $formatResolution = $this->formatResolution($format, $sourceText, $options);
         $format = $formatResolution['format'];
-        $dialect = $this->dialectProfile($format, $options);
+        $dialect = $formatResolution['dialect'] ?? $this->dialectProfile($format, $options);
         $delimiter = $dialect['delimiter'];
         $formatInference = $formatResolution['formatInference'];
         $inputPrefix['formatContext'] = $this->formatContext($formatResolution, $options);
@@ -104,8 +109,8 @@ final class DelimitedTextReader
     }
 
     /**
-     * @param array{header?:bool, extension?:string, sourcePath?:string} $options
-     * @return array{format:string, delimiter:string, formatInference:array<string, mixed>}
+     * @param array{header?:bool, extension?:string, sourcePath?:string, delimiter?:string, quote?:string|null|false, escape?:string|null|false, keepSpace?:bool} $options
+     * @return array{format:string, delimiter:string, dialect?:array<string, mixed>, formatInference:array<string, mixed>}
      */
     private function formatResolution(string $format, string $text, array $options): array
     {
@@ -133,6 +138,29 @@ final class DelimitedTextReader
             throw new \InvalidArgumentException("Unsupported delimited text format: {$requestedFormat}; supported formats: csv, tsv, auto");
         }
 
+        $explicitDialectInference = $this->explicitDialectInference($options);
+        if ($explicitDialectInference !== null) {
+            $inferredFormat = $explicitDialectInference['format'];
+
+            return [
+                'format' => $inferredFormat,
+                'delimiter' => $explicitDialectInference['dialect']['delimiter'],
+                'dialect' => $explicitDialectInference['dialect'],
+                'formatInference' => [
+                    'requestedFormat' => 'auto',
+                    'selectedFormat' => $inferredFormat,
+                    'source' => 'option',
+                    'sourceValue' => $explicitDialectInference['sourceValue'],
+                    'confidence' => 'explicit',
+                    'candidateScores' => [],
+                    'selectedDelimiter' => $this->formatDelimiterValue($explicitDialectInference['dialect']['delimiter']),
+                    'selectedDelimiterName' => $explicitDialectInference['dialect']['delimiterName'],
+                    'selectedQuote' => $explicitDialectInference['dialect']['quote'],
+                    'selectedEscape' => $explicitDialectInference['dialect']['escape'],
+                ],
+            ];
+        }
+
         $extensionInference = $this->inferFormatFromOptions($options);
         if ($extensionInference !== null) {
             $inferredFormat = $extensionInference['format'];
@@ -151,20 +179,56 @@ final class DelimitedTextReader
             ];
         }
 
-        $contentInference = $this->inferFormatFromContent($text);
-        $inferredFormat = $contentInference['format'] ?? 'csv';
+        $contentInference = $this->inferFormatFromContent($text, $options);
+        if ($contentInference['format'] === null || $contentInference['dialect'] === null) {
+            $reason = $contentInference['rejectionReason'] ?? 'no-confident-delimited-text-dialect';
+            throw new \InvalidArgumentException(
+                "Unable to infer delimited text dialect confidently ({$reason}); pass delimiter and quote options explicitly."
+            );
+        }
+        $inferredFormat = $contentInference['format'];
+        $dialect = $contentInference['dialect'];
 
         return [
             'format' => $inferredFormat,
-            'delimiter' => $this->delimiterForFormat($inferredFormat),
+            'delimiter' => $dialect['delimiter'],
+            'dialect' => $dialect,
             'formatInference' => [
                 'requestedFormat' => 'auto',
                 'selectedFormat' => $inferredFormat,
-                'source' => $contentInference['format'] === null ? 'default' : 'content',
+                'source' => 'content',
                 'sourceValue' => null,
-                'confidence' => $contentInference['format'] === null ? 'low' : 'high',
+                'confidence' => $contentInference['confidence'],
                 'candidateScores' => $contentInference['candidateScores'],
+                'dialectCandidates' => $contentInference['dialectCandidates'],
+                'selectedDelimiter' => $this->formatDelimiterValue($dialect['delimiter']),
+                'selectedDelimiterName' => $dialect['delimiterName'],
+                'selectedQuote' => $dialect['quote'],
+                'selectedEscape' => $dialect['escape'],
+                'modalColumnCount' => $contentInference['selectedCandidate']['modalColumnCount'] ?? null,
+                'modalRowRatio' => $contentInference['selectedCandidate']['modalRowRatio'] ?? null,
+                'scoreMarginRatio' => $contentInference['scoreMarginRatio'],
             ],
+        ];
+    }
+
+    /**
+     * @param array{delimiter?:string, quote?:string|null|false, escape?:string|null|false, keepSpace?:bool} $options
+     * @return array{format:string, dialect:array<string, mixed>, sourceValue:string}|null
+     */
+    private function explicitDialectInference(array $options): ?array
+    {
+        if (!array_key_exists('delimiter', $options)) {
+            return null;
+        }
+
+        $dialect = $this->dialectProfile('csv', $options);
+        $format = $dialect['delimiter'] === "\t" ? 'tsv' : 'csv';
+
+        return [
+            'format' => $format,
+            'dialect' => $dialect,
+            'sourceValue' => $this->formatDelimiterValue($dialect['delimiter']),
         ];
     }
 
@@ -224,63 +288,454 @@ final class DelimitedTextReader
     }
 
     /**
-     * @return array{format:string|null, candidateScores:array<string, array{rows:int, multicolumnRows:int, columnCount:int, fieldCount:int}>}
+     * @param array{quote?:string|null|false, escape?:string|null|false, keepSpace?:bool} $options
+     * @return array{
+     *     format:string|null,
+     *     dialect:array<string, mixed>|null,
+     *     confidence:string,
+     *     candidateScores:array<string, array<string, mixed>>,
+     *     dialectCandidates:list<array<string, mixed>>,
+     *     selectedCandidate:array<string, mixed>|null,
+     *     scoreMarginRatio:float|null,
+     *     rejectionReason:string|null
+     * }
      */
-    private function inferFormatFromContent(string $text): array
+    private function inferFormatFromContent(string $text, array $options = []): array
     {
-        $text = $this->stripBom($text);
+        $text = $this->detectionSample($this->stripBom($text));
         $candidateScores = [
             'csv' => $this->scoreDelimitedRows($text, ','),
             'tsv' => $this->scoreDelimitedRows($text, "\t"),
         ];
-
-        $csvScore = $this->formatScore($candidateScores['csv']);
-        $tsvScore = $this->formatScore($candidateScores['tsv']);
-        $format = null;
-        if ($csvScore > $tsvScore && $candidateScores['csv']['multicolumnRows'] > 0) {
-            $format = 'csv';
+        $candidates = [];
+        foreach ($this->detectionDelimiterCandidates() as $delimiter) {
+            foreach ($this->detectionQuoteCandidates($options, $delimiter) as $quote) {
+                foreach ($this->detectionEscapeCandidates($options) as $escape) {
+                    if ($quote === null && $escape !== null) {
+                        continue;
+                    }
+                    $dialect = [
+                        'delimiter' => $delimiter,
+                        'delimiterName' => $this->delimiterName($delimiter),
+                        'quote' => $quote,
+                        'escape' => $escape,
+                        'keepSpace' => $this->keepSpaceDetectionOption($options),
+                    ];
+                    $candidates[] = $this->scoreDialectCandidate($text, $dialect);
+                }
+            }
         }
-        if ($tsvScore > $csvScore && $candidateScores['tsv']['multicolumnRows'] > 0) {
-            $format = 'tsv';
+
+        usort($candidates, static function (array $left, array $right): int {
+            return ($right['score'] <=> $left['score'])
+                ?: ($right['quotePreference'] <=> $left['quotePreference'])
+                ?: ($right['escapePreference'] <=> $left['escapePreference'])
+                ?: ($right['delimiterPreference'] <=> $left['delimiterPreference']);
+        });
+
+        $validCandidates = array_values(array_filter(
+            $candidates,
+            static fn (array $candidate): bool => ($candidate['accepted'] ?? false) === true
+        ));
+        $selected = $validCandidates[0] ?? null;
+        $secondDelimiter = $selected === null ? null : $this->nextBestDifferentDelimiter($validCandidates, $selected);
+        $marginRatio = null;
+        if ($selected !== null && $secondDelimiter !== null && (int) $selected['score'] > 0) {
+            $marginRatio = ((int) $selected['score'] - (int) $secondDelimiter['score']) / (int) $selected['score'];
+            if ($marginRatio < self::DIALECT_DETECTION_MIN_SCORE_MARGIN) {
+                $selected = null;
+            }
+        }
+
+        $rejectionReason = null;
+        if ($selected === null) {
+            $rejectionReason = $this->dialectDetectionRejectionReason($validCandidates, $candidates, $marginRatio);
+        }
+
+        $dialect = $selected['dialect'] ?? null;
+        $format = null;
+        if (is_array($dialect)) {
+            $format = $dialect['delimiter'] === "\t" ? 'tsv' : 'csv';
         }
 
         return [
             'format' => $format,
+            'dialect' => is_array($dialect) ? $dialect : null,
+            'confidence' => $selected === null ? 'low' : ((float) ($selected['modalRowRatio'] ?? 0.0) >= 0.9 ? 'high' : 'medium'),
             'candidateScores' => $candidateScores,
+            'dialectCandidates' => array_slice($candidates, 0, 12),
+            'selectedCandidate' => $selected,
+            'scoreMarginRatio' => $marginRatio,
+            'rejectionReason' => $rejectionReason,
         ];
     }
 
     /**
-     * @return array{rows:int, multicolumnRows:int, columnCount:int, fieldCount:int}
+     * @return array{rows:int, multicolumnRows:int, columnCount:int, fieldCount:int, modalColumnCount:int, modalRowCount:int, modalRowRatio:float, raggedRowCount:int, badDiagnosticCount:int}
      */
     private function scoreDelimitedRows(string $text, string $delimiter): array
     {
         try {
-            $rows = $this->parseRows($text, $delimiter);
+            $parse = $this->parseRowsWithDiagnostics($text, $this->dialectProfileForDelimiter($delimiter));
+            $rows = $parse['rows'];
         } catch (\InvalidArgumentException) {
             return [
                 'rows' => 0,
                 'multicolumnRows' => 0,
                 'columnCount' => 0,
                 'fieldCount' => 0,
+                'modalColumnCount' => 0,
+                'modalRowCount' => 0,
+                'modalRowRatio' => 0.0,
+                'raggedRowCount' => 0,
+                'badDiagnosticCount' => 0,
             ];
         }
         $widths = array_map('count', $rows);
+        $modal = $this->modalWidth($widths);
 
         return [
             'rows' => count($rows),
             'multicolumnRows' => count(array_filter($widths, static fn (int $width): bool => $width > 1)),
             'columnCount' => $widths === [] ? 0 : max($widths),
             'fieldCount' => array_sum($widths),
+            'modalColumnCount' => $modal['width'],
+            'modalRowCount' => $modal['count'],
+            'modalRowRatio' => count($rows) === 0 ? 0.0 : $modal['count'] / count($rows),
+            'raggedRowCount' => count($rows) - $modal['count'],
+            'badDiagnosticCount' => $this->badParseDiagnosticCount($parse['metrics'] ?? []),
+        ];
+    }
+
+    private function detectionSample(string $text): string
+    {
+        if (strlen($text) > self::DIALECT_DETECTION_BYTE_LIMIT) {
+            $text = substr($text, 0, self::DIALECT_DETECTION_BYTE_LIMIT);
+        }
+
+        if ($text === '') {
+            return $text;
+        }
+
+        $rowCount = 0;
+        $length = strlen($text);
+        for ($offset = 0; $offset < $length; $offset++) {
+            if (!$this->isLineBreak($text[$offset])) {
+                continue;
+            }
+            $rowCount++;
+            if ($text[$offset] === "\r" && ($text[$offset + 1] ?? '') === "\n") {
+                $offset++;
+            }
+            if ($rowCount >= self::DIALECT_DETECTION_ROW_LIMIT) {
+                return substr($text, 0, $offset + 1);
+            }
+        }
+
+        return $text;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function detectionDelimiterCandidates(): array
+    {
+        return ["\t", ',', ';', '|', ' '];
+    }
+
+    /**
+     * @param array{quote?:string|null|false} $options
+     * @return list<string|null>
+     */
+    private function detectionQuoteCandidates(array $options, string $delimiter): array
+    {
+        if (array_key_exists('quote', $options)) {
+            return [$this->optionalSingleCharacterOption($options['quote'], 'quote')];
+        }
+
+        if ($delimiter === "\t") {
+            return [null, '"', "'"];
+        }
+
+        return ['"', "'", null];
+    }
+
+    /**
+     * @param array{escape?:string|null|false} $options
+     * @return list<string|null>
+     */
+    private function detectionEscapeCandidates(array $options): array
+    {
+        if (array_key_exists('escape', $options)) {
+            return [$this->optionalSingleCharacterOption($options['escape'], 'escape')];
+        }
+
+        return [null, '\\'];
+    }
+
+    /**
+     * @param array{keepSpace?:bool} $options
+     */
+    private function keepSpaceDetectionOption(array $options): bool
+    {
+        if (!array_key_exists('keepSpace', $options)) {
+            return false;
+        }
+        if (!is_bool($options['keepSpace'])) {
+            throw new \InvalidArgumentException('Delimited text keepSpace option must be a boolean');
+        }
+
+        return $options['keepSpace'];
+    }
+
+    /**
+     * @param array{delimiter:string, delimiterName:string, quote:string|null, escape:string|null, keepSpace:bool} $dialect
+     * @return array<string, mixed>
+     */
+    private function scoreDialectCandidate(string $text, array $dialect): array
+    {
+        try {
+            $parse = $this->parseRowsWithDiagnostics($text, $dialect);
+        } catch (\InvalidArgumentException $exception) {
+            return [
+                'accepted' => false,
+                'rejectionReason' => 'parse-error',
+                'error' => $exception->getMessage(),
+                'score' => 0,
+                'delimiter' => $this->formatDelimiterValue($dialect['delimiter']),
+                'delimiterName' => $dialect['delimiterName'],
+                'quote' => $dialect['quote'],
+                'escape' => $dialect['escape'],
+                'dialect' => $dialect,
+                'quotePreference' => 0,
+                'escapePreference' => 0,
+                'delimiterPreference' => $this->delimiterPreference($dialect['delimiter']),
+            ];
+        }
+
+        $rows = $parse['rows'];
+        $metrics = $parse['metrics'];
+        $widths = array_map('count', $rows);
+        $rowCount = count($rows);
+        $modal = $this->modalWidth($widths);
+        $modalWidth = $modal['width'];
+        $modalCount = $modal['count'];
+        $modalRatio = $rowCount === 0 ? 0.0 : $modalCount / $rowCount;
+        $multicolumnRows = count(array_filter($widths, static fn (int $width): bool => $width > 1));
+        $raggedRowCount = max(0, $rowCount - $modalCount);
+        $raggedRatio = $rowCount === 0 ? 0.0 : $raggedRowCount / $rowCount;
+        $badDiagnosticCount = $this->badParseDiagnosticCount($metrics);
+        $accepted = true;
+        $rejectionReason = null;
+        if ($rowCount === 0) {
+            $accepted = false;
+            $rejectionReason = 'no-data-rows';
+        } elseif ($modalWidth < 2) {
+            $accepted = false;
+            $rejectionReason = 'modal-column-count-below-2';
+        } elseif ($multicolumnRows === 0) {
+            $accepted = false;
+            $rejectionReason = 'no-multicolumn-rows';
+        } elseif ($rowCount === 1 && $modalWidth < 3) {
+            $accepted = false;
+            $rejectionReason = 'single-row-needs-repeated-delimiter';
+        } elseif ($dialect['delimiter'] === ' ' && !$this->spaceDelimitedCandidateHasSignal($rows)) {
+            $accepted = false;
+            $rejectionReason = 'space-delimiter-needs-structured-fields';
+        } elseif ($modalRatio < self::DIALECT_DETECTION_MIN_MODAL_RATIO) {
+            $accepted = false;
+            $rejectionReason = 'modal-row-ratio-too-low';
+        } elseif ($raggedRatio > self::DIALECT_DETECTION_MAX_RAGGED_RATIO) {
+            $accepted = false;
+            $rejectionReason = 'ragged-row-ratio-too-high';
+        } elseif ($badDiagnosticCount > 0) {
+            $accepted = false;
+            $rejectionReason = 'malformed-quoted-field';
+        }
+
+        $quotedFieldCount = (int) ($metrics['quotedFieldCount'] ?? 0);
+        $escapedQuoteSequenceCount = (int) ($metrics['escapedQuoteSequenceCount'] ?? 0);
+        $delimiterPreference = $this->delimiterPreference($dialect['delimiter']);
+        $quotePreference = $this->quotePreference($dialect, $quotedFieldCount);
+        $escapePreference = $this->escapePreference($dialect, $escapedQuoteSequenceCount);
+        $score = ($modalCount * 10000)
+            + ($modalWidth * 1000)
+            + ($multicolumnRows * 300)
+            + (array_sum($widths) * 10)
+            + ($quotedFieldCount * 80)
+            + ($escapedQuoteSequenceCount * 20)
+            + $delimiterPreference
+            + $quotePreference
+            + $escapePreference
+            - ($raggedRowCount * 5000)
+            - ($badDiagnosticCount * 20000);
+
+        return [
+            'accepted' => $accepted,
+            'rejectionReason' => $rejectionReason,
+            'score' => max(0, $score),
+            'delimiter' => $this->formatDelimiterValue($dialect['delimiter']),
+            'delimiterName' => $dialect['delimiterName'],
+            'quote' => $dialect['quote'],
+            'escape' => $dialect['escape'],
+            'rows' => $rowCount,
+            'multicolumnRows' => $multicolumnRows,
+            'modalColumnCount' => $modalWidth,
+            'modalRowCount' => $modalCount,
+            'modalRowRatio' => $modalRatio,
+            'raggedRowCount' => $raggedRowCount,
+            'raggedRowRatio' => $raggedRatio,
+            'fieldCount' => array_sum($widths),
+            'quotedFieldCount' => $quotedFieldCount,
+            'escapedQuoteSequenceCount' => $escapedQuoteSequenceCount,
+            'badDiagnosticCount' => $badDiagnosticCount,
+            'diagnosticCodes' => array_values(array_unique(array_column($parse['diagnostics'] ?? [], 'code'))),
+            'dialect' => $dialect,
+            'quotePreference' => $quotePreference,
+            'escapePreference' => $escapePreference,
+            'delimiterPreference' => $delimiterPreference,
         ];
     }
 
     /**
-     * @param array{rows:int, multicolumnRows:int, columnCount:int, fieldCount:int} $score
+     * @param list<list<string>> $rows
      */
-    private function formatScore(array $score): int
+    private function spaceDelimitedCandidateHasSignal(array $rows): bool
     {
-        return ($score['multicolumnRows'] * 1000) + ($score['columnCount'] * 100) + $score['fieldCount'];
+        if (count($rows) < 3) {
+            return false;
+        }
+
+        foreach (array_slice($rows, 1) as $row) {
+            foreach ($row as $field) {
+                if (preg_match('/[0-9_.:+-]/', $field) === 1) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param list<int> $widths
+     * @return array{width:int, count:int}
+     */
+    private function modalWidth(array $widths): array
+    {
+        $counts = [];
+        foreach ($widths as $width) {
+            $counts[$width] = ($counts[$width] ?? 0) + 1;
+        }
+        if ($counts === []) {
+            return ['width' => 0, 'count' => 0];
+        }
+
+        $bestWidth = 0;
+        $bestCount = 0;
+        foreach ($counts as $width => $count) {
+            $width = (int) $width;
+            if ($count > $bestCount || ($count === $bestCount && $width > $bestWidth)) {
+                $bestWidth = $width;
+                $bestCount = $count;
+            }
+        }
+
+        return ['width' => $bestWidth, 'count' => $bestCount];
+    }
+
+    /**
+     * @param array<string, int> $metrics
+     */
+    private function badParseDiagnosticCount(array $metrics): int
+    {
+        return (int) ($metrics['textAfterClosingQuoteCount'] ?? 0)
+            + (int) ($metrics['closingQuoteTrailingWhitespaceCount'] ?? 0)
+            + (int) ($metrics['closingQuoteTrailingRecordWhitespaceCount'] ?? 0)
+            + (int) ($metrics['escapeBeforeLineBreakCount'] ?? 0)
+            + (int) ($metrics['unclosedQuoteCount'] ?? 0)
+            + (int) ($metrics['emptyQuotedFirstFieldWithoutDelimiterCount'] ?? 0);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $validCandidates
+     * @return array<string, mixed>|null
+     */
+    private function nextBestDifferentDelimiter(array $validCandidates, array $selected): ?array
+    {
+        foreach ($validCandidates as $candidate) {
+            if (($candidate['delimiterName'] ?? null) !== ($selected['delimiterName'] ?? null)) {
+                return $candidate;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $validCandidates
+     * @param list<array<string, mixed>> $allCandidates
+     */
+    private function dialectDetectionRejectionReason(array $validCandidates, array $allCandidates, ?float $marginRatio): string
+    {
+        if ($validCandidates !== [] && $marginRatio !== null && $marginRatio < self::DIALECT_DETECTION_MIN_SCORE_MARGIN) {
+            return 'best-candidate-too-close-to-runner-up';
+        }
+        if ($validCandidates === []) {
+            $reasons = array_values(array_unique(array_filter(array_map(
+                static fn (array $candidate): ?string => is_string($candidate['rejectionReason'] ?? null) ? $candidate['rejectionReason'] : null,
+                $allCandidates
+            ))));
+
+            return $reasons === [] ? 'no-accepted-candidates' : implode(',', array_slice($reasons, 0, 3));
+        }
+
+        return 'no-confident-candidate';
+    }
+
+    private function delimiterPreference(string $delimiter): int
+    {
+        return match ($delimiter) {
+            "\t" => 50,
+            ',' => 45,
+            ';' => 40,
+            '|' => 35,
+            ' ' => 20,
+            default => 0,
+        };
+    }
+
+    /**
+     * @param array{delimiter:string, quote:string|null} $dialect
+     */
+    private function quotePreference(array $dialect, int $quotedFieldCount): int
+    {
+        if ($quotedFieldCount > 0) {
+            return $dialect['quote'] === null ? 0 : 60;
+        }
+
+        if ($dialect['delimiter'] === "\t") {
+            return $dialect['quote'] === null ? 30 : 0;
+        }
+
+        return $dialect['quote'] === '"' ? 30 : ($dialect['quote'] === null ? 10 : 0);
+    }
+
+    /**
+     * @param array{escape:string|null} $dialect
+     */
+    private function escapePreference(array $dialect, int $escapedQuoteSequenceCount): int
+    {
+        if ($escapedQuoteSequenceCount > 0) {
+            return $dialect['escape'] === null ? 0 : 25;
+        }
+
+        return $dialect['escape'] === null ? 15 : 0;
+    }
+
+    private function formatDelimiterValue(string $delimiter): string
+    {
+        return $delimiter === "\t" ? 'tab' : $delimiter;
     }
 
     /**
