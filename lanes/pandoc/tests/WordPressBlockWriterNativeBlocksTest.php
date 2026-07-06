@@ -75,4 +75,41 @@ return [
 
         $t->contains('<!-- wp:html -->' . "\n" . '<aside>Source HTML</aside>' . "\n" . '<!-- /wp:html -->', $blocks);
     },
+
+    'renders html linegroup divs as one paragraph block with line breaks' => static function (TestRunner $t) use ($paragraph): void {
+        $document = new AstNode('document', [], [
+            new AstNode('div', ['classes' => ['linegroup']], [
+                new AstNode('div', [], [$paragraph('April is the cruellest month, breeding')]),
+                new AstNode('div', ['attributes' => ['lang' => 'de']], [$paragraph('Bin gar keine Russin')]),
+                new AstNode('div', ['id' => 'ln20'], [$paragraph('Out of this stony rubbish?')]),
+            ]),
+        ]);
+
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->contains('<!-- wp:paragraph -->', $blocks);
+        $t->contains('<p class="linegroup">April is the cruellest month, breeding<br/><span lang="de">Bin gar keine Russin</span><br/><span id="ln20">Out of this stony rubbish?</span></p>', $blocks);
+        $t->same(1, substr_count($blocks, '<!-- wp:paragraph -->'));
+        $t->same(0, substr_count($blocks, '<!-- wp:group -->'));
+    },
+
+    'collapses adjacent linegroup lines around mixed child blocks' => static function (TestRunner $t) use ($paragraph): void {
+        $document = new AstNode('document', [], [
+            new AstNode('div', ['classes' => ['linegroup']], [
+                new AstNode('div', [], [$paragraph('What are the roots that clutch')]),
+                new AstNode('div', [], [$paragraph('Out of this stony rubbish?')]),
+                new AstNode('blockquote', [], [$paragraph('Frisch weht der Wind')]),
+                new AstNode('div', [], [$paragraph('You gave me hyacinths first')]),
+                new AstNode('div', [], [$paragraph('They called me the hyacinth girl')]),
+            ]),
+        ]);
+
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->contains('<p>What are the roots that clutch<br/>Out of this stony rubbish?</p>', $blocks);
+        $t->contains('<!-- wp:quote -->', $blocks);
+        $t->contains('<p>You gave me hyacinths first<br/>They called me the hyacinth girl</p>', $blocks);
+        $t->same(2, substr_count($blocks, '<!-- wp:paragraph -->'));
+        $t->same(1, substr_count($blocks, '<!-- wp:group -->'));
+    },
 ];

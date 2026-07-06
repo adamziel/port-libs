@@ -3414,11 +3414,132 @@ final class WordPressBlockWriter
 
     private function renderDivBlock(AstNode $node): string
     {
+        if ($this->hasClass($node, 'linegroup')) {
+            return $this->renderLineGroupBlock($node);
+        }
+
         return $this->renderGroupBlock(
             $node,
             [],
             $this->renderBlocksAsNativeBlocks($node->children, !$this->divContainsOnlyPlainImage($node))
         );
+    }
+
+    private function isLineGroupDiv(AstNode $node): bool
+    {
+        return $this->hasClass($node, 'linegroup');
+    }
+
+    private function hasClass(AstNode $node, string $class): bool
+    {
+        return in_array($class, $this->nodeClassList($node), true);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function nodeClassList(AstNode $node): array
+    {
+        $classes = [];
+        $nodeClasses = $node->attr('classes', []);
+        if (is_array($nodeClasses)) {
+            foreach ($nodeClasses as $class) {
+                $class = trim((string) $class);
+                if ($class !== '') {
+                    $classes[] = $class;
+                }
+            }
+        }
+
+        $htmlAttributes = $this->inlineHtmlAttributes($node);
+        $htmlClass = trim((string) ($htmlAttributes['class'] ?? ''));
+        if ($htmlClass !== '') {
+            array_push($classes, ...preg_split('/\s+/', $htmlClass, -1, PREG_SPLIT_NO_EMPTY));
+        }
+
+        return array_values(array_unique($classes));
+    }
+
+    private function renderLineGroupBlock(AstNode $node): string
+    {
+        $lineRuns = [];
+        $lineRun = [];
+        $hasNonLineChildren = false;
+        foreach ($node->children as $child) {
+            if ($this->isLineGroupLineNode($child)) {
+                $lineRun[] = $child;
+                continue;
+            }
+
+            if ($lineRun !== []) {
+                $lineRuns[] = $lineRun;
+                $lineRun = [];
+            }
+            $lineRuns[] = [$child];
+            $hasNonLineChildren = true;
+        }
+        if ($lineRun !== []) {
+            $lineRuns[] = $lineRun;
+        }
+
+        if (!$hasNonLineChildren) {
+            return $this->renderLineGroupParagraphBlock($node->children, $node);
+        }
+
+        $innerBlocks = [];
+        foreach ($lineRuns as $run) {
+            if (count($run) === 1 && !$this->isLineGroupLineNode($run[0])) {
+                $innerBlocks[] = $this->renderBlocksAsNativeBlocks($run, true);
+            } else {
+                $innerBlocks[] = $this->renderLineGroupParagraphBlock($run);
+            }
+        }
+
+        return $this->renderGroupBlock($node, [], implode("\n\n", array_filter($innerBlocks, static fn (string $block): bool => $block !== '')));
+    }
+
+    private function isLineGroupLineNode(AstNode $node): bool
+    {
+        if (in_array($node->type, ['paragraph', 'plain'], true)) {
+            return true;
+        }
+
+        return $node->type === 'div'
+            && !$this->isLineGroupDiv($node)
+            && count($node->children) === 1
+            && in_array($node->children[0]->type, ['paragraph', 'plain'], true);
+    }
+
+    /**
+     * @param list<AstNode> $lines
+     */
+    private function renderLineGroupParagraphBlock(array $lines, ?AstNode $container = null): string
+    {
+        $renderedLines = [];
+        foreach ($lines as $line) {
+            $renderedLines[] = $this->renderLineGroupLine($line);
+        }
+
+        return '<!-- wp:paragraph -->'
+            . "\n" . '<p' . ($container instanceof AstNode ? $this->renderBlockHtmlAttrs($container) : '') . '>' . implode('<br/>', $renderedLines) . '</p>'
+            . "\n" . '<!-- /wp:paragraph -->';
+    }
+
+    private function renderLineGroupLine(AstNode $line): string
+    {
+        $lineBlocks = $line->type === 'div' ? $line->children : [$line];
+        if (count($lineBlocks) === 1 && in_array($lineBlocks[0]->type, ['paragraph', 'plain'], true)) {
+            $html = $this->renderInlines($lineBlocks[0]);
+        } else {
+            $html = $this->renderBlocksAsHtml($lineBlocks, true);
+        }
+
+        if ($line->type !== 'div') {
+            return $html;
+        }
+
+        $attrs = $this->renderBlockHtmlAttrs($line);
+        return $attrs === '' ? $html : '<span' . $attrs . '>' . $html . '</span>';
     }
 
     private function divContainsOnlyPlainImage(AstNode $node): bool
