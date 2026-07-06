@@ -3505,7 +3505,7 @@ XML);
         $t->contains('<dl id="review-glossary" class="migration-terms"><dt>Review status</dt><dd>Ready for <strong>direct XHTML</strong> handoff.</dd>', $blocks);
         $t->contains('<dt>Resource note</dt><dd><p>Keep package-local links like <a href="EPUB/chapter1.xhtml#opening-note">opening note</a> reviewable.</p><ul><li>Preserve nested checks.</li></ul></dd></dl>', $blocks);
     },
-    'maps epub xhtml mathml into native math and fallback spans' => static function (TestRunner $t) use ($writePackageFile, $removeDirectory): void {
+    'maps epub xhtml mathml into native math nodes' => static function (TestRunner $t) use ($writePackageFile, $removeDirectory): void {
         $root = sys_get_temp_dir() . '/port-libs-epub-xhtml-mathml-' . str_replace('.', '', uniqid('', true));
         mkdir($root, 0777, true);
         try {
@@ -3549,21 +3549,20 @@ XML);
             $fallback = $inline->children[3] ?? new AstNode('missing');
 
             $t->same(['paragraph', 'paragraph', 'paragraph'], array_map(static fn (AstNode $node): string => $node->type, $document->children));
-            $t->same('Inline x^2 and fallback y+1.', $inline->attr('text'));
-            $t->same(['text', 'math', 'text', 'span', 'text'], array_map(static fn (AstNode $node): string => $node->type, $inline->children));
+            $t->same('Inline x^2 and fallback y + 1.', $inline->attr('text'));
+            $t->same(['text', 'math', 'text', 'math', 'text'], array_map(static fn (AstNode $node): string => $node->type, $inline->children));
             $t->same(false, $inline->children[1]->attr('display'));
             $t->same('x^2', $inline->children[1]->attr('text'));
-            $t->same('mathml-only', $fallback->attr('id'));
-            $t->same(['math'], $fallback->attr('classes'));
-            $t->same(['source' => 'mathml-only'], $fallback->attr('attributes'));
-            $t->same('math', $fallback->attr('htmlAttributes')['class']);
+            $t->same('math', $fallback->type);
+            $t->same(false, $fallback->attr('display'));
+            $t->same('y + 1', $fallback->attr('text'));
             $t->same('math', $display->type);
             $t->same(true, $display->attr('display'));
             $t->same('E=mc^2', $display->attr('text'));
             $t->same('math', $known->type);
             $t->same('\int_{- \infty}^{\infty}e^{- x^{2}}\, dx = \sqrt{\pi}', $known->attr('text'));
             $t->contains('<span class="math inline">\(x^2\)</span>', $blocks);
-            $t->contains('data-source="mathml-only"', $blocks);
+            $t->contains('<span class="math inline">\(y + 1\)</span>', $blocks);
             $t->contains('<span class="math display">\[E=mc^2\]</span>', $blocks);
             $t->contains('<span class="math display">\[\int_{- \infty}^{\infty}e^{- x^{2}}\, dx = \sqrt{\pi}\]</span>', $blocks);
         } finally {

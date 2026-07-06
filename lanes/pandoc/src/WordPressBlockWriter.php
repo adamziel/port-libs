@@ -24,7 +24,7 @@ final class WordPressBlockWriter
     private array $footnotes = [];
 
     /**
-     * @param array{includeMetadata?: bool, preserveListAttributes?: bool, preserveEmptyParagraphs?: bool, taskGlyphsAsCheckboxes?: bool, markEmptyTableCells?: bool, highlightCodeBlocks?: bool, highlightStyle?: string} $options
+     * @param array{includeMetadata?: bool, preserveListAttributes?: bool, preserveEmptyParagraphs?: bool, taskGlyphsAsCheckboxes?: bool, markEmptyTableCells?: bool, highlightCodeBlocks?: bool, highlightStyle?: string, syntaxHighlighterCodeBlocks?: bool, htmlMathMethod?: string|array<string, mixed>, mathMethod?: string, writerHTMLMathMethod?: string|array<string, mixed>} $options
      */
     public function __construct(private readonly array $options = [])
     {
@@ -340,17 +340,164 @@ final class WordPressBlockWriter
 
     private function renderParagraphBlock(AstNode $node): string
     {
+        $chart = $this->renderablePptxChart($node);
+        if ($chart !== null) {
+            return '<!-- wp:html -->'
+                . "\n" . $this->renderPptxChart($node, $chart)
+                . "\n" . '<!-- /wp:html -->';
+        }
+
         if (count($node->children) === 1 && $node->children[0]->type === 'image') {
-            return $this->renderFigureBlock(new AstNode(
-                'figure',
-                ['caption' => (string) $node->children[0]->attr('alt', '')],
-                [$node->children[0]]
-            ));
+            return $this->renderParagraphImageBlock($node->children[0]);
         }
 
         return '<!-- wp:paragraph -->'
             . "\n" . '<p' . $this->renderBlockHtmlAttrs($node) . '>' . $this->renderInlines($node) . '</p>'
             . "\n" . '<!-- /wp:paragraph -->';
+    }
+
+    private function renderParagraphImageBlock(AstNode $node): string
+    {
+        return '<!-- wp:image -->'
+            . "\n" . '<figure class="wp-block-image">' . $this->renderImageHtml($node) . '</figure>'
+            . "\n" . '<!-- /wp:image -->';
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function renderablePptxChart(AstNode $node): ?array
+    {
+        $chart = $node->attr('pptxChart');
+        if (!is_array($chart)) {
+            return null;
+        }
+
+        if (($chart['issues'] ?? []) !== []) {
+            return null;
+        }
+
+        $series = $chart['series'] ?? null;
+        if (!is_array($series) || $series === []) {
+            return null;
+        }
+
+        return $chart;
+    }
+
+    /**
+     * @param array<string, mixed> $chart
+     */
+    private function renderPptxChart(AstNode $node, array $chart): string
+    {
+        $title = (string) ($chart['title'] ?? '');
+        if ($title === '') {
+            $title = 'PPTX chart';
+        }
+        $type = (string) ($chart['chartType'] ?? 'unknown');
+        $partName = (string) ($chart['partName'] ?? '');
+        $placeholder = (string) $node->attr('text', '');
+        $series = $this->normalizedPptxChartSeries($chart);
+        $categories = $this->pptxChartCategories($series);
+
+        $html = '<figure class="pandoc-pptx-chart" data-pandoc-source="pptx-chart"'
+            . ($partName === '' ? '' : ' data-pptx-chart-part="' . $this->esc($partName) . '"')
+            . ' data-pptx-chart-type="' . $this->esc($type) . '">';
+        $html .= '<figcaption><strong>' . $this->esc($title) . '</strong>';
+        if ($placeholder !== '') {
+            $html .= ' <span class="pandoc-pptx-chart-placeholder">' . $this->esc($placeholder) . '</span>';
+        }
+        $html .= '</figcaption>';
+
+        $html .= '<table><thead><tr><th>Category</th>';
+        foreach ($series as $item) {
+            $html .= '<th>' . $this->esc($item['name']) . '</th>';
+        }
+        $html .= '</tr></thead><tbody>';
+        $rowCount = max(1, count($categories));
+        for ($row = 0; $row < $rowCount; $row++) {
+            $html .= '<tr><td>' . $this->esc((string) ($categories[$row] ?? 'Point ' . ($row + 1))) . '</td>';
+            foreach ($series as $item) {
+                $html .= '<td>' . $this->esc((string) ($item['rawValues'][$row] ?? '')) . '</td>';
+            }
+            $html .= '</tr>';
+        }
+        $html .= '</tbody></table>';
+        $html .= $this->renderPptxChartBars($series);
+        $html .= '</figure>';
+
+        return $html;
+    }
+
+    /**
+     * @param array<string, mixed> $chart
+     * @return list<array{name:string, categories:list<string>, rawValues:list<string>, values:list<float>}>
+     */
+    private function normalizedPptxChartSeries(array $chart): array
+    {
+        $normalized = [];
+        foreach (array_values(is_array($chart['series'] ?? null) ? $chart['series'] : []) as $index => $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+            $categories = array_values(array_map('strval', is_array($item['categories'] ?? null) ? $item['categories'] : []));
+            $rawValues = array_values(array_map('strval', is_array($item['values'] ?? null) ? $item['values'] : []));
+            $values = array_map(static fn (string $value): float => is_numeric($value) ? (float) $value : 0.0, $rawValues);
+            $normalized[] = [
+                'name' => (string) ($item['name'] ?? 'Series ' . ($index + 1)),
+                'categories' => $categories,
+                'rawValues' => $rawValues,
+                'values' => $values,
+            ];
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * @param list<array{name:string, categories:list<string>, rawValues:list<string>, values:list<float>}> $series
+     * @return list<string>
+     */
+    private function pptxChartCategories(array $series): array
+    {
+        foreach ($series as $item) {
+            if ($item['categories'] !== []) {
+                return $item['categories'];
+            }
+        }
+
+        return [];
+    }
+
+    /**
+     * @param list<array{name:string, categories:list<string>, rawValues:list<string>, values:list<float>}> $series
+     */
+    private function renderPptxChartBars(array $series): string
+    {
+        $max = 0.0;
+        foreach ($series as $item) {
+            foreach ($item['values'] as $value) {
+                $max = max($max, abs($value));
+            }
+        }
+        if ($max <= 0.0) {
+            return '';
+        }
+
+        $html = '<div class="pandoc-pptx-chart-bars">';
+        foreach ($series as $item) {
+            foreach ($item['values'] as $index => $value) {
+                $label = $item['name'] . ' / ' . (string) ($item['categories'][$index] ?? 'Point ' . ($index + 1));
+                $width = (int) round((abs($value) / $max) * 100);
+                $html .= '<div class="pandoc-pptx-chart-bar" style="display:grid;grid-template-columns:minmax(8rem,1fr) 3fr 3rem;gap:.5rem;align-items:center;margin:.25rem 0">'
+                    . '<span>' . $this->esc($label) . '</span>'
+                    . '<span style="display:block;background:#eef1f5;height:.8rem"><span style="display:block;background:#2563eb;height:.8rem;width:' . $width . '%"></span></span>'
+                    . '<span>' . $this->esc((string) ($item['rawValues'][$index] ?? $value)) . '</span>'
+                    . '</div>';
+            }
+        }
+
+        return $html . '</div>';
     }
 
     /**
@@ -1977,6 +2124,114 @@ final class WordPressBlockWriter
         return $declarations;
     }
 
+    private function inlineStyleAttribute(string $style): string
+    {
+        $declarations = $this->inlineStyleDeclarations($style);
+
+        return $declarations === [] ? '' : implode('; ', $declarations);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function inlineStyleDeclarations(string $style): array
+    {
+        $declarations = [];
+
+        $color = $this->styleDeclarationColor($style, 'color');
+        if ($color !== '') {
+            $declarations[] = 'color:' . $color;
+        }
+
+        $backgroundColor = $this->styleDeclarationColor($style, 'background-color');
+        if ($backgroundColor !== '') {
+            $declarations[] = 'background-color:' . $backgroundColor;
+        }
+
+        $fontVariant = strtolower(trim($this->styleDeclarationValue($style, 'font-variant')));
+        if ($fontVariant === 'small-caps') {
+            $declarations[] = 'font-variant:small-caps';
+        }
+
+        $textDecoration = $this->normalizeInlineTextDecoration($this->styleDeclarationValue($style, 'text-decoration'));
+        if ($textDecoration !== '') {
+            $declarations[] = 'text-decoration:' . $textDecoration;
+        }
+
+        $textDecorationLine = $this->normalizeInlineTextDecorationLine($this->styleDeclarationValue($style, 'text-decoration-line'));
+        if ($textDecorationLine !== '') {
+            $declarations[] = 'text-decoration-line:' . $textDecorationLine;
+        }
+
+        $textDecorationColor = $this->styleDeclarationColor($style, 'text-decoration-color');
+        if ($textDecorationColor !== '') {
+            $declarations[] = 'text-decoration-color:' . $textDecorationColor;
+        }
+
+        return $declarations;
+    }
+
+    private function normalizeInlineTextDecoration(string $value): string
+    {
+        $tokens = preg_split('/\s+/', strtolower(trim($value)), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        if ($tokens === []) {
+            return '';
+        }
+
+        $lineValues = [];
+        $style = '';
+        $color = '';
+        foreach ($tokens as $token) {
+            $line = $this->normalizeInlineTextDecorationLine($token);
+            if ($line !== '') {
+                $lineValues[] = $line;
+                continue;
+            }
+
+            if ($style === '' && in_array($token, ['solid', 'double', 'dotted', 'dashed', 'wavy'], true)) {
+                $style = $token;
+                continue;
+            }
+
+            if ($color === '') {
+                $candidate = $this->normalizeCssColor($token);
+                if ($candidate !== '') {
+                    $color = $candidate;
+                    continue;
+                }
+            }
+
+            return '';
+        }
+
+        $lineValues = array_values(array_unique($lineValues));
+        $parts = array_values(array_filter([implode(' ', $lineValues), $style, $color], static fn (string $part): bool => $part !== ''));
+
+        return $parts === [] ? '' : implode(' ', $parts);
+    }
+
+    private function normalizeInlineTextDecorationLine(string $value): string
+    {
+        $tokens = preg_split('/\s+/', strtolower(trim($value)), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        if ($tokens === []) {
+            return '';
+        }
+
+        $lines = [];
+        foreach ($tokens as $token) {
+            if (!in_array($token, ['none', 'underline', 'overline', 'line-through'], true)) {
+                return '';
+            }
+            $lines[] = $token;
+        }
+
+        if (in_array('none', $lines, true) && count(array_unique($lines)) > 1) {
+            return '';
+        }
+
+        return implode(' ', array_values(array_unique($lines)));
+    }
+
     private function styleDeclarationValue(string $style, string $property): string
     {
         foreach (explode(';', $style) as $declaration) {
@@ -2447,6 +2702,10 @@ final class WordPressBlockWriter
 
     private function renderCodeBlock(AstNode $node): string
     {
+        if ((bool) ($this->options['syntaxHighlighterCodeBlocks'] ?? false)) {
+            return $this->renderSyntaxHighlighterCodeBlock($node);
+        }
+
         if ((bool) ($this->options['highlightCodeBlocks'] ?? false)) {
             $highlighted = (new SyntaxHighlighter())->highlightCodeBlock(
                 $node,
@@ -2459,20 +2718,50 @@ final class WordPressBlockWriter
                 . "\n" . '<!-- /wp:html -->';
         }
 
-        return '<!-- wp:code -->'
+        return '<!-- wp:code' . $this->codeBlockCommentAttrs($node) . ' -->'
             . "\n" . $this->renderCodeBlockHtml($node)
             . "\n" . '<!-- /wp:code -->';
+    }
+
+    private function renderSyntaxHighlighterCodeBlock(AstNode $node): string
+    {
+        $language = $this->codeBlockLanguage($node);
+        $codeAttrs = $language === '' ? '' : ' class="language-' . $this->esc($language) . '"';
+        $preAttrs = $language === '' ? '' : ' data-language="' . $this->esc($language) . '"';
+        $preAttrs .= $this->renderCodeBlockPreAttrs($node);
+
+        return '<!-- wp:syntaxhighlighter/code' . $this->codeBlockCommentAttrs($node) . ' -->'
+            . "\n" . '<pre class="wp-block-syntaxhighlighter-code"' . $preAttrs . '><code' . $codeAttrs . '>' . $this->esc((string) $node->attr('text', '')) . '</code></pre>'
+            . "\n" . '<!-- /wp:syntaxhighlighter/code -->';
     }
 
     private function renderCodeBlockHtml(AstNode $node): string
     {
         $classes = $node->attr('classes', []);
-        $language = is_array($classes) && isset($classes[0]) ? $this->sanitizeCodeClass((string) $classes[0]) : '';
+        $language = $this->codeBlockLanguage($node);
         $codeAttrs = $language === '' ? '' : ' class="language-' . $this->esc($language) . '"';
         $preClasses = $this->codeBlockPreClasses($classes);
         $preAttrs = $this->renderCodeBlockPreAttrs($node);
 
         return '<pre class="' . $this->esc(implode(' ', $preClasses)) . '"' . $preAttrs . '><code' . $codeAttrs . '>' . $this->esc((string) $node->attr('text', '')) . '</code></pre>';
+    }
+
+    private function codeBlockCommentAttrs(AstNode $node): string
+    {
+        $language = $this->codeBlockLanguage($node);
+        if ($language === '') {
+            return '';
+        }
+
+        return ' ' . json_encode(['language' => $language], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+    }
+
+    private function codeBlockLanguage(AstNode $node): string
+    {
+        $language = SyntaxHighlighter::languageFromCodeBlock($node);
+        $normalized = SyntaxHighlighter::normalizeLanguage($language);
+
+        return $this->sanitizeCodeClass($normalized ?? $language);
     }
 
     /**
@@ -2746,8 +3035,7 @@ final class WordPressBlockWriter
 
     private function renderFigureCodeBlockHtml(AstNode $node): string
     {
-        $classes = $node->attr('classes', []);
-        $language = is_array($classes) && isset($classes[0]) ? $this->sanitizeCodeClass((string) $classes[0]) : '';
+        $language = $this->codeBlockLanguage($node);
         $codeAttrs = $language === '' ? '' : ' class="language-' . $this->esc($language) . '"';
 
         return '<pre class="wp-block-code"' . $this->renderCodeBlockPreAttrs($node) . '><code' . $codeAttrs . '>'
@@ -3897,6 +4185,14 @@ final class WordPressBlockWriter
 
         foreach ($htmlAttributes as $name => $value) {
             $name = strtolower((string) $name);
+            if ($name === 'style') {
+                $style = $this->inlineStyleAttribute((string) $value);
+                if ($style !== '') {
+                    $attrs .= ' style="' . $this->esc($style) . '"';
+                }
+                continue;
+            }
+
             if (
                 $name === 'href'
                 || ($name === 'title' && $title !== '')
@@ -4212,6 +4508,14 @@ final class WordPressBlockWriter
                 continue;
             }
 
+            if ($name === 'style') {
+                $style = $this->inlineStyleAttribute((string) $value);
+                if ($style !== '') {
+                    $attrs .= ' style="' . $this->esc($style) . '"';
+                }
+                continue;
+            }
+
             if (!$this->isAllowedInlineHtmlAttr($name)) {
                 continue;
             }
@@ -4258,6 +4562,14 @@ final class WordPressBlockWriter
             }
 
             if ($name === 'data-pandoc-source-id' && $renderedSourceId) {
+                continue;
+            }
+
+            if ($name === 'style') {
+                $style = $this->inlineStyleAttribute((string) $value);
+                if ($style !== '') {
+                    $attrs .= ' style="' . $this->esc($style) . '"';
+                }
                 continue;
             }
 
@@ -4453,13 +4765,76 @@ final class WordPressBlockWriter
 
     private function renderMathInline(AstNode $node): string
     {
-        $open = $node->attr('display') === true ? '\\[' : '\\(';
-        $close = $node->attr('display') === true ? '\\]' : '\\)';
-        $class = $node->attr('display') === true ? 'display' : 'inline';
+        $text = (string) $node->attr('text', '');
+        $display = $node->attr('display') === true;
+        $class = $display ? 'display' : 'inline';
+
+        if ($this->htmlMathMethod() === 'mathml') {
+            return $this->renderMathMLInline($node, $text, $display, $class);
+        }
+
+        $open = $display ? '\\[' : '\\(';
+        $close = $display ? '\\]' : '\\)';
 
         return '<span class="math ' . $class . '">'
-            . $this->esc($open . (string) $node->attr('text', '') . $close)
+            . $this->esc($open . $text . $close)
             . '</span>';
+    }
+
+    private function renderMathMLInline(AstNode $node, string $text, bool $display, string $class): string
+    {
+        $mathml = $node->attr('mathml', $node->attr('html', ''));
+        if (is_scalar($mathml)) {
+            $mathml = trim((string) $mathml);
+            if ($this->looksLikeMathMLElement($mathml)) {
+                return $this->mathMLWithRequiredAttributes($mathml, $display);
+            }
+        }
+
+        try {
+            return (new MathTexConverter())->texToMathMl($text, $display);
+        } catch (\InvalidArgumentException) {
+            return '<span class="math ' . $class . '">' . $this->esc($text) . '</span>';
+        }
+    }
+
+    private function htmlMathMethod(): string
+    {
+        $value = $this->options['writerHTMLMathMethod']
+            ?? $this->options['htmlMathMethod']
+            ?? $this->options['mathMethod']
+            ?? 'mathjax';
+
+        if (is_array($value)) {
+            $value = $value['method'] ?? $value['type'] ?? $value['name'] ?? '';
+        }
+
+        return strtolower(str_replace(['-', '_', ' '], '', (string) $value)) === 'mathml'
+            ? 'mathml'
+            : 'mathjax';
+    }
+
+    private function looksLikeMathMLElement(string $mathml): bool
+    {
+        return preg_match('/^<math(?:\s|>|\/)/i', $mathml) === 1
+            && !str_contains($mathml, '<?')
+            && stripos($mathml, '<script') === false;
+    }
+
+    private function mathMLWithRequiredAttributes(string $mathml, bool $display): string
+    {
+        return preg_replace_callback('/^<math\b([^>]*)>/i', function (array $match) use ($display): string {
+            $tail = $match[1];
+            $attrs = rtrim($tail);
+            if (preg_match('/\sxmlns\s*=/i', $tail) !== 1) {
+                $attrs .= ' xmlns="http://www.w3.org/1998/Math/MathML"';
+            }
+            if ($display && preg_match('/\sdisplay\s*=/i', $tail) !== 1) {
+                $attrs .= ' display="block"';
+            }
+
+            return '<math' . $attrs . '>';
+        }, $mathml, 1) ?? $mathml;
     }
 
     private function renderQuotedInline(AstNode $node): string

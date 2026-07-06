@@ -89,6 +89,24 @@ return [
         $t->contains('<table spellcheck="false" inputmode="text"><tbody spellcheck="true"><tr><td enterkeyhint="next">Ready</td></tr></tbody></table>', $blocks);
         $t->true(!str_contains($blocks, 'onclick'), 'Unsafe block/table event handlers should not survive HTML writer global-attribute handoff');
         $t->true(!str_contains($blocks, 'onfocus') && !str_contains($blocks, 'onmouseover') && !str_contains($blocks, 'onerror'), 'Unsafe inline event handlers should not survive HTML writer global-attribute handoff');
-        $t->true(!str_contains($blocks, 'style='), 'Unsafe non-table style attributes should not survive HTML writer global-attribute handoff');
+        $t->true(!str_contains($blocks, 'display:none'), 'Unsafe inline style declarations should not survive HTML writer global-attribute handoff');
+        $t->true(!str_contains($blocks, 'position:absolute'), 'Unsafe layout style declarations should not survive HTML writer global-attribute handoff');
+    },
+
+    'preserves safe inline colors while dropping unsafe style declarations' => static function (TestRunner $t): void {
+        $document = new AstNode('document', [], [
+            new AstNode('paragraph', [], [
+                new AstNode('span', [
+                    'attributes' => [
+                        'style' => 'color:#b42318; position:absolute; background-color: rgb(255, 0, 0); text-decoration: underline wavy blue',
+                    ],
+                ], [new AstNode('text', ['text' => 'red'])]),
+            ]),
+        ]);
+
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->contains('<span style="color:#b42318; background-color:rgb(255, 0, 0); text-decoration:underline wavy blue">red</span>', $blocks);
+        $t->true(!str_contains($blocks, 'position:absolute'), 'Unsafe positioning should be removed from inline styles');
     },
 ];

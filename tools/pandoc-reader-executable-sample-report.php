@@ -11,11 +11,16 @@ use PortLibs\Pandoc\HtmlReader;
 use PortLibs\Pandoc\MarkdownNativeAstComparisonHarness;
 use PortLibs\Pandoc\MarkdownReader;
 use PortLibs\Pandoc\NativeReader;
+use PortLibs\Pandoc\NativeWriter;
+use PortLibs\Pandoc\PandocConverter;
 use PortLibs\Pandoc\PptxExecutableNativeAstComparisonHarness;
 use PortLibs\Pandoc\PptxNativeAstComparisonHarness;
 use PortLibs\Pandoc\PptxReader;
+use PortLibs\Pandoc\XlsxNativeAstComparisonHarness;
 
 require __DIR__ . '/bootstrap.php';
+
+ini_set('memory_limit', getenv('PANDOC_SAMPLE_REPORT_MEMORY_LIMIT') ?: '1024M');
 
 $repoRoot = dirname(__DIR__);
 $limitPerFormat = 20;
@@ -40,7 +45,10 @@ native AST comparison harnesses.
 
 With --manifest, compares the exact files listed in a JSON manifest. Manifest
 entries can include sourceKind, sourceUrl, description, features, readerOptions,
-and pandocFormat metadata for the generated HTML report.
+pandocFormat, and sha256 metadata for the generated HTML report. Manifest mode
+supports any locally registered Pandoc reader that the installed pandoc binary
+can also read; HTML, Markdown, EPUB, PPTX, XLSX, CSV, TSV, and man are the main
+external-corpus targets.
 
 TXT);
         exit(0);
@@ -246,10 +254,11 @@ function buildManifestReport(string $repoRoot, string $pandoc, string $manifestP
 function runManifestEntry(string $repoRoot, string $pandoc, array $entry): array
 {
     $format = (string) ($entry['format'] ?? '');
-    if (!in_array($format, ['html', 'markdown', 'epub', 'pptx'], true)) {
+    if (!PandocConverter::canRead($format)) {
         throw new RuntimeException("Unsupported manifest format: {$format}");
     }
     $path = normalizeOutputPath($repoRoot, (string) ($entry['path'] ?? ''));
+    $sourceMetadata = fileMetadata($path);
     $readerOptions = is_array($entry['readerOptions'] ?? null) ? $entry['readerOptions'] : [];
     $pandocFormat = (string) (
         $entry['pandocFormat']
@@ -268,6 +277,10 @@ function runManifestEntry(string $repoRoot, string $pandoc, array $entry): array
         'fixture' => $label,
         'format' => $format,
         'sourceFile' => relativePath($repoRoot, $path),
+        'sourceFileBytes' => $sourceMetadata['bytes'],
+        'sourceFileSha256' => $sourceMetadata['sha256'],
+        'expectedSha256' => is_string($entry['sha256'] ?? null) ? $entry['sha256'] : null,
+        'sourceChecksumStatus' => checksumStatus($sourceMetadata['sha256'], $entry['sha256'] ?? null),
         'pandocFormat' => $pandocFormat,
         'readerOptions' => $readerOptions,
         'sourceKind' => (string) ($entry['sourceKind'] ?? 'unknown'),
@@ -289,14 +302,27 @@ function runManifestEntry(string $repoRoot, string $pandoc, array $entry): array
         $row['pandocError'] = $pandocResult['error'];
     }
 
+    if ($localResult['ok']) {
+        /** @var AstNode $localDocument */
+        $localDocument = $localResult['document'];
+        $row['localMetrics'] = astMetrics($localDocument);
+    }
+    if ($pandocResult['ok']) {
+        /** @var AstNode $pandocDocument */
+        $pandocDocument = $pandocResult['document'];
+        $row['pandocMetrics'] = astMetrics($pandocDocument);
+    }
+    if (is_array($row['localMetrics'] ?? null) && is_array($row['pandocMetrics'] ?? null)) {
+        $row['metricDelta'] = metricDelta($row['localMetrics'], $row['pandocMetrics']);
+    }
+
     if ($localResult['ok'] && $pandocResult['ok']) {
         /** @var AstNode $localDocument */
         $localDocument = $localResult['document'];
         /** @var AstNode $pandocDocument */
         $pandocDocument = $pandocResult['document'];
-        $normalizer = normalizerForFormat($format);
-        $localAst = $normalizer->normalizedDocument($localDocument);
-        $pandocAst = $normalizer->normalizedDocument($pandocDocument);
+        $localAst = normalizedDocumentForFormat($format, $localDocument);
+        $pandocAst = normalizedDocumentForFormat($format, $pandocDocument);
         if ($localAst === $pandocAst) {
             $row['localPandocStatus'] = 'matched';
             $row['status'] = 'matched';
@@ -304,6 +330,7 @@ function runManifestEntry(string $repoRoot, string $pandoc, array $entry): array
             $row['localPandocStatus'] = 'mismatched';
             $row['status'] = 'mismatched';
             $row['localPandocFirstDifference'] = firstDifference($localAst, $pandocAst) ?? 'unknown-normalized-ast-difference';
+            $row['localPandocFirstDifferenceCategory'] = differenceCategory((string) $row['localPandocFirstDifference']);
         }
     }
 
@@ -356,6 +383,8 @@ function summarizeManifestFormat(array $rows): array
         'result' => $compared > 0 && $parseFailures === 0 && $matches === $compared ? 'passed' : 'failed',
         'features' => array_keys($features),
         'sourceKinds' => array_keys($sourceKinds),
+        'metricDeltaTotals' => metricDeltaTotals($rows),
+        'failureClusters' => failureClusters($rows),
         'fixtureComparisons' => $rows,
         'skippedCandidateComparisons' => [],
     ];
@@ -686,18 +715,7 @@ function readLocalInlineFixture(string $format, string $path, array $options): a
 function readLocalManifestFixture(string $format, string $path, array $options): array
 {
     try {
-        $bytes = file_get_contents($path);
-        if (!is_string($bytes)) {
-            throw new RuntimeException("Unable to read fixture '{$path}'.");
-        }
-
-        $document = match ($format) {
-            'html' => (new HtmlReader($options))->read($bytes),
-            'markdown' => (new MarkdownReader($options))->read($bytes),
-            'epub' => (new EpubReader($options))->read($bytes),
-            'pptx' => (new PptxReader($options))->read($bytes),
-            default => throw new RuntimeException("Unsupported format '{$format}'."),
-        };
+        $document = PandocConverter::readFile($path, $format, $options);
 
         return ['ok' => true, 'document' => $document, 'error' => null];
     } catch (Throwable $exception) {
@@ -705,15 +723,29 @@ function readLocalManifestFixture(string $format, string $path, array $options):
     }
 }
 
-function normalizerForFormat(string $format): object
+/**
+ * @return array<mixed>
+ */
+function normalizedDocumentForFormat(string $format, AstNode $document): array
 {
     return match ($format) {
-        'html' => new HtmlNativeAstComparisonHarness(),
-        'markdown' => new MarkdownNativeAstComparisonHarness(),
-        'epub' => new EpubNativeAstPackageComparisonHarness(),
-        'pptx' => new PptxNativeAstComparisonHarness(),
-        default => throw new RuntimeException("Unsupported format '{$format}'."),
+        'html' => (new HtmlNativeAstComparisonHarness())->normalizedDocument($document),
+        'markdown' => (new MarkdownNativeAstComparisonHarness())->normalizedDocument($document),
+        'epub' => (new EpubNativeAstPackageComparisonHarness())->normalizedDocument($document),
+        'pptx' => (new PptxNativeAstComparisonHarness())->normalizedDocument($document),
+        'xlsx' => (new XlsxNativeAstComparisonHarness())->normalizedDocument($document),
+        default => genericNormalizedDocument($document),
     };
+}
+
+/**
+ * @return array{native:string}
+ */
+function genericNormalizedDocument(AstNode $document): array
+{
+    $native = (new NativeWriter(['standalone' => true]))->write($document);
+
+    return ['native' => normalizeNative($native)];
 }
 
 /**
@@ -847,6 +879,205 @@ function pandocVersion(string $pandoc): string
     $lines = preg_split('/\R/', trim($result['stdout']));
 
     return is_array($lines) && isset($lines[0]) ? $lines[0] : 'unknown';
+}
+
+/**
+ * @return array{bytes:int, sha256:string}
+ */
+function fileMetadata(string $path): array
+{
+    $bytes = is_file($path) ? filesize($path) : false;
+    $sha256 = is_file($path) ? hash_file('sha256', $path) : false;
+
+    return [
+        'bytes' => is_int($bytes) ? $bytes : 0,
+        'sha256' => is_string($sha256) ? $sha256 : '',
+    ];
+}
+
+function checksumStatus(string $actual, mixed $expected): string
+{
+    if (!is_string($expected) || $expected === '') {
+        return 'not-pinned';
+    }
+
+    return hash_equals(strtolower($expected), strtolower($actual)) ? 'matched' : 'mismatched';
+}
+
+function normalizeNative(string $native): string
+{
+    return trim((string) preg_replace('/\s+/', ' ', $native));
+}
+
+/**
+ * @return array<string, mixed>
+ */
+function astMetrics(AstNode $document): array
+{
+    $counts = [];
+    $headings = [];
+    collectAstMetrics($document, $counts, $headings);
+    ksort($counts, SORT_STRING);
+
+    return [
+        'nodes' => array_sum($counts),
+        'headings' => (int) ($counts['heading'] ?? 0),
+        'headingTexts' => array_slice($headings, 0, 8),
+        'paragraphs' => (int) ($counts['paragraph'] ?? 0),
+        'tables' => (int) ($counts['table'] ?? 0),
+        'codeBlocks' => (int) ($counts['code_block'] ?? 0),
+        'bulletLists' => (int) ($counts['bullet_list'] ?? 0),
+        'orderedLists' => (int) ($counts['ordered_list'] ?? 0),
+        'blockQuotes' => (int) ($counts['blockquote'] ?? 0),
+        'links' => (int) ($counts['link'] ?? 0),
+        'images' => (int) ($counts['image'] ?? 0),
+        'math' => (int) ($counts['math'] ?? 0),
+        'notes' => (int) ($counts['note'] ?? 0),
+        'rawHtml' => (int) ($counts['raw_html'] ?? 0) + (int) ($counts['raw_html_inline'] ?? 0),
+        'nodeTypes' => $counts,
+    ];
+}
+
+/**
+ * @param array<string, int> $counts
+ * @param list<string> $headings
+ */
+function collectAstMetrics(AstNode $node, array &$counts, array &$headings): void
+{
+    $counts[$node->type] = ($counts[$node->type] ?? 0) + 1;
+    if ($node->type === 'heading') {
+        $headings[] = plainText($node);
+    }
+    foreach ($node->children as $child) {
+        collectAstMetrics($child, $counts, $headings);
+    }
+}
+
+function plainText(AstNode $node): string
+{
+    if ($node->type === 'text' || $node->type === 'code') {
+        return (string) $node->attr('text', '');
+    }
+    if ($node->type === 'space' || $node->type === 'softbreak' || $node->type === 'linebreak') {
+        return ' ';
+    }
+
+    $text = '';
+    foreach ($node->children as $child) {
+        $text .= plainText($child);
+    }
+
+    return trim((string) preg_replace('/\s+/', ' ', $text));
+}
+
+/**
+ * @return array<string, int>
+ */
+function metricDelta(array $local, array $pandoc): array
+{
+    $keys = ['nodes', 'headings', 'paragraphs', 'tables', 'codeBlocks', 'bulletLists', 'orderedLists', 'blockQuotes', 'links', 'images', 'math', 'notes', 'rawHtml'];
+    $delta = [];
+    foreach ($keys as $key) {
+        $delta[$key] = (int) ($local[$key] ?? 0) - (int) ($pandoc[$key] ?? 0);
+    }
+
+    return $delta;
+}
+
+/**
+ * @param list<array<string, mixed>> $rows
+ * @return array<string, int>
+ */
+function metricDeltaTotals(array $rows): array
+{
+    $totals = [];
+    foreach ($rows as $row) {
+        if (!is_array($row['metricDelta'] ?? null)) {
+            continue;
+        }
+        foreach ($row['metricDelta'] as $key => $value) {
+            if (is_int($value)) {
+                $totals[(string) $key] = ($totals[(string) $key] ?? 0) + $value;
+            }
+        }
+    }
+    ksort($totals, SORT_STRING);
+
+    return $totals;
+}
+
+/**
+ * @param list<array<string, mixed>> $rows
+ * @return list<array{category:string,count:int,examples:list<string>}>
+ */
+function failureClusters(array $rows): array
+{
+    $clusters = [];
+    foreach ($rows as $row) {
+        if (($row['status'] ?? null) === 'matched') {
+            continue;
+        }
+        $category = rowFailureCategory($row);
+        if (!isset($clusters[$category])) {
+            $clusters[$category] = ['category' => $category, 'count' => 0, 'examples' => []];
+        }
+        ++$clusters[$category]['count'];
+        if (count($clusters[$category]['examples']) < 5) {
+            $clusters[$category]['examples'][] = (string) ($row['fixture'] ?? 'unknown');
+        }
+    }
+    usort($clusters, static fn (array $a, array $b): int => ($b['count'] <=> $a['count']) ?: strcmp($a['category'], $b['category']));
+
+    return array_values($clusters);
+}
+
+/**
+ * @param array<string, mixed> $row
+ */
+function rowFailureCategory(array $row): string
+{
+    if (($row['localParsed'] ?? false) !== true) {
+        return 'local-parse-failure';
+    }
+    if (($row['pandocParsed'] ?? false) !== true) {
+        return 'pandoc-parse-failure';
+    }
+    if (is_string($row['localPandocFirstDifferenceCategory'] ?? null)) {
+        return $row['localPandocFirstDifferenceCategory'];
+    }
+    if (is_string($row['localPandocFirstDifference'] ?? null)) {
+        return differenceCategory($row['localPandocFirstDifference']);
+    }
+
+    return 'unknown-difference';
+}
+
+function differenceCategory(string $difference): string
+{
+    $lower = strtolower($difference);
+    if (str_contains($lower, 'type ')) {
+        return 'type-mismatch';
+    }
+    if (str_contains($lower, 'keys [')) {
+        return 'shape-or-attribute-keys';
+    }
+    if (str_contains($lower, '[text]') || str_contains($lower, '"str ') || str_contains($lower, '"text')) {
+        return 'text-content';
+    }
+    if (str_contains($lower, 'url') || str_contains($lower, 'href') || str_contains($lower, 'target')) {
+        return 'link-or-media-target';
+    }
+    if (str_contains($lower, 'caption')) {
+        return 'caption';
+    }
+    if (str_contains($lower, 'table') || str_contains($lower, 'row') || str_contains($lower, 'cell')) {
+        return 'table-shape';
+    }
+    if (str_contains($lower, 'math')) {
+        return 'math';
+    }
+
+    return 'value-difference';
 }
 
 function firstDifference(mixed $left, mixed $right, string $path = 'root'): ?string
@@ -999,6 +1230,9 @@ function renderHtmlReport(array $report): string
                     $detail .= '<div><strong>' . h($key) . ':</strong> ' . h((string) $row[$key]) . '</div>';
                 }
             }
+            if (($row['sourceChecksumStatus'] ?? 'not-pinned') === 'mismatched') {
+                $detail .= '<div><strong>sourceChecksumStatus:</strong> mismatched</div>';
+            }
             if ($detail === '') {
                 $detail = '<span class="muted">matched</span>';
             }
@@ -1006,14 +1240,18 @@ function renderHtmlReport(array $report): string
             $sourceUrl = isset($row['sourceUrl']) && is_string($row['sourceUrl']) && $row['sourceUrl'] !== ''
                 ? '<a href="' . h($row['sourceUrl']) . '">' . h((string) ($row['sourceKind'] ?? 'source')) . '</a>'
                 : h((string) ($row['sourceKind'] ?? ''));
+            $sourceFileMeta = sourceFileCell($row);
+            $metricDelta = metricDeltaCell($row);
             $rows .= '<tr>'
                 . '<td>' . h((string) ($row['fixture'] ?? 'unknown')) . '</td>'
                 . '<td>' . $sourceUrl . '</td>'
                 . '<td>' . h($features) . '</td>'
+                . '<td>' . $sourceFileMeta . '</td>'
                 . '<td><code>' . h((string) ($row['pandocFormat'] ?? (($name === 'epub' || $name === 'pptx') ? $name : 'unknown'))) . '</code></td>'
                 . '<td>' . statusBadge((string) ($row['status'] ?? 'unknown')) . '</td>'
                 . '<td>' . h((string) ($row['localPandocStatus'] ?? 'unknown')) . '</td>'
                 . '<td>' . h((string) ($row['pandocNativeFixtureStatus'] ?? 'unknown')) . '</td>'
+                . '<td>' . $metricDelta . '</td>'
                 . '<td>' . $detail . '</td>'
                 . '</tr>';
         }
@@ -1025,7 +1263,9 @@ function renderHtmlReport(array $report): string
             . h((string) ($summary['comparedCount'] ?? 0))
             . ' local reader outputs matched Haskell pandoc normalized native AST.'
             . '</p>'
-            . '<table><thead><tr><th>Fixture</th><th>Source</th><th>Features</th><th>Pandoc format</th><th>Overall</th><th>Local vs Haskell</th><th>Haskell vs checked-in native</th><th>Details</th></tr></thead><tbody>'
+            . '<p><strong>Metric delta totals:</strong> ' . h(metricDeltaSummary(is_array($summary['metricDeltaTotals'] ?? null) ? $summary['metricDeltaTotals'] : [])) . '</p>'
+            . failureClusterHtml($summary)
+            . '<table><thead><tr><th>Fixture</th><th>Source</th><th>Features</th><th>File</th><th>Pandoc format</th><th>Overall</th><th>Local vs Haskell</th><th>Haskell vs checked-in native</th><th>Metric delta</th><th>Details</th></tr></thead><tbody>'
             . $rows
             . '</tbody></table>'
             . skippedCandidateDetails($summary)
@@ -1131,6 +1371,77 @@ function sampleSizeText(array $report): string
     }
 
     return 'Sample size: ' . h((string) ($report['limitPerFormat'] ?? '')) . ' documents per format.';
+}
+
+/**
+ * @param array<string, mixed> $row
+ */
+function sourceFileCell(array $row): string
+{
+    $bytes = (int) ($row['sourceFileBytes'] ?? 0);
+    $sha = (string) ($row['sourceFileSha256'] ?? '');
+    $shortSha = $sha === '' ? '' : substr($sha, 0, 12);
+    $checksum = (string) ($row['sourceChecksumStatus'] ?? 'not-pinned');
+
+    return h(number_format($bytes) . ' bytes')
+        . ($shortSha === '' ? '' : '<br><code>' . h($shortSha) . '</code>')
+        . '<br>' . statusBadge($checksum);
+}
+
+/**
+ * @param array<string, mixed> $row
+ */
+function metricDeltaCell(array $row): string
+{
+    $delta = is_array($row['metricDelta'] ?? null) ? $row['metricDelta'] : [];
+    $summary = metricDeltaSummary($delta);
+
+    return $summary === '' ? '<span class="muted">n/a</span>' : '<code>' . h($summary) . '</code>';
+}
+
+/**
+ * @param array<string, mixed> $delta
+ */
+function metricDeltaSummary(array $delta): string
+{
+    $parts = [];
+    foreach ($delta as $key => $value) {
+        if (!is_int($value) || $value === 0) {
+            continue;
+        }
+        $parts[] = $key . '=' . ($value > 0 ? '+' : '') . (string) $value;
+    }
+
+    return implode(', ', $parts);
+}
+
+/**
+ * @param array<string, mixed> $summary
+ */
+function failureClusterHtml(array $summary): string
+{
+    $clusters = is_array($summary['failureClusters'] ?? null) ? $summary['failureClusters'] : [];
+    if ($clusters === []) {
+        return '<p><strong>Failure clusters:</strong> none</p>';
+    }
+
+    $rows = '';
+    foreach ($clusters as $cluster) {
+        if (!is_array($cluster)) {
+            continue;
+        }
+        $examples = is_array($cluster['examples'] ?? null) ? implode(', ', array_map('strval', $cluster['examples'])) : '';
+        $rows .= '<tr>'
+            . '<td>' . h((string) ($cluster['category'] ?? 'unknown')) . '</td>'
+            . '<td>' . h((string) ($cluster['count'] ?? 0)) . '</td>'
+            . '<td>' . h($examples) . '</td>'
+            . '</tr>';
+    }
+
+    return '<details open><summary>Failure clusters</summary>'
+        . '<table><thead><tr><th>Category</th><th>Count</th><th>Examples</th></tr></thead><tbody>'
+        . $rows
+        . '</tbody></table></details>';
 }
 
 function h(string $value): string

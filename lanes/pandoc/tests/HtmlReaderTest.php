@@ -2347,6 +2347,58 @@ $tests['preserves html doc-endnotes container when no noteref was resolved'] =
         $t->same('Loose footnote body.', $container->children[0]->children[0]->attr('text'));
     };
 
+$tests['imports presentation mathml as pandoc math nodes'] =
+    static function (TestRunner $t): void {
+        $html = <<<'HTML'
+<p><math><msup><mi>x</mi><mn>2</mn></msup></math></p>
+<p><math display="block"><mfrac><mn>1</mn><mn>2</mn></mfrac></math></p>
+<p><math><msub><mi>a</mi><mi>i</mi></msub><mo>+</mo><msubsup><mi>b</mi><mn>1</mn><mn>2</mn></msubsup></math></p>
+<p><math><msqrt><mi>x</mi></msqrt><mo>+</mo><mroot><mi>y</mi><mn>3</mn></mroot></math></p>
+<p><math><mo>∫</mo><msubsup><mi>x</mi><mn>0</mn><mn>1</mn></msubsup><mo>+</mo><mi>α</mi><mo>×</mo><mi>ω</mi></math></p>
+<p><math><mfenced open="[" close="]" separators=";"><mi>a</mi><mi>b</mi></mfenced></math></p>
+<p><math><munderover><mo>∑</mo><mrow><mi>i</mi><mo>=</mo><mn>1</mn></mrow><mi>n</mi></munderover></math></p>
+<p><math><mtable><mtr><mtd><mi>a</mi></mtd><mtd><mi>b</mi></mtd></mtr><mtr><mtd><mi>c</mi></mtd><mtd><mi>d</mi></mtd></mtr></mtable></math></p>
+HTML;
+        $matrix = trim(<<<'TEX'
+\begin{matrix}
+a & b \\
+c & d
+\end{matrix}
+TEX);
+
+        foreach ([
+            'tagsoup' => new HtmlReader(),
+            'html-document-bridge' => new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]),
+        ] as $label => $reader) {
+            $document = $reader->read($html);
+            $mathNodes = [];
+            foreach ($document->children as $block) {
+                foreach ($block->children as $inline) {
+                    if ($inline->type === 'math') {
+                        $mathNodes[] = $inline;
+                        break;
+                    }
+                }
+            }
+
+            $t->same([
+                'x^{2}',
+                '\frac{1}{2}',
+                'a_{i} + b_{1}^{2}',
+                '\sqrt{x} + \sqrt[3]{y}',
+                '\int x_{0}^{1} + \alpha \times \omega',
+                '\left\lbrack {a;b} \right\rbrack',
+                '\sum\limits_{i = 1}^{n}',
+                $matrix,
+            ], array_map(static fn ($node): string => (string) $node->attr('text'), $mathNodes), $label);
+            $t->same(
+                [false, true, false, false, false, false, false, false],
+                array_map(static fn ($node): bool => (bool) $node->attr('display'), $mathNodes),
+                $label
+            );
+        }
+    };
+
 $valueSourceCases = [
     'data value attribute' => [
         '<data itemprop="ratingValue" value="4.5">four and half</data>',

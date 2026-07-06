@@ -8440,6 +8440,12 @@ final class EpubPackageReader
         if ($name === 'math') {
             return [$this->mathNode($node)];
         }
+        if ($name === 'span') {
+            $math = $this->renderedMathSpanNode($node);
+            if ($math instanceof AstNode) {
+                return [$math];
+            }
+        }
 
         $children = $this->inlineNodesFromChildren($node, $baseDir);
 
@@ -8479,12 +8485,96 @@ final class EpubPackageReader
                 'text' => $knownTex,
             ]);
         }
+        $mathMlTex = (new MathMlToTexReader())->texFromElement($math);
+        if ($mathMlTex !== null) {
+            return new AstNode('math', [
+                'display' => $display,
+                'text' => $mathMlTex,
+            ]);
+        }
 
         return new AstNode('span', $this->mathSpanAttrs($math), $this->knownEpubMathSpanChildren($math) ?? [
             new AstNode('text', [
                 'text' => $this->normalizedText($math->textContent),
             ]),
         ]);
+    }
+
+    private function renderedMathSpanNode(\DOMElement $span): ?AstNode
+    {
+        $classes = $this->classList($span);
+        if (!in_array('math', $classes, true)) {
+            return null;
+        }
+
+        $display = in_array('display', $classes, true);
+        if (!$display && !in_array('inline', $classes, true)) {
+            return null;
+        }
+
+        $tex = $this->normalizeRenderedMathTex($this->renderedMathChildrenToTex($span));
+        if (str_starts_with($tex, '\\(') && str_ends_with($tex, '\\)')) {
+            $tex = trim(substr($tex, 2, -2));
+        } elseif (str_starts_with($tex, '\\[') && str_ends_with($tex, '\\]')) {
+            $tex = trim(substr($tex, 2, -2));
+            $display = true;
+        }
+
+        return $tex === '' ? null : new AstNode('math', [
+            'display' => $display,
+            'text' => $tex,
+        ]);
+    }
+
+    private function renderedMathChildrenToTex(\DOMNode $node): string
+    {
+        if ($node instanceof \DOMText || $node instanceof \DOMCdataSection) {
+            return $node->wholeText;
+        }
+        if (!$node instanceof \DOMElement) {
+            return '';
+        }
+
+        $children = '';
+        foreach ($node->childNodes as $child) {
+            $children .= $this->renderedMathChildrenToTex($child);
+        }
+        $children = $this->normalizeRenderedMathTex($children);
+
+        return match (strtolower($node->localName)) {
+            'sup' => '^{' . $children . '}',
+            'sub' => '_{' . $children . '}',
+            default => $children,
+        };
+    }
+
+    private function normalizeRenderedMathTex(string $tex): string
+    {
+        $tex = strtr($tex, [
+            "\u{00A0}" => ' ',
+            "\u{2000}" => ' ',
+            "\u{2001}" => ' ',
+            "\u{2002}" => ' ',
+            "\u{2003}" => ' ',
+            "\u{2004}" => ' ',
+            "\u{2005}" => ' ',
+            "\u{2006}" => ' ',
+            "\u{2007}" => ' ',
+            "\u{2008}" => ' ',
+            "\u{2009}" => ' ',
+            "\u{200A}" => ' ',
+            "\u{202F}" => ' ',
+            "\u{205F}" => ' ',
+            "\u{2061}" => '',
+            "\u{2062}" => '',
+            "\u{2212}" => '-',
+        ]);
+        $tex = preg_replace('/\s+/u', ' ', $tex) ?? $tex;
+        $tex = preg_replace('/\s+([_^])\{/u', '$1{', $tex) ?? $tex;
+        $tex = preg_replace('/\}\s+([_^])\{/u', '}$1{', $tex) ?? $tex;
+        $tex = preg_replace('/\s*([=+])\s*/u', ' $1 ', $tex) ?? $tex;
+
+        return trim($tex);
     }
 
     private function mathTexAnnotation(\DOMElement $math): ?string

@@ -15058,6 +15058,7 @@ return [
         $document = (new PptxReader())->read($buildPptxPackage());
         $review = $document->attr('pptx');
         $native = PandocConverter::write($document, 'native');
+        $html = PandocConverter::write($document, 'html');
         $blocks = (new WordPressBlockWriter())->write($document);
         $tables = $nodesOfType($document, 'table');
         $images = $nodesOfType($document, 'image');
@@ -15448,6 +15449,11 @@ return [
         $t->contains('<!-- wp:heading {"level":2} -->', $blocks);
         $t->contains('<th>Col1</th>', $blocks);
         $t->contains('[Graphic: other: http://schemas.openxmlformats.org/drawingml/2006/chart]', $blocks);
+        $t->contains('class="pandoc-pptx-chart"', $html);
+        $t->contains('Quarterly Revenue', $html);
+        $t->contains('<td>Q1</td><td>12</td><td>9</td>', $html);
+        $t->contains('class="pandoc-pptx-chart"', $blocks);
+        $t->contains('<td>Q1</td><td>12</td><td>9</td>', $blocks);
         $t->contains('ppt/media/image1.png', $blocks);
         $t->contains('Styled bold italic under gone linked', $blocks);
         $t->true(!str_contains($blocks, '<strong>bold</strong>'), 'PPTX run bold should remain plain in upstream-compatible WordPress output');

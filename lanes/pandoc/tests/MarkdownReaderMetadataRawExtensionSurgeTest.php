@@ -542,7 +542,7 @@ $nativeSpanCases = [
         'text' => 'styled note',
         'attributes' => ['role' => 'note', 'style' => 'color:red'],
         'htmlAttributes' => ['role' => 'note', 'style' => 'color:red'],
-        'wordpressAttributes' => ['role' => 'note'],
+        'wordpressAttributes' => ['role' => 'note', 'style' => 'color:red'],
     ],
     [
         'name' => 'entity text',

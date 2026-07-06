@@ -10,7 +10,7 @@ final class HtmlNativeAstComparisonHarness
     private const VERDICT = 'normalized-ast-comparison-html-implementation-equivalence-observed';
     private const CLAIM = 'Compares local PHP TagSoup-backed Pandoc HTML reader output with paired .native fixtures by normalized AST shape; reader provenance, table review metadata, and NativeReader constructor provenance are excluded.';
     private const FIXTURE_INVENTORY_SIGNATURE_ALGORITHM = 'sha256-canonical-json-v1';
-    private const CHECKED_IN_FIXTURE_INVENTORY_SIGNATURE_SHA256 = '9aadf222117db0bea94c4248d9df4b93738acea303f2f524d5d347a33ba5636b';
+    private const CHECKED_IN_FIXTURE_INVENTORY_SIGNATURE_SHA256 = 'cf07296587514c4e15e7582701bcc337a3a19711feee7dc3c81ad68d1af16111';
     private const HTML_READER_OPTIONS_BY_BASENAME = [
         'upstream-html-cite-wbr-raw-inline' => ['htmlRawHtml' => true],
         'upstream-html-generic-raw-inline' => ['htmlRawHtml' => true],

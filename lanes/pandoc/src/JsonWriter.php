@@ -55,7 +55,7 @@ final class JsonWriter
         if (isset($meta['titleInlines']) && is_array($meta['titleInlines'])) {
             $entries['title'] = ['type' => 'MetaInlines', 'value' => $meta['titleInlines']];
         } elseif (isset($meta['title'])) {
-            $entries['title'] = ['type' => 'MetaInlines', 'value' => $this->textInlines((string) $meta['title'])];
+            $entries['title'] = ['type' => 'MetaInlines', 'value' => $this->textInlines($this->metaScalarText($meta['title']))];
         }
 
         if (isset($meta['authorInlines']) && is_array($meta['authorInlines'])) {
@@ -71,7 +71,7 @@ final class JsonWriter
         } elseif (isset($meta['author']) && is_array($meta['author']) && !isset($meta['author']['type'])) {
             $authors = [];
             foreach ($meta['author'] as $author) {
-                $authors[] = ['type' => 'MetaInlines', 'value' => $this->textInlines((string) $author)];
+                $authors[] = ['type' => 'MetaInlines', 'value' => $this->textInlines($this->metaScalarText($author))];
             }
             if ($authors !== []) {
                 $entries['author'] = ['type' => 'MetaList', 'value' => $authors];
@@ -81,7 +81,7 @@ final class JsonWriter
         if (isset($meta['dateInlines']) && is_array($meta['dateInlines'])) {
             $entries['date'] = ['type' => 'MetaInlines', 'value' => $meta['dateInlines']];
         } elseif (isset($meta['date'])) {
-            $entries['date'] = ['type' => 'MetaInlines', 'value' => $this->textInlines((string) $meta['date'])];
+            $entries['date'] = ['type' => 'MetaInlines', 'value' => $this->textInlines($this->metaScalarText($meta['date']))];
         }
 
         if (isset($meta['abstractBlocks']) && is_array($meta['abstractBlocks']) && $this->isAstNodeList($meta['abstractBlocks'])) {
@@ -91,6 +91,28 @@ final class JsonWriter
         ksort($entries);
 
         return $entries;
+    }
+
+    private function metaScalarText(mixed $value): string
+    {
+        if (is_scalar($value)) {
+            return (string) $value;
+        }
+        if (!is_array($value)) {
+            return '';
+        }
+        if (isset($value['text']) && is_scalar($value['text'])) {
+            return (string) $value['text'];
+        }
+
+        $parts = [];
+        foreach ($value as $item) {
+            if (is_scalar($item)) {
+                $parts[] = (string) $item;
+            }
+        }
+
+        return implode(', ', $parts);
     }
 
     private function metaValueData(mixed $value): array

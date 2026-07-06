@@ -9412,6 +9412,12 @@ final class MarkdownReader
         if ($name === 'math') {
             return [$this->buildHtmlMathNode($node)];
         }
+        if ($name === 'span') {
+            $math = $this->buildHtmlRenderedMathSpanNode($node);
+            if ($math instanceof AstNode) {
+                return [$math];
+            }
+        }
         if ($name === 'q') {
             return $this->parseHtmlQuoteInline($node);
         }
@@ -10039,6 +10045,13 @@ final class MarkdownReader
                 'text' => $knownTex,
             ]);
         }
+        $mathMlTex = (new MathMlToTexReader())->texFromElement($math);
+        if ($mathMlTex !== null) {
+            return new AstNode('math', [
+                'display' => strtolower(trim($math->getAttribute('display'))) === 'block',
+                'text' => $mathMlTex,
+            ]);
+        }
 
         $attrs = $this->htmlElementPandocAttrs($math);
         $classes = $attrs['classes'] ?? [];
@@ -10060,6 +10073,84 @@ final class MarkdownReader
         return new AstNode('span', $attrs, $this->knownEpubMathSpanChildren($math) ?? [
             new AstNode('text', ['text' => trim(preg_replace('/\s+/', ' ', $math->textContent) ?? $math->textContent)]),
         ]);
+    }
+
+    private function buildHtmlRenderedMathSpanNode(\DOMElement $span): ?AstNode
+    {
+        if (!$this->htmlElementHasClass($span, 'math')) {
+            return null;
+        }
+
+        $display = $this->htmlElementHasClass($span, 'display');
+        if (!$display && !$this->htmlElementHasClass($span, 'inline')) {
+            return null;
+        }
+
+        $tex = $this->renderedHtmlMathChildrenToTex($span);
+        $tex = $this->normalizeRenderedHtmlMathTex($tex);
+        if (str_starts_with($tex, '\\(') && str_ends_with($tex, '\\)')) {
+            $tex = trim(substr($tex, 2, -2));
+        } elseif (str_starts_with($tex, '\\[') && str_ends_with($tex, '\\]')) {
+            $tex = trim(substr($tex, 2, -2));
+            $display = true;
+        }
+
+        return $tex === '' ? null : new AstNode('math', [
+            'display' => $display,
+            'text' => $tex,
+        ]);
+    }
+
+    private function renderedHtmlMathChildrenToTex(\DOMNode $node): string
+    {
+        if ($node instanceof \DOMText || $node instanceof \DOMCdataSection) {
+            return self::pandocHtmlTextFromDomText($node->wholeText);
+        }
+        if (!$node instanceof \DOMElement) {
+            return '';
+        }
+
+        $name = strtolower($node->localName);
+        $children = '';
+        foreach ($node->childNodes as $child) {
+            $children .= $this->renderedHtmlMathChildrenToTex($child);
+        }
+        $children = $this->normalizeRenderedHtmlMathTex($children);
+
+        return match ($name) {
+            'sup' => '^{' . $children . '}',
+            'sub' => '_{' . $children . '}',
+            default => $children,
+        };
+    }
+
+    private function normalizeRenderedHtmlMathTex(string $tex): string
+    {
+        $tex = strtr($tex, [
+            "\u{00A0}" => ' ',
+            "\u{2000}" => ' ',
+            "\u{2001}" => ' ',
+            "\u{2002}" => ' ',
+            "\u{2003}" => ' ',
+            "\u{2004}" => ' ',
+            "\u{2005}" => ' ',
+            "\u{2006}" => ' ',
+            "\u{2007}" => ' ',
+            "\u{2008}" => ' ',
+            "\u{2009}" => ' ',
+            "\u{200A}" => ' ',
+            "\u{202F}" => ' ',
+            "\u{205F}" => ' ',
+            "\u{2061}" => '',
+            "\u{2062}" => '',
+            "\u{2212}" => '-',
+        ]);
+        $tex = preg_replace('/\s+/u', ' ', $tex) ?? $tex;
+        $tex = preg_replace('/\s+([_^])\{/u', '$1{', $tex) ?? $tex;
+        $tex = preg_replace('/\}\s+([_^])\{/u', '}$1{', $tex) ?? $tex;
+        $tex = preg_replace('/\s*([=+])\s*/u', ' $1 ', $tex) ?? $tex;
+
+        return trim($tex);
     }
 
     private function htmlMathTexAnnotation(\DOMElement $math): ?string
@@ -15588,7 +15679,12 @@ final class MarkdownReader
         }
 
         $plainText = $this->paragraphTextFromInlines($children);
-        if (count($children) === 1 && $children[0]->type === 'image' && $children[0]->children !== []) {
+        if (
+            $this->implicitFigureExtensionEnabled()
+            && count($children) === 1
+            && $children[0]->type === 'image'
+            && $children[0]->children !== []
+        ) {
             $image = $children[0];
             $captionInlines = $image->children;
             $explicitAlt = $this->markdownImageAttributeAlt($image);
@@ -16031,7 +16127,8 @@ final class MarkdownReader
         string $text,
         bool $allowLinks = true,
         bool $allowBareCitations = true,
-        bool $allowBareUriAutolinks = true
+        bool $allowBareUriAutolinks = true,
+        bool $allowImages = true
     ): array
     {
         $nodes = [];
@@ -16227,7 +16324,7 @@ final class MarkdownReader
                 continue;
             }
 
-            $image = $allowLinks ? $this->tryParseImage($text, $offset) : null;
+            $image = $allowImages ? $this->tryParseImage($text, $offset) : null;
             if ($image !== null) {
                 $this->flushText($buffer, $nodes);
                 $nodes[] = $image['node'];
@@ -17127,7 +17224,7 @@ final class MarkdownReader
                 return $this->parseLinkLabelInlinesWithSingleBackslashMath($label);
             }
 
-            return $this->parseInlines($label, false);
+            return $this->parseInlines($label, false, true, true, true);
         } finally {
             $this->forceLinkLabelMark = $previousMark;
         }
@@ -17141,7 +17238,7 @@ final class MarkdownReader
         $previous = $this->forceLinkLabelSingleBackslashMath;
         $this->forceLinkLabelSingleBackslashMath = true;
         try {
-            return $this->parseInlines($label, false);
+            return $this->parseInlines($label, false, true, true, true);
         } finally {
             $this->forceLinkLabelSingleBackslashMath = $previous;
         }
@@ -17856,6 +17953,19 @@ final class MarkdownReader
         $canonical = MarkdownFormatProfile::canonicalFormat($format);
 
         return in_array($canonical, ['markdown', 'commonmark_x', 'markdown_phpextra'], true);
+    }
+
+    private function implicitFigureExtensionEnabled(): bool
+    {
+        $override = $this->markdownExtensionOverrideAny(['implicit_figures']);
+        if ($override !== null) {
+            return $override;
+        }
+
+        $format = $this->options['format'] ?? $this->options['variant'] ?? 'markdown';
+        $canonical = MarkdownFormatProfile::canonicalFormat($format);
+
+        return !in_array($canonical, ['commonmark', 'gfm'], true);
     }
 
     private function mmdReferenceImageAttributesEnabled(): bool

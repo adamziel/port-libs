@@ -1480,6 +1480,13 @@ final class PandocHtmlTagSoupReader
                 'text' => $annotation,
             ])];
         }
+        $mathMlTex = (new MathMlToTexReader())->texFromString((new TagSoupRenderer())->render($tokens));
+        if ($mathMlTex !== null) {
+            return [new AstNode('math', [
+                'display' => strtolower($this->attribute($math, 'display')) === 'block',
+                'text' => $mathMlTex,
+            ])];
+        }
 
         $text = $this->plainTextFromTokens($tokens, ['annotation']);
         $children = $text === '' ? [] : [new AstNode('text', ['text' => $text])];

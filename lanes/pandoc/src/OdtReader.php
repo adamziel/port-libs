@@ -575,9 +575,10 @@ final class OdtReader
     {
         $merged = [];
         foreach ($inlines as $inline) {
-            $last = $merged[array_key_last($merged)] ?? null;
+            $lastIndex = array_key_last($merged);
+            $last = $lastIndex === null ? null : $merged[$lastIndex];
             if ($inline->type === 'text' && $last instanceof AstNode && $last->type === 'text') {
-                $merged[array_key_last($merged)] = new AstNode('text', [
+                $merged[$lastIndex] = new AstNode('text', [
                     'text' => (string) $last->attr('text', '') . (string) $inline->attr('text', ''),
                 ]);
                 continue;

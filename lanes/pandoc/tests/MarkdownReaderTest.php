@@ -33,6 +33,51 @@ return [
         $t->same('https://example.test/source', $paragraph->children[5]->attr('url'));
         $t->same('code', $paragraph->children[7]->type);
     },
+    'maps gfm linked badge images into link image inlines' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader(['format' => 'gfm']))->read('[![End-to-End Tests](https://github.com/WordPress/gutenberg/workflows/End-to-End%20Tests/badge.svg)](https://example.test/build)');
+        $paragraph = $document->children[0];
+        $link = $paragraph->children[0] ?? new AstNode('missing');
+        $image = $link->children[0] ?? new AstNode('missing');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('paragraph', $paragraph->type);
+        $t->same('link', $link->type);
+        $t->same('https://example.test/build', $link->attr('url'));
+        $t->same('image', $image->type);
+        $t->same('https://github.com/WordPress/gutenberg/workflows/End-to-End%20Tests/badge.svg', $image->attr('url'));
+        $t->same('End-to-End Tests', $image->attr('alt'));
+        $t->contains('<a href="https://example.test/build"><img src="https://github.com/WordPress/gutenberg/workflows/End-to-End%20Tests/badge.svg" alt="End-to-End Tests"/></a>', $blocks);
+    },
+    'keeps standalone gfm images as paragraph images like pandoc' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader(['format' => 'gfm']))->read('![Screenshot of the Gutenberg Editor](https://example.test/screenshot.png)');
+        $paragraph = $document->children[0] ?? new AstNode('missing');
+        $image = $paragraph->children[0] ?? new AstNode('missing');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('paragraph', $paragraph->type);
+        $t->same('image', $image->type);
+        $t->same('https://example.test/screenshot.png', $image->attr('url'));
+        $t->same('Screenshot of the Gutenberg Editor', $image->attr('alt'));
+        $t->same(
+            '<!-- wp:image -->' . "\n"
+            . '<figure class="wp-block-image"><img src="https://example.test/screenshot.png" alt="Screenshot of the Gutenberg Editor"/></figure>' . "\n"
+            . '<!-- /wp:image -->',
+            $blocks
+        );
+    },
+    'adds language metadata to wordpress code blocks and optional syntaxhighlighter blocks' => static function (TestRunner $t): void {
+        $document = new AstNode('document', [], [
+            new AstNode('code_block', ['classes' => ['html'], 'text' => '<main>Hi</main>']),
+        ]);
+
+        $code = (new WordPressBlockWriter())->write($document);
+        $syntaxHighlighter = (new WordPressBlockWriter(['syntaxHighlighterCodeBlocks' => true]))->write($document);
+
+        $t->contains('<!-- wp:code {"language":"html"} -->', $code);
+        $t->contains('<code class="language-html">&lt;main&gt;Hi&lt;/main&gt;</code>', $code);
+        $t->contains('<!-- wp:syntaxhighlighter/code {"language":"html"} -->', $syntaxHighlighter);
+        $t->contains('<pre class="wp-block-syntaxhighlighter-code" data-language="html"><code class="language-html">&lt;main&gt;Hi&lt;/main&gt;</code></pre>', $syntaxHighlighter);
+    },
     'maps upstream testsuite underscore emphasis strong and nested strong emphasis' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n\n", [
             'This is *emphasized*, and so _is this_.',
@@ -13248,7 +13293,7 @@ XML;
         $t->same('image', $inlineImageParagraph->children[1]->type);
         $t->same('inline icon', $inlineImageParagraph->children[1]->attr('alt'));
         $t->contains('<h2 id="html-reader-image-import">HTML reader image import</h2>', $blocks);
-        $t->contains('<figure class="wp-block-image"><img src="https://example.test/uploads/html-legacy-frame.jpg" alt="Legacy frame" title="Legacy frame title"/><figcaption>Legacy frame</figcaption></figure>', $blocks);
+        $t->contains('<figure class="wp-block-image"><img src="https://example.test/uploads/html-legacy-frame.jpg" alt="Legacy frame" title="Legacy frame title"/></figure>', $blocks);
         $t->contains('<p>Inline HTML media <img src="https://example.test/uploads/html-inline-icon.jpg" alt="inline icon"/> stays inside reviewer copy.</p>', $blocks);
     },
     'maps upstream html reader anchors without href and image attributes' => static function (TestRunner $t): void {
@@ -13282,7 +13327,7 @@ XML;
         $t->same(['external' => '1'], $externalCover->attr('attributes'));
         $t->same('review-anchor', $reviewAnchor->attr('id'));
         $t->contains('<p><span id="legacy-section"></span>Legacy source section anchor.</p>', $blocks);
-        $t->contains('<figure class="wp-block-image"><img src="https://cdn.example.test/original/cover.jpg" alt="External cover" title="External cover title" data-external="1"/><figcaption>External cover</figcaption></figure>', $blocks);
+        $t->contains('<figure class="wp-block-image"><img src="https://cdn.example.test/original/cover.jpg" alt="External cover" title="External cover title" data-external="1"/></figure>', $blocks);
         $t->contains('<p><span id="review-anchor"></span>Reviewer jump target.</p>', $blocks);
     },
     'maps upstream html reader figure and figcaption blocks' => static function (TestRunner $t): void {
@@ -13787,22 +13832,22 @@ HTML);
         $native = (new NativeWriter(['blocksOnly' => true]))->write($document);
         $blocks = (new WordPressBlockWriter())->write($document);
 
-        $t->same(['text', 'math', 'text', 'span', 'text'], array_map(static fn (AstNode $node): string => $node->type, $paragraph->children));
+        $t->same(['text', 'math', 'text', 'math', 'text'], array_map(static fn (AstNode $node): string => $node->type, $paragraph->children));
         $t->same('math', $inlineMath->type);
         $t->same(false, $inlineMath->attr('display'));
         $t->same('x^2', $inlineMath->attr('text'));
-        $t->same('span', $fallback->type);
-        $t->same(['math'], $fallback->attr('classes'));
-        $t->same(['source' => 'mathml-only'], $fallback->attr('attributes'));
-        $t->same('y+1', $fallback->children[0]->attr('text'));
+        $t->same('math', $fallback->type);
+        $t->same(false, $fallback->attr('display'));
+        $t->same('y + 1', $fallback->attr('text'));
         $t->same('math', $displayMath->type);
         $t->same(true, $displayMath->attr('display'));
         $t->same('E=mc^2', $displayMath->attr('text'));
         $t->contains('Math InlineMath "x^2"', $native);
+        $t->contains('Math InlineMath "y + 1"', $native);
         $t->contains('Math DisplayMath "E=mc^2"', $native);
         $t->true(!str_contains($native, 'MJX_Assistive_MathML'), 'Assistive MathML wrapper should be unwrapped instead of retained as a generic span');
         $t->contains('<span class="math inline">\(x^2\)</span>', $blocks);
-        $t->contains('data-source="mathml-only"', $blocks);
+        $t->contains('<span class="math inline">\(y + 1\)</span>', $blocks);
         $t->contains('<span class="math display">\[E=mc^2\]</span>', $blocks);
 
         $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-html-mathml-annotation.html');
@@ -13810,10 +13855,10 @@ HTML);
         $fixtureBlocks = (new WordPressBlockWriter())->write($fixtureDocument);
 
         $t->same('HTML MathML Annotation Import', $fixtureDocument->attr('meta')['title'] ?? '');
-        $t->same('Inline equation: x^2 and fallback: y+1.', $fixtureDocument->children[0]->attr('text'));
+        $t->same('Inline equation: x^2 and fallback: y + 1.', $fixtureDocument->children[0]->attr('text'));
         $t->same('Assistive source: E=mc^2', $fixtureDocument->children[1]->attr('text'));
         $t->contains('<p>Inline equation: <span class="math inline">\(x^2\)</span> and fallback:', $fixtureBlocks);
-        $t->contains('data-source="mathml-only"', $fixtureBlocks);
+        $t->contains('<span class="math inline">\(y + 1\)</span>', $fixtureBlocks);
         $t->contains('<p>Assistive source: <span class="math display">\[E=mc^2\]</span></p>', $fixtureBlocks);
     },
     'maps upstream html reader span class strikeout as generic span' => static function (TestRunner $t): void {
@@ -14164,7 +14209,7 @@ HTML);
         $t->same('https://example.test/wp-content/uploads/imports/batch-42/release-frame.jpg', $standaloneImage->attr('url'));
         $t->same('https://example.test/wp-content/uploads/imports/audit/post.html', $reviewLink->attr('url'));
         $t->same('https://example.test/wp-content/uploads/thumb.jpg', $inlineImage->attr('url'));
-        $t->contains('<figure class="wp-block-image"><img src="https://example.test/wp-content/uploads/imports/batch-42/release-frame.jpg" alt="Release frame" title="Release frame title"/><figcaption>Release frame</figcaption></figure>', $blocks);
+        $t->contains('<figure class="wp-block-image"><img src="https://example.test/wp-content/uploads/imports/batch-42/release-frame.jpg" alt="Release frame" title="Release frame title"/></figure>', $blocks);
         $t->contains('<p>Review <a href="https://example.test/wp-content/uploads/imports/audit/post.html" title="Audit packet">source packet</a> before publishing.</p>', $blocks);
         $t->contains('<p>Root media <img src="https://example.test/wp-content/uploads/thumb.jpg" alt="thumbnail"/> stays absolute to the site.</p>', $blocks);
     },
@@ -14539,6 +14584,10 @@ HTML);
 
         $native = (new NativeWriter(['blocksOnly' => true]))->write($document);
         $parsed = (new NativeReader())->read($native);
+        $figureImage = $parsed->children[0]->children[0] ?? new AstNode('missing');
+        if ($figureImage->type === 'plain') {
+            $figureImage = $figureImage->children[0] ?? new AstNode('missing');
+        }
         $table = $parsed->children[2];
         $citation = null;
         foreach ($parsed->children[1]->children as $inline) {
@@ -14551,7 +14600,7 @@ HTML);
 
         $t->same($native, (new NativeWriter(['blocksOnly' => true]))->write($parsed));
         $t->same('figure', $parsed->children[0]->type);
-        $t->same('image', $parsed->children[0]->children[0]->type);
+        $t->same('image', $figureImage->type);
         $t->same('Release frame', $parsed->children[0]->attr('caption'));
         $t->true($citation instanceof AstNode, 'Native reader should preserve the Cite inline node');
         $t->same('citation_group', $citation->type);
@@ -14780,6 +14829,9 @@ NATIVE;
         $blocks = (new WordPressBlockWriter())->write($parsed);
         $figure = $parsed->children[0];
         $image = $figure->children[0];
+        if ($image->type === 'plain') {
+            $image = $image->children[0] ?? new AstNode('missing');
+        }
         $captionInlines = $figure->attr('captionInlines');
         $imageAttrs = $image->attr('attributes');
 
@@ -15216,6 +15268,9 @@ NATIVE;
         $blocks = (new WordPressBlockWriter())->write($parsed);
         $figure = $parsed->children[0];
         $image = $figure->children[0] ?? new AstNode('missing');
+        if ($image->type === 'plain') {
+            $image = $image->children[0] ?? new AstNode('missing');
+        }
         $imageAttrs = $image->attr('attributes');
         $caption = "1 Daniel Schliebner: Cantor'sches Diagonalverfahren. Von Mengen, Unendlichkeiten und Wahnsinn, Pdf: https://www2.informatik.hu-berlin.de/~kossahl/Uni/Ma1/Cantor.pdf";
 
