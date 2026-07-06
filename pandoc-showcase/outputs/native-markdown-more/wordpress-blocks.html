@@ -1,0 +1,500 @@
+<!-- wp:heading {"level":1} -->
+<h1 id="additional-markdown-reader-tests">Additional markdown reader tests</h1>
+<!-- /wp:heading -->
+
+<!-- wp:heading {"level":2} -->
+<h2 id="blank-line-before-url-in-link-reference">Blank line before URL in link reference</h2>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p><a href="/url">foo</a> and <a href="/url" title="title">bar</a></p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading {"level":2} -->
+<h2 id="raw-context-environments">Raw ConTeXt environments</h2>
+<!-- /wp:heading -->
+
+<!-- wp:code -->
+<pre class="wp-block-code"><code class="language-tex">\placeformula \startformula</code></pre>
+<!-- /wp:code -->
+
+<!-- wp:paragraph -->
+<p>L_{1} = L_{2}
+<span class="pandoc-raw-tex">\stopformula</span></p>
+<!-- /wp:paragraph -->
+
+<!-- wp:code -->
+<pre class="wp-block-code"><code class="language-tex">\start[a2]
+\start[a2]
+\stop[a2]
+\stop[a2]</code></pre>
+<!-- /wp:code -->
+
+<!-- wp:heading {"level":2} -->
+<h2 id="raw-latex-environments">Raw LaTeX environments</h2>
+<!-- /wp:heading -->
+
+<!-- wp:code -->
+<pre class="wp-block-code"><code class="language-tex">\begin{center}
+\begin{tikzpicture}[baseline={([yshift=+-.5ex]current bounding box.center)}, level distance=24pt]
+\Tree [.{S} [.NP John\index{i} ] [.VP [.V likes ] [.NP himself\index{i,*j} ]]]
+\end{tikzpicture}
+\end{center}</code></pre>
+<!-- /wp:code -->
+
+<!-- wp:heading {"level":2} -->
+<h2 id="urls-with-spaces-and-punctuation">URLs with spaces and punctuation</h2>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p><a href="/bar%20and%20baz">foo</a>
+<a href="/bar%20and%20baz">foo</a>
+<a href="/bar%20and%20baz">foo</a>
+<a href="bar%20baz" title="title">foo</a></p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p><a href="/foo%20foo">baz</a> <a href="/foo%20fee">bam</a> <a href="/foo/zee%20zob" title="title">bork</a></p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p><a href="http://en.wikipedia.org/wiki/Ward&#039;s_method">Ward’s method.</a></p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading {"level":2} -->
+<h2 id="horizontal-rules-with-spaces-at-end">Horizontal rules with spaces at end</h2>
+<!-- /wp:heading -->
+
+<!-- wp:separator -->
+<hr class="wp-block-separator has-alpha-channel-opacity"/>
+<!-- /wp:separator -->
+
+<!-- wp:separator -->
+<hr class="wp-block-separator has-alpha-channel-opacity"/>
+<!-- /wp:separator -->
+
+<!-- wp:heading {"level":2} -->
+<h2 id="raw-html-before-header">Raw HTML before header</h2>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p><a></a></p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading {"level":3} -->
+<h3 id="my-header">my header</h3>
+<!-- /wp:heading -->
+
+<!-- wp:heading {"level":2} -->
+<h2 id="in-math">$ in math</h2>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p><span class="math inline">\(\$2 + \$3\)</span></p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p><span class="math inline">\(x = \text{the $n$th root of $y$}\)</span></p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>This should not be math:</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>$PATH 90 $PATH</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading {"level":2} -->
+<h2 id="commented-out-list-item">Commented-out list item</h2>
+<!-- /wp:heading -->
+
+<!-- wp:list -->
+<ul><li>one
+&lt;!–</li><li>two
+–&gt;</li><li>three</li></ul>
+<!-- /wp:list -->
+
+<!-- wp:heading {"level":2} -->
+<h2 id="indented-code-at-beginning-of-list">Indented code at beginning of list</h2>
+<!-- /wp:heading -->
+
+<!-- wp:list -->
+<ul><li><pre class="wp-block-code"><code>code
+code</code></pre><ol><li><pre class="wp-block-code"><code>code
+code</code></pre></li><li><pre class="wp-block-code"><code>code
+code</code></pre></li></ol><ul><li><pre class="wp-block-code"><code>code
+code</code></pre></li><li>no code</li></ul></li></ul>
+<!-- /wp:list -->
+
+<!-- wp:heading {"level":2} -->
+<h2 id="backslash-newline">Backslash newline</h2>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>hi<br/>there</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading {"level":2} -->
+<h2 id="code-spans">Code spans</h2>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p><code>hi\</code></p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p><code>hi there</code></p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p><code>hi````there</code></p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>`hi</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>there`</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading {"level":2} -->
+<h2 id="multilingual-urls">Multilingual URLs</h2>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p><a href="http://测.com?测=测">http://测.com?测=测</a></p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p><a href="/bar/测?x=测" title="title">foo</a></p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p><a href="mailto:测@foo.测.baz">测@foo.测.baz</a></p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading {"level":2} -->
+<h2 id="numbered-examples">Numbered examples</h2>
+<!-- /wp:heading -->
+
+<!-- wp:list {"ordered":true} -->
+<ol><li>First example.</li><li>Second example.</li></ol>
+<!-- /wp:list -->
+
+<!-- wp:paragraph -->
+<p>Explanation of examples (2) and (3).</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:list {"ordered":true,"start":3} -->
+<ol start="3"><li>Third example.</li></ol>
+<!-- /wp:list -->
+
+<!-- wp:heading {"level":2} -->
+<h2 id="macros">Macros</h2>
+<!-- /wp:heading -->
+
+<!-- wp:code -->
+<pre class="wp-block-code"><code class="language-tex">\newcommand{\tuple}[1]{\langle #1 \rangle}</code></pre>
+<!-- /wp:code -->
+
+<!-- wp:paragraph -->
+<p><span class="math inline">\(\langle x,y \rangle\)</span></p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading {"level":2} -->
+<h2 id="case-insensitive-references">Case-insensitive references</h2>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p><a href="/fum">Fum</a></p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p><a href="/fum">FUM</a></p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p><a href="/bat">bat</a></p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading {"level":2} -->
+<h2 id="curly-smart-quotes">Curly smart quotes</h2>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>“Hi”</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>‘Hi’</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading {"level":2} -->
+<h2 id="consecutive-lists">Consecutive lists</h2>
+<!-- /wp:heading -->
+
+<!-- wp:list -->
+<ul><li>one</li><li>two</li></ul>
+<!-- /wp:list -->
+
+<!-- wp:list {"ordered":true} -->
+<ol><li>one</li><li>two</li></ol>
+<!-- /wp:list -->
+
+<!-- wp:list {"ordered":true} -->
+<ol type="a"><li>one</li><li>two</li></ol>
+<!-- /wp:list -->
+
+<!-- wp:heading {"level":2} -->
+<h2 id="implicit-header-references">Implicit header references</h2>
+<!-- /wp:heading -->
+
+<!-- wp:heading {"level":3} -->
+<h3 id="my-header-1">My header</h3>
+<!-- /wp:heading -->
+
+<!-- wp:heading {"level":3} -->
+<h3 id="my-other-header">My other header</h3>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>A link to <a href="#my-header">My header</a>.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>Another link to <a href="#my-header">it</a>.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>Should be <a href="#my-header">case insensitive</a>.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>Link to <a href="#foobar">Explicit header attributes</a>.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>But this is not a link to <a href="/foo">My other header</a>, since the reference is defined.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading {"level":2} -->
+<h2 id="foobar" class="baz">Explicit header attributes</h2>
+<!-- /wp:heading -->
+
+<!-- wp:quote -->
+<blockquote class="wp-block-quote"><h2 id="foobar" class="baz">Header attributes inside block quote</h2></blockquote>
+<!-- /wp:quote -->
+
+<!-- wp:heading {"level":2} -->
+<h2 id="line-blocks">Line blocks</h2>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>But can a bee be said to be<br/>    or not to be an entire bee,<br/>        when half the bee is not a bee,<br/>            due to some ancient injury?<br/><br/>Continuation line<br/>  and another</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading {"level":2} -->
+<h2 id="grid-tables">Grid Tables</h2>
+<!-- /wp:heading -->
+
+<!-- wp:table -->
+<figure class="wp-block-table"><table><colgroup><col style="width:26.3889%"/><col style="width:16.6667%"/><col style="width:18.0556%"/></colgroup><thead><tr><th>col 1</th><th>col 2</th><th>col 3</th></tr></thead><tbody><tr><td>r1 a
+r1 bis</td><td>b
+b 2</td><td>c
+c 2</td></tr><tr><td>r2 d</td><td>e</td><td>f</td></tr></tbody></table></figure>
+<!-- /wp:table -->
+
+<!-- wp:paragraph -->
+<p>Headless</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:table -->
+<figure class="wp-block-table"><table><colgroup><col style="width:26.3889%"/><col style="width:16.6667%"/><col style="width:18.0556%"/></colgroup><tbody><tr><td>r1 a
+r1 bis</td><td>b
+b 2</td><td>c
+c 2</td></tr><tr><td>r2 d</td><td>e</td><td>f</td></tr></tbody></table></figure>
+<!-- /wp:table -->
+
+<!-- wp:paragraph -->
+<p>With alignments</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:table -->
+<figure class="wp-block-table"><table><colgroup><col style="width:26.3889%"/><col style="width:16.6667%"/><col style="width:18.0556%"/></colgroup><thead><tr><th style="text-align:right">col 1</th><th style="text-align:left">col 2</th><th style="text-align:center">col 3</th></tr></thead><tbody><tr><td style="text-align:right">r1 a
+r1 bis</td><td style="text-align:left">b
+b 2</td><td style="text-align:center">c
+c 2</td></tr><tr><td style="text-align:right">r2 d</td><td style="text-align:left">e</td><td style="text-align:center">f</td></tr></tbody></table></figure>
+<!-- /wp:table -->
+
+<!-- wp:paragraph -->
+<p>Headless with alignments</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:table -->
+<figure class="wp-block-table"><table><colgroup><col style="width:26.3889%"/><col style="width:16.6667%"/><col style="width:18.0556%"/></colgroup><tbody><tr><td style="text-align:right">r1 a
+r1 bis</td><td style="text-align:left">b
+b 2</td><td style="text-align:center">c
+c 2</td></tr><tr><td style="text-align:right">r2 d</td><td style="text-align:left">e</td><td style="text-align:center">f</td></tr></tbody></table></figure>
+<!-- /wp:table -->
+
+<!-- wp:paragraph -->
+<p>Spaces at ends of lines</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:table -->
+<figure class="wp-block-table"><table><colgroup><col style="width:26.3889%"/><col style="width:16.6667%"/><col style="width:18.0556%"/></colgroup><tbody><tr><td>r1 a
+r1 bis</td><td>b
+b 2</td><td>c
+c 2</td></tr><tr><td>r2 d</td><td>e</td><td>f</td></tr></tbody></table></figure>
+<!-- /wp:table -->
+
+<!-- wp:paragraph -->
+<p>Multiple blocks in a cell</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:table -->
+<figure class="wp-block-table"><table><colgroup><col style="width:26.3889%"/><col style="width:16.6667%"/><col style="width:18.0556%"/></colgroup><tbody><tr><td><h1 id="col-1">col 1</h1><p>col 1</p></td><td><h1 id="col-2">col 2</h1><p>col 2</p></td><td><h1 id="col-3">col 3</h1><p>col 3</p></td></tr><tr><td><p>r1 a</p><p>r1 bis</p></td><td><ul><li>b</li><li>b 2</li><li>b 2</li></ul></td><td>c
+c 2
+c 2</td></tr></tbody></table></figure>
+<!-- /wp:table -->
+
+<!-- wp:paragraph -->
+<p>East Asian characters have double width</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:table -->
+<figure class="wp-block-table"><table><colgroup><col style="width:4.1667%"/><col style="width:6.9444%"/></colgroup><tbody><tr><td>魚</td><td>fish</td></tr></tbody></table></figure>
+<!-- /wp:table -->
+
+<!-- wp:paragraph -->
+<p>Zero-width space in German</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:table -->
+<figure class="wp-block-table"><table><colgroup><col style="width:11.1111%"/><col style="width:11.1111%"/></colgroup><tbody><tr><td>German</td><td>English</td></tr><tr><td>Auf‌lage</td><td>edition</td></tr></tbody></table></figure>
+<!-- /wp:table -->
+
+<!-- wp:paragraph -->
+<p>Zero-width non-joiner in Persian</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:table -->
+<figure class="wp-block-table"><table><colgroup><col style="width:11.1111%"/><col style="width:13.8889%"/></colgroup><tbody><tr><td>می‌خواهم</td><td>I want to</td></tr></tbody></table></figure>
+<!-- /wp:table -->
+
+<!-- wp:paragraph -->
+<p>Empty cells</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:table -->
+<figure class="wp-block-table"><table><colgroup><col style="width:5.5556%"/><col style="width:5.5556%"/></colgroup><tbody><tr><td></td><td></td></tr></tbody></table></figure>
+<!-- /wp:table -->
+
+<!-- wp:paragraph -->
+<p>Table with cells spanning multiple rows or columns:</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:table -->
+<figure class="wp-block-table"><table><colgroup><col style="width:19.4444%"/><col style="width:11.1111%"/><col style="width:15.2778%"/></colgroup><thead><tr><th colspan="2">Property</th><th>Earth</th></tr></thead><tbody><tr><td rowspan="3">Temperature
+1961-1990</td><td>min</td><td>-89.2 °C</td></tr><tr><td>mean</td><td>14 °C</td></tr><tr><td>min</td><td>56.7 °C</td></tr></tbody></table></figure>
+<!-- /wp:table -->
+
+<!-- wp:paragraph -->
+<p>Table with complex header:</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:table -->
+<figure class="wp-block-table"><table><colgroup><col style="width:30.5556%"/><col style="width:11.1111%"/><col style="width:11.1111%"/><col style="width:11.1111%"/></colgroup><thead><tr><th rowspan="2">Location</th><th colspan="3">Temperature 1961-1990
+in degree Celsius</th></tr><tr><th>min</th><th>mean</th><th>max</th></tr></thead><tbody><tr><td>Antarctica</td><td>-89.2</td><td>N/A</td><td>19.8</td></tr><tr><td>Earth</td><td>-89.2</td><td>14</td><td>56.7</td></tr></tbody></table></figure>
+<!-- /wp:table -->
+
+<!-- wp:heading {"level":2} -->
+<h2 id="entities-in-links-and-titles">Entities in links and titles</h2>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p><a href="/ürl" title="öö!">link</a></p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p><a href="http://göögle.com">http://göögle.com</a></p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p><a href="mailto:me@exämple.com">me@exämple.com</a></p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p><a href="/ürl" title="öö!">foobar</a></p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading {"level":2} -->
+<h2 id="parentheses-in-urls">Parentheses in URLs</h2>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p><a href="/hi(there)">link</a></p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p><a href="/hithere)">link</a></p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p><a href="hi_(there_(nested))">linky</a></p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading {"level":2} -->
+<h2 id="backslashes-in-link-references">Backslashes in link references</h2>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p><a href="b">*<span class="pandoc-raw-tex">\a</span></a></p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading {"level":2} -->
+<h2 id="reference-link-fallbacks">Reference link fallbacks</h2>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>[<em>not a link</em>] [<em>nope</em>]…</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading {"level":2} -->
+<h2 id="reference-link-followed-by-a-citation">Reference link followed by a citation</h2>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>MapReduce is a paradigm popularized by <a href="http://google.com">Google</a> <span class="pandoc-citation" data-pandoc-citation-id="mapreduce" data-pandoc-citation-count="1" data-pandoc-citation-ids="[&quot;mapreduce&quot;]" data-pandoc-citations="[{&quot;id&quot;:&quot;mapreduce&quot;,&quot;mode&quot;:&quot;normal&quot;,&quot;noteNum&quot;:2,&quot;hash&quot;:0,&quot;prefix&quot;:&quot;&quot;,&quot;suffix&quot;:&quot;&quot;}]">[@mapreduce]</span> as its
+most vocal proponent.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading {"level":2} -->
+<h2 id="empty-reference-links">Empty reference links</h2>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>bar</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p><a href="">foo2</a></p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading {"level":2} -->
+<h2 id="wrapping-shouldnt-introduce-new-list-items">Wrapping shouldn’t introduce new list items</h2>
+<!-- /wp:heading -->
+
+<!-- wp:list -->
+<ul><li>blah blah blah blah blah blah blah blah blah blah blah blah blah blah 2015.</li></ul>
+<!-- /wp:list -->
+
+<!-- wp:heading {"level":2} -->
+<h2 id="bracketed-spans">Bracketed spans</h2>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p><span id="id" class="class"><em>foo</em> bar baz <a href="url">link</a></span></p>
+<!-- /wp:paragraph -->

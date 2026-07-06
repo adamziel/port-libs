@@ -1,0 +1,5 @@
+Error at "$REPO/pandoc-showcase/samples/latex-table-3971b.tex" (line 3, column 2):
+unexpected end of input
+expecting \end{document}
+
+ ^

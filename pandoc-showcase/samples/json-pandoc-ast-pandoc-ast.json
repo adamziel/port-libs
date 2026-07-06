@@ -1,0 +1,10 @@
+{
+  "pandoc-api-version": [1, 23, 1],
+  "meta": {
+    "title": { "t": "MetaInlines", "c": [{ "t": "Str", "c": "Pandoc JSON sample" }] }
+  },
+  "blocks": [
+    { "t": "Header", "c": [1, ["pandoc-json-sample", [], []], [{ "t": "Str", "c": "Pandoc JSON sample" }]] },
+    { "t": "Para", "c": [{ "t": "Str", "c": "JSON AST input used by Pandoc-compatible tools." }] }
+  ]
+}

@@ -1,0 +1,20 @@
+PHP Fatal error:  Uncaught InvalidArgumentException: CFB file is missing the compound-file signature in $REPO/lanes/pandoc/src/CompoundFileBinary.php:56
+Stack trace:
+#0 $REPO/lanes/pandoc/src/LegacyDocReader.php(228): PortLibs\Pandoc\CompoundFileBinary::fromBytes('Second .doc pla...')
+#1 $REPO/lanes/pandoc/src/LegacyDocReader.php(220): PortLibs\Pandoc\LegacyDocReader->readBytes('Second .doc pla...')
+#2 $REPO/lanes/pandoc/src/PandocConverter.php(36): PortLibs\Pandoc\LegacyDocReader->read('Second .doc pla...')
+#3 $REPO/lanes/pandoc/src/PandocConverter.php(79): PortLibs\Pandoc\PandocConverter::read('Second .doc pla...', 'doc', Array)
+#4 $REPO/lanes/pandoc/src/PandocConverter.php(98): PortLibs\Pandoc\PandocConverter::convert('Second .doc pla...', 'doc', 'html', Array)
+#5 $REPO/tools/build-pandoc-showcase.php(21): PortLibs\Pandoc\PandocConverter::convertFile('$REPO', 'doc', 'html')
+#6 {main}
+  thrown in $REPO/lanes/pandoc/src/CompoundFileBinary.php on line 56
+Fatal error: Uncaught InvalidArgumentException: CFB file is missing the compound-file signature in $REPO/lanes/pandoc/src/CompoundFileBinary.php:56
+Stack trace:
+#0 $REPO/lanes/pandoc/src/LegacyDocReader.php(228): PortLibs\Pandoc\CompoundFileBinary::fromBytes('Second .doc pla...')
+#1 $REPO/lanes/pandoc/src/LegacyDocReader.php(220): PortLibs\Pandoc\LegacyDocReader->readBytes('Second .doc pla...')
+#2 $REPO/lanes/pandoc/src/PandocConverter.php(36): PortLibs\Pandoc\LegacyDocReader->read('Second .doc pla...')
+#3 $REPO/lanes/pandoc/src/PandocConverter.php(79): PortLibs\Pandoc\PandocConverter::read('Second .doc pla...', 'doc', Array)
+#4 $REPO/lanes/pandoc/src/PandocConverter.php(98): PortLibs\Pandoc\PandocConverter::convert('Second .doc pla...', 'doc', 'html', Array)
+#5 $REPO/tools/build-pandoc-showcase.php(21): PortLibs\Pandoc\PandocConverter::convertFile('$REPO', 'doc', 'html')
+#6 {main}
+  thrown in $REPO/lanes/pandoc/src/CompoundFileBinary.php on line 56

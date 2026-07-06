@@ -1,0 +1,10 @@
+[
+  {
+    "id": "knuth-1984",
+    "type": "book",
+    "title": "The TeXbook",
+    "author": [{ "family": "Knuth", "given": "Donald E." }],
+    "issued": { "date-parts": [[1984]] },
+    "publisher": "Addison-Wesley"
+  }
+]

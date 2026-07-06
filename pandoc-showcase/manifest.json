@@ -1,0 +1,2054 @@
+{
+    "generatedAt": "2026-07-06T18:34:10+00:00",
+    "pandocVersion": "pandoc 3.10\nFeatures: +server +lua\nScripting engine: Lua 5.4\nUser data directory: $REPO\nCopyright (C) 2006-2025 John MacFarlane. Web:  https://pandoc.org\nThis is free software; see the source for copying conditions. There is no\nwarranty, not even for merchantability or fitness for a particular purpose.",
+    "formats": [
+        "biblatex",
+        "bibtex",
+        "bits",
+        "commonmark",
+        "commonmark_x",
+        "csljson",
+        "csv",
+        "doc",
+        "docbook",
+        "docx",
+        "endnotexml",
+        "epub",
+        "fb2",
+        "gfm",
+        "html",
+        "ipynb",
+        "jats",
+        "jira",
+        "json",
+        "latex",
+        "markdown",
+        "markdown_github",
+        "markdown_mmd",
+        "markdown_phpextra",
+        "markdown_strict",
+        "native",
+        "odt",
+        "opml",
+        "pdf",
+        "pptx",
+        "ris",
+        "rtf",
+        "tsv",
+        "xlsx",
+        "xml"
+    ],
+    "coveredFormats": [
+        "biblatex",
+        "bibtex",
+        "bits",
+        "commonmark",
+        "commonmark_x",
+        "csljson",
+        "csv",
+        "doc",
+        "docbook",
+        "docx",
+        "endnotexml",
+        "epub",
+        "fb2",
+        "gfm",
+        "html",
+        "ipynb",
+        "jats",
+        "jira",
+        "json",
+        "latex",
+        "markdown",
+        "markdown_github",
+        "markdown_mmd",
+        "markdown_phpextra",
+        "markdown_strict",
+        "native",
+        "odt",
+        "opml",
+        "pdf",
+        "pptx",
+        "ris",
+        "rtf",
+        "tsv",
+        "xlsx",
+        "xml"
+    ],
+    "missingFormats": [],
+    "records": [
+        {
+            "id": "bibtex-biblio",
+            "format": "bibtex",
+            "label": "Pandoc bibliography fixture",
+            "description": "BibTeX entries used by Pandoc command tests.",
+            "source": "jgm/pandoc upstream fixture at test/command/biblio.bib",
+            "sourceUrl": "https://raw.githubusercontent.com/jgm/pandoc/912bfa5e2e3f5c74eb125dfc19404f67c61ca58b/test/command/biblio.bib",
+            "samplePath": "samples/bibtex-biblio-biblio.bib",
+            "sampleSize": 459,
+            "preview": "@Book{item1,\nauthor=\"John Doe\",\ntitle=\"First Book\",\nyear=\"2005\",\naddress=\"Cambridge\",\npublisher=\"Cambridge University Press\"\n}\n\n@Article{item2,\nauthor=\"John Doe\",\ntitle=\"Article\",\nyear=\"2006\",\njournal=\"Journal of Generic Studies\",\nvolume=\"6\",\npages=\"33-34\"\n}\n\n@InCollection{\u043f\u0443\u043d\u043a\u04423,\nauthor=\"John Doe and Jenny Roe\",\ntitle=\"Why Water Is Wet\",\nbooktitle=\"Third Book\",\neditor=\"Sam Smith\",\npublisher=\"Oxford University Press\",\naddress=\"Oxford\",\nyear=\"2007\"\n}\n",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\BibliographyReader",
+                "notes": "Bibliography reader parses BibTeX entries into CSL item metadata and renders a shared AST bibliography definition list. Full Pandoc BibTeX reader parity remains open."
+            },
+            "haskell": {
+                "ok": true,
+                "path": "outputs/bibtex-biblio/haskell.html"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/bibtex-biblio/php.html"
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/bibtex-biblio/wordpress-blocks.html"
+            }
+        },
+        {
+            "id": "bibtex-averroes",
+            "format": "bibtex",
+            "label": "Averroes bibliography fixture",
+            "description": "A smaller BibTeX sample with humanistic bibliography data.",
+            "source": "jgm/pandoc upstream fixture at test/command/averroes.bib",
+            "sourceUrl": "https://raw.githubusercontent.com/jgm/pandoc/912bfa5e2e3f5c74eb125dfc19404f67c61ca58b/test/command/averroes.bib",
+            "samplePath": "samples/bibtex-averroes-averroes.bib",
+            "sampleSize": 4123,
+            "preview": "@string{anch-ie = {Angew.~Chem. Int.~Ed.}}\n@string{cup     = {Cambridge University Press}}\n@string{dtv     = {Deutscher Taschenbuch-Verlag}}\n@string{hup     = {Harvard University Press}}\n@string{jams    = {J.~Amer. Math. Soc.}}\n@string{jchph   = {J.~Chem. Phys.}}\n@string{jomch   = {J.~Organomet. Chem.}}\n@string{pup     = {Princeton University Press}}\n\n@book{averroes/bland,\n  author       = {Averroes},\n  title        = {The Epistle on the Possibility of Conjunction with the Active\n                  Intellect by {Ibn Rushd} with the Commentary of {Moses Narboni}},\n  date         = 1982,\n  editor       = {Bland, Kalman P.},\n  translator   = {Bland, Kalman P.},\n  series       = {Moreshet: Studies in {Jewish} History, Literature and Thought},\n  number       = 7,\n  publisher    = {Jewish Theological Seminary of America},\n  location     = {New York},\n  keywords     = {primary},\n  langid       = {english},\n  langidopts   = {variant=american},\n  indextitle   = {Epistle on the Possibility of Conjunction, The},\n  shorttitle   = {Possibility of Conjunction},\n  annotation   = {A \\texttt{book} entry with a \\texttt{series} and a\n                  \\texttt{number}. Note the concatenation of the \\texttt{editor}\n                  and \\texttt{translator} fields as well as the\n                  \\texttt{indextitle} field},\n}\n\n@book{averroes/hannes,\n  author       = {Averroes},\n  title        = {Des Averro{\\\"e}s Abhandlung: \\mkbibquote{{\\\"U}ber die\n                  M{\\\"o}glichkeit der Conjunktion} oder \\mkbibquote{{\\\"U}ber den\n                  materiellen Intellekt}},\n  date         = 1892,\n  editor       = {Hannes, Ludwig},\n  translator   = {Hannes, Ludwig},\n  annotator    = {Hannes, Ludwig},\n  publisher    = {C.~A. Kaemmerer},\n  location     = {Halle an der Saale},\n  keywords     = {primary},\n  langid       = {german},\n  sorttitle    = {Uber die Moglichkeit der Conjunktion},\n  indexsorttitle= {Uber die Moglichkeit der Conjunktion},\n  indextitle   = {{\\\"U}ber die M{\\\"o}glichkeit der Conjunktion},\n  shorttitle   = {{\\\"U}ber die M{\\\"o}glichkeit der Conjunktion},\n  annotation   = {An annotated edition. Note the concatenation of the\n                  \\texttt{editor}, \\texttt{translator}, and \\texttt{annotator}\n                  fields. Also note the \\texttt{shorttitle},\n                  \\texttt{indextitle}, \\texttt{sorttitle}, and\n                  \\texttt{indexsorttitle} fields},\n}\n\n@book{averroes/hercz,\n  author       = {Averroes},\n  title        = {Drei Abhandlungen {\\\"u}ber die Conjunction des separaten\n                  Intellects mit dem Menschen},\n  date         = 1869,\n  editor       = {Hercz, J.},\n  translator   = {Hercz, J.},\n  publisher    = {S.~Hermann},\n  location     = {Berlin},\n  keywords     = {primary},\n  langid       = {german},\n  indexsorttitle= {Drei Abhandlungen uber die Conjunction},\n  indextitle   = {Drei Abhandlungen {\\\"u}ber die Conjunction},\n  subtitle     = {Von Averroes (Vater und Sohn), aus dem Arabischen\n                  {\\\"u}bersetzt von Samuel Ibn Tibbon},\n  shorttitle   = {Drei Abhandlungen},\n  annotation   = {A \\texttt{book} entry. Note the concatenation of the\n                  \\texttt{editor} and \\texttt{translator} fields as well as the\n                  \\texttt{indextitle} and \\texttt{indexsorttitle} fields},\n}\n\n@book{cicero,\n  author       = {Cicero, Marcus Tullius},\n  title        = {De natura deorum. {\\\"U}ber das Wesen der G{\\\"o}tter},\n  date         = 1995,\n...",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\BibliographyReader",
+                "notes": "Bibliography reader parses BibTeX entries into CSL item metadata and renders a shared AST bibliography definition list. Full Pandoc BibTeX reader parity remains open."
+            },
+            "haskell": {
+                "ok": true,
+                "path": "outputs/bibtex-averroes/haskell.html"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/bibtex-averroes/php.html"
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/bibtex-averroes/wordpress-blocks.html"
+            }
+        },
+        {
+            "id": "biblatex-biblio",
+            "format": "biblatex",
+            "label": "BibLaTeX-style bibliography",
+            "description": "Read through the local BibLaTeX-compatible bibliography path.",
+            "source": "jgm/pandoc upstream fixture at test/command/biblio.bib",
+            "sourceUrl": "https://raw.githubusercontent.com/jgm/pandoc/912bfa5e2e3f5c74eb125dfc19404f67c61ca58b/test/command/biblio.bib",
+            "samplePath": "samples/biblatex-biblio-biblio.bib",
+            "sampleSize": 459,
+            "preview": "@Book{item1,\nauthor=\"John Doe\",\ntitle=\"First Book\",\nyear=\"2005\",\naddress=\"Cambridge\",\npublisher=\"Cambridge University Press\"\n}\n\n@Article{item2,\nauthor=\"John Doe\",\ntitle=\"Article\",\nyear=\"2006\",\njournal=\"Journal of Generic Studies\",\nvolume=\"6\",\npages=\"33-34\"\n}\n\n@InCollection{\u043f\u0443\u043d\u043a\u04423,\nauthor=\"John Doe and Jenny Roe\",\ntitle=\"Why Water Is Wet\",\nbooktitle=\"Third Book\",\neditor=\"Sam Smith\",\npublisher=\"Oxford University Press\",\naddress=\"Oxford\",\nyear=\"2007\"\n}\n",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\BibliographyReader",
+                "notes": "Bibliography reader parses BibLaTeX-oriented entries, aliases, xdata/crossref metadata, source-file diagnostics, and custom fields into CSL item metadata. Full Pandoc BibLaTeX reader parity remains open."
+            },
+            "haskell": {
+                "ok": true,
+                "path": "outputs/biblatex-biblio/haskell.html"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/biblatex-biblio/php.html"
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/biblatex-biblio/wordpress-blocks.html"
+            }
+        },
+        {
+            "id": "biblatex-online",
+            "format": "biblatex",
+            "label": "Online entry sample",
+            "description": "",
+            "source": "Inline public bibliographic entry assembled from real WordPress project metadata.",
+            "sourceUrl": "",
+            "samplePath": "samples/biblatex-online-biblatex-online.bib",
+            "sampleSize": 124,
+            "preview": "@online{wp,\n  author = {WordPress Contributors},\n  title = {WordPress},\n  year = {2026},\n  url = {https://wordpress.org/}\n}\n",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\BibliographyReader",
+                "notes": "Bibliography reader parses BibLaTeX-oriented entries, aliases, xdata/crossref metadata, source-file diagnostics, and custom fields into CSL item metadata. Full Pandoc BibLaTeX reader parity remains open."
+            },
+            "haskell": {
+                "ok": true,
+                "path": "outputs/biblatex-online/haskell.html"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/biblatex-online/php.html"
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/biblatex-online/wordpress-blocks.html"
+            }
+        },
+        {
+            "id": "bits-book",
+            "format": "bits",
+            "label": "BITS book fragment",
+            "description": "",
+            "source": "Inline BITS/JATS-family XML modeled on NISO BITS book structure.",
+            "sourceUrl": "",
+            "samplePath": "samples/bits-book-bits-book.xml",
+            "sampleSize": 408,
+            "preview": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<book xmlns:xlink=\"http://www.w3.org/1999/xlink\" dtd-version=\"2.0\">\n  <book-meta>\n    <book-title-group><book-title>BITS book fragment</book-title></book-title-group>\n  </book-meta>\n  <book-body>\n    <book-part>\n      <body>\n        <sec><title>Chapter section</title><p>BITS is a JATS-family book format.</p></sec>\n      </body>\n    </book-part>\n  </book-body>\n</book>",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\XmlReader",
+                "notes": "Bounded XML-family reader maps BITS/JATS book roots, titles, abstracts, body sections, lists, links, and tables into the shared AST with existing JATS/BITS diagnostic packets. Full Pandoc BITS parity remains open."
+            },
+            "haskell": {
+                "ok": true,
+                "path": "outputs/bits-book/haskell.html"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/bits-book/php.html"
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/bits-book/wordpress-blocks.html"
+            }
+        },
+        {
+            "id": "bits-section",
+            "format": "bits",
+            "label": "BITS section fragment",
+            "description": "",
+            "source": "Inline BITS XML fragment.",
+            "sourceUrl": "",
+            "samplePath": "samples/bits-section-bits-section.xml",
+            "sampleSize": 286,
+            "preview": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<book><book-meta><book-title-group><book-title>Second BITS fragment</book-title></book-title-group></book-meta><book-body><book-part><body><sec><title>Methods</title><p>A second compact BITS sample.</p></sec></body></book-part></book-body></book>\n",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\XmlReader",
+                "notes": "Bounded XML-family reader maps BITS/JATS book roots, titles, abstracts, body sections, lists, links, and tables into the shared AST with existing JATS/BITS diagnostic packets. Full Pandoc BITS parity remains open."
+            },
+            "haskell": {
+                "ok": true,
+                "path": "outputs/bits-section/haskell.html"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/bits-section/php.html"
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/bits-section/wordpress-blocks.html"
+            }
+        },
+        {
+            "id": "commonmark-notes",
+            "format": "commonmark",
+            "label": "CommonMark migration note",
+            "description": "",
+            "source": "Inline documentation-style Markdown sample.",
+            "sourceUrl": "",
+            "samplePath": "samples/commonmark-notes-commonmark-notes.md",
+            "sampleSize": 418,
+            "preview": "# WordPress data liberation checklist\n\nThis note mirrors the kind of Markdown found in migration docs and issue\ntrackers.\n\n- Preserve headings, paragraphs, lists, and inline emphasis.\n- Keep [links](https://wordpress.org/) readable.\n- Convert source content to clean WordPress blocks.\n\n| Source | Expected handoff |\n| --- | --- |\n| Markdown | paragraphs and lists |\n| CSV | table fallback |\n| HTML | native structure |",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\MarkdownReader",
+                "notes": "Uses the shared Markdown reader with CommonMark-oriented slices; full extension parity remains open."
+            },
+            "haskell": {
+                "ok": true,
+                "path": "outputs/commonmark-notes/haskell.html"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/commonmark-notes/php.html"
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/commonmark-notes/wordpress-blocks.html"
+            }
+        },
+        {
+            "id": "commonmark-release",
+            "format": "commonmark",
+            "label": "CommonMark release note",
+            "description": "",
+            "source": "Inline release-note Markdown sample.",
+            "sourceUrl": "",
+            "samplePath": "samples/commonmark-release-commonmark-release.md",
+            "sampleSize": 226,
+            "preview": "---\ntitle: Release notes excerpt\n---\n\n## Highlights\n\nGitHub-flavored Markdown commonly mixes task lists, fenced code, and tables.\n\n- [x] Import document text\n- [ ] Preserve richer layout\n\n```php\necho \"portable conversion\";\n```",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\MarkdownReader",
+                "notes": "Uses the shared Markdown reader with CommonMark-oriented slices; full extension parity remains open."
+            },
+            "haskell": {
+                "ok": true,
+                "path": "outputs/commonmark-release/haskell.html"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/commonmark-release/php.html"
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/commonmark-release/wordpress-blocks.html"
+            }
+        },
+        {
+            "id": "commonmarkx-release",
+            "format": "commonmark_x",
+            "label": "CommonMark extensions sample",
+            "description": "",
+            "source": "Inline release-note Markdown with extension-oriented constructs.",
+            "sourceUrl": "",
+            "samplePath": "samples/commonmarkx-release-commonmarkx-release.md",
+            "sampleSize": 226,
+            "preview": "---\ntitle: Release notes excerpt\n---\n\n## Highlights\n\nGitHub-flavored Markdown commonly mixes task lists, fenced code, and tables.\n\n- [x] Import document text\n- [ ] Preserve richer layout\n\n```php\necho \"portable conversion\";\n```",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\MarkdownReader",
+                "notes": "Uses the shared Markdown reader with raw attribute and extension slices; full extension parity remains open."
+            },
+            "haskell": {
+                "ok": true,
+                "path": "outputs/commonmarkx-release/haskell.html"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/commonmarkx-release/php.html"
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/commonmarkx-release/wordpress-blocks.html"
+            }
+        },
+        {
+            "id": "commonmarkx-notes",
+            "format": "commonmark_x",
+            "label": "CommonMark extensions notes",
+            "description": "",
+            "source": "Inline documentation-style Markdown sample.",
+            "sourceUrl": "",
+            "samplePath": "samples/commonmarkx-notes-commonmarkx-notes.md",
+            "sampleSize": 418,
+            "preview": "# WordPress data liberation checklist\n\nThis note mirrors the kind of Markdown found in migration docs and issue\ntrackers.\n\n- Preserve headings, paragraphs, lists, and inline emphasis.\n- Keep [links](https://wordpress.org/) readable.\n- Convert source content to clean WordPress blocks.\n\n| Source | Expected handoff |\n| --- | --- |\n| Markdown | paragraphs and lists |\n| CSV | table fallback |\n| HTML | native structure |",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\MarkdownReader",
+                "notes": "Uses the shared Markdown reader with raw attribute and extension slices; full extension parity remains open."
+            },
+            "haskell": {
+                "ok": true,
+                "path": "outputs/commonmarkx-notes/haskell.html"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/commonmarkx-notes/php.html"
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/commonmarkx-notes/wordpress-blocks.html"
+            }
+        },
+        {
+            "id": "csljson-book",
+            "format": "csljson",
+            "label": "CSL JSON book item",
+            "description": "",
+            "source": "Inline CSL JSON item using a real published book.",
+            "sourceUrl": "",
+            "samplePath": "samples/csljson-book-csljson-book.json",
+            "sampleSize": 220,
+            "preview": "[\n  {\n    \"id\": \"knuth-1984\",\n    \"type\": \"book\",\n    \"title\": \"The TeXbook\",\n    \"author\": [{ \"family\": \"Knuth\", \"given\": \"Donald E.\" }],\n    \"issued\": { \"date-parts\": [[1984]] },\n    \"publisher\": \"Addison-Wesley\"\n  }\n]",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\BibliographyReader",
+                "notes": "Bibliography reader validates CSL JSON item lists, normalizes them through the CSL processor, and renders a shared AST bibliography definition list. Full Pandoc CSL JSON parity remains open."
+            },
+            "haskell": {
+                "ok": true,
+                "path": "outputs/csljson-book/haskell.html"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/csljson-book/php.html"
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/csljson-book/wordpress-blocks.html"
+            }
+        },
+        {
+            "id": "csljson-article",
+            "format": "csljson",
+            "label": "CSL JSON article item",
+            "description": "",
+            "source": "Inline CSL JSON item for a real published article.",
+            "sourceUrl": "",
+            "samplePath": "samples/csljson-article-csljson-article.json",
+            "sampleSize": 211,
+            "preview": "[{\"id\":\"berners-lee-1994\",\"type\":\"article-journal\",\"title\":\"The World-Wide Web\",\"author\":[{\"family\":\"Berners-Lee\",\"given\":\"Tim\"}],\"issued\":{\"date-parts\":[[1994]]},\"container-title\":\"Communications of the ACM\"}]\n",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\BibliographyReader",
+                "notes": "Bibliography reader validates CSL JSON item lists, normalizes them through the CSL processor, and renders a shared AST bibliography definition list. Full Pandoc CSL JSON parity remains open."
+            },
+            "haskell": {
+                "ok": true,
+                "path": "outputs/csljson-article/haskell.html"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/csljson-article/php.html"
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/csljson-article/wordpress-blocks.html"
+            }
+        },
+        {
+            "id": "csv-format-status",
+            "format": "csv",
+            "label": "Format status CSV",
+            "description": "",
+            "source": "Inline CSV inventory data for this showcase.",
+            "sourceUrl": "",
+            "samplePath": "samples/csv-format-status-format-status.csv",
+            "sampleSize": 84,
+            "preview": "name,format,status\nDocument,DOCX,partial\nNotebook,IPYNB,partial\nSlides,PPTX,partial\n",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\DelimitedTextReader",
+                "notes": "Delimited text reader maps CSV rows into the shared table AST with Pandoc-compatible delimiter, quote, escape, keep-space, multiline-cell, row repair, control-character, and provenance diagnostics. The pinned direct CSV reader and shared CSV parser option fixtures are covered; RST csv-table integration is tracked with the RST reader gap."
+            },
+            "haskell": {
+                "ok": true,
+                "path": "outputs/csv-format-status/haskell.html"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/csv-format-status/php.html"
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/csv-format-status/wordpress-blocks.html"
+            }
+        },
+        {
+            "id": "csv-rst-table",
+            "format": "csv",
+            "label": "RST CSV table data",
+            "description": "CSV data used in an upstream RST table command fixture.",
+            "source": "jgm/pandoc upstream fixture at test/command/3533-rst-csv-tables.csv",
+            "sourceUrl": "https://raw.githubusercontent.com/jgm/pandoc/912bfa5e2e3f5c74eb125dfc19404f67c61ca58b/test/command/3533-rst-csv-tables.csv",
+            "samplePath": "samples/csv-rst-table-3533-rst-csv-tables.csv",
+            "sampleSize": 122,
+            "preview": "\"Albatross\", 2.99, \"On a stick!\"\n\"Crunchy Frog\", 1.49, \"If we took the bones out, it wouldn't be\ncrunchy, now would it?\"\n\n",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\DelimitedTextReader",
+                "notes": "Delimited text reader maps CSV rows into the shared table AST with Pandoc-compatible delimiter, quote, escape, keep-space, multiline-cell, row repair, control-character, and provenance diagnostics. The pinned direct CSV reader and shared CSV parser option fixtures are covered; RST csv-table integration is tracked with the RST reader gap."
+            },
+            "haskell": {
+                "ok": true,
+                "path": "outputs/csv-rst-table/haskell.html"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/csv-rst-table/php.html"
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/csv-rst-table/wordpress-blocks.html"
+            }
+        },
+        {
+            "id": "tsv-format-status",
+            "format": "tsv",
+            "label": "Format status TSV",
+            "description": "",
+            "source": "Inline tabular inventory data for this showcase.",
+            "sourceUrl": "",
+            "samplePath": "samples/tsv-format-status-format-status.tsv",
+            "sampleSize": 84,
+            "preview": "name\tformat\tstatus\nDocument\tDOCX\tpartial\nNotebook\tIPYNB\tpartial\nSlides\tPPTX\tpartial\n",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\DelimitedTextReader",
+                "notes": "Delimited text reader maps TSV rows into the shared table AST with Pandoc-compatible tab delimiter, literal quote handling, post-delimiter space skipping, trailing empty field, ragged row, repair, control-character, and provenance diagnostics."
+            },
+            "haskell": {
+                "ok": true,
+                "path": "outputs/tsv-format-status/haskell.html"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/tsv-format-status/php.html"
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/tsv-format-status/wordpress-blocks.html"
+            }
+        },
+        {
+            "id": "tsv-source-status",
+            "format": "tsv",
+            "label": "Source status TSV",
+            "description": "",
+            "source": "Inline tab-separated source inventory.",
+            "sourceUrl": "",
+            "samplePath": "samples/tsv-source-status-source-status.tsv",
+            "sampleSize": 74,
+            "preview": "source\tkind\trows\nPandoc upstream\tfixtures\tmany\nport-libs\tfixtures\tseveral\n",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\DelimitedTextReader",
+                "notes": "Delimited text reader maps TSV rows into the shared table AST with Pandoc-compatible tab delimiter, literal quote handling, post-delimiter space skipping, trailing empty field, ragged row, repair, control-character, and provenance diagnostics."
+            },
+            "haskell": {
+                "ok": true,
+                "path": "outputs/tsv-source-status/haskell.html"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/tsv-source-status/php.html"
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/tsv-source-status/wordpress-blocks.html"
+            }
+        },
+        {
+            "id": "docbook-article",
+            "format": "docbook",
+            "label": "DocBook article sample",
+            "description": "",
+            "source": "Inline DocBook 5 article modeled on technical documentation.",
+            "sourceUrl": "",
+            "samplePath": "samples/docbook-article-docbook-article.xml",
+            "sampleSize": 461,
+            "preview": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<article xmlns=\"http://docbook.org/ns/docbook\" version=\"5.0\">\n  <info><title>DocBook article sample</title></info>\n  <section>\n    <title>Migration notes</title>\n    <para>DocBook content often appears in technical publishing pipelines.</para>\n    <itemizedlist>\n      <listitem><para>Section titles</para></listitem>\n      <listitem><para>Lists and paragraphs</para></listitem>\n    </itemizedlist>\n  </section>\n</article>",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\DocBookReader",
+                "notes": "Bounded DocBook XML reader maps document metadata, sections, paragraphs, lists, links, CALS tables, media references, admonitions, code blocks, variable lists, and bibliography entries into the shared AST while preserving DocBook review packets. Full DocBook reader parity remains open."
+            },
+            "haskell": {
+                "ok": true,
+                "path": "outputs/docbook-article/haskell.html"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/docbook-article/php.html"
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/docbook-article/wordpress-blocks.html"
+            }
+        },
+        {
+            "id": "docbook-table",
+            "format": "docbook",
+            "label": "DocBook table sample",
+            "description": "",
+            "source": "Inline DocBook 5 table sample.",
+            "sourceUrl": "",
+            "samplePath": "samples/docbook-table-docbook-table.xml",
+            "sampleSize": 370,
+            "preview": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<article xmlns=\"http://docbook.org/ns/docbook\" version=\"5.0\"><info><title>DocBook table</title></info><section><title>Coverage</title><informaltable><tgroup cols=\"2\"><tbody><row><entry>HTML</entry><entry>partial</entry></row><row><entry>DOCX</entry><entry>partial</entry></row></tbody></tgroup></informaltable></section></article>\n",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\DocBookReader",
+                "notes": "Bounded DocBook XML reader maps document metadata, sections, paragraphs, lists, links, CALS tables, media references, admonitions, code blocks, variable lists, and bibliography entries into the shared AST while preserving DocBook review packets. Full DocBook reader parity remains open."
+            },
+            "haskell": {
+                "ok": true,
+                "path": "outputs/docbook-table/haskell.html"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/docbook-table/php.html"
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/docbook-table/wordpress-blocks.html"
+            }
+        },
+        {
+            "id": "docx-headers",
+            "format": "docx",
+            "label": "DOCX headers",
+            "description": "WordprocessingML package from upstream Pandoc DOCX reader tests.",
+            "source": "jgm/pandoc upstream fixture at test/docx/headers.docx",
+            "sourceUrl": "https://raw.githubusercontent.com/jgm/pandoc/912bfa5e2e3f5c74eb125dfc19404f67c61ca58b/test/docx/headers.docx",
+            "samplePath": "samples/docx-headers-headers.docx",
+            "sampleSize": 18926,
+            "preview": "",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\DocxReader",
+                "notes": "Bounded DOCX package reader parses document.xml, styles, numbering levels/start/style/delimiter attributes, relationships, notes/comments, headers/footers, media references, bookmarks, simple reference fields, OMML equations, and core properties into the shared AST. Full DOCX parity remains open."
+            },
+            "haskell": {
+                "ok": true,
+                "path": "outputs/docx-headers/haskell.html"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/docx-headers/php.html"
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/docx-headers/wordpress-blocks.html"
+            }
+        },
+        {
+            "id": "docx-tables",
+            "format": "docx",
+            "label": "DOCX tables",
+            "description": "DOCX table coverage from upstream Pandoc reader tests.",
+            "source": "jgm/pandoc upstream fixture at test/docx/tables.docx",
+            "sourceUrl": "https://raw.githubusercontent.com/jgm/pandoc/912bfa5e2e3f5c74eb125dfc19404f67c61ca58b/test/docx/tables.docx",
+            "samplePath": "samples/docx-tables-tables.docx",
+            "sampleSize": 31751,
+            "preview": "",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\DocxReader",
+                "notes": "Bounded DOCX package reader parses document.xml, styles, numbering levels/start/style/delimiter attributes, relationships, notes/comments, headers/footers, media references, bookmarks, simple reference fields, OMML equations, and core properties into the shared AST. Full DOCX parity remains open."
+            },
+            "haskell": {
+                "ok": true,
+                "path": "outputs/docx-tables/haskell.html"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/docx-tables/php.html"
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/docx-tables/wordpress-blocks.html"
+            }
+        },
+        {
+            "id": "endnotexml-reader",
+            "format": "endnotexml",
+            "label": "EndNote XML reader fixture",
+            "description": "Bibliography XML fixture from upstream Pandoc tests.",
+            "source": "jgm/pandoc upstream fixture at test/endnotexml-reader.xml",
+            "sourceUrl": "https://raw.githubusercontent.com/jgm/pandoc/912bfa5e2e3f5c74eb125dfc19404f67c61ca58b/test/endnotexml-reader.xml",
+            "samplePath": "samples/endnotexml-reader-endnotexml-reader.xml",
+            "sampleSize": 6613,
+            "preview": "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<xml>\n  <records>\n    <record>\n      <database name=\"EndNote Ecology.enl\"\n      path=\"/Users/LowDecarie/Dropbox/Meta presentation of stats/Data/EndNote Ecology.enl\">\n      EndNote Ecology.enl</database>\n      <source-app name=\"EndNote\" version=\"15.0\">\n      EndNote</source-app>\n      <rec-number>13264</rec-number>\n      <foreign-keys>\n        <key app=\"EN\" db-id=\"0xxzez5ectezp7e9zrnxp0dq5zrafepwxfe2\">\n        13264</key>\n      </foreign-keys>\n      <ref-type name=\"Journal Article\">17</ref-type>\n      <contributors>\n        <authors>\n          <author>\n            <style face=\"normal\" font=\"default\" size=\"100%\">\n            Chapman, A. G.</style>\n          </author>\n        </authors>\n      </contributors>\n      <auth-address>\n        <style face=\"normal\" font=\"default\" size=\"100%\">Cent States\n        Forest Expt Stn, Columbus, OH USA</style>\n      </auth-address>\n      <titles>\n        <title>\n          <style face=\"normal\" font=\"default\" size=\"100%\">An\n          ecological basis for reforestation of submariginal lands\n          in the Central Hardwood Region</style>\n        </title>\n        <secondary-title>\n          <style face=\"normal\" font=\"default\" size=\"100%\">\n          Ecology</style>\n        </secondary-title>\n        <alt-title>\n          <style face=\"normal\" font=\"default\" size=\"100%\">\n          Ecology</style>\n        </alt-title>\n      </titles>\n      <periodical>\n        <full-title>\n          <style face=\"normal\" font=\"default\" size=\"100%\">\n          Ecology</style>\n        </full-title>\n        <abbr-1>\n          <style face=\"normal\" font=\"default\" size=\"100%\">\n          Ecology</style>\n        </abbr-1>\n      </periodical>\n      <alt-periodical>\n        <full-title>\n          <style face=\"normal\" font=\"default\" size=\"100%\">\n          Ecology</style>\n        </full-title>\n        <abbr-1>\n          <style face=\"normal\" font=\"default\" size=\"100%\">\n          Ecology</style>\n        </abbr-1>\n      </alt-periodical>\n      <pages>\n        <style face=\"normal\" font=\"default\" size=\"100%\">\n        93-105</style>\n      </pages>\n      <volume>\n        <style face=\"normal\" font=\"default\" size=\"100%\">18</style>\n      </volume>\n      <number>\n        <style face=\"normal\" font=\"default\" size=\"100%\">1</style>\n      </number>\n      <dates>\n        <year>\n          <style face=\"normal\" font=\"default\" size=\"100%\">\n          1937</style>\n        </year>\n        <pub-dates>\n          <date>\n            <style face=\"normal\" font=\"default\" size=\"100%\">\n...",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\BibliographyReader",
+                "notes": "Bibliography reader parses bounded EndNote XML records into CSL item metadata with name, title, date, publication, attachment, and unsupported-field diagnostics. Full Pandoc EndNote XML reader parity remains open."
+            },
+            "haskell": {
+                "ok": true,
+                "path": "outputs/endnotexml-reader/haskell.html"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/endnotexml-reader/php.html"
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/endnotexml-reader/wordpress-blocks.html"
+            }
+        },
+        {
+            "id": "endnotexml-book",
+            "format": "endnotexml",
+            "label": "EndNote XML book record",
+            "description": "",
+            "source": "Inline EndNote XML record for a real published book.",
+            "sourceUrl": "",
+            "samplePath": "samples/endnotexml-book-endnote-book.xml",
+            "sampleSize": 314,
+            "preview": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<xml><records><record><ref-type name=\"Book\">6</ref-type><contributors><authors><author>Knuth, Donald E.</author></authors></contributors><titles><title>The TeXbook</title></titles><dates><year>1984</year></dates><publisher>Addison-Wesley</publisher></record></records></xml>\n",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\BibliographyReader",
+                "notes": "Bibliography reader parses bounded EndNote XML records into CSL item metadata with name, title, date, publication, attachment, and unsupported-field diagnostics. Full Pandoc EndNote XML reader parity remains open."
+            },
+            "haskell": {
+                "ok": true,
+                "path": "outputs/endnotexml-book/haskell.html"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/endnotexml-book/php.html"
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/endnotexml-book/wordpress-blocks.html"
+            }
+        },
+        {
+            "id": "epub-wasteland",
+            "format": "epub",
+            "label": "The Waste Land EPUB",
+            "description": "EPUB book fixture from upstream Pandoc tests.",
+            "source": "jgm/pandoc upstream fixture at test/epub/wasteland.epub",
+            "sourceUrl": "https://raw.githubusercontent.com/jgm/pandoc/912bfa5e2e3f5c74eb125dfc19404f67c61ca58b/test/epub/wasteland.epub",
+            "samplePath": "samples/epub-wasteland-wasteland.epub",
+            "sampleSize": 25840,
+            "preview": "",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\EpubReader",
+                "notes": "Bounded EPUB package reader resolves the OPF rootfile, extracts metadata, follows XHTML spine items, rewrites package-relative href/src resources, records image/resource references, records EPUB3 nav and NCX table-of-contents resources while preferring EPUB3 nav entries over duplicate NCX fallback entries, and maps spine content through the shared HTML-capable reader path. Full EPUB parity remains open."
+            },
+            "haskell": {
+                "ok": true,
+                "path": "outputs/epub-wasteland/haskell.html"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/epub-wasteland/php.html"
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/epub-wasteland/wordpress-blocks.html"
+            }
+        },
+        {
+            "id": "epub-features",
+            "format": "epub",
+            "label": "EPUB feature coverage",
+            "description": "EPUB feature fixture from upstream Pandoc tests.",
+            "source": "jgm/pandoc upstream fixture at test/epub/features.epub",
+            "sourceUrl": "https://raw.githubusercontent.com/jgm/pandoc/912bfa5e2e3f5c74eb125dfc19404f67c61ca58b/test/epub/features.epub",
+            "samplePath": "samples/epub-features-features.epub",
+            "sampleSize": 8970,
+            "preview": "",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\EpubReader",
+                "notes": "Bounded EPUB package reader resolves the OPF rootfile, extracts metadata, follows XHTML spine items, rewrites package-relative href/src resources, records image/resource references, records EPUB3 nav and NCX table-of-contents resources while preferring EPUB3 nav entries over duplicate NCX fallback entries, and maps spine content through the shared HTML-capable reader path. Full EPUB parity remains open."
+            },
+            "haskell": {
+                "ok": true,
+                "path": "outputs/epub-features/haskell.html"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/epub-features/php.html"
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/epub-features/wordpress-blocks.html"
+            }
+        },
+        {
+            "id": "fb2-basic",
+            "format": "fb2",
+            "label": "FB2 basic book",
+            "description": "FictionBook XML sample from upstream Pandoc tests.",
+            "source": "jgm/pandoc upstream fixture at test/fb2/basic.fb2",
+            "sourceUrl": "https://raw.githubusercontent.com/jgm/pandoc/912bfa5e2e3f5c74eb125dfc19404f67c61ca58b/test/fb2/basic.fb2",
+            "samplePath": "samples/fb2-basic-basic.fb2",
+            "sampleSize": 1361,
+            "preview": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<FictionBook xmlns=\"http://www.gribuser.ru/xml/fictionbook/2.0\" xmlns:l=\"http://www.w3.org/1999/xlink\">\n<description>\n<title-info>\n<genre>unrecognised</genre>\n</title-info>\n<document-info>\n<program-used>pandoc</program-used>\n</document-info>\n</description>\n<body>\n<title>\n<p />\n</title>\n<section id=\"top-level-title\">\n<title>\n<p>Top-level title</p>\n</title>\n<section id=\"section\">\n<title>\n<p>Section</p>\n</title>\n<section id=\"subsection\">\n<title>\n<p>Subsection</p>\n</title>\n<p>This <emphasis>emphasized</emphasis> <strong>strong</strong> <code>verbatim</code> markdown.\nSee this <a l:href=\"http://example.com/\">link</a>.</p>\n<p>Ordered list:</p>\n<p>1.\u00a0one</p>\n<p>2.\u00a0two</p>\n<p>3.\u00a0three</p>\n<cite>\n<p>Blockquote\nis\nfor\ncitatons.</p>\n</cite>\n<empty-line />\n<p>\n<code>Code</code>\n</p>\n<p>\n<code>block</code>\n</p>\n<p>\n<code>is</code>\n</p>\n<p>\n<code>for</code>\n</p>\n<p>\n<code>code.</code>\n</p>\n<empty-line />\n<p>\n<strikethrough>Strikeout</strikethrough> is Pandoc\u2019s extension.\nSuperscript and subscripts too: H<sub>2</sub>O is a liquid<a l:href=\"#n1\" type=\"note\">[1]</a>.\n2<sup>10</sup> is 1024.</p>\n<p>Math is another Pandoc extension: <code>E = m c^2</code>.</p>\n</section>\n</section>\n</section>\n</body>\n<body name=\"notes\">\n<section id=\"n1\">\n<title>\n<p>1</p>\n</title>\n<p>Sometimes.</p>\n</section>\n</body>\n</FictionBook>\n",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\Fb2Reader",
+                "notes": "Bounded FB2 reader maps FictionBook XML sections, titles, epigraphs, poems, metadata, notes, and inline formatting into the shared AST for the pinned upstream FB2 reader golden fixtures."
+            },
+            "haskell": {
+                "ok": true,
+                "path": "outputs/fb2-basic/haskell.html"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/fb2-basic/php.html"
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/fb2-basic/wordpress-blocks.html"
+            }
+        },
+        {
+            "id": "fb2-notes",
+            "format": "fb2",
+            "label": "FB2 notes",
+            "description": "FictionBook notes fixture from upstream Pandoc tests.",
+            "source": "jgm/pandoc upstream fixture at test/fb2/reader/notes.fb2",
+            "sourceUrl": "https://raw.githubusercontent.com/jgm/pandoc/912bfa5e2e3f5c74eb125dfc19404f67c61ca58b/test/fb2/reader/notes.fb2",
+            "samplePath": "samples/fb2-notes-notes.fb2",
+            "sampleSize": 513,
+            "preview": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<FictionBook xmlns=\"http://www.gribuser.ru/xml/fictionbook/2.0\" xmlns:l=\"http://www.w3.org/1999/xlink\">\n\t<body>\n\t\t<section>\n\t\t\t<p>Note <a l:href=\"#n1\" type=\"note\">1</a>.</p>\n\t\t\t<p>Second note <a l:href=\"#n2\" type=\"note\">2</a>.</p>\n\t\t</section>\n\t</body>\n\t<body name=\"notes\">\n\t\t<section id=\"n1\">\n\t\t\t<title><p>1</p></title>\n\t\t\t<p>Note contents</p>\n\t\t</section>\n\t\t<section id=\"n2\">\n\t\t\t<title><p>2</p></title>\n\t\t\t<p>Second note contents.</p>\n\t\t</section>\n\t</body>\n</FictionBook>\n",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\Fb2Reader",
+                "notes": "Bounded FB2 reader maps FictionBook XML sections, titles, epigraphs, poems, metadata, notes, and inline formatting into the shared AST for the pinned upstream FB2 reader golden fixtures."
+            },
+            "haskell": {
+                "ok": true,
+                "path": "outputs/fb2-notes/haskell.html"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/fb2-notes/php.html"
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/fb2-notes/wordpress-blocks.html"
+            }
+        },
+        {
+            "id": "gfm-release",
+            "format": "gfm",
+            "label": "GFM release notes",
+            "description": "",
+            "source": "Inline GitHub-flavored Markdown sample.",
+            "sourceUrl": "",
+            "samplePath": "samples/gfm-release-gfm-release.md",
+            "sampleSize": 226,
+            "preview": "---\ntitle: Release notes excerpt\n---\n\n## Highlights\n\nGitHub-flavored Markdown commonly mixes task lists, fenced code, and tables.\n\n- [x] Import document text\n- [ ] Preserve richer layout\n\n```php\necho \"portable conversion\";\n```",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\MarkdownReader",
+                "notes": "GitHub-Flavored Markdown behavior is partially mapped through MarkdownReader and MarkdownWriter tests."
+            },
+            "haskell": {
+                "ok": true,
+                "path": "outputs/gfm-release/haskell.html"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/gfm-release/php.html"
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/gfm-release/wordpress-blocks.html"
+            }
+        },
+        {
+            "id": "gfm-notes",
+            "format": "gfm",
+            "label": "GFM migration note",
+            "description": "",
+            "source": "Inline documentation-style GitHub-flavored Markdown sample.",
+            "sourceUrl": "",
+            "samplePath": "samples/gfm-notes-gfm-notes.md",
+            "sampleSize": 418,
+            "preview": "# WordPress data liberation checklist\n\nThis note mirrors the kind of Markdown found in migration docs and issue\ntrackers.\n\n- Preserve headings, paragraphs, lists, and inline emphasis.\n- Keep [links](https://wordpress.org/) readable.\n- Convert source content to clean WordPress blocks.\n\n| Source | Expected handoff |\n| --- | --- |\n| Markdown | paragraphs and lists |\n| CSV | table fallback |\n| HTML | native structure |",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\MarkdownReader",
+                "notes": "GitHub-Flavored Markdown behavior is partially mapped through MarkdownReader and MarkdownWriter tests."
+            },
+            "haskell": {
+                "ok": true,
+                "path": "outputs/gfm-notes/haskell.html"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/gfm-notes/php.html"
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/gfm-notes/wordpress-blocks.html"
+            }
+        },
+        {
+            "id": "markdown-github-release",
+            "format": "markdown_github",
+            "label": "GitHub Markdown alias",
+            "description": "",
+            "source": "Inline GitHub Markdown alias sample.",
+            "sourceUrl": "",
+            "samplePath": "samples/markdown-github-release-markdown-github-release.md",
+            "sampleSize": 226,
+            "preview": "---\ntitle: Release notes excerpt\n---\n\n## Highlights\n\nGitHub-flavored Markdown commonly mixes task lists, fenced code, and tables.\n\n- [x] Import document text\n- [ ] Preserve richer layout\n\n```php\necho \"portable conversion\";\n```",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\MarkdownReader",
+                "notes": "Deprecated upstream token handled as a GFM-family Markdown variant."
+            },
+            "haskell": {
+                "ok": true,
+                "path": "outputs/markdown-github-release/haskell.html"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/markdown-github-release/php.html"
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/markdown-github-release/wordpress-blocks.html"
+            }
+        },
+        {
+            "id": "markdown-github-notes",
+            "format": "markdown_github",
+            "label": "GitHub Markdown notes",
+            "description": "",
+            "source": "Inline GitHub Markdown alias sample.",
+            "sourceUrl": "",
+            "samplePath": "samples/markdown-github-notes-markdown-github-notes.md",
+            "sampleSize": 418,
+            "preview": "# WordPress data liberation checklist\n\nThis note mirrors the kind of Markdown found in migration docs and issue\ntrackers.\n\n- Preserve headings, paragraphs, lists, and inline emphasis.\n- Keep [links](https://wordpress.org/) readable.\n- Convert source content to clean WordPress blocks.\n\n| Source | Expected handoff |\n| --- | --- |\n| Markdown | paragraphs and lists |\n| CSV | table fallback |\n| HTML | native structure |",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\MarkdownReader",
+                "notes": "Deprecated upstream token handled as a GFM-family Markdown variant."
+            },
+            "haskell": {
+                "ok": true,
+                "path": "outputs/markdown-github-notes/haskell.html"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/markdown-github-notes/php.html"
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/markdown-github-notes/wordpress-blocks.html"
+            }
+        },
+        {
+            "id": "html-reader",
+            "format": "html",
+            "label": "HTML reader fixture",
+            "description": "HTML fixture from upstream Pandoc tests.",
+            "source": "jgm/pandoc upstream fixture at test/html-reader.html",
+            "sourceUrl": "https://raw.githubusercontent.com/jgm/pandoc/912bfa5e2e3f5c74eb125dfc19404f67c61ca58b/test/html-reader.html",
+            "samplePath": "samples/html-reader-html-reader.html",
+            "sampleSize": 17314,
+            "preview": "<html>\n<head>\n<meta http-equiv=\"Content-Type\" content=\"text/html; charset=UTF-8\" />\n<meta http-equiv=\"Content-Style-Type\" content=\"text/css\" />\n<meta name=\"generator\" content=\"pandoc\" />\n<style type=\"text/css\">\ndiv.pandocNote { border-left: 1px solid grey; padding-left: 1em; }\nspan.pandocNoteRef { vertical-align: super; font-size: 80%; }\nspan.pandocNoteMarker { }\n</style>\n<title>Pandoc Test Suite</title>\n</head>\n<body>\n<h1 class=\"title\">Pandoc Test Suite</h1>\n<p>This is a set of tests for pandoc. Most of them are adapted from John Gruber's markdown test suite.</p>\n<hr />\n<h1>Headers</h1>\n<h2>Level 2 with an <a href=\"/url\">embedded link</a></h2>\n<h3>Level 3 with <em>emphasis</em></h3>\n<h4>Level 4</h4>\n<h5>Level 5</h5>\n<h1>Level 1</h1>\n<h2>Level 2 with <em>emphasis</em></h2>\n<h3>Level 3</h3>\n<p>with no blank line</p>\n<h2>Level 2</h2>\n<p>with no blank line</p>\n<hr />\n<h1>Paragraphs</h1>\n<p>Here's a regular paragraph.</p>\n<p>In Markdown 1.0.0 and earlier. Version 8. This line turns into a list item. Because a hard-wrapped line in the middle of a paragraph looked like a list item.</p>\n<p>Here's one with a bullet. * criminey.</p>\n<p>There should be a hard line break<br />\n here.</p>\n<hr />\n<h1>Block Quotes</h1>\n<p>E-mail style:</p>\n<blockquote>\n<p>This is a block quote. It is pretty short.</p>\n</blockquote>\n<blockquote>\n<p>Code in a block quote:</p>\n<pre><code>sub status {\n    print \"working\";\n}\n</code></pre>\n<p>A list:</p>\n<ol>\n<li>item one</li>\n<li>item two</li>\n</ol>\n<p>Nested block quotes:</p>\n<blockquote>\n<p>nested</p>\n</blockquote>\n<blockquote>\n<p>nested</p>\n</blockquote>\n</blockquote>\n<p>This should not be a block quote: 2 &gt; 1.</p>\n<p>Box-style:</p>\n<blockquote>\n<p>Example:</p>\n<pre><code>sub status {\n    print \"working\";\n}\n</code></pre>\n</blockquote>\n<blockquote>\n<ol>\n<li>do laundry</li>\n<li>take out the trash</li>\n</ol>\n</blockquote>\n<p>Here's a nested one:</p>\n<blockquote>\n<p>Joe said:</p>\n<blockquote>\n<p>Don't quote me.</p>\n</blockquote>\n...",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\HtmlReader",
+                "notes": "Dedicated HTML reader dispatch preserves existing DOM/raw-HTML behavior through the current HTML-capable reader bridge while full HTML5 tree construction remains open."
+            },
+            "haskell": {
+                "ok": true,
+                "path": "outputs/html-reader/haskell.html"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/html-reader/php.html"
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/html-reader/wordpress-blocks.html"
+            }
+        },
+        {
+            "id": "html-template",
+            "format": "html",
+            "label": "Pandoc HTML template fragment",
+            "description": "Real Pandoc project HTML template asset.",
+            "source": "jgm/pandoc upstream fixture at data/templates/styles.html",
+            "sourceUrl": "https://raw.githubusercontent.com/jgm/pandoc/912bfa5e2e3f5c74eb125dfc19404f67c61ca58b/data/templates/styles.html",
+            "samplePath": "samples/html-template-styles.html",
+            "sampleSize": 4401,
+            "preview": "/* Default styles provided by pandoc.\n** See https://pandoc.org/MANUAL.html#variables-for-html for config info.\n*/\n$if(document-css)$\nhtml {\n$if(mainfont)$\n  font-family: $mainfont$;\n$endif$\n$if(fontsize)$\n  font-size: $fontsize$;\n$endif$\n$if(linestretch)$\n  line-height: $linestretch$;\n$endif$\n  color: $if(fontcolor)$$fontcolor$$else$#1a1a1a$endif$;\n  background-color: $if(backgroundcolor)$$backgroundcolor$$else$#fdfdfd$endif$;\n}\nbody {\n  margin: 0 auto;\n  max-width: $if(maxwidth)$$maxwidth$$else$36em$endif$;\n  padding-left: $if(margin-left)$$margin-left$$else$50px$endif$;\n  padding-right: $if(margin-right)$$margin-right$$else$50px$endif$;\n  padding-top: $if(margin-top)$$margin-top$$else$50px$endif$;\n  padding-bottom: $if(margin-bottom)$$margin-bottom$$else$50px$endif$;\n  hyphens: auto;\n  overflow-wrap: break-word;\n  text-rendering: optimizeLegibility;\n  font-kerning: normal;\n}\n@media (max-width: 600px) {\n  body {\n    font-size: 0.9em;\n    padding: 12px;\n  }\n  h1 {\n    font-size: 1.8em;\n  }\n}\n@media print {\n  html {\n    background-color: $if(backgroundcolor)$$backgroundcolor$$else$white$endif$;\n  }\n  body {\n    background-color: transparent;\n    color: black;\n    font-size: 12pt;\n  }\n  p, h2, h3 {\n    orphans: 3;\n    widows: 3;\n  }\n  h2, h3, h4 {\n    page-break-after: avoid;\n  }\n}\np {\n  margin: 1em 0;\n}\na {\n  color: $if(linkcolor)$$linkcolor$$else$#1a1a1a$endif$;\n}\na:visited {\n  color: $if(linkcolor)$$linkcolor$$else$#1a1a1a$endif$;\n}\nimg {\n  max-width: 100%;\n}\nsvg {\n  height: auto;\n  max-width: 100%;\n}\nh1, h2, h3, h4, h5, h6 {\n  margin-top: 1.4em;\n}\nh5, h6 {\n  font-size: 1em;\n  font-style: italic;\n}\nh6 {\n  font-weight: normal;\n...",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\HtmlReader",
+                "notes": "Dedicated HTML reader dispatch preserves existing DOM/raw-HTML behavior through the current HTML-capable reader bridge while full HTML5 tree construction remains open."
+            },
+            "haskell": {
+                "ok": true,
+                "path": "outputs/html-template/haskell.html"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/html-template/php.html"
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/html-template/wordpress-blocks.html"
+            }
+        },
+        {
+            "id": "ipynb-simple",
+            "format": "ipynb",
+            "label": "Simple notebook",
+            "description": "Jupyter notebook fixture from upstream Pandoc tests.",
+            "source": "jgm/pandoc upstream fixture at test/ipynb/simple.ipynb",
+            "sourceUrl": "https://raw.githubusercontent.com/jgm/pandoc/912bfa5e2e3f5c74eb125dfc19404f67c61ca58b/test/ipynb/simple.ipynb",
+            "samplePath": "samples/ipynb-simple-simple.ipynb",
+            "sampleSize": 23808,
+            "preview": "{\n \"cells\": [\n  {\n   \"cell_type\": \"markdown\",\n   \"metadata\": {},\n   \"source\": [\n    \"Lorem ipsum\\n\",\n    \"===========\\n\",\n    \"\\n\",\n    \"**Lorem ipsum** dolor sit amet, consectetur adipiscing elit. Nunc luctus\\n\",\n    \"bibendum felis dictum sodales.\"\n   ],\n   \"id\": \"uid1\"\n  },\n  {\n   \"cell_type\": \"code\",\n   \"execution_count\": null,\n   \"metadata\": {},\n   \"outputs\": [],\n   \"source\": [\n    \"print(\\\"hello\\\")\"\n   ],\n   \"id\": \"uid2\"\n  },\n  {\n   \"cell_type\": \"markdown\",\n   \"metadata\": {},\n   \"source\": [\n    \"Pyout\\n\",\n    \"-----\"\n   ],\n   \"id\": \"uid3\"\n  },\n  {\n   \"cell_type\": \"code\",\n   \"execution_count\": 2,\n   \"metadata\": {},\n   \"outputs\": [\n    {\n     \"output_type\": \"execute_result\",\n     \"execution_count\": 2,\n     \"metadata\": {},\n     \"data\": {\n      \"text/html\": [\n       \"<script>\\n\",\n       \"console.log(\\\"hello\\\");\\n\",\n       \"</script>\\n\",\n       \"<b>HTML</b>\\n\",\n       \"hello\"\n      ]\n     }\n    }\n   ],\n   \"source\": [\n    \"from IPython.display import HTML\\n\",\n    \"HTML(\\\"\\\"\\\"\\n\",\n    \"<script>\\n\",\n    \"console.log(\\\"hello\\\");\\n\",\n    \"</script>\\n\",\n    \"<b>HTML</b>\\n\",\n    \"\\\"\\\"\\\")\"\n   ],\n   \"id\": \"uid4\"\n  },\n  {\n   \"cell_type\": \"markdown\",\n   \"metadata\": {\n    \"tags\": [\n     \"foo\",\n     \"bar\"\n    ]\n   },\n   \"source\": [\n    \"Image\\n\",\n    \"-----\\n\",\n    \"\\n\",\n    \"This image ![the moon](attachment:lalune.jpg) will be included as a cell\\n\",\n    \"attachment.\"\n   ],\n   \"attachments\": {\n...",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\IpynbReader",
+                "notes": "Bounded IPYNB reader maps markdown, code, and raw cells into the shared AST with notebook, metadata, attachment, source-shape, execution, and output diagnostics without executing notebooks or exposing embedded output bytes. Native IPYNB writer parity remains open."
+            },
+            "haskell": {
+                "ok": true,
+                "path": "outputs/ipynb-simple/haskell.html"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/ipynb-simple/php.html"
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/ipynb-simple/wordpress-blocks.html"
+            }
+        },
+        {
+            "id": "ipynb-mime",
+            "format": "ipynb",
+            "label": "Notebook with MIME output",
+            "description": "Notebook MIME fixture from upstream Pandoc tests.",
+            "source": "jgm/pandoc upstream fixture at test/ipynb/mime.ipynb",
+            "sourceUrl": "https://raw.githubusercontent.com/jgm/pandoc/912bfa5e2e3f5c74eb125dfc19404f67c61ca58b/test/ipynb/mime.ipynb",
+            "samplePath": "samples/ipynb-mime-mime.ipynb",
+            "sampleSize": 4222,
+            "preview": "{\n \"cells\": [\n  {\n   \"cell_type\": \"code\",\n   \"execution_count\": 1,\n   \"id\": \"0ad1fbe7-107b-4668-ae4d-8ce4ae9a4400\",\n   \"metadata\": {},\n   \"outputs\": [],\n   \"source\": [\n    \"from __future__ import annotations\\n\",\n    \"\\n\",\n    \"from dataclasses import dataclass\"\n   ]\n  },\n  {\n   \"cell_type\": \"code\",\n   \"execution_count\": 2,\n   \"id\": \"c2d3a9f4-dfdb-4ced-bbcd-3dfd1780af80\",\n   \"metadata\": {},\n   \"outputs\": [\n    {\n     \"name\": \"stdout\",\n     \"output_type\": \"stream\",\n     \"text\": [\n      \"7.29.0\\n\"\n     ]\n    }\n   ],\n   \"source\": [\n    \"import IPython\\n\",\n    \"\\n\",\n    \"print(IPython.__version__)\"\n   ]\n  },\n  {\n   \"cell_type\": \"markdown\",\n   \"id\": \"21e7a4a1-0cf8-48cc-823c-dca698ae6853\",\n   \"metadata\": {},\n   \"source\": [\n    \"Supported IPython display formatters:\"\n   ]\n  },\n  {\n   \"cell_type\": \"code\",\n   \"execution_count\": 3,\n   \"id\": \"053cdbc4-b157-4e3e-9c86-8f374770d006\",\n   \"metadata\": {},\n   \"outputs\": [\n    {\n     \"name\": \"stdout\",\n     \"output_type\": \"stream\",\n     \"text\": [\n      \"text/plain\\n\",\n      \"text/html\\n\",\n      \"text/markdown\\n\",\n      \"image/svg+xml\\n\",\n      \"image/png\\n\",\n      \"application/pdf\\n\",\n      \"image/jpeg\\n\",\n      \"text/latex\\n\",\n      \"application/json\\n\",\n      \"application/javascript\\n\"\n     ]\n    }\n   ],\n   \"source\": [\n    \"ip = get_ipython()\\n\",\n    \"for mime in ip.display_formatter.formatters:\\n\",\n    \"    print(mime)\"\n   ]\n  },\n  {\n   \"cell_type\": \"markdown\",\n   \"id\": \"d79b063d-ce81-497b-a0ea-5b2e2972e845\",\n   \"metadata\": {},\n   \"source\": [\n    \"Let's write a simple class that will output different mime:\"\n   ]\n  },\n  {\n...",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\IpynbReader",
+                "notes": "Bounded IPYNB reader maps markdown, code, and raw cells into the shared AST with notebook, metadata, attachment, source-shape, execution, and output diagnostics without executing notebooks or exposing embedded output bytes. Native IPYNB writer parity remains open."
+            },
+            "haskell": {
+                "ok": true,
+                "path": "outputs/ipynb-mime/haskell.html"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/ipynb-mime/php.html"
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/ipynb-mime/wordpress-blocks.html"
+            }
+        },
+        {
+            "id": "jats-article",
+            "format": "jats",
+            "label": "JATS article fragment",
+            "description": "",
+            "source": "Inline JATS XML modeled on scholarly article structure.",
+            "sourceUrl": "",
+            "samplePath": "samples/jats-article-jats-article.xml",
+            "sampleSize": 345,
+            "preview": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<article xmlns:xlink=\"http://www.w3.org/1999/xlink\">\n  <front><article-meta><title-group><article-title>JATS article fragment</article-title></title-group></article-meta></front>\n  <body><sec><title>Abstracted section</title><p>JATS is common in scholarly publishing pipelines.</p></sec></body>\n</article>\n",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\XmlReader",
+                "notes": "Bounded XML-family reader maps JATS article/book roots, titles, abstracts, body sections, lists, links, and tables into the shared AST while preserving the existing JATS/BITS diagnostic packet metadata. Full Pandoc JATS parity remains open."
+            },
+            "haskell": {
+                "ok": true,
+                "path": "outputs/jats-article/haskell.html"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/jats-article/php.html"
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/jats-article/wordpress-blocks.html"
+            }
+        },
+        {
+            "id": "jats-reader",
+            "format": "jats",
+            "label": "Upstream JATS reader fixture",
+            "description": "JATS XML fixture from upstream Pandoc tests; local reader currently rejects the doctype.",
+            "source": "jgm/pandoc upstream fixture at test/jats-reader.xml",
+            "sourceUrl": "https://raw.githubusercontent.com/jgm/pandoc/912bfa5e2e3f5c74eb125dfc19404f67c61ca58b/test/jats-reader.xml",
+            "samplePath": "samples/jats-reader-jats-reader.xml",
+            "sampleSize": 38782,
+            "preview": "<?xml version=\"1.0\" encoding=\"utf-8\" ?>\n<!DOCTYPE article PUBLIC \"-//NLM//DTD JATS (Z39.96) Journal Archiving and Interchange DTD v1.2 20190208//EN\"\n                  \"JATS-archivearticle1.dtd\">\n<article xmlns:mml=\"http://www.w3.org/1998/Math/MathML\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" dtd-version=\"1.2\" article-type=\"other\">\n<processing-meta base-tagset=\"archiving\" mathml-version=\"3.0\" table-model=\"xhtml\" tagset-family=\"jats\">\n    <restricted-by>pmc</restricted-by>\n</processing-meta>\n<front>\n<journal-meta>\n<journal-title-group>\n</journal-title-group>\n<publisher>\n<publisher-name></publisher-name>\n</publisher>\n</journal-meta>\n<article-meta>\n<title-group>\n<article-title>Pandoc Test Suite</article-title>\n</title-group>\n<contrib-group>\n  <contrib contrib-type=\"author\">\n    <name>\n      <surname>MacFarlane</surname>\n      <given-names>John</given-names>\n    </name>\n  </contrib>\n  <contrib contrib-type=\"author\">\n    <name>\n      <surname>Anonymous</surname>\n    </name>\n  </contrib>\n</contrib-group>\n<permissions>\n        <copyright-statement>\u00a9 2023, MacFarlane et al</copyright-statement>\n        <copyright-year>2023</copyright-year>\n        <copyright-holder>MacFarlane et al</copyright-holder>\n        <license license-type=\"open-access\">\n          <ali:license_ref xmlns:ali=\"http://www.niso.org/schemas/ali/1.0/\">https://creativecommons.org/licenses/by/4.0/</ali:license_ref>\n          <license-p>This document is distributed under a Creative Commons Attribution 4.0 International license.</license-p>\n        </license>\n      </permissions>\n</article-meta>\n</front>\n<body>\n<p>This is a set of tests for pandoc. Most of them are adapted from John Gruber's markdown test suite.</p>\n<sec id=\"headers\">\n  <title>Headers</title>\n  <sec id=\"level-2-with-an-embedded-link\">\n    <title>Level 2 with an\n    <ext-link ext-link-type=\"uri\" xlink:href=\"/url\">embedded\n    link</ext-link></title>\n    <sec id=\"level-3-with-emphasis\">\n      <title>Level 3 with <italic>emphasis</italic></title>\n      <sec id=\"level-4\">\n        <title>Level 4</title>\n        <sec id=\"level-5\">\n          <title>Level 5</title>\n        </sec>\n      </sec>\n    </sec>\n  </sec>\n</sec>\n<sec id=\"level-1\">\n  <title>Level 1</title>\n  <sec id=\"level-2-with-emphasis\">\n    <title>Level 2 with <italic>emphasis</italic></title>\n    <sec id=\"level-3\">\n      <title>Level 3</title>\n      <p>with no blank line</p>\n    </sec>\n  </sec>\n  <sec id=\"level-2\">\n    <title>Level 2</title>\n    <p>with no blank line</p>\n  </sec>\n</sec>\n<sec id=\"paragraphs\">\n  <title>Paragraphs</title>\n  <p>Here's a regular paragraph.</p>\n  <p>In Markdown 1.0.0 and earlier. Version 8. This line turns into a list item. Because a hard-wrapped line in the middle of a paragraph looked like a list item.</p>\n...",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\XmlReader",
+                "notes": "Bounded XML-family reader maps JATS article/book roots, titles, abstracts, body sections, lists, links, and tables into the shared AST while preserving the existing JATS/BITS diagnostic packet metadata. Full Pandoc JATS parity remains open."
+            },
+            "haskell": {
+                "ok": true,
+                "path": "outputs/jats-reader/haskell.html"
+            },
+            "phpHtml": {
+                "ok": false,
+                "error": "PHP Fatal error:  Uncaught InvalidArgumentException: JATS input must not declare a document type in $REPO/lanes/pandoc/src/XmlHtmlDom.php:27493\nStack trace:\n#0 $REPO/lanes/pandoc/src/XmlHtmlDom.php(575): PortLibs\\Pandoc\\XmlHtmlDom::assertNoDoctype('<?xml version=\"...', 'JATS input')\n#1 $REPO/lanes/pandoc/src/XmlReader.php(69): PortLibs\\Pandoc\\XmlHtmlDom::loadXmlDocument('<?xml version=\"...', 'JATS input', false)\n#2 $REPO/lanes/pandoc/src/PandocConverter.php(36): PortLibs\\Pandoc\\XmlReader->read('<?xml version=\"...')\n#3 $REPO/lanes/pandoc/src/PandocConverter.php(79): PortLibs\\Pandoc\\PandocConverter::read('<?xml version=\"...', 'jats', Array)\n#4 $REPO/lanes/pandoc/src/PandocConverter.php(98): PortLibs\\Pandoc\\PandocConverter::convert('<?xml version=\"...', 'jats', 'html', Array)\n#5 $REPO/tools/build-pandoc-showcase.php(21): PortLibs\\Pandoc\\PandocConverter::convertFile('$REPO', 'jats', 'html')\n#6 {main}\n  thrown in $REPO/lanes/pandoc/src/XmlHtmlDom.php on line 27493\nFatal error: Uncaught InvalidArgumentException: JATS input must not declare a document type in $REPO/lanes/pandoc/src/XmlHtmlDom.php:27493\nStack trace:\n#0 $REPO/lanes/pandoc/src/XmlHtmlDom.php(575): PortLibs\\Pandoc\\XmlHtmlDom::assertNoDoctype('<?xml version=\"...', 'JATS input')\n#1 $REPO/lanes/pandoc/src/XmlReader.php(69): PortLibs\\Pandoc\\XmlHtmlDom::loadXmlDocument('<?xml version=\"...', 'JATS input', false)\n#2 $REPO/lanes/pandoc/src/PandocConverter.php(36): PortLibs\\Pandoc\\XmlReader->read('<?xml version=\"...')\n#3 $REPO/lanes/pandoc/src/PandocConverter.php(79): PortLibs\\Pandoc\\PandocConverter::read('<?xml version=\"...', 'jats', Array)\n#4 $REPO/lanes/pandoc/src/PandocConverter.php(98): PortLibs\\Pandoc\\PandocConverter::convert('<?xml version=\"...', 'jats', 'html', Array)\n#5 $REPO/tools/build-pandoc-showcase.php(21): PortLibs\\Pandoc\\PandocConverter::convertFile('$REPO', 'jats', 'html')\n#6 {main}\n  thrown in $REPO/lanes/pandoc/src/XmlHtmlDom.php on line 27493",
+                "path": "outputs/jats-reader/php.html.error.txt"
+            },
+            "wpBlocks": {
+                "ok": false,
+                "error": "PHP Fatal error:  Uncaught InvalidArgumentException: JATS input must not declare a document type in $REPO/lanes/pandoc/src/XmlHtmlDom.php:27493\nStack trace:\n#0 $REPO/lanes/pandoc/src/XmlHtmlDom.php(575): PortLibs\\Pandoc\\XmlHtmlDom::assertNoDoctype('<?xml version=\"...', 'JATS input')\n#1 $REPO/lanes/pandoc/src/XmlReader.php(69): PortLibs\\Pandoc\\XmlHtmlDom::loadXmlDocument('<?xml version=\"...', 'JATS input', false)\n#2 $REPO/lanes/pandoc/src/PandocConverter.php(36): PortLibs\\Pandoc\\XmlReader->read('<?xml version=\"...')\n#3 $REPO/lanes/pandoc/src/PandocConverter.php(79): PortLibs\\Pandoc\\PandocConverter::read('<?xml version=\"...', 'jats', Array)\n#4 $REPO/lanes/pandoc/src/PandocConverter.php(98): PortLibs\\Pandoc\\PandocConverter::convert('<?xml version=\"...', 'jats', 'wordpress', Array)\n#5 $REPO/tools/build-pandoc-showcase.php(21): PortLibs\\Pandoc\\PandocConverter::convertFile('$REPO', 'jats', 'wordpress')\n#6 {main}\n  thrown in $REPO/lanes/pandoc/src/XmlHtmlDom.php on line 27493\nFatal error: Uncaught InvalidArgumentException: JATS input must not declare a document type in $REPO/lanes/pandoc/src/XmlHtmlDom.php:27493\nStack trace:\n#0 $REPO/lanes/pandoc/src/XmlHtmlDom.php(575): PortLibs\\Pandoc\\XmlHtmlDom::assertNoDoctype('<?xml version=\"...', 'JATS input')\n#1 $REPO/lanes/pandoc/src/XmlReader.php(69): PortLibs\\Pandoc\\XmlHtmlDom::loadXmlDocument('<?xml version=\"...', 'JATS input', false)\n#2 $REPO/lanes/pandoc/src/PandocConverter.php(36): PortLibs\\Pandoc\\XmlReader->read('<?xml version=\"...')\n#3 $REPO/lanes/pandoc/src/PandocConverter.php(79): PortLibs\\Pandoc\\PandocConverter::read('<?xml version=\"...', 'jats', Array)\n#4 $REPO/lanes/pandoc/src/PandocConverter.php(98): PortLibs\\Pandoc\\PandocConverter::convert('<?xml version=\"...', 'jats', 'wordpress', Array)\n#5 $REPO/tools/build-pandoc-showcase.php(21): PortLibs\\Pandoc\\PandocConverter::convertFile('$REPO', 'jats', 'wordpress')\n#6 {main}\n  thrown in $REPO/lanes/pandoc/src/XmlHtmlDom.php on line 27493",
+                "path": "outputs/jats-reader/wordpress-blocks.html.error.txt"
+            }
+        },
+        {
+            "id": "jira-ticket",
+            "format": "jira",
+            "label": "Jira ticket markup",
+            "description": "",
+            "source": "Inline Jira-style project markup.",
+            "sourceUrl": "",
+            "samplePath": "samples/jira-ticket-jira-ticket.jira",
+            "sampleSize": 218,
+            "preview": "h1. Import plan\n\nThis is a Jira wiki markup page from a migration ticket.\n\n* Normalize headings\n* Keep links like [WordPress|https://wordpress.org/]\n* Emit block markup\n\n||Format||Status||\n|HTML|partial|\n|DOCX|partial|",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\JiraReader",
+                "notes": "Bounded Jira wiki reader maps the pinned upstream Tests.Readers.Jira unit semantics for paragraphs, headings, lists, block quotes, tables, panels, core inline styles, links, images, and entities into the shared AST. Full jira-reader fixture parity remains open."
+            },
+            "haskell": {
+                "ok": true,
+                "path": "outputs/jira-ticket/haskell.html"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/jira-ticket/php.html"
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/jira-ticket/wordpress-blocks.html"
+            }
+        },
+        {
+            "id": "jira-release",
+            "format": "jira",
+            "label": "Jira release markup",
+            "description": "",
+            "source": "Inline Jira-style release checklist.",
+            "sourceUrl": "",
+            "samplePath": "samples/jira-release-jira-release.jira",
+            "sampleSize": 94,
+            "preview": "h2. Release checklist\n\n# Convert source files\n# Review block markup\n# Publish static showcase\n",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\JiraReader",
+                "notes": "Bounded Jira wiki reader maps the pinned upstream Tests.Readers.Jira unit semantics for paragraphs, headings, lists, block quotes, tables, panels, core inline styles, links, images, and entities into the shared AST. Full jira-reader fixture parity remains open."
+            },
+            "haskell": {
+                "ok": true,
+                "path": "outputs/jira-release/haskell.html"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/jira-release/php.html"
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/jira-release/wordpress-blocks.html"
+            }
+        },
+        {
+            "id": "json-pandoc-ast",
+            "format": "json",
+            "label": "Pandoc JSON AST",
+            "description": "",
+            "source": "Inline Pandoc JSON AST document.",
+            "sourceUrl": "",
+            "samplePath": "samples/json-pandoc-ast-pandoc-ast.json",
+            "sampleSize": 369,
+            "preview": "{\n  \"pandoc-api-version\": [1, 23, 1],\n  \"meta\": {\n    \"title\": { \"t\": \"MetaInlines\", \"c\": [{ \"t\": \"Str\", \"c\": \"Pandoc JSON sample\" }] }\n  },\n  \"blocks\": [\n    { \"t\": \"Header\", \"c\": [1, [\"pandoc-json-sample\", [], []], [{ \"t\": \"Str\", \"c\": \"Pandoc JSON sample\" }]] },\n    { \"t\": \"Para\", \"c\": [{ \"t\": \"Str\", \"c\": \"JSON AST input used by Pandoc-compatible tools.\" }] }\n  ]\n}",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\JsonReader",
+                "notes": "Reads the current Pandoc JSON AST encoding for the constructors covered by the shared PHP AST; complete constructor coverage remains open."
+            },
+            "haskell": {
+                "ok": true,
+                "path": "outputs/json-pandoc-ast/haskell.html"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/json-pandoc-ast/php.html"
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/json-pandoc-ast/wordpress-blocks.html"
+            }
+        },
+        {
+            "id": "json-pandoc-list",
+            "format": "json",
+            "label": "Pandoc JSON list AST",
+            "description": "",
+            "source": "Inline Pandoc JSON AST list document.",
+            "sourceUrl": "",
+            "samplePath": "samples/json-pandoc-list-pandoc-list.json",
+            "sampleSize": 171,
+            "preview": "{\"pandoc-api-version\":[1,23,1],\"meta\":{},\"blocks\":[{\"t\":\"BulletList\",\"c\":[[{\"t\":\"Plain\",\"c\":[{\"t\":\"Str\",\"c\":\"First\"}]}],[{\"t\":\"Plain\",\"c\":[{\"t\":\"Str\",\"c\":\"Second\"}]}]]}]}\n",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\JsonReader",
+                "notes": "Reads the current Pandoc JSON AST encoding for the constructors covered by the shared PHP AST; complete constructor coverage remains open."
+            },
+            "haskell": {
+                "ok": true,
+                "path": "outputs/json-pandoc-list/haskell.html"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/json-pandoc-list/php.html"
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/json-pandoc-list/wordpress-blocks.html"
+            }
+        },
+        {
+            "id": "latex-table",
+            "format": "latex",
+            "label": "LaTeX command fixture",
+            "description": "LaTeX fixture from upstream Pandoc command tests.",
+            "source": "jgm/pandoc upstream fixture at test/command/3971b.tex",
+            "sourceUrl": "https://raw.githubusercontent.com/jgm/pandoc/912bfa5e2e3f5c74eb125dfc19404f67c61ca58b/test/command/3971b.tex",
+            "samplePath": "samples/latex-table-3971b.tex",
+            "sampleSize": 52,
+            "preview": "\\newcommand{\\code}[1]{\\texttt{#1}}\n\\begin{document}\n",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\MarkdownReader",
+                "notes": "Raw TeX and bounded LaTeX table/math behavior are mapped; full LaTeX reader parity remains open."
+            },
+            "haskell": {
+                "ok": false,
+                "error": "Error at \"$REPO/pandoc-showcase/samples/latex-table-3971b.tex\" (line 3, column 2):\nunexpected end of input\nexpecting \\end{document}\n\n ^",
+                "path": "outputs/latex-table/haskell.html.error.txt"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/latex-table/php.html"
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/latex-table/wordpress-blocks.html"
+            }
+        },
+        {
+            "id": "latex-bar",
+            "format": "latex",
+            "label": "LaTeX included file fixture",
+            "description": "Small TeX file from upstream Pandoc command tests.",
+            "source": "jgm/pandoc upstream fixture at test/command/bar.tex",
+            "sourceUrl": "https://raw.githubusercontent.com/jgm/pandoc/912bfa5e2e3f5c74eb125dfc19404f67c61ca58b/test/command/bar.tex",
+            "samplePath": "samples/latex-bar-bar.tex",
+            "sampleSize": 16,
+            "preview": "\\emph{hi there}\n",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\MarkdownReader",
+                "notes": "Raw TeX and bounded LaTeX table/math behavior are mapped; full LaTeX reader parity remains open."
+            },
+            "haskell": {
+                "ok": true,
+                "path": "outputs/latex-bar/haskell.html"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/latex-bar/php.html"
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/latex-bar/wordpress-blocks.html"
+            }
+        },
+        {
+            "id": "markdown-notes",
+            "format": "markdown",
+            "label": "Markdown migration note",
+            "description": "",
+            "source": "Inline documentation-style Markdown sample.",
+            "sourceUrl": "",
+            "samplePath": "samples/markdown-notes-markdown-notes.md",
+            "sampleSize": 418,
+            "preview": "# WordPress data liberation checklist\n\nThis note mirrors the kind of Markdown found in migration docs and issue\ntrackers.\n\n- Preserve headings, paragraphs, lists, and inline emphasis.\n- Keep [links](https://wordpress.org/) readable.\n- Convert source content to clean WordPress blocks.\n\n| Source | Expected handoff |\n| --- | --- |\n| Markdown | paragraphs and lists |\n| CSV | table fallback |\n| HTML | native structure |",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\MarkdownReader",
+                "notes": "Primary native PHP reader with broad Pandoc Markdown behavior slices."
+            },
+            "haskell": {
+                "ok": true,
+                "path": "outputs/markdown-notes/haskell.html"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/markdown-notes/php.html"
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/markdown-notes/wordpress-blocks.html"
+            }
+        },
+        {
+            "id": "markdown-release",
+            "format": "markdown",
+            "label": "Markdown release note",
+            "description": "",
+            "source": "Inline release-note Markdown sample.",
+            "sourceUrl": "",
+            "samplePath": "samples/markdown-release-markdown-release.md",
+            "sampleSize": 226,
+            "preview": "---\ntitle: Release notes excerpt\n---\n\n## Highlights\n\nGitHub-flavored Markdown commonly mixes task lists, fenced code, and tables.\n\n- [x] Import document text\n- [ ] Preserve richer layout\n\n```php\necho \"portable conversion\";\n```",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\MarkdownReader",
+                "notes": "Primary native PHP reader with broad Pandoc Markdown behavior slices."
+            },
+            "haskell": {
+                "ok": true,
+                "path": "outputs/markdown-release/haskell.html"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/markdown-release/php.html"
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/markdown-release/wordpress-blocks.html"
+            }
+        },
+        {
+            "id": "markdown-mmd-notes",
+            "format": "markdown_mmd",
+            "label": "MultiMarkdown profile",
+            "description": "",
+            "source": "Inline Markdown read through the MultiMarkdown profile.",
+            "sourceUrl": "",
+            "samplePath": "samples/markdown-mmd-notes-markdown-mmd-notes.md",
+            "sampleSize": 418,
+            "preview": "# WordPress data liberation checklist\n\nThis note mirrors the kind of Markdown found in migration docs and issue\ntrackers.\n\n- Preserve headings, paragraphs, lists, and inline emphasis.\n- Keep [links](https://wordpress.org/) readable.\n- Convert source content to clean WordPress blocks.\n\n| Source | Expected handoff |\n| --- | --- |\n| Markdown | paragraphs and lists |\n| CSV | table fallback |\n| HTML | native structure |",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\MarkdownReader",
+                "notes": "MultiMarkdown-adjacent slices exist, but full MultiMarkdown parity remains open."
+            },
+            "haskell": {
+                "ok": true,
+                "path": "outputs/markdown-mmd-notes/haskell.html"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/markdown-mmd-notes/php.html"
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/markdown-mmd-notes/wordpress-blocks.html"
+            }
+        },
+        {
+            "id": "markdown-mmd-release",
+            "format": "markdown_mmd",
+            "label": "MultiMarkdown release note",
+            "description": "",
+            "source": "Inline Markdown read through the MultiMarkdown profile.",
+            "sourceUrl": "",
+            "samplePath": "samples/markdown-mmd-release-markdown-mmd-release.md",
+            "sampleSize": 226,
+            "preview": "---\ntitle: Release notes excerpt\n---\n\n## Highlights\n\nGitHub-flavored Markdown commonly mixes task lists, fenced code, and tables.\n\n- [x] Import document text\n- [ ] Preserve richer layout\n\n```php\necho \"portable conversion\";\n```",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\MarkdownReader",
+                "notes": "MultiMarkdown-adjacent slices exist, but full MultiMarkdown parity remains open."
+            },
+            "haskell": {
+                "ok": true,
+                "path": "outputs/markdown-mmd-release/haskell.html"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/markdown-mmd-release/php.html"
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/markdown-mmd-release/wordpress-blocks.html"
+            }
+        },
+        {
+            "id": "markdown-phpextra-notes",
+            "format": "markdown_phpextra",
+            "label": "PHP Markdown Extra profile",
+            "description": "",
+            "source": "Inline Markdown read through the PHP Markdown Extra profile.",
+            "sourceUrl": "",
+            "samplePath": "samples/markdown-phpextra-notes-markdown-phpextra-notes.md",
+            "sampleSize": 418,
+            "preview": "# WordPress data liberation checklist\n\nThis note mirrors the kind of Markdown found in migration docs and issue\ntrackers.\n\n- Preserve headings, paragraphs, lists, and inline emphasis.\n- Keep [links](https://wordpress.org/) readable.\n- Convert source content to clean WordPress blocks.\n\n| Source | Expected handoff |\n| --- | --- |\n| Markdown | paragraphs and lists |\n| CSV | table fallback |\n| HTML | native structure |",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\MarkdownReader",
+                "notes": "PHP Markdown Extra-adjacent slices exist, but full variant parity remains open."
+            },
+            "haskell": {
+                "ok": true,
+                "path": "outputs/markdown-phpextra-notes/haskell.html"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/markdown-phpextra-notes/php.html"
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/markdown-phpextra-notes/wordpress-blocks.html"
+            }
+        },
+        {
+            "id": "markdown-phpextra-release",
+            "format": "markdown_phpextra",
+            "label": "PHP Markdown Extra release note",
+            "description": "",
+            "source": "Inline Markdown read through the PHP Markdown Extra profile.",
+            "sourceUrl": "",
+            "samplePath": "samples/markdown-phpextra-release-markdown-phpextra-release.md",
+            "sampleSize": 226,
+            "preview": "---\ntitle: Release notes excerpt\n---\n\n## Highlights\n\nGitHub-flavored Markdown commonly mixes task lists, fenced code, and tables.\n\n- [x] Import document text\n- [ ] Preserve richer layout\n\n```php\necho \"portable conversion\";\n```",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\MarkdownReader",
+                "notes": "PHP Markdown Extra-adjacent slices exist, but full variant parity remains open."
+            },
+            "haskell": {
+                "ok": true,
+                "path": "outputs/markdown-phpextra-release/haskell.html"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/markdown-phpextra-release/php.html"
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/markdown-phpextra-release/wordpress-blocks.html"
+            }
+        },
+        {
+            "id": "markdown-strict-notes",
+            "format": "markdown_strict",
+            "label": "Strict Markdown profile",
+            "description": "",
+            "source": "Inline Markdown read through the strict profile.",
+            "sourceUrl": "",
+            "samplePath": "samples/markdown-strict-notes-markdown-strict-notes.md",
+            "sampleSize": 418,
+            "preview": "# WordPress data liberation checklist\n\nThis note mirrors the kind of Markdown found in migration docs and issue\ntrackers.\n\n- Preserve headings, paragraphs, lists, and inline emphasis.\n- Keep [links](https://wordpress.org/) readable.\n- Convert source content to clean WordPress blocks.\n\n| Source | Expected handoff |\n| --- | --- |\n| Markdown | paragraphs and lists |\n| CSV | table fallback |\n| HTML | native structure |",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\MarkdownReader",
+                "notes": "Strict Markdown uses the shared reader without a complete extension disabling matrix."
+            },
+            "haskell": {
+                "ok": true,
+                "path": "outputs/markdown-strict-notes/haskell.html"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/markdown-strict-notes/php.html"
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/markdown-strict-notes/wordpress-blocks.html"
+            }
+        },
+        {
+            "id": "markdown-strict-release",
+            "format": "markdown_strict",
+            "label": "Strict Markdown release note",
+            "description": "",
+            "source": "Inline Markdown read through the strict profile.",
+            "sourceUrl": "",
+            "samplePath": "samples/markdown-strict-release-markdown-strict-release.md",
+            "sampleSize": 226,
+            "preview": "---\ntitle: Release notes excerpt\n---\n\n## Highlights\n\nGitHub-flavored Markdown commonly mixes task lists, fenced code, and tables.\n\n- [x] Import document text\n- [ ] Preserve richer layout\n\n```php\necho \"portable conversion\";\n```",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\MarkdownReader",
+                "notes": "Strict Markdown uses the shared reader without a complete extension disabling matrix."
+            },
+            "haskell": {
+                "ok": true,
+                "path": "outputs/markdown-strict-release/haskell.html"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/markdown-strict-release/php.html"
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/markdown-strict-release/wordpress-blocks.html"
+            }
+        },
+        {
+            "id": "native-basic",
+            "format": "native",
+            "label": "Pandoc native AST",
+            "description": "",
+            "source": "Inline Pandoc native AST fixture.",
+            "sourceUrl": "",
+            "samplePath": "samples/native-basic-native-basic.native",
+            "sampleSize": 188,
+            "preview": "Pandoc (Meta {unMeta = fromList []})\n[ Header 1 (\"native-sample\",[],[]) [Str \"Native\",Space,Str \"sample\"]\n, Para [Str \"Pandoc\",Space,Str \"native\",Space,Str \"format\",Space,Str \"fixture.\"]\n]",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\NativeReader",
+                "notes": "NativeReader parses a large upstream .native fixture set, but complete constructor parity is still audited as partial."
+            },
+            "haskell": {
+                "ok": true,
+                "path": "outputs/native-basic/haskell.html"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/native-basic/php.html"
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/native-basic/wordpress-blocks.html"
+            }
+        },
+        {
+            "id": "native-markdown-more",
+            "format": "native",
+            "label": "Upstream native Markdown reader output",
+            "description": "Pandoc native fixture from upstream tests.",
+            "source": "jgm/pandoc upstream fixture at test/markdown-reader-more.native",
+            "sourceUrl": "https://raw.githubusercontent.com/jgm/pandoc/912bfa5e2e3f5c74eb125dfc19404f67c61ca58b/test/markdown-reader-more.native",
+            "samplePath": "samples/native-markdown-more-markdown-reader-more.native",
+            "sampleSize": 44205,
+            "preview": "Pandoc\n  Meta\n    { unMeta =\n        fromList\n          [ ( \"author\"\n            , MetaList\n                [ MetaInlines [ Str \"Author\" , Space , Str \"One\" ]\n                , MetaInlines [ Str \"Author\" , Space , Str \"Two\" ]\n                , MetaInlines [ Str \"Author\" , Space , Str \"Three\" ]\n                , MetaInlines [ Str \"Author\" , Space , Str \"Four\" ]\n                ]\n            )\n          , ( \"title\"\n            , MetaInlines\n                [ Str \"Title\"\n                , SoftBreak\n                , Str \"spanning\"\n                , Space\n                , Str \"multiple\"\n                , Space\n                , Str \"lines\"\n                ]\n            )\n          ]\n    }\n  [ Header\n      1\n      ( \"additional-markdown-reader-tests\" , [] , [] )\n      [ Str \"Additional\"\n      , Space\n      , Str \"markdown\"\n      , Space\n      , Str \"reader\"\n      , Space\n      , Str \"tests\"\n      ]\n  , Header\n      2\n      ( \"blank-line-before-url-in-link-reference\" , [] , [] )\n      [ Str \"Blank\"\n      , Space\n      , Str \"line\"\n      , Space\n      , Str \"before\"\n      , Space\n      , Str \"URL\"\n      , Space\n      , Str \"in\"\n      , Space\n      , Str \"link\"\n      , Space\n      , Str \"reference\"\n      ]\n  , Para\n      [ Link ( \"\" , [] , [] ) [ Str \"foo\" ] ( \"/url\" , \"\" )\n      , Space\n      , Str \"and\"\n      , Space\n      , Link ( \"\" , [] , [] ) [ Str \"bar\" ] ( \"/url\" , \"title\" )\n      ]\n  , Header\n      2\n      ( \"raw-context-environments\" , [] , [] )\n      [ Str \"Raw\"\n      , Space\n      , Str \"ConTeXt\"\n      , Space\n      , Str \"environments\"\n      ]\n  , RawBlock (Format \"tex\") \"\\\\placeformula \\\\startformula\"\n  , Para\n      [ Str \"L_{1}\"\n      , Space\n      , Str \"=\"\n      , Space\n      , Str \"L_{2}\"\n      , SoftBreak\n      , RawInline (Format \"tex\") \"\\\\stopformula\"\n      ]\n  , RawBlock\n...",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\NativeReader",
+                "notes": "NativeReader parses a large upstream .native fixture set, but complete constructor parity is still audited as partial."
+            },
+            "haskell": {
+                "ok": true,
+                "path": "outputs/native-markdown-more/haskell.html"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/native-markdown-more/php.html"
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/native-markdown-more/wordpress-blocks.html"
+            }
+        },
+        {
+            "id": "odt-headers",
+            "format": "odt",
+            "label": "ODT headers",
+            "description": "OpenDocument text fixture from upstream Pandoc tests.",
+            "source": "jgm/pandoc upstream fixture at test/odt/odt/headers.odt",
+            "sourceUrl": "https://raw.githubusercontent.com/jgm/pandoc/912bfa5e2e3f5c74eb125dfc19404f67c61ca58b/test/odt/odt/headers.odt",
+            "samplePath": "samples/odt-headers-headers.odt",
+            "sampleSize": 10515,
+            "preview": "",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\OdtReader",
+                "notes": "Bounded ODT package reader parses content.xml, meta.xml, text/list styles, headings, paragraphs, ordered and bullet lists, tables, links, styled spans, line breaks, images, and image/resource package references into the shared AST. Full ODT parity remains open."
+            },
+            "haskell": {
+                "ok": true,
+                "path": "outputs/odt-headers/haskell.html"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/odt-headers/php.html"
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/odt-headers/wordpress-blocks.html"
+            }
+        },
+        {
+            "id": "odt-table-spans",
+            "format": "odt",
+            "label": "ODT table spans",
+            "description": "ODT table fixture from upstream Pandoc tests.",
+            "source": "jgm/pandoc upstream fixture at test/odt/odt/tableWithSpans.odt",
+            "sourceUrl": "https://raw.githubusercontent.com/jgm/pandoc/912bfa5e2e3f5c74eb125dfc19404f67c61ca58b/test/odt/odt/tableWithSpans.odt",
+            "samplePath": "samples/odt-table-spans-tableWithSpans.odt",
+            "sampleSize": 10695,
+            "preview": "",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\OdtReader",
+                "notes": "Bounded ODT package reader parses content.xml, meta.xml, text/list styles, headings, paragraphs, ordered and bullet lists, tables, links, styled spans, line breaks, images, and image/resource package references into the shared AST. Full ODT parity remains open."
+            },
+            "haskell": {
+                "ok": true,
+                "path": "outputs/odt-table-spans/haskell.html"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/odt-table-spans/php.html"
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/odt-table-spans/wordpress-blocks.html"
+            }
+        },
+        {
+            "id": "opml-reader",
+            "format": "opml",
+            "label": "OPML reader fixture",
+            "description": "OPML outline fixture from upstream Pandoc tests.",
+            "source": "jgm/pandoc upstream fixture at test/opml-reader.opml",
+            "sourceUrl": "https://raw.githubusercontent.com/jgm/pandoc/912bfa5e2e3f5c74eb125dfc19404f67c61ca58b/test/opml-reader.opml",
+            "samplePath": "samples/opml-reader-opml-reader.opml",
+            "sampleSize": 2904,
+            "preview": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<opml version=\"2.0\">\n  <head>\n    <title>States</title>\n    <dateModified>Thu, 14 Jul 2005 23:41:05 GMT</dateModified>\n    <ownerName>Dave Winer</ownerName>\n  </head>\n  <body>\n    <outline text=\"United States\">\n      <outline text=\"Far West\">\n        <outline text=\"Alaska\"/>\n        <outline text=\"California\"/>\n        <outline text=\"Hawaii\"/>\n          <outline text=\"&lt;strong&gt;Nevada&lt;/strong&gt;\" _note=\"I lived here *once*.&#10;&#10;Loved it.\">\n          <outline text=\"Reno\" created=\"Tue, 12 Jul 2005 23:56:35 GMT\" type=\"link\" url=\"http://www.reno.gov\"/>\n          <outline text=\"Las Vegas\" created=\"Tue, 12 Jul 2005 23:56:37 GMT\"/>\n          <outline text=\"Ely\" created=\"Tue, 12 Jul 2005 23:56:39 GMT\"/>\n          <outline text=\"Gerlach\" created=\"Tue, 12 Jul 2005 23:56:47 GMT\"/>\n          </outline>\n        <outline text=\"Oregon\"/>\n        <outline text=\"Washington\"/>\n        </outline>\n      <outline text=\"Great Plains\">\n        <outline text=\"Kansas\"/>\n        <outline text=\"Nebraska\"/>\n        <outline text=\"North Dakota\"/>\n        <outline text=\"Oklahoma\"/>\n        <outline text=\"South Dakota\"/>\n        </outline>\n      <outline text=\"Mid-Atlantic\">\n        <outline text=\"Delaware\"/>\n        <outline text=\"Maryland\"/>\n        <outline text=\"New Jersey\"/>\n        <outline text=\"New York\"/>\n        <outline text=\"Pennsylvania\"/>\n        </outline>\n      <outline text=\"Midwest\">\n        <outline text=\"Illinois\"/>\n        <outline text=\"Indiana\"/>\n        <outline text=\"Iowa\"/>\n        <outline text=\"Kentucky\"/>\n        <outline text=\"Michigan\"/>\n        <outline text=\"Minnesota\"/>\n        <outline text=\"Missouri\"/>\n        <outline text=\"Ohio\"/>\n        <outline text=\"West Virginia\"/>\n        <outline text=\"Wisconsin\"/>\n        </outline>\n      <outline text=\"Mountains\">\n        <outline text=\"Colorado\"/>\n        <outline text=\"Idaho\"/>\n        <outline text=\"Montana\"/>\n        <outline text=\"Utah\"/>\n        <outline text=\"Wyoming\"/>\n        </outline>\n      <outline text=\"New England\">\n        <outline text=\"Connecticut\"/>\n        <outline text=\"Maine\"/>\n        <outline text=\"Massachusetts\"/>\n        <outline text=\"New Hampshire\"/>\n        <outline text=\"Rhode Island\"/>\n        <outline text=\"Vermont\"/>\n        </outline>\n      <outline text=\"South\">\n        <outline text=\"Alabama\"/>\n        <outline text=\"Arkansas\"/>\n        <outline text=\"Florida\"/>\n        <outline text=\"Georgia\"/>\n        <outline text=\"Louisiana\"/>\n        <outline text=\"Mississippi\"/>\n        <outline text=\"North Carolina\"/>\n        <outline text=\"South Carolina\"/>\n        <outline text=\"Tennessee\"/>\n        <outline text=\"Virginia\"/>\n      </outline>\n      <outline text=\"Southwest\">\n        <outline text=\"Arizona\"/>\n        <outline text=\"New Mexico\"/>\n        <outline text=\"Texas\"/>\n      </outline>\n...",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\OpmlReader",
+                "notes": "Bounded OPML reader maps document title, owner, modified date, nested outlines, link outlines, and Markdown notes into the shared AST, with canonical native semantic parity for the pinned upstream opml-reader fixture. Full option and edge-case parity remains open."
+            },
+            "haskell": {
+                "ok": true,
+                "path": "outputs/opml-reader/haskell.html"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/opml-reader/php.html"
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/opml-reader/wordpress-blocks.html"
+            }
+        },
+        {
+            "id": "opml-outline",
+            "format": "opml",
+            "label": "Research outline",
+            "description": "",
+            "source": "Inline OPML outline.",
+            "sourceUrl": "",
+            "samplePath": "samples/opml-outline-research-outline.opml",
+            "sampleSize": 287,
+            "preview": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<opml version=\"2.0\">\n  <head><title>Research outline</title></head>\n  <body>\n    <outline text=\"Migration guide\">\n      <outline text=\"Inventory formats\"/>\n      <outline text=\"Compare Haskell Pandoc and PHP port\"/>\n    </outline>\n  </body>\n</opml>",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\OpmlReader",
+                "notes": "Bounded OPML reader maps document title, owner, modified date, nested outlines, link outlines, and Markdown notes into the shared AST, with canonical native semantic parity for the pinned upstream opml-reader fixture. Full option and edge-case parity remains open."
+            },
+            "haskell": {
+                "ok": true,
+                "path": "outputs/opml-outline/haskell.html"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/opml-outline/php.html"
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/opml-outline/wordpress-blocks.html"
+            }
+        },
+        {
+            "id": "pptx-basic",
+            "format": "pptx",
+            "label": "Basic PPTX",
+            "description": "Presentation fixture from upstream Pandoc tests.",
+            "source": "jgm/pandoc upstream fixture at test/pptx-reader/basic.pptx",
+            "sourceUrl": "https://raw.githubusercontent.com/jgm/pandoc/912bfa5e2e3f5c74eb125dfc19404f67c61ca58b/test/pptx-reader/basic.pptx",
+            "samplePath": "samples/pptx-basic-basic.pptx",
+            "sampleSize": 111674,
+            "preview": "",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\PptxReader",
+                "notes": "Bounded PPTX OpenXML package reader maps presentation slide order, title placeholders, text boxes, Wingdings/explicit bullet groups, simple tables, image references, SmartArt hierarchy with placeholder/layout sidecars, slide comments, shape z-order/layout metadata, and internal rich-media references into the shared AST with pinned upstream pptx-reader/basic fixture parity. PPTX writing remains unsupported."
+            },
+            "haskell": {
+                "ok": true,
+                "path": "outputs/pptx-basic/haskell.html"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/pptx-basic/php.html"
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/pptx-basic/wordpress-blocks.html"
+            }
+        },
+        {
+            "id": "pptx-tables",
+            "format": "pptx",
+            "label": "PPTX tables",
+            "description": "Generated presentation fixture from upstream Pandoc tests.",
+            "source": "jgm/pandoc upstream fixture at test/pptx/tables/output.pptx",
+            "sourceUrl": "https://raw.githubusercontent.com/jgm/pandoc/912bfa5e2e3f5c74eb125dfc19404f67c61ca58b/test/pptx/tables/output.pptx",
+            "samplePath": "samples/pptx-tables-output.pptx",
+            "sampleSize": 29134,
+            "preview": "",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\PptxReader",
+                "notes": "Bounded PPTX OpenXML package reader maps presentation slide order, title placeholders, text boxes, Wingdings/explicit bullet groups, simple tables, image references, SmartArt hierarchy with placeholder/layout sidecars, slide comments, shape z-order/layout metadata, and internal rich-media references into the shared AST with pinned upstream pptx-reader/basic fixture parity. PPTX writing remains unsupported."
+            },
+            "haskell": {
+                "ok": true,
+                "path": "outputs/pptx-tables/haskell.html"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/pptx-tables/php.html"
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/pptx-tables/wordpress-blocks.html"
+            }
+        },
+        {
+            "id": "ris-texbook",
+            "format": "ris",
+            "label": "RIS book record",
+            "description": "",
+            "source": "Inline RIS record for a real published book.",
+            "sourceUrl": "",
+            "samplePath": "samples/ris-texbook-texbook.ris",
+            "sampleSize": 89,
+            "preview": "TY  - BOOK\nAU  - Knuth, Donald E.\nTI  - The TeXbook\nPY  - 1984\nPB  - Addison-Wesley\nER  -",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\BibliographyReader",
+                "notes": "Bibliography reader parses bounded RIS records into CSL item metadata with type aliases, field provenance, attachments, user fields, and custom diagnostics. Full Pandoc RIS reader parity remains open."
+            },
+            "haskell": {
+                "ok": true,
+                "path": "outputs/ris-texbook/haskell.html"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/ris-texbook/php.html"
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/ris-texbook/wordpress-blocks.html"
+            }
+        },
+        {
+            "id": "ris-web",
+            "format": "ris",
+            "label": "RIS website record",
+            "description": "",
+            "source": "Inline RIS record assembled from real WordPress project metadata.",
+            "sourceUrl": "",
+            "samplePath": "samples/ris-web-wordpress.ris",
+            "sampleSize": 102,
+            "preview": "TY  - ELEC\nAU  - WordPress Contributors\nTI  - WordPress\nPY  - 2026\nUR  - https://wordpress.org/\nER  -\n",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\BibliographyReader",
+                "notes": "Bibliography reader parses bounded RIS records into CSL item metadata with type aliases, field provenance, attachments, user fields, and custom diagnostics. Full Pandoc RIS reader parity remains open."
+            },
+            "haskell": {
+                "ok": true,
+                "path": "outputs/ris-web/haskell.html"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/ris-web/php.html"
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/ris-web/wordpress-blocks.html"
+            }
+        },
+        {
+            "id": "rtf-template",
+            "format": "rtf",
+            "label": "Pandoc default RTF template",
+            "description": "Real RTF template from Pandoc project data.",
+            "source": "jgm/pandoc upstream fixture at data/templates/default.rtf",
+            "sourceUrl": "https://raw.githubusercontent.com/jgm/pandoc/912bfa5e2e3f5c74eb125dfc19404f67c61ca58b/data/templates/default.rtf",
+            "samplePath": "samples/rtf-template-default.rtf",
+            "sampleSize": 645,
+            "preview": "{\\rtf1\\ansi\\deff0{\\fonttbl{\\f0 \\fswiss Helvetica;}{\\f1 \\fmodern Courier;}}\n{\\colortbl;\\red255\\green0\\blue0;\\red0\\green0\\blue255;}\n$if(listtable)$\n$listtable$\n$endif$\n\\widowctrl\\hyphauto\n$for(header-includes)$\n$header-includes$\n$endfor$\n\n$if(title)$\n{\\pard \\qc \\f0 \\sa180 \\li0 \\fi0 \\b \\fs36 $title$\\par}\n$endif$\n$for(author)$\n{\\pard \\qc \\f0 \\sa180 \\li0 \\fi0  $author$\\par}\n$endfor$\n$if(date)$\n{\\pard \\qc \\f0 \\sa180 \\li0 \\fi0  $date$\\par}\n$endif$\n$if(spacer)$\n{\\pard \\ql \\f0 \\sa180 \\li0 \\fi0 \\par}\n$endif$\n$if(toc)$\n$table-of-contents$\n$endif$\n$for(include-before)$\n$include-before$\n$endfor$\n$body$\n$for(include-after)$\n$include-after$\n$endfor$\n}\n",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\RtfReader",
+                "notes": "Bounded RTF reader maps paragraphs, escaped characters, unicode fallbacks, tabs, and core inline styles into the shared AST. Full RTF control-word, destination, table, image, and metadata parity remains open."
+            },
+            "haskell": {
+                "ok": true,
+                "path": "outputs/rtf-template/haskell.html"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/rtf-template/php.html"
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/rtf-template/wordpress-blocks.html"
+            }
+        },
+        {
+            "id": "rtf-simple",
+            "format": "rtf",
+            "label": "Simple RTF document",
+            "description": "",
+            "source": "Inline RTF document sample.",
+            "sourceUrl": "",
+            "samplePath": "samples/rtf-simple-simple.rtf",
+            "sampleSize": 108,
+            "preview": "{\\rtf1\\ansi\\deff0 {\\fonttbl {\\f0 Arial;}}\\f0\\fs24 RTF migration sample\\par This is a second RTF input.\\par}\n",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\RtfReader",
+                "notes": "Bounded RTF reader maps paragraphs, escaped characters, unicode fallbacks, tabs, and core inline styles into the shared AST. Full RTF control-word, destination, table, image, and metadata parity remains open."
+            },
+            "haskell": {
+                "ok": true,
+                "path": "outputs/rtf-simple/haskell.html"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/rtf-simple/php.html"
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/rtf-simple/wordpress-blocks.html"
+            }
+        },
+        {
+            "id": "xlsx-basic",
+            "format": "xlsx",
+            "label": "Basic XLSX workbook",
+            "description": "Spreadsheet fixture from upstream Pandoc tests.",
+            "source": "jgm/pandoc upstream fixture at test/xlsx-reader/basic.xlsx",
+            "sourceUrl": "https://raw.githubusercontent.com/jgm/pandoc/912bfa5e2e3f5c74eb125dfc19404f67c61ca58b/test/xlsx-reader/basic.xlsx",
+            "samplePath": "samples/xlsx-basic-basic.xlsx",
+            "sampleSize": 13604,
+            "preview": "",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\XlsxReader",
+                "notes": "Bounded XLSX OpenXML package reader maps workbook sheets, shared strings, direct font bold/italic style indexes, dense sheet grids, first-row table headers, numeric cells, empty cells, and trailing empty-row trimming into the shared AST with pinned upstream xlsx-reader/basic fixture parity."
+            },
+            "haskell": {
+                "ok": true,
+                "path": "outputs/xlsx-basic/haskell.html"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/xlsx-basic/php.html"
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/xlsx-basic/wordpress-blocks.html"
+            }
+        },
+        {
+            "id": "xlsx-conditional-access-blueprint",
+            "format": "xlsx",
+            "label": "Conditional Access blueprint workbook",
+            "description": "Small public workbook from a GitHub Pages repository, used as a second real-world XLSX input.",
+            "source": "jasperbaes/jasperbaes.github.io ConditionalAccessBlueprint-Template.xlsx",
+            "sourceUrl": "https://raw.githubusercontent.com/jasperbaes/jasperbaes.github.io/main/CAF/ConditionalAccessBlueprint-Template.xlsx",
+            "samplePath": "samples/xlsx-conditional-access-blueprint-ConditionalAccessBlueprint-Template.xlsx",
+            "sampleSize": 19666,
+            "preview": "",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\XlsxReader",
+                "notes": "Bounded XLSX OpenXML package reader maps workbook sheets, shared strings, direct font bold/italic style indexes, dense sheet grids, first-row table headers, numeric cells, empty cells, and trailing empty-row trimming into the shared AST with pinned upstream xlsx-reader/basic fixture parity."
+            },
+            "haskell": {
+                "ok": true,
+                "path": "outputs/xlsx-conditional-access-blueprint/haskell.html"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/xlsx-conditional-access-blueprint/php.html"
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/xlsx-conditional-access-blueprint/wordpress-blocks.html"
+            }
+        },
+        {
+            "id": "xml-docbook-generic",
+            "format": "xml",
+            "label": "Generic XML document",
+            "description": "",
+            "source": "Inline XML document read through the generic XML path.",
+            "sourceUrl": "",
+            "samplePath": "samples/xml-docbook-generic-generic-docbook.xml",
+            "sampleSize": 461,
+            "preview": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<article xmlns=\"http://docbook.org/ns/docbook\" version=\"5.0\">\n  <info><title>DocBook article sample</title></info>\n  <section>\n    <title>Migration notes</title>\n    <para>DocBook content often appears in technical publishing pipelines.</para>\n    <itemizedlist>\n      <listitem><para>Section titles</para></listitem>\n      <listitem><para>Lists and paragraphs</para></listitem>\n    </itemizedlist>\n  </section>\n</article>",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\XmlReader",
+                "notes": "Bounded XML-family reader safely parses XML, records namespace/root provenance, and maps title/paragraph/list/link/table structures into the shared AST. Full Pandoc XML reader parity remains open."
+            },
+            "haskell": {
+                "ok": false,
+                "error": "Invalid XML:\nunexpected element \"article\" in blocks context",
+                "path": "outputs/xml-docbook-generic/haskell.html.error.txt"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/xml-docbook-generic/php.html"
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/xml-docbook-generic/wordpress-blocks.html"
+            }
+        },
+        {
+            "id": "xml-outline-generic",
+            "format": "xml",
+            "label": "Generic XML outline",
+            "description": "",
+            "source": "Inline generic XML document.",
+            "sourceUrl": "",
+            "samplePath": "samples/xml-outline-generic-generic-outline.xml",
+            "sampleSize": 193,
+            "preview": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<document><title>Generic XML outline</title><section><heading>Inventory</heading><p>Plain XML read through the generic XML path.</p></section></document>\n",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\XmlReader",
+                "notes": "Bounded XML-family reader safely parses XML, records namespace/root provenance, and maps title/paragraph/list/link/table structures into the shared AST. Full Pandoc XML reader parity remains open."
+            },
+            "haskell": {
+                "ok": false,
+                "error": "Invalid XML:\nunexpected element \"document\" in blocks context",
+                "path": "outputs/xml-outline-generic/haskell.html.error.txt"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/xml-outline-generic/php.html"
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/xml-outline-generic/wordpress-blocks.html"
+            }
+        },
+        {
+            "id": "pdf-wrapped-content",
+            "format": "pdf",
+            "label": "Wrapped-content PDF fixture",
+            "description": "Small PDF fixture from the local markerpdf lane used to exercise PDF text handoff.",
+            "source": "Checked-in port-libs fixture at lanes/markerpdf/fixtures/wordpress-wrapped-content.pdf",
+            "sourceUrl": "",
+            "samplePath": "samples/pdf-wrapped-content-wordpress-wrapped-content.pdf",
+            "sampleSize": 199,
+            "preview": "%PDF-1.4\n1 0 obj\n<< /Length 133 >>\nstream\nBT /F1 16 Tf 72 720 Td (Migration Notes) Tj T* (Clean hyphen-) Tj T* (ated paragraphs keep) Tj T* (WordPress imports readable.) Tj ET\nendstream\nendobj\n%%EOF\n",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\PdfReader",
+                "notes": "Project-local markerPDF bridge extracts searchable PDF text lines, records basic PDF structural provenance, and maps simple headings, paragraphs, lists, links, and aligned text-table rows into the shared AST. PDF is not an upstream Pandoc input format."
+            },
+            "haskell": {
+                "ok": false,
+                "error": "Unknown input format 'pdf'\nPandoc can convert to PDF, but not from PDF.",
+                "path": "outputs/pdf-wrapped-content/haskell.html.error.txt"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/pdf-wrapped-content/php.html"
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/pdf-wrapped-content/wordpress-blocks.html"
+            }
+        },
+        {
+            "id": "pdf-import-content",
+            "format": "pdf",
+            "label": "Import-content PDF fixture",
+            "description": "Second small PDF fixture from the local markerpdf lane.",
+            "source": "Checked-in port-libs fixture at lanes/markerpdf/fixtures/wordpress-import-content.pdf",
+            "sourceUrl": "",
+            "samplePath": "samples/pdf-import-content-wordpress-import-content.pdf",
+            "sampleSize": 234,
+            "preview": "%PDF-1.4\n1 0 obj\n<< /Length 175 >>\nstream\nBT /F1 16 Tf 72 720 Td <FEFF005700500020004D006900670072006100740069006F006E> Tj T* (Clean blocks from PDF imports) Tj T* [(Media) -50 ( library ) 120 (captions)] TJ ET\nendstream\nendobj\n%%EOF\n",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\PdfReader",
+                "notes": "Project-local markerPDF bridge extracts searchable PDF text lines, records basic PDF structural provenance, and maps simple headings, paragraphs, lists, links, and aligned text-table rows into the shared AST. PDF is not an upstream Pandoc input format."
+            },
+            "haskell": {
+                "ok": false,
+                "error": "Unknown input format 'pdf'\nPandoc can convert to PDF, but not from PDF.",
+                "path": "outputs/pdf-import-content/haskell.html.error.txt"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/pdf-import-content/php.html"
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/pdf-import-content/wordpress-blocks.html"
+            }
+        },
+        {
+            "id": "doc-legacy-placeholder",
+            "format": "doc",
+            "label": "Legacy Word binary placeholder",
+            "description": "",
+            "source": "Inline fallback pending a stable public legacy Word binary sample.",
+            "sourceUrl": "",
+            "samplePath": "samples/doc-legacy-placeholder-legacy-word.doc",
+            "sampleSize": 213,
+            "preview": "This fallback is intentionally plain text with a .doc extension because no stable public binary .doc sample is bundled with Pandoc. It still exercises the local legacy-doc path and records any conversion failure.\n",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\LegacyDocReader",
+                "notes": "Project-local legacy binary Word reader parses Compound File Binary containers, WordDocument text, OLE properties, metadata, fields, lists, notes, comments, sections, bookmarks, and review provenance into the shared AST. Legacy .doc is not an upstream Pandoc input format token."
+            },
+            "haskell": {
+                "ok": false,
+                "error": "Unknown input format 'doc'\nPandoc can convert from DOCX, but not from DOC.\nTry using Word to save your DOC file as DOCX, and convert that with pandoc.",
+                "path": "outputs/doc-legacy-placeholder/haskell.html.error.txt"
+            },
+            "phpHtml": {
+                "ok": false,
+                "error": "PHP Fatal error:  Uncaught InvalidArgumentException: CFB file is missing the compound-file signature in $REPO/lanes/pandoc/src/CompoundFileBinary.php:56\nStack trace:\n#0 $REPO/lanes/pandoc/src/LegacyDocReader.php(228): PortLibs\\Pandoc\\CompoundFileBinary::fromBytes('This fallback i...')\n#1 $REPO/lanes/pandoc/src/LegacyDocReader.php(220): PortLibs\\Pandoc\\LegacyDocReader->readBytes('This fallback i...')\n#2 $REPO/lanes/pandoc/src/PandocConverter.php(36): PortLibs\\Pandoc\\LegacyDocReader->read('This fallback i...')\n#3 $REPO/lanes/pandoc/src/PandocConverter.php(79): PortLibs\\Pandoc\\PandocConverter::read('This fallback i...', 'doc', Array)\n#4 $REPO/lanes/pandoc/src/PandocConverter.php(98): PortLibs\\Pandoc\\PandocConverter::convert('This fallback i...', 'doc', 'html', Array)\n#5 $REPO/tools/build-pandoc-showcase.php(21): PortLibs\\Pandoc\\PandocConverter::convertFile('$REPO', 'doc', 'html')\n#6 {main}\n  thrown in $REPO/lanes/pandoc/src/CompoundFileBinary.php on line 56\nFatal error: Uncaught InvalidArgumentException: CFB file is missing the compound-file signature in $REPO/lanes/pandoc/src/CompoundFileBinary.php:56\nStack trace:\n#0 $REPO/lanes/pandoc/src/LegacyDocReader.php(228): PortLibs\\Pandoc\\CompoundFileBinary::fromBytes('This fallback i...')\n#1 $REPO/lanes/pandoc/src/LegacyDocReader.php(220): PortLibs\\Pandoc\\LegacyDocReader->readBytes('This fallback i...')\n#2 $REPO/lanes/pandoc/src/PandocConverter.php(36): PortLibs\\Pandoc\\LegacyDocReader->read('This fallback i...')\n#3 $REPO/lanes/pandoc/src/PandocConverter.php(79): PortLibs\\Pandoc\\PandocConverter::read('This fallback i...', 'doc', Array)\n#4 $REPO/lanes/pandoc/src/PandocConverter.php(98): PortLibs\\Pandoc\\PandocConverter::convert('This fallback i...', 'doc', 'html', Array)\n#5 $REPO/tools/build-pandoc-showcase.php(21): PortLibs\\Pandoc\\PandocConverter::convertFile('$REPO', 'doc', 'html')\n#6 {main}\n  thrown in $REPO/lanes/pandoc/src/CompoundFileBinary.php on line 56",
+                "path": "outputs/doc-legacy-placeholder/php.html.error.txt"
+            },
+            "wpBlocks": {
+                "ok": false,
+                "error": "PHP Fatal error:  Uncaught InvalidArgumentException: CFB file is missing the compound-file signature in $REPO/lanes/pandoc/src/CompoundFileBinary.php:56\nStack trace:\n#0 $REPO/lanes/pandoc/src/LegacyDocReader.php(228): PortLibs\\Pandoc\\CompoundFileBinary::fromBytes('This fallback i...')\n#1 $REPO/lanes/pandoc/src/LegacyDocReader.php(220): PortLibs\\Pandoc\\LegacyDocReader->readBytes('This fallback i...')\n#2 $REPO/lanes/pandoc/src/PandocConverter.php(36): PortLibs\\Pandoc\\LegacyDocReader->read('This fallback i...')\n#3 $REPO/lanes/pandoc/src/PandocConverter.php(79): PortLibs\\Pandoc\\PandocConverter::read('This fallback i...', 'doc', Array)\n#4 $REPO/lanes/pandoc/src/PandocConverter.php(98): PortLibs\\Pandoc\\PandocConverter::convert('This fallback i...', 'doc', 'wordpress', Array)\n#5 $REPO/tools/build-pandoc-showcase.php(21): PortLibs\\Pandoc\\PandocConverter::convertFile('$REPO', 'doc', 'wordpress')\n#6 {main}\n  thrown in $REPO/lanes/pandoc/src/CompoundFileBinary.php on line 56\nFatal error: Uncaught InvalidArgumentException: CFB file is missing the compound-file signature in $REPO/lanes/pandoc/src/CompoundFileBinary.php:56\nStack trace:\n#0 $REPO/lanes/pandoc/src/LegacyDocReader.php(228): PortLibs\\Pandoc\\CompoundFileBinary::fromBytes('This fallback i...')\n#1 $REPO/lanes/pandoc/src/LegacyDocReader.php(220): PortLibs\\Pandoc\\LegacyDocReader->readBytes('This fallback i...')\n#2 $REPO/lanes/pandoc/src/PandocConverter.php(36): PortLibs\\Pandoc\\LegacyDocReader->read('This fallback i...')\n#3 $REPO/lanes/pandoc/src/PandocConverter.php(79): PortLibs\\Pandoc\\PandocConverter::read('This fallback i...', 'doc', Array)\n#4 $REPO/lanes/pandoc/src/PandocConverter.php(98): PortLibs\\Pandoc\\PandocConverter::convert('This fallback i...', 'doc', 'wordpress', Array)\n#5 $REPO/tools/build-pandoc-showcase.php(21): PortLibs\\Pandoc\\PandocConverter::convertFile('$REPO', 'doc', 'wordpress')\n#6 {main}\n  thrown in $REPO/lanes/pandoc/src/CompoundFileBinary.php on line 56",
+                "path": "outputs/doc-legacy-placeholder/wordpress-blocks.html.error.txt"
+            }
+        },
+        {
+            "id": "doc-legacy-placeholder-2",
+            "format": "doc",
+            "label": "Legacy Word second placeholder",
+            "description": "",
+            "source": "Inline fallback pending a stable public legacy Word binary sample.",
+            "sourceUrl": "",
+            "samplePath": "samples/doc-legacy-placeholder-2-legacy-word-2.doc",
+            "sampleSize": 68,
+            "preview": "Second .doc placeholder pending a stable public binary .doc sample.\n",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\LegacyDocReader",
+                "notes": "Project-local legacy binary Word reader parses Compound File Binary containers, WordDocument text, OLE properties, metadata, fields, lists, notes, comments, sections, bookmarks, and review provenance into the shared AST. Legacy .doc is not an upstream Pandoc input format token."
+            },
+            "haskell": {
+                "ok": false,
+                "error": "Unknown input format 'doc'\nPandoc can convert from DOCX, but not from DOC.\nTry using Word to save your DOC file as DOCX, and convert that with pandoc.",
+                "path": "outputs/doc-legacy-placeholder-2/haskell.html.error.txt"
+            },
+            "phpHtml": {
+                "ok": false,
+                "error": "PHP Fatal error:  Uncaught InvalidArgumentException: CFB file is missing the compound-file signature in $REPO/lanes/pandoc/src/CompoundFileBinary.php:56\nStack trace:\n#0 $REPO/lanes/pandoc/src/LegacyDocReader.php(228): PortLibs\\Pandoc\\CompoundFileBinary::fromBytes('Second .doc pla...')\n#1 $REPO/lanes/pandoc/src/LegacyDocReader.php(220): PortLibs\\Pandoc\\LegacyDocReader->readBytes('Second .doc pla...')\n#2 $REPO/lanes/pandoc/src/PandocConverter.php(36): PortLibs\\Pandoc\\LegacyDocReader->read('Second .doc pla...')\n#3 $REPO/lanes/pandoc/src/PandocConverter.php(79): PortLibs\\Pandoc\\PandocConverter::read('Second .doc pla...', 'doc', Array)\n#4 $REPO/lanes/pandoc/src/PandocConverter.php(98): PortLibs\\Pandoc\\PandocConverter::convert('Second .doc pla...', 'doc', 'html', Array)\n#5 $REPO/tools/build-pandoc-showcase.php(21): PortLibs\\Pandoc\\PandocConverter::convertFile('$REPO', 'doc', 'html')\n#6 {main}\n  thrown in $REPO/lanes/pandoc/src/CompoundFileBinary.php on line 56\nFatal error: Uncaught InvalidArgumentException: CFB file is missing the compound-file signature in $REPO/lanes/pandoc/src/CompoundFileBinary.php:56\nStack trace:\n#0 $REPO/lanes/pandoc/src/LegacyDocReader.php(228): PortLibs\\Pandoc\\CompoundFileBinary::fromBytes('Second .doc pla...')\n#1 $REPO/lanes/pandoc/src/LegacyDocReader.php(220): PortLibs\\Pandoc\\LegacyDocReader->readBytes('Second .doc pla...')\n#2 $REPO/lanes/pandoc/src/PandocConverter.php(36): PortLibs\\Pandoc\\LegacyDocReader->read('Second .doc pla...')\n#3 $REPO/lanes/pandoc/src/PandocConverter.php(79): PortLibs\\Pandoc\\PandocConverter::read('Second .doc pla...', 'doc', Array)\n#4 $REPO/lanes/pandoc/src/PandocConverter.php(98): PortLibs\\Pandoc\\PandocConverter::convert('Second .doc pla...', 'doc', 'html', Array)\n#5 $REPO/tools/build-pandoc-showcase.php(21): PortLibs\\Pandoc\\PandocConverter::convertFile('$REPO', 'doc', 'html')\n#6 {main}\n  thrown in $REPO/lanes/pandoc/src/CompoundFileBinary.php on line 56",
+                "path": "outputs/doc-legacy-placeholder-2/php.html.error.txt"
+            },
+            "wpBlocks": {
+                "ok": false,
+                "error": "PHP Fatal error:  Uncaught InvalidArgumentException: CFB file is missing the compound-file signature in $REPO/lanes/pandoc/src/CompoundFileBinary.php:56\nStack trace:\n#0 $REPO/lanes/pandoc/src/LegacyDocReader.php(228): PortLibs\\Pandoc\\CompoundFileBinary::fromBytes('Second .doc pla...')\n#1 $REPO/lanes/pandoc/src/LegacyDocReader.php(220): PortLibs\\Pandoc\\LegacyDocReader->readBytes('Second .doc pla...')\n#2 $REPO/lanes/pandoc/src/PandocConverter.php(36): PortLibs\\Pandoc\\LegacyDocReader->read('Second .doc pla...')\n#3 $REPO/lanes/pandoc/src/PandocConverter.php(79): PortLibs\\Pandoc\\PandocConverter::read('Second .doc pla...', 'doc', Array)\n#4 $REPO/lanes/pandoc/src/PandocConverter.php(98): PortLibs\\Pandoc\\PandocConverter::convert('Second .doc pla...', 'doc', 'wordpress', Array)\n#5 $REPO/tools/build-pandoc-showcase.php(21): PortLibs\\Pandoc\\PandocConverter::convertFile('$REPO', 'doc', 'wordpress')\n#6 {main}\n  thrown in $REPO/lanes/pandoc/src/CompoundFileBinary.php on line 56\nFatal error: Uncaught InvalidArgumentException: CFB file is missing the compound-file signature in $REPO/lanes/pandoc/src/CompoundFileBinary.php:56\nStack trace:\n#0 $REPO/lanes/pandoc/src/LegacyDocReader.php(228): PortLibs\\Pandoc\\CompoundFileBinary::fromBytes('Second .doc pla...')\n#1 $REPO/lanes/pandoc/src/LegacyDocReader.php(220): PortLibs\\Pandoc\\LegacyDocReader->readBytes('Second .doc pla...')\n#2 $REPO/lanes/pandoc/src/PandocConverter.php(36): PortLibs\\Pandoc\\LegacyDocReader->read('Second .doc pla...')\n#3 $REPO/lanes/pandoc/src/PandocConverter.php(79): PortLibs\\Pandoc\\PandocConverter::read('Second .doc pla...', 'doc', Array)\n#4 $REPO/lanes/pandoc/src/PandocConverter.php(98): PortLibs\\Pandoc\\PandocConverter::convert('Second .doc pla...', 'doc', 'wordpress', Array)\n#5 $REPO/tools/build-pandoc-showcase.php(21): PortLibs\\Pandoc\\PandocConverter::convertFile('$REPO', 'doc', 'wordpress')\n#6 {main}\n  thrown in $REPO/lanes/pandoc/src/CompoundFileBinary.php on line 56",
+                "path": "outputs/doc-legacy-placeholder-2/wordpress-blocks.html.error.txt"
+            }
+        }
+    ]
+}

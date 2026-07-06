@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<article xmlns="http://docbook.org/ns/docbook" version="5.0">
+  <info><title>DocBook article sample</title></info>
+  <section>
+    <title>Migration notes</title>
+    <para>DocBook content often appears in technical publishing pipelines.</para>
+    <itemizedlist>
+      <listitem><para>Section titles</para></listitem>
+      <listitem><para>Lists and paragraphs</para></listitem>
+    </itemizedlist>
+  </section>
+</article>

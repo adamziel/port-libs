@@ -1,0 +1,1922 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc 3.10" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>Haskell Pandoc output</title>
+  <style>
+    /* Default styles provided by pandoc.
+    ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+    */
+    html {
+      color: #1a1a1a;
+      background-color: #fdfdfd;
+    }
+    body {
+      margin: 0 auto;
+      max-width: 36em;
+      padding-left: 50px;
+      padding-right: 50px;
+      padding-top: 50px;
+      padding-bottom: 50px;
+      hyphens: auto;
+      overflow-wrap: break-word;
+      text-rendering: optimizeLegibility;
+      font-kerning: normal;
+    }
+    @media (max-width: 600px) {
+      body {
+        font-size: 0.9em;
+        padding: 12px;
+      }
+      h1 {
+        font-size: 1.8em;
+      }
+    }
+    @media print {
+      html {
+        background-color: white;
+      }
+      body {
+        background-color: transparent;
+        color: black;
+        font-size: 12pt;
+      }
+      p, h2, h3 {
+        orphans: 3;
+        widows: 3;
+      }
+      h2, h3, h4 {
+        page-break-after: avoid;
+      }
+    }
+    p {
+      margin: 1em 0;
+    }
+    a {
+      color: #1a1a1a;
+    }
+    a:visited {
+      color: #1a1a1a;
+    }
+    img {
+      max-width: 100%;
+    }
+    svg {
+      height: auto;
+      max-width: 100%;
+    }
+    h1, h2, h3, h4, h5, h6 {
+      margin-top: 1.4em;
+    }
+    h5, h6 {
+      font-size: 1em;
+      font-style: italic;
+    }
+    h6 {
+      font-weight: normal;
+    }
+    ol, ul {
+      padding-left: 1.7em;
+      margin-top: 1em;
+    }
+    li > ol, li > ul {
+      margin-top: 0;
+    }
+    blockquote {
+      margin: 1em 0 1em 1.7em;
+      padding-left: 1em;
+      border-left: 2px solid #e6e6e6;
+      color: #606060;
+    }
+    code {
+      white-space: pre-wrap;
+      font-family: Menlo, Monaco, Consolas, 'Lucida Console', monospace;
+      font-size: 85%;
+      margin: 0;
+      hyphens: manual;
+    }
+    pre {
+      margin: 1em 0;
+      overflow: auto;
+    }
+    pre code {
+      padding: 0;
+      overflow: visible;
+      overflow-wrap: normal;
+    }
+    .sourceCode {
+     background-color: transparent;
+     overflow: visible;
+    }
+    hr {
+      border: none;
+      border-top: 1px solid #1a1a1a;
+      height: 1px;
+      margin: 1em 0;
+    }
+    table {
+      margin: 1em 0;
+      border-collapse: collapse;
+      width: 100%;
+      overflow-x: auto;
+      display: block;
+      font-variant-numeric: lining-nums tabular-nums;
+    }
+    table caption {
+      margin-bottom: 0.75em;
+    }
+    tbody {
+      margin-top: 0.5em;
+      border-top: 1px solid #1a1a1a;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    th {
+      border-top: 1px solid #1a1a1a;
+      padding: 0.25em 0.5em 0.25em 0.5em;
+    }
+    td {
+      padding: 0.125em 0.5em 0.25em 0.5em;
+    }
+    header {
+      margin-bottom: 4em;
+      text-align: center;
+    }
+    #TOC li {
+      list-style: none;
+    }
+    #TOC ul {
+      padding-left: 1.3em;
+    }
+    #TOC > ul {
+      padding-left: 0;
+    }
+    #TOC a:not(:hover) {
+      text-decoration: none;
+    }
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: 1.5em;}
+    div.column{flex: auto;}
+    @media screen {
+    div.columns{gap: min(4vw, 1.5em);}
+    div.column{overflow-x: auto;}
+    }
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+</head>
+<body>
+<header id="title-block-header">
+<h1 class="title">Haskell Pandoc output</h1>
+</header>
+<h2 id="sheet-1">Sheet1</h2>
+<table>
+<thead>
+<tr>
+<th>Conditional Access Blueprint</th>
+<th></th>
+<th></th>
+<th></th>
+<th></th>
+<th></th>
+<th><strong></strong></th>
+<th><strong></strong></th>
+<th><strong></strong></th>
+<th><strong></strong></th>
+<th><strong></strong></th>
+<th><strong></strong></th>
+<th><strong></strong></th>
+<th><strong></strong></th>
+<th><strong></strong></th>
+<th></th>
+<th></th>
+<th></th>
+<th></th>
+<th></th>
+<th></th>
+<th></th>
+<th></th>
+<th></th>
+<th></th>
+<th></th>
+<th></th>
+<th></th>
+<th></th>
+<th></th>
+<th></th>
+<th></th>
+<th></th>
+<th></th>
+<th></th>
+<th></th>
+<th></th>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td>persona #1</td>
+<td></td>
+<td></td>
+<td>persona #2</td>
+<td></td>
+<td></td>
+<td>persona #3</td>
+<td></td>
+<td></td>
+<td>persona #4</td>
+<td></td>
+<td></td>
+<td>persona #5</td>
+<td></td>
+<td></td>
+<td>persona #6</td>
+<td></td>
+<td></td>
+<td>persona #7</td>
+<td></td>
+<td></td>
+<td>persona #8</td>
+<td></td>
+<td></td>
+<td>persona #9</td>
+<td></td>
+<td></td>
+<td>persona #10</td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><strong>!! THIS IS AN EXAMPLE !!</strong></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td>All users</td>
+<td></td>
+<td></td>
+<td>General users</td>
+<td></td>
+<td></td>
+<td>Service Accounts</td>
+<td></td>
+<td></td>
+<td>ADM users</td>
+<td></td>
+<td></td>
+<td><strong>DEV users</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>...</strong></td>
+<td></td>
+<td></td>
+<td><strong>...</strong></td>
+<td></td>
+<td></td>
+<td><strong>...</strong></td>
+<td></td>
+<td></td>
+<td><strong>...</strong></td>
+<td></td>
+<td></td>
+<td><strong>...</strong></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>It is possible for this persona to...</td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td></td>
+<td></td>
+<td><strong>Create below CA policies as needed. Then include or exclude
+personas</strong></td>
+</tr>
+<tr>
+<td></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><strong>❌ Block full access</strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>NO</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>NO</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td></td>
+<td><strong>CA – All Apps : Full block</strong></td>
+</tr>
+<tr>
+<td><strong>✔️ Require MFA</strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>YES</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>YES</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td></td>
+<td>CA – All Apps : Require MFA</td>
+</tr>
+<tr>
+<td><strong>✔️ Require phishing-resistant MFA</strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>NO</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>NO</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td></td>
+<td>CA – All Apps : Require phishing-resistant MFA</td>
+</tr>
+<tr>
+<td><strong>✔️ Require a compliant device</strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>YES</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>YES</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td></td>
+<td>CA – All Apps : Require compliant device</td>
+</tr>
+<tr>
+<td><strong>✔️ Require device state</strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>NO</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>YES</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><strong>✔️ Require phishing-resistant MFA with Authentication
+context</strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>NO</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>NO</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td></td>
+<td>CA – All Apps: Require phishing-resistant MFA with Authentication
+Context</td>
+</tr>
+<tr>
+<td><strong>❌ Block devices without 'Corporate' Intune
+ownership</strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>YES</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>YES</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td></td>
+<td>CA – All Apps : Require corporate owned devices</td>
+</tr>
+<tr>
+<td><strong>❌ Block other device IDs</strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>NO</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>NO</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td></td>
+<td>CA – All Apps : Allow deviceID for AD Sync accounts</td>
+</tr>
+<tr>
+<td><strong>❌ Block unknow/other Operating Systems</strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>YES</strong></td>
+<td><strong>Block every OS except Windows</strong></td>
+<td></td>
+<td><strong>YES</strong></td>
+<td><strong>Block every OS except Windows</strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td></td>
+<td>CA – All Apps : Block unknown Operating Systems</td>
+</tr>
+<tr>
+<td><strong>❌ Block based on device Extension Attribute</strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>NO</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>YES</strong></td>
+<td><strong>Device Attribute 'XXX'</strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td></td>
+<td>CA – All Apps : Block all devices except Extension Attribute
+‘MeetingRoomDevices’</td>
+</tr>
+<tr>
+<td><strong>❌ Block based on device properties (device name,
+manufacturer, model, ...)</strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>NO</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td></td>
+<td>CA – All Apps : Only allow manufacturer X</td>
+</tr>
+<tr>
+<td><strong>❌ Block Old Operating Systems versions</strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>YES</strong></td>
+<td><strong>Block below version 10.0</strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td></td>
+<td>CA – All Apps : Block old Windows versions</td>
+</tr>
+<tr>
+<td><strong>❌ Block mobile Operating Systems (Android and
+iOS)</strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>NO</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td></td>
+<td>CA – All Apps: Block Android and iOS</td>
+</tr>
+<tr>
+<td><strong>✔️ Require App Protection Policy</strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>NO</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td></td>
+<td>CA – All Apps : Require App Protection Policies (Android + iOS)</td>
+</tr>
+<tr>
+<td><strong>❌ Block non-trusted IP (ranges)</strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>NO</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td></td>
+<td>CA – All Apps : Require trusted IP</td>
+</tr>
+<tr>
+<td><strong>❌ Block other countries</strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>NO</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td></td>
+<td>CA – All Apps : Allow USA and Europe</td>
+</tr>
+<tr>
+<td><strong>❌ Block access to other applications</strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>NO</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td></td>
+<td>CA – O365 : Allow access</td>
+</tr>
+<tr>
+<td><strong>✔️ Sign-in Frequency</strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>YES</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td></td>
+<td>CA – All Apps : Sign-in frequency 2 weeks</td>
+</tr>
+<tr>
+<td><strong>✔️ Token Protection (preview)</strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>YES</strong></td>
+<td><strong>Scoped on O365</strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td></td>
+<td>CA – O365 : Require Token Protection</td>
+</tr>
+<tr>
+<td><strong>❌ Block access from desktop apps</strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>NO</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td></td>
+<td>CA – O365 : Block desktop app</td>
+</tr>
+<tr>
+<td><strong>✔️ Apply Conditional Access App Control</strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>NO</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td></td>
+<td>CA – All Apps : CA App Controls</td>
+</tr>
+<tr>
+<td><strong>❌ Block legacy authentication clients</strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>YES</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td></td>
+<td>CA – All Apps : Block legacy authentication</td>
+</tr>
+<tr>
+<td><strong>❌ Block 'Device code' authentication flow</strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>YES</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td></td>
+<td>CA – All Apps : Block device code authentication</td>
+</tr>
+<tr>
+<td><strong>✔️ Take action on identity risk</strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>YES</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td></td>
+<td>CA – All Apps : Block for All Users when high sign-in risk</td>
+</tr>
+<tr>
+<td><strong>✔️ Require additional controls</strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>NO</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td></td>
+<td>CA – All Apps : Require addidional control</td>
+</tr>
+<tr>
+<td><strong>✔️ Restrict MFA registration (via TAP, exclude location /
+device)</strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>YES</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td></td>
+<td>CA – All Apps: Require trusted location on MFA registration</td>
+</tr>
+<tr>
+<td><strong>✔️ Require MFA when users join or register</strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>YES</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong>?</strong></td>
+<td><strong></strong></td>
+<td></td>
+<td></td>
+<td>CA – All Apps : Require MFA on device join</td>
+</tr>
+<tr>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td> YES : action applicable to persona</td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td> NO : action not applicable to persona</td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td> ? : TBD</td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><strong>Next steps:</strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td></td>
+<td></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong></strong></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>Now group these personas in Conditional Access policies based on
+their common actions. Then, add the personas to the policy. No need to
+create a seperate policy for each persona.</td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong></strong></td>
+<td><strong></strong></td>
+<td></td>
+<td><strong></strong></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+</body>
+</html>

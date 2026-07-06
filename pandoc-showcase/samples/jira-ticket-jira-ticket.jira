@@ -1,0 +1,11 @@
+h1. Import plan
+
+This is a Jira wiki markup page from a migration ticket.
+
+* Normalize headings
+* Keep links like [WordPress|https://wordpress.org/]
+* Emit block markup
+
+||Format||Status||
+|HTML|partial|
+|DOCX|partial|

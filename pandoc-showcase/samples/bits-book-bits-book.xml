@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<book xmlns:xlink="http://www.w3.org/1999/xlink" dtd-version="2.0">
+  <book-meta>
+    <book-title-group><book-title>BITS book fragment</book-title></book-title-group>
+  </book-meta>
+  <book-body>
+    <book-part>
+      <body>
+        <sec><title>Chapter section</title><p>BITS is a JATS-family book format.</p></sec>
+      </body>
+    </book-part>
+  </book-body>
+</book>

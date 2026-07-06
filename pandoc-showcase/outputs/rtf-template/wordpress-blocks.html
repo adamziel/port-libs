@@ -1,0 +1,19 @@
+<!-- wp:paragraph -->
+<p>$if(listtable)$$listtable$$endif$$for(header-includes)$$header-includes$$endfor$$if(title)$<strong>$title$</strong></p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>$endif$$for(author)$ $author$</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>$endfor$$if(date)$ $date$</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>$endif$$if(spacer)$</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>$endif$$if(toc)$$table-of-contents$$endif$$for(include-before)$$include-before$$endfor$$body$$for(include-after)$$include-after$$endfor$</p>
+<!-- /wp:paragraph -->

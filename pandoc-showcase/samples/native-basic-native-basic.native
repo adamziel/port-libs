@@ -1,0 +1,4 @@
+Pandoc (Meta {unMeta = fromList []})
+[ Header 1 ("native-sample",[],[]) [Str "Native",Space,Str "sample"]
+, Para [Str "Pandoc",Space,Str "native",Space,Str "format",Space,Str "fixture."]
+]
