@@ -257,6 +257,8 @@ RIS;
         'docx' => [
             upstream_sample('docx-headers', 'docx', 'test/docx/headers.docx', 'DOCX headers', 'WordprocessingML package from upstream Pandoc DOCX reader tests.'),
             upstream_sample('docx-tables', 'docx', 'test/docx/tables.docx', 'DOCX tables', 'DOCX table coverage from upstream Pandoc reader tests.'),
+            upstream_sample('docx-notes', 'docx', 'test/docx/notes.docx', 'DOCX footnotes and endnotes', 'DOCX notes fixture from upstream Pandoc reader tests.'),
+            upstream_sample('docx-inline-images', 'docx', 'test/docx/inline_images.docx', 'DOCX inline images', 'DOCX fixture with packaged image relationships from upstream Pandoc tests.'),
         ],
         'endnotexml' => [
             upstream_sample('endnotexml-reader', 'endnotexml', 'test/endnotexml-reader.xml', 'EndNote XML reader fixture', 'Bibliography XML fixture from upstream Pandoc tests.'),
@@ -265,6 +267,8 @@ RIS;
         'epub' => [
             upstream_sample('epub-wasteland', 'epub', 'test/epub/wasteland.epub', 'The Waste Land EPUB', 'EPUB book fixture from upstream Pandoc tests.'),
             upstream_sample('epub-features', 'epub', 'test/epub/features.epub', 'EPUB feature coverage', 'EPUB feature fixture from upstream Pandoc tests.'),
+            upstream_sample('epub-picture', 'epub', 'test/epub/epub2_picture.epub', 'EPUB 2 picture book', 'EPUB fixture with packaged image content from upstream Pandoc tests.'),
+            upstream_sample('epub-image', 'epub', 'test/epub/img.epub', 'EPUB image coverage', 'EPUB fixture focused on embedded image handling.'),
         ],
         'fb2' => [
             upstream_sample('fb2-basic', 'fb2', 'test/fb2/basic.fb2', 'FB2 basic book', 'FictionBook XML sample from upstream Pandoc tests.'),
@@ -361,6 +365,15 @@ RIS;
         'pdf' => [
             local_sample('pdf-wrapped-content', 'pdf', 'lanes/markerpdf/fixtures/wordpress-wrapped-content.pdf', 'Wrapped-content PDF fixture', 'Small PDF fixture from the local markerpdf lane used to exercise PDF text handoff.'),
             local_sample('pdf-import-content', 'pdf', 'lanes/markerpdf/fixtures/wordpress-import-content.pdf', 'Import-content PDF fixture', 'Second small PDF fixture from the local markerpdf lane.'),
+            [
+                'id' => 'pdf-tracemonkey',
+                'format' => 'pdf',
+                'label' => 'TraceMonkey technical PDF',
+                'description' => 'Larger multi-page public PDF fixture from Mozilla pdf.js tests; local extraction may be partial.',
+                'url' => 'https://raw.githubusercontent.com/mozilla/pdf.js/master/test/pdfs/tracemonkey.pdf',
+                'source' => 'mozilla/pdf.js test/pdfs/tracemonkey.pdf',
+                'filename' => 'tracemonkey.pdf',
+            ],
         ],
         'doc' => [
             [
@@ -513,6 +526,55 @@ function write_output_from_process(string $dir, string $name, string $sourcePath
 }
 
 /**
+ * @return array<string, int>
+ */
+function wordpress_block_counts(string $path): array
+{
+    if (!is_file($path)) {
+        return [];
+    }
+
+    $source = file_get_contents($path);
+    if (!is_string($source) || $source === '') {
+        return [];
+    }
+
+    preg_match_all('/<!--\s+wp:([A-Za-z0-9_\/-]+)/', $source, $matches);
+    $counts = [];
+    foreach ($matches[1] ?? [] as $name) {
+        $name = strtolower((string) $name);
+        $counts[$name] = ($counts[$name] ?? 0) + 1;
+    }
+    ksort($counts);
+
+    return $counts;
+}
+
+/**
+ * @param list<array<string, mixed>> $records
+ * @return array{totals: array<string, int>, sampleCount:int}
+ */
+function aggregate_wordpress_block_counts(array $records): array
+{
+    $totals = [];
+    $sampleCount = 0;
+    foreach ($records as $record) {
+        $counts = $record['wpBlockCounts'] ?? [];
+        if (!is_array($counts) || $counts === []) {
+            continue;
+        }
+        $sampleCount++;
+        foreach ($counts as $name => $count) {
+            $name = (string) $name;
+            $totals[$name] = ($totals[$name] ?? 0) + (int) $count;
+        }
+    }
+    ksort($totals);
+
+    return ['totals' => $totals, 'sampleCount' => $sampleCount];
+}
+
+/**
  * @return array{ok:bool, path?:string, error?:string}
  */
 function run_haskell_pandoc(string $path, string $format, string $dir): array
@@ -625,6 +687,9 @@ foreach ($samples as $sample) {
     $haskell = is_file($target) ? run_haskell_pandoc($target, $format, $outDir) : ['ok' => false, 'error' => $downloadError ?? 'missing source file'];
     $phpHtml = is_file($target) ? write_output_from_process($outDir, 'php.html', $target, $format, 'html') : ['ok' => false, 'error' => $downloadError ?? 'missing source file'];
     $wpBlocks = is_file($target) ? write_output_from_process($outDir, 'wordpress-blocks.html', $target, $format, 'wordpress') : ['ok' => false, 'error' => $downloadError ?? 'missing source file'];
+    $wpBlockCounts = (($wpBlocks['ok'] ?? false) === true && isset($wpBlocks['path']))
+        ? wordpress_block_counts($siteDir . '/' . $wpBlocks['path'])
+        : [];
     $preview = is_file($target) ? sample_preview_html($target) : '';
 
     $records[] = [
@@ -641,12 +706,14 @@ foreach ($samples as $sample) {
         'haskell' => $haskell,
         'phpHtml' => $phpHtml,
         'wpBlocks' => $wpBlocks,
+        'wpBlockCounts' => $wpBlockCounts,
     ];
 }
 
 $coveredFormats = array_values(array_unique(array_map(fn (array $record): string => $record['format'], $records)));
 sort($coveredFormats);
 $missingFormats = array_values(array_diff($formats, $coveredFormats));
+$blockUsage = aggregate_wordpress_block_counts($records);
 
 file_put_contents($siteDir . '/manifest.json', json_encode([
     'generatedAt' => gmdate('c'),
@@ -654,6 +721,7 @@ file_put_contents($siteDir . '/manifest.json', json_encode([
     'formats' => $formats,
     'coveredFormats' => $coveredFormats,
     'missingFormats' => $missingFormats,
+    'blockUsage' => $blockUsage,
     'records' => $records,
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
 
@@ -727,9 +795,65 @@ h1 {
   font-size: 24px;
   line-height: 1.1;
 }
+.hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 20px;
+}
+.hero-actions a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 6px 12px;
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--ink);
+  text-decoration: none;
+}
 .layout {
   width: min(1180px, calc(100% - 32px));
   margin: 24px auto 64px;
+}
+.content-page {
+  width: min(1040px, calc(100% - 32px));
+  margin: 28px auto 64px;
+}
+.content-page section {
+  margin-top: 28px;
+}
+.content-page h2 {
+  margin: 0 0 10px;
+  font-size: 26px;
+}
+.content-page p {
+  max-width: 820px;
+}
+.usage-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #fff;
+  border: 1px solid var(--line);
+}
+.usage-table th,
+.usage-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  vertical-align: top;
+}
+.usage-table th {
+  background: #fbfcfd;
+  font-size: 13px;
+}
+.usage-table td:first-child {
+  white-space: nowrap;
+}
+.content-page code,
+.usage-table code {
+  font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  background: #eef1f5;
+  padding: 1px 4px;
 }
 .format-nav {
   display: flex;
@@ -951,7 +1075,7 @@ $html .= '<div class="stat"><strong>' . count($coveredFormats) . '</strong><span
 $html .= '<div class="stat"><strong>' . count($records) . '</strong><span>source files</span></div>';
 $html .= '<div class="stat"><strong>' . $successCount . '/' . $totalConversions . '</strong><span>successful conversions</span></div>';
 $html .= '<div class="stat"><strong>' . gmdate('Y-m-d') . '</strong><span>generated</span></div>';
-$html .= '</div></div></header><main class="layout">';
+$html .= '</div><div class="hero-actions"><a href="block-usage.html">WordPress block usage guide</a><a href="manifest.json">Manifest JSON</a></div></div></header><main class="layout">';
 $html .= '<nav class="format-nav" aria-label="Formats">';
 foreach (array_keys($byFormat) as $format) {
     $html .= '<a href="#format-' . h($format) . '">' . h($format) . '</a>';
@@ -1021,6 +1145,143 @@ foreach ($byFormat as $format => $formatRecords) {
 $html .= '</main><script src="showcase.js"></script></body></html>';
 
 file_put_contents($siteDir . '/index.html', $html);
+
+$knownBlockRows = [
+    'group' => [
+        'name' => 'core/group',
+        'used' => 'Pandoc Div containers, metadata review wrappers, mixed figures, definition-list wrappers, list headers, and generated footnotes.',
+        'markup' => '<!-- wp:group --> with a <div class="wp-block-group ..."> wrapper and nested core blocks.',
+        'fallback' => 'Used when a source structure is a container rather than a single paragraph/list/table/image block.',
+    ],
+    'paragraph' => [
+        'name' => 'core/paragraph',
+        'used' => 'Pandoc paragraphs, plain text blocks, generated figure captions, definition terms, and inline-only fallback content.',
+        'markup' => '<!-- wp:paragraph --> with <p> content.',
+        'fallback' => 'Inline formats stay inside the paragraph as WordPress-rich-text-compatible HTML tags.',
+    ],
+    'heading' => [
+        'name' => 'core/heading',
+        'used' => 'Pandoc headings and headings nested inside group-rendered containers.',
+        'markup' => '<!-- wp:heading {"level":N} --> with <hN> content.',
+        'fallback' => 'Heading levels are clamped by the reader before this writer sees them.',
+    ],
+    'list' => [
+        'name' => 'core/list',
+        'used' => 'Bullet lists, ordered lists, task lists, metadata entries, definition values, and footnote lists.',
+        'markup' => '<!-- wp:list --> or <!-- wp:list {"ordered":true} --> with <ul>/<ol>.',
+        'fallback' => 'Definition lists use editable list blocks because WordPress core has no definition-list block.',
+    ],
+    'table' => [
+        'name' => 'core/table',
+        'used' => 'Pandoc tables, including captions, column metadata, row spans, and cell attributes where available.',
+        'markup' => '<!-- wp:table --> with a <figure class="wp-block-table"><table>...</table></figure> body.',
+        'fallback' => 'Table internals remain HTML because that is how the core table block stores rows and cells.',
+    ],
+    'image' => [
+        'name' => 'core/image',
+        'used' => 'Image-only paragraphs and figures where the figure can be represented as one image plus optional caption.',
+        'markup' => '<!-- wp:image --> with <figure class="wp-block-image">.',
+        'fallback' => 'Figures with mixed child blocks become core/group so their children remain editable.',
+    ],
+    'quote' => [
+        'name' => 'core/quote',
+        'used' => 'Pandoc block quotes.',
+        'markup' => '<!-- wp:quote --> with <blockquote class="wp-block-quote">.',
+        'fallback' => 'Nested content is serialized as standard HTML inside the quote body, matching core quote storage.',
+    ],
+    'verse' => [
+        'name' => 'core/verse',
+        'used' => 'Pandoc line blocks, poetry-style text, and line-sensitive extracted content.',
+        'markup' => '<!-- wp:verse --> with <pre class="wp-block-verse">.',
+        'fallback' => 'Used instead of a paragraph with manual <br> tags when the source is a Pandoc LineBlock.',
+    ],
+    'code' => [
+        'name' => 'core/code',
+        'used' => 'Code blocks, raw TeX blocks, and raw non-HTML format blocks.',
+        'markup' => '<!-- wp:code --> with <pre class="wp-block-code"><code>.',
+        'fallback' => 'Highlighted code can become Custom HTML because the highlighter emits styled HTML.',
+    ],
+    'separator' => [
+        'name' => 'core/separator',
+        'used' => 'Pandoc horizontal rules.',
+        'markup' => '<!-- wp:separator --> with <hr class="wp-block-separator ..."/>.',
+        'fallback' => 'No fallback is normally needed.',
+    ],
+    'html' => [
+        'name' => 'core/html',
+        'used' => 'Explicit source raw HTML, HTML raw-format blocks, highlighted code output, and last-resort unknown block fallback.',
+        'markup' => '<!-- wp:html --> with the original or generated HTML.',
+        'fallback' => 'This is intentionally kept for source HTML where converting to another block would change meaning.',
+    ],
+    'syntaxhighlighter/code' => [
+        'name' => 'syntaxhighlighter/code',
+        'used' => 'Optional SyntaxHighlighter plugin output when that writer option is enabled.',
+        'markup' => '<!-- wp:syntaxhighlighter/code -->.',
+        'fallback' => 'The showcase does not enable this option by default.',
+    ],
+];
+
+$guideRows = [];
+$seenBlocks = [];
+foreach ($knownBlockRows as $marker => $info) {
+    $count = (int) ($blockUsage['totals'][$marker] ?? 0);
+    $guideRows[] = ['marker' => $marker, 'count' => $count] + $info;
+    $seenBlocks[$marker] = true;
+}
+foreach ($blockUsage['totals'] as $marker => $count) {
+    if (isset($seenBlocks[$marker])) {
+        continue;
+    }
+    $guideRows[] = [
+        'marker' => (string) $marker,
+        'name' => (string) $marker,
+        'used' => 'Block marker found in generated WordPress output.',
+        'markup' => '<!-- wp:' . (string) $marker . ' -->.',
+        'fallback' => 'Not part of the hand-authored guide table; inspect the sample source for context.',
+        'count' => (int) $count,
+    ];
+}
+
+$guide = '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">';
+$guide .= '<title>WordPress Block Usage Guide</title><link rel="stylesheet" href="styles.css"></head><body>';
+$guide .= '<header class="hero"><div class="hero-inner"><p class="eyebrow">Pandoc PHP port</p><h1>WordPress block usage guide</h1>';
+$guide .= '<p class="lede">The WordPress writer prefers core blocks for structures WordPress can edit directly. It keeps Custom HTML for explicit raw HTML and narrow cases where changing the block type would lose source meaning.</p>';
+$guide .= '<div class="stats">';
+$guide .= '<div class="stat"><strong>' . array_sum($blockUsage['totals']) . '</strong><span>block instances</span></div>';
+$guide .= '<div class="stat"><strong>' . count($blockUsage['totals']) . '</strong><span>block types emitted</span></div>';
+$guide .= '<div class="stat"><strong>' . (int) $blockUsage['sampleCount'] . '</strong><span>successful WP samples counted</span></div>';
+$guide .= '</div><div class="hero-actions"><a href="index.html">Showcase</a><a href="manifest.json">Manifest JSON</a></div></div></header>';
+$guide .= '<main class="content-page">';
+$guide .= '<section><h2>Block Selection</h2><table class="usage-table"><thead><tr><th>Block</th><th>Count</th><th>Used when</th><th>Serialized as</th><th>Fallback rule</th></tr></thead><tbody>';
+foreach ($guideRows as $row) {
+    $guide .= '<tr><td><code>' . h((string) $row['name']) . '</code><br><span class="meta">wp:' . h((string) $row['marker']) . '</span></td>'
+        . '<td>' . (int) $row['count'] . '</td>'
+        . '<td>' . h((string) $row['used']) . '</td>'
+        . '<td>' . h((string) $row['markup']) . '</td>'
+        . '<td>' . h((string) $row['fallback']) . '</td></tr>';
+}
+$guide .= '</tbody></table></section>';
+$guide .= '<section><h2>Inline Formats</h2><p>Inline Pandoc nodes stay inside editable core blocks whenever the surrounding block is editable. WordPress stores these formats as HTML inside rich text fields.</p>';
+$guide .= '<table class="usage-table"><thead><tr><th>Pandoc inline</th><th>WordPress-rich-text markup</th></tr></thead><tbody>';
+foreach ([
+    'Strong' => '<strong>...</strong>',
+    'Emph' => '<em>...</em>',
+    'Code' => '<code>...</code>',
+    'Link' => '<a href="...">...</a>',
+    'Strikeout' => '<del>...</del>',
+    'Underline' => '<u>...</u>',
+    'Superscript / Subscript' => '<sup>...</sup> / <sub>...</sub>',
+    'LineBreak' => '<br/>',
+    'SmallCaps' => '<span style="font-variant:small-caps">...</span>',
+    'Note' => 'An inline backlink reference plus a generated footnotes group/list at the end.',
+] as $inline => $markup) {
+    $guide .= '<tr><td>' . h($inline) . '</td><td><code>' . h($markup) . '</code></td></tr>';
+}
+$guide .= '</tbody></table></section>';
+$guide .= '<section><h2>Custom HTML Boundaries</h2><p><code>core/html</code> is still used deliberately for raw HTML input, raw HTML format blocks, and highlighter output. Those are source-authored or generated HTML fragments where converting to another block would be less faithful.</p></section>';
+$guide .= '</main></body></html>';
+
+file_put_contents($siteDir . '/block-usage.html', $guide);
 
 echo 'Generated pandoc-showcase with ' . count($records) . ' samples across ' . count($coveredFormats) . " formats.\n";
 if ($missingFormats !== []) {

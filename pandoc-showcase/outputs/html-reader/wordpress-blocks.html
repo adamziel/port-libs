@@ -203,7 +203,7 @@ These should not be escaped:  \$ \\ \&gt; \[ \{</code></pre>
 <!-- /wp:paragraph -->
 
 <!-- wp:list -->
-<ul><li><p>asterisk 1</p></li><li><p>asterisk 2</p></li><li><p>asterisk 3</p></li></ul>
+<ul><li>asterisk 1</li><li>asterisk 2</li><li>asterisk 3</li></ul>
 <!-- /wp:list -->
 
 <!-- wp:paragraph -->
@@ -219,7 +219,7 @@ These should not be escaped:  \$ \\ \&gt; \[ \{</code></pre>
 <!-- /wp:paragraph -->
 
 <!-- wp:list -->
-<ul><li><p>Plus 1</p></li><li><p>Plus 2</p></li><li><p>Plus 3</p></li></ul>
+<ul><li>Plus 1</li><li>Plus 2</li><li>Plus 3</li></ul>
 <!-- /wp:list -->
 
 <!-- wp:paragraph -->
@@ -235,7 +235,7 @@ These should not be escaped:  \$ \\ \&gt; \[ \{</code></pre>
 <!-- /wp:paragraph -->
 
 <!-- wp:list -->
-<ul><li><p>Minus 1</p></li><li><p>Minus 2</p></li><li><p>Minus 3</p></li></ul>
+<ul><li>Minus 1</li><li>Minus 2</li><li>Minus 3</li></ul>
 <!-- /wp:list -->
 
 <!-- wp:heading {"level":2} -->
@@ -263,7 +263,7 @@ These should not be escaped:  \$ \\ \&gt; \[ \{</code></pre>
 <!-- /wp:paragraph -->
 
 <!-- wp:list {"ordered":true} -->
-<ol><li><p>First</p></li><li><p>Second</p></li><li><p>Third</p></li></ol>
+<ol><li>First</li><li>Second</li><li>Third</li></ol>
 <!-- /wp:list -->
 
 <!-- wp:paragraph -->
@@ -271,7 +271,7 @@ These should not be escaped:  \$ \\ \&gt; \[ \{</code></pre>
 <!-- /wp:paragraph -->
 
 <!-- wp:list {"ordered":true} -->
-<ol><li><p>One</p></li><li><p>Two</p></li><li><p>Three</p></li></ol>
+<ol><li>One</li><li>Two</li><li>Three</li></ol>
 <!-- /wp:list -->
 
 <!-- wp:paragraph -->
@@ -279,7 +279,7 @@ These should not be escaped:  \$ \\ \&gt; \[ \{</code></pre>
 <!-- /wp:paragraph -->
 
 <!-- wp:list {"ordered":true} -->
-<ol><li><p>Item 1, graf one.</p><p>Item 1. graf two. The quick brown fox jumped over the lazy dog&#039;s back.</p></li><li><p>Item 2.</p></li><li><p>Item 3.</p></li></ol>
+<ol><li><p>Item 1, graf one.</p><p>Item 1. graf two. The quick brown fox jumped over the lazy dog&#039;s back.</p></li><li>Item 2.</li><li>Item 3.</li></ol>
 <!-- /wp:list -->
 
 <!-- wp:paragraph -->
@@ -331,7 +331,7 @@ These should not be escaped:  \$ \\ \&gt; \[ \{</code></pre>
 <!-- /wp:paragraph -->
 
 <!-- wp:list {"ordered":true} -->
-<ol><li><p>First</p></li><li><p>Second:</p><ul><li>Fee</li><li>Fie</li><li>Foe</li></ul></li><li><p>Third</p></li></ol>
+<ol><li>First</li><li>Second:<ul><li>Fee</li><li>Fie</li><li>Foe</li></ul></li><li>Third</li></ol>
 <!-- /wp:list -->
 
 <!-- wp:heading {"level":2} -->
@@ -339,7 +339,7 @@ These should not be escaped:  \$ \\ \&gt; \[ \{</code></pre>
 <!-- /wp:heading -->
 
 <!-- wp:list -->
-<ul><li><p>this is a list item indented with tabs</p></li><li><p>this is a list item indented with spaces</p><ul><li><p>this is an example list item indented with tabs</p></li><li><p>this is an example list item indented with spaces</p></li></ul></li></ul>
+<ul><li>this is a list item indented with tabs</li><li>this is a list item indented with spaces<ul><li>this is an example list item indented with tabs</li><li>this is an example list item indented with spaces</li></ul></li></ul>
 <!-- /wp:list -->
 
 <!-- wp:heading {"level":2} -->
@@ -374,9 +374,25 @@ These should not be escaped:  \$ \\ \&gt; \[ \{</code></pre>
 <h2 id="definition">Definition</h2>
 <!-- /wp:heading -->
 
-<!-- wp:html -->
-<dl><dt>Violin</dt><dd>Stringed musical instrument.</dd><dd>Torture device.</dd><dt>Cello<br/>Violoncello</dt><dd>Low-voiced stringed instrument.</dd></dl>
-<!-- /wp:html -->
+<!-- wp:group -->
+<div class="wp-block-group pandoc-definition-list">
+<!-- wp:paragraph -->
+<p class="pandoc-definition-term"><strong>Violin</strong></p>
+<!-- /wp:paragraph -->
+
+<!-- wp:list -->
+<ul class="pandoc-definition-values"><li>Stringed musical instrument.</li><li>Torture device.</li></ul>
+<!-- /wp:list -->
+
+<!-- wp:paragraph -->
+<p class="pandoc-definition-term"><strong>Cello<br/>Violoncello</strong></p>
+<!-- /wp:paragraph -->
+
+<!-- wp:list -->
+<ul class="pandoc-definition-values"><li>Low-voiced stringed instrument.</li></ul>
+<!-- /wp:list -->
+</div>
+<!-- /wp:group -->
 
 <!-- wp:separator -->
 <hr class="wp-block-separator has-alpha-channel-opacity"/>
@@ -395,7 +411,7 @@ These should not be escaped:  \$ \\ \&gt; \[ \{</code></pre>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p>Empty <strong></strong> and <em></em>. </p>
+<p>Empty <strong></strong> and <em></em>.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
@@ -759,7 +775,7 @@ These should not be escaped:  \$ \\ \&gt; \[ \{</code></pre>
 <!-- /wp:paragraph -->
 
 <!-- wp:image -->
-<figure class="wp-block-image"><img src="lalune.jpg" alt="lalune" title="Voyage dans la Lune"/><figcaption>lalune</figcaption></figure>
+<figure class="wp-block-image"><img src="lalune.jpg" alt="lalune" title="Voyage dans la Lune"/></figure>
 <!-- /wp:image -->
 
 <!-- wp:paragraph -->
@@ -823,7 +839,7 @@ These should not be escaped:  \$ \\ \&gt; \[ \{</code></pre>
 <!-- /wp:heading -->
 
 <!-- wp:table -->
-<figure class="wp-block-table"><table><colgroup><col style="width:33.3333%"/><col style="width:33.3333%"/><col style="width:33.3333%"/></colgroup><thead><tr><th>X</th><th>Y</th><th>Z</th></tr></thead><tbody><tr><td>1</td><td>2</td><td>3</td></tr><tr><td>4</td><td>5</td><td>6</td></tr></tbody></table></figure>
+<figure class="wp-block-table"><table><thead><tr><th>X</th><th>Y</th><th>Z</th></tr></thead><tbody><tr><td>1</td><td>2</td><td>3</td></tr><tr><td>4</td><td>5</td><td>6</td></tr></tbody></table></figure>
 <!-- /wp:table -->
 
 <!-- wp:separator -->
@@ -831,7 +847,7 @@ These should not be escaped:  \$ \\ \&gt; \[ \{</code></pre>
 <!-- /wp:separator -->
 
 <!-- wp:table -->
-<figure class="wp-block-table"><table><colgroup><col style="width:33.3333%"/><col style="width:33.3333%"/><col style="width:33.3333%"/></colgroup><thead><tr><th>X</th><th>Y</th><th>Z</th></tr></thead><tbody><tr><td>1</td><td>2</td><td>3</td></tr><tr><td>4</td><td>5</td><td>6</td></tr></tbody></table></figure>
+<figure class="wp-block-table"><table><thead><tr><th>X</th><th>Y</th><th>Z</th></tr></thead><tbody><tr><td>1</td><td>2</td><td>3</td></tr><tr><td>4</td><td>5</td><td>6</td></tr></tbody></table></figure>
 <!-- /wp:table -->
 
 <!-- wp:separator -->
@@ -843,7 +859,7 @@ These should not be escaped:  \$ \\ \&gt; \[ \{</code></pre>
 <!-- /wp:paragraph -->
 
 <!-- wp:table -->
-<figure class="wp-block-table"><table><colgroup><col style="width:33.3333%"/><col style="width:33.3333%"/><col style="width:33.3333%"/></colgroup><thead><tr><th>X</th><th>Y</th><th>Z</th></tr></thead><tbody><tr><th>1</th><td>2</td><td>3</td></tr><tr><th>4</th><td>5</td><td>6</td></tr></tbody></table></figure>
+<figure class="wp-block-table"><table><thead><tr><th>X</th><th>Y</th><th>Z</th></tr></thead><tbody><tr><th>1</th><td>2</td><td>3</td></tr><tr><th>4</th><td>5</td><td>6</td></tr></tbody></table></figure>
 <!-- /wp:table -->
 
 <!-- wp:separator -->
@@ -851,7 +867,7 @@ These should not be escaped:  \$ \\ \&gt; \[ \{</code></pre>
 <!-- /wp:separator -->
 
 <!-- wp:table -->
-<figure class="wp-block-table"><table><colgroup><col style="width:33.3333%"/><col style="width:33.3333%"/><col style="width:33.3333%"/></colgroup><thead><tr><th>X</th><th>Y</th><th>Z</th></tr></thead><tbody><tr><th>1</th><td>2</td><td>3</td></tr><tr><td colspan="3">Details</td></tr></tbody><tfoot><tr><th>4</th><td>5</td><td>6</td></tr></tfoot></table></figure>
+<figure class="wp-block-table"><table><thead><tr><th>X</th><th>Y</th><th>Z</th></tr></thead><tbody><tr><th>1</th><td>2</td><td>3</td></tr><tr><td colspan="3">Details</td></tr></tbody><tfoot><tr><th>4</th><td>5</td><td>6</td></tr></tfoot></table></figure>
 <!-- /wp:table -->
 
 <!-- wp:separator -->
@@ -859,7 +875,7 @@ These should not be escaped:  \$ \\ \&gt; \[ \{</code></pre>
 <!-- /wp:separator -->
 
 <!-- wp:table -->
-<figure class="wp-block-table"><table><colgroup><col style="width:33.3333%"/><col style="width:33.3333%"/><col style="width:33.3333%"/></colgroup><tbody><tr><th>X</th><th>Y</th><th>Z</th></tr><tr><td>1</td><td>2</td><td>3</td></tr><tr><td colspan="3">Details</td></tr></tbody><tfoot><tr><th>4</th><td>5</td><td>6</td></tr></tfoot></table></figure>
+<figure class="wp-block-table"><table><tbody><tr><th>X</th><th>Y</th><th>Z</th></tr><tr><td>1</td><td>2</td><td>3</td></tr><tr><td colspan="3">Details</td></tr></tbody><tfoot><tr><th>4</th><td>5</td><td>6</td></tr></tfoot></table></figure>
 <!-- /wp:table -->
 
 <!-- wp:separator -->
@@ -867,7 +883,7 @@ These should not be escaped:  \$ \\ \&gt; \[ \{</code></pre>
 <!-- /wp:separator -->
 
 <!-- wp:table -->
-<figure class="wp-block-table"><table><colgroup><col style="width:33.3333%"/><col style="width:33.3333%"/><col style="width:33.3333%"/></colgroup><thead><tr><th>X</th><th>Y</th><th>Z</th></tr></thead><tbody><tr><th>1</th><th>2</th><th>3</th></tr><tr><td>4</td><td>5</td><td>6</td></tr></tbody></table></figure>
+<figure class="wp-block-table"><table><thead><tr><th>X</th><th>Y</th><th>Z</th></tr></thead><tbody><tr><th>1</th><th>2</th><th>3</th></tr><tr><td>4</td><td>5</td><td>6</td></tr></tbody></table></figure>
 <!-- /wp:table -->
 
 <!-- wp:separator -->
@@ -875,7 +891,7 @@ These should not be escaped:  \$ \\ \&gt; \[ \{</code></pre>
 <!-- /wp:separator -->
 
 <!-- wp:table -->
-<figure class="wp-block-table"><table><colgroup><col style="width:33.3333%"/><col style="width:33.3333%"/><col style="width:33.3333%"/></colgroup><tbody><tr><th>X</th><th>Y</th><th>Z</th></tr><tr><td>1</td><td>2</td><td>3</td></tr><tr><td>4</td><td>5</td><td>6</td></tr></tbody></table></figure>
+<figure class="wp-block-table"><table><tbody><tr><th>X</th><th>Y</th><th>Z</th></tr><tr><td>1</td><td>2</td><td>3</td></tr><tr><td>4</td><td>5</td><td>6</td></tr></tbody></table></figure>
 <!-- /wp:table -->
 
 <!-- wp:separator -->
@@ -883,7 +899,7 @@ These should not be escaped:  \$ \\ \&gt; \[ \{</code></pre>
 <!-- /wp:separator -->
 
 <!-- wp:table -->
-<figure class="wp-block-table"><table><colgroup><col style="width:33.3333%"/><col style="width:33.3333%"/><col style="width:33.3333%"/></colgroup><tbody><tr><th>X</th><th>Y</th><th>Z</th></tr><tr><td>1</td><td>2</td><td>3</td></tr><tr><td>4</td><td>5</td><td>6</td></tr></tbody></table></figure>
+<figure class="wp-block-table"><table><tbody><tr><th>X</th><th>Y</th><th>Z</th></tr><tr><td>1</td><td>2</td><td>3</td></tr><tr><td>4</td><td>5</td><td>6</td></tr></tbody></table></figure>
 <!-- /wp:table -->
 
 <!-- wp:separator -->
@@ -891,7 +907,7 @@ These should not be escaped:  \$ \\ \&gt; \[ \{</code></pre>
 <!-- /wp:separator -->
 
 <!-- wp:table -->
-<figure class="wp-block-table"><table><colgroup><col style="width:33.3333%"/><col style="width:33.3333%"/><col style="width:33.3333%"/></colgroup><thead><tr><th>X</th><th>Y</th><th>Z</th></tr></thead><tbody><tr><td>1</td><td>2</td><td>3</td></tr></tbody><tbody><tr><td>4</td><td>5</td><td>6</td></tr></tbody></table></figure>
+<figure class="wp-block-table"><table><thead><tr><th>X</th><th>Y</th><th>Z</th></tr></thead><tbody><tr><td>1</td><td>2</td><td>3</td></tr></tbody><tbody><tr><td>4</td><td>5</td><td>6</td></tr></tbody></table></figure>
 <!-- /wp:table -->
 
 <!-- wp:separator -->
@@ -899,7 +915,7 @@ These should not be escaped:  \$ \\ \&gt; \[ \{</code></pre>
 <!-- /wp:separator -->
 
 <!-- wp:table -->
-<figure class="wp-block-table"><table><colgroup><col style="width:33.3333%"/><col style="width:33.3333%"/><col style="width:33.3333%"/></colgroup><thead><tr><th>X</th><th>Y</th><th>Z</th></tr></thead><tbody><tr><td>1</td><td><p>2</p></td><td>3</td></tr></tbody><tbody><tr><td>4</td><td>5</td><td>6</td></tr></tbody></table></figure>
+<figure class="wp-block-table"><table><thead><tr><th>X</th><th>Y</th><th>Z</th></tr></thead><tbody><tr><td>1</td><td><p>2</p></td><td>3</td></tr></tbody><tbody><tr><td>4</td><td>5</td><td>6</td></tr></tbody></table></figure>
 <!-- /wp:table -->
 
 <!-- wp:heading {"level":2} -->
@@ -907,7 +923,7 @@ These should not be escaped:  \$ \\ \&gt; \[ \{</code></pre>
 <!-- /wp:heading -->
 
 <!-- wp:table -->
-<figure class="wp-block-table"><table><colgroup><col style="width:33.3333%"/><col style="width:33.3333%"/><col style="width:33.3333%"/></colgroup><tbody><tr><td>1</td><td>2</td><td>3</td></tr><tr><td>4</td><td>5</td><td>6</td></tr></tbody></table></figure>
+<figure class="wp-block-table"><table><tbody><tr><td>1</td><td>2</td><td>3</td></tr><tr><td>4</td><td>5</td><td>6</td></tr></tbody></table></figure>
 <!-- /wp:table -->
 
 <!-- wp:separator -->
@@ -919,7 +935,7 @@ These should not be escaped:  \$ \\ \&gt; \[ \{</code></pre>
 <!-- /wp:paragraph -->
 
 <!-- wp:table -->
-<figure class="wp-block-table"><table><colgroup><col style="width:33.3333%"/><col style="width:33.3333%"/><col style="width:33.3333%"/></colgroup><tbody><tr><td>1</td><td>2</td><td>3</td></tr><tr><td>4</td><td>5</td><td>6</td></tr></tbody></table></figure>
+<figure class="wp-block-table"><table><tbody><tr><td>1</td><td>2</td><td>3</td></tr><tr><td>4</td><td>5</td><td>6</td></tr></tbody></table></figure>
 <!-- /wp:table -->
 
 <!-- wp:separator -->
@@ -931,7 +947,7 @@ These should not be escaped:  \$ \\ \&gt; \[ \{</code></pre>
 <!-- /wp:paragraph -->
 
 <!-- wp:table -->
-<figure class="wp-block-table"><table><colgroup><col style="width:33.3333%"/><col style="width:33.3333%"/><col style="width:33.3333%"/></colgroup><tbody><tr><td>1</td><td>2</td><td>3</td></tr><tr><td>4</td><td>5</td><td>6</td></tr></tbody></table></figure>
+<figure class="wp-block-table"><table><tbody><tr><td>1</td><td>2</td><td>3</td></tr><tr><td>4</td><td>5</td><td>6</td></tr></tbody></table></figure>
 <!-- /wp:table -->
 
 <!-- wp:separator -->
@@ -943,7 +959,7 @@ These should not be escaped:  \$ \\ \&gt; \[ \{</code></pre>
 <!-- /wp:paragraph -->
 
 <!-- wp:table -->
-<figure class="wp-block-table"><table><colgroup><col style="width:33.3333%"/><col style="width:33.3333%"/><col style="width:33.3333%"/></colgroup><tbody><tr><td>1</td><td>2</td><td>3</td></tr></tbody><tfoot><tr><td>4</td><td>5</td><td>6</td></tr></tfoot></table></figure>
+<figure class="wp-block-table"><table><tbody><tr><td>1</td><td>2</td><td>3</td></tr></tbody><tfoot><tr><td>4</td><td>5</td><td>6</td></tr></tfoot></table></figure>
 <!-- /wp:table -->
 
 <!-- wp:heading {"level":2} -->
@@ -951,7 +967,7 @@ These should not be escaped:  \$ \\ \&gt; \[ \{</code></pre>
 <!-- /wp:heading -->
 
 <!-- wp:table -->
-<figure class="wp-block-table"><table><colgroup><col style="width:33.3333%"/><col style="width:33.3333%"/><col style="width:33.3333%"/></colgroup><tbody><tr><td colspan="2">1 and 2</td><td>3</td></tr><tr><td colspan="3">4, 5, and 6</td></tr></tbody></table></figure>
+<figure class="wp-block-table"><table><tbody><tr><td colspan="2">1 and 2</td><td>3</td></tr><tr><td colspan="3">4, 5, and 6</td></tr></tbody></table></figure>
 <!-- /wp:table -->
 
 <!-- wp:separator -->
@@ -959,7 +975,7 @@ These should not be escaped:  \$ \\ \&gt; \[ \{</code></pre>
 <!-- /wp:separator -->
 
 <!-- wp:table -->
-<figure class="wp-block-table"><table><colgroup><col style="width:33.3333%"/><col style="width:33.3333%"/><col style="width:33.3333%"/></colgroup><thead><tr><th colspan="3">Numbers</th></tr></thead><tbody><tr><td rowspan="2">1 and 4</td><td>2</td><td>3</td></tr><tr><td>5</td><td>6</td></tr></tbody></table></figure>
+<figure class="wp-block-table"><table><thead><tr><th colspan="3">Numbers</th></tr></thead><tbody><tr><td rowspan="2">1 and 4</td><td>2</td><td>3</td></tr><tr><td>5</td><td>6</td></tr></tbody></table></figure>
 <!-- /wp:table -->
 
 <!-- wp:heading {"level":2} -->
@@ -967,7 +983,7 @@ These should not be escaped:  \$ \\ \&gt; \[ \{</code></pre>
 <!-- /wp:heading -->
 
 <!-- wp:table -->
-<figure class="wp-block-table"><table id="attrib-test-table"><colgroup><col style="width:33.3333%"/><col style="width:33.3333%"/><col style="width:33.3333%"/></colgroup><thead class="table-head"><tr class="table-head-row"><th abbr="x" colspan="3">Cat X</th></tr></thead><tbody class="main" data-part="body"><tr data-part="row"><td data-part="cell">1</td><td valign="bottom">2</td><td style="color: #151950">3</td></tr></tbody><tfoot class="summary"><tr bgcolor="#ccc"><td data-square="true">4</td><td>5</td><td>6</td></tr></tfoot></table></figure>
+<figure class="wp-block-table"><table id="attrib-test-table"><thead class="table-head"><tr class="table-head-row"><th abbr="x" colspan="3">Cat X</th></tr></thead><tbody class="main" data-part="body"><tr data-part="row"><td data-part="cell">1</td><td valign="bottom">2</td><td style="color: #151950">3</td></tr></tbody><tfoot class="summary"><tr bgcolor="#ccc"><td data-square="true">4</td><td>5</td><td>6</td></tr></tfoot></table></figure>
 <!-- /wp:table -->
 
 <!-- wp:heading {"level":2} -->
@@ -979,7 +995,7 @@ These should not be escaped:  \$ \\ \&gt; \[ \{</code></pre>
 <!-- /wp:paragraph -->
 
 <!-- wp:table -->
-<figure class="wp-block-table"><table><colgroup><col style="width:33.3333%"/><col style="width:33.3333%"/><col style="width:33.3333%"/></colgroup><thead><tr><th>X</th><th>Y</th><th>Z</th></tr></thead><tbody><tr><td>1</td><td>2</td><td>3</td></tr></tbody><tfoot><tr><td>4</td><td>5</td><td>6</td></tr></tfoot></table></figure>
+<figure class="wp-block-table"><table><thead><tr><th>X</th><th>Y</th><th>Z</th></tr></thead><tbody><tr><td>1</td><td>2</td><td>3</td></tr></tbody><tfoot><tr><td>4</td><td>5</td><td>6</td></tr></tfoot></table></figure>
 <!-- /wp:table -->
 
 <!-- wp:heading {"level":2} -->
@@ -989,11 +1005,3 @@ These should not be escaped:  \$ \\ \&gt; \[ \{</code></pre>
 <!-- wp:paragraph -->
 <p>This section should be empty.</p>
 <!-- /wp:paragraph -->
-
-<!-- wp:table -->
-<figure class="wp-block-table"><table><tbody></tbody></table></figure>
-<!-- /wp:table -->
-
-<!-- wp:table -->
-<figure class="wp-block-table"><table><tbody></tbody></table></figure>
-<!-- /wp:table -->

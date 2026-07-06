@@ -145,17 +145,20 @@ final class WordPressBlockWriter
                 continue;
             }
 
-            $entries[] = '<dt data-pandoc-meta-key="' . $this->esc($key) . '">' . $this->esc($key) . '</dt>'
-                . '<dd>' . $this->renderMetadataValue($value) . '</dd>';
+            $entries[] = '<li><strong data-pandoc-meta-key="' . $this->esc($key) . '">' . $this->esc($key) . '</strong>: '
+                . $this->renderMetadataValue($value) . '</li>';
         }
 
         if ($entries === []) {
             return '';
         }
 
-        return '<!-- wp:html -->'
-            . "\n" . '<section class="pandoc-document-metadata" data-pandoc-source="native-meta"><dl>' . implode('', $entries) . '</dl></section>'
-            . "\n" . '<!-- /wp:html -->';
+        $inner = '<!-- wp:list -->'
+            . "\n" . '<ul>' . implode('', $entries) . '</ul>'
+            . "\n" . '<!-- /wp:list -->';
+        $group = new AstNode('div', ['htmlAttributes' => ['data-pandoc-source' => 'native-meta']]);
+
+        return $this->renderGroupBlock($group, ['pandoc-document-metadata'], $inner);
     }
 
     private function renderMetadataValue(mixed $value): string
@@ -618,9 +621,11 @@ final class WordPressBlockWriter
 
     private function renderListHeaderBlock(AstNode $item): string
     {
-        return '<!-- wp:html -->'
-            . "\n" . $this->renderListHeaderHtml($item)
-            . "\n" . '<!-- /wp:html -->';
+        return $this->renderGroupBlock(
+            new AstNode('div', $item->attrs, $item->children),
+            ['pandoc-list-header'],
+            $this->renderBlocksAsNativeBlocks($item->children, true)
+        );
     }
 
     private function renderListHeaderHtml(AstNode $item): string
@@ -945,7 +950,47 @@ final class WordPressBlockWriter
 
     private function renderDefinitionList(AstNode $node): string
     {
-        return '<!-- wp:html -->' . "\n" . $this->renderDefinitionListHtml($node) . "\n" . '<!-- /wp:html -->';
+        $blocks = [];
+        foreach ($node->children as $item) {
+            if ($item->type !== 'definition_item') {
+                continue;
+            }
+
+            $children = $item->children;
+            $term = array_shift($children);
+            if (!$term instanceof AstNode || !in_array($term->type, ['term', 'definition_term'], true)) {
+                $term = new AstNode('term', ['text' => (string) $item->attr('term', '')]);
+            }
+
+            $blocks[] = '<!-- wp:paragraph -->'
+                . "\n" . '<p class="pandoc-definition-term"><strong>' . $this->renderInlines($term) . '</strong></p>'
+                . "\n" . '<!-- /wp:paragraph -->';
+
+            $items = [];
+            $displayParts = $item->attr('cslDisplayParts', []);
+            if (is_array($displayParts)) {
+                $displayHtml = $this->renderCslDisplayParts($displayParts);
+                if ($displayHtml !== '') {
+                    $items[] = '<li>' . $displayHtml . '</li>';
+                }
+            }
+
+            if ($items === []) {
+                foreach ($children as $definition) {
+                    if ($definition->type === 'definition') {
+                        $items[] = '<li>' . $this->renderDefinitionBlocks($definition) . '</li>';
+                    }
+                }
+            }
+
+            if ($items !== []) {
+                $blocks[] = '<!-- wp:list -->'
+                    . "\n" . '<ul class="pandoc-definition-values">' . implode('', $items) . '</ul>'
+                    . "\n" . '<!-- /wp:list -->';
+            }
+        }
+
+        return $this->renderGroupBlock($node, ['pandoc-definition-list'], implode("\n\n", $blocks));
     }
 
     private function renderTable(AstNode $node): string
@@ -2935,14 +2980,29 @@ final class WordPressBlockWriter
     private function renderFigureBlock(AstNode $node): string
     {
         if (!$this->shouldRenderFigureAsImageBlock($node)) {
-            return '<!-- wp:html -->'
-                . "\n" . $this->renderMixedFigureHtml($node)
-                . "\n" . '<!-- /wp:html -->';
+            return $this->renderMixedFigureBlock($node);
         }
 
         return '<!-- wp:image -->'
             . "\n" . $this->renderFigureHtml($node)
             . "\n" . '<!-- /wp:image -->';
+    }
+
+    private function renderMixedFigureBlock(AstNode $node): string
+    {
+        $blocks = $this->renderBlocksAsNativeBlocks($node->children, true);
+        $caption = trim((string) $node->attr('caption', ''));
+        if ($caption === '') {
+            $caption = $this->figureCaptionText($node);
+        }
+        if ($caption !== '') {
+            $blocks .= ($blocks === '' ? '' : "\n\n")
+                . '<!-- wp:paragraph -->'
+                . "\n" . '<p class="pandoc-figure-caption">' . $this->esc($caption) . '</p>'
+                . "\n" . '<!-- /wp:paragraph -->';
+        }
+
+        return $this->renderGroupBlock($node, ['pandoc-figure'], $blocks);
     }
 
     private function shouldRenderFigureAsImageBlock(AstNode $node): bool
@@ -3326,9 +3386,16 @@ final class WordPressBlockWriter
 
     private function renderLineBlockBlock(AstNode $node): string
     {
-        return '<!-- wp:paragraph -->'
-            . "\n" . $this->renderLineBlockHtml($node)
-            . "\n" . '<!-- /wp:paragraph -->';
+        $lines = [];
+        foreach ($node->children as $line) {
+            if ($line->type === 'line') {
+                $lines[] = $this->renderInlines($line);
+            }
+        }
+
+        return '<!-- wp:verse -->'
+            . "\n" . '<pre class="wp-block-verse">' . implode("\n", $lines) . '</pre>'
+            . "\n" . '<!-- /wp:verse -->';
     }
 
     private function renderLineBlockHtml(AstNode $node): string
@@ -3347,9 +3414,11 @@ final class WordPressBlockWriter
 
     private function renderDivBlock(AstNode $node): string
     {
-        return '<!-- wp:html -->'
-            . "\n" . '<div' . $this->renderDivAttrs($node) . '>' . $this->renderBlocksAsHtml($node->children, !$this->divContainsOnlyPlainImage($node)) . '</div>'
-            . "\n" . '<!-- /wp:html -->';
+        return $this->renderGroupBlock(
+            $node,
+            [],
+            $this->renderBlocksAsNativeBlocks($node->children, !$this->divContainsOnlyPlainImage($node))
+        );
     }
 
     private function divContainsOnlyPlainImage(AstNode $node): bool
@@ -3420,6 +3489,124 @@ final class WordPressBlockWriter
         }
 
         return $html;
+    }
+
+    /**
+     * @param list<AstNode> $blocks
+     */
+    private function renderBlocksAsNativeBlocks(array $blocks, bool $wrapPlainBlocks = false): string
+    {
+        $renderedBlocks = [];
+        foreach ($blocks as $block) {
+            if ($this->shouldSkipEmptyParagraphLikeBlock($block)) {
+                continue;
+            }
+
+            if ($block->type === 'paragraph') {
+                $renderedBlocks[] = $this->renderParagraphBlock($block);
+                continue;
+            }
+            if ($block->type === 'plain') {
+                if (count($block->children) === 1 && $block->children[0]->type === 'image') {
+                    $renderedBlocks[] = $this->renderParagraphImageBlock($block->children[0]);
+                    continue;
+                }
+                $renderedBlocks[] = '<!-- wp:paragraph -->'
+                    . "\n" . '<p' . $this->renderBlockHtmlAttrs($block) . '>' . $this->renderInlines($block) . '</p>'
+                    . "\n" . '<!-- /wp:paragraph -->';
+                continue;
+            }
+            if ($block->type === 'heading') {
+                $level = (int) $block->attr('level', 2);
+                $renderedBlocks[] = '<!-- wp:heading {"level":' . $level . '} -->'
+                    . "\n" . '<h' . $level . $this->renderHeadingAttrs($block) . '>' . $this->renderInlines($block) . '</h' . $level . '>'
+                    . "\n" . '<!-- /wp:heading -->';
+                continue;
+            }
+            if ($block->type === 'bullet_list') {
+                $renderedBlocks[] = $this->renderList($block, false);
+                continue;
+            }
+            if ($block->type === 'ordered_list') {
+                $renderedBlocks[] = $this->renderList($block, true);
+                continue;
+            }
+            if ($block->type === 'definition_list') {
+                $renderedBlocks[] = $this->renderDefinitionList($block);
+                continue;
+            }
+            if ($block->type === 'table') {
+                $renderedBlocks[] = $this->renderTable($block);
+                continue;
+            }
+            if ($block->type === 'code_block') {
+                $renderedBlocks[] = $this->renderCodeBlock($block);
+                continue;
+            }
+            if ($block->type === 'figure') {
+                $renderedBlocks[] = $this->renderFigureBlock($block);
+                continue;
+            }
+            if ($block->type === 'image') {
+                $renderedBlocks[] = $this->renderParagraphImageBlock($block);
+                continue;
+            }
+            if ($block->type === 'blockquote') {
+                $renderedBlocks[] = $this->renderBlockQuote($block);
+                continue;
+            }
+            if ($block->type === 'line_block') {
+                $renderedBlocks[] = $this->renderLineBlockBlock($block);
+                continue;
+            }
+            if ($block->type === 'horizontal_rule') {
+                $renderedBlocks[] = $this->renderHorizontalRule();
+                continue;
+            }
+            if ($block->type === 'raw_html') {
+                $renderedBlocks[] = $this->renderRawHtmlBlock($block);
+                continue;
+            }
+            if ($block->type === 'raw_tex') {
+                $renderedBlocks[] = $this->renderRawTexBlock($block);
+                continue;
+            }
+            if ($block->type === 'raw_block') {
+                $renderedBlocks[] = $this->renderRawFormatBlock($block);
+                continue;
+            }
+            if ($block->type === 'div') {
+                $renderedBlocks[] = $this->renderDivBlock($block);
+                continue;
+            }
+            if ($this->isInlineNode($block)) {
+                $renderedBlocks[] = '<!-- wp:paragraph -->'
+                    . "\n" . '<p>' . $this->renderInlineNode($block) . '</p>'
+                    . "\n" . '<!-- /wp:paragraph -->';
+                continue;
+            }
+
+            $html = $this->renderBlocksAsHtml([$block], $wrapPlainBlocks);
+            if ($html !== '') {
+                $renderedBlocks[] = '<!-- wp:html -->' . "\n" . $html . "\n" . '<!-- /wp:html -->';
+            }
+        }
+
+        return implode("\n\n", $renderedBlocks);
+    }
+
+    /**
+     * @param list<string> $classes
+     */
+    private function renderGroupBlock(AstNode $node, array $classes, string $innerBlocks): string
+    {
+        $attrs = $this->renderBlockHtmlAttrsWithClasses($node, array_merge(['wp-block-group'], $classes));
+
+        return '<!-- wp:group -->'
+            . "\n" . '<div' . $attrs . '>'
+            . ($innerBlocks === '' ? '' : "\n" . $innerBlocks . "\n")
+            . '</div>'
+            . "\n" . '<!-- /wp:group -->';
     }
 
     /**
@@ -4156,9 +4343,12 @@ final class WordPressBlockWriter
                 . '</li>';
         }
 
-        return '<!-- wp:html -->'
-            . "\n" . '<section class="footnotes" role="doc-endnotes"><ol>' . implode('', $items) . '</ol></section>'
-            . "\n" . '<!-- /wp:html -->';
+        $inner = '<!-- wp:list {"ordered":true} -->'
+            . "\n" . '<ol>' . implode('', $items) . '</ol>'
+            . "\n" . '<!-- /wp:list -->';
+        $group = new AstNode('div', ['htmlAttributes' => ['role' => 'doc-endnotes']]);
+
+        return $this->renderGroupBlock($group, ['footnotes'], $inner);
     }
 
     private function renderLinkAttrs(AstNode $node): string

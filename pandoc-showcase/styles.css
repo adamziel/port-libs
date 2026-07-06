@@ -67,9 +67,65 @@ h1 {
   font-size: 24px;
   line-height: 1.1;
 }
+.hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 20px;
+}
+.hero-actions a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 6px 12px;
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--ink);
+  text-decoration: none;
+}
 .layout {
   width: min(1180px, calc(100% - 32px));
   margin: 24px auto 64px;
+}
+.content-page {
+  width: min(1040px, calc(100% - 32px));
+  margin: 28px auto 64px;
+}
+.content-page section {
+  margin-top: 28px;
+}
+.content-page h2 {
+  margin: 0 0 10px;
+  font-size: 26px;
+}
+.content-page p {
+  max-width: 820px;
+}
+.usage-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #fff;
+  border: 1px solid var(--line);
+}
+.usage-table th,
+.usage-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  vertical-align: top;
+}
+.usage-table th {
+  background: #fbfcfd;
+  font-size: 13px;
+}
+.usage-table td:first-child {
+  white-space: nowrap;
+}
+.content-page code,
+.usage-table code {
+  font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  background: #eef1f5;
+  padding: 1px 4px;
 }
 .format-nav {
   display: flex;

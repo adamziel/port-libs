@@ -1063,6 +1063,15 @@ foreach ($nativeDivCases as $case) {
             $t->contains('Native div ' . $slug . ' with <strong>strong</strong> child.', $blocks);
 
             foreach ($expected['htmlAttributes'] as $name => $value) {
+                if ($name === 'class') {
+                    $t->contains(
+                        'class="wp-block-group ' . htmlspecialchars((string) $value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '"',
+                        $blocks,
+                        $case['name'] . ' WordPress group class'
+                    );
+                    continue;
+                }
+
                 $t->contains(
                     $name . '="' . htmlspecialchars((string) $value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '"',
                     $blocks,

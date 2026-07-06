@@ -1,5 +1,5 @@
 {
-    "generatedAt": "2026-07-06T18:45:01+00:00",
+    "generatedAt": "2026-07-06T18:59:31+00:00",
     "pandocVersion": "pandoc 3.10\nFeatures: +server +lua\nScripting engine: Lua 5.4\nUser data directory: $REPO\nCopyright (C) 2006-2025 John MacFarlane. Web:  https://pandoc.org\nThis is free software; see the source for copying conditions. There is no\nwarranty, not even for merchantability or fitness for a particular purpose.",
     "formats": [
         "biblatex",
@@ -12,6 +12,7 @@
         "doc",
         "docbook",
         "docx",
+        "dokuwiki",
         "endnotexml",
         "epub",
         "fb2",
@@ -22,17 +23,21 @@
         "jira",
         "json",
         "latex",
+        "man",
         "markdown",
         "markdown_github",
         "markdown_mmd",
         "markdown_phpextra",
         "markdown_strict",
+        "mdoc",
+        "mediawiki",
         "native",
         "odt",
         "opml",
         "pdf",
         "pptx",
         "ris",
+        "rst",
         "rtf",
         "tsv",
         "xlsx",
@@ -75,7 +80,28 @@
         "xlsx",
         "xml"
     ],
-    "missingFormats": [],
+    "missingFormats": [
+        "dokuwiki",
+        "man",
+        "mdoc",
+        "mediawiki",
+        "rst"
+    ],
+    "blockUsage": {
+        "totals": {
+            "code": 26,
+            "group": 247,
+            "heading": 246,
+            "image": 8,
+            "list": 87,
+            "paragraph": 665,
+            "quote": 8,
+            "separator": 35,
+            "table": 71,
+            "verse": 1
+        },
+        "sampleCount": 71
+    },
     "records": [
         {
             "id": "bibtex-biblio",
@@ -103,6 +129,11 @@
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/bibtex-biblio/wordpress-blocks.html"
+            },
+            "wpBlockCounts": {
+                "group": 1,
+                "list": 3,
+                "paragraph": 3
             }
         },
         {
@@ -131,6 +162,11 @@
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/bibtex-averroes/wordpress-blocks.html"
+            },
+            "wpBlockCounts": {
+                "group": 1,
+                "list": 4,
+                "paragraph": 4
             }
         },
         {
@@ -159,6 +195,11 @@
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/biblatex-biblio/wordpress-blocks.html"
+            },
+            "wpBlockCounts": {
+                "group": 1,
+                "list": 3,
+                "paragraph": 3
             }
         },
         {
@@ -187,6 +228,11 @@
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/biblatex-online/wordpress-blocks.html"
+            },
+            "wpBlockCounts": {
+                "group": 1,
+                "list": 1,
+                "paragraph": 1
             }
         },
         {
@@ -215,6 +261,10 @@
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/bits-book/wordpress-blocks.html"
+            },
+            "wpBlockCounts": {
+                "heading": 2,
+                "paragraph": 1
             }
         },
         {
@@ -243,6 +293,10 @@
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/bits-section/wordpress-blocks.html"
+            },
+            "wpBlockCounts": {
+                "heading": 2,
+                "paragraph": 1
             }
         },
         {
@@ -256,9 +310,9 @@
             "sampleSize": 418,
             "preview": "# WordPress data liberation checklist\n\nThis note mirrors the kind of Markdown found in migration docs and issue\ntrackers.\n\n- Preserve headings, paragraphs, lists, and inline emphasis.\n- Keep [links](https://wordpress.org/) readable.\n- Convert source content to clean WordPress blocks.\n\n| Source | Expected handoff |\n| --- | --- |\n| Markdown | paragraphs and lists |\n| CSV | table fallback |\n| HTML | native structure |",
             "support": {
-                "status": "partial",
+                "status": "reader-equivalent",
                 "implementation": "PortLibs\\Pandoc\\MarkdownReader",
-                "notes": "Uses the shared Markdown reader with CommonMark-oriented slices; full extension parity remains open."
+                "notes": "Uses the shared Markdown reader; the Markdown reader implementation-equivalence gate covers 137/137 checked-in Markdown/native pairs including CommonMark-oriented profile fixtures."
             },
             "haskell": {
                 "ok": true,
@@ -271,6 +325,11 @@
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/commonmark-notes/wordpress-blocks.html"
+            },
+            "wpBlockCounts": {
+                "heading": 1,
+                "list": 1,
+                "paragraph": 2
             }
         },
         {
@@ -284,9 +343,9 @@
             "sampleSize": 226,
             "preview": "---\ntitle: Release notes excerpt\n---\n\n## Highlights\n\nGitHub-flavored Markdown commonly mixes task lists, fenced code, and tables.\n\n- [x] Import document text\n- [ ] Preserve richer layout\n\n```php\necho \"portable conversion\";\n```",
             "support": {
-                "status": "partial",
+                "status": "reader-equivalent",
                 "implementation": "PortLibs\\Pandoc\\MarkdownReader",
-                "notes": "Uses the shared Markdown reader with CommonMark-oriented slices; full extension parity remains open."
+                "notes": "Uses the shared Markdown reader; the Markdown reader implementation-equivalence gate covers 137/137 checked-in Markdown/native pairs including CommonMark-oriented profile fixtures."
             },
             "haskell": {
                 "ok": true,
@@ -299,6 +358,13 @@
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/commonmark-release/wordpress-blocks.html"
+            },
+            "wpBlockCounts": {
+                "code": 1,
+                "heading": 2,
+                "list": 1,
+                "paragraph": 1,
+                "separator": 1
             }
         },
         {
@@ -312,9 +378,9 @@
             "sampleSize": 226,
             "preview": "---\ntitle: Release notes excerpt\n---\n\n## Highlights\n\nGitHub-flavored Markdown commonly mixes task lists, fenced code, and tables.\n\n- [x] Import document text\n- [ ] Preserve richer layout\n\n```php\necho \"portable conversion\";\n```",
             "support": {
-                "status": "partial",
+                "status": "reader-equivalent",
                 "implementation": "PortLibs\\Pandoc\\MarkdownReader",
-                "notes": "Uses the shared Markdown reader with raw attribute and extension slices; full extension parity remains open."
+                "notes": "Uses the shared Markdown reader; the Markdown reader implementation-equivalence gate covers 137/137 checked-in Markdown/native pairs including CommonMark extension profile fixtures."
             },
             "haskell": {
                 "ok": true,
@@ -327,6 +393,12 @@
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/commonmarkx-release/wordpress-blocks.html"
+            },
+            "wpBlockCounts": {
+                "code": 1,
+                "heading": 1,
+                "list": 1,
+                "paragraph": 1
             }
         },
         {
@@ -340,9 +412,9 @@
             "sampleSize": 418,
             "preview": "# WordPress data liberation checklist\n\nThis note mirrors the kind of Markdown found in migration docs and issue\ntrackers.\n\n- Preserve headings, paragraphs, lists, and inline emphasis.\n- Keep [links](https://wordpress.org/) readable.\n- Convert source content to clean WordPress blocks.\n\n| Source | Expected handoff |\n| --- | --- |\n| Markdown | paragraphs and lists |\n| CSV | table fallback |\n| HTML | native structure |",
             "support": {
-                "status": "partial",
+                "status": "reader-equivalent",
                 "implementation": "PortLibs\\Pandoc\\MarkdownReader",
-                "notes": "Uses the shared Markdown reader with raw attribute and extension slices; full extension parity remains open."
+                "notes": "Uses the shared Markdown reader; the Markdown reader implementation-equivalence gate covers 137/137 checked-in Markdown/native pairs including CommonMark extension profile fixtures."
             },
             "haskell": {
                 "ok": true,
@@ -355,6 +427,12 @@
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/commonmarkx-notes/wordpress-blocks.html"
+            },
+            "wpBlockCounts": {
+                "heading": 1,
+                "list": 1,
+                "paragraph": 1,
+                "table": 1
             }
         },
         {
@@ -383,6 +461,11 @@
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/csljson-book/wordpress-blocks.html"
+            },
+            "wpBlockCounts": {
+                "group": 1,
+                "list": 1,
+                "paragraph": 1
             }
         },
         {
@@ -411,6 +494,11 @@
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/csljson-article/wordpress-blocks.html"
+            },
+            "wpBlockCounts": {
+                "group": 1,
+                "list": 1,
+                "paragraph": 1
             }
         },
         {
@@ -426,7 +514,7 @@
             "support": {
                 "status": "partial",
                 "implementation": "PortLibs\\Pandoc\\DelimitedTextReader",
-                "notes": "Delimited text reader maps CSV rows into the shared table AST with Pandoc-compatible delimiter, quote, escape, keep-space, multiline-cell, row repair, control-character, and provenance diagnostics. The pinned direct CSV reader and shared CSV parser option fixtures are covered; RST csv-table integration is tracked with the RST reader gap."
+                "notes": "Delimited text reader maps CSV rows into the shared table AST with Pandoc-compatible delimiter, quote, escape, keep-space, multiline-cell, row repair, control-character, and provenance diagnostics. The pinned direct CSV reader and shared CSV parser option fixtures are covered; RST csv-table integration is exercised through the RST reader without changing the direct CSV denominator."
             },
             "haskell": {
                 "ok": true,
@@ -439,6 +527,9 @@
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/csv-format-status/wordpress-blocks.html"
+            },
+            "wpBlockCounts": {
+                "table": 1
             }
         },
         {
@@ -454,7 +545,7 @@
             "support": {
                 "status": "partial",
                 "implementation": "PortLibs\\Pandoc\\DelimitedTextReader",
-                "notes": "Delimited text reader maps CSV rows into the shared table AST with Pandoc-compatible delimiter, quote, escape, keep-space, multiline-cell, row repair, control-character, and provenance diagnostics. The pinned direct CSV reader and shared CSV parser option fixtures are covered; RST csv-table integration is tracked with the RST reader gap."
+                "notes": "Delimited text reader maps CSV rows into the shared table AST with Pandoc-compatible delimiter, quote, escape, keep-space, multiline-cell, row repair, control-character, and provenance diagnostics. The pinned direct CSV reader and shared CSV parser option fixtures are covered; RST csv-table integration is exercised through the RST reader without changing the direct CSV denominator."
             },
             "haskell": {
                 "ok": true,
@@ -467,6 +558,9 @@
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/csv-rst-table/wordpress-blocks.html"
+            },
+            "wpBlockCounts": {
+                "table": 1
             }
         },
         {
@@ -495,6 +589,9 @@
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/tsv-format-status/wordpress-blocks.html"
+            },
+            "wpBlockCounts": {
+                "table": 1
             }
         },
         {
@@ -523,6 +620,9 @@
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/tsv-source-status/wordpress-blocks.html"
+            },
+            "wpBlockCounts": {
+                "table": 1
             }
         },
         {
@@ -551,6 +651,11 @@
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/docbook-article/wordpress-blocks.html"
+            },
+            "wpBlockCounts": {
+                "heading": 2,
+                "list": 1,
+                "paragraph": 1
             }
         },
         {
@@ -579,6 +684,10 @@
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/docbook-table/wordpress-blocks.html"
+            },
+            "wpBlockCounts": {
+                "heading": 2,
+                "table": 1
             }
         },
         {
@@ -607,6 +716,10 @@
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/docx-headers/wordpress-blocks.html"
+            },
+            "wpBlockCounts": {
+                "heading": 6,
+                "paragraph": 7
             }
         },
         {
@@ -635,6 +748,75 @@
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/docx-tables/wordpress-blocks.html"
+            },
+            "wpBlockCounts": {
+                "heading": 1,
+                "table": 3
+            }
+        },
+        {
+            "id": "docx-notes",
+            "format": "docx",
+            "label": "DOCX footnotes and endnotes",
+            "description": "DOCX notes fixture from upstream Pandoc reader tests.",
+            "source": "jgm/pandoc upstream fixture at test/docx/notes.docx",
+            "sourceUrl": "https://raw.githubusercontent.com/jgm/pandoc/912bfa5e2e3f5c74eb125dfc19404f67c61ca58b/test/docx/notes.docx",
+            "samplePath": "samples/docx-notes-notes.docx",
+            "sampleSize": 19056,
+            "preview": "",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\DocxReader",
+                "notes": "Bounded DOCX package reader parses document.xml, styles, numbering levels/start/style/delimiter attributes, relationships, notes/comments, headers/footers, media references, bookmarks, simple reference fields, OMML equations, and core properties into the shared AST. Full DOCX parity remains open."
+            },
+            "haskell": {
+                "ok": true,
+                "path": "outputs/docx-notes/haskell.html"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/docx-notes/php.html"
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/docx-notes/wordpress-blocks.html"
+            },
+            "wpBlockCounts": {
+                "group": 1,
+                "heading": 1,
+                "list": 1,
+                "paragraph": 1
+            }
+        },
+        {
+            "id": "docx-inline-images",
+            "format": "docx",
+            "label": "DOCX inline images",
+            "description": "DOCX fixture with packaged image relationships from upstream Pandoc tests.",
+            "source": "jgm/pandoc upstream fixture at test/docx/inline_images.docx",
+            "sourceUrl": "https://raw.githubusercontent.com/jgm/pandoc/912bfa5e2e3f5c74eb125dfc19404f67c61ca58b/test/docx/inline_images.docx",
+            "samplePath": "samples/docx-inline-images-inline_images.docx",
+            "sampleSize": 14305,
+            "preview": "",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\DocxReader",
+                "notes": "Bounded DOCX package reader parses document.xml, styles, numbering levels/start/style/delimiter attributes, relationships, notes/comments, headers/footers, media references, bookmarks, simple reference fields, OMML equations, and core properties into the shared AST. Full DOCX parity remains open."
+            },
+            "haskell": {
+                "ok": true,
+                "path": "outputs/docx-inline-images/haskell.html"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/docx-inline-images/php.html"
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/docx-inline-images/wordpress-blocks.html"
+            },
+            "wpBlockCounts": {
+                "paragraph": 2
             }
         },
         {
@@ -663,6 +845,11 @@
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/endnotexml-reader/wordpress-blocks.html"
+            },
+            "wpBlockCounts": {
+                "group": 1,
+                "list": 2,
+                "paragraph": 2
             }
         },
         {
@@ -691,6 +878,11 @@
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/endnotexml-book/wordpress-blocks.html"
+            },
+            "wpBlockCounts": {
+                "group": 1,
+                "list": 1,
+                "paragraph": 1
             }
         },
         {
@@ -704,9 +896,9 @@
             "sampleSize": 25840,
             "preview": "",
             "support": {
-                "status": "partial",
+                "status": "reader-equivalent",
                 "implementation": "PortLibs\\Pandoc\\EpubReader",
-                "notes": "Bounded EPUB package reader resolves the OPF rootfile, extracts metadata, follows XHTML spine items, rewrites package-relative href/src resources, records image/resource references, records EPUB3 nav and NCX table-of-contents resources while preferring EPUB3 nav entries over duplicate NCX fallback entries, and maps spine content through the shared HTML-capable reader path. Full EPUB parity remains open."
+                "notes": "EPUB reader implementation-equivalence gate covers 76/76 checked-in package/native pairs plus the upstream media-bag tuples; the reader resolves the OPF rootfile, metadata, XHTML spine, package-relative href/src resources, EPUB3 nav, and NCX fallback entries through the shared HTML-capable reader path."
             },
             "haskell": {
                 "ok": true,
@@ -719,6 +911,14 @@
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/epub-wasteland/wordpress-blocks.html"
+            },
+            "wpBlockCounts": {
+                "group": 190,
+                "heading": 5,
+                "image": 1,
+                "list": 1,
+                "paragraph": 171,
+                "quote": 1
             }
         },
         {
@@ -732,9 +932,9 @@
             "sampleSize": 8970,
             "preview": "",
             "support": {
-                "status": "partial",
+                "status": "reader-equivalent",
                 "implementation": "PortLibs\\Pandoc\\EpubReader",
-                "notes": "Bounded EPUB package reader resolves the OPF rootfile, extracts metadata, follows XHTML spine items, rewrites package-relative href/src resources, records image/resource references, records EPUB3 nav and NCX table-of-contents resources while preferring EPUB3 nav entries over duplicate NCX fallback entries, and maps spine content through the shared HTML-capable reader path. Full EPUB parity remains open."
+                "notes": "EPUB reader implementation-equivalence gate covers 76/76 checked-in package/native pairs plus the upstream media-bag tuples; the reader resolves the OPF rootfile, metadata, XHTML spine, package-relative href/src resources, EPUB3 nav, and NCX fallback entries through the shared HTML-capable reader path."
             },
             "haskell": {
                 "ok": true,
@@ -747,6 +947,79 @@
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/epub-features/wordpress-blocks.html"
+            },
+            "wpBlockCounts": {
+                "group": 18,
+                "heading": 17,
+                "list": 4,
+                "paragraph": 50
+            }
+        },
+        {
+            "id": "epub-picture",
+            "format": "epub",
+            "label": "EPUB 2 picture book",
+            "description": "EPUB fixture with packaged image content from upstream Pandoc tests.",
+            "source": "jgm/pandoc upstream fixture at test/epub/epub2_picture.epub",
+            "sourceUrl": "https://raw.githubusercontent.com/jgm/pandoc/912bfa5e2e3f5c74eb125dfc19404f67c61ca58b/test/epub/epub2_picture.epub",
+            "samplePath": "samples/epub-picture-epub2_picture.epub",
+            "sampleSize": 11742,
+            "preview": "",
+            "support": {
+                "status": "reader-equivalent",
+                "implementation": "PortLibs\\Pandoc\\EpubReader",
+                "notes": "EPUB reader implementation-equivalence gate covers 76/76 checked-in package/native pairs plus the upstream media-bag tuples; the reader resolves the OPF rootfile, metadata, XHTML spine, package-relative href/src resources, EPUB3 nav, and NCX fallback entries through the shared HTML-capable reader path."
+            },
+            "haskell": {
+                "ok": true,
+                "path": "outputs/epub-picture/haskell.html"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/epub-picture/php.html"
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/epub-picture/wordpress-blocks.html"
+            },
+            "wpBlockCounts": {
+                "group": 1,
+                "image": 1,
+                "paragraph": 2
+            }
+        },
+        {
+            "id": "epub-image",
+            "format": "epub",
+            "label": "EPUB image coverage",
+            "description": "EPUB fixture focused on embedded image handling.",
+            "source": "jgm/pandoc upstream fixture at test/epub/img.epub",
+            "sourceUrl": "https://raw.githubusercontent.com/jgm/pandoc/912bfa5e2e3f5c74eb125dfc19404f67c61ca58b/test/epub/img.epub",
+            "samplePath": "samples/epub-image-img.epub",
+            "sampleSize": 20478,
+            "preview": "",
+            "support": {
+                "status": "reader-equivalent",
+                "implementation": "PortLibs\\Pandoc\\EpubReader",
+                "notes": "EPUB reader implementation-equivalence gate covers 76/76 checked-in package/native pairs plus the upstream media-bag tuples; the reader resolves the OPF rootfile, metadata, XHTML spine, package-relative href/src resources, EPUB3 nav, and NCX fallback entries through the shared HTML-capable reader path."
+            },
+            "haskell": {
+                "ok": true,
+                "path": "outputs/epub-image/haskell.html"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/epub-image/php.html"
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/epub-image/wordpress-blocks.html"
+            },
+            "wpBlockCounts": {
+                "group": 5,
+                "heading": 5,
+                "image": 4,
+                "paragraph": 7
             }
         },
         {
@@ -775,6 +1048,13 @@
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/fb2-basic/wordpress-blocks.html"
+            },
+            "wpBlockCounts": {
+                "group": 4,
+                "heading": 4,
+                "list": 1,
+                "paragraph": 12,
+                "separator": 2
             }
         },
         {
@@ -803,6 +1083,11 @@
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/fb2-notes/wordpress-blocks.html"
+            },
+            "wpBlockCounts": {
+                "group": 2,
+                "list": 1,
+                "paragraph": 2
             }
         },
         {
@@ -816,9 +1101,9 @@
             "sampleSize": 226,
             "preview": "---\ntitle: Release notes excerpt\n---\n\n## Highlights\n\nGitHub-flavored Markdown commonly mixes task lists, fenced code, and tables.\n\n- [x] Import document text\n- [ ] Preserve richer layout\n\n```php\necho \"portable conversion\";\n```",
             "support": {
-                "status": "partial",
+                "status": "reader-equivalent",
                 "implementation": "PortLibs\\Pandoc\\MarkdownReader",
-                "notes": "GitHub-Flavored Markdown behavior is partially mapped through MarkdownReader and MarkdownWriter tests."
+                "notes": "Uses the shared Markdown reader; the Markdown reader implementation-equivalence gate covers 137/137 checked-in Markdown/native pairs including GFM profile fixtures."
             },
             "haskell": {
                 "ok": true,
@@ -831,6 +1116,12 @@
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/gfm-release/wordpress-blocks.html"
+            },
+            "wpBlockCounts": {
+                "code": 1,
+                "heading": 1,
+                "list": 1,
+                "paragraph": 1
             }
         },
         {
@@ -844,9 +1135,9 @@
             "sampleSize": 418,
             "preview": "# WordPress data liberation checklist\n\nThis note mirrors the kind of Markdown found in migration docs and issue\ntrackers.\n\n- Preserve headings, paragraphs, lists, and inline emphasis.\n- Keep [links](https://wordpress.org/) readable.\n- Convert source content to clean WordPress blocks.\n\n| Source | Expected handoff |\n| --- | --- |\n| Markdown | paragraphs and lists |\n| CSV | table fallback |\n| HTML | native structure |",
             "support": {
-                "status": "partial",
+                "status": "reader-equivalent",
                 "implementation": "PortLibs\\Pandoc\\MarkdownReader",
-                "notes": "GitHub-Flavored Markdown behavior is partially mapped through MarkdownReader and MarkdownWriter tests."
+                "notes": "Uses the shared Markdown reader; the Markdown reader implementation-equivalence gate covers 137/137 checked-in Markdown/native pairs including GFM profile fixtures."
             },
             "haskell": {
                 "ok": true,
@@ -859,6 +1150,12 @@
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/gfm-notes/wordpress-blocks.html"
+            },
+            "wpBlockCounts": {
+                "heading": 1,
+                "list": 1,
+                "paragraph": 1,
+                "table": 1
             }
         },
         {
@@ -872,9 +1169,9 @@
             "sampleSize": 226,
             "preview": "---\ntitle: Release notes excerpt\n---\n\n## Highlights\n\nGitHub-flavored Markdown commonly mixes task lists, fenced code, and tables.\n\n- [x] Import document text\n- [ ] Preserve richer layout\n\n```php\necho \"portable conversion\";\n```",
             "support": {
-                "status": "partial",
+                "status": "reader-equivalent",
                 "implementation": "PortLibs\\Pandoc\\MarkdownReader",
-                "notes": "Deprecated upstream token handled as a GFM-family Markdown variant."
+                "notes": "Deprecated upstream token handled as a GFM-family Markdown variant by the shared Markdown reader implementation-equivalence gate."
             },
             "haskell": {
                 "ok": true,
@@ -887,6 +1184,12 @@
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/markdown-github-release/wordpress-blocks.html"
+            },
+            "wpBlockCounts": {
+                "code": 1,
+                "heading": 1,
+                "list": 1,
+                "paragraph": 1
             }
         },
         {
@@ -900,9 +1203,9 @@
             "sampleSize": 418,
             "preview": "# WordPress data liberation checklist\n\nThis note mirrors the kind of Markdown found in migration docs and issue\ntrackers.\n\n- Preserve headings, paragraphs, lists, and inline emphasis.\n- Keep [links](https://wordpress.org/) readable.\n- Convert source content to clean WordPress blocks.\n\n| Source | Expected handoff |\n| --- | --- |\n| Markdown | paragraphs and lists |\n| CSV | table fallback |\n| HTML | native structure |",
             "support": {
-                "status": "partial",
+                "status": "reader-equivalent",
                 "implementation": "PortLibs\\Pandoc\\MarkdownReader",
-                "notes": "Deprecated upstream token handled as a GFM-family Markdown variant."
+                "notes": "Deprecated upstream token handled as a GFM-family Markdown variant by the shared Markdown reader implementation-equivalence gate."
             },
             "haskell": {
                 "ok": true,
@@ -915,6 +1218,12 @@
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/markdown-github-notes/wordpress-blocks.html"
+            },
+            "wpBlockCounts": {
+                "heading": 1,
+                "list": 1,
+                "paragraph": 1,
+                "table": 1
             }
         },
         {
@@ -928,9 +1237,9 @@
             "sampleSize": 17314,
             "preview": "<html>\n<head>\n<meta http-equiv=\"Content-Type\" content=\"text/html; charset=UTF-8\" />\n<meta http-equiv=\"Content-Style-Type\" content=\"text/css\" />\n<meta name=\"generator\" content=\"pandoc\" />\n<style type=\"text/css\">\ndiv.pandocNote { border-left: 1px solid grey; padding-left: 1em; }\nspan.pandocNoteRef { vertical-align: super; font-size: 80%; }\nspan.pandocNoteMarker { }\n</style>\n<title>Pandoc Test Suite</title>\n</head>\n<body>\n<h1 class=\"title\">Pandoc Test Suite</h1>\n<p>This is a set of tests for pandoc. Most of them are adapted from John Gruber's markdown test suite.</p>\n<hr />\n<h1>Headers</h1>\n<h2>Level 2 with an <a href=\"/url\">embedded link</a></h2>\n<h3>Level 3 with <em>emphasis</em></h3>\n<h4>Level 4</h4>\n<h5>Level 5</h5>\n<h1>Level 1</h1>\n<h2>Level 2 with <em>emphasis</em></h2>\n<h3>Level 3</h3>\n<p>with no blank line</p>\n<h2>Level 2</h2>\n<p>with no blank line</p>\n<hr />\n<h1>Paragraphs</h1>\n<p>Here's a regular paragraph.</p>\n<p>In Markdown 1.0.0 and earlier. Version 8. This line turns into a list item. Because a hard-wrapped line in the middle of a paragraph looked like a list item.</p>\n<p>Here's one with a bullet. * criminey.</p>\n<p>There should be a hard line break<br />\n here.</p>\n<hr />\n<h1>Block Quotes</h1>\n<p>E-mail style:</p>\n<blockquote>\n<p>This is a block quote. It is pretty short.</p>\n</blockquote>\n<blockquote>\n<p>Code in a block quote:</p>\n<pre><code>sub status {\n    print \"working\";\n}\n</code></pre>\n<p>A list:</p>\n<ol>\n<li>item one</li>\n<li>item two</li>\n</ol>\n<p>Nested block quotes:</p>\n<blockquote>\n<p>nested</p>\n</blockquote>\n<blockquote>\n<p>nested</p>\n</blockquote>\n</blockquote>\n<p>This should not be a block quote: 2 &gt; 1.</p>\n<p>Box-style:</p>\n<blockquote>\n<p>Example:</p>\n<pre><code>sub status {\n    print \"working\";\n}\n</code></pre>\n</blockquote>\n<blockquote>\n<ol>\n<li>do laundry</li>\n<li>take out the trash</li>\n</ol>\n</blockquote>\n<p>Here's a nested one:</p>\n<blockquote>\n<p>Joe said:</p>\n<blockquote>\n<p>Don't quote me.</p>\n</blockquote>\n...",
             "support": {
-                "status": "partial",
+                "status": "reader-equivalent",
                 "implementation": "PortLibs\\Pandoc\\HtmlReader",
-                "notes": "Dedicated HTML reader dispatch preserves existing DOM/raw-HTML behavior through the current HTML-capable reader bridge while full HTML5 tree construction remains open."
+                "notes": "HTML reader implementation-equivalence gate covers 133/133 checked-in HTML/native pairs through the TagSoup-backed Pandoc HTML reader port."
             },
             "haskell": {
                 "ok": true,
@@ -943,6 +1252,17 @@
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/html-reader/wordpress-blocks.html"
+            },
+            "wpBlockCounts": {
+                "code": 5,
+                "group": 1,
+                "heading": 39,
+                "image": 1,
+                "list": 30,
+                "paragraph": 122,
+                "quote": 6,
+                "separator": 27,
+                "table": 18
             }
         },
         {
@@ -956,9 +1276,9 @@
             "sampleSize": 4401,
             "preview": "/* Default styles provided by pandoc.\n** See https://pandoc.org/MANUAL.html#variables-for-html for config info.\n*/\n$if(document-css)$\nhtml {\n$if(mainfont)$\n  font-family: $mainfont$;\n$endif$\n$if(fontsize)$\n  font-size: $fontsize$;\n$endif$\n$if(linestretch)$\n  line-height: $linestretch$;\n$endif$\n  color: $if(fontcolor)$$fontcolor$$else$#1a1a1a$endif$;\n  background-color: $if(backgroundcolor)$$backgroundcolor$$else$#fdfdfd$endif$;\n}\nbody {\n  margin: 0 auto;\n  max-width: $if(maxwidth)$$maxwidth$$else$36em$endif$;\n  padding-left: $if(margin-left)$$margin-left$$else$50px$endif$;\n  padding-right: $if(margin-right)$$margin-right$$else$50px$endif$;\n  padding-top: $if(margin-top)$$margin-top$$else$50px$endif$;\n  padding-bottom: $if(margin-bottom)$$margin-bottom$$else$50px$endif$;\n  hyphens: auto;\n  overflow-wrap: break-word;\n  text-rendering: optimizeLegibility;\n  font-kerning: normal;\n}\n@media (max-width: 600px) {\n  body {\n    font-size: 0.9em;\n    padding: 12px;\n  }\n  h1 {\n    font-size: 1.8em;\n  }\n}\n@media print {\n  html {\n    background-color: $if(backgroundcolor)$$backgroundcolor$$else$white$endif$;\n  }\n  body {\n    background-color: transparent;\n    color: black;\n    font-size: 12pt;\n  }\n  p, h2, h3 {\n    orphans: 3;\n    widows: 3;\n  }\n  h2, h3, h4 {\n    page-break-after: avoid;\n  }\n}\np {\n  margin: 1em 0;\n}\na {\n  color: $if(linkcolor)$$linkcolor$$else$#1a1a1a$endif$;\n}\na:visited {\n  color: $if(linkcolor)$$linkcolor$$else$#1a1a1a$endif$;\n}\nimg {\n  max-width: 100%;\n}\nsvg {\n  height: auto;\n  max-width: 100%;\n}\nh1, h2, h3, h4, h5, h6 {\n  margin-top: 1.4em;\n}\nh5, h6 {\n  font-size: 1em;\n  font-style: italic;\n}\nh6 {\n  font-weight: normal;\n...",
             "support": {
-                "status": "partial",
+                "status": "reader-equivalent",
                 "implementation": "PortLibs\\Pandoc\\HtmlReader",
-                "notes": "Dedicated HTML reader dispatch preserves existing DOM/raw-HTML behavior through the current HTML-capable reader bridge while full HTML5 tree construction remains open."
+                "notes": "HTML reader implementation-equivalence gate covers 133/133 checked-in HTML/native pairs through the TagSoup-backed Pandoc HTML reader port."
             },
             "haskell": {
                 "ok": true,
@@ -971,7 +1291,8 @@
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/html-template/wordpress-blocks.html"
-            }
+            },
+            "wpBlockCounts": []
         },
         {
             "id": "ipynb-simple",
@@ -999,6 +1320,12 @@
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/ipynb-simple/wordpress-blocks.html"
+            },
+            "wpBlockCounts": {
+                "code": 2,
+                "group": 5,
+                "heading": 3,
+                "paragraph": 2
             }
         },
         {
@@ -1027,6 +1354,11 @@
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/ipynb-mime/wordpress-blocks.html"
+            },
+            "wpBlockCounts": {
+                "code": 6,
+                "group": 9,
+                "paragraph": 3
             }
         },
         {
@@ -1055,6 +1387,10 @@
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/jats-article/wordpress-blocks.html"
+            },
+            "wpBlockCounts": {
+                "heading": 2,
+                "paragraph": 1
             }
         },
         {
@@ -1078,14 +1414,15 @@
             },
             "phpHtml": {
                 "ok": false,
-                "error": "PHP Fatal error:  Uncaught InvalidArgumentException: JATS input must not declare a document type in $REPO/lanes/pandoc/src/XmlHtmlDom.php:27493\nStack trace:\n#0 $REPO/lanes/pandoc/src/XmlHtmlDom.php(575): PortLibs\\Pandoc\\XmlHtmlDom::assertNoDoctype('<?xml version=\"...', 'JATS input')\n#1 $REPO/lanes/pandoc/src/XmlReader.php(69): PortLibs\\Pandoc\\XmlHtmlDom::loadXmlDocument('<?xml version=\"...', 'JATS input', false)\n#2 $REPO/lanes/pandoc/src/PandocConverter.php(36): PortLibs\\Pandoc\\XmlReader->read('<?xml version=\"...')\n#3 $REPO/lanes/pandoc/src/PandocConverter.php(79): PortLibs\\Pandoc\\PandocConverter::read('<?xml version=\"...', 'jats', Array)\n#4 $REPO/lanes/pandoc/src/PandocConverter.php(98): PortLibs\\Pandoc\\PandocConverter::convert('<?xml version=\"...', 'jats', 'html', Array)\n#5 $REPO/tools/build-pandoc-showcase.php(21): PortLibs\\Pandoc\\PandocConverter::convertFile('$REPO', 'jats', 'html')\n#6 {main}\n  thrown in $REPO/lanes/pandoc/src/XmlHtmlDom.php on line 27493\nFatal error: Uncaught InvalidArgumentException: JATS input must not declare a document type in $REPO/lanes/pandoc/src/XmlHtmlDom.php:27493\nStack trace:\n#0 $REPO/lanes/pandoc/src/XmlHtmlDom.php(575): PortLibs\\Pandoc\\XmlHtmlDom::assertNoDoctype('<?xml version=\"...', 'JATS input')\n#1 $REPO/lanes/pandoc/src/XmlReader.php(69): PortLibs\\Pandoc\\XmlHtmlDom::loadXmlDocument('<?xml version=\"...', 'JATS input', false)\n#2 $REPO/lanes/pandoc/src/PandocConverter.php(36): PortLibs\\Pandoc\\XmlReader->read('<?xml version=\"...')\n#3 $REPO/lanes/pandoc/src/PandocConverter.php(79): PortLibs\\Pandoc\\PandocConverter::read('<?xml version=\"...', 'jats', Array)\n#4 $REPO/lanes/pandoc/src/PandocConverter.php(98): PortLibs\\Pandoc\\PandocConverter::convert('<?xml version=\"...', 'jats', 'html', Array)\n#5 $REPO/tools/build-pandoc-showcase.php(21): PortLibs\\Pandoc\\PandocConverter::convertFile('$REPO', 'jats', 'html')\n#6 {main}\n  thrown in $REPO/lanes/pandoc/src/XmlHtmlDom.php on line 27493",
+                "error": "PHP Fatal error:  Uncaught InvalidArgumentException: JATS input must not declare a document type in $REPO/lanes/pandoc/src/XmlHtmlDom.php:34353\nStack trace:\n#0 $REPO/lanes/pandoc/src/XmlHtmlDom.php(684): PortLibs\\Pandoc\\XmlHtmlDom::assertNoDoctype('<?xml version=\"...', 'JATS input')\n#1 $REPO/lanes/pandoc/src/XmlReader.php(69): PortLibs\\Pandoc\\XmlHtmlDom::loadXmlDocument('<?xml version=\"...', 'JATS input', false)\n#2 $REPO/lanes/pandoc/src/PandocConverter.php(37): PortLibs\\Pandoc\\XmlReader->read('<?xml version=\"...')\n#3 $REPO/lanes/pandoc/src/PandocConverter.php(80): PortLibs\\Pandoc\\PandocConverter::read('<?xml version=\"...', 'jats', Array)\n#4 $REPO/lanes/pandoc/src/PandocConverter.php(99): PortLibs\\Pandoc\\PandocConverter::convert('<?xml version=\"...', 'jats', 'html', Array)\n#5 $REPO/tools/build-pandoc-showcase.php(21): PortLibs\\Pandoc\\PandocConverter::convertFile('$TMP', 'jats', 'html')\n#6 {main}\n  thrown in $REPO/lanes/pandoc/src/XmlHtmlDom.php on line 34353\nFatal error: Uncaught InvalidArgumentException: JATS input must not declare a document type in $REPO/lanes/pandoc/src/XmlHtmlDom.php:34353\nStack trace:\n#0 $REPO/lanes/pandoc/src/XmlHtmlDom.php(684): PortLibs\\Pandoc\\XmlHtmlDom::assertNoDoctype('<?xml version=\"...', 'JATS input')\n#1 $REPO/lanes/pandoc/src/XmlReader.php(69): PortLibs\\Pandoc\\XmlHtmlDom::loadXmlDocument('<?xml version=\"...', 'JATS input', false)\n#2 $REPO/lanes/pandoc/src/PandocConverter.php(37): PortLibs\\Pandoc\\XmlReader->read('<?xml version=\"...')\n#3 $REPO/lanes/pandoc/src/PandocConverter.php(80): PortLibs\\Pandoc\\PandocConverter::read('<?xml version=\"...', 'jats', Array)\n#4 $REPO/lanes/pandoc/src/PandocConverter.php(99): PortLibs\\Pandoc\\PandocConverter::convert('<?xml version=\"...', 'jats', 'html', Array)\n#5 $REPO/tools/build-pandoc-showcase.php(21): PortLibs\\Pandoc\\PandocConverter::convertFile('$TMP', 'jats', 'html')\n#6 {main}\n  thrown in $REPO/lanes/pandoc/src/XmlHtmlDom.php on line 34353",
                 "path": "outputs/jats-reader/php.html.error.txt"
             },
             "wpBlocks": {
                 "ok": false,
-                "error": "PHP Fatal error:  Uncaught InvalidArgumentException: JATS input must not declare a document type in $REPO/lanes/pandoc/src/XmlHtmlDom.php:27493\nStack trace:\n#0 $REPO/lanes/pandoc/src/XmlHtmlDom.php(575): PortLibs\\Pandoc\\XmlHtmlDom::assertNoDoctype('<?xml version=\"...', 'JATS input')\n#1 $REPO/lanes/pandoc/src/XmlReader.php(69): PortLibs\\Pandoc\\XmlHtmlDom::loadXmlDocument('<?xml version=\"...', 'JATS input', false)\n#2 $REPO/lanes/pandoc/src/PandocConverter.php(36): PortLibs\\Pandoc\\XmlReader->read('<?xml version=\"...')\n#3 $REPO/lanes/pandoc/src/PandocConverter.php(79): PortLibs\\Pandoc\\PandocConverter::read('<?xml version=\"...', 'jats', Array)\n#4 $REPO/lanes/pandoc/src/PandocConverter.php(98): PortLibs\\Pandoc\\PandocConverter::convert('<?xml version=\"...', 'jats', 'wordpress', Array)\n#5 $REPO/tools/build-pandoc-showcase.php(21): PortLibs\\Pandoc\\PandocConverter::convertFile('$REPO', 'jats', 'wordpress')\n#6 {main}\n  thrown in $REPO/lanes/pandoc/src/XmlHtmlDom.php on line 27493\nFatal error: Uncaught InvalidArgumentException: JATS input must not declare a document type in $REPO/lanes/pandoc/src/XmlHtmlDom.php:27493\nStack trace:\n#0 $REPO/lanes/pandoc/src/XmlHtmlDom.php(575): PortLibs\\Pandoc\\XmlHtmlDom::assertNoDoctype('<?xml version=\"...', 'JATS input')\n#1 $REPO/lanes/pandoc/src/XmlReader.php(69): PortLibs\\Pandoc\\XmlHtmlDom::loadXmlDocument('<?xml version=\"...', 'JATS input', false)\n#2 $REPO/lanes/pandoc/src/PandocConverter.php(36): PortLibs\\Pandoc\\XmlReader->read('<?xml version=\"...')\n#3 $REPO/lanes/pandoc/src/PandocConverter.php(79): PortLibs\\Pandoc\\PandocConverter::read('<?xml version=\"...', 'jats', Array)\n#4 $REPO/lanes/pandoc/src/PandocConverter.php(98): PortLibs\\Pandoc\\PandocConverter::convert('<?xml version=\"...', 'jats', 'wordpress', Array)\n#5 $REPO/tools/build-pandoc-showcase.php(21): PortLibs\\Pandoc\\PandocConverter::convertFile('$REPO', 'jats', 'wordpress')\n#6 {main}\n  thrown in $REPO/lanes/pandoc/src/XmlHtmlDom.php on line 27493",
+                "error": "PHP Fatal error:  Uncaught InvalidArgumentException: JATS input must not declare a document type in $REPO/lanes/pandoc/src/XmlHtmlDom.php:34353\nStack trace:\n#0 $REPO/lanes/pandoc/src/XmlHtmlDom.php(684): PortLibs\\Pandoc\\XmlHtmlDom::assertNoDoctype('<?xml version=\"...', 'JATS input')\n#1 $REPO/lanes/pandoc/src/XmlReader.php(69): PortLibs\\Pandoc\\XmlHtmlDom::loadXmlDocument('<?xml version=\"...', 'JATS input', false)\n#2 $REPO/lanes/pandoc/src/PandocConverter.php(37): PortLibs\\Pandoc\\XmlReader->read('<?xml version=\"...')\n#3 $REPO/lanes/pandoc/src/PandocConverter.php(80): PortLibs\\Pandoc\\PandocConverter::read('<?xml version=\"...', 'jats', Array)\n#4 $REPO/lanes/pandoc/src/PandocConverter.php(99): PortLibs\\Pandoc\\PandocConverter::convert('<?xml version=\"...', 'jats', 'wordpress', Array)\n#5 $REPO/tools/build-pandoc-showcase.php(21): PortLibs\\Pandoc\\PandocConverter::convertFile('$TMP', 'jats', 'wordpress')\n#6 {main}\n  thrown in $REPO/lanes/pandoc/src/XmlHtmlDom.php on line 34353\nFatal error: Uncaught InvalidArgumentException: JATS input must not declare a document type in $REPO/lanes/pandoc/src/XmlHtmlDom.php:34353\nStack trace:\n#0 $REPO/lanes/pandoc/src/XmlHtmlDom.php(684): PortLibs\\Pandoc\\XmlHtmlDom::assertNoDoctype('<?xml version=\"...', 'JATS input')\n#1 $REPO/lanes/pandoc/src/XmlReader.php(69): PortLibs\\Pandoc\\XmlHtmlDom::loadXmlDocument('<?xml version=\"...', 'JATS input', false)\n#2 $REPO/lanes/pandoc/src/PandocConverter.php(37): PortLibs\\Pandoc\\XmlReader->read('<?xml version=\"...')\n#3 $REPO/lanes/pandoc/src/PandocConverter.php(80): PortLibs\\Pandoc\\PandocConverter::read('<?xml version=\"...', 'jats', Array)\n#4 $REPO/lanes/pandoc/src/PandocConverter.php(99): PortLibs\\Pandoc\\PandocConverter::convert('<?xml version=\"...', 'jats', 'wordpress', Array)\n#5 $REPO/tools/build-pandoc-showcase.php(21): PortLibs\\Pandoc\\PandocConverter::convertFile('$TMP', 'jats', 'wordpress')\n#6 {main}\n  thrown in $REPO/lanes/pandoc/src/XmlHtmlDom.php on line 34353",
                 "path": "outputs/jats-reader/wordpress-blocks.html.error.txt"
-            }
+            },
+            "wpBlockCounts": []
         },
         {
             "id": "jira-ticket",
@@ -1113,6 +1450,12 @@
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/jira-ticket/wordpress-blocks.html"
+            },
+            "wpBlockCounts": {
+                "heading": 1,
+                "list": 1,
+                "paragraph": 1,
+                "table": 1
             }
         },
         {
@@ -1141,6 +1484,10 @@
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/jira-release/wordpress-blocks.html"
+            },
+            "wpBlockCounts": {
+                "heading": 1,
+                "list": 1
             }
         },
         {
@@ -1169,6 +1516,10 @@
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/json-pandoc-ast/wordpress-blocks.html"
+            },
+            "wpBlockCounts": {
+                "heading": 1,
+                "paragraph": 1
             }
         },
         {
@@ -1197,6 +1548,9 @@
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/json-pandoc-list/wordpress-blocks.html"
+            },
+            "wpBlockCounts": {
+                "list": 1
             }
         },
         {
@@ -1226,6 +1580,10 @@
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/latex-table/wordpress-blocks.html"
+            },
+            "wpBlockCounts": {
+                "code": 1,
+                "paragraph": 1
             }
         },
         {
@@ -1254,6 +1612,9 @@
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/latex-bar/wordpress-blocks.html"
+            },
+            "wpBlockCounts": {
+                "paragraph": 1
             }
         },
         {
@@ -1267,9 +1628,9 @@
             "sampleSize": 418,
             "preview": "# WordPress data liberation checklist\n\nThis note mirrors the kind of Markdown found in migration docs and issue\ntrackers.\n\n- Preserve headings, paragraphs, lists, and inline emphasis.\n- Keep [links](https://wordpress.org/) readable.\n- Convert source content to clean WordPress blocks.\n\n| Source | Expected handoff |\n| --- | --- |\n| Markdown | paragraphs and lists |\n| CSV | table fallback |\n| HTML | native structure |",
             "support": {
-                "status": "partial",
+                "status": "reader-equivalent",
                 "implementation": "PortLibs\\Pandoc\\MarkdownReader",
-                "notes": "Primary native PHP reader with broad Pandoc Markdown behavior slices."
+                "notes": "Primary native PHP reader; the Markdown reader implementation-equivalence gate covers 137/137 checked-in Markdown/native pairs across the selected Pandoc Markdown dialect profiles."
             },
             "haskell": {
                 "ok": true,
@@ -1282,6 +1643,12 @@
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/markdown-notes/wordpress-blocks.html"
+            },
+            "wpBlockCounts": {
+                "heading": 1,
+                "list": 1,
+                "paragraph": 1,
+                "table": 1
             }
         },
         {
@@ -1295,9 +1662,9 @@
             "sampleSize": 226,
             "preview": "---\ntitle: Release notes excerpt\n---\n\n## Highlights\n\nGitHub-flavored Markdown commonly mixes task lists, fenced code, and tables.\n\n- [x] Import document text\n- [ ] Preserve richer layout\n\n```php\necho \"portable conversion\";\n```",
             "support": {
-                "status": "partial",
+                "status": "reader-equivalent",
                 "implementation": "PortLibs\\Pandoc\\MarkdownReader",
-                "notes": "Primary native PHP reader with broad Pandoc Markdown behavior slices."
+                "notes": "Primary native PHP reader; the Markdown reader implementation-equivalence gate covers 137/137 checked-in Markdown/native pairs across the selected Pandoc Markdown dialect profiles."
             },
             "haskell": {
                 "ok": true,
@@ -1310,6 +1677,12 @@
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/markdown-release/wordpress-blocks.html"
+            },
+            "wpBlockCounts": {
+                "code": 1,
+                "heading": 1,
+                "list": 1,
+                "paragraph": 1
             }
         },
         {
@@ -1323,9 +1696,9 @@
             "sampleSize": 418,
             "preview": "# WordPress data liberation checklist\n\nThis note mirrors the kind of Markdown found in migration docs and issue\ntrackers.\n\n- Preserve headings, paragraphs, lists, and inline emphasis.\n- Keep [links](https://wordpress.org/) readable.\n- Convert source content to clean WordPress blocks.\n\n| Source | Expected handoff |\n| --- | --- |\n| Markdown | paragraphs and lists |\n| CSV | table fallback |\n| HTML | native structure |",
             "support": {
-                "status": "partial",
+                "status": "reader-equivalent",
                 "implementation": "PortLibs\\Pandoc\\MarkdownReader",
-                "notes": "MultiMarkdown-adjacent slices exist, but full MultiMarkdown parity remains open."
+                "notes": "Handled by the shared Markdown reader implementation-equivalence gate, including MultiMarkdown profile fixtures in the 137/137 Markdown/native comparison."
             },
             "haskell": {
                 "ok": true,
@@ -1338,6 +1711,12 @@
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/markdown-mmd-notes/wordpress-blocks.html"
+            },
+            "wpBlockCounts": {
+                "heading": 1,
+                "list": 1,
+                "paragraph": 1,
+                "table": 1
             }
         },
         {
@@ -1351,9 +1730,9 @@
             "sampleSize": 226,
             "preview": "---\ntitle: Release notes excerpt\n---\n\n## Highlights\n\nGitHub-flavored Markdown commonly mixes task lists, fenced code, and tables.\n\n- [x] Import document text\n- [ ] Preserve richer layout\n\n```php\necho \"portable conversion\";\n```",
             "support": {
-                "status": "partial",
+                "status": "reader-equivalent",
                 "implementation": "PortLibs\\Pandoc\\MarkdownReader",
-                "notes": "MultiMarkdown-adjacent slices exist, but full MultiMarkdown parity remains open."
+                "notes": "Handled by the shared Markdown reader implementation-equivalence gate, including MultiMarkdown profile fixtures in the 137/137 Markdown/native comparison."
             },
             "haskell": {
                 "ok": true,
@@ -1366,6 +1745,13 @@
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/markdown-mmd-release/wordpress-blocks.html"
+            },
+            "wpBlockCounts": {
+                "code": 1,
+                "heading": 2,
+                "list": 1,
+                "paragraph": 1,
+                "separator": 1
             }
         },
         {
@@ -1379,9 +1765,9 @@
             "sampleSize": 418,
             "preview": "# WordPress data liberation checklist\n\nThis note mirrors the kind of Markdown found in migration docs and issue\ntrackers.\n\n- Preserve headings, paragraphs, lists, and inline emphasis.\n- Keep [links](https://wordpress.org/) readable.\n- Convert source content to clean WordPress blocks.\n\n| Source | Expected handoff |\n| --- | --- |\n| Markdown | paragraphs and lists |\n| CSV | table fallback |\n| HTML | native structure |",
             "support": {
-                "status": "partial",
+                "status": "reader-equivalent",
                 "implementation": "PortLibs\\Pandoc\\MarkdownReader",
-                "notes": "PHP Markdown Extra-adjacent slices exist, but full variant parity remains open."
+                "notes": "Handled by the shared Markdown reader implementation-equivalence gate, including PHP Markdown Extra profile fixtures in the 137/137 Markdown/native comparison."
             },
             "haskell": {
                 "ok": true,
@@ -1394,6 +1780,12 @@
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/markdown-phpextra-notes/wordpress-blocks.html"
+            },
+            "wpBlockCounts": {
+                "heading": 1,
+                "list": 1,
+                "paragraph": 1,
+                "table": 1
             }
         },
         {
@@ -1407,9 +1799,9 @@
             "sampleSize": 226,
             "preview": "---\ntitle: Release notes excerpt\n---\n\n## Highlights\n\nGitHub-flavored Markdown commonly mixes task lists, fenced code, and tables.\n\n- [x] Import document text\n- [ ] Preserve richer layout\n\n```php\necho \"portable conversion\";\n```",
             "support": {
-                "status": "partial",
+                "status": "reader-equivalent",
                 "implementation": "PortLibs\\Pandoc\\MarkdownReader",
-                "notes": "PHP Markdown Extra-adjacent slices exist, but full variant parity remains open."
+                "notes": "Handled by the shared Markdown reader implementation-equivalence gate, including PHP Markdown Extra profile fixtures in the 137/137 Markdown/native comparison."
             },
             "haskell": {
                 "ok": true,
@@ -1422,6 +1814,13 @@
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/markdown-phpextra-release/wordpress-blocks.html"
+            },
+            "wpBlockCounts": {
+                "code": 1,
+                "heading": 2,
+                "list": 1,
+                "paragraph": 1,
+                "separator": 1
             }
         },
         {
@@ -1435,9 +1834,9 @@
             "sampleSize": 418,
             "preview": "# WordPress data liberation checklist\n\nThis note mirrors the kind of Markdown found in migration docs and issue\ntrackers.\n\n- Preserve headings, paragraphs, lists, and inline emphasis.\n- Keep [links](https://wordpress.org/) readable.\n- Convert source content to clean WordPress blocks.\n\n| Source | Expected handoff |\n| --- | --- |\n| Markdown | paragraphs and lists |\n| CSV | table fallback |\n| HTML | native structure |",
             "support": {
-                "status": "partial",
+                "status": "reader-equivalent",
                 "implementation": "PortLibs\\Pandoc\\MarkdownReader",
-                "notes": "Strict Markdown uses the shared reader without a complete extension disabling matrix."
+                "notes": "Handled by the shared Markdown reader implementation-equivalence gate, including strict Markdown profile fixtures in the 137/137 Markdown/native comparison."
             },
             "haskell": {
                 "ok": true,
@@ -1450,6 +1849,11 @@
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/markdown-strict-notes/wordpress-blocks.html"
+            },
+            "wpBlockCounts": {
+                "heading": 1,
+                "list": 1,
+                "paragraph": 2
             }
         },
         {
@@ -1463,9 +1867,9 @@
             "sampleSize": 226,
             "preview": "---\ntitle: Release notes excerpt\n---\n\n## Highlights\n\nGitHub-flavored Markdown commonly mixes task lists, fenced code, and tables.\n\n- [x] Import document text\n- [ ] Preserve richer layout\n\n```php\necho \"portable conversion\";\n```",
             "support": {
-                "status": "partial",
+                "status": "reader-equivalent",
                 "implementation": "PortLibs\\Pandoc\\MarkdownReader",
-                "notes": "Strict Markdown uses the shared reader without a complete extension disabling matrix."
+                "notes": "Handled by the shared Markdown reader implementation-equivalence gate, including strict Markdown profile fixtures in the 137/137 Markdown/native comparison."
             },
             "haskell": {
                 "ok": true,
@@ -1478,6 +1882,13 @@
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/markdown-strict-release/wordpress-blocks.html"
+            },
+            "wpBlockCounts": {
+                "code": 1,
+                "heading": 2,
+                "list": 1,
+                "paragraph": 1,
+                "separator": 1
             }
         },
         {
@@ -1506,6 +1917,10 @@
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/native-basic/wordpress-blocks.html"
+            },
+            "wpBlockCounts": {
+                "heading": 1,
+                "paragraph": 1
             }
         },
         {
@@ -1534,6 +1949,16 @@
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/native-markdown-more/wordpress-blocks.html"
+            },
+            "wpBlockCounts": {
+                "code": 4,
+                "heading": 33,
+                "list": 8,
+                "paragraph": 55,
+                "quote": 1,
+                "separator": 2,
+                "table": 12,
+                "verse": 1
             }
         },
         {
@@ -1549,7 +1974,7 @@
             "support": {
                 "status": "partial",
                 "implementation": "PortLibs\\Pandoc\\OdtReader",
-                "notes": "Bounded ODT package reader parses content.xml, meta.xml, text/list styles, headings, paragraphs, ordered and bullet lists, tables, links, styled spans, line breaks, images, and image/resource package references into the shared AST. Full ODT parity remains open."
+                "notes": "Bounded ODT package reader parses content.xml, meta.xml, optional META-INF/manifest.xml package metadata, text/list styles, headings, paragraphs, ordered and bullet lists, tables, links, styled spans, line breaks, images, and image/resource package references into the shared AST. Full ODT parity remains open."
             },
             "haskell": {
                 "ok": true,
@@ -1562,6 +1987,10 @@
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/odt-headers/wordpress-blocks.html"
+            },
+            "wpBlockCounts": {
+                "heading": 3,
+                "paragraph": 2
             }
         },
         {
@@ -1577,7 +2006,7 @@
             "support": {
                 "status": "partial",
                 "implementation": "PortLibs\\Pandoc\\OdtReader",
-                "notes": "Bounded ODT package reader parses content.xml, meta.xml, text/list styles, headings, paragraphs, ordered and bullet lists, tables, links, styled spans, line breaks, images, and image/resource package references into the shared AST. Full ODT parity remains open."
+                "notes": "Bounded ODT package reader parses content.xml, meta.xml, optional META-INF/manifest.xml package metadata, text/list styles, headings, paragraphs, ordered and bullet lists, tables, links, styled spans, line breaks, images, and image/resource package references into the shared AST. Full ODT parity remains open."
             },
             "haskell": {
                 "ok": true,
@@ -1590,6 +2019,9 @@
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/odt-table-spans/wordpress-blocks.html"
+            },
+            "wpBlockCounts": {
+                "table": 1
             }
         },
         {
@@ -1618,6 +2050,10 @@
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/opml-reader/wordpress-blocks.html"
+            },
+            "wpBlockCounts": {
+                "heading": 63,
+                "paragraph": 2
             }
         },
         {
@@ -1646,6 +2082,9 @@
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/opml-outline/wordpress-blocks.html"
+            },
+            "wpBlockCounts": {
+                "heading": 3
             }
         },
         {
@@ -1659,9 +2098,9 @@
             "sampleSize": 111674,
             "preview": "",
             "support": {
-                "status": "partial",
+                "status": "reader-equivalent",
                 "implementation": "PortLibs\\Pandoc\\PptxReader",
-                "notes": "Bounded PPTX OpenXML package reader maps presentation slide order, title placeholders, text boxes, Wingdings/explicit bullet groups, simple tables, image references, SmartArt hierarchy with placeholder/layout sidecars, slide comments, shape z-order/layout metadata, and internal rich-media references into the shared AST with pinned upstream pptx-reader/basic fixture parity. PPTX writing remains unsupported."
+                "notes": "PPTX reader implementation-equivalence gate covers 109/109 checked-in PPTX/native pairs. The OpenXML reader maps upstream-style root officeDocument discovery, presentation and slide relationships, slide order, visible shapes, DrawingML text, tables, images, SmartArt, charts, speaker-note/comment review metadata, and grouped drawable descendants into the shared AST."
             },
             "haskell": {
                 "ok": true,
@@ -1674,6 +2113,14 @@
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/pptx-basic/wordpress-blocks.html"
+            },
+            "wpBlockCounts": {
+                "group": 1,
+                "heading": 4,
+                "image": 1,
+                "list": 3,
+                "paragraph": 23,
+                "table": 1
             }
         },
         {
@@ -1687,9 +2134,9 @@
             "sampleSize": 29134,
             "preview": "",
             "support": {
-                "status": "partial",
+                "status": "reader-equivalent",
                 "implementation": "PortLibs\\Pandoc\\PptxReader",
-                "notes": "Bounded PPTX OpenXML package reader maps presentation slide order, title placeholders, text boxes, Wingdings/explicit bullet groups, simple tables, image references, SmartArt hierarchy with placeholder/layout sidecars, slide comments, shape z-order/layout metadata, and internal rich-media references into the shared AST with pinned upstream pptx-reader/basic fixture parity. PPTX writing remains unsupported."
+                "notes": "PPTX reader implementation-equivalence gate covers 109/109 checked-in PPTX/native pairs. The OpenXML reader maps upstream-style root officeDocument discovery, presentation and slide relationships, slide order, visible shapes, DrawingML text, tables, images, SmartArt, charts, speaker-note/comment review metadata, and grouped drawable descendants into the shared AST."
             },
             "haskell": {
                 "ok": true,
@@ -1702,6 +2149,11 @@
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/pptx-tables/wordpress-blocks.html"
+            },
+            "wpBlockCounts": {
+                "heading": 2,
+                "paragraph": 1,
+                "table": 2
             }
         },
         {
@@ -1730,6 +2182,11 @@
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/ris-texbook/wordpress-blocks.html"
+            },
+            "wpBlockCounts": {
+                "group": 1,
+                "list": 1,
+                "paragraph": 1
             }
         },
         {
@@ -1758,6 +2215,11 @@
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/ris-web/wordpress-blocks.html"
+            },
+            "wpBlockCounts": {
+                "group": 1,
+                "list": 1,
+                "paragraph": 1
             }
         },
         {
@@ -1786,6 +2248,9 @@
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/rtf-template/wordpress-blocks.html"
+            },
+            "wpBlockCounts": {
+                "paragraph": 5
             }
         },
         {
@@ -1814,6 +2279,9 @@
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/rtf-simple/wordpress-blocks.html"
+            },
+            "wpBlockCounts": {
+                "paragraph": 2
             }
         },
         {
@@ -1842,6 +2310,10 @@
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/xlsx-basic/wordpress-blocks.html"
+            },
+            "wpBlockCounts": {
+                "heading": 2,
+                "table": 2
             }
         },
         {
@@ -1870,6 +2342,10 @@
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/xlsx-conditional-access-blueprint/wordpress-blocks.html"
+            },
+            "wpBlockCounts": {
+                "heading": 1,
+                "table": 1
             }
         },
         {
@@ -1899,6 +2375,10 @@
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/xml-docbook-generic/wordpress-blocks.html"
+            },
+            "wpBlockCounts": {
+                "heading": 2,
+                "paragraph": 3
             }
         },
         {
@@ -1928,6 +2408,10 @@
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/xml-outline-generic/wordpress-blocks.html"
+            },
+            "wpBlockCounts": {
+                "heading": 1,
+                "paragraph": 2
             }
         },
         {
@@ -1957,6 +2441,10 @@
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/pdf-wrapped-content/wordpress-blocks.html"
+            },
+            "wpBlockCounts": {
+                "heading": 2,
+                "paragraph": 2
             }
         },
         {
@@ -1986,6 +2474,43 @@
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/pdf-import-content/wordpress-blocks.html"
+            },
+            "wpBlockCounts": {
+                "heading": 3
+            }
+        },
+        {
+            "id": "pdf-tracemonkey",
+            "format": "pdf",
+            "label": "TraceMonkey technical PDF",
+            "description": "Larger multi-page public PDF fixture from Mozilla pdf.js tests; local extraction may be partial.",
+            "source": "mozilla/pdf.js test/pdfs/tracemonkey.pdf",
+            "sourceUrl": "https://raw.githubusercontent.com/mozilla/pdf.js/master/test/pdfs/tracemonkey.pdf",
+            "samplePath": "samples/pdf-tracemonkey-tracemonkey.pdf",
+            "sampleSize": 1016315,
+            "preview": "",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\PdfReader",
+                "notes": "Project-local markerPDF bridge extracts searchable PDF text lines, records basic PDF structural provenance, and maps simple headings, paragraphs, lists, links, and aligned text-table rows into the shared AST. PDF is not an upstream Pandoc input format."
+            },
+            "haskell": {
+                "ok": false,
+                "error": "Unknown input format 'pdf'\nPandoc can convert to PDF, but not from PDF.",
+                "path": "outputs/pdf-tracemonkey/haskell.html.error.txt"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/pdf-tracemonkey/php.html"
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/pdf-tracemonkey/wordpress-blocks.html"
+            },
+            "wpBlockCounts": {
+                "heading": 12,
+                "paragraph": 142,
+                "table": 19
             }
         },
         {
@@ -2010,14 +2535,15 @@
             },
             "phpHtml": {
                 "ok": false,
-                "error": "PHP Fatal error:  Uncaught RuntimeException: CFB storage directory entry must use ENDOFCHAIN start sector: ObjectPool in $REPO/lanes/pandoc/src/CompoundFileBinary.php:823\nStack trace:\n#0 $REPO/lanes/pandoc/src/CompoundFileBinary.php(743): PortLibs\\Pandoc\\CompoundFileBinary::validateDirectoryEntryObjectFields(Array)\n#1 $REPO/lanes/pandoc/src/CompoundFileBinary.php(239): PortLibs\\Pandoc\\CompoundFileBinary::parseDirectory('R\\x00o\\x00o\\x00t\\x00 \\x00E\\x00n\\x00t...', 3)\n#2 $REPO/lanes/pandoc/src/LegacyDocReader.php(228): PortLibs\\Pandoc\\CompoundFileBinary::fromBytes('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#3 $REPO/lanes/pandoc/src/LegacyDocReader.php(220): PortLibs\\Pandoc\\LegacyDocReader->readBytes('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#4 $REPO/lanes/pandoc/src/PandocConverter.php(36): PortLibs\\Pandoc\\LegacyDocReader->read('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#5 $REPO/lanes/pandoc/src/PandocConverter.php(79): PortLibs\\Pandoc\\PandocConverter::read('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...', 'doc', Array)\n#6 $REPO/lanes/pandoc/src/PandocConverter.php(98): PortLibs\\Pandoc\\PandocConverter::convert('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...', 'doc', 'html', Array)\n#7 $REPO/tools/build-pandoc-showcase.php(21): PortLibs\\Pandoc\\PandocConverter::convertFile('$REPO', 'doc', 'html')\n#8 {main}\n  thrown in $REPO/lanes/pandoc/src/CompoundFileBinary.php on line 823\nFatal error: Uncaught RuntimeException: CFB storage directory entry must use ENDOFCHAIN start sector: ObjectPool in $REPO/lanes/pandoc/src/CompoundFileBinary.php:823\nStack trace:\n#0 $REPO/lanes/pandoc/src/CompoundFileBinary.php(743): PortLibs\\Pandoc\\CompoundFileBinary::validateDirectoryEntryObjectFields(Array)\n#1 $REPO/lanes/pandoc/src/CompoundFileBinary.php(239): PortLibs\\Pandoc\\CompoundFileBinary::parseDirectory('R\\x00o\\x00o\\x00t\\x00 \\x00E\\x00n\\x00t...', 3)\n#2 $REPO/lanes/pandoc/src/LegacyDocReader.php(228): PortLibs\\Pandoc\\CompoundFileBinary::fromBytes('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#3 $REPO/lanes/pandoc/src/LegacyDocReader.php(220): PortLibs\\Pandoc\\LegacyDocReader->readBytes('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#4 $REPO/lanes/pandoc/src/PandocConverter.php(36): PortLibs\\Pandoc\\LegacyDocReader->read('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#5 $REPO/lanes/pandoc/src/PandocConverter.php(79): PortLibs\\Pandoc\\PandocConverter::read('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...', 'doc', Array)\n#6 $REPO/lanes/pandoc/src/PandocConverter.php(98): PortLibs\\Pandoc\\PandocConverter::convert('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...', 'doc', 'html', Array)\n#7 $REPO/tools/build-pandoc-showcase.php(21): PortLibs\\Pandoc\\PandocConverter::convertFile('$REPO', 'doc', 'html')\n#8 {main}\n  thrown in $REPO/lanes/pandoc/src/CompoundFileBinary.php on line 823",
+                "error": "PHP Fatal error:  Uncaught RuntimeException: CFB storage directory entry must use ENDOFCHAIN start sector: ObjectPool in $REPO/lanes/pandoc/src/CompoundFileBinary.php:823\nStack trace:\n#0 $REPO/lanes/pandoc/src/CompoundFileBinary.php(743): PortLibs\\Pandoc\\CompoundFileBinary::validateDirectoryEntryObjectFields(Array)\n#1 $REPO/lanes/pandoc/src/CompoundFileBinary.php(239): PortLibs\\Pandoc\\CompoundFileBinary::parseDirectory('R\\x00o\\x00o\\x00t\\x00 \\x00E\\x00n\\x00t...', 3)\n#2 $REPO/lanes/pandoc/src/LegacyDocReader.php(228): PortLibs\\Pandoc\\CompoundFileBinary::fromBytes('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#3 $REPO/lanes/pandoc/src/LegacyDocReader.php(220): PortLibs\\Pandoc\\LegacyDocReader->readBytes('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#4 $REPO/lanes/pandoc/src/PandocConverter.php(37): PortLibs\\Pandoc\\LegacyDocReader->read('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#5 $REPO/lanes/pandoc/src/PandocConverter.php(80): PortLibs\\Pandoc\\PandocConverter::read('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...', 'doc', Array)\n#6 $REPO/lanes/pandoc/src/PandocConverter.php(99): PortLibs\\Pandoc\\PandocConverter::convert('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...', 'doc', 'html', Array)\n#7 $REPO/tools/build-pandoc-showcase.php(21): PortLibs\\Pandoc\\PandocConverter::convertFile('$TMP', 'doc', 'html')\n#8 {main}\n  thrown in $REPO/lanes/pandoc/src/CompoundFileBinary.php on line 823\nFatal error: Uncaught RuntimeException: CFB storage directory entry must use ENDOFCHAIN start sector: ObjectPool in $REPO/lanes/pandoc/src/CompoundFileBinary.php:823\nStack trace:\n#0 $REPO/lanes/pandoc/src/CompoundFileBinary.php(743): PortLibs\\Pandoc\\CompoundFileBinary::validateDirectoryEntryObjectFields(Array)\n#1 $REPO/lanes/pandoc/src/CompoundFileBinary.php(239): PortLibs\\Pandoc\\CompoundFileBinary::parseDirectory('R\\x00o\\x00o\\x00t\\x00 \\x00E\\x00n\\x00t...', 3)\n#2 $REPO/lanes/pandoc/src/LegacyDocReader.php(228): PortLibs\\Pandoc\\CompoundFileBinary::fromBytes('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#3 $REPO/lanes/pandoc/src/LegacyDocReader.php(220): PortLibs\\Pandoc\\LegacyDocReader->readBytes('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#4 $REPO/lanes/pandoc/src/PandocConverter.php(37): PortLibs\\Pandoc\\LegacyDocReader->read('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#5 $REPO/lanes/pandoc/src/PandocConverter.php(80): PortLibs\\Pandoc\\PandocConverter::read('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...', 'doc', Array)\n#6 $REPO/lanes/pandoc/src/PandocConverter.php(99): PortLibs\\Pandoc\\PandocConverter::convert('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...', 'doc', 'html', Array)\n#7 $REPO/tools/build-pandoc-showcase.php(21): PortLibs\\Pandoc\\PandocConverter::convertFile('$TMP', 'doc', 'html')\n#8 {main}\n  thrown in $REPO/lanes/pandoc/src/CompoundFileBinary.php on line 823",
                 "path": "outputs/doc-poi-47304/php.html.error.txt"
             },
             "wpBlocks": {
                 "ok": false,
-                "error": "PHP Fatal error:  Uncaught RuntimeException: CFB storage directory entry must use ENDOFCHAIN start sector: ObjectPool in $REPO/lanes/pandoc/src/CompoundFileBinary.php:823\nStack trace:\n#0 $REPO/lanes/pandoc/src/CompoundFileBinary.php(743): PortLibs\\Pandoc\\CompoundFileBinary::validateDirectoryEntryObjectFields(Array)\n#1 $REPO/lanes/pandoc/src/CompoundFileBinary.php(239): PortLibs\\Pandoc\\CompoundFileBinary::parseDirectory('R\\x00o\\x00o\\x00t\\x00 \\x00E\\x00n\\x00t...', 3)\n#2 $REPO/lanes/pandoc/src/LegacyDocReader.php(228): PortLibs\\Pandoc\\CompoundFileBinary::fromBytes('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#3 $REPO/lanes/pandoc/src/LegacyDocReader.php(220): PortLibs\\Pandoc\\LegacyDocReader->readBytes('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#4 $REPO/lanes/pandoc/src/PandocConverter.php(36): PortLibs\\Pandoc\\LegacyDocReader->read('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#5 $REPO/lanes/pandoc/src/PandocConverter.php(79): PortLibs\\Pandoc\\PandocConverter::read('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...', 'doc', Array)\n#6 $REPO/lanes/pandoc/src/PandocConverter.php(98): PortLibs\\Pandoc\\PandocConverter::convert('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...', 'doc', 'wordpress', Array)\n#7 $REPO/tools/build-pandoc-showcase.php(21): PortLibs\\Pandoc\\PandocConverter::convertFile('$REPO', 'doc', 'wordpress')\n#8 {main}\n  thrown in $REPO/lanes/pandoc/src/CompoundFileBinary.php on line 823\nFatal error: Uncaught RuntimeException: CFB storage directory entry must use ENDOFCHAIN start sector: ObjectPool in $REPO/lanes/pandoc/src/CompoundFileBinary.php:823\nStack trace:\n#0 $REPO/lanes/pandoc/src/CompoundFileBinary.php(743): PortLibs\\Pandoc\\CompoundFileBinary::validateDirectoryEntryObjectFields(Array)\n#1 $REPO/lanes/pandoc/src/CompoundFileBinary.php(239): PortLibs\\Pandoc\\CompoundFileBinary::parseDirectory('R\\x00o\\x00o\\x00t\\x00 \\x00E\\x00n\\x00t...', 3)\n#2 $REPO/lanes/pandoc/src/LegacyDocReader.php(228): PortLibs\\Pandoc\\CompoundFileBinary::fromBytes('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#3 $REPO/lanes/pandoc/src/LegacyDocReader.php(220): PortLibs\\Pandoc\\LegacyDocReader->readBytes('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#4 $REPO/lanes/pandoc/src/PandocConverter.php(36): PortLibs\\Pandoc\\LegacyDocReader->read('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#5 $REPO/lanes/pandoc/src/PandocConverter.php(79): PortLibs\\Pandoc\\PandocConverter::read('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...', 'doc', Array)\n#6 $REPO/lanes/pandoc/src/PandocConverter.php(98): PortLibs\\Pandoc\\PandocConverter::convert('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...', 'doc', 'wordpress', Array)\n#7 $REPO/tools/build-pandoc-showcase.php(21): PortLibs\\Pandoc\\PandocConverter::convertFile('$REPO', 'doc', 'wordpress')\n#8 {main}\n  thrown in $REPO/lanes/pandoc/src/CompoundFileBinary.php on line 823",
+                "error": "PHP Fatal error:  Uncaught RuntimeException: CFB storage directory entry must use ENDOFCHAIN start sector: ObjectPool in $REPO/lanes/pandoc/src/CompoundFileBinary.php:823\nStack trace:\n#0 $REPO/lanes/pandoc/src/CompoundFileBinary.php(743): PortLibs\\Pandoc\\CompoundFileBinary::validateDirectoryEntryObjectFields(Array)\n#1 $REPO/lanes/pandoc/src/CompoundFileBinary.php(239): PortLibs\\Pandoc\\CompoundFileBinary::parseDirectory('R\\x00o\\x00o\\x00t\\x00 \\x00E\\x00n\\x00t...', 3)\n#2 $REPO/lanes/pandoc/src/LegacyDocReader.php(228): PortLibs\\Pandoc\\CompoundFileBinary::fromBytes('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#3 $REPO/lanes/pandoc/src/LegacyDocReader.php(220): PortLibs\\Pandoc\\LegacyDocReader->readBytes('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#4 $REPO/lanes/pandoc/src/PandocConverter.php(37): PortLibs\\Pandoc\\LegacyDocReader->read('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#5 $REPO/lanes/pandoc/src/PandocConverter.php(80): PortLibs\\Pandoc\\PandocConverter::read('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...', 'doc', Array)\n#6 $REPO/lanes/pandoc/src/PandocConverter.php(99): PortLibs\\Pandoc\\PandocConverter::convert('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...', 'doc', 'wordpress', Array)\n#7 $REPO/tools/build-pandoc-showcase.php(21): PortLibs\\Pandoc\\PandocConverter::convertFile('$TMP', 'doc', 'wordpress')\n#8 {main}\n  thrown in $REPO/lanes/pandoc/src/CompoundFileBinary.php on line 823\nFatal error: Uncaught RuntimeException: CFB storage directory entry must use ENDOFCHAIN start sector: ObjectPool in $REPO/lanes/pandoc/src/CompoundFileBinary.php:823\nStack trace:\n#0 $REPO/lanes/pandoc/src/CompoundFileBinary.php(743): PortLibs\\Pandoc\\CompoundFileBinary::validateDirectoryEntryObjectFields(Array)\n#1 $REPO/lanes/pandoc/src/CompoundFileBinary.php(239): PortLibs\\Pandoc\\CompoundFileBinary::parseDirectory('R\\x00o\\x00o\\x00t\\x00 \\x00E\\x00n\\x00t...', 3)\n#2 $REPO/lanes/pandoc/src/LegacyDocReader.php(228): PortLibs\\Pandoc\\CompoundFileBinary::fromBytes('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#3 $REPO/lanes/pandoc/src/LegacyDocReader.php(220): PortLibs\\Pandoc\\LegacyDocReader->readBytes('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#4 $REPO/lanes/pandoc/src/PandocConverter.php(37): PortLibs\\Pandoc\\LegacyDocReader->read('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#5 $REPO/lanes/pandoc/src/PandocConverter.php(80): PortLibs\\Pandoc\\PandocConverter::read('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...', 'doc', Array)\n#6 $REPO/lanes/pandoc/src/PandocConverter.php(99): PortLibs\\Pandoc\\PandocConverter::convert('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...', 'doc', 'wordpress', Array)\n#7 $REPO/tools/build-pandoc-showcase.php(21): PortLibs\\Pandoc\\PandocConverter::convertFile('$TMP', 'doc', 'wordpress')\n#8 {main}\n  thrown in $REPO/lanes/pandoc/src/CompoundFileBinary.php on line 823",
                 "path": "outputs/doc-poi-47304/wordpress-blocks.html.error.txt"
-            }
+            },
+            "wpBlockCounts": []
         },
         {
             "id": "doc-poi-57843",
@@ -2041,14 +2567,15 @@
             },
             "phpHtml": {
                 "ok": false,
-                "error": "PHP Fatal error:  Uncaught RuntimeException: CFB storage directory entry must use ENDOFCHAIN start sector: ObjectPool in $REPO/lanes/pandoc/src/CompoundFileBinary.php:823\nStack trace:\n#0 $REPO/lanes/pandoc/src/CompoundFileBinary.php(743): PortLibs\\Pandoc\\CompoundFileBinary::validateDirectoryEntryObjectFields(Array)\n#1 $REPO/lanes/pandoc/src/CompoundFileBinary.php(239): PortLibs\\Pandoc\\CompoundFileBinary::parseDirectory('R\\x00o\\x00o\\x00t\\x00 \\x00E\\x00n\\x00t...', 3)\n#2 $REPO/lanes/pandoc/src/LegacyDocReader.php(228): PortLibs\\Pandoc\\CompoundFileBinary::fromBytes('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#3 $REPO/lanes/pandoc/src/LegacyDocReader.php(220): PortLibs\\Pandoc\\LegacyDocReader->readBytes('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#4 $REPO/lanes/pandoc/src/PandocConverter.php(36): PortLibs\\Pandoc\\LegacyDocReader->read('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#5 $REPO/lanes/pandoc/src/PandocConverter.php(79): PortLibs\\Pandoc\\PandocConverter::read('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...', 'doc', Array)\n#6 $REPO/lanes/pandoc/src/PandocConverter.php(98): PortLibs\\Pandoc\\PandocConverter::convert('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...', 'doc', 'html', Array)\n#7 $REPO/tools/build-pandoc-showcase.php(21): PortLibs\\Pandoc\\PandocConverter::convertFile('$REPO', 'doc', 'html')\n#8 {main}\n  thrown in $REPO/lanes/pandoc/src/CompoundFileBinary.php on line 823\nFatal error: Uncaught RuntimeException: CFB storage directory entry must use ENDOFCHAIN start sector: ObjectPool in $REPO/lanes/pandoc/src/CompoundFileBinary.php:823\nStack trace:\n#0 $REPO/lanes/pandoc/src/CompoundFileBinary.php(743): PortLibs\\Pandoc\\CompoundFileBinary::validateDirectoryEntryObjectFields(Array)\n#1 $REPO/lanes/pandoc/src/CompoundFileBinary.php(239): PortLibs\\Pandoc\\CompoundFileBinary::parseDirectory('R\\x00o\\x00o\\x00t\\x00 \\x00E\\x00n\\x00t...', 3)\n#2 $REPO/lanes/pandoc/src/LegacyDocReader.php(228): PortLibs\\Pandoc\\CompoundFileBinary::fromBytes('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#3 $REPO/lanes/pandoc/src/LegacyDocReader.php(220): PortLibs\\Pandoc\\LegacyDocReader->readBytes('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#4 $REPO/lanes/pandoc/src/PandocConverter.php(36): PortLibs\\Pandoc\\LegacyDocReader->read('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#5 $REPO/lanes/pandoc/src/PandocConverter.php(79): PortLibs\\Pandoc\\PandocConverter::read('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...', 'doc', Array)\n#6 $REPO/lanes/pandoc/src/PandocConverter.php(98): PortLibs\\Pandoc\\PandocConverter::convert('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...', 'doc', 'html', Array)\n#7 $REPO/tools/build-pandoc-showcase.php(21): PortLibs\\Pandoc\\PandocConverter::convertFile('$REPO', 'doc', 'html')\n#8 {main}\n  thrown in $REPO/lanes/pandoc/src/CompoundFileBinary.php on line 823",
+                "error": "PHP Fatal error:  Uncaught RuntimeException: CFB storage directory entry must use ENDOFCHAIN start sector: ObjectPool in $REPO/lanes/pandoc/src/CompoundFileBinary.php:823\nStack trace:\n#0 $REPO/lanes/pandoc/src/CompoundFileBinary.php(743): PortLibs\\Pandoc\\CompoundFileBinary::validateDirectoryEntryObjectFields(Array)\n#1 $REPO/lanes/pandoc/src/CompoundFileBinary.php(239): PortLibs\\Pandoc\\CompoundFileBinary::parseDirectory('R\\x00o\\x00o\\x00t\\x00 \\x00E\\x00n\\x00t...', 3)\n#2 $REPO/lanes/pandoc/src/LegacyDocReader.php(228): PortLibs\\Pandoc\\CompoundFileBinary::fromBytes('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#3 $REPO/lanes/pandoc/src/LegacyDocReader.php(220): PortLibs\\Pandoc\\LegacyDocReader->readBytes('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#4 $REPO/lanes/pandoc/src/PandocConverter.php(37): PortLibs\\Pandoc\\LegacyDocReader->read('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#5 $REPO/lanes/pandoc/src/PandocConverter.php(80): PortLibs\\Pandoc\\PandocConverter::read('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...', 'doc', Array)\n#6 $REPO/lanes/pandoc/src/PandocConverter.php(99): PortLibs\\Pandoc\\PandocConverter::convert('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...', 'doc', 'html', Array)\n#7 $REPO/tools/build-pandoc-showcase.php(21): PortLibs\\Pandoc\\PandocConverter::convertFile('$TMP', 'doc', 'html')\n#8 {main}\n  thrown in $REPO/lanes/pandoc/src/CompoundFileBinary.php on line 823\nFatal error: Uncaught RuntimeException: CFB storage directory entry must use ENDOFCHAIN start sector: ObjectPool in $REPO/lanes/pandoc/src/CompoundFileBinary.php:823\nStack trace:\n#0 $REPO/lanes/pandoc/src/CompoundFileBinary.php(743): PortLibs\\Pandoc\\CompoundFileBinary::validateDirectoryEntryObjectFields(Array)\n#1 $REPO/lanes/pandoc/src/CompoundFileBinary.php(239): PortLibs\\Pandoc\\CompoundFileBinary::parseDirectory('R\\x00o\\x00o\\x00t\\x00 \\x00E\\x00n\\x00t...', 3)\n#2 $REPO/lanes/pandoc/src/LegacyDocReader.php(228): PortLibs\\Pandoc\\CompoundFileBinary::fromBytes('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#3 $REPO/lanes/pandoc/src/LegacyDocReader.php(220): PortLibs\\Pandoc\\LegacyDocReader->readBytes('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#4 $REPO/lanes/pandoc/src/PandocConverter.php(37): PortLibs\\Pandoc\\LegacyDocReader->read('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#5 $REPO/lanes/pandoc/src/PandocConverter.php(80): PortLibs\\Pandoc\\PandocConverter::read('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...', 'doc', Array)\n#6 $REPO/lanes/pandoc/src/PandocConverter.php(99): PortLibs\\Pandoc\\PandocConverter::convert('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...', 'doc', 'html', Array)\n#7 $REPO/tools/build-pandoc-showcase.php(21): PortLibs\\Pandoc\\PandocConverter::convertFile('$TMP', 'doc', 'html')\n#8 {main}\n  thrown in $REPO/lanes/pandoc/src/CompoundFileBinary.php on line 823",
                 "path": "outputs/doc-poi-57843/php.html.error.txt"
             },
             "wpBlocks": {
                 "ok": false,
-                "error": "PHP Fatal error:  Uncaught RuntimeException: CFB storage directory entry must use ENDOFCHAIN start sector: ObjectPool in $REPO/lanes/pandoc/src/CompoundFileBinary.php:823\nStack trace:\n#0 $REPO/lanes/pandoc/src/CompoundFileBinary.php(743): PortLibs\\Pandoc\\CompoundFileBinary::validateDirectoryEntryObjectFields(Array)\n#1 $REPO/lanes/pandoc/src/CompoundFileBinary.php(239): PortLibs\\Pandoc\\CompoundFileBinary::parseDirectory('R\\x00o\\x00o\\x00t\\x00 \\x00E\\x00n\\x00t...', 3)\n#2 $REPO/lanes/pandoc/src/LegacyDocReader.php(228): PortLibs\\Pandoc\\CompoundFileBinary::fromBytes('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#3 $REPO/lanes/pandoc/src/LegacyDocReader.php(220): PortLibs\\Pandoc\\LegacyDocReader->readBytes('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#4 $REPO/lanes/pandoc/src/PandocConverter.php(36): PortLibs\\Pandoc\\LegacyDocReader->read('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#5 $REPO/lanes/pandoc/src/PandocConverter.php(79): PortLibs\\Pandoc\\PandocConverter::read('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...', 'doc', Array)\n#6 $REPO/lanes/pandoc/src/PandocConverter.php(98): PortLibs\\Pandoc\\PandocConverter::convert('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...', 'doc', 'wordpress', Array)\n#7 $REPO/tools/build-pandoc-showcase.php(21): PortLibs\\Pandoc\\PandocConverter::convertFile('$REPO', 'doc', 'wordpress')\n#8 {main}\n  thrown in $REPO/lanes/pandoc/src/CompoundFileBinary.php on line 823\nFatal error: Uncaught RuntimeException: CFB storage directory entry must use ENDOFCHAIN start sector: ObjectPool in $REPO/lanes/pandoc/src/CompoundFileBinary.php:823\nStack trace:\n#0 $REPO/lanes/pandoc/src/CompoundFileBinary.php(743): PortLibs\\Pandoc\\CompoundFileBinary::validateDirectoryEntryObjectFields(Array)\n#1 $REPO/lanes/pandoc/src/CompoundFileBinary.php(239): PortLibs\\Pandoc\\CompoundFileBinary::parseDirectory('R\\x00o\\x00o\\x00t\\x00 \\x00E\\x00n\\x00t...', 3)\n#2 $REPO/lanes/pandoc/src/LegacyDocReader.php(228): PortLibs\\Pandoc\\CompoundFileBinary::fromBytes('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#3 $REPO/lanes/pandoc/src/LegacyDocReader.php(220): PortLibs\\Pandoc\\LegacyDocReader->readBytes('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#4 $REPO/lanes/pandoc/src/PandocConverter.php(36): PortLibs\\Pandoc\\LegacyDocReader->read('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#5 $REPO/lanes/pandoc/src/PandocConverter.php(79): PortLibs\\Pandoc\\PandocConverter::read('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...', 'doc', Array)\n#6 $REPO/lanes/pandoc/src/PandocConverter.php(98): PortLibs\\Pandoc\\PandocConverter::convert('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...', 'doc', 'wordpress', Array)\n#7 $REPO/tools/build-pandoc-showcase.php(21): PortLibs\\Pandoc\\PandocConverter::convertFile('$REPO', 'doc', 'wordpress')\n#8 {main}\n  thrown in $REPO/lanes/pandoc/src/CompoundFileBinary.php on line 823",
+                "error": "PHP Fatal error:  Uncaught RuntimeException: CFB storage directory entry must use ENDOFCHAIN start sector: ObjectPool in $REPO/lanes/pandoc/src/CompoundFileBinary.php:823\nStack trace:\n#0 $REPO/lanes/pandoc/src/CompoundFileBinary.php(743): PortLibs\\Pandoc\\CompoundFileBinary::validateDirectoryEntryObjectFields(Array)\n#1 $REPO/lanes/pandoc/src/CompoundFileBinary.php(239): PortLibs\\Pandoc\\CompoundFileBinary::parseDirectory('R\\x00o\\x00o\\x00t\\x00 \\x00E\\x00n\\x00t...', 3)\n#2 $REPO/lanes/pandoc/src/LegacyDocReader.php(228): PortLibs\\Pandoc\\CompoundFileBinary::fromBytes('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#3 $REPO/lanes/pandoc/src/LegacyDocReader.php(220): PortLibs\\Pandoc\\LegacyDocReader->readBytes('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#4 $REPO/lanes/pandoc/src/PandocConverter.php(37): PortLibs\\Pandoc\\LegacyDocReader->read('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#5 $REPO/lanes/pandoc/src/PandocConverter.php(80): PortLibs\\Pandoc\\PandocConverter::read('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...', 'doc', Array)\n#6 $REPO/lanes/pandoc/src/PandocConverter.php(99): PortLibs\\Pandoc\\PandocConverter::convert('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...', 'doc', 'wordpress', Array)\n#7 $REPO/tools/build-pandoc-showcase.php(21): PortLibs\\Pandoc\\PandocConverter::convertFile('$TMP', 'doc', 'wordpress')\n#8 {main}\n  thrown in $REPO/lanes/pandoc/src/CompoundFileBinary.php on line 823\nFatal error: Uncaught RuntimeException: CFB storage directory entry must use ENDOFCHAIN start sector: ObjectPool in $REPO/lanes/pandoc/src/CompoundFileBinary.php:823\nStack trace:\n#0 $REPO/lanes/pandoc/src/CompoundFileBinary.php(743): PortLibs\\Pandoc\\CompoundFileBinary::validateDirectoryEntryObjectFields(Array)\n#1 $REPO/lanes/pandoc/src/CompoundFileBinary.php(239): PortLibs\\Pandoc\\CompoundFileBinary::parseDirectory('R\\x00o\\x00o\\x00t\\x00 \\x00E\\x00n\\x00t...', 3)\n#2 $REPO/lanes/pandoc/src/LegacyDocReader.php(228): PortLibs\\Pandoc\\CompoundFileBinary::fromBytes('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#3 $REPO/lanes/pandoc/src/LegacyDocReader.php(220): PortLibs\\Pandoc\\LegacyDocReader->readBytes('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#4 $REPO/lanes/pandoc/src/PandocConverter.php(37): PortLibs\\Pandoc\\LegacyDocReader->read('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#5 $REPO/lanes/pandoc/src/PandocConverter.php(80): PortLibs\\Pandoc\\PandocConverter::read('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...', 'doc', Array)\n#6 $REPO/lanes/pandoc/src/PandocConverter.php(99): PortLibs\\Pandoc\\PandocConverter::convert('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...', 'doc', 'wordpress', Array)\n#7 $REPO/tools/build-pandoc-showcase.php(21): PortLibs\\Pandoc\\PandocConverter::convertFile('$TMP', 'doc', 'wordpress')\n#8 {main}\n  thrown in $REPO/lanes/pandoc/src/CompoundFileBinary.php on line 823",
                 "path": "outputs/doc-poi-57843/wordpress-blocks.html.error.txt"
-            }
+            },
+            "wpBlockCounts": []
         }
     ]
 }

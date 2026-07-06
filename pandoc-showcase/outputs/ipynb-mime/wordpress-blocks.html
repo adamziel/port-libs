@@ -1,31 +1,53 @@
-<!-- wp:html -->
-<div class="ipynb-cell ipynb-code-cell" data-ipynb-cell-index="0" data-ipynb-cell-type="code" data-ipynb-cell-id="0ad1fbe7-107b-4668-ae4d-8ce4ae9a4400" data-ipynb-execution-count="1"><pre class="wp-block-code" data-ipynb-cell-index="0" data-ipynb-cell-type="code" data-ipynb-execution-count="1"><code class="language-python">from __future__ import annotations
+<!-- wp:group -->
+<div class="wp-block-group ipynb-cell ipynb-code-cell" data-ipynb-cell-index="0" data-ipynb-cell-type="code" data-ipynb-cell-id="0ad1fbe7-107b-4668-ae4d-8ce4ae9a4400" data-ipynb-execution-count="1">
+<!-- wp:code {"language":"python"} -->
+<pre class="wp-block-code ipynb-code-cell-source" data-ipynb-cell-index="0" data-ipynb-cell-type="code" data-ipynb-execution-count="1"><code class="language-python">from __future__ import annotations
 
-from dataclasses import dataclass</code></pre></div>
-<!-- /wp:html -->
+from dataclasses import dataclass</code></pre>
+<!-- /wp:code -->
+</div>
+<!-- /wp:group -->
 
-<!-- wp:html -->
-<div class="ipynb-cell ipynb-code-cell" data-ipynb-cell-index="1" data-ipynb-cell-type="code" data-ipynb-cell-id="c2d3a9f4-dfdb-4ced-bbcd-3dfd1780af80" data-ipynb-output-count="1" data-ipynb-output-indexes="0" data-ipynb-output-display-order="stream" data-ipynb-output-byte-policy="metadata-only" data-ipynb-output-byte-presence-count="1" data-ipynb-output-stream-names="stdout" data-ipynb-execution-count="2" data-ipynb-diagnostics="output-bytes-blocked output-stream-bytes-blocked"><pre class="wp-block-code" data-ipynb-cell-index="1" data-ipynb-cell-type="code" data-ipynb-execution-count="2"><code class="language-python">import IPython
+<!-- wp:group -->
+<div class="wp-block-group ipynb-cell ipynb-code-cell" data-ipynb-cell-index="1" data-ipynb-cell-type="code" data-ipynb-cell-id="c2d3a9f4-dfdb-4ced-bbcd-3dfd1780af80" data-ipynb-output-count="1" data-ipynb-output-indexes="0" data-ipynb-output-display-order="stream" data-ipynb-output-byte-policy="metadata-only" data-ipynb-output-byte-presence-count="1" data-ipynb-output-stream-names="stdout" data-ipynb-execution-count="2" data-ipynb-diagnostics="output-bytes-blocked output-stream-bytes-blocked">
+<!-- wp:code {"language":"python"} -->
+<pre class="wp-block-code ipynb-code-cell-source" data-ipynb-cell-index="1" data-ipynb-cell-type="code" data-ipynb-execution-count="2"><code class="language-python">import IPython
 
-print(IPython.__version__)</code></pre></div>
-<!-- /wp:html -->
+print(IPython.__version__)</code></pre>
+<!-- /wp:code -->
+</div>
+<!-- /wp:group -->
 
-<!-- wp:html -->
-<div class="ipynb-cell ipynb-markdown-cell" data-ipynb-cell-index="2" data-ipynb-cell-type="markdown" data-ipynb-cell-id="21e7a4a1-0cf8-48cc-823c-dca698ae6853"><p>Supported IPython display formatters:</p></div>
-<!-- /wp:html -->
+<!-- wp:group -->
+<div class="wp-block-group ipynb-cell ipynb-markdown-cell" data-ipynb-cell-index="2" data-ipynb-cell-type="markdown" data-ipynb-cell-id="21e7a4a1-0cf8-48cc-823c-dca698ae6853">
+<!-- wp:paragraph -->
+<p>Supported IPython display formatters:</p>
+<!-- /wp:paragraph -->
+</div>
+<!-- /wp:group -->
 
-<!-- wp:html -->
-<div class="ipynb-cell ipynb-code-cell" data-ipynb-cell-index="3" data-ipynb-cell-type="code" data-ipynb-cell-id="053cdbc4-b157-4e3e-9c86-8f374770d006" data-ipynb-output-count="1" data-ipynb-output-indexes="0" data-ipynb-output-display-order="stream" data-ipynb-output-byte-policy="metadata-only" data-ipynb-output-byte-presence-count="1" data-ipynb-output-stream-names="stdout" data-ipynb-execution-count="3" data-ipynb-diagnostics="output-bytes-blocked output-stream-bytes-blocked"><pre class="wp-block-code" data-ipynb-cell-index="3" data-ipynb-cell-type="code" data-ipynb-execution-count="3"><code class="language-python">ip = get_ipython()
+<!-- wp:group -->
+<div class="wp-block-group ipynb-cell ipynb-code-cell" data-ipynb-cell-index="3" data-ipynb-cell-type="code" data-ipynb-cell-id="053cdbc4-b157-4e3e-9c86-8f374770d006" data-ipynb-output-count="1" data-ipynb-output-indexes="0" data-ipynb-output-display-order="stream" data-ipynb-output-byte-policy="metadata-only" data-ipynb-output-byte-presence-count="1" data-ipynb-output-stream-names="stdout" data-ipynb-execution-count="3" data-ipynb-diagnostics="output-bytes-blocked output-stream-bytes-blocked">
+<!-- wp:code {"language":"python"} -->
+<pre class="wp-block-code ipynb-code-cell-source" data-ipynb-cell-index="3" data-ipynb-cell-type="code" data-ipynb-execution-count="3"><code class="language-python">ip = get_ipython()
 for mime in ip.display_formatter.formatters:
-    print(mime)</code></pre></div>
-<!-- /wp:html -->
+    print(mime)</code></pre>
+<!-- /wp:code -->
+</div>
+<!-- /wp:group -->
 
-<!-- wp:html -->
-<div class="ipynb-cell ipynb-markdown-cell" data-ipynb-cell-index="4" data-ipynb-cell-type="markdown" data-ipynb-cell-id="d79b063d-ce81-497b-a0ea-5b2e2972e845"><p>Let’s write a simple class that will output different mime:</p></div>
-<!-- /wp:html -->
+<!-- wp:group -->
+<div class="wp-block-group ipynb-cell ipynb-markdown-cell" data-ipynb-cell-index="4" data-ipynb-cell-type="markdown" data-ipynb-cell-id="d79b063d-ce81-497b-a0ea-5b2e2972e845">
+<!-- wp:paragraph -->
+<p>Let’s write a simple class that will output different mime:</p>
+<!-- /wp:paragraph -->
+</div>
+<!-- /wp:group -->
 
-<!-- wp:html -->
-<div class="ipynb-cell ipynb-code-cell" data-ipynb-cell-index="5" data-ipynb-cell-type="code" data-ipynb-cell-id="c847636c-1c45-432e-9d8d-7310dd7f5637" data-ipynb-execution-count="4"><pre class="wp-block-code" data-ipynb-cell-index="5" data-ipynb-cell-type="code" data-ipynb-execution-count="4"><code class="language-python">@dataclass
+<!-- wp:group -->
+<div class="wp-block-group ipynb-cell ipynb-code-cell" data-ipynb-cell-index="5" data-ipynb-cell-type="code" data-ipynb-cell-id="c847636c-1c45-432e-9d8d-7310dd7f5637" data-ipynb-execution-count="4">
+<!-- wp:code {"language":"python"} -->
+<pre class="wp-block-code ipynb-code-cell-source" data-ipynb-cell-index="5" data-ipynb-cell-type="code" data-ipynb-execution-count="4"><code class="language-python">@dataclass
 class Mime:
     math: str
 
@@ -52,17 +74,31 @@ class Mime:
             data = {k: v for k, v in data.items() if k in include}
         if exclude:
             data = {k: v for k, v in data.items() if k not in exclude}
-        return data</code></pre></div>
-<!-- /wp:html -->
+        return data</code></pre>
+<!-- /wp:code -->
+</div>
+<!-- /wp:group -->
 
-<!-- wp:html -->
-<div class="ipynb-cell ipynb-code-cell" data-ipynb-cell-index="6" data-ipynb-cell-type="code" data-ipynb-cell-id="4fa54f22-0c3a-4809-91f7-ea7101ff1907" data-ipynb-execution-count="5"><pre class="wp-block-code" data-ipynb-cell-index="6" data-ipynb-cell-type="code" data-ipynb-execution-count="5"><code class="language-python">mime = Mime(&quot;E = mc^2&quot;)</code></pre></div>
-<!-- /wp:html -->
+<!-- wp:group -->
+<div class="wp-block-group ipynb-cell ipynb-code-cell" data-ipynb-cell-index="6" data-ipynb-cell-type="code" data-ipynb-cell-id="4fa54f22-0c3a-4809-91f7-ea7101ff1907" data-ipynb-execution-count="5">
+<!-- wp:code {"language":"python"} -->
+<pre class="wp-block-code ipynb-code-cell-source" data-ipynb-cell-index="6" data-ipynb-cell-type="code" data-ipynb-execution-count="5"><code class="language-python">mime = Mime(&quot;E = mc^2&quot;)</code></pre>
+<!-- /wp:code -->
+</div>
+<!-- /wp:group -->
 
-<!-- wp:html -->
-<div class="ipynb-cell ipynb-code-cell" data-ipynb-cell-index="7" data-ipynb-cell-type="code" data-ipynb-cell-id="c419e6a6-240c-4af0-a244-5f1526705c30" data-ipynb-output-count="1" data-ipynb-output-indexes="0" data-ipynb-output-display-order="execute_result" data-ipynb-output-mime-types="text/html text/latex text/markdown text/plain" data-ipynb-rich-output-unsupported-count="1" data-ipynb-output-byte-policy="metadata-only" data-ipynb-output-byte-presence-count="1" data-ipynb-output-execution-counts="6" data-ipynb-execution-count="6" data-ipynb-diagnostics="output-bytes-blocked output-mime-bundle-metadata-only"><pre class="wp-block-code" data-ipynb-cell-index="7" data-ipynb-cell-type="code" data-ipynb-execution-count="6"><code class="language-python">mime</code></pre></div>
-<!-- /wp:html -->
+<!-- wp:group -->
+<div class="wp-block-group ipynb-cell ipynb-code-cell" data-ipynb-cell-index="7" data-ipynb-cell-type="code" data-ipynb-cell-id="c419e6a6-240c-4af0-a244-5f1526705c30" data-ipynb-output-count="1" data-ipynb-output-indexes="0" data-ipynb-output-display-order="execute_result" data-ipynb-output-mime-types="text/html text/latex text/markdown text/plain" data-ipynb-rich-output-unsupported-count="1" data-ipynb-output-byte-policy="metadata-only" data-ipynb-output-byte-presence-count="1" data-ipynb-output-execution-counts="6" data-ipynb-execution-count="6" data-ipynb-diagnostics="output-bytes-blocked output-mime-bundle-metadata-only">
+<!-- wp:code {"language":"python"} -->
+<pre class="wp-block-code ipynb-code-cell-source" data-ipynb-cell-index="7" data-ipynb-cell-type="code" data-ipynb-execution-count="6"><code class="language-python">mime</code></pre>
+<!-- /wp:code -->
+</div>
+<!-- /wp:group -->
 
-<!-- wp:html -->
-<div class="ipynb-cell ipynb-markdown-cell" data-ipynb-cell-index="8" data-ipynb-cell-type="markdown" data-ipynb-cell-id="bf140b8e-16ac-4670-9778-f1c1d9486f9d"><p>Note that #7561 made ipynb reader aware of this, and #7563 made ipynb writer aware of this.</p></div>
-<!-- /wp:html -->
+<!-- wp:group -->
+<div class="wp-block-group ipynb-cell ipynb-markdown-cell" data-ipynb-cell-index="8" data-ipynb-cell-type="markdown" data-ipynb-cell-id="bf140b8e-16ac-4670-9778-f1c1d9486f9d">
+<!-- wp:paragraph -->
+<p>Note that #7561 made ipynb reader aware of this, and #7563 made ipynb writer aware of this.</p>
+<!-- /wp:paragraph -->
+</div>
+<!-- /wp:group -->

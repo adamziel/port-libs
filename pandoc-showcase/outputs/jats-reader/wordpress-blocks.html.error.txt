@@ -1,20 +1,20 @@
-PHP Fatal error:  Uncaught InvalidArgumentException: JATS input must not declare a document type in $REPO/lanes/pandoc/src/XmlHtmlDom.php:27493
+PHP Fatal error:  Uncaught InvalidArgumentException: JATS input must not declare a document type in $REPO/lanes/pandoc/src/XmlHtmlDom.php:34353
 Stack trace:
-#0 $REPO/lanes/pandoc/src/XmlHtmlDom.php(575): PortLibs\Pandoc\XmlHtmlDom::assertNoDoctype('<?xml version="...', 'JATS input')
+#0 $REPO/lanes/pandoc/src/XmlHtmlDom.php(684): PortLibs\Pandoc\XmlHtmlDom::assertNoDoctype('<?xml version="...', 'JATS input')
 #1 $REPO/lanes/pandoc/src/XmlReader.php(69): PortLibs\Pandoc\XmlHtmlDom::loadXmlDocument('<?xml version="...', 'JATS input', false)
-#2 $REPO/lanes/pandoc/src/PandocConverter.php(36): PortLibs\Pandoc\XmlReader->read('<?xml version="...')
-#3 $REPO/lanes/pandoc/src/PandocConverter.php(79): PortLibs\Pandoc\PandocConverter::read('<?xml version="...', 'jats', Array)
-#4 $REPO/lanes/pandoc/src/PandocConverter.php(98): PortLibs\Pandoc\PandocConverter::convert('<?xml version="...', 'jats', 'wordpress', Array)
-#5 $REPO/tools/build-pandoc-showcase.php(21): PortLibs\Pandoc\PandocConverter::convertFile('$REPO', 'jats', 'wordpress')
+#2 $REPO/lanes/pandoc/src/PandocConverter.php(37): PortLibs\Pandoc\XmlReader->read('<?xml version="...')
+#3 $REPO/lanes/pandoc/src/PandocConverter.php(80): PortLibs\Pandoc\PandocConverter::read('<?xml version="...', 'jats', Array)
+#4 $REPO/lanes/pandoc/src/PandocConverter.php(99): PortLibs\Pandoc\PandocConverter::convert('<?xml version="...', 'jats', 'wordpress', Array)
+#5 $REPO/tools/build-pandoc-showcase.php(21): PortLibs\Pandoc\PandocConverter::convertFile('$TMP', 'jats', 'wordpress')
 #6 {main}
-  thrown in $REPO/lanes/pandoc/src/XmlHtmlDom.php on line 27493
-Fatal error: Uncaught InvalidArgumentException: JATS input must not declare a document type in $REPO/lanes/pandoc/src/XmlHtmlDom.php:27493
+  thrown in $REPO/lanes/pandoc/src/XmlHtmlDom.php on line 34353
+Fatal error: Uncaught InvalidArgumentException: JATS input must not declare a document type in $REPO/lanes/pandoc/src/XmlHtmlDom.php:34353
 Stack trace:
-#0 $REPO/lanes/pandoc/src/XmlHtmlDom.php(575): PortLibs\Pandoc\XmlHtmlDom::assertNoDoctype('<?xml version="...', 'JATS input')
+#0 $REPO/lanes/pandoc/src/XmlHtmlDom.php(684): PortLibs\Pandoc\XmlHtmlDom::assertNoDoctype('<?xml version="...', 'JATS input')
 #1 $REPO/lanes/pandoc/src/XmlReader.php(69): PortLibs\Pandoc\XmlHtmlDom::loadXmlDocument('<?xml version="...', 'JATS input', false)
-#2 $REPO/lanes/pandoc/src/PandocConverter.php(36): PortLibs\Pandoc\XmlReader->read('<?xml version="...')
-#3 $REPO/lanes/pandoc/src/PandocConverter.php(79): PortLibs\Pandoc\PandocConverter::read('<?xml version="...', 'jats', Array)
-#4 $REPO/lanes/pandoc/src/PandocConverter.php(98): PortLibs\Pandoc\PandocConverter::convert('<?xml version="...', 'jats', 'wordpress', Array)
-#5 $REPO/tools/build-pandoc-showcase.php(21): PortLibs\Pandoc\PandocConverter::convertFile('$REPO', 'jats', 'wordpress')
+#2 $REPO/lanes/pandoc/src/PandocConverter.php(37): PortLibs\Pandoc\XmlReader->read('<?xml version="...')
+#3 $REPO/lanes/pandoc/src/PandocConverter.php(80): PortLibs\Pandoc\PandocConverter::read('<?xml version="...', 'jats', Array)
+#4 $REPO/lanes/pandoc/src/PandocConverter.php(99): PortLibs\Pandoc\PandocConverter::convert('<?xml version="...', 'jats', 'wordpress', Array)
+#5 $REPO/tools/build-pandoc-showcase.php(21): PortLibs\Pandoc\PandocConverter::convertFile('$TMP', 'jats', 'wordpress')
 #6 {main}
-  thrown in $REPO/lanes/pandoc/src/XmlHtmlDom.php on line 27493
+  thrown in $REPO/lanes/pandoc/src/XmlHtmlDom.php on line 34353
