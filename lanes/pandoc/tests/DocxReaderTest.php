@@ -1859,7 +1859,21 @@ XML],
         $t->same('[DIAGRAM]', $document->children[0]->attr('text'));
         $t->same('span', $diagram->type);
         $t->same(['diagram'], $diagram->attr('classes'));
-        $t->same([], $diagram->attr('attributes', []));
+        $t->same([
+            'data-docx-diagram-uri' => 'http://schemas.openxmlformats.org/drawingml/2006/diagram',
+            'data-docx-diagram-id' => '19',
+            'data-docx-diagram-name' => 'Review workflow',
+            'data-docx-diagram-title' => 'Review workflow',
+            'data-docx-diagram-description' => 'Imported workflow diagram',
+            'data-docx-diagram-data-relationship-id' => 'rDiagramData',
+            'data-docx-diagram-data-target' => 'word/diagrams/review-data.xml',
+            'data-docx-diagram-layout-relationship-id' => 'rDiagramLayout',
+            'data-docx-diagram-layout-target' => 'word/diagrams/review-layout.xml',
+            'data-docx-diagram-quick-style-relationship-id' => 'rDiagramStyle',
+            'data-docx-diagram-quick-style-target' => 'word/diagrams/review-style.xml',
+            'data-docx-diagram-colors-relationship-id' => 'rDiagramColors',
+            'data-docx-diagram-colors-target' => 'word/diagrams/review-colors.xml',
+        ], $diagram->attr('attributes', []));
         $t->same('[DIAGRAM]', $diagram->children[0]->attr('text'));
 
         $t->same('[CHART]', $document->children[1]->attr('text'));
@@ -1867,7 +1881,9 @@ XML],
         $t->same(['chart'], $chart->attr('classes'));
         $t->same('[CHART]', $chart->children[0]->attr('text'));
 
-        $t->contains('class="diagram" data-pandoc-diagram="unsupported-docx-diagram"', $blocks);
+        $t->contains('class="diagram"', $blocks);
+        $t->contains('data-docx-diagram-data-target="word/diagrams/review-data.xml"', $blocks);
+        $t->contains('data-pandoc-diagram="unsupported-docx-diagram"', $blocks);
         $t->contains('<span class="chart">[CHART]</span>', $blocks);
     },
     'maps visible vml textbox shape text as document blocks' => static function (TestRunner $t) use ($buildDocxReaderPackageBytes): void {
@@ -2522,6 +2538,79 @@ XML],
         $t->contains('<td>Bottom</td>', $blocks);
         $t->contains('alt="Chart alt" title="Chart title" data-pandoc-width="2in" data-pandoc-height="1in"', $blocks);
         $t->contains('data-docx-image-name="Chart 1"', $blocks);
+    },
+    'preserves docx smartart diagrams as pandoc placeholder spans' => static function (TestRunner $t): void {
+        $package = ZipPackage::fromParts([
+            ['name' => 'word/_rels/document.xml.rels', 'data' => '<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rData" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramData" Target="diagrams/data1.xml"/><Relationship Id="rLayout" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramLayout" Target="diagrams/layout1.xml"/><Relationship Id="rStyle" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramQuickStyle" Target="diagrams/quickStyle1.xml"/><Relationship Id="rColors" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramColors" Target="diagrams/colors1.xml"/></Relationships>'],
+            ['name' => 'word/document.xml', 'data' => '<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram"><w:body><w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr><w:r><w:t>Diagram after:</w:t></w:r></w:p><w:p><w:r><w:drawing><wp:inline><wp:extent cx="914400" cy="457200"/><wp:docPr id="19" name="Review workflow" descr="Imported workflow diagram" title="Review workflow"/><a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/diagram"><dgm:relIds r:dm="rData" r:lo="rLayout" r:qs="rStyle" r:cs="rColors"/></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p></w:body></w:document>'],
+        ]);
+
+        $document = (new DocxReader())->readDocument($package);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $heading = $document->children[0];
+        $paragraph = $document->children[1];
+        $diagram = $paragraph->children[0];
+        $attrs = $diagram->attr('attributes');
+
+        $t->same('heading', $heading->type);
+        $t->same(1, $heading->attr('level'));
+        $t->same('Diagram after:', $heading->attr('text'));
+        $t->same('paragraph', $paragraph->type);
+        $t->same('[DIAGRAM]', $paragraph->attr('text'));
+        $t->same('span', $diagram->type);
+        $t->same(['diagram'], $diagram->attr('classes'));
+        $t->same('[DIAGRAM]', $diagram->children[0]->attr('text'));
+        $t->same('http://schemas.openxmlformats.org/drawingml/2006/diagram', $attrs['data-docx-diagram-uri']);
+        $t->same('19', $attrs['data-docx-diagram-id']);
+        $t->same('Review workflow', $attrs['data-docx-diagram-name']);
+        $t->same('Review workflow', $attrs['data-docx-diagram-title']);
+        $t->same('Imported workflow diagram', $attrs['data-docx-diagram-description']);
+        $t->same('1in', $attrs['data-docx-diagram-width']);
+        $t->same('0.5in', $attrs['data-docx-diagram-height']);
+        $t->same('rData', $attrs['data-docx-diagram-data-relationship-id']);
+        $t->same('word/diagrams/data1.xml', $attrs['data-docx-diagram-data-target']);
+        $t->same('rLayout', $attrs['data-docx-diagram-layout-relationship-id']);
+        $t->same('word/diagrams/layout1.xml', $attrs['data-docx-diagram-layout-target']);
+        $t->same('rStyle', $attrs['data-docx-diagram-quick-style-relationship-id']);
+        $t->same('word/diagrams/quickStyle1.xml', $attrs['data-docx-diagram-quick-style-target']);
+        $t->same('rColors', $attrs['data-docx-diagram-colors-relationship-id']);
+        $t->same('word/diagrams/colors1.xml', $attrs['data-docx-diagram-colors-target']);
+        $t->contains('<span class="diagram"', $blocks);
+        $t->contains('data-docx-diagram-name="Review workflow"', $blocks);
+        $t->contains('data-docx-diagram-data-target="word/diagrams/data1.xml"', $blocks);
+    },
+    'preserves docx table header rows and grid before after placeholders' => static function (TestRunner $t): void {
+        $package = ZipPackage::fromParts([
+            ['name' => 'word/document.xml', 'data' => '<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:tbl><w:tr><w:trPr><w:tblHeader/><w:gridBefore w:val="1"/><w:gridAfter w:val="1"/></w:trPr><w:tc><w:p><w:r><w:t>Head A</w:t></w:r></w:p></w:tc><w:tc><w:tcPr><w:gridSpan w:val="2"/></w:tcPr><w:p><w:r><w:t>Head BC</w:t></w:r></w:p></w:tc></w:tr><w:tr><w:tc><w:p><w:r><w:t>Body A</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>Body B</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>Body C</w:t></w:r></w:p></w:tc></w:tr></w:tbl></w:body></w:document>'],
+        ]);
+
+        $document = (new DocxReader())->readDocument($package);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $table = $document->children[0];
+        $head = $table->children[0];
+        $body = $table->children[1];
+        $headRow = $head->children[0];
+        $bodyRow = $body->children[0];
+
+        $t->same('table', $table->type);
+        $t->same('table_head', $head->type);
+        $t->same('table_body', $body->type);
+        $t->same(1, count($head->children));
+        $t->same(1, count($body->children));
+        $t->same(4, count($headRow->children));
+        $t->same('', $headRow->children[0]->attr('text'));
+        $t->same('gridBefore', $headRow->children[0]->attr('htmlAttributes')['data-docx-omitted-cell']);
+        $t->same('Head A', $headRow->children[1]->attr('text'));
+        $t->same('Head BC', $headRow->children[2]->attr('text'));
+        $t->same(2, $headRow->children[2]->attr('colspan'));
+        $t->same('gridAfter', $headRow->children[3]->attr('htmlAttributes')['data-docx-omitted-cell']);
+        $t->same(3, count($bodyRow->children));
+        $t->same('Body A', $bodyRow->children[0]->attr('text'));
+        $t->contains('<thead><tr>', $blocks);
+        $t->contains('<th data-docx-omitted-cell="gridBefore"></th>', $blocks);
+        $t->contains('<th colspan="2">Head BC</th>', $blocks);
+        $t->contains('<th data-docx-omitted-cell="gridAfter"></th>', $blocks);
+        $t->contains('<tbody><tr><td>Body A</td>', $blocks);
     },
     'reads docx text boxes vml object images and inherited table style metadata' => static function (TestRunner $t): void {
         $path = tempnam(sys_get_temp_dir(), 'pandoc-docx-');

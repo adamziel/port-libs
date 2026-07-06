@@ -264,8 +264,8 @@ return [
         $t->same('178c37d0389b55262ee5a906f2d6a83f914da8bfd819fd37718206065baf876d', $evidence['generatedCsvNativeStaticEvidence']['checkedInFixtures'][8]['checkedInFile']['sha256']);
         $t->same(57, $evidence['generatedCsvNativeStaticEvidence']['checkedInFixtures'][8]['checkedInFile']['bytes']);
         $t->same('no-header-ragged.native', $evidence['generatedCsvNativeStaticEvidence']['checkedInFixtures'][9]['name']);
-        $t->same('2e6f817cfdf74fb6876cc386ea863d0b5469e2f5c72da6aac8c521fc9fabc8d0', $evidence['generatedCsvNativeStaticEvidence']['checkedInFixtures'][9]['checkedInFile']['sha256']);
-        $t->same(1480, $evidence['generatedCsvNativeStaticEvidence']['checkedInFixtures'][9]['checkedInFile']['bytes']);
+        $t->same('93abe5e561c358a1aa13563f0e20c3eff64cbe334425714a66da87d6b4057798', $evidence['generatedCsvNativeStaticEvidence']['checkedInFixtures'][9]['checkedInFile']['sha256']);
+        $t->same(1214, $evidence['generatedCsvNativeStaticEvidence']['checkedInFixtures'][9]['checkedInFile']['bytes']);
         $t->same('no-header-ragged', $evidence['generatedCsvNativeStaticEvidence']['samples'][4]['name']);
         $t->same(['header' => false], $evidence['generatedCsvNativeStaticEvidence']['samples'][4]['readerOptions']);
         $t->same('bom-leading-whitespace.csv', $evidence['generatedCsvNativeStaticEvidence']['checkedInFixtures'][10]['name']);
@@ -850,8 +850,8 @@ return [
         $t->same('0e90d36fbdce51c4ee0557fa0d1526d849493f30d408675cc445094b7ae79e45', $evidence['generatedTsvNativeStaticEvidence']['checkedInFixtures'][16]['checkedInFile']['sha256']);
         $t->same(58, $evidence['generatedTsvNativeStaticEvidence']['checkedInFixtures'][16]['checkedInFile']['bytes']);
         $t->same('no-header-edge-delimiters.native', $evidence['generatedTsvNativeStaticEvidence']['checkedInFixtures'][17]['name']);
-        $t->same('1e219ae43ee7ef40c4b05ba0565a1e1f7b127a3b6ddda615ce5d9e87622446a4', $evidence['generatedTsvNativeStaticEvidence']['checkedInFixtures'][17]['checkedInFile']['sha256']);
-        $t->same(1769, $evidence['generatedTsvNativeStaticEvidence']['checkedInFixtures'][17]['checkedInFile']['bytes']);
+        $t->same('ac289ede527edd0ce9fda8d797a316a12191a81a9a681a1de56af52448bb12f2', $evidence['generatedTsvNativeStaticEvidence']['checkedInFixtures'][17]['checkedInFile']['sha256']);
+        $t->same(1436, $evidence['generatedTsvNativeStaticEvidence']['checkedInFixtures'][17]['checkedInFile']['bytes']);
         $t->same('no-header-edge-delimiters', $evidence['generatedTsvNativeStaticEvidence']['samples'][8]['name']);
         $t->same(['header' => false], $evidence['generatedTsvNativeStaticEvidence']['samples'][8]['readerOptions']);
         $t->same('csv-quoted-literal.tsv', $evidence['generatedTsvNativeStaticEvidence']['checkedInFixtures'][18]['name']);
@@ -1241,7 +1241,7 @@ return [
         $t->same('lanes/pandoc/fixtures/generated-current-csv-reader/no-header-ragged.csv', $evidence['samples'][4]['inputPath']);
         $t->same(['header' => false, 'sourcePath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/no-header-ragged.csv'], $evidence['samples'][4]['readerOptions']);
         $t->same(3, $evidence['samples'][4]['rowCount']);
-        $t->same(4, $evidence['samples'][4]['columnCount']);
+        $t->same(3, $evidence['samples'][4]['columnCount']);
         $t->same('matched', $evidence['samples'][5]['status']);
         $t->same('bom-leading-whitespace', $evidence['samples'][5]['name']);
         $t->same('lanes/pandoc/fixtures/generated-current-csv-reader/bom-leading-whitespace.csv', $evidence['samples'][5]['inputPath']);
@@ -1989,7 +1989,7 @@ return [
         $t->same('lanes/pandoc/fixtures/generated-current-tsv-reader/no-header-edge-delimiters.tsv', $evidence['samples'][8]['staticFixtureBinding']['inputFixture']['checkedInPath']);
         $t->same('lanes/pandoc/fixtures/generated-current-tsv-reader/no-header-edge-delimiters.native', $evidence['samples'][8]['staticFixtureBinding']['expectedNativeFixture']['checkedInPath']);
         $t->same(4, $evidence['samples'][8]['rowCount']);
-        $t->same(4, $evidence['samples'][8]['columnCount']);
+        $t->same(3, $evidence['samples'][8]['columnCount']);
         $t->same('matched', $evidence['samples'][9]['status']);
         $t->same('csv-quoted-literal', $evidence['samples'][9]['name']);
         $t->same('lanes/pandoc/fixtures/generated-current-tsv-reader/csv-quoted-literal.tsv', $evidence['samples'][9]['inputPath']);

@@ -218,8 +218,8 @@ final class DelimitedTextUpstreamReaderEvidence
             'role' => 'generated-csv-native-parity-expected-native-output',
             'sample' => 'no-header-ragged',
             'checkedInPath' => 'lanes/pandoc/fixtures/generated-current-csv-reader/no-header-ragged.native',
-            'sha256' => '2e6f817cfdf74fb6876cc386ea863d0b5469e2f5c72da6aac8c521fc9fabc8d0',
-            'bytes' => 1480,
+            'sha256' => '93abe5e561c358a1aa13563f0e20c3eff64cbe334425714a66da87d6b4057798',
+            'bytes' => 1214,
         ],
         'bom-leading-whitespace.csv' => [
             'role' => 'generated-csv-native-parity-input-fixture',
@@ -1271,8 +1271,8 @@ final class DelimitedTextUpstreamReaderEvidence
             'role' => 'generated-tsv-native-parity-expected-native-output',
             'sample' => 'no-header-edge-delimiters',
             'checkedInPath' => 'lanes/pandoc/fixtures/generated-current-tsv-reader/no-header-edge-delimiters.native',
-            'sha256' => '1e219ae43ee7ef40c4b05ba0565a1e1f7b127a3b6ddda615ce5d9e87622446a4',
-            'bytes' => 1769,
+            'sha256' => 'ac289ede527edd0ce9fda8d797a316a12191a81a9a681a1de56af52448bb12f2',
+            'bytes' => 1436,
         ],
         'csv-quoted-literal.tsv' => [
             'role' => 'generated-tsv-native-parity-input-fixture',

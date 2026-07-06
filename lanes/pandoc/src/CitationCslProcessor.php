@@ -8978,6 +8978,9 @@ final class CitationCslProcessor
             if ($value === '') {
                 continue;
             }
+            if ($key === 'addendum' && $value === trim((string) ($item['note'] ?? ''))) {
+                continue;
+            }
 
             $parts[] = $label . ': ' . $this->withTerminalPunctuation($value);
         }

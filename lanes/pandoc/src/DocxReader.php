@@ -15,6 +15,7 @@ final class DocxReader
     private const A_NS = 'http://schemas.openxmlformats.org/drawingml/2006/main';
     private const WP_NS = 'http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing';
     private const M_NS = 'http://schemas.openxmlformats.org/officeDocument/2006/math';
+    private const DGM_NS = 'http://schemas.openxmlformats.org/drawingml/2006/diagram';
     private const REL_NS = 'http://schemas.openxmlformats.org/package/2006/relationships';
     private const OFFICE_NS = 'urn:schemas-microsoft-com:office:office';
 
@@ -3724,8 +3725,12 @@ final class DocxReader
                 continue;
             }
 
-            if (str_contains($uri, '/diagram')) {
-                return $this->drawingPlaceholderSpan('diagram', '[DIAGRAM]');
+            if ($uri === self::DGM_NS || str_contains($uri, '/diagram')) {
+                return $this->drawingPlaceholderSpan(
+                    'diagram',
+                    '[DIAGRAM]',
+                    $this->drawingDiagramAttributes($drawing, $graphicData, $uri)
+                );
             }
             if (str_contains($uri, '/chart')) {
                 return $this->drawingPlaceholderSpan('chart', '[CHART]');
@@ -3734,7 +3739,7 @@ final class DocxReader
 
         foreach ($this->descendantElementsByLocalName($drawing, 'relIds') as $relIds) {
             if (str_contains((string) $relIds->namespaceURI, '/diagram')) {
-                return $this->drawingPlaceholderSpan('diagram', '[DIAGRAM]');
+                return $this->drawingPlaceholderSpan('diagram', '[DIAGRAM]', $this->drawingDiagramAttributes($drawing, $relIds, (string) $relIds->namespaceURI));
             }
         }
         foreach ($this->descendantElementsByLocalName($drawing, 'chart') as $chart) {
@@ -3746,9 +3751,107 @@ final class DocxReader
         return null;
     }
 
-    private function drawingPlaceholderSpan(string $class, string $text): AstNode
+    /**
+     * @return array<string, string>
+     */
+    private function drawingDiagramAttributes(\DOMElement $drawing, \DOMElement $diagramElement, string $uri): array
+    {
+        $attributes = ['data-docx-diagram-uri' => $uri];
+
+        foreach ($drawing->getElementsByTagNameNS(self::WP_NS, 'docPr') as $docPr) {
+            if (!$docPr instanceof \DOMElement) {
+                continue;
+            }
+            foreach ([
+                'id' => 'data-docx-diagram-id',
+                'name' => 'data-docx-diagram-name',
+                'title' => 'data-docx-diagram-title',
+                'descr' => 'data-docx-diagram-description',
+            ] as $source => $target) {
+                $value = $docPr->getAttribute($source);
+                if ($value !== '') {
+                    $attributes[$target] = $value;
+                }
+            }
+            break;
+        }
+
+        foreach ($drawing->getElementsByTagNameNS(self::WP_NS, 'extent') as $extent) {
+            if (!$extent instanceof \DOMElement) {
+                continue;
+            }
+            $width = $this->emuCssDimension($extent->getAttribute('cx'));
+            if ($width !== '') {
+                $attributes['data-docx-diagram-width'] = $width;
+            }
+            $height = $this->emuCssDimension($extent->getAttribute('cy'));
+            if ($height !== '') {
+                $attributes['data-docx-diagram-height'] = $height;
+            }
+            break;
+        }
+
+        $relIdsElement = $diagramElement->localName === 'relIds'
+            ? $diagramElement
+            : null;
+        if (!$relIdsElement instanceof \DOMElement) {
+            foreach ($this->descendantElementsByLocalName($diagramElement, 'relIds') as $relIds) {
+                $relIdsElement = $relIds;
+                break;
+            }
+        }
+        if ($relIdsElement instanceof \DOMElement) {
+            $attributes = array_replace($attributes, $this->diagramRelationshipAttributes($relIdsElement));
+        }
+
+        return $attributes;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function diagramRelationshipAttributes(\DOMElement $relIds): array
+    {
+        $attributes = [];
+        foreach ([
+            'dm' => ['data-docx-diagram-data-relationship-id', 'data-docx-diagram-data-target'],
+            'lo' => ['data-docx-diagram-layout-relationship-id', 'data-docx-diagram-layout-target'],
+            'qs' => ['data-docx-diagram-quick-style-relationship-id', 'data-docx-diagram-quick-style-target'],
+            'cs' => ['data-docx-diagram-colors-relationship-id', 'data-docx-diagram-colors-target'],
+        ] as $source => [$relationshipAttribute, $targetAttribute]) {
+            $rid = $this->attr($relIds, self::R_NS, $source);
+            if ($rid === '') {
+                continue;
+            }
+
+            $attributes[$relationshipAttribute] = $rid;
+            $relationship = $this->relationships[$rid] ?? null;
+            if (!is_array($relationship)) {
+                continue;
+            }
+
+            $target = (string) ($relationship['target'] ?? '');
+            if ($target === '') {
+                continue;
+            }
+
+            $attributes[$targetAttribute] = (string) ($relationship['mode'] ?? '') === 'External'
+                ? $target
+                : $this->normalizeWordTarget($target);
+        }
+
+        return $attributes;
+    }
+
+    /**
+     * @param array<string, string> $attributes
+     */
+    private function drawingPlaceholderSpan(string $class, string $text, array $attributes = []): AstNode
     {
         $attrs = ['classes' => [$class]];
+        if ($attributes !== []) {
+            $attrs['attributes'] = $attributes;
+        }
 
         return new AstNode('span', $attrs, [
             new AstNode('text', ['text' => $text]),
@@ -4063,6 +4166,17 @@ final class DocxReader
                     ];
                     $column += $colspan;
                 }
+                $gridAfter = $this->tableRowGridAfter($child);
+                for ($omitted = 0; $omitted < $gridAfter; ++$omitted) {
+                    $cells[] = [
+                        'element' => null,
+                        'column' => $column,
+                        'colspan' => 1,
+                        'vMerge' => '',
+                        'omitted' => 'gridAfter',
+                    ];
+                    ++$column;
+                }
                 $rowHeaderStates[] = $this->tableRowHeaderState($child);
                 $rowSpecs[] = $cells;
             }
@@ -4115,8 +4229,8 @@ final class DocxReader
                 if (isset($skip[$key])) {
                     continue;
                 }
-                if (($cell['omitted'] ?? '') === 'gridBefore') {
-                    $rowCells[] = $this->omittedTableCell('gridBefore');
+                if (($cell['omitted'] ?? '') !== '') {
+                    $rowCells[] = $this->omittedTableCell((string) $cell['omitted']);
                     continue;
                 }
                 $element = $cell['element'] ?? null;
@@ -4257,17 +4371,27 @@ final class DocxReader
 
     private function tableRowGridBefore(\DOMElement $row): int
     {
+        return $this->tableRowGridOmission($row, 'gridBefore');
+    }
+
+    private function tableRowGridAfter(\DOMElement $row): int
+    {
+        return $this->tableRowGridOmission($row, 'gridAfter');
+    }
+
+    private function tableRowGridOmission(\DOMElement $row, string $localName): int
+    {
         $trPr = $this->directChild($row, 'trPr');
         if (!$trPr instanceof \DOMElement) {
             return 0;
         }
 
-        $gridBefore = $this->directChild($trPr, 'gridBefore');
-        if (!$gridBefore instanceof \DOMElement) {
+        $gridOmission = $this->directChild($trPr, $localName);
+        if (!$gridOmission instanceof \DOMElement) {
             return 0;
         }
 
-        return max(0, (int) ($this->attr($gridBefore, self::W_NS, 'val') ?: '0'));
+        return max(0, (int) ($this->attr($gridOmission, self::W_NS, 'val') ?: '0'));
     }
 
     private function tableUsesFirstRowHeaderLook(\DOMElement $table): bool

@@ -74,6 +74,34 @@ BIB;
         $t->contains('Obscure Archive Packet: Source Review Appendix', $blocks);
         $t->contains('https://example.test/preprint', $blocks);
     },
+    'normalizes biblatex datetime addendum and trailing name particles through the reader path' => static function (TestRunner $t): void {
+        $biblatex = <<<'BIB'
+@online{datetime-note,
+  author   = {Cruz, Ana Maria de la},
+  title    = {Date Time Addendum Packet},
+  date     = {2026-06-05T09:30:00Z},
+  urldate  = {2026-07-01T10:15:20+02:00},
+  addendum = {Queue imported by handoff},
+  url      = {https://example.test/date-time}
+}
+BIB;
+
+        $document = PandocConverter::read($biblatex, 'biblatex');
+        $item = $document->attr('cslItems')[0] ?? [];
+        $blocks = PandocConverter::write($document, 'blocks');
+
+        $t->same('datetime-note', $item['id'] ?? null);
+        $t->same([2026, 6, 5], $item['issued']['date-parts'][0] ?? null);
+        $t->same([2026, 7, 1], $item['accessed']['date-parts'][0] ?? null);
+        $t->same('Cruz', $item['author'][0]['family'] ?? null);
+        $t->same('Ana Maria', $item['author'][0]['given'] ?? null);
+        $t->same('de la', $item['author'][0]['dropping-particle'] ?? null);
+        $t->same(null, $item['author'][0]['non-dropping-particle'] ?? null);
+        $t->same('Queue imported by handoff', $item['note'] ?? null);
+        $t->same('Queue imported by handoff', $item['addendum'] ?? null);
+        $t->contains('Note: Queue imported by handoff', $blocks);
+        $t->true(!str_contains($blocks, 'Addendum: Queue imported by handoff'), 'Addendum-only fallback should not render duplicate note text');
+    },
     'keeps biblatex available and submitted dates visible through the registered reader path' => static function (TestRunner $t): void {
         $biblatex = <<<'BIB'
 @online{date-review,

@@ -877,7 +877,7 @@ final class BibtexCslParser
             'abstract' => self::firstField($fields, ['abstract', 'annote', 'annotation']),
             'annotation' => self::firstField($fields, ['annotation', 'annote']),
             'medium' => self::firstField($fields, ['howpublished', 'medium']),
-            'note' => self::firstField($fields, ['note']),
+            'note' => self::noteField($fields),
             'addendum' => self::firstField($fields, ['addendum']),
             'name-addon' => self::firstField($fields, ['nameaddon', 'name-addon']),
             'author-type' => self::firstField($fields, ['authortype', 'author-type']),
@@ -1726,6 +1726,19 @@ final class BibtexCslParser
         }
 
         return '';
+    }
+
+    /**
+     * @param array<string, string> $fields
+     */
+    private static function noteField(array $fields): string
+    {
+        $note = self::firstField($fields, ['note']);
+        if ($note !== '') {
+            return $note;
+        }
+
+        return self::firstField($fields, ['addendum']);
     }
 
     /**
@@ -2639,6 +2652,7 @@ final class BibtexCslParser
             if ($suffix !== '' && self::isBibtexNameSuffix($given)) {
                 [$given, $suffix] = [$suffix, $given];
             }
+            [$given, $droppingParticle] = self::splitTrailingParticle($given);
 
             $name = [
                 'family' => $family,
@@ -2647,6 +2661,10 @@ final class BibtexCslParser
 
             if ($particle !== '') {
                 $name['non-dropping-particle'] = $particle;
+            }
+
+            if ($droppingParticle !== '') {
+                $name['dropping-particle'] = $droppingParticle;
             }
 
             if ($suffix !== '') {
@@ -2776,6 +2794,29 @@ final class BibtexCslParser
         }
 
         return [implode(' ', $particle), implode(' ', $tokens)];
+    }
+
+    /**
+     * @return array{0:string, 1:string}
+     */
+    private static function splitTrailingParticle(string $given): array
+    {
+        $tokens = preg_split('/\s+/', trim($given)) ?: [];
+        $tokens = array_values(array_filter($tokens, static fn (string $token): bool => $token !== ''));
+        if (count($tokens) < 2) {
+            return [$given, ''];
+        }
+
+        $particle = [];
+        while (count($tokens) > 1 && self::isParticle($tokens[count($tokens) - 1])) {
+            array_unshift($particle, array_pop($tokens));
+        }
+
+        if ($particle === []) {
+            return [$given, ''];
+        }
+
+        return [implode(' ', $tokens), implode(' ', $particle)];
     }
 
     private static function isParticle(string $token): bool
@@ -3026,7 +3067,7 @@ final class BibtexCslParser
      */
     private static function dateFromText(string $date, string $field): array
     {
-        $date = trim($date);
+        $date = self::dateTextWithoutIsoTime(trim($date));
         $range = self::dateRangeFromText($date, $field);
         if ($range !== null) {
             return $range;
@@ -3068,6 +3109,40 @@ final class BibtexCslParser
         }
 
         return self::dateObjectWithMarkers([$parts], (string) ($matches[4] ?? ''), $date);
+    }
+
+    private static function dateTextWithoutIsoTime(string $date): string
+    {
+        if (!str_contains($date, 'T') && !str_contains($date, 't')) {
+            return $date;
+        }
+
+        $parts = explode('/', $date);
+        if (count($parts) > 2) {
+            return $date;
+        }
+
+        return implode('/', array_map(
+            static fn (string $part): string => self::dateRangeSideWithoutIsoTime(trim($part)),
+            $parts
+        ));
+    }
+
+    private static function dateRangeSideWithoutIsoTime(string $side): string
+    {
+        if ($side === '') {
+            return $side;
+        }
+
+        if (preg_match(
+            '/^(-?\d{1,6}(?:-\d{1,2}(?:-\d{1,2})?)?)([?~%]?)[Tt]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})?$/',
+            $side,
+            $matches
+        ) !== 1) {
+            return $side;
+        }
+
+        return $matches[1] . (string) ($matches[2] ?? '');
     }
 
     private static function seasonFromBiblatexDateMonthCode(int $month): ?int

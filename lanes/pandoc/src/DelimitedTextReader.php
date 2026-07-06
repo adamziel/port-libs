@@ -324,7 +324,7 @@ final class DelimitedTextReader
             return 0;
         }
 
-        return $hasHeader ? $widths[0] : max($widths);
+        return $widths[0];
     }
 
     /**
@@ -332,7 +332,7 @@ final class DelimitedTextReader
      */
     private function rowRepairPolicy(bool $hasHeader, array $widths): string
     {
-        return $hasHeader && $widths !== [] ? 'header-row-width' : 'pad-to-wide-row';
+        return 'pandoc-first-row-width';
     }
 
     /**
@@ -1847,7 +1847,7 @@ final class DelimitedTextReader
             $diagnostics[] = [
                 'code' => 'delimited-text-trailing-empty-fields-preserved',
                 'severity' => 'info',
-                'message' => 'Rows with trailing empty fields were preserved before table padding.',
+                'message' => 'Rows with trailing empty fields were preserved before table normalization.',
                 'rows' => $rowWidthSummary['trailingEmptyFieldRows'],
             ];
         }
@@ -1868,8 +1868,8 @@ final class DelimitedTextReader
             $diagnostics[] = [
                 'code' => 'delimited-text-row-widths-uneven',
                 'severity' => 'warning',
-                'message' => 'Delimited text rows have uneven field counts; rows were padded or truncated in the native table.',
-                'policy' => $rowWidthSummary['relaxed']['policy'] ?? 'pad-to-wide-row',
+                'message' => 'Delimited text rows have uneven field counts; rows were normalized to the first source row width in the native table.',
+                'policy' => $rowWidthSummary['relaxed']['policy'] ?? 'pandoc-first-row-width',
                 'columnCount' => $rowWidthSummary['relaxed']['columnCount'] ?? 0,
                 'changedRowCount' => $rowWidthSummary['relaxed']['changedRowCount'] ?? 0,
                 'paddedRowCount' => $rowWidthSummary['relaxed']['paddedRowCount'] ?? 0,
@@ -1883,7 +1883,7 @@ final class DelimitedTextReader
             $diagnostics[] = [
                 'code' => 'delimited-text-header-width-mismatch',
                 'severity' => 'warning',
-                'message' => 'Header and body row field counts differ; column names were normalized to the reader table width.',
+                'message' => 'Header and body row field counts differ; column names were normalized to the native table width.',
                 'headerColumnCount' => $rowWidthSummary['header']['headerColumnCount'] ?? 0,
                 'dataColumnCounts' => $rowWidthSummary['header']['dataColumnCounts'] ?? [],
                 'mismatchCount' => $rowWidthSummary['header']['mismatchCount'] ?? 0,
@@ -2589,7 +2589,7 @@ final class DelimitedTextReader
         }
 
         return [
-            'policy' => 'annotate-controls-after-relaxed-row-repair',
+            'policy' => 'annotate-controls-after-pandoc-row-normalization',
             'sourcePath' => $controlCharacters['sourcePath'] ?? null,
             'controlCount' => $controlCharacters['totalCount'] ?? 0,
             'sampleCount' => $controlCharacters['sampleCount'] ?? 0,

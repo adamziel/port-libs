@@ -11,11 +11,18 @@ final class MediaWikiReader
 
     private int $index = 0;
 
+    /** @var array<string, int> */
+    private array $headingIds = [];
+
+    private int $externalLinkCounter = 0;
+
     public function read(string $text): AstNode
     {
         $normalized = str_replace(["\r\n", "\r"], "\n", $text);
         $this->lines = explode("\n", $normalized);
         $this->index = 0;
+        $this->headingIds = [];
+        $this->externalLinkCounter = 0;
 
         return new AstNode('document', [
             'sourceFormat' => 'mediawiki',
@@ -32,10 +39,11 @@ final class MediaWikiReader
                         'internal and external links',
                         'images',
                         'bullet ordered and definition lists',
-                        'preformatted blocks',
-                        'simple tables',
+                        'preformatted and syntax-highlight code blocks',
+                        'simple tables with captions header rows and cell attributes',
+                        'comments entities nowiki math references line breaks and raw MediaWiki template fallbacks',
                     ],
-                    'fixtureStatus' => 'Initial native PHP reader slice; full template, parser-function, transclusion, role, and table attribute parity remains open.',
+                    'fixtureStatus' => 'Expanded native PHP reader slice; full template expansion, parser-function evaluation, transclusion, and full table geometry parity remain open.',
                 ],
             ],
         ], $this->parseBlocks());
@@ -50,16 +58,30 @@ final class MediaWikiReader
         while ($this->index < count($this->lines)) {
             $line = rtrim($this->lines[$this->index], "\n");
             $trimmed = trim($line);
-            if ($trimmed === '') {
+            if ($trimmed === '' || $this->isCommentOnlyLine($trimmed)) {
                 ++$this->index;
                 continue;
             }
 
+            if ($this->isDelimitedCodeBlockStart($trimmed)) {
+                $blocks[] = $this->parseDelimitedCodeBlock($trimmed);
+                continue;
+            }
+            if ($this->isRawHtmlBlockLine($trimmed)) {
+                ++$this->index;
+                $blocks[] = new AstNode('raw_html', ['format' => 'html', 'text' => $trimmed]);
+                continue;
+            }
+            if ($this->isRawMediaWikiTemplateBlock($trimmed)) {
+                ++$this->index;
+                $blocks[] = new AstNode('raw_block', ['format' => 'mediawiki', 'text' => $trimmed]);
+                continue;
+            }
             if (str_starts_with($trimmed, '{|')) {
                 $blocks[] = $this->parseTable();
                 continue;
             }
-            if (preg_match('/^={1,6}\\s*.*?\\s*={1,6}$/u', $trimmed) === 1) {
+            if (preg_match('/^(={1,6})(?!\=)\\s*.*?\\s*\\1$/u', $trimmed) === 1) {
                 $blocks[] = $this->parseHeading($trimmed);
                 continue;
             }
@@ -90,13 +112,15 @@ final class MediaWikiReader
     private function parseHeading(string $trimmed): AstNode
     {
         ++$this->index;
-        if (preg_match('/^(={1,6})\\s*(.*?)\\s*\\1$/u', $trimmed, $match) === 1) {
+        if (preg_match('/^(={1,6})(?!\=)\\s*(.*?)\\s*\\1$/u', $trimmed, $match) === 1) {
             $level = strlen($match[1]);
             $inlines = $this->parseInlines($match[2]);
+            $text = $this->plainInlineText($inlines);
 
             return new AstNode('heading', [
                 'level' => $level,
-                'text' => $this->plainInlineText($inlines),
+                'id' => $this->headingId($text),
+                'text' => $text,
             ], $inlines);
         }
 
@@ -112,6 +136,10 @@ final class MediaWikiReader
             if ($trimmed === '' || ($parts !== [] && $this->isBlockStart($line))) {
                 break;
             }
+            if ($this->isCommentOnlyLine($trimmed)) {
+                ++$this->index;
+                continue;
+            }
             $parts[] = $trimmed;
             ++$this->index;
         }
@@ -124,11 +152,102 @@ final class MediaWikiReader
         $trimmed = trim($line);
 
         return str_starts_with($trimmed, '{|')
-            || preg_match('/^={1,6}\\s*.*?\\s*={1,6}$/u', $trimmed) === 1
+            || $this->isDelimitedCodeBlockStart($trimmed)
+            || $this->isRawHtmlBlockLine($trimmed)
+            || $this->isRawMediaWikiTemplateBlock($trimmed)
+            || preg_match('/^(={1,6})(?!\=)\\s*.*?\\s*\\1$/u', $trimmed) === 1
             || $trimmed === '----'
             || str_starts_with($line, ' ')
             || $this->isListLine($trimmed)
             || $this->isDefinitionListLine($trimmed);
+    }
+
+    private function isCommentOnlyLine(string $trimmed): bool
+    {
+        $visible = preg_replace('/<!--.*?-->/su', '', $trimmed);
+
+        return trim((string) $visible) === '';
+    }
+
+    private function isDelimitedCodeBlockStart(string $trimmed): bool
+    {
+        return preg_match('/^<(pre|syntaxhighlight|source)\\b[^>]*>/iu', $trimmed) === 1;
+    }
+
+    private function parseDelimitedCodeBlock(string $openingLine): AstNode
+    {
+        $tag = 'pre';
+        $classes = [];
+        if (preg_match('/^<(pre|syntaxhighlight|source)\\b([^>]*)>(.*)$/iu', $openingLine, $match) === 1) {
+            $tag = strtolower($match[1]);
+            $attrs = $this->parseHtmlAttributes($match[2]);
+            $lang = (string) ($attrs['lang'] ?? $attrs['language'] ?? '');
+            if ($lang !== '') {
+                $classes[] = $lang;
+            }
+            $afterOpen = (string) $match[3];
+        } else {
+            $afterOpen = '';
+        }
+
+        ++$this->index;
+        $body = [];
+        $closingPattern = '/<\\/' . preg_quote($tag, '/') . '\\s*>/iu';
+        if (preg_match($closingPattern, $afterOpen, $closeMatch, PREG_OFFSET_CAPTURE) === 1) {
+            $body[] = substr($afterOpen, 0, (int) $closeMatch[0][1]);
+        } else {
+            if ($afterOpen !== '') {
+                $body[] = $afterOpen;
+            }
+            while ($this->index < count($this->lines)) {
+                $line = rtrim($this->lines[$this->index], "\n");
+                ++$this->index;
+                if (preg_match($closingPattern, $line, $closeMatch, PREG_OFFSET_CAPTURE) === 1) {
+                    $beforeClose = substr($line, 0, (int) $closeMatch[0][1]);
+                    if ($beforeClose !== '') {
+                        $body[] = $beforeClose;
+                    }
+                    break;
+                }
+                $body[] = $line;
+            }
+        }
+
+        return new AstNode('code_block', [
+            'text' => implode("\n", $body),
+            'classes' => $classes,
+        ]);
+    }
+
+    private function isRawHtmlBlockLine(string $trimmed): bool
+    {
+        return preg_match('/^<hr\\b[^>]*\\/?>$/iu', $trimmed) === 1;
+    }
+
+    private function isRawMediaWikiTemplateBlock(string $trimmed): bool
+    {
+        if (preg_match('/^\\{\\{(.+)\\}\\}$/su', $trimmed, $match) !== 1) {
+            return false;
+        }
+
+        $name = ltrim(trim($match[1]));
+
+        return $name !== '' && !str_starts_with($name, '#') && $name !== '!';
+    }
+
+    private function headingId(string $text): string
+    {
+        $base = strtolower(trim($text));
+        $base = preg_replace('/[^a-z0-9_\\-]+/u', '-', $base) ?? '';
+        $base = trim($base, '-');
+        if ($base === '') {
+            $base = 'section';
+        }
+
+        $count = $this->headingIds[$base] ?? 0;
+        $this->headingIds[$base] = $count + 1;
+
+        return $count === 0 ? $base : $base . '_' . $count;
     }
 
     private function parsePreBlock(): AstNode
@@ -157,13 +276,20 @@ final class MediaWikiReader
     private function parseListBlock(): AstNode
     {
         $entries = [];
+        $topStyle = null;
         while ($this->index < count($this->lines)) {
             $line = trim($this->lines[$this->index]);
             if (preg_match('/^([*#]+)\\s*(.*)$/u', $line, $match) !== 1) {
                 break;
             }
+            $marker = $match[1];
+            $lineTopStyle = $marker[0];
+            if ($entries !== [] && strlen($marker) === 1 && $topStyle !== null && $lineTopStyle !== $topStyle) {
+                break;
+            }
+            $topStyle ??= $lineTopStyle;
             $entries[] = [
-                'marker' => $match[1],
+                'marker' => $marker,
                 'text' => trim($match[2]),
             ];
             ++$this->index;
@@ -239,20 +365,25 @@ final class MediaWikiReader
             if (str_starts_with($line, ';')) {
                 [$term, $definition] = $this->splitDefinitionTerm(substr($line, 1));
                 ++$this->index;
-                if ($definition === '' && isset($this->lines[$this->index]) && preg_match('/^:\\s*(.*)$/u', trim($this->lines[$this->index]), $match) === 1) {
-                    $definition = trim($match[1]);
-                    ++$this->index;
-                }
-                $items[] = $this->definitionItem(trim($term), trim($definition));
+                $items[] = [
+                    'term' => trim($term),
+                    'definitions' => $definition === '' ? [] : [trim($definition)],
+                ];
                 continue;
             }
 
             preg_match('/^:\\s*(.*)$/u', $line, $match);
             ++$this->index;
-            $items[] = $this->definitionItem('', trim((string) ($match[1] ?? '')));
+            if ($items === []) {
+                $items[] = ['term' => '', 'definitions' => []];
+            }
+            $items[array_key_last($items)]['definitions'][] = trim((string) ($match[1] ?? ''));
         }
 
-        return new AstNode('definition_list', [], $items);
+        return new AstNode('definition_list', [], array_map(
+            fn (array $item): AstNode => $this->definitionItem($item['term'], $item['definitions'] === [] ? [''] : $item['definitions']),
+            $items
+        ));
     }
 
     /**
@@ -267,102 +398,258 @@ final class MediaWikiReader
         return [$source, ''];
     }
 
-    private function definitionItem(string $term, string $definition): AstNode
+    /**
+     * @param list<string> $definitions
+     */
+    private function definitionItem(string $term, array $definitions): AstNode
     {
         $termInlines = $this->parseInlines($term);
-        $definitionInlines = $this->parseInlines($definition);
-
-        return new AstNode('definition_item', ['term' => $this->plainInlineText($termInlines)], [
+        $children = [
             new AstNode('definition_term', ['text' => $this->plainInlineText($termInlines)], $termInlines),
-            new AstNode('definition', [], [
-                new AstNode('paragraph', ['text' => $this->plainInlineText($definitionInlines)], $definitionInlines),
-            ]),
-        ]);
+        ];
+        foreach ($definitions as $definition) {
+            $definitionInlines = $this->parseInlines($definition);
+            $children[] = new AstNode('definition', [], [
+                new AstNode('plain', ['text' => $this->plainInlineText($definitionInlines)], $definitionInlines),
+            ]);
+        }
+
+        return new AstNode('definition_item', ['term' => $this->plainInlineText($termInlines)], $children);
     }
 
     private function parseTable(): AstNode
     {
         ++$this->index;
         $caption = '';
-        $header = [];
-        $rows = [];
+        $captionInlines = null;
+        $headRows = [];
+        $bodyRows = [];
+        $currentCells = [];
+        $currentHeader = null;
+        $bodyStarted = false;
 
         while ($this->index < count($this->lines)) {
             $line = trim($this->lines[$this->index]);
             ++$this->index;
             if ($line === '|}') {
+                $this->finalizeTableRow($headRows, $bodyRows, $currentCells, $currentHeader, $bodyStarted);
                 break;
             }
-            if ($line === '|-' || $line === '') {
+            if ($line === '') {
+                continue;
+            }
+            if (str_starts_with($line, '|-')) {
+                $this->finalizeTableRow($headRows, $bodyRows, $currentCells, $currentHeader, $bodyStarted);
                 continue;
             }
             if (str_starts_with($line, '|+')) {
-                $caption = trim(substr($line, 2));
+                $captionCell = $this->parseTableCellSource(substr($line, 2));
+                $captionInlines = $this->parseInlines($captionCell['text']);
+                $caption = $this->plainInlineText($captionInlines);
                 continue;
             }
             if (str_starts_with($line, '!')) {
-                $cells = $this->splitTableCells(substr($line, 1), '!!');
-                if ($header === []) {
-                    $header = $cells;
-                } else {
-                    $rows[] = array_map(static fn (string $text): array => ['header' => true, 'text' => $text], $cells);
-                }
+                $currentHeader = ($currentHeader ?? true) && true;
+                array_push($currentCells, ...$this->splitTableCells(substr($line, 1)));
                 continue;
             }
             if (str_starts_with($line, '|')) {
-                $rows[] = array_map(static fn (string $text): array => ['header' => false, 'text' => $text], $this->splitTableCells(substr($line, 1), '||'));
+                $currentHeader = false;
+                array_push($currentCells, ...$this->splitTableCells(substr($line, 1)));
             }
         }
 
-        $bodyRows = [];
-        foreach ($rows as $row) {
-            $bodyRows[] = array_map(static fn (array $cell): string => (string) $cell['text'], $row);
-        }
-        $columnCount = max(count($header), ...array_map('count', $bodyRows ?: [[]]));
+        $columnCount = max(0, ...array_map(fn (AstNode $row): int => $this->tableRowColumnCount($row), [...$headRows, ...$bodyRows]));
 
-        return new AstNode('table', [
+        $attrs = [
             'caption' => $caption,
-            'alignments' => array_fill(0, $columnCount, 'default'),
+            'alignments' => $this->tableAlignments([...$headRows, ...$bodyRows], $columnCount),
             'widths' => array_fill(0, $columnCount, null),
             'nativeColumnCount' => $columnCount,
-        ], [
-            new AstNode('table_head', [], $header === [] ? [] : [$this->tableRow($header, true)]),
-            new AstNode('table_body', [], array_map(fn (array $row): AstNode => $this->tableRow($row, false), $bodyRows)),
+        ];
+        if (is_array($captionInlines)) {
+            $attrs['captionInlines'] = $captionInlines;
+        }
+
+        return new AstNode('table', $attrs, [
+            new AstNode('table_head', [], $headRows),
+            new AstNode('table_body', [], $bodyRows),
             new AstNode('table_foot'),
         ]);
     }
 
     /**
-     * @return list<string>
+     * @param list<AstNode> $headRows
+     * @param list<AstNode> $bodyRows
+     * @param list<array<string, mixed>> $currentCells
      */
-    private function splitTableCells(string $source, string $separator): array
+    private function finalizeTableRow(array &$headRows, array &$bodyRows, array &$currentCells, ?bool &$currentHeader, bool &$bodyStarted): void
     {
-        return array_values(array_map(
-            fn (string $cell): string => $this->stripCellAttributes(trim($cell)),
-            explode($separator, $source)
-        ));
-    }
-
-    private function stripCellAttributes(string $cell): string
-    {
-        if (str_contains($cell, '|') && preg_match('/^[A-Za-z][A-Za-z0-9_:\\-]*(?:\\s*=|\\s|$)/u', $cell) === 1) {
-            [, $cell] = array_pad(explode('|', $cell, 2), 2, '');
+        if ($currentCells === []) {
+            $currentHeader = null;
+            return;
         }
 
-        return trim($cell);
+        if ($currentHeader === true && !$bodyStarted) {
+            $headRows[] = $this->tableRow($currentCells, true);
+        } else {
+            $bodyRows[] = $this->tableRow($currentCells, false);
+            $bodyStarted = true;
+        }
+
+        $currentCells = [];
+        $currentHeader = null;
     }
 
     /**
-     * @param list<string> $cells
+     * @return list<array<string, mixed>>
+     */
+    private function splitTableCells(string $source): array
+    {
+        $parts = preg_split('/\\s*(?:!!|\\|\\|)\\s*/u', $source);
+        if ($parts === false) {
+            $parts = [$source];
+        }
+
+        return array_map(fn (string $cell): array => $this->parseTableCellSource($cell), $parts);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function parseTableCellSource(string $source): array
+    {
+        $source = trim($source);
+        $attrs = [
+            'classes' => [],
+            'attributes' => [],
+        ];
+
+        if (str_contains($source, '|')) {
+            [$before, $after] = array_pad(explode('|', $source, 2), 2, '');
+            if ($this->looksLikeTableCellAttributes($before)) {
+                $attrs = $this->parseTableCellAttributes($before);
+                $source = $after;
+            }
+        }
+
+        return ['text' => trim($source)] + $attrs;
+    }
+
+    private function looksLikeTableCellAttributes(string $source): bool
+    {
+        return preg_match('/(?:^|\\s)(?:[A-Za-z_:][A-Za-z0-9_.:-]*\\s*=|class|style|align|colspan|rowspan|scope)\\b/iu', trim($source)) === 1;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function parseTableCellAttributes(string $source): array
+    {
+        $raw = $this->parseHtmlAttributes($source);
+        $attrs = [
+            'classes' => [],
+            'attributes' => [],
+        ];
+
+        foreach ($raw as $name => $value) {
+            $lower = strtolower($name);
+            if ($lower === 'class') {
+                $classes = preg_split('/\\s+/', trim($value)) ?: [];
+                $attrs['classes'] = array_values(array_filter($classes, static fn (string $class): bool => $class !== ''));
+                continue;
+            }
+            if ($lower === 'align') {
+                $alignment = strtolower($value);
+                if (in_array($alignment, ['left', 'right', 'center'], true)) {
+                    $attrs['align'] = $alignment;
+                }
+                continue;
+            }
+            if ($lower === 'colspan') {
+                $colspan = max(1, (int) $value);
+                if ($colspan > 1) {
+                    $attrs['colspan'] = $colspan;
+                }
+                continue;
+            }
+            if ($lower === 'rowspan') {
+                $rowspan = max(1, (int) $value);
+                if ($rowspan > 1) {
+                    $attrs['rowspan'] = $rowspan;
+                }
+                continue;
+            }
+
+            $attrs['attributes'][$name] = $value;
+        }
+
+        return $attrs;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $cells
      */
     private function tableRow(array $cells, bool $header): AstNode
     {
         return new AstNode('table_row', ['header' => $header], array_map(
-            fn (string $cell): AstNode => new AstNode('table_cell', ['header' => $header, 'text' => $this->plainInlineText($this->parseInlines($cell))], [
-                new AstNode('plain', [], $this->parseInlines($cell)),
-            ]),
+            function (array $cell) use ($header): AstNode {
+                $inlines = $this->parseInlines((string) ($cell['text'] ?? ''));
+                $attrs = [
+                    'header' => $header,
+                    'text' => $this->plainInlineText($inlines),
+                ];
+                foreach (['classes', 'attributes', 'align', 'colspan', 'rowspan'] as $name) {
+                    if (isset($cell[$name]) && $cell[$name] !== [] && $cell[$name] !== '') {
+                        $attrs[$name] = $cell[$name];
+                    }
+                }
+
+                return new AstNode('table_cell', $attrs, [
+                    new AstNode('paragraph', ['text' => $this->plainInlineText($inlines)], $inlines),
+                ]);
+            },
             $cells
         ));
+    }
+
+    private function tableRowColumnCount(AstNode $row): int
+    {
+        $count = 0;
+        foreach ($row->children as $cell) {
+            if ($cell->type === 'table_cell') {
+                $count += max(1, (int) $cell->attr('colspan', 1));
+            }
+        }
+
+        return $count;
+    }
+
+    /**
+     * @param list<AstNode> $rows
+     * @return list<string>
+     */
+    private function tableAlignments(array $rows, int $columnCount): array
+    {
+        $alignments = array_fill(0, $columnCount, 'default');
+        foreach ($rows as $row) {
+            $column = 0;
+            foreach ($row->children as $cell) {
+                if ($cell->type !== 'table_cell') {
+                    continue;
+                }
+                $alignment = (string) $cell->attr('align', '');
+                $span = max(1, (int) $cell->attr('colspan', 1));
+                if (in_array($alignment, ['left', 'right', 'center'], true)) {
+                    for ($index = $column; $index < min($column + $span, $columnCount); $index++) {
+                        $alignments[$index] = $alignment;
+                    }
+                }
+                $column += $span;
+            }
+        }
+
+        return $alignments;
     }
 
     private function paragraphFromText(string $text): AstNode
@@ -383,6 +670,80 @@ final class MediaWikiReader
         for ($offset = 0; $offset < $length; ++$offset) {
             $tail = substr($text, $offset);
 
+            if (str_starts_with($tail, '<!--')) {
+                $end = strpos($text, '-->', $offset + 4);
+                if ($end === false) {
+                    break;
+                }
+                $nextOffset = $end + 3;
+                if ($this->endsWithWhitespace($buffer)) {
+                    while ($nextOffset < $length && ctype_space($text[$nextOffset])) {
+                        ++$nextOffset;
+                    }
+                }
+                $offset = $nextOffset - 1;
+                continue;
+            }
+
+            if (preg_match('/^<nowiki\\b[^>]*>/iu', $tail, $match) === 1) {
+                $start = $offset + strlen($match[0]);
+                $closing = $this->findClosingTag($text, 'nowiki', $start);
+                if ($closing !== null) {
+                    $buffer .= html_entity_decode(substr($text, $start, $closing['start'] - $start), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+                    $offset = $closing['end'] - 1;
+                    continue;
+                }
+            }
+
+            if (preg_match('/^<math\\b[^>]*>/iu', $tail, $match) === 1) {
+                $start = $offset + strlen($match[0]);
+                $closing = $this->findClosingTag($text, 'math', $start);
+                if ($closing !== null) {
+                    $this->flushText($nodes, $buffer);
+                    $math = html_entity_decode(substr($text, $start, $closing['start'] - $start), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+                    $nodes[] = new AstNode('math', ['text' => trim($math), 'display' => false]);
+                    $offset = $closing['end'] - 1;
+                    continue;
+                }
+            }
+
+            if (preg_match('/^<ref\\b[^>]*\\/\\s*>/iu', $tail, $match) === 1) {
+                $this->flushText($nodes, $buffer);
+                $nodes[] = new AstNode('note');
+                $offset += strlen($match[0]) - 1;
+                continue;
+            }
+
+            if (preg_match('/^<ref\\b[^>]*>/iu', $tail, $match) === 1) {
+                $start = $offset + strlen($match[0]);
+                $closing = $this->findClosingTag($text, 'ref', $start);
+                if ($closing !== null) {
+                    $this->flushText($nodes, $buffer);
+                    $content = trim(substr($text, $start, $closing['start'] - $start));
+                    $nodes[] = new AstNode('note', [], $content === '' ? [] : [
+                        new AstNode('plain', [], $this->parseInlines($content)),
+                    ]);
+                    $offset = $closing['end'] - 1;
+                    continue;
+                }
+            }
+
+            if (preg_match('/^<br\\b[^>]*\\/?>/iu', $tail, $match) === 1) {
+                $this->flushText($nodes, $buffer);
+                $nodes[] = new AstNode('linebreak');
+                $offset += strlen($match[0]) - 1;
+                continue;
+            }
+
+            $htmlInline = $this->parsePairedHtmlInlineAt($text, $offset, 'sup', 'superscript')
+                ?? $this->parsePairedHtmlInlineAt($text, $offset, 'sub', 'subscript');
+            if ($htmlInline instanceof AstNode) {
+                $this->flushText($nodes, $buffer);
+                $nodes[] = $this->withoutPrivateAttrs($htmlInline);
+                $offset = (int) $htmlInline->attr('_endOffset');
+                continue;
+            }
+
             if (str_starts_with($tail, '[[')) {
                 $end = strpos($text, ']]', $offset + 2);
                 if ($end !== false) {
@@ -395,7 +756,9 @@ final class MediaWikiReader
 
             if (str_starts_with($tail, '[') && preg_match('/^\\[(https?:\\/\\/[^\\s\\]]+)(?:\\s+([^\\]]+))?\\]/u', $tail, $match) === 1) {
                 $this->flushText($nodes, $buffer);
-                $label = trim((string) ($match[2] ?? $match[1]));
+                $label = array_key_exists(2, $match) && trim((string) $match[2]) !== ''
+                    ? trim((string) $match[2])
+                    : (string) ++$this->externalLinkCounter;
                 $nodes[] = new AstNode('link', ['url' => $match[1], 'title' => ''], $this->parseInlines($label));
                 $offset += strlen($match[0]) - 1;
                 continue;
@@ -407,6 +770,22 @@ final class MediaWikiReader
                 $nodes[] = $this->withoutPrivateAttrs($styled);
                 $offset = (int) $styled->attr('_endOffset');
                 continue;
+            }
+
+            if (str_starts_with($tail, '{{')) {
+                $end = strpos($text, '}}', $offset + 2);
+                if ($end !== false) {
+                    $template = substr($text, $offset, $end - $offset + 2);
+                    $name = ltrim(substr($template, 2, -2));
+                    $this->flushText($nodes, $buffer);
+                    if (str_starts_with($name, '#') || trim($name) === '!') {
+                        $nodes[] = new AstNode('text', ['text' => $template]);
+                    } else {
+                        $nodes[] = new AstNode('raw_inline', ['format' => 'mediawiki', 'text' => $template]);
+                    }
+                    $offset = $end + 1;
+                    continue;
+                }
             }
 
             if (preg_match('/^https?:\\/\\/[^\\s<]+/u', $tail, $match) === 1) {
@@ -425,11 +804,73 @@ final class MediaWikiReader
                 continue;
             }
 
+            if (preg_match('/^<\\/?[A-Za-z][A-Za-z0-9:-]*(?:\\s+[^<>]*)?\\s*\\/?>/u', $tail, $match) === 1) {
+                $this->flushText($nodes, $buffer);
+                $nodes[] = new AstNode('raw_html_inline', ['format' => 'html', 'text' => $match[0]]);
+                $offset += strlen($match[0]) - 1;
+                continue;
+            }
+
             $buffer .= $text[$offset];
         }
         $this->flushText($nodes, $buffer);
 
         return $nodes === [] ? [new AstNode('text', ['text' => ''])] : $nodes;
+    }
+
+    private function endsWithWhitespace(string $text): bool
+    {
+        return $text !== '' && ctype_space($text[strlen($text) - 1]);
+    }
+
+    /**
+     * @return array{start:int,end:int}|null
+     */
+    private function findClosingTag(string $text, string $tag, int $start): ?array
+    {
+        $tail = substr($text, $start);
+        if (preg_match('/<\\/' . preg_quote($tag, '/') . '\\s*>/iu', $tail, $match, PREG_OFFSET_CAPTURE) !== 1) {
+            return null;
+        }
+
+        $closingStart = $start + (int) $match[0][1];
+
+        return [
+            'start' => $closingStart,
+            'end' => $closingStart + strlen($match[0][0]),
+        ];
+    }
+
+    private function parsePairedHtmlInlineAt(string $text, int $offset, string $tag, string $nodeType): ?AstNode
+    {
+        $tail = substr($text, $offset);
+        if (preg_match('/^<' . preg_quote($tag, '/') . '\\b[^>]*>/iu', $tail, $match) !== 1) {
+            return null;
+        }
+
+        $start = $offset + strlen($match[0]);
+        $closing = $this->findClosingTag($text, $tag, $start);
+        if ($closing === null) {
+            return null;
+        }
+
+        return new AstNode($nodeType, ['_endOffset' => $closing['end'] - 1], $this->parseInlines(substr($text, $start, $closing['start'] - $start)));
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function parseHtmlAttributes(string $source): array
+    {
+        $attrs = [];
+        if (preg_match_all("/([A-Za-z_:][A-Za-z0-9_.:-]*)\\s*=\\s*(?:\"([^\"]*)\"|'([^']*)'|([^\\s\"'>]+))/u", $source, $matches, PREG_SET_ORDER) !== false) {
+            foreach ($matches as $match) {
+                $value = $match[2] !== '' ? $match[2] : ($match[3] !== '' ? $match[3] : ($match[4] ?? ''));
+                $attrs[(string) $match[1]] = html_entity_decode((string) $value, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+            }
+        }
+
+        return $attrs;
     }
 
     private function parseInternalLink(string $source): AstNode
@@ -439,11 +880,19 @@ final class MediaWikiReader
         $lowerTarget = strtolower($target);
         if (str_starts_with($lowerTarget, 'file:') || str_starts_with($lowerTarget, 'image:')) {
             $label = '';
-            $classes = [];
+            $alt = '';
+            $attributes = [];
             foreach ($parts as $part) {
                 $lower = strtolower($part);
                 if (in_array($lower, ['thumb', 'thumbnail', 'frame', 'frameless'], true)) {
-                    $classes[] = $lower;
+                    continue;
+                }
+                if (preg_match('/^(\\d+)\\s*px$/iu', $part, $match) === 1) {
+                    $attributes['width'] = $match[1];
+                    continue;
+                }
+                if (preg_match('/^alt\\s*=\\s*(.*)$/iu', $part, $match) === 1) {
+                    $alt = trim($match[1]);
                     continue;
                 }
                 if (!str_contains($part, '=') && $label === '') {
@@ -451,19 +900,28 @@ final class MediaWikiReader
                 }
             }
             $url = preg_replace('/^(?:file|image):/i', '', $target) ?? $target;
+            if ($label === '') {
+                $label = $alt;
+            }
+            $labelInlines = $this->parseInlines($label);
 
             return new AstNode('image', [
                 'url' => trim($url),
-                'title' => '',
+                'title' => $this->plainInlineText($labelInlines),
                 'alt' => $label,
-                'classes' => $classes,
-            ], $this->textInlines($label));
+                'attributes' => $attributes,
+            ], $labelInlines);
         }
 
         $label = $parts[0] ?? str_replace('_', ' ', $target);
         $url = str_starts_with($target, '#') ? $target : str_replace(' ', '_', $target);
+        $labelInlines = $this->parseInlines($label);
 
-        return new AstNode('link', ['url' => $url, 'title' => ''], $this->parseInlines($label));
+        return new AstNode('link', [
+            'url' => $url,
+            'title' => $this->plainInlineText($labelInlines),
+            'classes' => ['wikilink'],
+        ], $labelInlines);
     }
 
     private function parseStyleAt(string $text, int $offset): ?AstNode
@@ -479,7 +937,9 @@ final class MediaWikiReader
             }
             $closing = $marker === '<code>' ? '</code>' : $marker;
             $start = $offset + strlen($marker);
-            $end = strpos($text, $closing, $start);
+            $end = $marker === '<code>'
+                ? strpos($text, $closing, $start)
+                : $this->findApostropheStyleClosing($text, $closing, $start);
             if ($end === false) {
                 continue;
             }
@@ -492,6 +952,22 @@ final class MediaWikiReader
         }
 
         return null;
+    }
+
+    private function findApostropheStyleClosing(string $text, string $marker, int $start): int|false
+    {
+        $position = $start;
+        $markerLength = strlen($marker);
+        while (($position = strpos($text, $marker, $position)) !== false) {
+            $before = $position > 0 ? $text[$position - 1] : '';
+            $after = $text[$position + $markerLength] ?? '';
+            if ($before !== "'" && $after !== "'") {
+                return $position;
+            }
+            ++$position;
+        }
+
+        return false;
     }
 
     /**
@@ -550,8 +1026,14 @@ final class MediaWikiReader
     {
         $text = '';
         foreach ($nodes as $node) {
-            if ($node->type === 'text' || $node->type === 'code') {
+            if (in_array($node->type, ['text', 'code', 'raw_inline'], true)) {
                 $text .= (string) $node->attr('text', '');
+            } elseif ($node->type === 'math') {
+                $text .= (string) $node->attr('text', '');
+            } elseif ($node->type === 'linebreak' || $node->type === 'softbreak') {
+                $text .= ' ';
+            } elseif ($node->type === 'image') {
+                $text .= (string) $node->attr('alt', $this->plainInlineText($node->children));
             } else {
                 $text .= $this->plainInlineText($node->children);
             }

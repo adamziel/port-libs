@@ -122,6 +122,9 @@ final class XlsxReader
         $tableCount = 0;
         $formulaCellCount = 0;
         $formulaCachedValueCount = 0;
+        $sharedFormulaCellCount = 0;
+        $sharedFormulaMasterCount = 0;
+        $sharedFormulaFollowerCount = 0;
         $errorCellCount = 0;
         $tablePartCount = 0;
         $autoFilterCount = 0;
@@ -168,6 +171,9 @@ final class XlsxReader
 
             $formulaCellCount += $sheetDiagnostics['formulaCellCount'];
             $formulaCachedValueCount += $sheetDiagnostics['formulaCachedValueCount'];
+            $sharedFormulaCellCount += $sheetDiagnostics['sharedFormulaCellCount'];
+            $sharedFormulaMasterCount += $sheetDiagnostics['sharedFormulaMasterCount'];
+            $sharedFormulaFollowerCount += $sheetDiagnostics['sharedFormulaFollowerCount'];
             $errorCellCount += $sheetDiagnostics['errorCellCount'];
             $tablePartCount += count($sheetTableMetadata['tableParts']);
             $autoFilterCount += count($sheetTableMetadata['autoFilterRanges']);
@@ -199,6 +205,9 @@ final class XlsxReader
                 'mergedCellCount' => count(array_filter($cells, static fn (array $cell): bool => (int) ($cell['colspan'] ?? 1) > 1 || (int) ($cell['rowspan'] ?? 1) > 1)),
                 'formulaCellCount' => $sheetDiagnostics['formulaCellCount'],
                 'formulaCachedValueCount' => $sheetDiagnostics['formulaCachedValueCount'],
+                'sharedFormulaCellCount' => $sheetDiagnostics['sharedFormulaCellCount'],
+                'sharedFormulaMasterCount' => $sheetDiagnostics['sharedFormulaMasterCount'],
+                'sharedFormulaFollowerCount' => $sheetDiagnostics['sharedFormulaFollowerCount'],
                 'formulaDiagnostics' => $sheetDiagnostics['formulaDiagnostics'],
                 'errorCellCount' => $sheetDiagnostics['errorCellCount'],
                 'errorDiagnostics' => $sheetDiagnostics['errorDiagnostics'],
@@ -270,6 +279,9 @@ final class XlsxReader
                 'date1904' => $workbookInfo['date1904'],
                 'formulaCellCount' => $formulaCellCount,
                 'formulaCachedValueCount' => $formulaCachedValueCount,
+                'sharedFormulaCellCount' => $sharedFormulaCellCount,
+                'sharedFormulaMasterCount' => $sharedFormulaMasterCount,
+                'sharedFormulaFollowerCount' => $sharedFormulaFollowerCount,
                 'errorCellCount' => $errorCellCount,
                 'commentCount' => $commentCount,
                 'hiddenRowCount' => $hiddenRowCount,
@@ -1605,7 +1617,7 @@ final class XlsxReader
     }
 
     /**
-     * @return list<string>
+     * @return list<array{text:string, inlines:list<AstNode>}>
      */
     private function readSharedStrings(ZipPackage $package, OpcRelationships $workbookRelationships): array
     {
@@ -1623,13 +1635,7 @@ final class XlsxReader
 
         $strings = [];
         foreach ($this->childElements($root, 'si') as $stringElement) {
-            $directText = $this->firstChildElement($stringElement, 't');
-            if ($directText instanceof \DOMElement) {
-                $strings[] = $directText->textContent;
-                continue;
-            }
-
-            $strings[] = $this->allDescendantText($stringElement);
+            $strings[] = $this->richTextValue($stringElement);
         }
 
         return $strings;
@@ -2596,8 +2602,10 @@ final class XlsxReader
         $style = $this->styleForIndex($styleIndex, $styles);
         $valueElement = $this->firstChildElement($cellElement, 'v');
         $rawValue = $valueElement instanceof \DOMElement ? $valueElement->textContent : '';
+        $formula = $this->formulaMetadataForCell($cellElement);
         $empty = false;
         $valueType = 'text';
+        $inlines = [];
         $numericValue = null;
         $numberFormatSection = null;
         $numberFormatKind = null;
@@ -2606,7 +2614,14 @@ final class XlsxReader
             if (preg_match('/^-?\d+$/', trim($rawValue)) === 1) {
                 $index = (int) trim($rawValue);
                 if ($index >= 0 && array_key_exists($index, $sharedStrings)) {
-                    $text = $sharedStrings[$index];
+                    $sharedString = $sharedStrings[$index];
+                    if (is_array($sharedString)) {
+                        $text = (string) ($sharedString['text'] ?? '');
+                        $sharedStringInlines = $sharedString['inlines'] ?? [];
+                        $inlines = is_array($sharedStringInlines) ? $sharedStringInlines : [];
+                    } else {
+                        $text = (string) $sharedString;
+                    }
                 } else {
                     $text = '';
                     $empty = true;
@@ -2619,13 +2634,23 @@ final class XlsxReader
             }
         } elseif ($cellType === 'inlineStr') {
             $inlineString = $this->firstChildElement($cellElement, 'is');
-            $text = $inlineString instanceof \DOMElement ? $this->allDescendantText($inlineString) : '';
+            $value = $inlineString instanceof \DOMElement ? $this->richTextValue($inlineString) : $this->emptyRichTextValue();
+            $text = $value['text'];
+            $inlines = $value['inlines'];
             $empty = $text === '';
             $valueType = $empty ? 'empty' : 'text';
+        } elseif ($cellType === 'b') {
+            $text = $this->formatBooleanCellValue($rawValue);
+            $empty = $text === '';
+            $valueType = $empty ? 'empty' : 'boolean';
         } elseif ($cellType === 'e') {
             $text = trim($rawValue);
             $empty = $text === '';
             $valueType = $empty ? 'empty' : 'error';
+        } elseif ($cellType === 'str') {
+            $text = $rawValue;
+            $empty = $text === '';
+            $valueType = $empty ? 'empty' : 'formula-string';
         } elseif (trim($rawValue) === '') {
             $text = '';
             $empty = true;
@@ -2660,11 +2685,13 @@ final class XlsxReader
             'numberFormatSection' => $numberFormatSection,
             'numberFormatKind' => $numberFormatKind,
             'text' => $text,
+            'inlines' => $inlines,
             'bold' => $style['bold'],
             'italic' => $style['italic'],
             'underline' => $style['underline'],
             'strike' => $style['strike'],
             'style' => $style,
+            'formula' => $formula,
             'empty' => $empty,
             'url' => $hyperlink['url'],
             'title' => $hyperlink['title'],
@@ -2673,6 +2700,215 @@ final class XlsxReader
             'rowspan' => 1,
             'covered' => false,
         ];
+    }
+
+    /**
+     * @return array{text:string, inlines:list<AstNode>}
+     */
+    private function richTextValue(\DOMElement $stringElement): array
+    {
+        $runs = $this->childElements($stringElement, 'r');
+        if ($runs === []) {
+            $directText = $this->firstChildElement($stringElement, 't');
+            $text = $directText instanceof \DOMElement ? $directText->textContent : $this->allDescendantText($stringElement);
+
+            return [
+                'text' => $text,
+                'inlines' => $this->textInlines($text),
+            ];
+        }
+
+        $inlines = [];
+        foreach ($runs as $runElement) {
+            $text = $this->richTextRunText($runElement);
+            if ($text === '') {
+                continue;
+            }
+
+            array_push($inlines, ...$this->applyInlineStyle(
+                $this->textInlines($text),
+                $this->richTextRunStyle($runElement)
+            ));
+        }
+
+        return [
+            'text' => $this->plainTextFromInlines($inlines),
+            'inlines' => $inlines,
+        ];
+    }
+
+    /**
+     * @return array{text:string, inlines:list<AstNode>}
+     */
+    private function emptyRichTextValue(): array
+    {
+        return [
+            'text' => '',
+            'inlines' => [],
+        ];
+    }
+
+    private function richTextRunText(\DOMElement $runElement): string
+    {
+        $texts = [];
+        foreach ($this->childElements($runElement, 't') as $textElement) {
+            $texts[] = $textElement->textContent;
+        }
+
+        return implode('', $texts);
+    }
+
+    /**
+     * @return array{bold:bool, italic:bool, underline:bool, strike:bool}
+     */
+    private function richTextRunStyle(\DOMElement $runElement): array
+    {
+        $properties = $this->firstChildElement($runElement, 'rPr');
+        if (!$properties instanceof \DOMElement) {
+            return [
+                'bold' => false,
+                'italic' => false,
+                'underline' => false,
+                'strike' => false,
+            ];
+        }
+
+        $underline = $this->firstChildElement($properties, 'u');
+
+        return [
+            'bold' => $this->firstChildElement($properties, 'b') instanceof \DOMElement,
+            'italic' => $this->firstChildElement($properties, 'i') instanceof \DOMElement,
+            'underline' => $underline instanceof \DOMElement && strtolower(trim($underline->getAttribute('val'))) !== 'none',
+            'strike' => $this->firstChildElement($properties, 'strike') instanceof \DOMElement,
+        ];
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function textInlines(string $text): array
+    {
+        return $text === '' ? [] : [new AstNode('text', ['text' => $text])];
+    }
+
+    /**
+     * @param list<AstNode> $inlines
+     * @param array{bold:bool, italic:bool, underline:bool, strike:bool} $style
+     * @return list<AstNode>
+     */
+    private function applyInlineStyle(array $inlines, array $style): array
+    {
+        if ($inlines === []) {
+            return [];
+        }
+
+        if ($style['bold']) {
+            $inlines = [new AstNode('strong', [], $inlines)];
+        }
+        if ($style['italic']) {
+            $inlines = [new AstNode('emph', [], $inlines)];
+        }
+        if ($style['underline']) {
+            $inlines = [new AstNode('underline', [], $inlines)];
+        }
+        if ($style['strike']) {
+            $inlines = [new AstNode('strikeout', [], $inlines)];
+        }
+
+        return $inlines;
+    }
+
+    /**
+     * @param list<AstNode> $inlines
+     */
+    private function plainTextFromInlines(array $inlines): string
+    {
+        $text = '';
+        foreach ($inlines as $inline) {
+            if ($inline->type === 'text') {
+                $text .= (string) $inline->attr('text', '');
+                continue;
+            }
+            if ($inline->type === 'space') {
+                $text .= ' ';
+                continue;
+            }
+            if ($inline->type === 'softbreak' || $inline->type === 'linebreak') {
+                $text .= "\n";
+                continue;
+            }
+
+            $text .= $this->plainTextFromInlines($inline->children);
+        }
+
+        return $text;
+    }
+
+    private function isAstNodeList(mixed $nodes): bool
+    {
+        if (!is_array($nodes)) {
+            return false;
+        }
+
+        foreach ($nodes as $node) {
+            if (!$node instanceof AstNode) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private function formatBooleanCellValue(string $rawValue): string
+    {
+        $value = strtolower(trim($rawValue));
+        if ($value === '') {
+            return '';
+        }
+
+        return match ($value) {
+            '1', 'true' => 'TRUE',
+            '0', 'false' => 'FALSE',
+            default => trim($rawValue),
+        };
+    }
+
+    /**
+     * @return array{present:bool, formulaType:string, sharedIndex:int|null, formulaRef:string|null, hasCachedValue:bool, cachedValueType:string, formulaTextBytes:int, formulaSha256:string, sharedFormulaRole:string|null}|null
+     */
+    private function formulaMetadataForCell(\DOMElement $cellElement): ?array
+    {
+        $formulaElement = $this->firstChildElement($cellElement, 'f');
+        if (!$formulaElement instanceof \DOMElement) {
+            return null;
+        }
+
+        $formulaType = trim($formulaElement->getAttribute('t')) !== '' ? trim($formulaElement->getAttribute('t')) : 'normal';
+        $formulaText = $formulaElement->textContent;
+        $formulaRef = trim($formulaElement->getAttribute('ref'));
+        $formulaRef = $formulaRef === '' ? null : $formulaRef;
+        $formulaTextBytes = strlen($formulaText);
+
+        return [
+            'present' => true,
+            'formulaType' => $formulaType,
+            'sharedIndex' => $this->integerAttribute($formulaElement, 'si'),
+            'formulaRef' => $formulaRef,
+            'hasCachedValue' => $this->cellHasCachedValue($cellElement),
+            'cachedValueType' => $this->cachedValueTypeForCell($cellElement),
+            'formulaTextBytes' => $formulaTextBytes,
+            'formulaSha256' => hash('sha256', $formulaText),
+            'sharedFormulaRole' => $formulaType === 'shared'
+                ? ($formulaTextBytes > 0 || $formulaRef !== null ? 'master' : 'follower')
+                : null,
+        ];
+    }
+
+    private function cellHasCachedValue(\DOMElement $cellElement): bool
+    {
+        $valueElement = $this->firstChildElement($cellElement, 'v');
+
+        return $valueElement instanceof \DOMElement && $valueElement->textContent !== '';
     }
 
     /**
@@ -2969,7 +3205,7 @@ final class XlsxReader
     private function isDateStyle(array $style): bool
     {
         $numFmtId = $style['numFmtId'];
-        if ($numFmtId !== null && in_array($numFmtId, [14, 15, 16, 17, 22, 27, 30, 36, 45, 46, 47, 50, 57], true)) {
+        if ($numFmtId !== null && in_array($numFmtId, [14, 15, 16, 17, 18, 19, 20, 21, 22, 27, 30, 36, 45, 46, 47, 50, 57], true)) {
             return true;
         }
 
@@ -3260,6 +3496,10 @@ final class XlsxReader
                 $attrs += $this->cellValueAttributes($cell);
                 $attrs += $this->cellLayoutAttributes($cell);
                 $attrs += $this->cellStyleAttributes($cell);
+                $formulaAttributes = $this->cellFormulaAttributes($cell);
+                if ($formulaAttributes !== []) {
+                    $attrs += $formulaAttributes;
+                }
                 $commentAttributes = $this->cellCommentAttributes($cell);
                 if ($commentAttributes !== []) {
                     $attrs += $commentAttributes;
@@ -3294,19 +3534,16 @@ final class XlsxReader
             return [];
         }
 
-        $inlines = [new AstNode('text', ['text' => (string) $cell['text']])];
-        if (($cell['bold'] ?? false) === true) {
-            $inlines = [new AstNode('strong', [], $inlines)];
-        }
-        if (($cell['italic'] ?? false) === true) {
-            $inlines = [new AstNode('emph', [], $inlines)];
-        }
-        if (($cell['underline'] ?? false) === true) {
-            $inlines = [new AstNode('underline', [], $inlines)];
-        }
-        if (($cell['strike'] ?? false) === true) {
-            $inlines = [new AstNode('strikeout', [], $inlines)];
-        }
+        $cellInlines = $cell['inlines'] ?? [];
+        $inlines = is_array($cellInlines) && $cellInlines !== [] && $this->isAstNodeList($cellInlines)
+            ? $cellInlines
+            : $this->textInlines((string) $cell['text']);
+        $inlines = $this->applyInlineStyle($inlines, [
+            'bold' => ($cell['bold'] ?? false) === true,
+            'italic' => ($cell['italic'] ?? false) === true,
+            'underline' => ($cell['underline'] ?? false) === true,
+            'strike' => ($cell['strike'] ?? false) === true,
+        ]);
         if (($cell['url'] ?? '') !== '') {
             $inlines = [new AstNode('link', [
                 'url' => (string) $cell['url'],
@@ -3337,6 +3574,39 @@ final class XlsxReader
                 continue;
             }
             $attrs[$target] = $value;
+        }
+
+        return $attrs;
+    }
+
+    /**
+     * @param array<string, mixed> $cell
+     * @return array<string, mixed>
+     */
+    private function cellFormulaAttributes(array $cell): array
+    {
+        $formula = $cell['formula'] ?? null;
+        if (!is_array($formula) || ($formula['present'] ?? false) !== true) {
+            return [];
+        }
+
+        $attrs = [
+            'xlsxFormula' => true,
+            'xlsxFormulaType' => (string) ($formula['formulaType'] ?? 'normal'),
+            'xlsxFormulaHasCachedValue' => ($formula['hasCachedValue'] ?? false) === true,
+            'xlsxFormulaCachedValueType' => (string) ($formula['cachedValueType'] ?? 'missing'),
+            'xlsxFormulaTextBytes' => (int) ($formula['formulaTextBytes'] ?? 0),
+            'xlsxFormulaSha256' => (string) ($formula['formulaSha256'] ?? ''),
+        ];
+
+        if (($formula['sharedIndex'] ?? null) !== null) {
+            $attrs['xlsxSharedFormulaIndex'] = (int) $formula['sharedIndex'];
+        }
+        if (($formula['formulaRef'] ?? null) !== null) {
+            $attrs['xlsxFormulaRef'] = (string) $formula['formulaRef'];
+        }
+        if (($formula['sharedFormulaRole'] ?? null) !== null) {
+            $attrs['xlsxSharedFormulaRole'] = (string) $formula['sharedFormulaRole'];
         }
 
         return $attrs;
@@ -3959,7 +4229,10 @@ final class XlsxReader
      * @return array{
      *     formulaCellCount:int,
      *     formulaCachedValueCount:int,
-     *     formulaDiagnostics:list<array{ref:string, formulaType:string, sharedIndex:int|null, hasCachedValue:bool, cachedValueType:string, formulaTextBytes:int, formulaSha256:string}>,
+     *     sharedFormulaCellCount:int,
+     *     sharedFormulaMasterCount:int,
+     *     sharedFormulaFollowerCount:int,
+     *     formulaDiagnostics:list<array{ref:string, present:bool, formulaType:string, sharedIndex:int|null, formulaRef:string|null, hasCachedValue:bool, cachedValueType:string, formulaTextBytes:int, formulaSha256:string, sharedFormulaRole:string|null}>,
      *     errorCellCount:int,
      *     errorDiagnostics:list<array{ref:string, code:string, fromFormula:bool}>
      * }
@@ -3971,6 +4244,9 @@ final class XlsxReader
             return [
                 'formulaCellCount' => 0,
                 'formulaCachedValueCount' => 0,
+                'sharedFormulaCellCount' => 0,
+                'sharedFormulaMasterCount' => 0,
+                'sharedFormulaFollowerCount' => 0,
                 'formulaDiagnostics' => [],
                 'errorCellCount' => 0,
                 'errorDiagnostics' => [],
@@ -3982,6 +4258,9 @@ final class XlsxReader
             return [
                 'formulaCellCount' => 0,
                 'formulaCachedValueCount' => 0,
+                'sharedFormulaCellCount' => 0,
+                'sharedFormulaMasterCount' => 0,
+                'sharedFormulaFollowerCount' => 0,
                 'formulaDiagnostics' => [],
                 'errorCellCount' => 0,
                 'errorDiagnostics' => [],
@@ -3997,35 +4276,34 @@ final class XlsxReader
                     continue;
                 }
 
-                $formulaElement = $this->firstChildElement($cellElement, 'f');
                 $valueElement = $this->firstChildElement($cellElement, 'v');
                 $rawValue = $valueElement instanceof \DOMElement ? trim($valueElement->textContent) : '';
-                if ($formulaElement instanceof \DOMElement) {
-                    $formulaText = $formulaElement->textContent;
-                    $formulaDiagnostics[] = [
-                        'ref' => $ref,
-                        'formulaType' => trim($formulaElement->getAttribute('t')) !== '' ? trim($formulaElement->getAttribute('t')) : 'normal',
-                        'sharedIndex' => $this->integerAttribute($formulaElement, 'si'),
-                        'hasCachedValue' => $rawValue !== '',
-                        'cachedValueType' => $this->cachedValueTypeForCell($cellElement),
-                        'formulaTextBytes' => strlen($formulaText),
-                        'formulaSha256' => hash('sha256', $formulaText),
-                    ];
+                $formula = $this->formulaMetadataForCell($cellElement);
+                if ($formula !== null) {
+                    $formulaDiagnostics[] = ['ref' => $ref] + $formula;
                 }
 
                 if (trim($cellElement->getAttribute('t')) === 'e' && $rawValue !== '') {
                     $errorDiagnostics[] = [
                         'ref' => $ref,
                         'code' => $rawValue,
-                        'fromFormula' => $formulaElement instanceof \DOMElement,
+                        'fromFormula' => $formula !== null,
                     ];
                 }
             }
         }
 
+        $sharedFormulaDiagnostics = array_filter(
+            $formulaDiagnostics,
+            static fn (array $diagnostic): bool => ($diagnostic['formulaType'] ?? '') === 'shared'
+        );
+
         return [
             'formulaCellCount' => count($formulaDiagnostics),
             'formulaCachedValueCount' => count(array_filter($formulaDiagnostics, static fn (array $diagnostic): bool => $diagnostic['hasCachedValue'])),
+            'sharedFormulaCellCount' => count($sharedFormulaDiagnostics),
+            'sharedFormulaMasterCount' => count(array_filter($sharedFormulaDiagnostics, static fn (array $diagnostic): bool => ($diagnostic['sharedFormulaRole'] ?? null) === 'master')),
+            'sharedFormulaFollowerCount' => count(array_filter($sharedFormulaDiagnostics, static fn (array $diagnostic): bool => ($diagnostic['sharedFormulaRole'] ?? null) === 'follower')),
             'formulaDiagnostics' => $formulaDiagnostics,
             'errorCellCount' => count($errorDiagnostics),
             'errorDiagnostics' => $errorDiagnostics,
@@ -4555,7 +4833,7 @@ final class XlsxReader
     private function cachedValueTypeForCell(\DOMElement $cellElement): string
     {
         $valueElement = $this->firstChildElement($cellElement, 'v');
-        if (!$valueElement instanceof \DOMElement || trim($valueElement->textContent) === '') {
+        if (!$valueElement instanceof \DOMElement || $valueElement->textContent === '') {
             return 'missing';
         }
 

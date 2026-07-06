@@ -691,6 +691,136 @@ XML,
     ]);
 };
 
+$buildFormulaRichXlsxPackage = static function (): string {
+    return ZipPackage::build([
+        [
+            'name' => '_rels/.rels',
+            'data' => <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rWorkbook" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>
+</Relationships>
+XML,
+        ],
+        [
+            'name' => 'xl/workbook.xml',
+            'data' => <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"
+          xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <sheets>
+    <sheet name="Calc" sheetId="1" r:id="rSheet1"/>
+    <sheet name="Lookup" sheetId="2" state="hidden" r:id="rSheet2"/>
+  </sheets>
+</workbook>
+XML,
+        ],
+        [
+            'name' => 'xl/_rels/workbook.xml.rels',
+            'data' => <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rSheet1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
+  <Relationship Id="rSheet2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet2.xml"/>
+  <Relationship Id="rSharedStrings" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings" Target="sharedStrings.xml"/>
+  <Relationship Id="rStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+</Relationships>
+XML,
+        ],
+        [
+            'name' => 'xl/styles.xml',
+            'data' => <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <fonts count="1">
+    <font><name val="Aptos"/></font>
+  </fonts>
+  <cellXfs count="4">
+    <xf numFmtId="0" fontId="0"/>
+    <xf numFmtId="2" fontId="0" applyNumberFormat="1"/>
+    <xf numFmtId="22" fontId="0" applyNumberFormat="1"/>
+    <xf numFmtId="20" fontId="0" applyNumberFormat="1"/>
+  </cellXfs>
+</styleSheet>
+XML,
+        ],
+        [
+            'name' => 'xl/sharedStrings.xml',
+            'data' => <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="12" uniqueCount="12">
+  <si><t>Label</t></si>
+  <si><t>Cached</t></si>
+  <si><t>Shared Formula</t></si>
+  <si><t>Boolean</t></si>
+  <si><t>DateTime</t></si>
+  <si><t>Inline Rich</t></si>
+  <si><t>Internal Link</t></si>
+  <si><t>Time</t></si>
+  <si>
+    <r><rPr><b/></rPr><t>Rich</t></r>
+    <r><t xml:space="preserve"> shared</t></r>
+    <r><rPr><i/><u/></rPr><t xml:space="preserve"> string</t></r>
+  </si>
+  <si><t>Lookup value</t></si>
+  <si><t>Formula string</t></si>
+  <si><t>False formula</t></si>
+</sst>
+XML,
+        ],
+        [
+            'name' => 'xl/worksheets/sheet1.xml',
+            'data' => <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"
+           xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <sheetData>
+    <row r="1">
+      <c r="A1" t="s"><v>0</v></c>
+      <c r="B1" t="s"><v>1</v></c>
+      <c r="C1" t="s"><v>2</v></c>
+      <c r="D1" t="s"><v>3</v></c>
+      <c r="E1" t="s"><v>4</v></c>
+      <c r="F1" t="s"><v>5</v></c>
+      <c r="G1" t="s"><v>6</v></c>
+      <c r="H1" t="s"><v>7</v></c>
+    </row>
+    <row r="2">
+      <c r="A2" t="s"><v>8</v></c>
+      <c r="B2" s="1"><f>3+4.5</f><v>7.5</v></c>
+      <c r="C2"><f t="shared" ref="C2:C3" si="0">B2*2</f><v>15</v></c>
+      <c r="D2" t="b"><v>1</v></c>
+      <c r="E2" s="2"><v>45306.5</v></c>
+      <c r="F2" t="inlineStr"><is><r><rPr><b/></rPr><t>Inline</t></r><r><t xml:space="preserve"> rich</t></r><r><rPr><i/></rPr><t xml:space="preserve"> value</t></r></is></c>
+      <c r="G2" t="inlineStr"><is><t>Jump</t></is></c>
+      <c r="H2" s="3"><v>0.6458333333</v></c>
+    </row>
+    <row r="3">
+      <c r="C3"><f t="shared" si="0"/><v>30</v></c>
+      <c r="D3" t="b"><f>B2&lt;0</f><v>0</v></c>
+      <c r="E3" t="str"><f>&quot;done&quot;</f><v>done</v></c>
+    </row>
+  </sheetData>
+  <hyperlinks>
+    <hyperlink ref="G2" location="'Lookup'!A1" tooltip="Jump to lookup"/>
+  </hyperlinks>
+</worksheet>
+XML,
+        ],
+        [
+            'name' => 'xl/worksheets/sheet2.xml',
+            'data' => <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <sheetData>
+    <row r="1"><c r="A1" t="s"><v>9</v></c></row>
+  </sheetData>
+</worksheet>
+XML,
+        ],
+    ]);
+};
+
 $buildFeatureMetadataXlsxPackage = static function (): string {
     $path = tempnam(sys_get_temp_dir(), 'pandoc-xlsx-feature-metadata-');
     if ($path === false) {
@@ -1289,6 +1419,99 @@ return [
         $t->same('rgb:FFABCDEF', $moneyCell->attr('xlsxBorderDiagonalColor'));
         $t->same(true, $moneyCell->attr('xlsxBorderDiagonalUp'));
         $t->same(false, $moneyCell->attr('xlsxBorderOutline'));
+    },
+
+    'uses cached formula values shared formula metadata booleans and rich string runs' => static function (TestRunner $t) use ($buildFormulaRichXlsxPackage): void {
+        $document = (new XlsxReader())->read($buildFormulaRichXlsxPackage());
+        $review = $document->attr('xlsx');
+        $native = PandocConverter::write($document, 'native');
+        $html = PandocConverter::write($document, 'html');
+        $calcSheet = $review['sheets'][0];
+        $table = $document->children[1];
+        $bodyRows = $table->children[1]->children;
+        $row2 = $bodyRows[0]->children;
+        $row3 = $bodyRows[1]->children;
+        $richSharedPlain = $row2[0]->children[0];
+        $richSharedInlines = $richSharedPlain->children;
+        $inlineRichPlain = $row2[5]->children[0];
+        $inlineRichInlines = $inlineRichPlain->children;
+        $internalLink = $row2[6]->children[0]->children[0];
+
+        $t->same(5, $review['formulaCellCount'] ?? null);
+        $t->same(5, $review['formulaCachedValueCount'] ?? null);
+        $t->same(2, $review['sharedFormulaCellCount'] ?? null);
+        $t->same(1, $review['sharedFormulaMasterCount'] ?? null);
+        $t->same(1, $review['sharedFormulaFollowerCount'] ?? null);
+        $t->same(2, $review['sheetCount'] ?? null);
+        $t->same(1, $review['hiddenSheetCount'] ?? null);
+        $t->same(12, $review['sharedStringCount'] ?? null);
+
+        $t->same(5, $calcSheet['formulaCellCount'] ?? null);
+        $t->same(2, $calcSheet['sharedFormulaCellCount'] ?? null);
+        $t->same('C2', $calcSheet['formulaDiagnostics'][1]['ref'] ?? null);
+        $t->same('shared', $calcSheet['formulaDiagnostics'][1]['formulaType'] ?? null);
+        $t->same(0, $calcSheet['formulaDiagnostics'][1]['sharedIndex'] ?? null);
+        $t->same('C2:C3', $calcSheet['formulaDiagnostics'][1]['formulaRef'] ?? null);
+        $t->same('master', $calcSheet['formulaDiagnostics'][1]['sharedFormulaRole'] ?? null);
+        $t->same(hash('sha256', 'B2*2'), $calcSheet['formulaDiagnostics'][1]['formulaSha256'] ?? null);
+        $t->true(!array_key_exists('formulaText', $calcSheet['formulaDiagnostics'][1]), 'Formula diagnostics should not expose formula text');
+        $t->same('C3', $calcSheet['formulaDiagnostics'][2]['ref'] ?? null);
+        $t->same('follower', $calcSheet['formulaDiagnostics'][2]['sharedFormulaRole'] ?? null);
+        $t->same(0, $calcSheet['formulaDiagnostics'][2]['formulaTextBytes'] ?? null);
+
+        $t->same('Rich shared string', $row2[0]->attr('text'));
+        $t->same('strong', $richSharedInlines[0]->type);
+        $t->same('Rich', $richSharedInlines[0]->children[0]->attr('text'));
+        $t->same(' shared', $richSharedInlines[1]->attr('text'));
+        $t->same('underline', $richSharedInlines[2]->type);
+        $t->same('emph', $richSharedInlines[2]->children[0]->type);
+        $t->same(' string', $richSharedInlines[2]->children[0]->children[0]->attr('text'));
+
+        $t->same('7.50', $row2[1]->attr('text'));
+        $t->same(true, $row2[1]->attr('xlsxFormula'));
+        $t->same('normal', $row2[1]->attr('xlsxFormulaType'));
+        $t->same('number', $row2[1]->attr('xlsxFormulaCachedValueType'));
+        $t->same(5, $row2[1]->attr('xlsxFormulaTextBytes'));
+        $t->same(hash('sha256', '3+4.5'), $row2[1]->attr('xlsxFormulaSha256'));
+
+        $t->same('15.0', $row2[2]->attr('text'));
+        $t->same('shared', $row2[2]->attr('xlsxFormulaType'));
+        $t->same(0, $row2[2]->attr('xlsxSharedFormulaIndex'));
+        $t->same('C2:C3', $row2[2]->attr('xlsxFormulaRef'));
+        $t->same('master', $row2[2]->attr('xlsxSharedFormulaRole'));
+        $t->same('30.0', $row3[2]->attr('text'));
+        $t->same('follower', $row3[2]->attr('xlsxSharedFormulaRole'));
+        $t->same(0, $row3[2]->attr('xlsxFormulaTextBytes'));
+
+        $t->same('TRUE', $row2[3]->attr('text'));
+        $t->same('boolean', $row2[3]->attr('xlsxValueType'));
+        $t->same('FALSE', $row3[3]->attr('text'));
+        $t->same('boolean', $row3[3]->attr('xlsxValueType'));
+        $t->same('boolean', $row3[3]->attr('xlsxFormulaCachedValueType'));
+        $t->same('2024-01-15 12:00', $row2[4]->attr('text'));
+        $t->same('date', $row2[4]->attr('xlsxValueType'));
+        $t->same('done', $row3[4]->attr('text'));
+        $t->same('formula-string', $row3[4]->attr('xlsxValueType'));
+        $t->same('formula-string', $row3[4]->attr('xlsxFormulaCachedValueType'));
+
+        $t->same('Inline rich value', $row2[5]->attr('text'));
+        $t->same('strong', $inlineRichInlines[0]->type);
+        $t->same('Inline', $inlineRichInlines[0]->children[0]->attr('text'));
+        $t->same(' rich', $inlineRichInlines[1]->attr('text'));
+        $t->same('emph', $inlineRichInlines[2]->type);
+        $t->same(' value', $inlineRichInlines[2]->children[0]->attr('text'));
+        $t->same('link', $internalLink->type);
+        $t->same("#'Lookup'!A1", $internalLink->attr('url'));
+        $t->same('Jump to lookup', $internalLink->attr('title'));
+        $t->same('15:30', $row2[7]->attr('text'));
+        $t->same('date', $row2[7]->attr('xlsxValueType'));
+
+        $t->contains('Strong [ Str "Rich" ]', $native);
+        $t->contains('Underline [ Emph [ Space , Str "string" ] ]', $native);
+        $t->contains('Link ( "" , [  ] , [  ] ) [ Str "Jump" ] ( "#\'Lookup\'!A1" , "Jump to lookup" )', $native);
+        $t->contains('<td><strong>Rich</strong> shared<u><em> string</em></u></td>', $html);
+        $t->contains('<td><strong>Inline</strong> rich<em> value</em></td>', $html);
+        $t->contains('<a href="#&#039;Lookup&#039;!A1" title="Jump to lookup">Jump</a>', $html);
     },
 
     'reports hidden sheets workbook metadata formulas errors and table filters without evaluation' => static function (TestRunner $t) use ($buildReviewXlsxPackage): void {
