@@ -807,6 +807,9 @@ final class PdfReader
 
     private function repairedLineShouldStartNewBlock(string $previous, string $line): bool
     {
+        if ($this->lineHasPdfListBlockEvidence($line)) {
+            return true;
+        }
         if ($this->looksLikeRepairedPdfTitle($this->repairGluedProseLine($previous))) {
             return true;
         }
@@ -3096,22 +3099,7 @@ WORDS)) ?: [];
     private function blocksFromLineWithEmbeddedLists(string $line): ?array
     {
         $markers = $this->embeddedListMarkers($line);
-        if ($markers === []) {
-            return null;
-        }
-
-        $bulletCount = 0;
-        $orderedNumbers = [];
-        foreach ($markers as $marker) {
-            if ($marker['type'] === 'bullet') {
-                $bulletCount++;
-                continue;
-            }
-            $orderedNumbers[] = $marker['number'];
-        }
-
-        $allowBullets = $bulletCount >= 2;
-        $allowOrdered = $this->embeddedOrderedMarkersLookSequential($orderedNumbers);
+        [$allowBullets, $allowOrdered] = $this->embeddedListMarkerPermissions($markers);
         if (!$allowBullets && !$allowOrdered) {
             return null;
         }
@@ -3157,6 +3145,40 @@ WORDS)) ?: [];
         }
 
         return count($blocks) >= 2 ? $blocks : null;
+    }
+
+    private function lineHasPdfListBlockEvidence(string $line): bool
+    {
+        if ($this->listItem($line) !== null) {
+            return true;
+        }
+
+        [$allowBullets, $allowOrdered] = $this->embeddedListMarkerPermissions($this->embeddedListMarkers($line));
+
+        return $allowBullets || $allowOrdered;
+    }
+
+    /**
+     * @param list<array{type: string, number: ?int, offset: int, contentOffset: int}> $markers
+     * @return array{bool, bool}
+     */
+    private function embeddedListMarkerPermissions(array $markers): array
+    {
+        if ($markers === []) {
+            return [false, false];
+        }
+
+        $bulletCount = 0;
+        $orderedNumbers = [];
+        foreach ($markers as $marker) {
+            if ($marker['type'] === 'bullet') {
+                $bulletCount++;
+                continue;
+            }
+            $orderedNumbers[] = $marker['number'];
+        }
+
+        return [$bulletCount >= 2, $this->embeddedOrderedMarkersLookSequential($orderedNumbers)];
     }
 
     /**

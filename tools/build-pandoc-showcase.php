@@ -1713,7 +1713,7 @@ foreach ([
 ] as $id => $label) {
     $html .= '<li><a href="#' . h($id) . '">' . h($label) . '</a></li>';
 }
-$html .= '</ul><div class="hero-actions"><a href="block-usage.html">WordPress block usage guide</a><a href="manifest.json">Manifest JSON</a></div></div></header><main class="layout">';
+$html .= '</ul><div class="hero-actions"><a href="playground-converter.html">Convert in WordPress Playground</a><a href="block-usage.html">WordPress block usage guide</a><a href="manifest.json">Manifest JSON</a></div></div></header><main class="layout">';
 $html .= '<nav class="format-nav" aria-label="Formats">';
 foreach (array_keys($byFormat) as $format) {
     $html .= '<a href="#format-' . h($format) . '">' . h($format) . '</a>';

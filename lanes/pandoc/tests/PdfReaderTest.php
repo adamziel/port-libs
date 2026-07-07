@@ -4932,6 +4932,52 @@ return [
         $t->contains('<li><p>Rub your hands together.</p></li>', $html);
         $t->contains('<li><p>Rinse your hands well.</p></li>', $html);
     },
+    'keeps explicit pdf list markers as repaired prose block boundaries' => static function (TestRunner $t) use ($pdfWithContent): void {
+        $pdf = $pdfWithContent(
+            'BT /F1 12 Tf '
+            . '1 0 0 1 72 748 Tm (intro without punctuation marker) Tj '
+            . '1 0 0 1 72 732 Tm (- First explicit item.) Tj '
+            . '1 0 0 1 72 716 Tm (- Second explicit item.) Tj '
+            . '1 0 0 1 72 700 Tm (Trailing paragraph continues normally.) Tj '
+            . 'ET'
+        );
+
+        $document = (new PdfReader([
+            'pdfGeometryTables' => false,
+            'pdfRepairProseText' => true,
+        ]))->read($pdf);
+        $html = PandocConverter::write($document, 'html');
+
+        $t->same('heading', $document->children[0]->type);
+        $t->same('bullet_list', $document->children[1]->type);
+        $t->same('paragraph', $document->children[2]->type);
+        $t->contains('intro without punctuation marker', $html);
+        $t->contains('<li><p>First explicit item.</p></li>', $html);
+        $t->contains('<li><p>Second explicit item.</p></li>', $html);
+        $t->contains('<p>Trailing paragraph continues normally.</p>', $html);
+    },
+    'keeps embedded pdf list runs as repaired prose block boundaries' => static function (TestRunner $t) use ($pdfWithContent): void {
+        $pdf = $pdfWithContent(
+            'BT /F1 12 Tf '
+            . '1 0 0 1 72 748 Tm (intro without punctuation marker) Tj '
+            . '1 0 0 1 72 732 Tm (Steps: 1. First step. 2. Second step.) Tj '
+            . 'ET'
+        );
+
+        $document = (new PdfReader([
+            'pdfGeometryTables' => false,
+            'pdfRepairProseText' => true,
+        ]))->read($pdf);
+        $html = PandocConverter::write($document, 'html');
+
+        $t->same('heading', $document->children[0]->type);
+        $t->same('paragraph', $document->children[1]->type);
+        $t->same('ordered_list', $document->children[2]->type);
+        $t->contains('intro without punctuation marker', $html);
+        $t->contains('<p>Steps:</p>', $html);
+        $t->contains('<li><p>First step.</p></li>', $html);
+        $t->contains('<li><p>Second step.</p></li>', $html);
+    },
     'keeps non-list pdf prose with isolated markers as paragraphs' => static function (TestRunner $t) use ($pdfWithContent): void {
         $pdf = $pdfWithContent(
             'BT /F1 12 Tf '
