@@ -28,21 +28,34 @@
       </div>
 
       <div class="intro-panel" aria-label="What this page is for">
-        <h3>Turn documents into something WordPress can actually use</h3>
-        <p>Migration tests usually answer the wrong question: "did it render?" This page answers the useful question: "can an editor work with it after import?" Try policy PDFs, DOCX reports, Markdown specs, spreadsheets, EPUBs, slides, wiki pages, and other awkward files, then inspect the resulting blocks in a real WordPress editor.</p>
-        <div class="use-grid" aria-label="Useful checks">
+        <h3>Turn real documents into editable WordPress pages</h3>
+        <p>This page is useful because it tests the whole publishing path, not just a standalone HTML preview. You can take a file people already have, run it through the PHP Pandoc port in the browser, and inspect the result inside WordPress as blocks, media-library files, links, tables, lists, code, math, and headings.</p>
+        <div class="reason-grid" aria-label="Why this is interesting">
           <div>
-            <strong>Validate migrations</strong>
-            <span>Check headings, lists, tables, links, code, math, images, and document structure before writing importer code.</span>
+            <strong>See whether import is practical</strong>
+            <span>Open the generated page in WordPress and check whether an editor could continue working with it.</span>
           </div>
           <div>
-            <strong>Debug conversion gaps</strong>
-            <span>Use the live result and diagnostics to spot spacing problems, missing media, flattened tables, or unsupported syntax.</span>
+            <strong>Test hard source material</strong>
+            <span>Try policy PDFs, DOCX reports, Markdown specs, spreadsheets, EPUBs, slides, wiki pages, man pages, and archived formats.</span>
           </div>
           <div>
-            <strong>Prototype workflows</strong>
-            <span>See how files from authors, archives, docs teams, or legacy CMS exports could land in WordPress.</span>
+            <strong>Verify media handling</strong>
+            <span>Images are imported only when they are actually referenced by rendered <code>&lt;img&gt;</code> tags, so unused extracted files do not become media clutter.</span>
           </div>
+          <div>
+            <strong>Find conversion gaps quickly</strong>
+            <span>Use the live page and log to catch spacing problems, missing images, flattened tables, broken links, or syntax the converter still needs to learn.</span>
+          </div>
+        </div>
+        <div class="try-panel" aria-label="What you can do here">
+          <h4>What you can do here</h4>
+          <ul>
+            <li>Drop a document and immediately open the converted WordPress page.</li>
+            <li>Edit the generated blocks to see what remained structured instead of becoming raw HTML.</li>
+            <li>Inspect the media library to confirm which images were imported.</li>
+            <li>Compare tricky files against the static showcase output and report specific conversion bugs.</li>
+          </ul>
         </div>
       </div>
 
@@ -102,22 +115,6 @@
           <span id="status-text">Starting WordPress Playground...</span>
         </div>
         <pre id="log-output"></pre>
-      </div>
-
-      <div class="value-panel value-panel-primary" aria-label="Why this converter is useful">
-        <h3>Why this is useful</h3>
-        <p>Most document converters stop at HTML. This one creates a WordPress page, so you can judge the parts that matter for publishing: editable blocks, media-library files, preserved links, tables, lists, code, math, and document structure.</p>
-      </div>
-
-      <div class="value-panel" aria-label="What this converter does">
-        <h3>What you can do</h3>
-        <ul>
-          <li>Drop in a document and open the converted result as a WordPress page.</li>
-          <li>Edit the generated blocks in the WordPress editor to see what survived as structured content.</li>
-          <li>Open the media library and confirm which extracted images were imported.</li>
-          <li>Test documents that usually break importers, including tables, multi-column PDFs, footnotes, math, code blocks, and embedded media.</li>
-          <li>Compare tricky source files against the showcase output and report conversion gaps.</li>
-        </ul>
       </div>
 
       <div class="value-panel" aria-label="What happens during conversion">

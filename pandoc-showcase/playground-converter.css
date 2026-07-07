@@ -37,26 +37,50 @@
   font-size: 13px;
   line-height: 1.55;
 }
-.use-grid {
+.reason-grid {
   display: grid;
   gap: 8px;
   margin-top: 12px;
 }
-.use-grid div {
+.reason-grid div {
   border-top: 1px solid #d9e5f2;
   padding-top: 8px;
 }
-.use-grid strong {
+.reason-grid strong {
   display: block;
   color: var(--ink);
   font-size: 13px;
 }
-.use-grid span {
+.reason-grid span {
   display: block;
   margin-top: 3px;
   color: #4b5563;
   font-size: 12px;
   line-height: 1.45;
+}
+.reason-grid code {
+  font: 11px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  background: #e9f1fa;
+  padding: 1px 3px;
+}
+.try-panel {
+  margin-top: 12px;
+  border-top: 1px solid #d9e5f2;
+  padding-top: 10px;
+}
+.try-panel h4 {
+  margin: 0 0 7px;
+  font-size: 13px;
+}
+.try-panel ul {
+  margin: 0;
+  padding-left: 18px;
+  color: #3f4852;
+  font-size: 12px;
+  line-height: 1.45;
+}
+.try-panel li + li {
+  margin-top: 4px;
 }
 .value-panel {
   margin-top: 16px;
