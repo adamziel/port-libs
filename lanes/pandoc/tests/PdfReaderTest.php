@@ -4886,6 +4886,29 @@ return [
         $t->true(!str_contains($html, '<h2>Technical documents'), 'wrapped prose line is not promoted to a heading');
         $t->true(!str_contains($text, 'documentscanlosewordspaces'), 'glued prose is segmented');
     },
+    'removes standalone pdf brace artifacts during prose repair' => static function (TestRunner $t) use ($pdfWithContent): void {
+        $pdf = $pdfWithContent(
+            'BT /F1 12 Tf '
+            . '1 0 0 1 72 748 Tm (TechnicaldocumentscanlosewordspacesduringPDFextraction.) Tj '
+            . '1 0 0 1 72 732 Tm (Providers should practice hand hygiene: { } Every time they enter your room.) Tj '
+            . '1 0 0 1 72 716 Tm (Thisreaderusesadictionarybasedrepairtopreserveprose.) Tj '
+            . '1 0 0 1 72 700 Tm (Adjacentlinescanformavisualparagraphwithoutspecialcases.) Tj '
+            . '1 0 0 1 72 684 Tm (Markdownexamplesexerciseformatflavorfeatures.) Tj '
+            . 'ET'
+        );
+
+        $document = (new PdfReader([
+            'pdfGeometryTables' => false,
+            'pdfRepairProseText' => true,
+        ]))->read($pdf);
+        $text = preg_replace('/\s+/', ' ', html_entity_decode(strip_tags(PandocConverter::write($document, 'html')), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')) ?? '';
+        $meta = $document->attr('meta');
+
+        $t->same(true, $meta['pdfTextRepair']);
+        $t->contains('Providers should practice hand hygiene: Every time they enter your room.', $text);
+        $t->true(!str_contains($text, '{ }'));
+        $t->true(!str_contains($text, 'hygiene: { } Every'));
+    },
     'turns repeated embedded pdf bullet markers into a list' => static function (TestRunner $t): void {
         $content = 'BT /F1 12 Tf '
             . '1 0 0 1 72 748 Tm (Hand hygiene: \225 Wash hands with soap \225 Dry hands with a towel) Tj '

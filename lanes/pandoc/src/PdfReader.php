@@ -667,6 +667,7 @@ final class PdfReader
             return '';
         }
 
+        $line = $this->removeStandaloneBraceArtifacts($line);
         $line = preg_replace('/([,;:!?])(?=\S)/u', '$1 ', $line) ?? $line;
         $line = preg_replace('/(?<!\d)\.(?=[A-Z])/u', '. ', $line) ?? $line;
         $line = preg_replace('/([a-z])([A-Z][a-z])/u', '$1 $2', $line) ?? $line;
@@ -685,6 +686,13 @@ final class PdfReader
         $line = preg_replace('/\s+/u', ' ', $line) ?? $line;
 
         return trim($line);
+    }
+
+    private function removeStandaloneBraceArtifacts(string $line): string
+    {
+        $line = preg_replace('/(^|\s)\{\s*\}(?=\s|$)/u', '$1', $line) ?? $line;
+
+        return preg_replace('/\s+/u', ' ', $line) ?? $line;
     }
 
     /**
