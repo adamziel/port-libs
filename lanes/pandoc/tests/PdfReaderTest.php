@@ -4886,6 +4886,70 @@ return [
         $t->true(!str_contains($html, '<h2>Technical documents'), 'wrapped prose line is not promoted to a heading');
         $t->true(!str_contains($text, 'documentscanlosewordspaces'), 'glued prose is segmented');
     },
+    'turns repeated embedded pdf bullet markers into a list' => static function (TestRunner $t): void {
+        $content = 'BT /F1 12 Tf '
+            . '1 0 0 1 72 748 Tm (Hand hygiene: \225 Wash hands with soap \225 Dry hands with a towel) Tj '
+            . 'ET';
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n"
+            . "2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n"
+            . "3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]/Resources<</Font<</F1 4 0 R>>>>/Contents 5 0 R>>endobj\n"
+            . "4 0 obj<</Type/Font/Subtype/Type1/BaseFont/Helvetica/Encoding/WinAnsiEncoding>>endobj\n"
+            . "5 0 obj<</Length " . strlen($content) . ">>stream\n{$content}\nendstream\nendobj\n"
+            . "trailer<</Root 1 0 R>>\n%%EOF";
+
+        $document = (new PdfReader([
+            'pdfGeometryTables' => false,
+            'pdfRepairProseText' => true,
+        ]))->read($pdf);
+        $html = PandocConverter::write($document, 'html');
+
+        $t->same('paragraph', $document->children[0]->type);
+        $t->same('bullet_list', $document->children[1]->type);
+        $t->same(2, count($document->children[1]->children));
+        $t->contains('<ul>', $html);
+        $t->contains('<li><p>Wash hands with soap</p></li>', $html);
+        $t->contains('<li><p>Dry hands with a towel</p></li>', $html);
+    },
+    'turns repeated sequential embedded pdf ordered markers into a list' => static function (TestRunner $t) use ($pdfWithContent): void {
+        $pdf = $pdfWithContent(
+            'BT /F1 12 Tf '
+            . '1 0 0 1 72 748 Tm (With soap and water: 1. Wet your hands with warm water. 2. Rub your hands together. 3. Rinse your hands well.) Tj '
+            . 'ET'
+        );
+
+        $document = (new PdfReader([
+            'pdfGeometryTables' => false,
+            'pdfRepairProseText' => true,
+        ]))->read($pdf);
+        $html = PandocConverter::write($document, 'html');
+
+        $t->same('paragraph', $document->children[0]->type);
+        $t->same('ordered_list', $document->children[1]->type);
+        $t->same(3, count($document->children[1]->children));
+        $t->contains('<ol>', $html);
+        $t->contains('<li><p>Wet your hands with warm water.</p></li>', $html);
+        $t->contains('<li><p>Rub your hands together.</p></li>', $html);
+        $t->contains('<li><p>Rinse your hands well.</p></li>', $html);
+    },
+    'keeps non-list pdf prose with isolated markers as paragraphs' => static function (TestRunner $t) use ($pdfWithContent): void {
+        $pdf = $pdfWithContent(
+            'BT /F1 12 Tf '
+            . '1 0 0 1 72 748 Tm (Room 2. Rub rails are cleaned daily, and one \225 marker alone is not a list.) Tj '
+            . 'ET'
+        );
+
+        $document = (new PdfReader([
+            'pdfGeometryTables' => false,
+            'pdfRepairProseText' => true,
+        ]))->read($pdf);
+        $html = PandocConverter::write($document, 'html');
+
+        $t->same(1, count($document->children));
+        $t->same('paragraph', $document->children[0]->type);
+        $t->true(!str_contains($html, '<ul>'));
+        $t->true(!str_contains($html, '<ol>'));
+    },
     'preserves visual TJ array word gaps before prose repair' => static function (TestRunner $t) use ($pdfWithContent): void {
         $pdf = $pdfWithContent(
             'BT /F1 12 Tf '

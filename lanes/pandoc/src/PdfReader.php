@@ -957,6 +957,15 @@ WORDS)) ?: [];
             }
 
             $flushList();
+            $embeddedListBlocks = $this->blocksFromLineWithEmbeddedLists($line);
+            if ($embeddedListBlocks !== null) {
+                foreach ($embeddedListBlocks as $block) {
+                    $blocks[] = $block;
+                }
+                $index++;
+                continue;
+            }
+
             if ($this->looksLikeHeading($line, $index, count($lines))) {
                 $blocks[] = new AstNode('heading', ['level' => $index === 0 ? 1 : 2, 'text' => $line], $this->inlines($line));
                 $index++;
@@ -3071,7 +3080,7 @@ WORDS)) ?: [];
      */
     private function listItem(string $line): ?array
     {
-        if (preg_match('/^\s*(?:[-*]|\xE2\x80\xA2)\s+(.+)$/u', $line, $match)) {
+        if (preg_match('/^\s*(?:[-*]|\x{2022})\s+(.+)$/u', $line, $match)) {
             return [false, trim($match[1])];
         }
         if (preg_match('/^\s*\d+[.)]\s+(.+)$/u', $line, $match)) {
@@ -3079,6 +3088,138 @@ WORDS)) ?: [];
         }
 
         return null;
+    }
+
+    /**
+     * @return list<AstNode>|null
+     */
+    private function blocksFromLineWithEmbeddedLists(string $line): ?array
+    {
+        $markers = $this->embeddedListMarkers($line);
+        if ($markers === []) {
+            return null;
+        }
+
+        $bulletCount = 0;
+        $orderedNumbers = [];
+        foreach ($markers as $marker) {
+            if ($marker['type'] === 'bullet') {
+                $bulletCount++;
+                continue;
+            }
+            $orderedNumbers[] = $marker['number'];
+        }
+
+        $allowBullets = $bulletCount >= 2;
+        $allowOrdered = $this->embeddedOrderedMarkersLookSequential($orderedNumbers);
+        if (!$allowBullets && !$allowOrdered) {
+            return null;
+        }
+
+        $markers = array_values(array_filter(
+            $markers,
+            static fn (array $marker): bool => $marker['type'] === 'bullet' ? $allowBullets : $allowOrdered
+        ));
+        if (count($markers) < 2) {
+            return null;
+        }
+
+        $blocks = [];
+        $prefix = trim(substr($line, 0, $markers[0]['offset']));
+        if ($prefix !== '') {
+            $blocks[] = $this->paragraph($this->repairGluedProseLine($prefix));
+        }
+
+        $index = 0;
+        $markerCount = count($markers);
+        while ($index < $markerCount) {
+            $type = $markers[$index]['type'];
+            $ordered = $type === 'ordered';
+            $items = [];
+            $start = $ordered ? $markers[$index]['number'] : null;
+            while ($index < $markerCount && $markers[$index]['type'] === $type) {
+                $nextOffset = $markers[$index + 1]['offset'] ?? strlen($line);
+                $text = trim(substr($line, $markers[$index]['contentOffset'], $nextOffset - $markers[$index]['contentOffset']));
+                if ($text !== '') {
+                    $items[] = new AstNode('list_item', [], [$this->paragraph($this->repairGluedProseLine($text))]);
+                }
+                $index++;
+            }
+            if ($items === []) {
+                continue;
+            }
+
+            $attrs = [];
+            if ($ordered && $start !== null && $start !== 1) {
+                $attrs['start'] = $start;
+            }
+            $blocks[] = new AstNode($ordered ? 'ordered_list' : 'bullet_list', $attrs, $items);
+        }
+
+        return count($blocks) >= 2 ? $blocks : null;
+    }
+
+    /**
+     * @return list<array{type: string, number: ?int, offset: int, contentOffset: int}>
+     */
+    private function embeddedListMarkers(string $line): array
+    {
+        $markers = [];
+        if (preg_match_all('/(?:^|(?<=\s))\x{2022}\s+/u', $line, $matches, PREG_OFFSET_CAPTURE) !== false) {
+            foreach ($matches[0] as $match) {
+                $markers[] = [
+                    'type' => 'bullet',
+                    'number' => null,
+                    'offset' => $match[1],
+                    'contentOffset' => $match[1] + strlen($match[0]),
+                ];
+            }
+        }
+        if (preg_match_all('/(?:^|(?<![\p{L}\p{N}]))(\d{1,2})[.)]\s+(?=\S)/u', $line, $matches, PREG_OFFSET_CAPTURE) !== false) {
+            foreach ($matches[0] as $index => $match) {
+                $markers[] = [
+                    'type' => 'ordered',
+                    'number' => (int) $matches[1][$index][0],
+                    'offset' => $match[1],
+                    'contentOffset' => $match[1] + strlen($match[0]),
+                ];
+            }
+        }
+
+        usort($markers, static fn (array $left, array $right): int => $left['offset'] <=> $right['offset']);
+
+        return $markers;
+    }
+
+    /**
+     * @param list<int|null> $numbers
+     */
+    private function embeddedOrderedMarkersLookSequential(array $numbers): bool
+    {
+        if (count($numbers) < 2) {
+            return false;
+        }
+
+        $previous = null;
+        $hasProgression = false;
+        foreach ($numbers as $number) {
+            if (!is_int($number) || $number < 1) {
+                return false;
+            }
+            if ($previous !== null) {
+                if ($number === 1) {
+                    $previous = $number;
+                    continue;
+                }
+                if ($number !== $previous + 1) {
+                    return false;
+                }
+                $hasProgression = true;
+            }
+            $previous = $number;
+        }
+
+        return $hasProgression;
     }
 
     private function looksLikeHeading(string $line, int $index, int $lineCount): bool
