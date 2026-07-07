@@ -1,4 +1,4 @@
-const pluginBuild = 'c8b9422bc1ab06af';
+const pluginBuild = 'fe52ae9d0394efd4';
 const playgroundClientModuleUrl = 'https://playground.wordpress.net/client/index.js';
 
 const iframe = document.getElementById('wp-playground');
@@ -14,6 +14,7 @@ const statusText = document.getElementById('status-text');
 const statusDot = document.getElementById('playground-status');
 const logOutput = document.getElementById('log-output');
 const overlayTitle = document.getElementById('overlay-title');
+const pageDropOverlay = document.getElementById('page-drop-overlay');
 
 const formatByExtension = new Map(Object.entries({
   bib: 'bibtex',
@@ -67,38 +68,75 @@ let playgroundBootPromise = null;
 let startPlaygroundWeb = null;
 let selectedFile = null;
 let conversionActive = false;
+let dragDepth = 0;
 
-fileInput.addEventListener('change', () => {
-  setSelectedFile(fileInput.files && fileInput.files[0] ? fileInput.files[0] : null);
+fileInput.addEventListener('change', async () => {
+  const file = fileInput.files && fileInput.files[0] ? fileInput.files[0] : null;
+  setSelectedFile(file);
+  if (file) {
+    await convertSelectedFile();
+  }
 });
 
-for (const eventName of ['dragenter', 'dragover']) {
-  dropzone.addEventListener(eventName, (event) => {
-    event.preventDefault();
-    dropzone.dataset.active = 'true';
-  });
-}
+document.addEventListener('dragenter', (event) => {
+  if (!hasDraggedFiles(event)) {
+    return;
+  }
+  event.preventDefault();
+  dragDepth += 1;
+  setPageDragActive(true);
+});
 
-for (const eventName of ['dragleave', 'drop']) {
-  dropzone.addEventListener(eventName, (event) => {
-    event.preventDefault();
-    dropzone.dataset.active = 'false';
-  });
-}
+document.addEventListener('dragover', (event) => {
+  if (!hasDraggedFiles(event)) {
+    return;
+  }
+  event.preventDefault();
+  if (event.dataTransfer) {
+    event.dataTransfer.dropEffect = conversionActive ? 'none' : 'copy';
+  }
+  setPageDragActive(true);
+});
 
-dropzone.addEventListener('drop', (event) => {
+document.addEventListener('dragleave', (event) => {
+  if (!hasDraggedFiles(event)) {
+    return;
+  }
+  event.preventDefault();
+  dragDepth = Math.max(0, dragDepth - 1);
+  if (dragDepth === 0) {
+    setPageDragActive(false);
+  }
+});
+
+document.addEventListener('drop', async (event) => {
+  if (!hasDraggedFiles(event)) {
+    return;
+  }
+  event.preventDefault();
+  dragDepth = 0;
+  setPageDragActive(false);
   const file = event.dataTransfer && event.dataTransfer.files.length > 0
     ? event.dataTransfer.files[0]
     : null;
-  if (file) {
-    fileInput.files = event.dataTransfer.files;
-    setSelectedFile(file);
+  if (!file) {
+    return;
   }
+  setSelectedFile(file);
+  await convertSelectedFile();
 });
 
 form.addEventListener('submit', async (event) => {
   event.preventDefault();
+  await convertSelectedFile();
+});
+
+async function convertSelectedFile() {
   if (!selectedFile) {
+    return;
+  }
+  if (conversionActive) {
+    log('A conversion is already running.');
     return;
   }
 
@@ -150,7 +188,7 @@ form.addEventListener('submit', async (event) => {
   } finally {
     setBusy(false);
   }
-});
+}
 
 async function bootPlayground() {
   if (playgroundReady) {
@@ -227,7 +265,7 @@ async function startPlayground() {
 function setSelectedFile(file) {
   selectedFile = file;
   if (!file) {
-    fileName.textContent = 'or choose a file';
+    fileName.textContent = 'No file selected';
     updateConvertAvailability();
     return;
   }
@@ -242,6 +280,7 @@ function setSelectedFile(file) {
 function setBusy(busy) {
   convertButton.disabled = busy || !selectedFile;
   fileInput.disabled = busy;
+  dropzone.dataset.disabled = busy ? 'true' : 'false';
   formatInput.disabled = busy;
   titleInput.disabled = busy;
   convertButton.textContent = busy ? 'Converting...' : convertButtonLabel();
@@ -267,6 +306,16 @@ function setPlaygroundState(state) {
 
 function setOverlayTitle(text) {
   overlayTitle.textContent = text;
+}
+
+function setPageDragActive(active) {
+  document.body.dataset.dragging = active ? 'true' : 'false';
+  pageDropOverlay.setAttribute('aria-hidden', active ? 'false' : 'true');
+}
+
+function hasDraggedFiles(event) {
+  const types = event.dataTransfer ? Array.from(event.dataTransfer.types || []) : [];
+  return types.includes('Files');
 }
 
 function log(message) {

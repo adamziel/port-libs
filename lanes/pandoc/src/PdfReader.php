@@ -373,17 +373,21 @@ final class PdfReader
                 $gap = $run['textX1'] - $last['textX2'];
                 $mergeGap = max(4.0, max($run['fontSize'], $last['fontSize']) * 1.25);
                 $combinedWidth = max($last['x2'], $last['textX2'], $run['x2'], $run['textX2']) - min($last['x1'], $last['textX1'], $run['x1'], $run['textX1']);
-                if ($gap <= $mergeGap && ($pageWidth <= 0.0 || $combinedWidth <= $pageWidth * 0.72)) {
+                $normalProseMerge = $gap <= $mergeGap && ($pageWidth <= 0.0 || $combinedWidth <= $pageWidth * 0.72);
+                $looksLikeLineContinuation = $this->positionedProseRunsLookLikeLineContinuation($last, $run, $gap, $pageWidth);
+                if ($normalProseMerge || $looksLikeLineContinuation) {
                     $merged[$lastIndex] = [
                         'page' => $last['page'],
-                        'text' => $this->joinPositionedCellText(
-                            $last['text'],
-                            $run['text'],
-                            $gap,
-                            max($run['fontSize'], $last['fontSize']),
-                            (bool) ($last['endsWithWhitespace'] ?? false),
-                            (bool) ($run['startsWithWhitespace'] ?? false)
-                        ),
+                        'text' => $looksLikeLineContinuation && !$normalProseMerge
+                            ? $this->positionedCellText($last['text'] . $run['text'])
+                            : $this->joinPositionedCellText(
+                                $last['text'],
+                                $run['text'],
+                                $gap,
+                                max($run['fontSize'], $last['fontSize']),
+                                (bool) ($last['endsWithWhitespace'] ?? false),
+                                (bool) ($run['startsWithWhitespace'] ?? false)
+                            ),
                         'x1' => min($last['x1'], $run['x1']),
                         'y1' => min($last['y1'], $run['y1']),
                         'x2' => max($last['x2'], $run['x2']),
@@ -406,6 +410,41 @@ final class PdfReader
         unset($row);
 
         return $rows;
+    }
+
+    /**
+     * @param array{page: int, text: string, x1: float, y1: float, x2: float, y2: float, textX1: float, textY1: float, textX2: float, textY2: float, fontSize: float} $left
+     * @param array{page: int, text: string, x1: float, y1: float, x2: float, y2: float, textX1: float, textY1: float, textX2: float, textY2: float, fontSize: float} $right
+     */
+    private function positionedProseRunsLookLikeLineContinuation(array $left, array $right, float $gap, float $pageWidth): bool
+    {
+        if ($pageWidth > 0.0 && (abs($gap) > $pageWidth * 0.45)) {
+            return false;
+        }
+        if (($left['endsWithWhitespace'] ?? false) || ($right['startsWithWhitespace'] ?? false)) {
+            return false;
+        }
+        if (preg_match('/[-\p{L}\p{N}]$/u', rtrim($left['text'])) !== 1) {
+            return false;
+        }
+        if (preg_match('/^[\p{Ll}]/u', ltrim($right['text'])) !== 1) {
+            return false;
+        }
+
+        $leftWord = $this->lastWordToken($left['text']);
+        $rightWord = $this->firstWordToken($right['text']);
+        if ($leftWord === '' || $rightWord === '' || preg_match('/^\p{L}+$/u', $leftWord . $rightWord) !== 1) {
+            return false;
+        }
+
+        $leftLength = $this->length($leftWord);
+        $rightLength = $this->length($rightWord);
+        $joined = strtolower($leftWord . $rightWord);
+        if ($leftLength <= 2 || $rightLength > 4) {
+            return isset($this->proseWordDictionary()[$joined]);
+        }
+
+        return $leftLength >= 3 && $rightLength >= 1;
     }
 
     /**

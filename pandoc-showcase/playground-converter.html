@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Import any document into WordPress</title>
   <link rel="stylesheet" href="styles.css">
-  <link rel="stylesheet" href="playground-converter.css?v=csv-blank-20260707">
+  <link rel="stylesheet" href="playground-converter.css?v=page-drop-20260707">
 </head>
 <body>
   <main class="playground-tool">
@@ -14,59 +14,60 @@
         <a href="index.html">Showcase</a>
         <a href="block-usage.html">Blocks</a>
       </div>
-      <h1 id="page-heading">import any document into WordPress</h1>
+      <div class="landing-grid">
+        <h1 id="page-heading">import any document into WordPress</h1>
 
-      <div class="format-cloud" aria-label="Supported input formats">
-        <span>PDF</span>
-        <span>DOCX</span>
-        <span>DOC</span>
-        <span>ODT</span>
-        <span>EPUB</span>
-        <span>HTML</span>
-        <span>Markdown</span>
-        <span>GFM</span>
-        <span>CommonMark</span>
-        <span>PPTX</span>
-        <span>XLSX</span>
-        <span>CSV</span>
-        <span>TSV</span>
-        <span>MediaWiki</span>
-        <span>man</span>
-        <span>DocBook</span>
-        <span>JATS</span>
-        <span>LaTeX</span>
-        <span>RTF</span>
-        <span>OPML</span>
-        <span>Jira</span>
-        <span>Jupyter Notebook</span>
-        <span>XML</span>
-        <span>JSON</span>
-        <span>native</span>
-        <span>BibTeX</span>
-        <span>BibLaTeX</span>
-        <span>RIS</span>
-        <span>FB2</span>
-        <span>BITS</span>
-        <span>CSL JSON</span>
-        <span>DokuWiki</span>
-        <span>EndNote XML</span>
-        <span>mdoc</span>
-        <span>reStructuredText</span>
-        <span>MultiMarkdown</span>
-        <span>PHP Markdown Extra</span>
-        <span>strict Markdown</span>
+        <div class="format-cloud" aria-label="Supported input formats">
+          <span>PDF</span>
+          <span>DOCX</span>
+          <span>DOC</span>
+          <span>ODT</span>
+          <span>EPUB</span>
+          <span>HTML</span>
+          <span>Markdown</span>
+          <span>GFM</span>
+          <span>CommonMark</span>
+          <span>PPTX</span>
+          <span>XLSX</span>
+          <span>CSV</span>
+          <span>TSV</span>
+          <span>MediaWiki</span>
+          <span>man</span>
+          <span>DocBook</span>
+          <span>JATS</span>
+          <span>LaTeX</span>
+          <span>RTF</span>
+          <span>OPML</span>
+          <span>Jira</span>
+          <span>Jupyter Notebook</span>
+          <span>XML</span>
+          <span>JSON</span>
+          <span>native</span>
+          <span>BibTeX</span>
+          <span>BibLaTeX</span>
+          <span>RIS</span>
+          <span>FB2</span>
+          <span>BITS</span>
+          <span>CSL JSON</span>
+          <span>DokuWiki</span>
+          <span>EndNote XML</span>
+          <span>mdoc</span>
+          <span>reStructuredText</span>
+          <span>MultiMarkdown</span>
+          <span>PHP Markdown Extra</span>
+          <span>strict Markdown</span>
+        </div>
       </div>
 
       <form id="converter-form" class="upload-form">
-        <div class="form-heading">
-          <span>Upload</span>
-          <span>WordPress Playground starts when you convert.</span>
-        </div>
-        <label id="dropzone" class="dropzone" for="file-input">
-          <span class="dropzone-title">Drop a document here</span>
-          <span id="file-name" class="dropzone-meta">or choose a file</span>
+        <label id="dropzone" class="file-button" for="file-input">
+          <span>Choose file</span>
           <input id="file-input" name="file" type="file">
         </label>
+        <div class="selected-file">
+          <span>Drop a file anywhere to convert</span>
+          <strong id="file-name">No file selected</strong>
+        </div>
 
         <div class="field-grid">
           <label>
@@ -145,7 +146,10 @@
       </div>
     </section>
   </main>
+  <div id="page-drop-overlay" class="page-drop-overlay" aria-hidden="true">
+    <strong>Drop to import into WordPress</strong>
+  </div>
 
-  <script type="module" src="playground-converter.js?v=csv-blank-20260707"></script>
+  <script type="module" src="playground-converter.js?v=page-drop-20260707"></script>
 </body>
 </html>

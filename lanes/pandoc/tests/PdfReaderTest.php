@@ -5242,6 +5242,37 @@ return [
         $t->true($rightFirst !== false, 'right column prose is segmented');
         $t->true($leftThird < $rightFirst, 'left column is emitted before right column');
     },
+    'merges same-baseline positioned prose continuations before column ordering' => static function (TestRunner $t) use ($pdfWithContent): void {
+        $pdf = $pdfWithContent(
+            'BT /F1 12 Tf '
+            . '1 0 0 1 72 748 Tm (This paper examines how pharmaceutical Artificial Intelligen) Tj '
+            . '1 0 0 1 72 732 Tm (new drugs in the coming yea) Tj '
+            . '1 0 0 1 72 716 Tm (Research journals and market projecti) Tj '
+            . '1 0 0 1 72 700 Tm (The paper argu) Tj '
+            . '1 0 0 1 360 748 Tm (ce advancements may affect development of) Tj '
+            . '1 0 0 1 360 732 Tm (rs. The question was answered by review.) Tj '
+            . '1 0 0 1 360 716 Tm (ons support this conclusion.) Tj '
+            . '1 0 0 1 360 700 Tm (es that continued innovation matters.) Tj '
+            . 'ET'
+        );
+
+        $document = (new PdfReader([
+            'pdfGeometryTables' => false,
+            'pdfRepairProseText' => true,
+        ]))->read($pdf);
+        $text = preg_replace('/\s+/', ' ', html_entity_decode(strip_tags(PandocConverter::write($document, 'html')), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')) ?? '';
+        $meta = $document->attr('meta');
+
+        $t->same('positioned', $meta['pdfTextRepairSource']);
+        $t->contains('This paper examines how pharmaceutical Artificial Intelligence advancements may affect development of', $text);
+        $t->contains('new drugs in the coming years. The question was answered by review.', $text);
+        $t->contains('Research journals and market projections support this conclusion.', $text);
+        $t->contains('The paper argues that continued innovation matters.', $text);
+        $t->true(!str_contains($text, 'Artificial Intelligen ce'));
+        $t->true(!str_contains($text, 'coming yea rs'));
+        $t->true(!str_contains($text, 'market projecti ons'));
+        $t->true(!str_contains($text, 'paper argu es'));
+    },
     'preserves positioned pdf tables embedded between surrounding text' => static function (TestRunner $t) use ($pdfWithContent): void {
         $pdf = $pdfWithContent(
             'BT /F1 12 Tf '
