@@ -1,5 +1,5 @@
 {
-    "generatedAt": "2026-07-07T11:21:43+00:00",
+    "generatedAt": "2026-07-07T11:45:02+00:00",
     "pandocVersion": "pandoc 3.10\nFeatures: +server +lua\nScripting engine: Lua 5.4\nUser data directory: $REPO\nCopyright (C) 2006-2025 John MacFarlane. Web:  https://pandoc.org\nThis is free software; see the source for copying conditions. There is no\nwarranty, not even for merchantability or fitness for a particular purpose.",
     "formats": [
         "biblatex",
@@ -89,13 +89,13 @@
     ],
     "blockUsage": {
         "totals": {
-            "code": 607,
-            "group": 270,
-            "heading": 3928,
-            "html": 51,
-            "image": 102,
-            "list": 1152,
-            "paragraph": 15444,
+            "code": 609,
+            "group": 273,
+            "heading": 3930,
+            "html": 52,
+            "image": 103,
+            "list": 1153,
+            "paragraph": 15448,
             "quote": 65,
             "separator": 62,
             "table": 542,
@@ -1180,8 +1180,8 @@
             "source": "Inline GFM sample with unescaped syntax rendered as document content.",
             "sourceUrl": "",
             "samplePath": "samples/markdown-github-rendered-syntax-github-rendered-syntax.md",
-            "sampleSize": 855,
-            "preview": "# GitHub Flavored Markdown feature packet\n\nThis paragraph uses **bold**, _italic_, ~~strikethrough~~, `inline code`, a bare URL https://github.com/openai, and a mention-like token @octocat.\n\n## Task list\n\n- [x] Parse GFM task list syntax\n- [ ] Preserve unchecked tasks\n- [x] Render nested formatting with **bold and _italic_ text**\n\n## Table syntax\n\n| Feature | Rendered example |\n| --- | --- |\n| Bold | **This is bold text** |\n| Italic | _This text is italicized_ |\n| Strikethrough | ~~This was mistaken text~~ |\n| Inline code | `git status` |\n| Link | [OpenAI](https://openai.com/) |\n\n## Quote and alert-style block\n\n> [!NOTE]\n> This block intentionally uses GitHub-style alert syntax without escaping it.\n\n## Autolinks and references\n\nSee https://github.github.com/gfm/ and [the CommonMark spec][commonmark].\n\n[commonmark]: https://spec.commonmark.org/",
+            "sampleSize": 1961,
+            "preview": "# GitHub Flavored Markdown feature packet\n\nThis paragraph uses **bold**, _italic_, ***bold italic***, ~~strikethrough~~, `inline code`, a bare URL https://github.com/openai, an issue-like reference #42, and a mention-like token @octocat.\n\n## Alerts\n\n> [!NOTE]\n> GitHub alert syntax should render as a callout-style block, with **inline formatting** inside.\n\n> [!WARNING]\n> Alert bodies can contain links such as [GitHub Docs](https://docs.github.com/).\n\n## Task lists\n\n- [x] Parse GFM task list syntax\n- [ ] Preserve unchecked tasks\n- [x] Render nested formatting with **bold and _italic_ text**\n  - [ ] Nested follow-up task with `inline code`\n  - [x] Nested completed task with ~~old wording~~\n\n## Table syntax\n\n| Feature | Rendered example | Alignment |\n| :--- | :---: | ---: |\n| Bold | **This is bold text** | left |\n| Italic | _This text is italicized_ | center |\n| Strikethrough | ~~This was mistaken text~~ | right |\n| Inline code | `git status --short` | code |\n| Link | [OpenAI](https://openai.com/) | link |\n| Escaped pipe | `a \\| b` | cell |\n\n## Code fences\n\n```php\n<?php\nfunction render_packet(array $items): string\n{\n    return implode(\"\\n\", array_map('strtoupper', $items));\n}\n```\n\n```mermaid\nflowchart LR\n  markdown_github --> parser\n  parser --> html\n  parser --> wordpress\n```\n\n## Images and HTML blocks\n\n![GitHub mark](https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png \"GitHub mark\")\n\n<details>\n<summary>Rendered details block</summary>\n\nGitHub allows raw HTML islands such as collapsible details.\n\n</details>\n\n## Autolinks and references\n\nSee https://github.github.com/gfm/, <support@github.com>, and [the CommonMark spec][commonmark].\n\nFootnotes should stay connected to their references.[^gfm-note]\n\nEmoji shortcodes such as :rocket: and :heart: should remain visible for GitHub-style rendering.\n\n[commonmark]: https://spec.commonmark.org/\n\n[^gfm-note]: Footnote bodies can include **formatting**, links, and `code`.",
             "support": {
                 "status": "reader-equivalent",
                 "implementation": "PortLibs\\Pandoc\\MarkdownReader",
@@ -1200,10 +1200,13 @@
                 "path": "outputs/markdown-github-rendered-syntax/wordpress-blocks.html"
             },
             "wpBlockCounts": {
-                "group": 2,
-                "heading": 5,
-                "list": 1,
-                "paragraph": 4,
+                "code": 2,
+                "group": 5,
+                "heading": 7,
+                "html": 1,
+                "image": 1,
+                "list": 2,
+                "paragraph": 8,
                 "table": 1
             }
         },

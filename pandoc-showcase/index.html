@@ -111861,61 +111861,85 @@ class=&quot;footnote-back&quot; role=&quot;doc-backlink&quot;&gt;↩︎&lt;/a&gt
 &lt;/section&gt;
 &lt;/body&gt;
 &lt;/html&gt;
-</pre></section></div><div class="note">Primary native PHP reader; the Markdown reader implementation-equivalence gate covers 137/137 checked-in Markdown/native pairs across the selected Pandoc Markdown dialect profiles.</div></section></article></section><section class="format-section" id="format-markdown_github"><div class="format-heading"><h2>markdown_github</h2><span>1 sample</span></div><article class="comparison" id="markdown-github-rendered-syntax"><section class="original"><div class="panel-head"><h3>Rendered GitHub syntax packet</h3><p class="meta">855 bytes | Inline GFM sample with unescaped syntax rendered as document content.</p></div><div class="original-body"><pre class="source-preview"># GitHub Flavored Markdown feature packet
+</pre></section></div><div class="note">Primary native PHP reader; the Markdown reader implementation-equivalence gate covers 137/137 checked-in Markdown/native pairs across the selected Pandoc Markdown dialect profiles.</div></section></article></section><section class="format-section" id="format-markdown_github"><div class="format-heading"><h2>markdown_github</h2><span>1 sample</span></div><article class="comparison" id="markdown-github-rendered-syntax"><section class="original"><div class="panel-head"><h3>Rendered GitHub syntax packet</h3><p class="meta">1961 bytes | Inline GFM sample with unescaped syntax rendered as document content.</p></div><div class="original-body"><pre class="source-preview"># GitHub Flavored Markdown feature packet
 
-This paragraph uses **bold**, _italic_, ~~strikethrough~~, `inline code`, a bare URL https://github.com/openai, and a mention-like token @octocat.
+This paragraph uses **bold**, _italic_, ***bold italic***, ~~strikethrough~~, `inline code`, a bare URL https://github.com/openai, an issue-like reference #42, and a mention-like token @octocat.
 
-## Task list
+## Alerts
+
+&gt; [!NOTE]
+&gt; GitHub alert syntax should render as a callout-style block, with **inline formatting** inside.
+
+&gt; [!WARNING]
+&gt; Alert bodies can contain links such as [GitHub Docs](https://docs.github.com/).
+
+## Task lists
 
 - [x] Parse GFM task list syntax
 - [ ] Preserve unchecked tasks
 - [x] Render nested formatting with **bold and _italic_ text**
+  - [ ] Nested follow-up task with `inline code`
+  - [x] Nested completed task with ~~old wording~~
 
 ## Table syntax
 
-| Feature | Rendered example |
-| --- | --- |
-| Bold | **This is bold text** |
-| Italic | _This text is italicized_ |
-| Strikethrough | ~~This was mistaken text~~ |
-| Inline code | `git status` |
-| Link | [OpenAI](https://openai.com/) |
+| Feature | Rendered example | Alignment |
+| :--- | :---: | ---: |
+| Bold | **This is bold text** | left |
+| Italic | _This text is italicized_ | center |
+| Strikethrough | ~~This was mistaken text~~ | right |
+| Inline code | `git status --short` | code |
+| Link | [OpenAI](https://openai.com/) | link |
+| Escaped pipe | `a \| b` | cell |
 
-## Quote and alert-style block
+## Code fences
 
-&gt; [!NOTE]
-&gt; This block intentionally uses GitHub-style alert syntax without escaping it.
+```php
+&lt;?php
+function render_packet(array $items): string
+{
+    return implode(&quot;\n&quot;, array_map(&#039;strtoupper&#039;, $items));
+}
+```
+
+```mermaid
+flowchart LR
+  markdown_github --&gt; parser
+  parser --&gt; html
+  parser --&gt; wordpress
+```
+
+## Images and HTML blocks
+
+![GitHub mark](https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png &quot;GitHub mark&quot;)
+
+&lt;details&gt;
+&lt;summary&gt;Rendered details block&lt;/summary&gt;
+
+GitHub allows raw HTML islands such as collapsible details.
+
+&lt;/details&gt;
 
 ## Autolinks and references
 
-See https://github.github.com/gfm/ and [the CommonMark spec][commonmark].
+See https://github.github.com/gfm/, &lt;support@github.com&gt;, and [the CommonMark spec][commonmark].
 
-[commonmark]: https://spec.commonmark.org/</pre><p class="meta"><a href="samples/markdown-github-rendered-syntax-github-rendered-syntax.md">Download original file</a></p><p class="meta">Compact GitHub Flavored Markdown sample that renders the actual syntax for emphasis, task lists, tables, autolinks, references, code, and alert-style blockquotes instead of showing only escaped examples.</p></div></section><section class="converted" data-sample="markdown-github-rendered-syntax"><div class="converted-toolbar"><span class="meta">Converted representations</span><button class="view-source" type="button" data-source-toggle>View source</button></div><div class="comparison-grid"><section class="conversion-pane" id="markdown-github-rendered-syntax-wpBlocks"><div class="pane-head"><span class="pane-title">WP blocks</span><span class="pane-status status-ok">ok</span></div><iframe class="render-frame" data-sync-group="markdown-github-rendered-syntax" title="Rendered GitHub syntax packet PHP WordPress blocks" src="outputs/markdown-github-rendered-syntax/wordpress-blocks.html"></iframe><pre class="source-box" data-sync-group="markdown-github-rendered-syntax">&lt;!-- wp:heading {&quot;level&quot;:1} --&gt;
+Footnotes should stay connected to their references.[^gfm-note]
+
+Emoji shortcodes such as :rocket: and :heart: should remain visible for GitHub-style rendering.
+
+[commonmark]: https://spec.commonmark.org/
+
+[^gfm-note]: Footnote bodies can include **formatting**, links, and `code`.</pre><p class="meta"><a href="samples/markdown-github-rendered-syntax-github-rendered-syntax.md">Download original file</a></p><p class="meta">Compact GitHub Flavored Markdown sample that renders the actual syntax for emphasis, task lists, tables, autolinks, references, code, and alert-style blockquotes instead of showing only escaped examples.</p></div></section><section class="converted" data-sample="markdown-github-rendered-syntax"><div class="converted-toolbar"><span class="meta">Converted representations</span><button class="view-source" type="button" data-source-toggle>View source</button></div><div class="comparison-grid"><section class="conversion-pane" id="markdown-github-rendered-syntax-wpBlocks"><div class="pane-head"><span class="pane-title">WP blocks</span><span class="pane-status status-ok">ok</span></div><iframe class="render-frame" data-sync-group="markdown-github-rendered-syntax" title="Rendered GitHub syntax packet PHP WordPress blocks" src="outputs/markdown-github-rendered-syntax/wordpress-blocks.html"></iframe><pre class="source-box" data-sync-group="markdown-github-rendered-syntax">&lt;!-- wp:heading {&quot;level&quot;:1} --&gt;
 &lt;h1 id=&quot;github-flavored-markdown-feature-packet&quot;&gt;GitHub Flavored Markdown feature packet&lt;/h1&gt;
 &lt;!-- /wp:heading --&gt;
 
 &lt;!-- wp:paragraph --&gt;
-&lt;p&gt;This paragraph uses &lt;strong&gt;bold&lt;/strong&gt;, &lt;em&gt;italic&lt;/em&gt;, &lt;del&gt;strikethrough&lt;/del&gt;, &lt;code&gt;inline code&lt;/code&gt;, a bare URL &lt;a href=&quot;https://github.com/openai&quot;&gt;https://github.com/openai&lt;/a&gt;, and a mention-like token @octocat.&lt;/p&gt;
+&lt;p&gt;This paragraph uses &lt;strong&gt;bold&lt;/strong&gt;, &lt;em&gt;italic&lt;/em&gt;, &lt;strong&gt;&lt;em&gt;bold italic&lt;/em&gt;&lt;/strong&gt;, &lt;del&gt;strikethrough&lt;/del&gt;, &lt;code&gt;inline code&lt;/code&gt;, a bare URL &lt;a href=&quot;https://github.com/openai&quot;&gt;https://github.com/openai&lt;/a&gt;, an issue-like reference #42, and a mention-like token @octocat.&lt;/p&gt;
 &lt;!-- /wp:paragraph --&gt;
 
 &lt;!-- wp:heading {&quot;level&quot;:2} --&gt;
-&lt;h2 id=&quot;task-list&quot;&gt;Task list&lt;/h2&gt;
-&lt;!-- /wp:heading --&gt;
-
-&lt;!-- wp:list --&gt;
-&lt;ul class=&quot;task-list&quot;&gt;&lt;li&gt;&lt;label&gt;&lt;input type=&quot;checkbox&quot; checked=&quot;&quot; /&gt;Parse GFM task list syntax&lt;/label&gt;&lt;/li&gt;&lt;li&gt;&lt;label&gt;&lt;input type=&quot;checkbox&quot; /&gt;Preserve unchecked tasks&lt;/label&gt;&lt;/li&gt;&lt;li&gt;&lt;label&gt;&lt;input type=&quot;checkbox&quot; checked=&quot;&quot; /&gt;Render nested formatting with &lt;strong&gt;bold and &lt;em&gt;italic&lt;/em&gt; text&lt;/strong&gt;&lt;/label&gt;&lt;/li&gt;&lt;/ul&gt;
-&lt;!-- /wp:list --&gt;
-
-&lt;!-- wp:heading {&quot;level&quot;:2} --&gt;
-&lt;h2 id=&quot;table-syntax&quot;&gt;Table syntax&lt;/h2&gt;
-&lt;!-- /wp:heading --&gt;
-
-&lt;!-- wp:table --&gt;
-&lt;figure class=&quot;wp-block-table&quot;&gt;&lt;table&gt;&lt;thead&gt;&lt;tr&gt;&lt;th&gt;Feature&lt;/th&gt;&lt;th&gt;Rendered example&lt;/th&gt;&lt;/tr&gt;&lt;/thead&gt;&lt;tbody&gt;&lt;tr&gt;&lt;td&gt;Bold&lt;/td&gt;&lt;td&gt;&lt;strong&gt;This is bold text&lt;/strong&gt;&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;Italic&lt;/td&gt;&lt;td&gt;&lt;em&gt;This text is italicized&lt;/em&gt;&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;Strikethrough&lt;/td&gt;&lt;td&gt;&lt;del&gt;This was mistaken text&lt;/del&gt;&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;Inline code&lt;/td&gt;&lt;td&gt;&lt;code&gt;git status&lt;/code&gt;&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;Link&lt;/td&gt;&lt;td&gt;&lt;a href=&quot;https://openai.com/&quot;&gt;OpenAI&lt;/a&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/tbody&gt;&lt;/table&gt;&lt;/figure&gt;
-&lt;!-- /wp:table --&gt;
-
-&lt;!-- wp:heading {&quot;level&quot;:2} --&gt;
-&lt;h2 id=&quot;quote-and-alert-style-block&quot;&gt;Quote and alert-style block&lt;/h2&gt;
+&lt;h2 id=&quot;alerts&quot;&gt;Alerts&lt;/h2&gt;
 &lt;!-- /wp:heading --&gt;
 
 &lt;!-- wp:group --&gt;
@@ -111929,47 +111953,168 @@ See https://github.github.com/gfm/ and [the CommonMark spec][commonmark].
 &lt;!-- /wp:group --&gt;
 
 &lt;!-- wp:paragraph --&gt;
-&lt;p&gt;This block intentionally uses GitHub-style alert syntax without escaping it.&lt;/p&gt;
+&lt;p&gt;GitHub alert syntax should render as a callout-style block, with &lt;strong&gt;inline formatting&lt;/strong&gt; inside.&lt;/p&gt;
 &lt;!-- /wp:paragraph --&gt;
 &lt;/div&gt;
 &lt;!-- /wp:group --&gt;
+
+&lt;!-- wp:group --&gt;
+&lt;div class=&quot;wp-block-group warning&quot;&gt;
+&lt;!-- wp:group --&gt;
+&lt;div class=&quot;wp-block-group title&quot;&gt;
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;Warning&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+&lt;/div&gt;
+&lt;!-- /wp:group --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;Alert bodies can contain links such as &lt;a href=&quot;https://docs.github.com/&quot;&gt;GitHub Docs&lt;/a&gt;.&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+&lt;/div&gt;
+&lt;!-- /wp:group --&gt;
+
+&lt;!-- wp:heading {&quot;level&quot;:2} --&gt;
+&lt;h2 id=&quot;task-lists&quot;&gt;Task lists&lt;/h2&gt;
+&lt;!-- /wp:heading --&gt;
+
+&lt;!-- wp:list --&gt;
+&lt;ul class=&quot;task-list&quot;&gt;&lt;li&gt;&lt;label&gt;&lt;input type=&quot;checkbox&quot; checked=&quot;&quot; /&gt;Parse GFM task list syntax&lt;/label&gt;&lt;/li&gt;&lt;li&gt;&lt;label&gt;&lt;input type=&quot;checkbox&quot; /&gt;Preserve unchecked tasks&lt;/label&gt;&lt;/li&gt;&lt;li&gt;&lt;label&gt;&lt;input type=&quot;checkbox&quot; checked=&quot;&quot; /&gt;Render nested formatting with &lt;strong&gt;bold and &lt;em&gt;italic&lt;/em&gt; text&lt;/strong&gt;&lt;/label&gt;&lt;ul class=&quot;task-list&quot;&gt;&lt;li&gt;&lt;label&gt;&lt;input type=&quot;checkbox&quot; /&gt;Nested follow-up task with &lt;code&gt;inline code&lt;/code&gt;&lt;/label&gt;&lt;/li&gt;&lt;li&gt;&lt;label&gt;&lt;input type=&quot;checkbox&quot; checked=&quot;&quot; /&gt;Nested completed task with &lt;del&gt;old wording&lt;/del&gt;&lt;/label&gt;&lt;/li&gt;&lt;/ul&gt;&lt;/li&gt;&lt;/ul&gt;
+&lt;!-- /wp:list --&gt;
+
+&lt;!-- wp:heading {&quot;level&quot;:2} --&gt;
+&lt;h2 id=&quot;table-syntax&quot;&gt;Table syntax&lt;/h2&gt;
+&lt;!-- /wp:heading --&gt;
+
+&lt;!-- wp:table --&gt;
+&lt;figure class=&quot;wp-block-table&quot;&gt;&lt;table&gt;&lt;thead&gt;&lt;tr&gt;&lt;th style=&quot;text-align:left&quot;&gt;Feature&lt;/th&gt;&lt;th style=&quot;text-align:center&quot;&gt;Rendered example&lt;/th&gt;&lt;th style=&quot;text-align:right&quot;&gt;Alignment&lt;/th&gt;&lt;/tr&gt;&lt;/thead&gt;&lt;tbody&gt;&lt;tr&gt;&lt;td style=&quot;text-align:left&quot;&gt;Bold&lt;/td&gt;&lt;td style=&quot;text-align:center&quot;&gt;&lt;strong&gt;This is bold text&lt;/strong&gt;&lt;/td&gt;&lt;td style=&quot;text-align:right&quot;&gt;left&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td style=&quot;text-align:left&quot;&gt;Italic&lt;/td&gt;&lt;td style=&quot;text-align:center&quot;&gt;&lt;em&gt;This text is italicized&lt;/em&gt;&lt;/td&gt;&lt;td style=&quot;text-align:right&quot;&gt;center&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td style=&quot;text-align:left&quot;&gt;Strikethrough&lt;/td&gt;&lt;td style=&quot;text-align:center&quot;&gt;&lt;del&gt;This was mistaken text&lt;/del&gt;&lt;/td&gt;&lt;td style=&quot;text-align:right&quot;&gt;right&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td style=&quot;text-align:left&quot;&gt;Inline code&lt;/td&gt;&lt;td style=&quot;text-align:center&quot;&gt;&lt;code&gt;git status --short&lt;/code&gt;&lt;/td&gt;&lt;td style=&quot;text-align:right&quot;&gt;code&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td style=&quot;text-align:left&quot;&gt;Link&lt;/td&gt;&lt;td style=&quot;text-align:center&quot;&gt;&lt;a href=&quot;https://openai.com/&quot;&gt;OpenAI&lt;/a&gt;&lt;/td&gt;&lt;td style=&quot;text-align:right&quot;&gt;link&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td style=&quot;text-align:left&quot;&gt;Escaped pipe&lt;/td&gt;&lt;td style=&quot;text-align:center&quot;&gt;&lt;code&gt;a \| b&lt;/code&gt;&lt;/td&gt;&lt;td style=&quot;text-align:right&quot;&gt;cell&lt;/td&gt;&lt;/tr&gt;&lt;/tbody&gt;&lt;/table&gt;&lt;/figure&gt;
+&lt;!-- /wp:table --&gt;
+
+&lt;!-- wp:heading {&quot;level&quot;:2} --&gt;
+&lt;h2 id=&quot;code-fences&quot;&gt;Code fences&lt;/h2&gt;
+&lt;!-- /wp:heading --&gt;
+
+&lt;!-- wp:code {&quot;language&quot;:&quot;php&quot;} --&gt;
+&lt;pre class=&quot;wp-block-code&quot;&gt;&lt;code class=&quot;language-php&quot;&gt;&amp;lt;?php
+function render_packet(array $items): string
+{
+    return implode(&amp;quot;\n&amp;quot;, array_map(&amp;#039;strtoupper&amp;#039;, $items));
+}&lt;/code&gt;&lt;/pre&gt;
+&lt;!-- /wp:code --&gt;
+
+&lt;!-- wp:code {&quot;language&quot;:&quot;mermaid&quot;} --&gt;
+&lt;pre class=&quot;wp-block-code&quot;&gt;&lt;code class=&quot;language-mermaid&quot;&gt;flowchart LR
+  markdown_github --&amp;gt; parser
+  parser --&amp;gt; html
+  parser --&amp;gt; wordpress&lt;/code&gt;&lt;/pre&gt;
+&lt;!-- /wp:code --&gt;
+
+&lt;!-- wp:heading {&quot;level&quot;:2} --&gt;
+&lt;h2 id=&quot;images-and-html-blocks&quot;&gt;Images and HTML blocks&lt;/h2&gt;
+&lt;!-- /wp:heading --&gt;
+
+&lt;!-- wp:image --&gt;
+&lt;figure class=&quot;wp-block-image&quot;&gt;&lt;img src=&quot;https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png&quot; alt=&quot;GitHub mark&quot; title=&quot;GitHub mark&quot;/&gt;&lt;/figure&gt;
+&lt;!-- /wp:image --&gt;
+
+&lt;!-- wp:html --&gt;
+&lt;details&gt;
+&lt;summary&gt;Rendered details block&lt;/summary&gt;
+
+GitHub allows raw HTML islands such as collapsible details.
+
+&lt;/details&gt;
+&lt;!-- /wp:html --&gt;
 
 &lt;!-- wp:heading {&quot;level&quot;:2} --&gt;
 &lt;h2 id=&quot;autolinks-and-references&quot;&gt;Autolinks and references&lt;/h2&gt;
 &lt;!-- /wp:heading --&gt;
 
 &lt;!-- wp:paragraph --&gt;
-&lt;p&gt;See &lt;a href=&quot;https://github.github.com/gfm/&quot;&gt;https://github.github.com/gfm/&lt;/a&gt; and &lt;a href=&quot;https://spec.commonmark.org/&quot;&gt;the CommonMark spec&lt;/a&gt;.&lt;/p&gt;
-&lt;!-- /wp:paragraph --&gt;</pre></section><section class="conversion-pane" id="markdown-github-rendered-syntax-phpHtml"><div class="pane-head"><span class="pane-title">PHP HTML</span><span class="pane-status status-ok">ok</span></div><iframe class="render-frame" data-sync-group="markdown-github-rendered-syntax" title="Rendered GitHub syntax packet PHP HTML" src="outputs/markdown-github-rendered-syntax/php.html"></iframe><pre class="source-box" data-sync-group="markdown-github-rendered-syntax">&lt;!doctype html&gt;&lt;html lang=&quot;en&quot;&gt;&lt;head&gt;&lt;meta charset=&quot;utf-8&quot;&gt;&lt;meta name=&quot;viewport&quot; content=&quot;width=device-width, initial-scale=1&quot;&gt;&lt;title&gt;PHP Pandoc HTML output&lt;/title&gt;&lt;style&gt;html{line-height:1.5;font-family:Georgia,&quot;Times New Roman&quot;,serif;font-size:18px;color:#1f2933;background:#fdfdfd;}body{margin:0 auto;max-width:46em;padding:2.5em 1.25em;}h1,h2,h3,h4,h5,h6{font-family:system-ui,-apple-system,BlinkMacSystemFont,&quot;Segoe UI&quot;,sans-serif;line-height:1.25;margin:1.4em 0 .45em;}h1{font-size:2em;}h2{font-size:1.55em;}h3{font-size:1.25em;}p{margin:1em 0;}a{color:#1f6feb;}img,svg,video{max-width:100%;height:auto;}pre,code,kbd,samp{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.9em;}code{background:#eef1f5;padding:.1em .25em;border-radius:3px;}pre{overflow:auto;background:#f6f8fa;border:1px solid #d8dde3;border-radius:6px;padding:1em;}pre code{background:transparent;padding:0;}blockquote{margin:1.25em 0;padding-left:1em;border-left:4px solid #d8dde3;color:#4b5563;}table{border-collapse:collapse;margin:1.25em 0;width:100%;font-size:.92em;}th,td{border:1px solid #d8dde3;padding:.35em .55em;vertical-align:top;}th{background:#f6f8fa;}math{font-family:math,serif;}math[display=&quot;block&quot;]{display:block;margin:1em 0;overflow-x:auto;}&lt;/style&gt;&lt;/head&gt;&lt;body&gt;&lt;h1 id=&quot;github-flavored-markdown-feature-packet&quot;&gt;GitHub Flavored Markdown feature packet&lt;/h1&gt;
-&lt;p&gt;This paragraph uses &lt;strong&gt;bold&lt;/strong&gt;, &lt;em&gt;italic&lt;/em&gt;, &lt;del&gt;strikethrough&lt;/del&gt;, &lt;code&gt;inline code&lt;/code&gt;, a bare URL &lt;a href=&quot;https://github.com/openai&quot; class=&quot;uri&quot;&gt;https://github.com/openai&lt;/a&gt;, and a mention-like token @octocat.&lt;/p&gt;
-&lt;h2 id=&quot;task-list&quot;&gt;Task list&lt;/h2&gt;
-&lt;ul class=&quot;task-list&quot;&gt;
-&lt;li&gt;&lt;label&gt;&lt;input type=&quot;checkbox&quot; checked=&quot;&quot; /&gt;Parse GFM task list syntax&lt;/label&gt;&lt;/li&gt;
-&lt;li&gt;&lt;label&gt;&lt;input type=&quot;checkbox&quot; /&gt;Preserve unchecked tasks&lt;/label&gt;&lt;/li&gt;
-&lt;li&gt;&lt;label&gt;&lt;input type=&quot;checkbox&quot; checked=&quot;&quot; /&gt;Render nested formatting with &lt;strong&gt;bold and &lt;em&gt;italic&lt;/em&gt; text&lt;/strong&gt;&lt;/label&gt;&lt;/li&gt;
-&lt;/ul&gt;
-&lt;h2 id=&quot;table-syntax&quot;&gt;Table syntax&lt;/h2&gt;
-&lt;table&gt;
-&lt;thead&gt;
-&lt;tr&gt;&lt;th&gt;Feature&lt;/th&gt;&lt;th&gt;Rendered example&lt;/th&gt;&lt;/tr&gt;
-&lt;/thead&gt;
-&lt;tbody&gt;
-&lt;tr&gt;&lt;td&gt;Bold&lt;/td&gt;&lt;td&gt;&lt;strong&gt;This is bold text&lt;/strong&gt;&lt;/td&gt;&lt;/tr&gt;
-&lt;tr&gt;&lt;td&gt;Italic&lt;/td&gt;&lt;td&gt;&lt;em&gt;This text is italicized&lt;/em&gt;&lt;/td&gt;&lt;/tr&gt;
-&lt;tr&gt;&lt;td&gt;Strikethrough&lt;/td&gt;&lt;td&gt;&lt;del&gt;This was mistaken text&lt;/del&gt;&lt;/td&gt;&lt;/tr&gt;
-&lt;tr&gt;&lt;td&gt;Inline code&lt;/td&gt;&lt;td&gt;&lt;code&gt;git status&lt;/code&gt;&lt;/td&gt;&lt;/tr&gt;
-&lt;tr&gt;&lt;td&gt;Link&lt;/td&gt;&lt;td&gt;&lt;a href=&quot;https://openai.com/&quot;&gt;OpenAI&lt;/a&gt;&lt;/td&gt;&lt;/tr&gt;
-&lt;/tbody&gt;
-&lt;/table&gt;
-&lt;h2 id=&quot;quote-and-alert-style-block&quot;&gt;Quote and alert-style block&lt;/h2&gt;
+&lt;p&gt;See &lt;a href=&quot;https://github.github.com/gfm/&quot;&gt;https://github.github.com/gfm/&lt;/a&gt;, &lt;a href=&quot;mailto:support@github.com&quot;&gt;support@github.com&lt;/a&gt;, and &lt;a href=&quot;https://spec.commonmark.org/&quot;&gt;the CommonMark spec&lt;/a&gt;.&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;Footnotes should stay connected to their references.&lt;sup id=&quot;fnref-1&quot;&gt;&lt;a href=&quot;#fn-1&quot; role=&quot;doc-noteref&quot;&gt;1&lt;/a&gt;&lt;/sup&gt;&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;Emoji shortcodes such as &lt;span class=&quot;emoji&quot; data-emoji=&quot;rocket&quot;&gt;🚀&lt;/span&gt; and &lt;span class=&quot;emoji&quot; data-emoji=&quot;heart&quot;&gt;❤️&lt;/span&gt; should remain visible for GitHub-style rendering.&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:group --&gt;
+&lt;div class=&quot;wp-block-group footnotes&quot; role=&quot;doc-endnotes&quot;&gt;
+&lt;!-- wp:list {&quot;ordered&quot;:true} --&gt;
+&lt;ol&gt;&lt;li id=&quot;fn-1&quot;&gt;&lt;p&gt;Footnote bodies can include &lt;strong&gt;formatting&lt;/strong&gt;, links, and &lt;code&gt;code&lt;/code&gt;.&lt;/p&gt; &lt;a href=&quot;#fnref-1&quot; aria-label=&quot;Back to content&quot;&gt;Back&lt;/a&gt;&lt;/li&gt;&lt;/ol&gt;
+&lt;!-- /wp:list --&gt;
+&lt;/div&gt;
+&lt;!-- /wp:group --&gt;</pre></section><section class="conversion-pane" id="markdown-github-rendered-syntax-phpHtml"><div class="pane-head"><span class="pane-title">PHP HTML</span><span class="pane-status status-ok">ok</span></div><iframe class="render-frame" data-sync-group="markdown-github-rendered-syntax" title="Rendered GitHub syntax packet PHP HTML" src="outputs/markdown-github-rendered-syntax/php.html"></iframe><pre class="source-box" data-sync-group="markdown-github-rendered-syntax">&lt;!doctype html&gt;&lt;html lang=&quot;en&quot;&gt;&lt;head&gt;&lt;meta charset=&quot;utf-8&quot;&gt;&lt;meta name=&quot;viewport&quot; content=&quot;width=device-width, initial-scale=1&quot;&gt;&lt;title&gt;PHP Pandoc HTML output&lt;/title&gt;&lt;style&gt;html{line-height:1.5;font-family:Georgia,&quot;Times New Roman&quot;,serif;font-size:18px;color:#1f2933;background:#fdfdfd;}body{margin:0 auto;max-width:46em;padding:2.5em 1.25em;}h1,h2,h3,h4,h5,h6{font-family:system-ui,-apple-system,BlinkMacSystemFont,&quot;Segoe UI&quot;,sans-serif;line-height:1.25;margin:1.4em 0 .45em;}h1{font-size:2em;}h2{font-size:1.55em;}h3{font-size:1.25em;}p{margin:1em 0;}a{color:#1f6feb;}img,svg,video{max-width:100%;height:auto;}pre,code,kbd,samp{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.9em;}code{background:#eef1f5;padding:.1em .25em;border-radius:3px;}pre{overflow:auto;background:#f6f8fa;border:1px solid #d8dde3;border-radius:6px;padding:1em;}pre code{background:transparent;padding:0;}blockquote{margin:1.25em 0;padding-left:1em;border-left:4px solid #d8dde3;color:#4b5563;}table{border-collapse:collapse;margin:1.25em 0;width:100%;font-size:.92em;}th,td{border:1px solid #d8dde3;padding:.35em .55em;vertical-align:top;}th{background:#f6f8fa;}math{font-family:math,serif;}math[display=&quot;block&quot;]{display:block;margin:1em 0;overflow-x:auto;}&lt;/style&gt;&lt;/head&gt;&lt;body&gt;&lt;h1 id=&quot;github-flavored-markdown-feature-packet&quot;&gt;GitHub Flavored Markdown feature packet&lt;/h1&gt;
+&lt;p&gt;This paragraph uses &lt;strong&gt;bold&lt;/strong&gt;, &lt;em&gt;italic&lt;/em&gt;, &lt;strong&gt;&lt;em&gt;bold italic&lt;/em&gt;&lt;/strong&gt;, &lt;del&gt;strikethrough&lt;/del&gt;, &lt;code&gt;inline code&lt;/code&gt;, a bare URL &lt;a href=&quot;https://github.com/openai&quot; class=&quot;uri&quot;&gt;https://github.com/openai&lt;/a&gt;, an issue-like reference #42, and a mention-like token @octocat.&lt;/p&gt;
+&lt;h2 id=&quot;alerts&quot;&gt;Alerts&lt;/h2&gt;
 &lt;div class=&quot;note&quot;&gt;
 &lt;div class=&quot;title&quot;&gt;
 &lt;p&gt;Note&lt;/p&gt;
 &lt;/div&gt;
-&lt;p&gt;This block intentionally uses GitHub-style alert syntax without escaping it.&lt;/p&gt;
+&lt;p&gt;GitHub alert syntax should render as a callout-style block, with &lt;strong&gt;inline formatting&lt;/strong&gt; inside.&lt;/p&gt;
 &lt;/div&gt;
+&lt;div class=&quot;warning&quot;&gt;
+&lt;div class=&quot;title&quot;&gt;
+&lt;p&gt;Warning&lt;/p&gt;
+&lt;/div&gt;
+&lt;p&gt;Alert bodies can contain links such as &lt;a href=&quot;https://docs.github.com/&quot;&gt;GitHub Docs&lt;/a&gt;.&lt;/p&gt;
+&lt;/div&gt;
+&lt;h2 id=&quot;task-lists&quot;&gt;Task lists&lt;/h2&gt;
+&lt;ul class=&quot;task-list&quot;&gt;
+&lt;li&gt;&lt;label&gt;&lt;input type=&quot;checkbox&quot; checked=&quot;&quot; /&gt;Parse GFM task list syntax&lt;/label&gt;&lt;/li&gt;
+&lt;li&gt;&lt;label&gt;&lt;input type=&quot;checkbox&quot; /&gt;Preserve unchecked tasks&lt;/label&gt;&lt;/li&gt;
+&lt;li&gt;&lt;label&gt;&lt;input type=&quot;checkbox&quot; checked=&quot;&quot; /&gt;Render nested formatting with &lt;strong&gt;bold and &lt;em&gt;italic&lt;/em&gt; text&lt;/strong&gt;&lt;/label&gt;
+&lt;ul class=&quot;task-list&quot;&gt;
+&lt;li&gt;&lt;label&gt;&lt;input type=&quot;checkbox&quot; /&gt;Nested follow-up task with &lt;code&gt;inline code&lt;/code&gt;&lt;/label&gt;&lt;/li&gt;
+&lt;li&gt;&lt;label&gt;&lt;input type=&quot;checkbox&quot; checked=&quot;&quot; /&gt;Nested completed task with &lt;del&gt;old wording&lt;/del&gt;&lt;/label&gt;&lt;/li&gt;
+&lt;/ul&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2 id=&quot;table-syntax&quot;&gt;Table syntax&lt;/h2&gt;
+&lt;table&gt;
+&lt;thead&gt;
+&lt;tr&gt;&lt;th style=&quot;text-align:left&quot;&gt;Feature&lt;/th&gt;&lt;th style=&quot;text-align:center&quot;&gt;Rendered example&lt;/th&gt;&lt;th style=&quot;text-align:right&quot;&gt;Alignment&lt;/th&gt;&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;&lt;td style=&quot;text-align:left&quot;&gt;Bold&lt;/td&gt;&lt;td style=&quot;text-align:center&quot;&gt;&lt;strong&gt;This is bold text&lt;/strong&gt;&lt;/td&gt;&lt;td style=&quot;text-align:right&quot;&gt;left&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td style=&quot;text-align:left&quot;&gt;Italic&lt;/td&gt;&lt;td style=&quot;text-align:center&quot;&gt;&lt;em&gt;This text is italicized&lt;/em&gt;&lt;/td&gt;&lt;td style=&quot;text-align:right&quot;&gt;center&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td style=&quot;text-align:left&quot;&gt;Strikethrough&lt;/td&gt;&lt;td style=&quot;text-align:center&quot;&gt;&lt;del&gt;This was mistaken text&lt;/del&gt;&lt;/td&gt;&lt;td style=&quot;text-align:right&quot;&gt;right&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td style=&quot;text-align:left&quot;&gt;Inline code&lt;/td&gt;&lt;td style=&quot;text-align:center&quot;&gt;&lt;code&gt;git status --short&lt;/code&gt;&lt;/td&gt;&lt;td style=&quot;text-align:right&quot;&gt;code&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td style=&quot;text-align:left&quot;&gt;Link&lt;/td&gt;&lt;td style=&quot;text-align:center&quot;&gt;&lt;a href=&quot;https://openai.com/&quot;&gt;OpenAI&lt;/a&gt;&lt;/td&gt;&lt;td style=&quot;text-align:right&quot;&gt;link&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td style=&quot;text-align:left&quot;&gt;Escaped pipe&lt;/td&gt;&lt;td style=&quot;text-align:center&quot;&gt;&lt;code&gt;a \| b&lt;/code&gt;&lt;/td&gt;&lt;td style=&quot;text-align:right&quot;&gt;cell&lt;/td&gt;&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;h2 id=&quot;code-fences&quot;&gt;Code fences&lt;/h2&gt;
+&lt;pre class=&quot;php&quot;&gt;&lt;code&gt;&amp;lt;?php
+function render_packet(array $items): string
+{
+    return implode(&amp;quot;\n&amp;quot;, array_map(&amp;#039;strtoupper&amp;#039;, $items));
+}&lt;/code&gt;&lt;/pre&gt;
+&lt;pre class=&quot;mermaid&quot;&gt;&lt;code&gt;flowchart LR
+  markdown_github --&amp;gt; parser
+  parser --&amp;gt; html
+  parser --&amp;gt; wordpress&lt;/code&gt;&lt;/pre&gt;
+&lt;h2 id=&quot;images-and-html-blocks&quot;&gt;Images and HTML blocks&lt;/h2&gt;
+&lt;p&gt;&lt;img src=&quot;https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png&quot; title=&quot;GitHub mark&quot; alt=&quot;GitHub mark&quot; /&gt;&lt;/p&gt;
+&lt;details&gt;
+&lt;summary&gt;Rendered details block&lt;/summary&gt;
+
+GitHub allows raw HTML islands such as collapsible details.
+
+&lt;/details&gt;
 &lt;h2 id=&quot;autolinks-and-references&quot;&gt;Autolinks and references&lt;/h2&gt;
-&lt;p&gt;See &lt;a href=&quot;https://github.github.com/gfm/&quot; class=&quot;uri&quot;&gt;https://github.github.com/gfm/&lt;/a&gt; and &lt;a href=&quot;https://spec.commonmark.org/&quot;&gt;the CommonMark spec&lt;/a&gt;.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</pre></section><section class="conversion-pane" id="markdown-github-rendered-syntax-haskell"><div class="pane-head"><span class="pane-title">Haskell HTML</span><span class="pane-status status-ok">ok</span></div><iframe class="render-frame" data-sync-group="markdown-github-rendered-syntax" title="Rendered GitHub syntax packet Haskell Pandoc HTML" src="outputs/markdown-github-rendered-syntax/haskell.html"></iframe><pre class="source-box" data-sync-group="markdown-github-rendered-syntax">&lt;!DOCTYPE html&gt;
+&lt;p&gt;See &lt;a href=&quot;https://github.github.com/gfm/&quot; class=&quot;uri&quot;&gt;https://github.github.com/gfm/&lt;/a&gt;, &lt;a href=&quot;mailto:support@github.com&quot; class=&quot;email&quot;&gt;support@github.com&lt;/a&gt;, and &lt;a href=&quot;https://spec.commonmark.org/&quot;&gt;the CommonMark spec&lt;/a&gt;.&lt;/p&gt;
+&lt;p&gt;Footnotes should stay connected to their references.&lt;a href=&quot;#fn1&quot; class=&quot;footnote-ref&quot; id=&quot;fnref1&quot; role=&quot;doc-noteref&quot;&gt;&lt;sup&gt;1&lt;/sup&gt;&lt;/a&gt;&lt;/p&gt;
+&lt;p&gt;Emoji shortcodes such as &lt;span class=&quot;emoji&quot; data-emoji=&quot;rocket&quot;&gt;🚀&lt;/span&gt; and &lt;span class=&quot;emoji&quot; data-emoji=&quot;heart&quot;&gt;❤️&lt;/span&gt; should remain visible for GitHub-style rendering.&lt;/p&gt;
+&lt;div class=&quot;footnotes footnotes-end-of-document&quot;&gt;
+&lt;hr /&gt;
+&lt;ol&gt;
+&lt;li id=&quot;fn1&quot;&gt;&lt;p&gt;Footnote bodies can include &lt;strong&gt;formatting&lt;/strong&gt;, links, and &lt;code&gt;code&lt;/code&gt;.&lt;a href=&quot;#fnref1&quot; class=&quot;footnote-back&quot; role=&quot;doc-backlink&quot;&gt;↩︎&lt;/a&gt;&lt;/p&gt;&lt;/li&gt;
+&lt;/ol&gt;
+&lt;/div&gt;&lt;/body&gt;&lt;/html&gt;</pre></section><section class="conversion-pane" id="markdown-github-rendered-syntax-haskell"><div class="pane-head"><span class="pane-title">Haskell HTML</span><span class="pane-status status-ok">ok</span></div><iframe class="render-frame" data-sync-group="markdown-github-rendered-syntax" title="Rendered GitHub syntax packet Haskell Pandoc HTML" src="outputs/markdown-github-rendered-syntax/haskell.html"></iframe><pre class="source-box" data-sync-group="markdown-github-rendered-syntax">&lt;!DOCTYPE html&gt;
 &lt;html xmlns=&quot;http://www.w3.org/1999/xhtml&quot;&gt;
 &lt;head&gt;
   &lt;meta charset=&quot;utf-8&quot; /&gt;
@@ -112144,6 +112289,71 @@ See https://github.github.com/gfm/ and [the CommonMark spec][commonmark].
       vertical-align: middle;
     }
     .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+    /* CSS for syntax highlighting */
+    html { -webkit-text-size-adjust: 100%; }
+    pre &gt; code.sourceCode { white-space: pre; position: relative; }
+    pre &gt; code.sourceCode &gt; span { display: inline-block; line-height: 1.25; }
+    pre &gt; code.sourceCode &gt; span:empty { height: 1.2em; }
+    .sourceCode { overflow: visible; }
+    code.sourceCode &gt; span { color: inherit; text-decoration: inherit; }
+    div.sourceCode { margin: 1em 0; }
+    pre.sourceCode { margin: 0; }
+    @media screen {
+    div.sourceCode { overflow: auto; }
+    }
+    @media print {
+    pre &gt; code.sourceCode { white-space: pre-wrap; }
+    pre &gt; code.sourceCode &gt; span { text-indent: -5em; padding-left: 5em; }
+    }
+    pre.numberSource code
+      { counter-reset: source-line 0; }
+    pre.numberSource code &gt; span
+      { position: relative; left: -4em; counter-increment: source-line; }
+    pre.numberSource code &gt; span &gt; a:first-child::before
+      { content: counter(source-line);
+        position: relative; left: -1em; text-align: right; vertical-align: baseline;
+        border: none; display: inline-block;
+        -webkit-touch-callout: none; -webkit-user-select: none;
+        -khtml-user-select: none; -moz-user-select: none;
+        -ms-user-select: none; user-select: none;
+        padding: 0 4px; width: 4em;
+        color: #aaaaaa;
+      }
+    pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa;  padding-left: 4px; }
+    div.sourceCode
+      {   }
+    @media screen {
+    pre &gt; code.sourceCode &gt; span &gt; a:first-child::before { text-decoration: underline; }
+    }
+    code span.al { color: #ff0000; font-weight: bold; } /* Alert */
+    code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } /* Annotation */
+    code span.at { color: #7d9029; } /* Attribute */
+    code span.bn { color: #40a070; } /* BaseN */
+    code span.bu { color: #008000; } /* BuiltIn */
+    code span.cf { color: #007020; font-weight: bold; } /* ControlFlow */
+    code span.ch { color: #4070a0; } /* Char */
+    code span.cn { color: #880000; } /* Constant */
+    code span.co { color: #60a0b0; font-style: italic; } /* Comment */
+    code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } /* CommentVar */
+    code span.do { color: #ba2121; font-style: italic; } /* Documentation */
+    code span.dt { color: #902000; } /* DataType */
+    code span.dv { color: #40a070; } /* DecVal */
+    code span.er { color: #ff0000; font-weight: bold; } /* Error */
+    code span.ex { } /* Extension */
+    code span.fl { color: #40a070; } /* Float */
+    code span.fu { color: #06287e; } /* Function */
+    code span.im { color: #008000; font-weight: bold; } /* Import */
+    code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Information */
+    code span.kw { color: #007020; font-weight: bold; } /* Keyword */
+    code span.op { color: #666666; } /* Operator */
+    code span.ot { color: #007020; } /* Other */
+    code span.pp { color: #bc7a00; } /* Preprocessor */
+    code span.sc { color: #4070a0; } /* SpecialChar */
+    code span.ss { color: #bb6688; } /* SpecialString */
+    code span.st { color: #4070a0; } /* String */
+    code span.va { color: #19177c; } /* Variable */
+    code span.vs { color: #4070a0; } /* VerbatimString */
+    code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warning */
   &lt;/style&gt;
 &lt;/head&gt;
 &lt;body&gt;
@@ -112153,62 +112363,124 @@ See https://github.github.com/gfm/ and [the CommonMark spec][commonmark].
 &lt;h1 id=&quot;github-flavored-markdown-feature-packet&quot;&gt;GitHub Flavored
 Markdown feature packet&lt;/h1&gt;
 &lt;p&gt;This paragraph uses &lt;strong&gt;bold&lt;/strong&gt;, &lt;em&gt;italic&lt;/em&gt;,
-&lt;del&gt;strikethrough&lt;/del&gt;, &lt;code&gt;inline code&lt;/code&gt;, a bare URL &lt;a
-href=&quot;https://github.com/openai&quot;
-class=&quot;uri&quot;&gt;https://github.com/openai&lt;/a&gt;, and a mention-like token
-@octocat.&lt;/p&gt;
-&lt;h2 id=&quot;task-list&quot;&gt;Task list&lt;/h2&gt;
+&lt;strong&gt;&lt;em&gt;bold italic&lt;/em&gt;&lt;/strong&gt;, &lt;del&gt;strikethrough&lt;/del&gt;,
+&lt;code&gt;inline code&lt;/code&gt;, a bare URL &lt;a href=&quot;https://github.com/openai&quot;
+class=&quot;uri&quot;&gt;https://github.com/openai&lt;/a&gt;, an issue-like reference #42,
+and a mention-like token @octocat.&lt;/p&gt;
+&lt;h2 id=&quot;alerts&quot;&gt;Alerts&lt;/h2&gt;
+&lt;div class=&quot;note&quot;&gt;
+&lt;div class=&quot;title&quot;&gt;
+&lt;p&gt;Note&lt;/p&gt;
+&lt;/div&gt;
+&lt;p&gt;GitHub alert syntax should render as a callout-style block, with
+&lt;strong&gt;inline formatting&lt;/strong&gt; inside.&lt;/p&gt;
+&lt;/div&gt;
+&lt;div class=&quot;warning&quot;&gt;
+&lt;div class=&quot;title&quot;&gt;
+&lt;p&gt;Warning&lt;/p&gt;
+&lt;/div&gt;
+&lt;p&gt;Alert bodies can contain links such as &lt;a
+href=&quot;https://docs.github.com/&quot;&gt;GitHub Docs&lt;/a&gt;.&lt;/p&gt;
+&lt;/div&gt;
+&lt;h2 id=&quot;task-lists&quot;&gt;Task lists&lt;/h2&gt;
 &lt;ul class=&quot;task-list&quot;&gt;
 &lt;li&gt;&lt;label&gt;&lt;input type=&quot;checkbox&quot; checked=&quot;&quot; /&gt;Parse GFM task list
 syntax&lt;/label&gt;&lt;/li&gt;
 &lt;li&gt;&lt;label&gt;&lt;input type=&quot;checkbox&quot; /&gt;Preserve unchecked
 tasks&lt;/label&gt;&lt;/li&gt;
 &lt;li&gt;&lt;label&gt;&lt;input type=&quot;checkbox&quot; checked=&quot;&quot; /&gt;Render nested formatting
-with &lt;strong&gt;bold and &lt;em&gt;italic&lt;/em&gt; text&lt;/strong&gt;&lt;/label&gt;&lt;/li&gt;
+with &lt;strong&gt;bold and &lt;em&gt;italic&lt;/em&gt; text&lt;/strong&gt;&lt;/label&gt;
+&lt;ul class=&quot;task-list&quot;&gt;
+&lt;li&gt;&lt;label&gt;&lt;input type=&quot;checkbox&quot; /&gt;Nested follow-up task with
+&lt;code&gt;inline code&lt;/code&gt;&lt;/label&gt;&lt;/li&gt;
+&lt;li&gt;&lt;label&gt;&lt;input type=&quot;checkbox&quot; checked=&quot;&quot; /&gt;Nested completed task
+with &lt;del&gt;old wording&lt;/del&gt;&lt;/label&gt;&lt;/li&gt;
+&lt;/ul&gt;&lt;/li&gt;
 &lt;/ul&gt;
 &lt;h2 id=&quot;table-syntax&quot;&gt;Table syntax&lt;/h2&gt;
 &lt;table&gt;
 &lt;thead&gt;
 &lt;tr&gt;
-&lt;th&gt;Feature&lt;/th&gt;
-&lt;th&gt;Rendered example&lt;/th&gt;
+&lt;th style=&quot;text-align: left;&quot;&gt;Feature&lt;/th&gt;
+&lt;th style=&quot;text-align: center;&quot;&gt;Rendered example&lt;/th&gt;
+&lt;th style=&quot;text-align: right;&quot;&gt;Alignment&lt;/th&gt;
 &lt;/tr&gt;
 &lt;/thead&gt;
 &lt;tbody&gt;
 &lt;tr&gt;
-&lt;td&gt;Bold&lt;/td&gt;
-&lt;td&gt;&lt;strong&gt;This is bold text&lt;/strong&gt;&lt;/td&gt;
+&lt;td style=&quot;text-align: left;&quot;&gt;Bold&lt;/td&gt;
+&lt;td style=&quot;text-align: center;&quot;&gt;&lt;strong&gt;This is bold text&lt;/strong&gt;&lt;/td&gt;
+&lt;td style=&quot;text-align: right;&quot;&gt;left&lt;/td&gt;
 &lt;/tr&gt;
 &lt;tr&gt;
-&lt;td&gt;Italic&lt;/td&gt;
-&lt;td&gt;&lt;em&gt;This text is italicized&lt;/em&gt;&lt;/td&gt;
+&lt;td style=&quot;text-align: left;&quot;&gt;Italic&lt;/td&gt;
+&lt;td style=&quot;text-align: center;&quot;&gt;&lt;em&gt;This text is italicized&lt;/em&gt;&lt;/td&gt;
+&lt;td style=&quot;text-align: right;&quot;&gt;center&lt;/td&gt;
 &lt;/tr&gt;
 &lt;tr&gt;
-&lt;td&gt;Strikethrough&lt;/td&gt;
-&lt;td&gt;&lt;del&gt;This was mistaken text&lt;/del&gt;&lt;/td&gt;
+&lt;td style=&quot;text-align: left;&quot;&gt;Strikethrough&lt;/td&gt;
+&lt;td style=&quot;text-align: center;&quot;&gt;&lt;del&gt;This was mistaken text&lt;/del&gt;&lt;/td&gt;
+&lt;td style=&quot;text-align: right;&quot;&gt;right&lt;/td&gt;
 &lt;/tr&gt;
 &lt;tr&gt;
-&lt;td&gt;Inline code&lt;/td&gt;
-&lt;td&gt;&lt;code&gt;git status&lt;/code&gt;&lt;/td&gt;
+&lt;td style=&quot;text-align: left;&quot;&gt;Inline code&lt;/td&gt;
+&lt;td style=&quot;text-align: center;&quot;&gt;&lt;code&gt;git status --short&lt;/code&gt;&lt;/td&gt;
+&lt;td style=&quot;text-align: right;&quot;&gt;code&lt;/td&gt;
 &lt;/tr&gt;
 &lt;tr&gt;
-&lt;td&gt;Link&lt;/td&gt;
-&lt;td&gt;&lt;a href=&quot;https://openai.com/&quot;&gt;OpenAI&lt;/a&gt;&lt;/td&gt;
+&lt;td style=&quot;text-align: left;&quot;&gt;Link&lt;/td&gt;
+&lt;td style=&quot;text-align: center;&quot;&gt;&lt;a
+href=&quot;https://openai.com/&quot;&gt;OpenAI&lt;/a&gt;&lt;/td&gt;
+&lt;td style=&quot;text-align: right;&quot;&gt;link&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td style=&quot;text-align: left;&quot;&gt;Escaped pipe&lt;/td&gt;
+&lt;td style=&quot;text-align: center;&quot;&gt;&lt;code&gt;a \| b&lt;/code&gt;&lt;/td&gt;
+&lt;td style=&quot;text-align: right;&quot;&gt;cell&lt;/td&gt;
 &lt;/tr&gt;
 &lt;/tbody&gt;
 &lt;/table&gt;
-&lt;h2 id=&quot;quote-and-alert-style-block&quot;&gt;Quote and alert-style block&lt;/h2&gt;
-&lt;div class=&quot;note&quot;&gt;
-&lt;div class=&quot;title&quot;&gt;
-&lt;p&gt;Note&lt;/p&gt;
-&lt;/div&gt;
-&lt;p&gt;This block intentionally uses GitHub-style alert syntax without
-escaping it.&lt;/p&gt;
-&lt;/div&gt;
+&lt;h2 id=&quot;code-fences&quot;&gt;Code fences&lt;/h2&gt;
+&lt;div class=&quot;sourceCode&quot; id=&quot;cb1&quot;&gt;&lt;pre
+class=&quot;sourceCode php&quot;&gt;&lt;code class=&quot;sourceCode php&quot;&gt;&lt;span id=&quot;cb1-1&quot;&gt;&lt;a href=&quot;#cb1-1&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;&lt;span class=&quot;kw&quot;&gt;&amp;lt;?php&lt;/span&gt;&lt;/span&gt;
+&lt;span id=&quot;cb1-2&quot;&gt;&lt;a href=&quot;#cb1-2&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;&lt;span class=&quot;kw&quot;&gt;function&lt;/span&gt; render_packet(&lt;span class=&quot;dt&quot;&gt;array&lt;/span&gt; &lt;span class=&quot;va&quot;&gt;$items&lt;/span&gt;)&lt;span class=&quot;ot&quot;&gt;:&lt;/span&gt; &lt;span class=&quot;dt&quot;&gt;string&lt;/span&gt;&lt;/span&gt;
+&lt;span id=&quot;cb1-3&quot;&gt;&lt;a href=&quot;#cb1-3&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;{&lt;/span&gt;
+&lt;span id=&quot;cb1-4&quot;&gt;&lt;a href=&quot;#cb1-4&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;    &lt;span class=&quot;cf&quot;&gt;return&lt;/span&gt; &lt;span class=&quot;fu&quot;&gt;implode&lt;/span&gt;(&lt;span class=&quot;st&quot;&gt;&amp;quot;&lt;/span&gt;&lt;span class=&quot;sc&quot;&gt;\n&lt;/span&gt;&lt;span class=&quot;st&quot;&gt;&amp;quot;&lt;/span&gt;&lt;span class=&quot;ot&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;fu&quot;&gt;array_map&lt;/span&gt;(&lt;span class=&quot;st&quot;&gt;&amp;#39;strtoupper&amp;#39;&lt;/span&gt;&lt;span class=&quot;ot&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;va&quot;&gt;$items&lt;/span&gt;))&lt;span class=&quot;ot&quot;&gt;;&lt;/span&gt;&lt;/span&gt;
+&lt;span id=&quot;cb1-5&quot;&gt;&lt;a href=&quot;#cb1-5&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;}&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+&lt;pre class=&quot;mermaid&quot;&gt;&lt;code&gt;flowchart LR
+  markdown_github --&amp;gt; parser
+  parser --&amp;gt; html
+  parser --&amp;gt; wordpress&lt;/code&gt;&lt;/pre&gt;
+&lt;h2 id=&quot;images-and-html-blocks&quot;&gt;Images and HTML blocks&lt;/h2&gt;
+&lt;p&gt;&lt;img
+src=&quot;https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png&quot;
+title=&quot;GitHub mark&quot; alt=&quot;GitHub mark&quot; /&gt;&lt;/p&gt;
+&lt;details&gt;
+&lt;summary&gt;Rendered details block&lt;/summary&gt;
+
+GitHub allows raw HTML islands such as collapsible details.
+
+&lt;/details&gt;
 &lt;h2 id=&quot;autolinks-and-references&quot;&gt;Autolinks and references&lt;/h2&gt;
 &lt;p&gt;See &lt;a href=&quot;https://github.github.com/gfm/&quot;
-class=&quot;uri&quot;&gt;https://github.github.com/gfm/&lt;/a&gt; and &lt;a
-href=&quot;https://spec.commonmark.org/&quot;&gt;the CommonMark spec&lt;/a&gt;.&lt;/p&gt;
+class=&quot;uri&quot;&gt;https://github.github.com/gfm/&lt;/a&gt;, &lt;a
+href=&quot;mailto:support@github.com&quot; class=&quot;email&quot;&gt;support@github.com&lt;/a&gt;,
+and &lt;a href=&quot;https://spec.commonmark.org/&quot;&gt;the CommonMark spec&lt;/a&gt;.&lt;/p&gt;
+&lt;p&gt;Footnotes should stay connected to their references.&lt;a href=&quot;#fn1&quot;
+class=&quot;footnote-ref&quot; id=&quot;fnref1&quot; role=&quot;doc-noteref&quot;&gt;&lt;sup&gt;1&lt;/sup&gt;&lt;/a&gt;&lt;/p&gt;
+&lt;p&gt;Emoji shortcodes such as &lt;span class=&quot;emoji&quot;
+data-emoji=&quot;rocket&quot;&gt;🚀&lt;/span&gt; and &lt;span class=&quot;emoji&quot;
+data-emoji=&quot;heart&quot;&gt;❤️&lt;/span&gt; should remain visible for GitHub-style
+rendering.&lt;/p&gt;
+&lt;section id=&quot;footnotes&quot; class=&quot;footnotes footnotes-end-of-document&quot;
+role=&quot;doc-endnotes&quot;&gt;
+&lt;hr /&gt;
+&lt;ol&gt;
+&lt;li id=&quot;fn1&quot;&gt;&lt;p&gt;Footnote bodies can include &lt;strong&gt;formatting&lt;/strong&gt;,
+links, and &lt;code&gt;code&lt;/code&gt;.&lt;a href=&quot;#fnref1&quot; class=&quot;footnote-back&quot;
+role=&quot;doc-backlink&quot;&gt;↩︎&lt;/a&gt;&lt;/p&gt;&lt;/li&gt;
+&lt;/ol&gt;
+&lt;/section&gt;
 &lt;/body&gt;
 &lt;/html&gt;
 </pre></section></div><div class="note">Deprecated upstream token handled as a GFM-family Markdown variant by the shared Markdown reader implementation-equivalence gate.</div></section></article></section><section class="format-section" id="format-markdown_mmd"><div class="format-heading"><h2>markdown_mmd</h2><span>1 sample</span></div><article class="comparison" id="markdown-mmd-quickstart"><section class="original"><div class="panel-head"><h3>MultiMarkdown Quick Start guide</h3><p class="meta">24452 bytes | <a href="https://raw.githubusercontent.com/fletcher/MultiMarkdown-6/master/QuickStart/QuickStart.txt">fletcher/MultiMarkdown-6 QuickStart/QuickStart.txt</a></p></div><div class="original-body"><pre class="source-preview">Title:	MultiMarkdown v6 Quick Start Guide

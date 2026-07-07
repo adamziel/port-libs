@@ -3,27 +3,11 @@
 <!-- /wp:heading -->
 
 <!-- wp:paragraph -->
-<p>This paragraph uses <strong>bold</strong>, <em>italic</em>, <del>strikethrough</del>, <code>inline code</code>, a bare URL <a href="https://github.com/openai">https://github.com/openai</a>, and a mention-like token @octocat.</p>
+<p>This paragraph uses <strong>bold</strong>, <em>italic</em>, <strong><em>bold italic</em></strong>, <del>strikethrough</del>, <code>inline code</code>, a bare URL <a href="https://github.com/openai">https://github.com/openai</a>, an issue-like reference #42, and a mention-like token @octocat.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:heading {"level":2} -->
-<h2 id="task-list">Task list</h2>
-<!-- /wp:heading -->
-
-<!-- wp:list -->
-<ul class="task-list"><li><label><input type="checkbox" checked="" />Parse GFM task list syntax</label></li><li><label><input type="checkbox" />Preserve unchecked tasks</label></li><li><label><input type="checkbox" checked="" />Render nested formatting with <strong>bold and <em>italic</em> text</strong></label></li></ul>
-<!-- /wp:list -->
-
-<!-- wp:heading {"level":2} -->
-<h2 id="table-syntax">Table syntax</h2>
-<!-- /wp:heading -->
-
-<!-- wp:table -->
-<figure class="wp-block-table"><table><thead><tr><th>Feature</th><th>Rendered example</th></tr></thead><tbody><tr><td>Bold</td><td><strong>This is bold text</strong></td></tr><tr><td>Italic</td><td><em>This text is italicized</em></td></tr><tr><td>Strikethrough</td><td><del>This was mistaken text</del></td></tr><tr><td>Inline code</td><td><code>git status</code></td></tr><tr><td>Link</td><td><a href="https://openai.com/">OpenAI</a></td></tr></tbody></table></figure>
-<!-- /wp:table -->
-
-<!-- wp:heading {"level":2} -->
-<h2 id="quote-and-alert-style-block">Quote and alert-style block</h2>
+<h2 id="alerts">Alerts</h2>
 <!-- /wp:heading -->
 
 <!-- wp:group -->
@@ -37,15 +21,99 @@
 <!-- /wp:group -->
 
 <!-- wp:paragraph -->
-<p>This block intentionally uses GitHub-style alert syntax without escaping it.</p>
+<p>GitHub alert syntax should render as a callout-style block, with <strong>inline formatting</strong> inside.</p>
 <!-- /wp:paragraph -->
 </div>
 <!-- /wp:group -->
+
+<!-- wp:group -->
+<div class="wp-block-group warning">
+<!-- wp:group -->
+<div class="wp-block-group title">
+<!-- wp:paragraph -->
+<p>Warning</p>
+<!-- /wp:paragraph -->
+</div>
+<!-- /wp:group -->
+
+<!-- wp:paragraph -->
+<p>Alert bodies can contain links such as <a href="https://docs.github.com/">GitHub Docs</a>.</p>
+<!-- /wp:paragraph -->
+</div>
+<!-- /wp:group -->
+
+<!-- wp:heading {"level":2} -->
+<h2 id="task-lists">Task lists</h2>
+<!-- /wp:heading -->
+
+<!-- wp:list -->
+<ul class="task-list"><li><label><input type="checkbox" checked="" />Parse GFM task list syntax</label></li><li><label><input type="checkbox" />Preserve unchecked tasks</label></li><li><label><input type="checkbox" checked="" />Render nested formatting with <strong>bold and <em>italic</em> text</strong></label><ul class="task-list"><li><label><input type="checkbox" />Nested follow-up task with <code>inline code</code></label></li><li><label><input type="checkbox" checked="" />Nested completed task with <del>old wording</del></label></li></ul></li></ul>
+<!-- /wp:list -->
+
+<!-- wp:heading {"level":2} -->
+<h2 id="table-syntax">Table syntax</h2>
+<!-- /wp:heading -->
+
+<!-- wp:table -->
+<figure class="wp-block-table"><table><thead><tr><th style="text-align:left">Feature</th><th style="text-align:center">Rendered example</th><th style="text-align:right">Alignment</th></tr></thead><tbody><tr><td style="text-align:left">Bold</td><td style="text-align:center"><strong>This is bold text</strong></td><td style="text-align:right">left</td></tr><tr><td style="text-align:left">Italic</td><td style="text-align:center"><em>This text is italicized</em></td><td style="text-align:right">center</td></tr><tr><td style="text-align:left">Strikethrough</td><td style="text-align:center"><del>This was mistaken text</del></td><td style="text-align:right">right</td></tr><tr><td style="text-align:left">Inline code</td><td style="text-align:center"><code>git status --short</code></td><td style="text-align:right">code</td></tr><tr><td style="text-align:left">Link</td><td style="text-align:center"><a href="https://openai.com/">OpenAI</a></td><td style="text-align:right">link</td></tr><tr><td style="text-align:left">Escaped pipe</td><td style="text-align:center"><code>a \| b</code></td><td style="text-align:right">cell</td></tr></tbody></table></figure>
+<!-- /wp:table -->
+
+<!-- wp:heading {"level":2} -->
+<h2 id="code-fences">Code fences</h2>
+<!-- /wp:heading -->
+
+<!-- wp:code {"language":"php"} -->
+<pre class="wp-block-code"><code class="language-php">&lt;?php
+function render_packet(array $items): string
+{
+    return implode(&quot;\n&quot;, array_map(&#039;strtoupper&#039;, $items));
+}</code></pre>
+<!-- /wp:code -->
+
+<!-- wp:code {"language":"mermaid"} -->
+<pre class="wp-block-code"><code class="language-mermaid">flowchart LR
+  markdown_github --&gt; parser
+  parser --&gt; html
+  parser --&gt; wordpress</code></pre>
+<!-- /wp:code -->
+
+<!-- wp:heading {"level":2} -->
+<h2 id="images-and-html-blocks">Images and HTML blocks</h2>
+<!-- /wp:heading -->
+
+<!-- wp:image -->
+<figure class="wp-block-image"><img src="https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png" alt="GitHub mark" title="GitHub mark"/></figure>
+<!-- /wp:image -->
+
+<!-- wp:html -->
+<details>
+<summary>Rendered details block</summary>
+
+GitHub allows raw HTML islands such as collapsible details.
+
+</details>
+<!-- /wp:html -->
 
 <!-- wp:heading {"level":2} -->
 <h2 id="autolinks-and-references">Autolinks and references</h2>
 <!-- /wp:heading -->
 
 <!-- wp:paragraph -->
-<p>See <a href="https://github.github.com/gfm/">https://github.github.com/gfm/</a> and <a href="https://spec.commonmark.org/">the CommonMark spec</a>.</p>
+<p>See <a href="https://github.github.com/gfm/">https://github.github.com/gfm/</a>, <a href="mailto:support@github.com">support@github.com</a>, and <a href="https://spec.commonmark.org/">the CommonMark spec</a>.</p>
 <!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>Footnotes should stay connected to their references.<sup id="fnref-1"><a href="#fn-1" role="doc-noteref">1</a></sup></p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>Emoji shortcodes such as <span class="emoji" data-emoji="rocket">🚀</span> and <span class="emoji" data-emoji="heart">❤️</span> should remain visible for GitHub-style rendering.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:group -->
+<div class="wp-block-group footnotes" role="doc-endnotes">
+<!-- wp:list {"ordered":true} -->
+<ol><li id="fn-1"><p>Footnote bodies can include <strong>formatting</strong>, links, and <code>code</code>.</p> <a href="#fnref-1" aria-label="Back to content">Back</a></li></ol>
+<!-- /wp:list -->
+</div>
+<!-- /wp:group -->

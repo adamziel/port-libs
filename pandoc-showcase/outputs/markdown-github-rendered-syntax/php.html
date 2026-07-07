@@ -1,30 +1,67 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>PHP Pandoc HTML output</title><style>html{line-height:1.5;font-family:Georgia,"Times New Roman",serif;font-size:18px;color:#1f2933;background:#fdfdfd;}body{margin:0 auto;max-width:46em;padding:2.5em 1.25em;}h1,h2,h3,h4,h5,h6{font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.25;margin:1.4em 0 .45em;}h1{font-size:2em;}h2{font-size:1.55em;}h3{font-size:1.25em;}p{margin:1em 0;}a{color:#1f6feb;}img,svg,video{max-width:100%;height:auto;}pre,code,kbd,samp{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.9em;}code{background:#eef1f5;padding:.1em .25em;border-radius:3px;}pre{overflow:auto;background:#f6f8fa;border:1px solid #d8dde3;border-radius:6px;padding:1em;}pre code{background:transparent;padding:0;}blockquote{margin:1.25em 0;padding-left:1em;border-left:4px solid #d8dde3;color:#4b5563;}table{border-collapse:collapse;margin:1.25em 0;width:100%;font-size:.92em;}th,td{border:1px solid #d8dde3;padding:.35em .55em;vertical-align:top;}th{background:#f6f8fa;}math{font-family:math,serif;}math[display="block"]{display:block;margin:1em 0;overflow-x:auto;}</style></head><body><h1 id="github-flavored-markdown-feature-packet">GitHub Flavored Markdown feature packet</h1>
-<p>This paragraph uses <strong>bold</strong>, <em>italic</em>, <del>strikethrough</del>, <code>inline code</code>, a bare URL <a href="https://github.com/openai" class="uri">https://github.com/openai</a>, and a mention-like token @octocat.</p>
-<h2 id="task-list">Task list</h2>
-<ul class="task-list">
-<li><label><input type="checkbox" checked="" />Parse GFM task list syntax</label></li>
-<li><label><input type="checkbox" />Preserve unchecked tasks</label></li>
-<li><label><input type="checkbox" checked="" />Render nested formatting with <strong>bold and <em>italic</em> text</strong></label></li>
-</ul>
-<h2 id="table-syntax">Table syntax</h2>
-<table>
-<thead>
-<tr><th>Feature</th><th>Rendered example</th></tr>
-</thead>
-<tbody>
-<tr><td>Bold</td><td><strong>This is bold text</strong></td></tr>
-<tr><td>Italic</td><td><em>This text is italicized</em></td></tr>
-<tr><td>Strikethrough</td><td><del>This was mistaken text</del></td></tr>
-<tr><td>Inline code</td><td><code>git status</code></td></tr>
-<tr><td>Link</td><td><a href="https://openai.com/">OpenAI</a></td></tr>
-</tbody>
-</table>
-<h2 id="quote-and-alert-style-block">Quote and alert-style block</h2>
+<p>This paragraph uses <strong>bold</strong>, <em>italic</em>, <strong><em>bold italic</em></strong>, <del>strikethrough</del>, <code>inline code</code>, a bare URL <a href="https://github.com/openai" class="uri">https://github.com/openai</a>, an issue-like reference #42, and a mention-like token @octocat.</p>
+<h2 id="alerts">Alerts</h2>
 <div class="note">
 <div class="title">
 <p>Note</p>
 </div>
-<p>This block intentionally uses GitHub-style alert syntax without escaping it.</p>
+<p>GitHub alert syntax should render as a callout-style block, with <strong>inline formatting</strong> inside.</p>
 </div>
+<div class="warning">
+<div class="title">
+<p>Warning</p>
+</div>
+<p>Alert bodies can contain links such as <a href="https://docs.github.com/">GitHub Docs</a>.</p>
+</div>
+<h2 id="task-lists">Task lists</h2>
+<ul class="task-list">
+<li><label><input type="checkbox" checked="" />Parse GFM task list syntax</label></li>
+<li><label><input type="checkbox" />Preserve unchecked tasks</label></li>
+<li><label><input type="checkbox" checked="" />Render nested formatting with <strong>bold and <em>italic</em> text</strong></label>
+<ul class="task-list">
+<li><label><input type="checkbox" />Nested follow-up task with <code>inline code</code></label></li>
+<li><label><input type="checkbox" checked="" />Nested completed task with <del>old wording</del></label></li>
+</ul></li>
+</ul>
+<h2 id="table-syntax">Table syntax</h2>
+<table>
+<thead>
+<tr><th style="text-align:left">Feature</th><th style="text-align:center">Rendered example</th><th style="text-align:right">Alignment</th></tr>
+</thead>
+<tbody>
+<tr><td style="text-align:left">Bold</td><td style="text-align:center"><strong>This is bold text</strong></td><td style="text-align:right">left</td></tr>
+<tr><td style="text-align:left">Italic</td><td style="text-align:center"><em>This text is italicized</em></td><td style="text-align:right">center</td></tr>
+<tr><td style="text-align:left">Strikethrough</td><td style="text-align:center"><del>This was mistaken text</del></td><td style="text-align:right">right</td></tr>
+<tr><td style="text-align:left">Inline code</td><td style="text-align:center"><code>git status --short</code></td><td style="text-align:right">code</td></tr>
+<tr><td style="text-align:left">Link</td><td style="text-align:center"><a href="https://openai.com/">OpenAI</a></td><td style="text-align:right">link</td></tr>
+<tr><td style="text-align:left">Escaped pipe</td><td style="text-align:center"><code>a \| b</code></td><td style="text-align:right">cell</td></tr>
+</tbody>
+</table>
+<h2 id="code-fences">Code fences</h2>
+<pre class="php"><code>&lt;?php
+function render_packet(array $items): string
+{
+    return implode(&quot;\n&quot;, array_map(&#039;strtoupper&#039;, $items));
+}</code></pre>
+<pre class="mermaid"><code>flowchart LR
+  markdown_github --&gt; parser
+  parser --&gt; html
+  parser --&gt; wordpress</code></pre>
+<h2 id="images-and-html-blocks">Images and HTML blocks</h2>
+<p><img src="https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png" title="GitHub mark" alt="GitHub mark" /></p>
+<details>
+<summary>Rendered details block</summary>
+
+GitHub allows raw HTML islands such as collapsible details.
+
+</details>
 <h2 id="autolinks-and-references">Autolinks and references</h2>
-<p>See <a href="https://github.github.com/gfm/" class="uri">https://github.github.com/gfm/</a> and <a href="https://spec.commonmark.org/">the CommonMark spec</a>.</p></body></html>
+<p>See <a href="https://github.github.com/gfm/" class="uri">https://github.github.com/gfm/</a>, <a href="mailto:support@github.com" class="email">support@github.com</a>, and <a href="https://spec.commonmark.org/">the CommonMark spec</a>.</p>
+<p>Footnotes should stay connected to their references.<a href="#fn1" class="footnote-ref" id="fnref1" role="doc-noteref"><sup>1</sup></a></p>
+<p>Emoji shortcodes such as <span class="emoji" data-emoji="rocket">🚀</span> and <span class="emoji" data-emoji="heart">❤️</span> should remain visible for GitHub-style rendering.</p>
+<div class="footnotes footnotes-end-of-document">
+<hr />
+<ol>
+<li id="fn1"><p>Footnote bodies can include <strong>formatting</strong>, links, and <code>code</code>.<a href="#fnref1" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
+</ol>
+</div></body></html>
