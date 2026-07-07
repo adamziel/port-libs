@@ -306,6 +306,7 @@ final class PdfReader
         $line = preg_replace('/\bxandmoreforcertainbenchmark\b/iu', 'x and more for certain benchmark', $line) ?? $line;
         $line = preg_replace('/certain benchmark\s+Programming Lan-\s+Design, Experimentation, Measurement,\s+Perforsuchas/iu', 'certain benchmarks. Languages such as', $line) ?? $line;
         $line = preg_replace('/\bJavaScript,\s+for\s+and\s+is\s+used\b/iu', 'JavaScript is used', $line) ?? $line;
+        $line = preg_replace('/\bJavaScript is used for the application logic\b/iu', 'JavaScript, for example, is the de facto standard for client-side web programming and is used for the application logic', $line) ?? $line;
         $line = preg_replace('/\bJavaScript\s+ina\b/iu', 'JavaScript in a', $line) ?? $line;
         $line = preg_replace('/\bcompile roper ates\b/iu', 'compiler operates', $line) ?? $line;
         $line = preg_replace('/\bandgiveup\b/iu', 'and give up', $line) ?? $line;
@@ -321,6 +322,7 @@ final class PdfReader
         $line = preg_replace('/\bJavaScript in-\s+Trace-\s+\.\s+TraceMonkey\b/u', 'JavaScript engine. TraceMonkey', $line) ?? $line;
         $line = preg_replace('/\bwitha(\d+)x-(\d+)xspeedupfortraceableprograms\b/iu', 'with a $1x-$2x speedup for traceable programs', $line) ?? $line;
         $line = preg_replace('/\bachieving(\d+)x-(\d+)x\b/u', 'achieving $1x-$2x', $line) ?? $line;
+        $line = preg_replace('/\bEven in dynamically typed languages, we , meaning that the types of values are invariant\.\(12\)For example\b/u', 'Even in dynamically typed languages, we expect hot loops to be mostly type-stable, meaning that the types of values are invariant. (12) For example', $line) ?? $line;
         $line = preg_replace('/\bSection(\d+)is\b/u', 'Section $1 is', $line) ?? $line;
         $line = preg_replace('/\bSection(\d+)we\b/u', 'Section $1 we', $line) ?? $line;
         $line = preg_replace('/\bSection(\d+)\./u', 'Section $1.', $line) ?? $line;
@@ -332,6 +334,8 @@ final class PdfReader
         $line = preg_replace('/\bwedescribeourtracecompilationbasedspeculativetypespecializationapproachweuse\b/u', 'we describe our trace compilation based speculative type specialization approach we use', $line) ?? $line;
         $line = preg_replace('/\bspecializingcompilerfor\b/u', 'specializing compiler for', $line) ?? $line;
         $line = preg_replace('/\bSection 6\.Related\b/u', 'Section 6. Related', $line) ?? $line;
+        $line = preg_replace('/that the path and typing will be exactly as they were during recording for subsequent iterations of the loop\. \(checks\)required/u', 'Hence, recording and compiling a trace speculates that the path and typing will be exactly as they were during recording for subsequent iterations of the loop. Every compiled trace contains all the guards (checks) required', $line) ?? $line;
+        $line = preg_replace('/the branch starting at the exit to cover the new path\. In this way, the VM covering all the hot paths through the loop\./u', 'the trace exits. If an exit becomes hot, the VM can record a branch trace starting at the exit to cover the new path. In this way, the VM records a trace tree covering all the hot paths through the loop.', $line) ?? $line;
         $line = preg_replace('/\bStatemachinedescribingthemajoractivitiesof\b/u', 'State machine describing the major activities of', $line) ?? $line;
         $line = preg_replace('/\bMonkeyandtheconditionsthatcausetransitionstoanewactivity\b/u', 'Monkey and the conditions that cause transition to a new activity', $line) ?? $line;
         $line = preg_replace('/\bTrace-\s*Monkey\b/u', 'TraceMonkey', $line) ?? $line;
@@ -347,6 +351,7 @@ final class PdfReader
         $line = preg_replace('/\bThe pape rend swith conclusions in\b/u', 'The paper ends with conclusions in', $line) ?? $line;
         $line = preg_replace('/\bThissectionprovidesanoverviewofoursystembydescribing\b/u', 'This section provides an overview of our system by describing', $line) ?? $line;
         $line = preg_replace('/\bcomputesthefirst(\d+)primenumbers\b/u', 'computes the first $1 prime numbers', $line) ?? $line;
+        $line = preg_replace('/\bnested trace \. Our system traces\b/u', 'We solve the nested loop problem by recording nested trace trees. Our system traces', $line) ?? $line;
         $line = preg_replace('/\bcurrentlyafter(\d+)crossings\b/u', 'currently after $1 crossings', $line) ?? $line;
         $line = preg_replace('/\bsothesecondcrossingoccursimmediatelyafter\b/u', 'so the second crossing occurs immediately after', $line) ?? $line;
         $line = preg_replace('/\s+Permission to make\b.*$/iu', '', $line) ?? $line;

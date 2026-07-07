@@ -111861,145 +111861,62 @@ class=&quot;footnote-back&quot; role=&quot;doc-backlink&quot;&gt;↩︎&lt;/a&gt
 &lt;/section&gt;
 &lt;/body&gt;
 &lt;/html&gt;
-</pre></section></div><div class="note">Primary native PHP reader; the Markdown reader implementation-equivalence gate covers 137/137 checked-in Markdown/native pairs across the selected Pandoc Markdown dialect profiles.</div></section></article></section><section class="format-section" id="format-markdown_github"><div class="format-heading"><h2>markdown_github</h2><span>1 sample</span></div><article class="comparison" id="markdown-github-writing-formatting"><section class="original"><div class="panel-head"><h3>GitHub writing and formatting syntax</h3><p class="meta">24715 bytes | <a href="https://raw.githubusercontent.com/github/docs/main/content/get-started/writing-on-github/getting-started-with-writing-and-formatting-on-github/basic-writing-and-formatting-syntax.md">github/docs GitHub writing and formatting syntax</a></p></div><div class="original-body"><pre class="source-preview">---
-title: Basic writing and formatting syntax
-intro: Create sophisticated formatting for your prose and code on GitHub with simple syntax.
-product: &#039;{% data reusables.gated-features.markdown-ui %}&#039;
-redirect_from:
-  - /articles/basic-writing-and-formatting-syntax
-  - /github/writing-on-github/basic-writing-and-formatting-syntax
-  - /github/writing-on-github/getting-started-with-writing-and-formatting-on-github/basic-writing-and-formatting-syntax
-versions:
-  fpt: &#039;*&#039;
-  ghes: &#039;*&#039;
-  ghec: &#039;*&#039;
-shortTitle: Basic formatting syntax
-category:
-  - Write and format content
----
-## Headings
+</pre></section></div><div class="note">Primary native PHP reader; the Markdown reader implementation-equivalence gate covers 137/137 checked-in Markdown/native pairs across the selected Pandoc Markdown dialect profiles.</div></section></article></section><section class="format-section" id="format-markdown_github"><div class="format-heading"><h2>markdown_github</h2><span>1 sample</span></div><article class="comparison" id="markdown-github-rendered-syntax"><section class="original"><div class="panel-head"><h3>Rendered GitHub syntax packet</h3><p class="meta">855 bytes | Inline GFM sample with unescaped syntax rendered as document content.</p></div><div class="original-body"><pre class="source-preview"># GitHub Flavored Markdown feature packet
 
-To create a heading, add one to six &lt;kbd&gt;#&lt;/kbd&gt; symbols before your heading text. The number of &lt;kbd&gt;#&lt;/kbd&gt; you use will determine the hierarchy level and typeface size of the heading.
+This paragraph uses **bold**, _italic_, ~~strikethrough~~, `inline code`, a bare URL https://github.com/openai, and a mention-like token @octocat.
 
-```markdown
-# A first-level heading
-## A second-level heading
-### A third-level heading
-```
+## Task list
 
-![Screenshot of rendered GitHub Markdown showing sample h1, h2, and h3 headers, which descend in type size and visual weight to show hierarchy level.](/assets/images/help/writing/headings-rendered.png)
+- [x] Parse GFM task list syntax
+- [ ] Preserve unchecked tasks
+- [x] Render nested formatting with **bold and _italic_ text**
 
-When you use two or more headings, GitHub automatically generates a table of contents that you can access by clicking the &quot;Outline&quot; menu icon {% octicon &quot;list-unordered&quot; aria-label=&quot;Table of Contents&quot; %} within the file header. Each heading title is listed in the table of contents and you can click a title to navigate to the selected section.
+## Table syntax
 
-![Screenshot of a README file with the drop-down menu for the table of contents exposed. The table of contents icon is outlined in dark orange.](/assets/images/help/repository/headings-toc.png)
+| Feature | Rendered example |
+| --- | --- |
+| Bold | **This is bold text** |
+| Italic | _This text is italicized_ |
+| Strikethrough | ~~This was mistaken text~~ |
+| Inline code | `git status` |
+| Link | [OpenAI](https://openai.com/) |
 
-## Styling text
-
-You can indicate emphasis with bold, italic, strikethrough, subscript, or superscript text in comment fields and `.md` files.
-
-| Style | Syntax | Keyboard shortcut | Example | Output |
-| --- | --- | --- | --- | --- |
-| Bold | `** **` or `__ __`| &lt;kbd&gt;Command&lt;/kbd&gt;+&lt;kbd&gt;B&lt;/kbd&gt; (Mac) or &lt;kbd&gt;Ctrl&lt;/kbd&gt;+&lt;kbd&gt;B&lt;/kbd&gt; (Windows/Linux) | `**This is bold text**` | **This is bold text** |
-| Italic | `* *` or `_ _`     | &lt;kbd&gt;Command&lt;/kbd&gt;+&lt;kbd&gt;I&lt;/kbd&gt; (Mac) or &lt;kbd&gt;Ctrl&lt;/kbd&gt;+&lt;kbd&gt;I&lt;/kbd&gt; (Windows/Linux) | `_This text is italicized_` | _This text is italicized_ |
-| Strikethrough | `~~ ~~` or `~ ~` | None | `~~This was mistaken text~~` | ~~This was mistaken text~~ |
-| Bold and nested italic | `** **` and `_ _` | None | `**This text is _extremely_ important**` | **This text is _extremely_ important** |
-| All bold and italic | `*** ***` | None | `***All this text is important***` | ***All this text is important*** | &lt;!-- markdownlint-disable-line emphasis-style --&gt;
-| Subscript | `&lt;sub&gt; &lt;/sub&gt;` | None | `This is a &lt;sub&gt;subscript&lt;/sub&gt; text` | This is a &lt;sub&gt;subscript&lt;/sub&gt; text |
-| Superscript | `&lt;sup&gt; &lt;/sup&gt;` | None | `This is a &lt;sup&gt;superscript&lt;/sup&gt; text` | This is a &lt;sup&gt;superscript&lt;/sup&gt; text |
-| Underline | `&lt;ins&gt; &lt;/ins&gt;` | None | `This is an &lt;ins&gt;underlined&lt;/ins&gt; text` | This is an &lt;ins&gt;underlined&lt;/ins&gt; text |
-
-## Quoting text
-
-You can quote text with a &lt;kbd&gt;&gt;&lt;/kbd&gt;.
-
-```markdown
-Text that is not a quote
-
-&gt; Text that is a quote
-```
-
-Quoted text is indented with a vertical line on the left and displayed using gray type.
-
-![Screenshot of rendered GitHub Markdown showing the difference between normal and quoted text.](/assets/images/help/writing/quoted-text-rendered.png)
+## Quote and alert-style block
 
 &gt; [!NOTE]
-&gt; When viewing a conversation, you can automatically quote text in a comment by highlighting the text, then typing &lt;kbd&gt;R&lt;/kbd&gt;. You can quote an entire comment by clicking {% octicon &quot;kebab-horizontal&quot; aria-label=&quot;The horizontal kebab icon&quot; %}, then **Quote reply**. For more information about keyboard shortcuts, see [AUTOTITLE](/get-started/accessibility/keyboard-shortcuts).
+&gt; This block intentionally uses GitHub-style alert syntax without escaping it.
 
-## Quoting code
+## Autolinks and references
 
-You can call out code or a command within a sentence with single backticks. The text within the backticks will not be formatted. You can also press the &lt;kbd&gt;Command&lt;/kbd&gt;+&lt;kbd&gt;E&lt;/kbd&gt; (Mac) or &lt;kbd&gt;Ctrl&lt;/kbd&gt;+&lt;kbd&gt;E&lt;/kbd&gt; (Windows/Linux) keyboard shortcut to insert the backticks for a code block within a line of Markdown.
+See https://github.github.com/gfm/ and [the CommonMark spec][commonmark].
 
-```markdown
-Use `git status` to list all new or modified files that haven&#039;t yet been committed.
-```
-
-![Screenshot of rendered GitHub Markdown showing that characters surrounded by backticks are shown in a fixed-width typeface, highlighted in light gray.](/assets/images/help/writing/inline-code-rendered.png)
-
-To format code or text into its own distinct block, use triple backticks.
-
-````markdown
-Some basic Git commands are:
-```
-git status
-...</pre><p class="meta"><a href="samples/markdown-github-writing-formatting-basic-writing-and-formatting-syntax.md">Download original file</a></p><p class="meta">Real GitHub Docs article with front matter, Liquid tags, pipe tables, strikethrough, task lists, images, emoji, alerts, mentions, and fenced code examples.</p></div></section><section class="converted" data-sample="markdown-github-writing-formatting"><div class="converted-toolbar"><span class="meta">Converted representations</span><button class="view-source" type="button" data-source-toggle>View source</button></div><div class="comparison-grid"><section class="conversion-pane" id="markdown-github-writing-formatting-wpBlocks"><div class="pane-head"><span class="pane-title">WP blocks</span><span class="pane-status status-ok">ok</span></div><iframe class="render-frame" data-sync-group="markdown-github-writing-formatting" title="GitHub writing and formatting syntax PHP WordPress blocks" src="outputs/markdown-github-writing-formatting/wordpress-blocks.html"></iframe><pre class="source-box" data-sync-group="markdown-github-writing-formatting">&lt;!-- wp:heading {&quot;level&quot;:2} --&gt;
-&lt;h2 id=&quot;headings&quot;&gt;Headings&lt;/h2&gt;
+[commonmark]: https://spec.commonmark.org/</pre><p class="meta"><a href="samples/markdown-github-rendered-syntax-github-rendered-syntax.md">Download original file</a></p><p class="meta">Compact GitHub Flavored Markdown sample that renders the actual syntax for emphasis, task lists, tables, autolinks, references, code, and alert-style blockquotes instead of showing only escaped examples.</p></div></section><section class="converted" data-sample="markdown-github-rendered-syntax"><div class="converted-toolbar"><span class="meta">Converted representations</span><button class="view-source" type="button" data-source-toggle>View source</button></div><div class="comparison-grid"><section class="conversion-pane" id="markdown-github-rendered-syntax-wpBlocks"><div class="pane-head"><span class="pane-title">WP blocks</span><span class="pane-status status-ok">ok</span></div><iframe class="render-frame" data-sync-group="markdown-github-rendered-syntax" title="Rendered GitHub syntax packet PHP WordPress blocks" src="outputs/markdown-github-rendered-syntax/wordpress-blocks.html"></iframe><pre class="source-box" data-sync-group="markdown-github-rendered-syntax">&lt;!-- wp:heading {&quot;level&quot;:1} --&gt;
+&lt;h1 id=&quot;github-flavored-markdown-feature-packet&quot;&gt;GitHub Flavored Markdown feature packet&lt;/h1&gt;
 &lt;!-- /wp:heading --&gt;
 
 &lt;!-- wp:paragraph --&gt;
-&lt;p&gt;To create a heading, add one to six &lt;kbd&gt;#&lt;/kbd&gt; symbols before your heading text. The number of &lt;kbd&gt;#&lt;/kbd&gt; you use will determine the hierarchy level and typeface size of the heading.&lt;/p&gt;
+&lt;p&gt;This paragraph uses &lt;strong&gt;bold&lt;/strong&gt;, &lt;em&gt;italic&lt;/em&gt;, &lt;del&gt;strikethrough&lt;/del&gt;, &lt;code&gt;inline code&lt;/code&gt;, a bare URL &lt;a href=&quot;https://github.com/openai&quot;&gt;https://github.com/openai&lt;/a&gt;, and a mention-like token @octocat.&lt;/p&gt;
 &lt;!-- /wp:paragraph --&gt;
-
-&lt;!-- wp:code {&quot;language&quot;:&quot;markdown&quot;} --&gt;
-&lt;pre class=&quot;wp-block-code&quot;&gt;&lt;code class=&quot;language-markdown&quot;&gt;# A first-level heading
-## A second-level heading
-### A third-level heading&lt;/code&gt;&lt;/pre&gt;
-&lt;!-- /wp:code --&gt;
-
-&lt;!-- wp:image --&gt;
-&lt;figure class=&quot;wp-block-image&quot;&gt;&lt;img src=&quot;/assets/images/help/writing/headings-rendered.png&quot; alt=&quot;Screenshot of rendered GitHub Markdown showing sample h1, h2, and h3 headers, which descend in type size and visual weight to show hierarchy level.&quot;/&gt;&lt;/figure&gt;
-&lt;!-- /wp:image --&gt;
-
-&lt;!-- wp:paragraph --&gt;
-&lt;p&gt;When you use two or more headings, GitHub automatically generates a table of contents that you can access by clicking the &amp;quot;Outline&amp;quot; menu icon {% octicon &amp;quot;list-unordered&amp;quot; aria-label=&amp;quot;Table of Contents&amp;quot; %} within the file header. Each heading title is listed in the table of contents and you can click a title to navigate to the selected section.&lt;/p&gt;
-&lt;!-- /wp:paragraph --&gt;
-
-&lt;!-- wp:image --&gt;
-&lt;figure class=&quot;wp-block-image&quot;&gt;&lt;img src=&quot;/assets/images/help/repository/headings-toc.png&quot; alt=&quot;Screenshot of a README file with the drop-down menu for the table of contents exposed. The table of contents icon is outlined in dark orange.&quot;/&gt;&lt;/figure&gt;
-&lt;!-- /wp:image --&gt;
 
 &lt;!-- wp:heading {&quot;level&quot;:2} --&gt;
-&lt;h2 id=&quot;styling-text&quot;&gt;Styling text&lt;/h2&gt;
+&lt;h2 id=&quot;task-list&quot;&gt;Task list&lt;/h2&gt;
 &lt;!-- /wp:heading --&gt;
 
-&lt;!-- wp:paragraph --&gt;
-&lt;p&gt;You can indicate emphasis with bold, italic, strikethrough, subscript, or superscript text in comment fields and &lt;code&gt;.md&lt;/code&gt; files.&lt;/p&gt;
-&lt;!-- /wp:paragraph --&gt;
+&lt;!-- wp:list --&gt;
+&lt;ul class=&quot;task-list&quot;&gt;&lt;li&gt;&lt;label&gt;&lt;input type=&quot;checkbox&quot; checked=&quot;&quot; /&gt;Parse GFM task list syntax&lt;/label&gt;&lt;/li&gt;&lt;li&gt;&lt;label&gt;&lt;input type=&quot;checkbox&quot; /&gt;Preserve unchecked tasks&lt;/label&gt;&lt;/li&gt;&lt;li&gt;&lt;label&gt;&lt;input type=&quot;checkbox&quot; checked=&quot;&quot; /&gt;Render nested formatting with &lt;strong&gt;bold and &lt;em&gt;italic&lt;/em&gt; text&lt;/strong&gt;&lt;/label&gt;&lt;/li&gt;&lt;/ul&gt;
+&lt;!-- /wp:list --&gt;
+
+&lt;!-- wp:heading {&quot;level&quot;:2} --&gt;
+&lt;h2 id=&quot;table-syntax&quot;&gt;Table syntax&lt;/h2&gt;
+&lt;!-- /wp:heading --&gt;
 
 &lt;!-- wp:table --&gt;
-&lt;figure class=&quot;wp-block-table&quot;&gt;&lt;table&gt;&lt;thead&gt;&lt;tr&gt;&lt;th&gt;Style&lt;/th&gt;&lt;th&gt;Syntax&lt;/th&gt;&lt;th&gt;Keyboard shortcut&lt;/th&gt;&lt;th&gt;Example&lt;/th&gt;&lt;th&gt;Output&lt;/th&gt;&lt;/tr&gt;&lt;/thead&gt;&lt;tbody&gt;&lt;tr&gt;&lt;td&gt;Bold&lt;/td&gt;&lt;td&gt;&lt;code&gt;** **&lt;/code&gt; or &lt;code&gt;__ __&lt;/code&gt;&lt;/td&gt;&lt;td&gt;&lt;kbd&gt;Command&lt;/kbd&gt;+&lt;kbd&gt;B&lt;/kbd&gt; (Mac) or &lt;kbd&gt;Ctrl&lt;/kbd&gt;+&lt;kbd&gt;B&lt;/kbd&gt; (Windows/Linux)&lt;/td&gt;&lt;td&gt;&lt;code&gt;**This is bold text**&lt;/code&gt;&lt;/td&gt;&lt;td&gt;&lt;strong&gt;This is bold text&lt;/strong&gt;&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;Italic&lt;/td&gt;&lt;td&gt;&lt;code&gt;* *&lt;/code&gt; or &lt;code&gt;_ _&lt;/code&gt;     &lt;/td&gt;&lt;td&gt;&lt;kbd&gt;Command&lt;/kbd&gt;+&lt;kbd&gt;I&lt;/kbd&gt; (Mac) or &lt;kbd&gt;Ctrl&lt;/kbd&gt;+&lt;kbd&gt;I&lt;/kbd&gt; (Windows/Linux)&lt;/td&gt;&lt;td&gt;&lt;code&gt;_This text is italicized_&lt;/code&gt;&lt;/td&gt;&lt;td&gt;&lt;em&gt;This text is italicized&lt;/em&gt;&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;Strikethrough&lt;/td&gt;&lt;td&gt;&lt;code&gt;~~ ~~&lt;/code&gt; or &lt;code&gt;~ ~&lt;/code&gt;&lt;/td&gt;&lt;td&gt;None&lt;/td&gt;&lt;td&gt;&lt;code&gt;~~This was mistaken text~~&lt;/code&gt;&lt;/td&gt;&lt;td&gt;&lt;del&gt;This was mistaken text&lt;/del&gt;&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;Bold and nested italic&lt;/td&gt;&lt;td&gt;&lt;code&gt;** **&lt;/code&gt; and &lt;code&gt;_ _&lt;/code&gt;&lt;/td&gt;&lt;td&gt;None&lt;/td&gt;&lt;td&gt;&lt;code&gt;**This text is _extremely_ important**&lt;/code&gt;&lt;/td&gt;&lt;td&gt;&lt;strong&gt;This text is &lt;em&gt;extremely&lt;/em&gt; important&lt;/strong&gt;&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;All bold and italic&lt;/td&gt;&lt;td&gt;&lt;code&gt;*** ***&lt;/code&gt;&lt;/td&gt;&lt;td&gt;None&lt;/td&gt;&lt;td&gt;&lt;code&gt;***All this text is important***&lt;/code&gt;&lt;/td&gt;&lt;td&gt;&lt;strong&gt;&lt;em&gt;All this text is important&lt;/em&gt;&lt;/strong&gt;&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;Subscript&lt;/td&gt;&lt;td&gt;&lt;code&gt;&amp;lt;sub&amp;gt; &amp;lt;/sub&amp;gt;&lt;/code&gt;&lt;/td&gt;&lt;td&gt;None&lt;/td&gt;&lt;td&gt;&lt;code&gt;This is a &amp;lt;sub&amp;gt;subscript&amp;lt;/sub&amp;gt; text&lt;/code&gt;&lt;/td&gt;&lt;td&gt;This is a &lt;sub&gt;subscript&lt;/sub&gt; text&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;Superscript&lt;/td&gt;&lt;td&gt;&lt;code&gt;&amp;lt;sup&amp;gt; &amp;lt;/sup&amp;gt;&lt;/code&gt;&lt;/td&gt;&lt;td&gt;None&lt;/td&gt;&lt;td&gt;&lt;code&gt;This is a &amp;lt;sup&amp;gt;superscript&amp;lt;/sup&amp;gt; text&lt;/code&gt;&lt;/td&gt;&lt;td&gt;This is a &lt;sup&gt;superscript&lt;/sup&gt; text&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;Underline&lt;/td&gt;&lt;td&gt;&lt;code&gt;&amp;lt;ins&amp;gt; &amp;lt;/ins&amp;gt;&lt;/code&gt;&lt;/td&gt;&lt;td&gt;None&lt;/td&gt;&lt;td&gt;&lt;code&gt;This is an &amp;lt;ins&amp;gt;underlined&amp;lt;/ins&amp;gt; text&lt;/code&gt;&lt;/td&gt;&lt;td&gt;This is an &lt;ins&gt;underlined&lt;/ins&gt; text&lt;/td&gt;&lt;/tr&gt;&lt;/tbody&gt;&lt;/table&gt;&lt;/figure&gt;
+&lt;figure class=&quot;wp-block-table&quot;&gt;&lt;table&gt;&lt;thead&gt;&lt;tr&gt;&lt;th&gt;Feature&lt;/th&gt;&lt;th&gt;Rendered example&lt;/th&gt;&lt;/tr&gt;&lt;/thead&gt;&lt;tbody&gt;&lt;tr&gt;&lt;td&gt;Bold&lt;/td&gt;&lt;td&gt;&lt;strong&gt;This is bold text&lt;/strong&gt;&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;Italic&lt;/td&gt;&lt;td&gt;&lt;em&gt;This text is italicized&lt;/em&gt;&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;Strikethrough&lt;/td&gt;&lt;td&gt;&lt;del&gt;This was mistaken text&lt;/del&gt;&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;Inline code&lt;/td&gt;&lt;td&gt;&lt;code&gt;git status&lt;/code&gt;&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;Link&lt;/td&gt;&lt;td&gt;&lt;a href=&quot;https://openai.com/&quot;&gt;OpenAI&lt;/a&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/tbody&gt;&lt;/table&gt;&lt;/figure&gt;
 &lt;!-- /wp:table --&gt;
 
 &lt;!-- wp:heading {&quot;level&quot;:2} --&gt;
-&lt;h2 id=&quot;quoting-text&quot;&gt;Quoting text&lt;/h2&gt;
+&lt;h2 id=&quot;quote-and-alert-style-block&quot;&gt;Quote and alert-style block&lt;/h2&gt;
 &lt;!-- /wp:heading --&gt;
-
-&lt;!-- wp:paragraph --&gt;
-&lt;p&gt;You can quote text with a &lt;kbd&gt;&amp;gt;&lt;/kbd&gt;.&lt;/p&gt;
-&lt;!-- /wp:paragraph --&gt;
-
-&lt;!-- wp:code {&quot;language&quot;:&quot;markdown&quot;} --&gt;
-&lt;pre class=&quot;wp-block-code&quot;&gt;&lt;code class=&quot;language-markdown&quot;&gt;Text that is not a quote
-
-&amp;gt; Text that is a quote&lt;/code&gt;&lt;/pre&gt;
-&lt;!-- /wp:code --&gt;
-
-&lt;!-- wp:paragraph --&gt;
-&lt;p&gt;Quoted text is indented with a vertical line on the left and displayed using gray type.&lt;/p&gt;
-&lt;!-- /wp:paragraph --&gt;
-
-&lt;!-- wp:image --&gt;
-&lt;figure class=&quot;wp-block-image&quot;&gt;&lt;img src=&quot;/assets/images/help/writing/quoted-text-rendered.png&quot; alt=&quot;Screenshot of rendered GitHub Markdown showing the difference between normal and quoted text.&quot;/&gt;&lt;/figure&gt;
-&lt;!-- /wp:image --&gt;
 
 &lt;!-- wp:group --&gt;
 &lt;div class=&quot;wp-block-group note&quot;&gt;
@@ -112012,1106 +111929,47 @@ git status
 &lt;!-- /wp:group --&gt;
 
 &lt;!-- wp:paragraph --&gt;
-&lt;p&gt;When viewing a conversation, you can automatically quote text in a comment by highlighting the text, then typing &lt;kbd&gt;R&lt;/kbd&gt;. You can quote an entire comment by clicking {% octicon &amp;quot;kebab-horizontal&amp;quot; aria-label=&amp;quot;The horizontal kebab icon&amp;quot; %}, then &lt;strong&gt;Quote reply&lt;/strong&gt;. For more information about keyboard shortcuts, see &lt;a href=&quot;/get-started/accessibility/keyboard-shortcuts&quot;&gt;AUTOTITLE&lt;/a&gt;.&lt;/p&gt;
+&lt;p&gt;This block intentionally uses GitHub-style alert syntax without escaping it.&lt;/p&gt;
 &lt;!-- /wp:paragraph --&gt;
 &lt;/div&gt;
 &lt;!-- /wp:group --&gt;
 
 &lt;!-- wp:heading {&quot;level&quot;:2} --&gt;
-&lt;h2 id=&quot;quoting-code&quot;&gt;Quoting code&lt;/h2&gt;
+&lt;h2 id=&quot;autolinks-and-references&quot;&gt;Autolinks and references&lt;/h2&gt;
 &lt;!-- /wp:heading --&gt;
 
 &lt;!-- wp:paragraph --&gt;
-&lt;p&gt;You can call out code or a command within a sentence with single backticks. The text within the backticks will not be formatted. You can also press the &lt;kbd&gt;Command&lt;/kbd&gt;+&lt;kbd&gt;E&lt;/kbd&gt; (Mac) or &lt;kbd&gt;Ctrl&lt;/kbd&gt;+&lt;kbd&gt;E&lt;/kbd&gt; (Windows/Linux) keyboard shortcut to insert the backticks for a code block within a line of Markdown.&lt;/p&gt;
-&lt;!-- /wp:paragraph --&gt;
-
-&lt;!-- wp:code {&quot;language&quot;:&quot;markdown&quot;} --&gt;
-&lt;pre class=&quot;wp-block-code&quot;&gt;&lt;code class=&quot;language-markdown&quot;&gt;Use `git status` to list all new or modified files that haven&amp;#039;t yet been committed.&lt;/code&gt;&lt;/pre&gt;
-&lt;!-- /wp:code --&gt;
-
-&lt;!-- wp:image --&gt;
-&lt;figure class=&quot;wp-block-image&quot;&gt;&lt;img src=&quot;/assets/images/help/writing/inline-code-rendered.png&quot; alt=&quot;Screenshot of rendered GitHub Markdown showing that characters surrounded by backticks are shown in a fixed-width typeface, highlighted in light gray.&quot;/&gt;&lt;/figure&gt;
-&lt;!-- /wp:image --&gt;
-
-&lt;!-- wp:paragraph --&gt;
-&lt;p&gt;To format code or text into its own distinct block, use triple backticks.&lt;/p&gt;
-&lt;!-- /wp:paragraph --&gt;
-
-&lt;!-- wp:code {&quot;language&quot;:&quot;markdown&quot;} --&gt;
-&lt;pre class=&quot;wp-block-code&quot;&gt;&lt;code class=&quot;language-markdown&quot;&gt;Some basic Git commands are:
-```
-git status
-git add
-git commit
-```&lt;/code&gt;&lt;/pre&gt;
-&lt;!-- /wp:code --&gt;
-
-&lt;!-- wp:image --&gt;
-&lt;figure class=&quot;wp-block-image&quot;&gt;&lt;img src=&quot;/assets/images/help/writing/code-block-rendered.png&quot; alt=&quot;Screenshot of rendered GitHub Markdown showing a simple code block without syntax highlighting.&quot;/&gt;&lt;/figure&gt;
-&lt;!-- /wp:image --&gt;
-
-&lt;!-- wp:paragraph --&gt;
-&lt;p&gt;For more information, see &lt;a href=&quot;/get-started/writing-on-github/working-with-advanced-formatting/creating-and-highlighting-code-blocks&quot;&gt;AUTOTITLE&lt;/a&gt;.&lt;/p&gt;
-&lt;!-- /wp:paragraph --&gt;
-
-&lt;!-- wp:paragraph --&gt;
-&lt;p&gt;{% data reusables.user-settings.enabling-fixed-width-fonts %}&lt;/p&gt;
-&lt;!-- /wp:paragraph --&gt;
-
-&lt;!-- wp:heading {&quot;level&quot;:2} --&gt;
-&lt;h2 id=&quot;supported-color-models&quot;&gt;Supported color models&lt;/h2&gt;
-&lt;!-- /wp:heading --&gt;
-
-&lt;!-- wp:paragraph --&gt;
-&lt;p&gt;In issues, pull requests, and discussions, you can call out colors within a sentence by using backticks. A supported color model within backticks will display a visualization of the color.&lt;/p&gt;
-&lt;!-- /wp:paragraph --&gt;
-
-&lt;!-- wp:code {&quot;language&quot;:&quot;markdown&quot;} --&gt;
-&lt;pre class=&quot;wp-block-code&quot;&gt;&lt;code class=&quot;language-markdown&quot;&gt;The background color is `#ffffff` for light mode and `#000000` for dark mode.&lt;/code&gt;&lt;/pre&gt;
-&lt;!-- /wp:code --&gt;
-
-&lt;!-- wp:image --&gt;
-&lt;figure class=&quot;wp-block-image&quot;&gt;&lt;img src=&quot;/assets/images/help/writing/supported-color-models-rendered.png&quot; alt=&quot;Screenshot of rendered GitHub Markdown showing how HEX values within backticks create small circles of color, here white and then black.&quot;/&gt;&lt;/figure&gt;
-&lt;!-- /wp:image --&gt;
-
-&lt;!-- wp:paragraph --&gt;
-&lt;p&gt;Here are the currently supported color models.&lt;/p&gt;
-&lt;!-- /wp:paragraph --&gt;
-
-&lt;!-- wp:table --&gt;
-&lt;figure class=&quot;wp-block-table&quot;&gt;&lt;table&gt;&lt;thead&gt;&lt;tr&gt;&lt;th&gt;Color&lt;/th&gt;&lt;th&gt;Syntax&lt;/th&gt;&lt;th&gt;Example&lt;/th&gt;&lt;th&gt;Output&lt;/th&gt;&lt;/tr&gt;&lt;/thead&gt;&lt;tbody&gt;&lt;tr&gt;&lt;td&gt;HEX&lt;/td&gt;&lt;td&gt;&lt;code&gt;`#RRGGBB`&lt;/code&gt;&lt;/td&gt;&lt;td&gt;&lt;code&gt;`#0969DA`&lt;/code&gt;&lt;/td&gt;&lt;td&gt;&lt;img src=&quot;/assets/images/help/writing/supported-color-models-hex-rendered.png&quot; alt=&quot;Screenshot of rendered GitHub Markdown showing how HEX value #0969DA appears with a blue circle.&quot;/&gt;&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;RGB&lt;/td&gt;&lt;td&gt;&lt;code&gt;`rgb(R,G,B)`&lt;/code&gt;&lt;/td&gt;&lt;td&gt;&lt;code&gt;`rgb(9, 105, 218)`&lt;/code&gt;&lt;/td&gt;&lt;td&gt;&lt;img src=&quot;/assets/images/help/writing/supported-color-models-rgb-rendered.png&quot; alt=&quot;Screenshot of rendered GitHub Markdown showing how RGB value 9, 105, 218 appears with a blue circle.&quot;/&gt;&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;HSL&lt;/td&gt;&lt;td&gt;&lt;code&gt;`hsl(H,S,L)`&lt;/code&gt;&lt;/td&gt;&lt;td&gt;&lt;code&gt;`hsl(212, 92%, 45%)`&lt;/code&gt;&lt;/td&gt;&lt;td&gt;&lt;img src=&quot;/assets/images/help/writing/supported-color-models-hsl-rendered.png&quot; alt=&quot;Screenshot of rendered GitHub Markdown showing how HSL value 212, 92%, 45% appears with a blue circle.&quot;/&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/tbody&gt;&lt;/table&gt;&lt;/figure&gt;
-&lt;!-- /wp:table --&gt;
-
-&lt;!-- wp:group --&gt;
-&lt;div class=&quot;wp-block-group note&quot;&gt;
-&lt;!-- wp:group --&gt;
-&lt;div class=&quot;wp-block-group title&quot;&gt;
-&lt;!-- wp:paragraph --&gt;
-&lt;p&gt;Note&lt;/p&gt;
-&lt;!-- /wp:paragraph --&gt;
-&lt;/div&gt;
-&lt;!-- /wp:group --&gt;
-
-&lt;!-- wp:list --&gt;
-&lt;ul&gt;&lt;li&gt;A supported color model cannot have any leading or trailing spaces within the backticks.&lt;/li&gt;&lt;li&gt;The visualization of the color is only supported in issues, pull requests, and discussions.&lt;/li&gt;&lt;/ul&gt;
-&lt;!-- /wp:list --&gt;
-&lt;/div&gt;
-&lt;!-- /wp:group --&gt;
-
-&lt;!-- wp:heading {&quot;level&quot;:2} --&gt;
-&lt;h2 id=&quot;links&quot;&gt;Links&lt;/h2&gt;
-&lt;!-- /wp:heading --&gt;
-
-&lt;!-- wp:paragraph --&gt;
-&lt;p&gt;You can create an inline link by wrapping link text in brackets &lt;code&gt;[ ]&lt;/code&gt;, and then wrapping the URL in parentheses &lt;code&gt;( )&lt;/code&gt;. You can also use the keyboard shortcut &lt;kbd&gt;Command&lt;/kbd&gt;+&lt;kbd&gt;K&lt;/kbd&gt; to create a link. When you have text selected, you can paste a URL from your clipboard to automatically create a link from the selection.&lt;/p&gt;
-&lt;!-- /wp:paragraph --&gt;
-
-&lt;!-- wp:paragraph --&gt;
-&lt;p&gt;You can also create a Markdown hyperlink by highlighting the text and using the keyboard shortcut &lt;kbd&gt;Command&lt;/kbd&gt;+&lt;kbd&gt;V&lt;/kbd&gt;. If you&amp;#039;d like to replace the text with the link, use the keyboard shortcut &lt;kbd&gt;Command&lt;/kbd&gt;+&lt;kbd&gt;Shift&lt;/kbd&gt;+&lt;kbd&gt;V&lt;/kbd&gt;.&lt;/p&gt;
-&lt;!-- /wp:paragraph --&gt;
-
-&lt;!-- wp:paragraph --&gt;
-&lt;p&gt;&lt;code&gt;This site was built using [GitHub Pages](https://pages.github.com/).&lt;/code&gt;&lt;/p&gt;
-&lt;!-- /wp:paragraph --&gt;
-
-&lt;!-- wp:image --&gt;
-&lt;figure class=&quot;wp-block-image&quot;&gt;&lt;img src=&quot;/assets/images/help/writing/link-rendered.png&quot; alt=&quot;Screenshot of rendered GitHub Markdown showing how text within brackets, &amp;quot;GitHub Pages,&amp;quot; appears as a blue hyperlink.&quot;/&gt;&lt;/figure&gt;
-&lt;!-- /wp:image --&gt;
-
-&lt;!-- wp:group --&gt;
-&lt;div class=&quot;wp-block-group note&quot;&gt;
-&lt;!-- wp:group --&gt;
-&lt;div class=&quot;wp-block-group title&quot;&gt;
-&lt;!-- wp:paragraph --&gt;
-&lt;p&gt;Note&lt;/p&gt;
-&lt;!-- /wp:paragraph --&gt;
-&lt;/div&gt;
-&lt;!-- /wp:group --&gt;
-
-&lt;!-- wp:paragraph --&gt;
-&lt;p&gt;{% data variables.product.github %} automatically creates links when valid URLs are written in a comment. For more information, see &lt;a href=&quot;/get-started/writing-on-github/working-with-advanced-formatting/autolinked-references-and-urls&quot;&gt;AUTOTITLE&lt;/a&gt;.&lt;/p&gt;
-&lt;!-- /wp:paragraph --&gt;
-&lt;/div&gt;
-&lt;!-- /wp:group --&gt;
-
-&lt;!-- wp:heading {&quot;level&quot;:2} --&gt;
-&lt;h2 id=&quot;section-links&quot;&gt;Section links&lt;/h2&gt;
-&lt;!-- /wp:heading --&gt;
-
-&lt;!-- wp:paragraph --&gt;
-&lt;p&gt;{% data reusables.repositories.section-links %}&lt;/p&gt;
-&lt;!-- /wp:paragraph --&gt;
-
-&lt;!-- wp:paragraph --&gt;
-&lt;p&gt;If you need to determine the anchor for a heading in a file you are editing, you can use the following basic rules:&lt;/p&gt;
-&lt;!-- /wp:paragraph --&gt;
-
-&lt;!-- wp:list --&gt;
-&lt;ul&gt;&lt;li&gt;Letters are converted to lower-case.&lt;/li&gt;&lt;li&gt;Spaces are replaced by hyphens (&lt;code&gt;-&lt;/code&gt;). Any other whitespace or punctuation characters are removed.&lt;/li&gt;&lt;li&gt;Leading and trailing whitespace are removed.&lt;/li&gt;&lt;li&gt;Markup formatting is removed, leaving only the contents (for example, &lt;code&gt;_italics_&lt;/code&gt; becomes &lt;code&gt;italics&lt;/code&gt;).&lt;/li&gt;&lt;li&gt;If the automatically generated anchor for a heading is identical to an earlier anchor in the same document, a unique identifier is generated by appending a hyphen and an auto-incrementing integer.&lt;/li&gt;&lt;/ul&gt;
-&lt;!-- /wp:list --&gt;
-
-&lt;!-- wp:paragraph --&gt;
-&lt;p&gt;For more detailed information on the requirements of URI fragments, see &lt;a href=&quot;https://www.rfc-editor.org/rfc/rfc3986#section-3.5&quot;&gt;RFC 3986: Uniform Resource Identifier (URI): Generic Syntax, Section 3.5&lt;/a&gt;.&lt;/p&gt;
-&lt;!-- /wp:paragraph --&gt;
-
-&lt;!-- wp:paragraph --&gt;
-&lt;p&gt;The code block below demonstrates the basic rules used to generate anchors from headings in rendered content.&lt;/p&gt;
-&lt;!-- /wp:paragraph --&gt;
-
-&lt;!-- wp:code {&quot;language&quot;:&quot;markdown&quot;} --&gt;
-&lt;pre class=&quot;wp-block-code&quot;&gt;&lt;code class=&quot;language-markdown&quot;&gt;# Example headings
-
-## Sample Section
-
-## This&amp;#039;ll be a _Helpful_ Section About the Greek Letter Θ!
-A heading containing characters not allowed in fragments, UTF-8 characters, two consecutive spaces between the first and second words, and formatting.
-
-## This heading is not unique in the file
-
-TEXT 1
-
-## This heading is not unique in the file
-
-TEXT 2
-
-# Links to the example headings above
-
-Link to the sample section: [Link Text](#sample-section).
-
-Link to the helpful section: [Link Text](#thisll-be-a-helpful-section-about-the-greek-letter-Θ).
-
-Link to the first non-unique section: [Link Text](#this-heading-is-not-unique-in-the-file).
-
-Link to the second non-unique section: [Link Text](#this-heading-is-not-unique-in-the-file-1).&lt;/code&gt;&lt;/pre&gt;
-&lt;!-- /wp:code --&gt;
-
-&lt;!-- wp:group --&gt;
-&lt;div class=&quot;wp-block-group note&quot;&gt;
-&lt;!-- wp:group --&gt;
-&lt;div class=&quot;wp-block-group title&quot;&gt;
-&lt;!-- wp:paragraph --&gt;
-&lt;p&gt;Note&lt;/p&gt;
-&lt;!-- /wp:paragraph --&gt;
-&lt;/div&gt;
-&lt;!-- /wp:group --&gt;
-
-&lt;!-- wp:paragraph --&gt;
-&lt;p&gt;If you edit a heading, or if you change the order of headings with &amp;quot;identical&amp;quot; anchors, you will also need to update any links to those headings as the anchors will change.&lt;/p&gt;
-&lt;!-- /wp:paragraph --&gt;
-&lt;/div&gt;
-&lt;!-- /wp:group --&gt;
-
-&lt;!-- wp:heading {&quot;level&quot;:2} --&gt;
-&lt;h2 id=&quot;relative-links&quot;&gt;Relative links&lt;/h2&gt;
-&lt;!-- /wp:heading --&gt;
-
-&lt;!-- wp:paragraph --&gt;
-&lt;p&gt;{% data reusables.repositories.relative-links %}&lt;/p&gt;
-&lt;!-- /wp:paragraph --&gt;
-
-&lt;!-- wp:heading {&quot;level&quot;:2} --&gt;
-&lt;h2 id=&quot;custom-anchors&quot;&gt;Custom anchors&lt;/h2&gt;
-&lt;!-- /wp:heading --&gt;
-
-&lt;!-- wp:paragraph --&gt;
-&lt;p&gt;You can use standard HTML anchor tags (&lt;code&gt;&amp;lt;a name=&amp;quot;unique-anchor-name&amp;quot;&amp;gt;&amp;lt;/a&amp;gt;&lt;/code&gt;) to create navigation anchor points for any location in the document. To avoid ambiguous references, use a unique naming scheme for anchor tags, such as adding a prefix to the &lt;code&gt;name&lt;/code&gt; attribute value.&lt;/p&gt;
-&lt;!-- /wp:paragraph --&gt;
-
-&lt;!-- wp:group --&gt;
-&lt;div class=&quot;wp-block-group note&quot;&gt;
-&lt;!-- wp:group --&gt;
-&lt;div class=&quot;wp-block-group title&quot;&gt;
-&lt;!-- wp:paragraph --&gt;
-&lt;p&gt;Note&lt;/p&gt;
-&lt;!-- /wp:paragraph --&gt;
-&lt;/div&gt;
-&lt;!-- /wp:group --&gt;
-
-&lt;!-- wp:paragraph --&gt;
-&lt;p&gt;Custom anchors will not be included in the document outline/Table of Contents.&lt;/p&gt;
-&lt;!-- /wp:paragraph --&gt;
-&lt;/div&gt;
-&lt;!-- /wp:group --&gt;
-
-&lt;!-- wp:paragraph --&gt;
-&lt;p&gt;You can link to a custom anchor using the value of the &lt;code&gt;name&lt;/code&gt; attribute you gave the anchor. The syntax is exactly the same as when you link to an anchor that is automatically generated for a heading.&lt;/p&gt;
-&lt;!-- /wp:paragraph --&gt;
-
-&lt;!-- wp:paragraph --&gt;
-&lt;p&gt;For example:&lt;/p&gt;
-&lt;!-- /wp:paragraph --&gt;
-
-&lt;!-- wp:code {&quot;language&quot;:&quot;markdown&quot;} --&gt;
-&lt;pre class=&quot;wp-block-code&quot;&gt;&lt;code class=&quot;language-markdown&quot;&gt;# Section Heading
-
-Some body text of this section.
-
-&amp;lt;a name=&amp;quot;my-custom-anchor-point&amp;quot;&amp;gt;&amp;lt;/a&amp;gt;
-Some text I want to provide a direct link to, but which doesn&amp;#039;t have its own heading.
-
-(… more content…)
-
-[A link to that custom anchor](#my-custom-anchor-point)&lt;/code&gt;&lt;/pre&gt;
-&lt;!-- /wp:code --&gt;
-
-&lt;!-- wp:group --&gt;
-&lt;div class=&quot;wp-block-group tip&quot;&gt;
-&lt;!-- wp:group --&gt;
-&lt;div class=&quot;wp-block-group title&quot;&gt;
-&lt;!-- wp:paragraph --&gt;
-&lt;p&gt;Tip&lt;/p&gt;
-&lt;!-- /wp:paragraph --&gt;
-&lt;/div&gt;
-&lt;!-- /wp:group --&gt;
-
-&lt;!-- wp:paragraph --&gt;
-&lt;p&gt;Custom anchors are not considered by the automatic naming and numbering behavior of automatic heading links.&lt;/p&gt;
-&lt;!-- /wp:paragraph --&gt;
-&lt;/div&gt;
-&lt;!-- /wp:group --&gt;
-
-&lt;!-- wp:heading {&quot;level&quot;:2} --&gt;
-&lt;h2 id=&quot;line-breaks&quot;&gt;Line breaks&lt;/h2&gt;
-&lt;!-- /wp:heading --&gt;
-
-&lt;!-- wp:paragraph --&gt;
-&lt;p&gt;If you&amp;#039;re writing in issues, pull requests, or discussions in a repository, {% data variables.product.github %} will render a line break automatically:&lt;/p&gt;
-&lt;!-- /wp:paragraph --&gt;
-
-&lt;!-- wp:code {&quot;language&quot;:&quot;markdown&quot;} --&gt;
-&lt;pre class=&quot;wp-block-code&quot;&gt;&lt;code class=&quot;language-markdown&quot;&gt;This example
-Will span two lines&lt;/code&gt;&lt;/pre&gt;
-&lt;!-- /wp:code --&gt;
-
-&lt;!-- wp:paragraph --&gt;
-&lt;p&gt;However, if you are writing in an .md file, the example above would render on one line without a line break. To create a line break in an .md file, you will need to include one of the following:&lt;/p&gt;
-&lt;!-- /wp:paragraph --&gt;
-
-&lt;!-- wp:list --&gt;
-&lt;ul&gt;&lt;li&gt;&lt;p&gt;Include two spaces at the end of the first line.&lt;/p&gt;&lt;pre&gt;
-This example&amp;nbsp;&amp;nbsp;
-Will span two lines
-&lt;/pre&gt;&lt;/li&gt;&lt;li&gt;&lt;p&gt;Include a backslash at the end of the first line.&lt;/p&gt;&lt;pre class=&quot;wp-block-code&quot;&gt;&lt;code class=&quot;language-markdown&quot;&gt;This example\
-Will span two lines&lt;/code&gt;&lt;/pre&gt;&lt;/li&gt;&lt;li&gt;&lt;p&gt;Include an HTML single line break tag at the end of the first line.&lt;/p&gt;&lt;pre class=&quot;wp-block-code&quot;&gt;&lt;code class=&quot;language-markdown&quot;&gt;This example&amp;lt;br/&amp;gt;
-Will span two lines&lt;/code&gt;&lt;/pre&gt;&lt;/li&gt;&lt;/ul&gt;
-&lt;!-- /wp:list --&gt;
-
-&lt;!-- wp:paragraph --&gt;
-&lt;p&gt;If you leave a blank line between two lines, both .md files and Markdown in issues, pull requests, and discussions will render the two lines separated by the blank line:&lt;/p&gt;
-&lt;!-- /wp:paragraph --&gt;
-
-&lt;!-- wp:code {&quot;language&quot;:&quot;markdown&quot;} --&gt;
-&lt;pre class=&quot;wp-block-code&quot;&gt;&lt;code class=&quot;language-markdown&quot;&gt;This example
-
-Will have a blank line separating both lines&lt;/code&gt;&lt;/pre&gt;
-&lt;!-- /wp:code --&gt;
-
-&lt;!-- wp:heading {&quot;level&quot;:2} --&gt;
-&lt;h2 id=&quot;images&quot;&gt;Images&lt;/h2&gt;
-&lt;!-- /wp:heading --&gt;
-
-&lt;!-- wp:paragraph --&gt;
-&lt;p&gt;You can display an image by adding &lt;kbd&gt;!&lt;/kbd&gt; and wrapping the alt text in &lt;code&gt;[ ]&lt;/code&gt;. Alt text is a short text equivalent of the information in the image. Then, wrap the link for the image in parentheses &lt;code&gt;()&lt;/code&gt;.&lt;/p&gt;
-&lt;!-- /wp:paragraph --&gt;
-
-&lt;!-- wp:paragraph --&gt;
-&lt;p&gt;&lt;code&gt;![Screenshot of a comment on a GitHub issue showing an image, added in the Markdown, of an Octocat smiling and raising a tentacle.](https://myoctocat.com/assets/images/base-octocat.svg)&lt;/code&gt;&lt;/p&gt;
-&lt;!-- /wp:paragraph --&gt;
-
-&lt;!-- wp:image --&gt;
-&lt;figure class=&quot;wp-block-image&quot;&gt;&lt;img src=&quot;/assets/images/help/writing/image-rendered.png&quot; alt=&quot;Screenshot of a comment on a GitHub issue showing an image, added in the Markdown, of an Octocat smiling and raising a tentacle.&quot;/&gt;&lt;/figure&gt;
-&lt;!-- /wp:image --&gt;
-
-&lt;!-- wp:paragraph --&gt;
-&lt;p&gt;{% data variables.product.github %} supports embedding images into your issues, pull requests{% ifversion fpt or ghec %}, discussions{% endif %}, comments and &lt;code&gt;.md&lt;/code&gt; files. You can display an image from your repository, add a link to an online image, or upload an image. For more information, see &lt;a href=&quot;#uploading-assets&quot;&gt;Uploading assets&lt;/a&gt;.&lt;/p&gt;
-&lt;!-- /wp:paragraph --&gt;
-
-&lt;!-- wp:group --&gt;
-&lt;div class=&quot;wp-block-group note&quot;&gt;
-&lt;!-- wp:group --&gt;
-&lt;div class=&quot;wp-block-group title&quot;&gt;
-&lt;!-- wp:paragraph --&gt;
-&lt;p&gt;Note&lt;/p&gt;
-&lt;!-- /wp:paragraph --&gt;
-&lt;/div&gt;
-&lt;!-- /wp:group --&gt;
-
-&lt;!-- wp:paragraph --&gt;
-&lt;p&gt;When you want to display an image that is in your repository, use relative links instead of absolute links.&lt;/p&gt;
-&lt;!-- /wp:paragraph --&gt;
-&lt;/div&gt;
-&lt;!-- /wp:group --&gt;
-
-&lt;!-- wp:paragraph --&gt;
-&lt;p&gt;Here are some examples for using relative links to display an image.&lt;/p&gt;
-&lt;!-- /wp:paragraph --&gt;
-
-&lt;!-- wp:table --&gt;
-&lt;figure class=&quot;wp-block-table&quot;&gt;&lt;table&gt;&lt;thead&gt;&lt;tr&gt;&lt;th&gt;Context&lt;/th&gt;&lt;th&gt;Relative Link&lt;/th&gt;&lt;/tr&gt;&lt;/thead&gt;&lt;tbody&gt;&lt;tr&gt;&lt;td&gt;In a &lt;code&gt;.md&lt;/code&gt; file on the same branch&lt;/td&gt;&lt;td&gt;&lt;code&gt;/assets/images/electrocat.png&lt;/code&gt;&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;In a &lt;code&gt;.md&lt;/code&gt; file on another branch&lt;/td&gt;&lt;td&gt;&lt;code&gt;/../main/assets/images/electrocat.png&lt;/code&gt;&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;In issues, pull requests and comments of the repository&lt;/td&gt;&lt;td&gt;&lt;code&gt;../blob/main/assets/images/electrocat.png?raw=true&lt;/code&gt;&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;In a &lt;code&gt;.md&lt;/code&gt; file in another repository&lt;/td&gt;&lt;td&gt;&lt;code&gt;/../../../../github/docs/blob/main/assets/images/electrocat.png&lt;/code&gt;&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;In issues, pull requests and comments of another repository&lt;/td&gt;&lt;td&gt;&lt;code&gt;../../../github/docs/blob/main/assets/images/electrocat.png?raw=true&lt;/code&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/tbody&gt;&lt;/table&gt;&lt;/figure&gt;
-&lt;!-- /wp:table --&gt;
-
-&lt;!-- wp:group --&gt;
-&lt;div class=&quot;wp-block-group note&quot;&gt;
-&lt;!-- wp:group --&gt;
-&lt;div class=&quot;wp-block-group title&quot;&gt;
-&lt;!-- wp:paragraph --&gt;
-&lt;p&gt;Note&lt;/p&gt;
-&lt;!-- /wp:paragraph --&gt;
-&lt;/div&gt;
-&lt;!-- /wp:group --&gt;
-
-&lt;!-- wp:paragraph --&gt;
-&lt;p&gt;The last two relative links in the table above will work for images in a private repository only if the viewer has at least read access to the private repository that contains these images.&lt;/p&gt;
-&lt;!-- /wp:paragraph --&gt;
-&lt;/div&gt;
-&lt;!-- /wp:group --&gt;
-
-&lt;!-- wp:paragraph --&gt;
-&lt;p&gt;For more information, see &lt;a href=&quot;#relative-links&quot;&gt;Relative Links&lt;/a&gt;.&lt;/p&gt;
-&lt;!-- /wp:paragraph --&gt;
-
-&lt;!-- wp:heading {&quot;level&quot;:3} --&gt;
-&lt;h3 id=&quot;the-picture-element&quot;&gt;The Picture element&lt;/h3&gt;
-&lt;!-- /wp:heading --&gt;
-
-&lt;!-- wp:paragraph --&gt;
-&lt;p&gt;The &lt;code&gt;&amp;lt;picture&amp;gt;&lt;/code&gt; HTML element is supported.&lt;/p&gt;
-&lt;!-- /wp:paragraph --&gt;
-
-&lt;!-- wp:heading {&quot;level&quot;:2} --&gt;
-&lt;h2 id=&quot;lists&quot;&gt;Lists&lt;/h2&gt;
-&lt;!-- /wp:heading --&gt;
-
-&lt;!-- wp:paragraph --&gt;
-&lt;p&gt;You can make an unordered list by preceding one or more lines of text with &lt;kbd&gt;-&lt;/kbd&gt;, &lt;kbd&gt;*&lt;/kbd&gt;, or &lt;kbd&gt;+&lt;/kbd&gt;.&lt;/p&gt;
-&lt;!-- /wp:paragraph --&gt;
-
-&lt;!-- wp:code {&quot;language&quot;:&quot;markdown&quot;} --&gt;
-&lt;pre class=&quot;wp-block-code&quot;&gt;&lt;code class=&quot;language-markdown&quot;&gt;- George Washington
-* John Adams
-+ Thomas Jefferson&lt;/code&gt;&lt;/pre&gt;
-&lt;!-- /wp:code --&gt;
-
-&lt;!-- wp:image --&gt;
-&lt;figure class=&quot;wp-block-image&quot;&gt;&lt;img src=&quot;/assets/images/help/writing/unordered-list-rendered.png&quot; alt=&quot;Screenshot of rendered GitHub Markdown showing a bulleted list of the names of the first three American presidents.&quot;/&gt;&lt;/figure&gt;
-&lt;!-- /wp:image --&gt;
-
-&lt;!-- wp:paragraph --&gt;
-&lt;p&gt;To order your list, precede each line with a number.&lt;/p&gt;
-&lt;!-- /wp:paragraph --&gt;
-
-&lt;!-- wp:code {&quot;language&quot;:&quot;markdown&quot;} --&gt;
-&lt;pre class=&quot;wp-block-code&quot;&gt;&lt;code class=&quot;language-markdown&quot;&gt;1. James Madison
-2. James Monroe
-3. John Quincy Adams&lt;/code&gt;&lt;/pre&gt;
-&lt;!-- /wp:code --&gt;
-
-&lt;!-- wp:image --&gt;
-&lt;figure class=&quot;wp-block-image&quot;&gt;&lt;img src=&quot;/assets/images/help/writing/ordered-list-rendered.png&quot; alt=&quot;Screenshot of rendered GitHub Markdown showing a numbered list of the names of the fourth, fifth, and sixth American presidents.&quot;/&gt;&lt;/figure&gt;
-&lt;!-- /wp:image --&gt;
-
-&lt;!-- wp:heading {&quot;level&quot;:3} --&gt;
-&lt;h3 id=&quot;nested-lists&quot;&gt;Nested Lists&lt;/h3&gt;
-&lt;!-- /wp:heading --&gt;
-
-&lt;!-- wp:paragraph --&gt;
-&lt;p&gt;You can create a nested list by indenting one or more list items below another item.&lt;/p&gt;
-&lt;!-- /wp:paragraph --&gt;
-
-&lt;!-- wp:paragraph --&gt;
-&lt;p&gt;To create a nested list using the web editor on {% data variables.product.github %} or a text editor that uses a monospaced font, like &lt;a href=&quot;https://code.visualstudio.com/&quot;&gt;{% data variables.product.prodname_vscode %}&lt;/a&gt;, you can align your list visually. Type space characters in front of your nested list item until the list marker character (&lt;kbd&gt;-&lt;/kbd&gt; or &lt;kbd&gt;*&lt;/kbd&gt;) lies directly below the first character of the text in the item above it.&lt;/p&gt;
-&lt;!-- /wp:paragraph --&gt;
-
-&lt;!-- wp:code {&quot;language&quot;:&quot;markdown&quot;} --&gt;
-&lt;pre class=&quot;wp-block-code&quot;&gt;&lt;code class=&quot;language-markdown&quot;&gt;1. First list item
-   - First nested list item
-     - Second nested list item&lt;/code&gt;&lt;/pre&gt;
-&lt;!-- /wp:code --&gt;
-
-&lt;!-- wp:group --&gt;
-&lt;div class=&quot;wp-block-group note&quot;&gt;
-&lt;!-- wp:group --&gt;
-&lt;div class=&quot;wp-block-group title&quot;&gt;
-&lt;!-- wp:paragraph --&gt;
-&lt;p&gt;Note&lt;/p&gt;
-&lt;!-- /wp:paragraph --&gt;
-&lt;/div&gt;
-&lt;!-- /wp:group --&gt;
-
-&lt;!-- wp:paragraph --&gt;
-&lt;p&gt;In the web-based editor, you can indent or dedent one or more lines of text by first highlighting the desired lines and then using &lt;kbd&gt;Tab&lt;/kbd&gt; or &lt;kbd&gt;Shift&lt;/kbd&gt;+&lt;kbd&gt;Tab&lt;/kbd&gt; respectively.&lt;/p&gt;
-&lt;!-- /wp:paragraph --&gt;
-&lt;/div&gt;
-&lt;!-- /wp:group --&gt;
-
-&lt;!-- wp:image --&gt;
-&lt;figure class=&quot;wp-block-image&quot;&gt;&lt;img src=&quot;/assets/images/help/writing/nested-list-alignment.png&quot; alt=&quot;Screenshot of Markdown in {% data variables.product.prodname_vscode %} showing indentation of nested numbered lines and bullets.&quot;/&gt;&lt;/figure&gt;
-&lt;!-- /wp:image --&gt;
-
-&lt;!-- wp:image --&gt;
-&lt;figure class=&quot;wp-block-image&quot;&gt;&lt;img src=&quot;/assets/images/help/writing/nested-list-example-1.png&quot; alt=&quot;Screenshot of rendered GitHub Markdown showing a numbered item followed by nested bullets at two different levels of nesting.&quot;/&gt;&lt;/figure&gt;
-&lt;!-- /wp:image --&gt;
-
-&lt;!-- wp:paragraph --&gt;
-&lt;p&gt;To create a nested list in the comment editor on {% data variables.product.github %}, which doesn&amp;#039;t use a monospaced font, you can look at the list item immediately above the nested list and count the number of characters that appear before the content of the item. Then type that number of space characters in front of the nested list item.&lt;/p&gt;
-&lt;!-- /wp:paragraph --&gt;
-
-&lt;!-- wp:paragraph --&gt;
-&lt;p&gt;In this example, you could add a nested list item under the list item &lt;code&gt;100. First list item&lt;/code&gt; by indenting the nested list item a minimum of five spaces, since there are five characters (&lt;code&gt;100. &lt;/code&gt;) before &lt;code&gt;First list item&lt;/code&gt;.&lt;/p&gt;
-&lt;!-- /wp:paragraph --&gt;
-
-&lt;!-- wp:code {&quot;language&quot;:&quot;markdown&quot;} --&gt;
-&lt;pre class=&quot;wp-block-code&quot;&gt;&lt;code class=&quot;language-markdown&quot;&gt;100. First list item
-     - First nested list item&lt;/code&gt;&lt;/pre&gt;
-&lt;!-- /wp:code --&gt;
-
-&lt;!-- wp:image --&gt;
-&lt;figure class=&quot;wp-block-image&quot;&gt;&lt;img src=&quot;/assets/images/help/writing/nested-list-example-3.png&quot; alt=&quot;Screenshot of rendered GitHub Markdown showing a numbered item prefaced by the number 100 followed by a bulleted item nested one level.&quot;/&gt;&lt;/figure&gt;
-&lt;!-- /wp:image --&gt;
-
-&lt;!-- wp:paragraph --&gt;
-&lt;p&gt;You can create multiple levels of nested lists using the same method. For example, because the first nested list item has seven characters (&lt;code&gt;␣␣␣␣␣-␣&lt;/code&gt;) before the nested list content &lt;code&gt;First nested list item&lt;/code&gt;, you would need to indent the second nested list item by at least two more characters (nine spaces minimum).&lt;/p&gt;
-&lt;!-- /wp:paragraph --&gt;
-
-&lt;!-- wp:code {&quot;language&quot;:&quot;markdown&quot;} --&gt;
-&lt;pre class=&quot;wp-block-code&quot;&gt;&lt;code class=&quot;language-markdown&quot;&gt;100. First list item
-     - First nested list item
-       - Second nested list item&lt;/code&gt;&lt;/pre&gt;
-&lt;!-- /wp:code --&gt;
-
-&lt;!-- wp:image --&gt;
-&lt;figure class=&quot;wp-block-image&quot;&gt;&lt;img src=&quot;/assets/images/help/writing/nested-list-example-2.png&quot; alt=&quot;Screenshot of rendered GitHub Markdown showing a numbered item prefaced by the number 100 followed by bullets at two different levels of nesting.&quot;/&gt;&lt;/figure&gt;
-&lt;!-- /wp:image --&gt;
-
-&lt;!-- wp:paragraph --&gt;
-&lt;p&gt;For more examples, see the &lt;a href=&quot;https://github.github.com/gfm/#example-265&quot;&gt;GitHub Flavored Markdown Spec&lt;/a&gt;.&lt;/p&gt;
-&lt;!-- /wp:paragraph --&gt;
-
-&lt;!-- wp:heading {&quot;level&quot;:2} --&gt;
-&lt;h2 id=&quot;task-lists&quot;&gt;Task lists&lt;/h2&gt;
-&lt;!-- /wp:heading --&gt;
-
-&lt;!-- wp:paragraph --&gt;
-&lt;p&gt;{% data reusables.repositories.task-list-markdown %}&lt;/p&gt;
-&lt;!-- /wp:paragraph --&gt;
-
-&lt;!-- wp:paragraph --&gt;
-&lt;p&gt;If a task list item description begins with a parenthesis, you&amp;#039;ll need to escape it with &lt;kbd&gt;\&lt;/kbd&gt;:&lt;/p&gt;
-&lt;!-- /wp:paragraph --&gt;
-
-&lt;!-- wp:paragraph --&gt;
-&lt;p&gt;&lt;code&gt;- [ ] \(Optional) Open a followup issue&lt;/code&gt;&lt;/p&gt;
-&lt;!-- /wp:paragraph --&gt;
-
-&lt;!-- wp:paragraph --&gt;
-&lt;p&gt;For more information, see &lt;a href=&quot;/get-started/writing-on-github/working-with-advanced-formatting/about-task-lists&quot;&gt;AUTOTITLE&lt;/a&gt;.&lt;/p&gt;
-&lt;!-- /wp:paragraph --&gt;
-
-&lt;!-- wp:heading {&quot;level&quot;:2} --&gt;
-&lt;h2 id=&quot;mentioning-people-and-teams&quot;&gt;Mentioning people and teams&lt;/h2&gt;
-&lt;!-- /wp:heading --&gt;
-
-&lt;!-- wp:paragraph --&gt;
-&lt;p&gt;You can mention a person or &lt;a href=&quot;/organizations/organizing-members-into-teams&quot;&gt;team&lt;/a&gt; on {% data variables.product.github %} by typing &lt;kbd&gt;@&lt;/kbd&gt; plus their username or team name. This will trigger a notification and bring their attention to the conversation. People will also receive a notification if you edit a comment to mention their username or team name. For more information about notifications, see &lt;a href=&quot;/account-and-profile/managing-subscriptions-and-notifications-on-github/setting-up-notifications/about-notifications&quot;&gt;AUTOTITLE&lt;/a&gt;.&lt;/p&gt;
-&lt;!-- /wp:paragraph --&gt;
-
-&lt;!-- wp:group --&gt;
-&lt;div class=&quot;wp-block-group note&quot;&gt;
-&lt;!-- wp:group --&gt;
-&lt;div class=&quot;wp-block-group title&quot;&gt;
-&lt;!-- wp:paragraph --&gt;
-&lt;p&gt;Note&lt;/p&gt;
-&lt;!-- /wp:paragraph --&gt;
-&lt;/div&gt;
-&lt;!-- /wp:group --&gt;
-
-&lt;!-- wp:paragraph --&gt;
-&lt;p&gt;A person will only be notified about a mention if the person has read access to the repository and, if the repository is owned by an organization, the person is a member of the organization.&lt;/p&gt;
-&lt;!-- /wp:paragraph --&gt;
-&lt;/div&gt;
-&lt;!-- /wp:group --&gt;
-
-&lt;!-- wp:paragraph --&gt;
-&lt;p&gt;&lt;code&gt;@github/support What do you think about these updates?&lt;/code&gt;&lt;/p&gt;
-&lt;!-- /wp:paragraph --&gt;
-
-&lt;!-- wp:image --&gt;
-&lt;figure class=&quot;wp-block-image&quot;&gt;&lt;img src=&quot;/assets/images/help/writing/mention-rendered.png&quot; alt=&quot;Screenshot of rendered GitHub Markdown showing how the team mention &amp;quot;@github/support&amp;quot; renders as bold, clickable text.&quot;/&gt;&lt;/figure&gt;
-&lt;!-- /wp:image --&gt;
-
-&lt;!-- wp:paragraph --&gt;
-&lt;p&gt;When you mention a parent team, members of its child teams also receive notifications, simplifying communication with multiple groups of people. For more information, see &lt;a href=&quot;/organizations/organizing-members-into-teams/about-teams&quot;&gt;AUTOTITLE&lt;/a&gt;.&lt;/p&gt;
-&lt;!-- /wp:paragraph --&gt;
-
-&lt;!-- wp:paragraph --&gt;
-&lt;p&gt;Typing an &lt;kbd&gt;@&lt;/kbd&gt; symbol will bring up a list of people or teams on a project. The list filters as you type, so once you find the name of the person or team you are looking for, you can use the arrow keys to select it and press either tab or enter to complete the name. For teams, enter the @organization/team-name and all members of that team will get subscribed to the conversation.&lt;/p&gt;
-&lt;!-- /wp:paragraph --&gt;
-
-&lt;!-- wp:paragraph --&gt;
-&lt;p&gt;{% ifversion enterprise-teams-ga %}&lt;/p&gt;
-&lt;!-- /wp:paragraph --&gt;
-
-&lt;!-- wp:paragraph --&gt;
-&lt;p&gt;You can also mention an enterprise team. Enterprise team slugs use an &lt;code&gt;ent:&lt;/code&gt; prefix in the format &lt;code&gt;@/ent:TEAM-SLUG&lt;/code&gt;, for example &lt;code&gt;@/ent:platform-sre&lt;/code&gt;. You can mention an enterprise team from any organization the team is assigned to. See &lt;a href=&quot;/admin/concepts/enterprise-fundamentals/teams-in-an-enterprise&quot;&gt;AUTOTITLE&lt;/a&gt;.&lt;/p&gt;
-&lt;!-- /wp:paragraph --&gt;
-
-&lt;!-- wp:paragraph --&gt;
-&lt;p&gt;{% endif %}&lt;/p&gt;
-&lt;!-- /wp:paragraph --&gt;
-
-&lt;!-- wp:paragraph --&gt;
-&lt;p&gt;The autocomplete results are restricted to repository collaborators and any other participants on the thread.&lt;/p&gt;
-&lt;!-- /wp:paragraph --&gt;
-
-&lt;!-- wp:heading {&quot;level&quot;:2} --&gt;
-&lt;h2 id=&quot;referencing-issues-and-pull-requests&quot;&gt;Referencing issues and pull requests&lt;/h2&gt;
-&lt;!-- /wp:heading --&gt;
-
-&lt;!-- wp:paragraph --&gt;
-&lt;p&gt;You can bring up a list of suggested issues and pull requests within the repository by typing &lt;kbd&gt;#&lt;/kbd&gt;. Type the issue or pull request number or title to filter the list, and then press either tab or enter to complete the highlighted result.&lt;/p&gt;
-&lt;!-- /wp:paragraph --&gt;
-
-&lt;!-- wp:paragraph --&gt;
-&lt;p&gt;For more information, see &lt;a href=&quot;/get-started/writing-on-github/working-with-advanced-formatting/autolinked-references-and-urls&quot;&gt;AUTOTITLE&lt;/a&gt;.&lt;/p&gt;
-&lt;!-- /wp:paragraph --&gt;
-
-&lt;!-- wp:heading {&quot;level&quot;:2} --&gt;
-&lt;h2 id=&quot;referencing-external-resources&quot;&gt;Referencing external resources&lt;/h2&gt;
-&lt;!-- /wp:heading --&gt;
-
-&lt;!-- wp:paragraph --&gt;
-&lt;p&gt;{% data reusables.repositories.autolink-references %}&lt;/p&gt;
-&lt;!-- /wp:paragraph --&gt;
-
-&lt;!-- wp:heading {&quot;level&quot;:2} --&gt;
-&lt;h2 id=&quot;uploading-assets&quot;&gt;Uploading assets&lt;/h2&gt;
-&lt;!-- /wp:heading --&gt;
-
-&lt;!-- wp:paragraph --&gt;
-&lt;p&gt;You can upload assets like images by dragging and dropping, selecting from a file browser, or pasting. You can upload assets to issues, pull requests, comments, and &lt;code&gt;.md&lt;/code&gt; files in your repository.&lt;/p&gt;
-&lt;!-- /wp:paragraph --&gt;
-
-&lt;!-- wp:heading {&quot;level&quot;:2} --&gt;
-&lt;h2 id=&quot;using-emojis&quot;&gt;Using emojis&lt;/h2&gt;
-&lt;!-- /wp:heading --&gt;
-
-&lt;!-- wp:paragraph --&gt;
-&lt;p&gt;You can add emoji to your writing by typing &lt;code&gt;:EMOJICODE:&lt;/code&gt;, a colon followed by the name of the emoji.&lt;/p&gt;
-&lt;!-- /wp:paragraph --&gt;
-
-&lt;!-- wp:paragraph --&gt;
-&lt;p&gt;&lt;code&gt;@octocat :+1: This PR looks great - it&amp;#039;s ready to merge! :shipit:&lt;/code&gt;&lt;/p&gt;
-&lt;!-- /wp:paragraph --&gt;
-
-&lt;!-- wp:image --&gt;
-&lt;figure class=&quot;wp-block-image&quot;&gt;&lt;img src=&quot;/assets/images/help/writing/emoji-rendered.png&quot; alt=&quot;Screenshot of rendered GitHub Markdown showing how emoji codes for +1 and shipit render visually as emoji.&quot;/&gt;&lt;/figure&gt;
-&lt;!-- /wp:image --&gt;
-
-&lt;!-- wp:paragraph --&gt;
-&lt;p&gt;Typing &lt;kbd&gt;:&lt;/kbd&gt; will bring up a list of suggested emoji. The list will filter as you type, so once you find the emoji you&amp;#039;re looking for, press &lt;strong&gt;Tab&lt;/strong&gt; or &lt;strong&gt;Enter&lt;/strong&gt; to complete the highlighted result.&lt;/p&gt;
-&lt;!-- /wp:paragraph --&gt;
-
-&lt;!-- wp:paragraph --&gt;
-&lt;p&gt;For a full list of available emoji and codes, see &lt;a href=&quot;https://github.com/ikatyang/emoji-cheat-sheet/blob/github-actions-auto-update/README.md&quot;&gt;the Emoji-Cheat-Sheet&lt;/a&gt;.&lt;/p&gt;
-&lt;!-- /wp:paragraph --&gt;
-
-&lt;!-- wp:heading {&quot;level&quot;:2} --&gt;
-&lt;h2 id=&quot;paragraphs&quot;&gt;Paragraphs&lt;/h2&gt;
-&lt;!-- /wp:heading --&gt;
-
-&lt;!-- wp:paragraph --&gt;
-&lt;p&gt;You can create a new paragraph by leaving a blank line between lines of text.&lt;/p&gt;
-&lt;!-- /wp:paragraph --&gt;
-
-&lt;!-- wp:heading {&quot;level&quot;:2} --&gt;
-&lt;h2 id=&quot;footnotes&quot;&gt;Footnotes&lt;/h2&gt;
-&lt;!-- /wp:heading --&gt;
-
-&lt;!-- wp:paragraph --&gt;
-&lt;p&gt;You can add footnotes to your content by using this bracket syntax:&lt;/p&gt;
-&lt;!-- /wp:paragraph --&gt;
-
-&lt;!-- wp:code {&quot;language&quot;:&quot;text&quot;} --&gt;
-&lt;pre class=&quot;wp-block-code&quot;&gt;&lt;code class=&quot;language-text&quot;&gt;Here is a simple footnote[^1].
-
-A footnote can also have multiple lines[^2].
-
-[^1]: My reference.
-[^2]: To add line breaks within a footnote, add 2 spaces to the end of a line.&#32;&#32;
-This is a second line.&lt;/code&gt;&lt;/pre&gt;
-&lt;!-- /wp:code --&gt;
-
-&lt;!-- wp:paragraph --&gt;
-&lt;p&gt;The footnote will render like this:&lt;/p&gt;
-&lt;!-- /wp:paragraph --&gt;
-
-&lt;!-- wp:image --&gt;
-&lt;figure class=&quot;wp-block-image&quot;&gt;&lt;img src=&quot;/assets/images/help/writing/footnote-rendered.png&quot; alt=&quot;Screenshot of rendered Markdown showing superscript numbers used to indicate footnotes, along with optional line breaks inside a note.&quot;/&gt;&lt;/figure&gt;
-&lt;!-- /wp:image --&gt;
-
-&lt;!-- wp:group --&gt;
-&lt;div class=&quot;wp-block-group note&quot;&gt;
-&lt;!-- wp:group --&gt;
-&lt;div class=&quot;wp-block-group title&quot;&gt;
-&lt;!-- wp:paragraph --&gt;
-&lt;p&gt;Note&lt;/p&gt;
-&lt;!-- /wp:paragraph --&gt;
-&lt;/div&gt;
-&lt;!-- /wp:group --&gt;
-
-&lt;!-- wp:paragraph --&gt;
-&lt;p&gt;The position of a footnote in your Markdown does not influence where the footnote will be rendered. You can write a footnote right after your reference to the footnote, and the footnote will still render at the bottom of the Markdown. Footnotes are not supported in wikis.&lt;/p&gt;
-&lt;!-- /wp:paragraph --&gt;
-&lt;/div&gt;
-&lt;!-- /wp:group --&gt;
-
-&lt;!-- wp:heading {&quot;level&quot;:2} --&gt;
-&lt;h2 id=&quot;alerts&quot;&gt;Alerts&lt;/h2&gt;
-&lt;!-- /wp:heading --&gt;
-
-&lt;!-- wp:paragraph --&gt;
-&lt;p&gt;&lt;strong&gt;Alerts&lt;/strong&gt;, also sometimes known as &lt;strong&gt;callouts&lt;/strong&gt; or &lt;strong&gt;admonitions&lt;/strong&gt;, are a Markdown extension based on the blockquote syntax that you can use to emphasize critical information. On {% data variables.product.github %}, they are displayed with distinctive colors and icons to indicate the significance of the content.&lt;/p&gt;
-&lt;!-- /wp:paragraph --&gt;
-
-&lt;!-- wp:paragraph --&gt;
-&lt;p&gt;Use alerts only when they are crucial for user success and limit them to one or two per article to prevent overloading the reader. Additionally, you should avoid placing alerts consecutively. Alerts cannot be nested within other elements.&lt;/p&gt;
-&lt;!-- /wp:paragraph --&gt;
-
-&lt;!-- wp:paragraph --&gt;
-&lt;p&gt;To add an alert, use a special blockquote line specifying the alert type, followed by the alert information in a standard blockquote. Five types of alerts are available:&lt;/p&gt;
-&lt;!-- /wp:paragraph --&gt;
-
-&lt;!-- wp:code {&quot;language&quot;:&quot;markdown&quot;} --&gt;
-&lt;pre class=&quot;wp-block-code&quot;&gt;&lt;code class=&quot;language-markdown&quot;&gt;&amp;gt; [!NOTE]
-&amp;gt; Useful information that users should know, even when skimming content.
-
-&amp;gt; [!TIP]
-&amp;gt; Helpful advice for doing things better or more easily.
-
-&amp;gt; [!IMPORTANT]
-&amp;gt; Key information users need to know to achieve their goal.
-
-&amp;gt; [!WARNING]
-&amp;gt; Urgent info that needs immediate user attention to avoid problems.
-
-&amp;gt; [!CAUTION]
-&amp;gt; Advises about risks or negative outcomes of certain actions.&lt;/code&gt;&lt;/pre&gt;
-&lt;!-- /wp:code --&gt;
-
-&lt;!-- wp:paragraph --&gt;
-&lt;p&gt;Here are the rendered alerts:&lt;/p&gt;
-&lt;!-- /wp:paragraph --&gt;
-
-&lt;!-- wp:image --&gt;
-&lt;figure class=&quot;wp-block-image&quot;&gt;&lt;img src=&quot;/assets/images/help/writing/alerts-rendered.png&quot; alt=&quot;Screenshot of rendered Markdown alerts showing how Note, Tip, Important, Warning, and Caution render with different colored text and icons.&quot;/&gt;&lt;/figure&gt;
-&lt;!-- /wp:image --&gt;
-
-&lt;!-- wp:heading {&quot;level&quot;:2} --&gt;
-&lt;h2 id=&quot;hiding-content-with-comments&quot;&gt;Hiding content with comments&lt;/h2&gt;
-&lt;!-- /wp:heading --&gt;
-
-&lt;!-- wp:paragraph --&gt;
-&lt;p&gt;You can tell {% data variables.product.github %} to hide content from the rendered Markdown by placing the content in an HTML comment.&lt;/p&gt;
-&lt;!-- /wp:paragraph --&gt;
-
-&lt;!-- wp:code {&quot;language&quot;:&quot;text&quot;} --&gt;
-&lt;pre class=&quot;wp-block-code&quot;&gt;&lt;code class=&quot;language-text&quot;&gt;&amp;lt;!-- This content will not appear in the rendered Markdown --&amp;gt;&lt;/code&gt;&lt;/pre&gt;
-&lt;!-- /wp:code --&gt;
-
-&lt;!-- wp:heading {&quot;level&quot;:2} --&gt;
-&lt;h2 id=&quot;ignoring-markdown-formatting&quot;&gt;Ignoring Markdown formatting&lt;/h2&gt;
-&lt;!-- /wp:heading --&gt;
-
-&lt;!-- wp:paragraph --&gt;
-&lt;p&gt;You can tell {% data variables.product.github %} to ignore (or escape) Markdown formatting by using &lt;kbd&gt;\&lt;/kbd&gt; before the Markdown character.&lt;/p&gt;
-&lt;!-- /wp:paragraph --&gt;
-
-&lt;!-- wp:paragraph --&gt;
-&lt;p&gt;&lt;code&gt;Let&amp;#039;s rename \*our-new-project\* to \*our-old-project\*.&lt;/code&gt;&lt;/p&gt;
-&lt;!-- /wp:paragraph --&gt;
-
-&lt;!-- wp:image --&gt;
-&lt;figure class=&quot;wp-block-image&quot;&gt;&lt;img src=&quot;/assets/images/help/writing/escaped-character-rendered.png&quot; alt=&quot;Screenshot of rendered GitHub Markdown showing how backslashes prevent the conversion of asterisks to italics.&quot;/&gt;&lt;/figure&gt;
-&lt;!-- /wp:image --&gt;
-
-&lt;!-- wp:paragraph --&gt;
-&lt;p&gt;For more information on backslashes, see Daring Fireball&amp;#039;s &lt;a href=&quot;https://daringfireball.net/projects/markdown/syntax#backslash&quot;&gt;Markdown Syntax&lt;/a&gt;.&lt;/p&gt;
-&lt;!-- /wp:paragraph --&gt;
-
-&lt;!-- wp:group --&gt;
-&lt;div class=&quot;wp-block-group note&quot;&gt;
-&lt;!-- wp:group --&gt;
-&lt;div class=&quot;wp-block-group title&quot;&gt;
-&lt;!-- wp:paragraph --&gt;
-&lt;p&gt;Note&lt;/p&gt;
-&lt;!-- /wp:paragraph --&gt;
-&lt;/div&gt;
-&lt;!-- /wp:group --&gt;
-
-&lt;!-- wp:paragraph --&gt;
-&lt;p&gt;The Markdown formatting will not be ignored in the title of an issue or a pull request.&lt;/p&gt;
-&lt;!-- /wp:paragraph --&gt;
-&lt;/div&gt;
-&lt;!-- /wp:group --&gt;
-
-&lt;!-- wp:heading {&quot;level&quot;:2} --&gt;
-&lt;h2 id=&quot;disabling-markdown-rendering&quot;&gt;Disabling Markdown rendering&lt;/h2&gt;
-&lt;!-- /wp:heading --&gt;
-
-&lt;!-- wp:paragraph --&gt;
-&lt;p&gt;{% data reusables.repositories.disabling-markdown-rendering %}&lt;/p&gt;
-&lt;!-- /wp:paragraph --&gt;
-
-&lt;!-- wp:heading {&quot;level&quot;:2} --&gt;
-&lt;h2 id=&quot;further-reading&quot;&gt;Further reading&lt;/h2&gt;
-&lt;!-- /wp:heading --&gt;
-
-&lt;!-- wp:list --&gt;
-&lt;ul&gt;&lt;li&gt;&lt;a href=&quot;https://github.github.com/gfm/&quot;&gt;{% data variables.product.prodname_dotcom %} Flavored Markdown Spec&lt;/a&gt;&lt;/li&gt;&lt;li&gt;&lt;a href=&quot;/get-started/writing-on-github/getting-started-with-writing-and-formatting-on-github/about-writing-and-formatting-on-github&quot;&gt;AUTOTITLE&lt;/a&gt;&lt;/li&gt;&lt;li&gt;&lt;a href=&quot;/get-started/writing-on-github/working-with-advanced-formatting&quot;&gt;AUTOTITLE&lt;/a&gt;&lt;/li&gt;&lt;li&gt;&lt;a href=&quot;/get-started/writing-on-github/getting-started-with-writing-and-formatting-on-github/quickstart-for-writing-on-github&quot;&gt;AUTOTITLE&lt;/a&gt;&lt;/li&gt;&lt;/ul&gt;
-&lt;!-- /wp:list --&gt;</pre></section><section class="conversion-pane" id="markdown-github-writing-formatting-phpHtml"><div class="pane-head"><span class="pane-title">PHP HTML</span><span class="pane-status status-ok">ok</span></div><iframe class="render-frame" data-sync-group="markdown-github-writing-formatting" title="GitHub writing and formatting syntax PHP HTML" src="outputs/markdown-github-writing-formatting/php.html"></iframe><pre class="source-box" data-sync-group="markdown-github-writing-formatting">&lt;!doctype html&gt;&lt;html lang=&quot;en&quot;&gt;&lt;head&gt;&lt;meta charset=&quot;utf-8&quot;&gt;&lt;meta name=&quot;viewport&quot; content=&quot;width=device-width, initial-scale=1&quot;&gt;&lt;title&gt;PHP Pandoc HTML output&lt;/title&gt;&lt;style&gt;html{line-height:1.5;font-family:Georgia,&quot;Times New Roman&quot;,serif;font-size:18px;color:#1f2933;background:#fdfdfd;}body{margin:0 auto;max-width:46em;padding:2.5em 1.25em;}h1,h2,h3,h4,h5,h6{font-family:system-ui,-apple-system,BlinkMacSystemFont,&quot;Segoe UI&quot;,sans-serif;line-height:1.25;margin:1.4em 0 .45em;}h1{font-size:2em;}h2{font-size:1.55em;}h3{font-size:1.25em;}p{margin:1em 0;}a{color:#1f6feb;}img,svg,video{max-width:100%;height:auto;}pre,code,kbd,samp{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.9em;}code{background:#eef1f5;padding:.1em .25em;border-radius:3px;}pre{overflow:auto;background:#f6f8fa;border:1px solid #d8dde3;border-radius:6px;padding:1em;}pre code{background:transparent;padding:0;}blockquote{margin:1.25em 0;padding-left:1em;border-left:4px solid #d8dde3;color:#4b5563;}table{border-collapse:collapse;margin:1.25em 0;width:100%;font-size:.92em;}th,td{border:1px solid #d8dde3;padding:.35em .55em;vertical-align:top;}th{background:#f6f8fa;}math{font-family:math,serif;}math[display=&quot;block&quot;]{display:block;margin:1em 0;overflow-x:auto;}&lt;/style&gt;&lt;/head&gt;&lt;body&gt;&lt;h2 id=&quot;headings&quot;&gt;Headings&lt;/h2&gt;
-&lt;p&gt;To create a heading, add one to six &lt;kbd&gt;#&lt;/kbd&gt; symbols before your heading text. The number of &lt;kbd&gt;#&lt;/kbd&gt; you use will determine the hierarchy level and typeface size of the heading.&lt;/p&gt;
-&lt;pre class=&quot;markdown&quot;&gt;&lt;code&gt;# A first-level heading
-## A second-level heading
-### A third-level heading&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;&lt;img src=&quot;/assets/images/help/writing/headings-rendered.png&quot; alt=&quot;Screenshot of rendered GitHub Markdown showing sample h1, h2, and h3 headers, which descend in type size and visual weight to show hierarchy level.&quot; /&gt;&lt;/p&gt;
-&lt;p&gt;When you use two or more headings, GitHub automatically generates a table of contents that you can access by clicking the &amp;quot;Outline&amp;quot; menu icon {% octicon &amp;quot;list-unordered&amp;quot; aria-label=&amp;quot;Table of Contents&amp;quot; %} within the file header. Each heading title is listed in the table of contents and you can click a title to navigate to the selected section.&lt;/p&gt;
-&lt;p&gt;&lt;img src=&quot;/assets/images/help/repository/headings-toc.png&quot; alt=&quot;Screenshot of a README file with the drop-down menu for the table of contents exposed. The table of contents icon is outlined in dark orange.&quot; /&gt;&lt;/p&gt;
-&lt;h2 id=&quot;styling-text&quot;&gt;Styling text&lt;/h2&gt;
-&lt;p&gt;You can indicate emphasis with bold, italic, strikethrough, subscript, or superscript text in comment fields and &lt;code&gt;.md&lt;/code&gt; files.&lt;/p&gt;
+&lt;p&gt;See &lt;a href=&quot;https://github.github.com/gfm/&quot;&gt;https://github.github.com/gfm/&lt;/a&gt; and &lt;a href=&quot;https://spec.commonmark.org/&quot;&gt;the CommonMark spec&lt;/a&gt;.&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;</pre></section><section class="conversion-pane" id="markdown-github-rendered-syntax-phpHtml"><div class="pane-head"><span class="pane-title">PHP HTML</span><span class="pane-status status-ok">ok</span></div><iframe class="render-frame" data-sync-group="markdown-github-rendered-syntax" title="Rendered GitHub syntax packet PHP HTML" src="outputs/markdown-github-rendered-syntax/php.html"></iframe><pre class="source-box" data-sync-group="markdown-github-rendered-syntax">&lt;!doctype html&gt;&lt;html lang=&quot;en&quot;&gt;&lt;head&gt;&lt;meta charset=&quot;utf-8&quot;&gt;&lt;meta name=&quot;viewport&quot; content=&quot;width=device-width, initial-scale=1&quot;&gt;&lt;title&gt;PHP Pandoc HTML output&lt;/title&gt;&lt;style&gt;html{line-height:1.5;font-family:Georgia,&quot;Times New Roman&quot;,serif;font-size:18px;color:#1f2933;background:#fdfdfd;}body{margin:0 auto;max-width:46em;padding:2.5em 1.25em;}h1,h2,h3,h4,h5,h6{font-family:system-ui,-apple-system,BlinkMacSystemFont,&quot;Segoe UI&quot;,sans-serif;line-height:1.25;margin:1.4em 0 .45em;}h1{font-size:2em;}h2{font-size:1.55em;}h3{font-size:1.25em;}p{margin:1em 0;}a{color:#1f6feb;}img,svg,video{max-width:100%;height:auto;}pre,code,kbd,samp{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.9em;}code{background:#eef1f5;padding:.1em .25em;border-radius:3px;}pre{overflow:auto;background:#f6f8fa;border:1px solid #d8dde3;border-radius:6px;padding:1em;}pre code{background:transparent;padding:0;}blockquote{margin:1.25em 0;padding-left:1em;border-left:4px solid #d8dde3;color:#4b5563;}table{border-collapse:collapse;margin:1.25em 0;width:100%;font-size:.92em;}th,td{border:1px solid #d8dde3;padding:.35em .55em;vertical-align:top;}th{background:#f6f8fa;}math{font-family:math,serif;}math[display=&quot;block&quot;]{display:block;margin:1em 0;overflow-x:auto;}&lt;/style&gt;&lt;/head&gt;&lt;body&gt;&lt;h1 id=&quot;github-flavored-markdown-feature-packet&quot;&gt;GitHub Flavored Markdown feature packet&lt;/h1&gt;
+&lt;p&gt;This paragraph uses &lt;strong&gt;bold&lt;/strong&gt;, &lt;em&gt;italic&lt;/em&gt;, &lt;del&gt;strikethrough&lt;/del&gt;, &lt;code&gt;inline code&lt;/code&gt;, a bare URL &lt;a href=&quot;https://github.com/openai&quot; class=&quot;uri&quot;&gt;https://github.com/openai&lt;/a&gt;, and a mention-like token @octocat.&lt;/p&gt;
+&lt;h2 id=&quot;task-list&quot;&gt;Task list&lt;/h2&gt;
+&lt;ul class=&quot;task-list&quot;&gt;
+&lt;li&gt;&lt;label&gt;&lt;input type=&quot;checkbox&quot; checked=&quot;&quot; /&gt;Parse GFM task list syntax&lt;/label&gt;&lt;/li&gt;
+&lt;li&gt;&lt;label&gt;&lt;input type=&quot;checkbox&quot; /&gt;Preserve unchecked tasks&lt;/label&gt;&lt;/li&gt;
+&lt;li&gt;&lt;label&gt;&lt;input type=&quot;checkbox&quot; checked=&quot;&quot; /&gt;Render nested formatting with &lt;strong&gt;bold and &lt;em&gt;italic&lt;/em&gt; text&lt;/strong&gt;&lt;/label&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2 id=&quot;table-syntax&quot;&gt;Table syntax&lt;/h2&gt;
 &lt;table&gt;
 &lt;thead&gt;
-&lt;tr&gt;&lt;th&gt;Style&lt;/th&gt;&lt;th&gt;Syntax&lt;/th&gt;&lt;th&gt;Keyboard shortcut&lt;/th&gt;&lt;th&gt;Example&lt;/th&gt;&lt;th&gt;Output&lt;/th&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;th&gt;Feature&lt;/th&gt;&lt;th&gt;Rendered example&lt;/th&gt;&lt;/tr&gt;
 &lt;/thead&gt;
 &lt;tbody&gt;
-&lt;tr&gt;&lt;td&gt;Bold&lt;/td&gt;&lt;td&gt;&lt;code&gt;** **&lt;/code&gt; or &lt;code&gt;__ __&lt;/code&gt;&lt;/td&gt;&lt;td&gt;&lt;kbd&gt;Command&lt;/kbd&gt;+&lt;kbd&gt;B&lt;/kbd&gt; (Mac) or &lt;kbd&gt;Ctrl&lt;/kbd&gt;+&lt;kbd&gt;B&lt;/kbd&gt; (Windows/Linux)&lt;/td&gt;&lt;td&gt;&lt;code&gt;**This is bold text**&lt;/code&gt;&lt;/td&gt;&lt;td&gt;&lt;strong&gt;This is bold text&lt;/strong&gt;&lt;/td&gt;&lt;/tr&gt;
-&lt;tr&gt;&lt;td&gt;Italic&lt;/td&gt;&lt;td&gt;&lt;code&gt;* *&lt;/code&gt; or &lt;code&gt;_ _&lt;/code&gt;     &lt;/td&gt;&lt;td&gt;&lt;kbd&gt;Command&lt;/kbd&gt;+&lt;kbd&gt;I&lt;/kbd&gt; (Mac) or &lt;kbd&gt;Ctrl&lt;/kbd&gt;+&lt;kbd&gt;I&lt;/kbd&gt; (Windows/Linux)&lt;/td&gt;&lt;td&gt;&lt;code&gt;_This text is italicized_&lt;/code&gt;&lt;/td&gt;&lt;td&gt;&lt;em&gt;This text is italicized&lt;/em&gt;&lt;/td&gt;&lt;/tr&gt;
-&lt;tr&gt;&lt;td&gt;Strikethrough&lt;/td&gt;&lt;td&gt;&lt;code&gt;~~ ~~&lt;/code&gt; or &lt;code&gt;~ ~&lt;/code&gt;&lt;/td&gt;&lt;td&gt;None&lt;/td&gt;&lt;td&gt;&lt;code&gt;~~This was mistaken text~~&lt;/code&gt;&lt;/td&gt;&lt;td&gt;&lt;del&gt;This was mistaken text&lt;/del&gt;&lt;/td&gt;&lt;/tr&gt;
-&lt;tr&gt;&lt;td&gt;Bold and nested italic&lt;/td&gt;&lt;td&gt;&lt;code&gt;** **&lt;/code&gt; and &lt;code&gt;_ _&lt;/code&gt;&lt;/td&gt;&lt;td&gt;None&lt;/td&gt;&lt;td&gt;&lt;code&gt;**This text is _extremely_ important**&lt;/code&gt;&lt;/td&gt;&lt;td&gt;&lt;strong&gt;This text is &lt;em&gt;extremely&lt;/em&gt; important&lt;/strong&gt;&lt;/td&gt;&lt;/tr&gt;
-&lt;tr&gt;&lt;td&gt;All bold and italic&lt;/td&gt;&lt;td&gt;&lt;code&gt;*** ***&lt;/code&gt;&lt;/td&gt;&lt;td&gt;None&lt;/td&gt;&lt;td&gt;&lt;code&gt;***All this text is important***&lt;/code&gt;&lt;/td&gt;&lt;td&gt;&lt;strong&gt;&lt;em&gt;All this text is important&lt;/em&gt;&lt;/strong&gt;&lt;/td&gt;&lt;/tr&gt;
-&lt;tr&gt;&lt;td&gt;Subscript&lt;/td&gt;&lt;td&gt;&lt;code&gt;&amp;lt;sub&amp;gt; &amp;lt;/sub&amp;gt;&lt;/code&gt;&lt;/td&gt;&lt;td&gt;None&lt;/td&gt;&lt;td&gt;&lt;code&gt;This is a &amp;lt;sub&amp;gt;subscript&amp;lt;/sub&amp;gt; text&lt;/code&gt;&lt;/td&gt;&lt;td&gt;This is a &lt;sub&gt;subscript&lt;/sub&gt; text&lt;/td&gt;&lt;/tr&gt;
-&lt;tr&gt;&lt;td&gt;Superscript&lt;/td&gt;&lt;td&gt;&lt;code&gt;&amp;lt;sup&amp;gt; &amp;lt;/sup&amp;gt;&lt;/code&gt;&lt;/td&gt;&lt;td&gt;None&lt;/td&gt;&lt;td&gt;&lt;code&gt;This is a &amp;lt;sup&amp;gt;superscript&amp;lt;/sup&amp;gt; text&lt;/code&gt;&lt;/td&gt;&lt;td&gt;This is a &lt;sup&gt;superscript&lt;/sup&gt; text&lt;/td&gt;&lt;/tr&gt;
-&lt;tr&gt;&lt;td&gt;Underline&lt;/td&gt;&lt;td&gt;&lt;code&gt;&amp;lt;ins&amp;gt; &amp;lt;/ins&amp;gt;&lt;/code&gt;&lt;/td&gt;&lt;td&gt;None&lt;/td&gt;&lt;td&gt;&lt;code&gt;This is an &amp;lt;ins&amp;gt;underlined&amp;lt;/ins&amp;gt; text&lt;/code&gt;&lt;/td&gt;&lt;td&gt;This is an &lt;ins&gt;underlined&lt;/ins&gt; text&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;Bold&lt;/td&gt;&lt;td&gt;&lt;strong&gt;This is bold text&lt;/strong&gt;&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;Italic&lt;/td&gt;&lt;td&gt;&lt;em&gt;This text is italicized&lt;/em&gt;&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;Strikethrough&lt;/td&gt;&lt;td&gt;&lt;del&gt;This was mistaken text&lt;/del&gt;&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;Inline code&lt;/td&gt;&lt;td&gt;&lt;code&gt;git status&lt;/code&gt;&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;Link&lt;/td&gt;&lt;td&gt;&lt;a href=&quot;https://openai.com/&quot;&gt;OpenAI&lt;/a&gt;&lt;/td&gt;&lt;/tr&gt;
 &lt;/tbody&gt;
 &lt;/table&gt;
-&lt;h2 id=&quot;quoting-text&quot;&gt;Quoting text&lt;/h2&gt;
-&lt;p&gt;You can quote text with a &lt;kbd&gt;&amp;gt;&lt;/kbd&gt;.&lt;/p&gt;
-&lt;pre class=&quot;markdown&quot;&gt;&lt;code&gt;Text that is not a quote
-
-&amp;gt; Text that is a quote&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;Quoted text is indented with a vertical line on the left and displayed using gray type.&lt;/p&gt;
-&lt;p&gt;&lt;img src=&quot;/assets/images/help/writing/quoted-text-rendered.png&quot; alt=&quot;Screenshot of rendered GitHub Markdown showing the difference between normal and quoted text.&quot; /&gt;&lt;/p&gt;
+&lt;h2 id=&quot;quote-and-alert-style-block&quot;&gt;Quote and alert-style block&lt;/h2&gt;
 &lt;div class=&quot;note&quot;&gt;
 &lt;div class=&quot;title&quot;&gt;
 &lt;p&gt;Note&lt;/p&gt;
 &lt;/div&gt;
-&lt;p&gt;When viewing a conversation, you can automatically quote text in a comment by highlighting the text, then typing &lt;kbd&gt;R&lt;/kbd&gt;. You can quote an entire comment by clicking {% octicon &amp;quot;kebab-horizontal&amp;quot; aria-label=&amp;quot;The horizontal kebab icon&amp;quot; %}, then &lt;strong&gt;Quote reply&lt;/strong&gt;. For more information about keyboard shortcuts, see &lt;a href=&quot;/get-started/accessibility/keyboard-shortcuts&quot;&gt;AUTOTITLE&lt;/a&gt;.&lt;/p&gt;
+&lt;p&gt;This block intentionally uses GitHub-style alert syntax without escaping it.&lt;/p&gt;
 &lt;/div&gt;
-&lt;h2 id=&quot;quoting-code&quot;&gt;Quoting code&lt;/h2&gt;
-&lt;p&gt;You can call out code or a command within a sentence with single backticks. The text within the backticks will not be formatted. You can also press the &lt;kbd&gt;Command&lt;/kbd&gt;+&lt;kbd&gt;E&lt;/kbd&gt; (Mac) or &lt;kbd&gt;Ctrl&lt;/kbd&gt;+&lt;kbd&gt;E&lt;/kbd&gt; (Windows/Linux) keyboard shortcut to insert the backticks for a code block within a line of Markdown.&lt;/p&gt;
-&lt;pre class=&quot;markdown&quot;&gt;&lt;code&gt;Use `git status` to list all new or modified files that haven&amp;#039;t yet been committed.&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;&lt;img src=&quot;/assets/images/help/writing/inline-code-rendered.png&quot; alt=&quot;Screenshot of rendered GitHub Markdown showing that characters surrounded by backticks are shown in a fixed-width typeface, highlighted in light gray.&quot; /&gt;&lt;/p&gt;
-&lt;p&gt;To format code or text into its own distinct block, use triple backticks.&lt;/p&gt;
-&lt;pre class=&quot;markdown&quot;&gt;&lt;code&gt;Some basic Git commands are:
-```
-git status
-git add
-git commit
-```&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;&lt;img src=&quot;/assets/images/help/writing/code-block-rendered.png&quot; alt=&quot;Screenshot of rendered GitHub Markdown showing a simple code block without syntax highlighting.&quot; /&gt;&lt;/p&gt;
-&lt;p&gt;For more information, see &lt;a href=&quot;/get-started/writing-on-github/working-with-advanced-formatting/creating-and-highlighting-code-blocks&quot;&gt;AUTOTITLE&lt;/a&gt;.&lt;/p&gt;
-&lt;p&gt;{% data reusables.user-settings.enabling-fixed-width-fonts %}&lt;/p&gt;
-&lt;h2 id=&quot;supported-color-models&quot;&gt;Supported color models&lt;/h2&gt;
-&lt;p&gt;In issues, pull requests, and discussions, you can call out colors within a sentence by using backticks. A supported color model within backticks will display a visualization of the color.&lt;/p&gt;
-&lt;pre class=&quot;markdown&quot;&gt;&lt;code&gt;The background color is `#ffffff` for light mode and `#000000` for dark mode.&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;&lt;img src=&quot;/assets/images/help/writing/supported-color-models-rendered.png&quot; alt=&quot;Screenshot of rendered GitHub Markdown showing how HEX values within backticks create small circles of color, here white and then black.&quot; /&gt;&lt;/p&gt;
-&lt;p&gt;Here are the currently supported color models.&lt;/p&gt;
-&lt;table&gt;
-&lt;thead&gt;
-&lt;tr&gt;&lt;th&gt;Color&lt;/th&gt;&lt;th&gt;Syntax&lt;/th&gt;&lt;th&gt;Example&lt;/th&gt;&lt;th&gt;Output&lt;/th&gt;&lt;/tr&gt;
-&lt;/thead&gt;
-&lt;tbody&gt;
-&lt;tr&gt;&lt;td&gt;HEX&lt;/td&gt;&lt;td&gt;&lt;code&gt;`#RRGGBB`&lt;/code&gt;&lt;/td&gt;&lt;td&gt;&lt;code&gt;`#0969DA`&lt;/code&gt;&lt;/td&gt;&lt;td&gt;&lt;img src=&quot;/assets/images/help/writing/supported-color-models-hex-rendered.png&quot; alt=&quot;Screenshot of rendered GitHub Markdown showing how HEX value #0969DA appears with a blue circle.&quot; /&gt;&lt;/td&gt;&lt;/tr&gt;
-&lt;tr&gt;&lt;td&gt;RGB&lt;/td&gt;&lt;td&gt;&lt;code&gt;`rgb(R,G,B)`&lt;/code&gt;&lt;/td&gt;&lt;td&gt;&lt;code&gt;`rgb(9, 105, 218)`&lt;/code&gt;&lt;/td&gt;&lt;td&gt;&lt;img src=&quot;/assets/images/help/writing/supported-color-models-rgb-rendered.png&quot; alt=&quot;Screenshot of rendered GitHub Markdown showing how RGB value 9, 105, 218 appears with a blue circle.&quot; /&gt;&lt;/td&gt;&lt;/tr&gt;
-&lt;tr&gt;&lt;td&gt;HSL&lt;/td&gt;&lt;td&gt;&lt;code&gt;`hsl(H,S,L)`&lt;/code&gt;&lt;/td&gt;&lt;td&gt;&lt;code&gt;`hsl(212, 92%, 45%)`&lt;/code&gt;&lt;/td&gt;&lt;td&gt;&lt;img src=&quot;/assets/images/help/writing/supported-color-models-hsl-rendered.png&quot; alt=&quot;Screenshot of rendered GitHub Markdown showing how HSL value 212, 92%, 45% appears with a blue circle.&quot; /&gt;&lt;/td&gt;&lt;/tr&gt;
-&lt;/tbody&gt;
-&lt;/table&gt;
-&lt;div class=&quot;note&quot;&gt;
-&lt;div class=&quot;title&quot;&gt;
-&lt;p&gt;Note&lt;/p&gt;
-&lt;/div&gt;
-&lt;ul&gt;
-&lt;li&gt;A supported color model cannot have any leading or trailing spaces within the backticks.&lt;/li&gt;
-&lt;li&gt;The visualization of the color is only supported in issues, pull requests, and discussions.&lt;/li&gt;
-&lt;/ul&gt;
-&lt;/div&gt;
-&lt;h2 id=&quot;links&quot;&gt;Links&lt;/h2&gt;
-&lt;p&gt;You can create an inline link by wrapping link text in brackets &lt;code&gt;[ ]&lt;/code&gt;, and then wrapping the URL in parentheses &lt;code&gt;( )&lt;/code&gt;. You can also use the keyboard shortcut &lt;kbd&gt;Command&lt;/kbd&gt;+&lt;kbd&gt;K&lt;/kbd&gt; to create a link. When you have text selected, you can paste a URL from your clipboard to automatically create a link from the selection.&lt;/p&gt;
-&lt;p&gt;You can also create a Markdown hyperlink by highlighting the text and using the keyboard shortcut &lt;kbd&gt;Command&lt;/kbd&gt;+&lt;kbd&gt;V&lt;/kbd&gt;. If you&amp;#039;d like to replace the text with the link, use the keyboard shortcut &lt;kbd&gt;Command&lt;/kbd&gt;+&lt;kbd&gt;Shift&lt;/kbd&gt;+&lt;kbd&gt;V&lt;/kbd&gt;.&lt;/p&gt;
-&lt;p&gt;&lt;code&gt;This site was built using [GitHub Pages](https://pages.github.com/).&lt;/code&gt;&lt;/p&gt;
-&lt;p&gt;&lt;img src=&quot;/assets/images/help/writing/link-rendered.png&quot; alt=&quot;Screenshot of rendered GitHub Markdown showing how text within brackets, &amp;quot;GitHub Pages,&amp;quot; appears as a blue hyperlink.&quot; /&gt;&lt;/p&gt;
-&lt;div class=&quot;note&quot;&gt;
-&lt;div class=&quot;title&quot;&gt;
-&lt;p&gt;Note&lt;/p&gt;
-&lt;/div&gt;
-&lt;p&gt;{% data variables.product.github %} automatically creates links when valid URLs are written in a comment. For more information, see &lt;a href=&quot;/get-started/writing-on-github/working-with-advanced-formatting/autolinked-references-and-urls&quot;&gt;AUTOTITLE&lt;/a&gt;.&lt;/p&gt;
-&lt;/div&gt;
-&lt;h2 id=&quot;section-links&quot;&gt;Section links&lt;/h2&gt;
-&lt;p&gt;{% data reusables.repositories.section-links %}&lt;/p&gt;
-&lt;p&gt;If you need to determine the anchor for a heading in a file you are editing, you can use the following basic rules:&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;Letters are converted to lower-case.&lt;/li&gt;
-&lt;li&gt;Spaces are replaced by hyphens (&lt;code&gt;-&lt;/code&gt;). Any other whitespace or punctuation characters are removed.&lt;/li&gt;
-&lt;li&gt;Leading and trailing whitespace are removed.&lt;/li&gt;
-&lt;li&gt;Markup formatting is removed, leaving only the contents (for example, &lt;code&gt;_italics_&lt;/code&gt; becomes &lt;code&gt;italics&lt;/code&gt;).&lt;/li&gt;
-&lt;li&gt;If the automatically generated anchor for a heading is identical to an earlier anchor in the same document, a unique identifier is generated by appending a hyphen and an auto-incrementing integer.&lt;/li&gt;
-&lt;/ul&gt;
-&lt;p&gt;For more detailed information on the requirements of URI fragments, see &lt;a href=&quot;https://www.rfc-editor.org/rfc/rfc3986#section-3.5&quot;&gt;RFC 3986: Uniform Resource Identifier (URI): Generic Syntax, Section 3.5&lt;/a&gt;.&lt;/p&gt;
-&lt;p&gt;The code block below demonstrates the basic rules used to generate anchors from headings in rendered content.&lt;/p&gt;
-&lt;pre class=&quot;markdown&quot;&gt;&lt;code&gt;# Example headings
-
-## Sample Section
-
-## This&amp;#039;ll be a _Helpful_ Section About the Greek Letter Θ!
-A heading containing characters not allowed in fragments, UTF-8 characters, two consecutive spaces between the first and second words, and formatting.
-
-## This heading is not unique in the file
-
-TEXT 1
-
-## This heading is not unique in the file
-
-TEXT 2
-
-# Links to the example headings above
-
-Link to the sample section: [Link Text](#sample-section).
-
-Link to the helpful section: [Link Text](#thisll-be-a-helpful-section-about-the-greek-letter-Θ).
-
-Link to the first non-unique section: [Link Text](#this-heading-is-not-unique-in-the-file).
-
-Link to the second non-unique section: [Link Text](#this-heading-is-not-unique-in-the-file-1).&lt;/code&gt;&lt;/pre&gt;
-&lt;div class=&quot;note&quot;&gt;
-&lt;div class=&quot;title&quot;&gt;
-&lt;p&gt;Note&lt;/p&gt;
-&lt;/div&gt;
-&lt;p&gt;If you edit a heading, or if you change the order of headings with &amp;quot;identical&amp;quot; anchors, you will also need to update any links to those headings as the anchors will change.&lt;/p&gt;
-&lt;/div&gt;
-&lt;h2 id=&quot;relative-links&quot;&gt;Relative links&lt;/h2&gt;
-&lt;p&gt;{% data reusables.repositories.relative-links %}&lt;/p&gt;
-&lt;h2 id=&quot;custom-anchors&quot;&gt;Custom anchors&lt;/h2&gt;
-&lt;p&gt;You can use standard HTML anchor tags (&lt;code&gt;&amp;lt;a name=&amp;quot;unique-anchor-name&amp;quot;&amp;gt;&amp;lt;/a&amp;gt;&lt;/code&gt;) to create navigation anchor points for any location in the document. To avoid ambiguous references, use a unique naming scheme for anchor tags, such as adding a prefix to the &lt;code&gt;name&lt;/code&gt; attribute value.&lt;/p&gt;
-&lt;div class=&quot;note&quot;&gt;
-&lt;div class=&quot;title&quot;&gt;
-&lt;p&gt;Note&lt;/p&gt;
-&lt;/div&gt;
-&lt;p&gt;Custom anchors will not be included in the document outline/Table of Contents.&lt;/p&gt;
-&lt;/div&gt;
-&lt;p&gt;You can link to a custom anchor using the value of the &lt;code&gt;name&lt;/code&gt; attribute you gave the anchor. The syntax is exactly the same as when you link to an anchor that is automatically generated for a heading.&lt;/p&gt;
-&lt;p&gt;For example:&lt;/p&gt;
-&lt;pre class=&quot;markdown&quot;&gt;&lt;code&gt;# Section Heading
-
-Some body text of this section.
-
-&amp;lt;a name=&amp;quot;my-custom-anchor-point&amp;quot;&amp;gt;&amp;lt;/a&amp;gt;
-Some text I want to provide a direct link to, but which doesn&amp;#039;t have its own heading.
-
-(… more content…)
-
-[A link to that custom anchor](#my-custom-anchor-point)&lt;/code&gt;&lt;/pre&gt;
-&lt;div class=&quot;tip&quot;&gt;
-&lt;div class=&quot;title&quot;&gt;
-&lt;p&gt;Tip&lt;/p&gt;
-&lt;/div&gt;
-&lt;p&gt;Custom anchors are not considered by the automatic naming and numbering behavior of automatic heading links.&lt;/p&gt;
-&lt;/div&gt;
-&lt;h2 id=&quot;line-breaks&quot;&gt;Line breaks&lt;/h2&gt;
-&lt;p&gt;If you&amp;#039;re writing in issues, pull requests, or discussions in a repository, {% data variables.product.github %} will render a line break automatically:&lt;/p&gt;
-&lt;pre class=&quot;markdown&quot;&gt;&lt;code&gt;This example
-Will span two lines&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;However, if you are writing in an .md file, the example above would render on one line without a line break. To create a line break in an .md file, you will need to include one of the following:&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;&lt;p&gt;Include two spaces at the end of the first line.&lt;/p&gt;
-&lt;pre&gt;
-This example&amp;nbsp;&amp;nbsp;
-Will span two lines
-&lt;/pre&gt;&lt;/li&gt;
-&lt;li&gt;&lt;p&gt;Include a backslash at the end of the first line.&lt;/p&gt;
-&lt;pre class=&quot;markdown&quot;&gt;&lt;code&gt;This example\
-Will span two lines&lt;/code&gt;&lt;/pre&gt;&lt;/li&gt;
-&lt;li&gt;&lt;p&gt;Include an HTML single line break tag at the end of the first line.&lt;/p&gt;
-&lt;pre class=&quot;markdown&quot;&gt;&lt;code&gt;This example&amp;lt;br/&amp;gt;
-Will span two lines&lt;/code&gt;&lt;/pre&gt;&lt;/li&gt;
-&lt;/ul&gt;
-&lt;p&gt;If you leave a blank line between two lines, both .md files and Markdown in issues, pull requests, and discussions will render the two lines separated by the blank line:&lt;/p&gt;
-&lt;pre class=&quot;markdown&quot;&gt;&lt;code&gt;This example
-
-Will have a blank line separating both lines&lt;/code&gt;&lt;/pre&gt;
-&lt;h2 id=&quot;images&quot;&gt;Images&lt;/h2&gt;
-&lt;p&gt;You can display an image by adding &lt;kbd&gt;!&lt;/kbd&gt; and wrapping the alt text in &lt;code&gt;[ ]&lt;/code&gt;. Alt text is a short text equivalent of the information in the image. Then, wrap the link for the image in parentheses &lt;code&gt;()&lt;/code&gt;.&lt;/p&gt;
-&lt;p&gt;&lt;code&gt;![Screenshot of a comment on a GitHub issue showing an image, added in the Markdown, of an Octocat smiling and raising a tentacle.](https://myoctocat.com/assets/images/base-octocat.svg)&lt;/code&gt;&lt;/p&gt;
-&lt;p&gt;&lt;img src=&quot;/assets/images/help/writing/image-rendered.png&quot; alt=&quot;Screenshot of a comment on a GitHub issue showing an image, added in the Markdown, of an Octocat smiling and raising a tentacle.&quot; /&gt;&lt;/p&gt;
-&lt;p&gt;{% data variables.product.github %} supports embedding images into your issues, pull requests{% ifversion fpt or ghec %}, discussions{% endif %}, comments and &lt;code&gt;.md&lt;/code&gt; files. You can display an image from your repository, add a link to an online image, or upload an image. For more information, see &lt;a href=&quot;#uploading-assets&quot;&gt;Uploading assets&lt;/a&gt;.&lt;/p&gt;
-&lt;div class=&quot;note&quot;&gt;
-&lt;div class=&quot;title&quot;&gt;
-&lt;p&gt;Note&lt;/p&gt;
-&lt;/div&gt;
-&lt;p&gt;When you want to display an image that is in your repository, use relative links instead of absolute links.&lt;/p&gt;
-&lt;/div&gt;
-&lt;p&gt;Here are some examples for using relative links to display an image.&lt;/p&gt;
-&lt;table&gt;
-&lt;thead&gt;
-&lt;tr&gt;&lt;th&gt;Context&lt;/th&gt;&lt;th&gt;Relative Link&lt;/th&gt;&lt;/tr&gt;
-&lt;/thead&gt;
-&lt;tbody&gt;
-&lt;tr&gt;&lt;td&gt;In a &lt;code&gt;.md&lt;/code&gt; file on the same branch&lt;/td&gt;&lt;td&gt;&lt;code&gt;/assets/images/electrocat.png&lt;/code&gt;&lt;/td&gt;&lt;/tr&gt;
-&lt;tr&gt;&lt;td&gt;In a &lt;code&gt;.md&lt;/code&gt; file on another branch&lt;/td&gt;&lt;td&gt;&lt;code&gt;/../main/assets/images/electrocat.png&lt;/code&gt;&lt;/td&gt;&lt;/tr&gt;
-&lt;tr&gt;&lt;td&gt;In issues, pull requests and comments of the repository&lt;/td&gt;&lt;td&gt;&lt;code&gt;../blob/main/assets/images/electrocat.png?raw=true&lt;/code&gt;&lt;/td&gt;&lt;/tr&gt;
-&lt;tr&gt;&lt;td&gt;In a &lt;code&gt;.md&lt;/code&gt; file in another repository&lt;/td&gt;&lt;td&gt;&lt;code&gt;/../../../../github/docs/blob/main/assets/images/electrocat.png&lt;/code&gt;&lt;/td&gt;&lt;/tr&gt;
-&lt;tr&gt;&lt;td&gt;In issues, pull requests and comments of another repository&lt;/td&gt;&lt;td&gt;&lt;code&gt;../../../github/docs/blob/main/assets/images/electrocat.png?raw=true&lt;/code&gt;&lt;/td&gt;&lt;/tr&gt;
-&lt;/tbody&gt;
-&lt;/table&gt;
-&lt;div class=&quot;note&quot;&gt;
-&lt;div class=&quot;title&quot;&gt;
-&lt;p&gt;Note&lt;/p&gt;
-&lt;/div&gt;
-&lt;p&gt;The last two relative links in the table above will work for images in a private repository only if the viewer has at least read access to the private repository that contains these images.&lt;/p&gt;
-&lt;/div&gt;
-&lt;p&gt;For more information, see &lt;a href=&quot;#relative-links&quot;&gt;Relative Links&lt;/a&gt;.&lt;/p&gt;
-&lt;h3 id=&quot;the-picture-element&quot;&gt;The Picture element&lt;/h3&gt;
-&lt;p&gt;The &lt;code&gt;&amp;lt;picture&amp;gt;&lt;/code&gt; HTML element is supported.&lt;/p&gt;
-&lt;h2 id=&quot;lists&quot;&gt;Lists&lt;/h2&gt;
-&lt;p&gt;You can make an unordered list by preceding one or more lines of text with &lt;kbd&gt;-&lt;/kbd&gt;, &lt;kbd&gt;*&lt;/kbd&gt;, or &lt;kbd&gt;+&lt;/kbd&gt;.&lt;/p&gt;
-&lt;pre class=&quot;markdown&quot;&gt;&lt;code&gt;- George Washington
-* John Adams
-+ Thomas Jefferson&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;&lt;img src=&quot;/assets/images/help/writing/unordered-list-rendered.png&quot; alt=&quot;Screenshot of rendered GitHub Markdown showing a bulleted list of the names of the first three American presidents.&quot; /&gt;&lt;/p&gt;
-&lt;p&gt;To order your list, precede each line with a number.&lt;/p&gt;
-&lt;pre class=&quot;markdown&quot;&gt;&lt;code&gt;1. James Madison
-2. James Monroe
-3. John Quincy Adams&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;&lt;img src=&quot;/assets/images/help/writing/ordered-list-rendered.png&quot; alt=&quot;Screenshot of rendered GitHub Markdown showing a numbered list of the names of the fourth, fifth, and sixth American presidents.&quot; /&gt;&lt;/p&gt;
-&lt;h3 id=&quot;nested-lists&quot;&gt;Nested Lists&lt;/h3&gt;
-&lt;p&gt;You can create a nested list by indenting one or more list items below another item.&lt;/p&gt;
-&lt;p&gt;To create a nested list using the web editor on {% data variables.product.github %} or a text editor that uses a monospaced font, like &lt;a href=&quot;https://code.visualstudio.com/&quot;&gt;{% data variables.product.prodname_vscode %}&lt;/a&gt;, you can align your list visually. Type space characters in front of your nested list item until the list marker character (&lt;kbd&gt;-&lt;/kbd&gt; or &lt;kbd&gt;*&lt;/kbd&gt;) lies directly below the first character of the text in the item above it.&lt;/p&gt;
-&lt;pre class=&quot;markdown&quot;&gt;&lt;code&gt;1. First list item
-   - First nested list item
-     - Second nested list item&lt;/code&gt;&lt;/pre&gt;
-&lt;div class=&quot;note&quot;&gt;
-&lt;div class=&quot;title&quot;&gt;
-&lt;p&gt;Note&lt;/p&gt;
-&lt;/div&gt;
-&lt;p&gt;In the web-based editor, you can indent or dedent one or more lines of text by first highlighting the desired lines and then using &lt;kbd&gt;Tab&lt;/kbd&gt; or &lt;kbd&gt;Shift&lt;/kbd&gt;+&lt;kbd&gt;Tab&lt;/kbd&gt; respectively.&lt;/p&gt;
-&lt;/div&gt;
-&lt;p&gt;&lt;img src=&quot;/assets/images/help/writing/nested-list-alignment.png&quot; alt=&quot;Screenshot of Markdown in {% data variables.product.prodname_vscode %} showing indentation of nested numbered lines and bullets.&quot; /&gt;&lt;/p&gt;
-&lt;p&gt;&lt;img src=&quot;/assets/images/help/writing/nested-list-example-1.png&quot; alt=&quot;Screenshot of rendered GitHub Markdown showing a numbered item followed by nested bullets at two different levels of nesting.&quot; /&gt;&lt;/p&gt;
-&lt;p&gt;To create a nested list in the comment editor on {% data variables.product.github %}, which doesn&amp;#039;t use a monospaced font, you can look at the list item immediately above the nested list and count the number of characters that appear before the content of the item. Then type that number of space characters in front of the nested list item.&lt;/p&gt;
-&lt;p&gt;In this example, you could add a nested list item under the list item &lt;code&gt;100. First list item&lt;/code&gt; by indenting the nested list item a minimum of five spaces, since there are five characters (&lt;code&gt;100. &lt;/code&gt;) before &lt;code&gt;First list item&lt;/code&gt;.&lt;/p&gt;
-&lt;pre class=&quot;markdown&quot;&gt;&lt;code&gt;100. First list item
-     - First nested list item&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;&lt;img src=&quot;/assets/images/help/writing/nested-list-example-3.png&quot; alt=&quot;Screenshot of rendered GitHub Markdown showing a numbered item prefaced by the number 100 followed by a bulleted item nested one level.&quot; /&gt;&lt;/p&gt;
-&lt;p&gt;You can create multiple levels of nested lists using the same method. For example, because the first nested list item has seven characters (&lt;code&gt;␣␣␣␣␣-␣&lt;/code&gt;) before the nested list content &lt;code&gt;First nested list item&lt;/code&gt;, you would need to indent the second nested list item by at least two more characters (nine spaces minimum).&lt;/p&gt;
-&lt;pre class=&quot;markdown&quot;&gt;&lt;code&gt;100. First list item
-     - First nested list item
-       - Second nested list item&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;&lt;img src=&quot;/assets/images/help/writing/nested-list-example-2.png&quot; alt=&quot;Screenshot of rendered GitHub Markdown showing a numbered item prefaced by the number 100 followed by bullets at two different levels of nesting.&quot; /&gt;&lt;/p&gt;
-&lt;p&gt;For more examples, see the &lt;a href=&quot;https://github.github.com/gfm/#example-265&quot;&gt;GitHub Flavored Markdown Spec&lt;/a&gt;.&lt;/p&gt;
-&lt;h2 id=&quot;task-lists&quot;&gt;Task lists&lt;/h2&gt;
-&lt;p&gt;{% data reusables.repositories.task-list-markdown %}&lt;/p&gt;
-&lt;p&gt;If a task list item description begins with a parenthesis, you&amp;#039;ll need to escape it with &lt;kbd&gt;\&lt;/kbd&gt;:&lt;/p&gt;
-&lt;p&gt;&lt;code&gt;- [ ] \(Optional) Open a followup issue&lt;/code&gt;&lt;/p&gt;
-&lt;p&gt;For more information, see &lt;a href=&quot;/get-started/writing-on-github/working-with-advanced-formatting/about-task-lists&quot;&gt;AUTOTITLE&lt;/a&gt;.&lt;/p&gt;
-&lt;h2 id=&quot;mentioning-people-and-teams&quot;&gt;Mentioning people and teams&lt;/h2&gt;
-&lt;p&gt;You can mention a person or &lt;a href=&quot;/organizations/organizing-members-into-teams&quot;&gt;team&lt;/a&gt; on {% data variables.product.github %} by typing &lt;kbd&gt;@&lt;/kbd&gt; plus their username or team name. This will trigger a notification and bring their attention to the conversation. People will also receive a notification if you edit a comment to mention their username or team name. For more information about notifications, see &lt;a href=&quot;/account-and-profile/managing-subscriptions-and-notifications-on-github/setting-up-notifications/about-notifications&quot;&gt;AUTOTITLE&lt;/a&gt;.&lt;/p&gt;
-&lt;div class=&quot;note&quot;&gt;
-&lt;div class=&quot;title&quot;&gt;
-&lt;p&gt;Note&lt;/p&gt;
-&lt;/div&gt;
-&lt;p&gt;A person will only be notified about a mention if the person has read access to the repository and, if the repository is owned by an organization, the person is a member of the organization.&lt;/p&gt;
-&lt;/div&gt;
-&lt;p&gt;&lt;code&gt;@github/support What do you think about these updates?&lt;/code&gt;&lt;/p&gt;
-&lt;p&gt;&lt;img src=&quot;/assets/images/help/writing/mention-rendered.png&quot; alt=&quot;Screenshot of rendered GitHub Markdown showing how the team mention &amp;quot;@github/support&amp;quot; renders as bold, clickable text.&quot; /&gt;&lt;/p&gt;
-&lt;p&gt;When you mention a parent team, members of its child teams also receive notifications, simplifying communication with multiple groups of people. For more information, see &lt;a href=&quot;/organizations/organizing-members-into-teams/about-teams&quot;&gt;AUTOTITLE&lt;/a&gt;.&lt;/p&gt;
-&lt;p&gt;Typing an &lt;kbd&gt;@&lt;/kbd&gt; symbol will bring up a list of people or teams on a project. The list filters as you type, so once you find the name of the person or team you are looking for, you can use the arrow keys to select it and press either tab or enter to complete the name. For teams, enter the @organization/team-name and all members of that team will get subscribed to the conversation.&lt;/p&gt;
-&lt;p&gt;{% ifversion enterprise-teams-ga %}&lt;/p&gt;
-&lt;p&gt;You can also mention an enterprise team. Enterprise team slugs use an &lt;code&gt;ent:&lt;/code&gt; prefix in the format &lt;code&gt;@/ent:TEAM-SLUG&lt;/code&gt;, for example &lt;code&gt;@/ent:platform-sre&lt;/code&gt;. You can mention an enterprise team from any organization the team is assigned to. See &lt;a href=&quot;/admin/concepts/enterprise-fundamentals/teams-in-an-enterprise&quot;&gt;AUTOTITLE&lt;/a&gt;.&lt;/p&gt;
-&lt;p&gt;{% endif %}&lt;/p&gt;
-&lt;p&gt;The autocomplete results are restricted to repository collaborators and any other participants on the thread.&lt;/p&gt;
-&lt;h2 id=&quot;referencing-issues-and-pull-requests&quot;&gt;Referencing issues and pull requests&lt;/h2&gt;
-&lt;p&gt;You can bring up a list of suggested issues and pull requests within the repository by typing &lt;kbd&gt;#&lt;/kbd&gt;. Type the issue or pull request number or title to filter the list, and then press either tab or enter to complete the highlighted result.&lt;/p&gt;
-&lt;p&gt;For more information, see &lt;a href=&quot;/get-started/writing-on-github/working-with-advanced-formatting/autolinked-references-and-urls&quot;&gt;AUTOTITLE&lt;/a&gt;.&lt;/p&gt;
-&lt;h2 id=&quot;referencing-external-resources&quot;&gt;Referencing external resources&lt;/h2&gt;
-&lt;p&gt;{% data reusables.repositories.autolink-references %}&lt;/p&gt;
-&lt;h2 id=&quot;uploading-assets&quot;&gt;Uploading assets&lt;/h2&gt;
-&lt;p&gt;You can upload assets like images by dragging and dropping, selecting from a file browser, or pasting. You can upload assets to issues, pull requests, comments, and &lt;code&gt;.md&lt;/code&gt; files in your repository.&lt;/p&gt;
-&lt;h2 id=&quot;using-emojis&quot;&gt;Using emojis&lt;/h2&gt;
-&lt;p&gt;You can add emoji to your writing by typing &lt;code&gt;:EMOJICODE:&lt;/code&gt;, a colon followed by the name of the emoji.&lt;/p&gt;
-&lt;p&gt;&lt;code&gt;@octocat :+1: This PR looks great - it&amp;#039;s ready to merge! :shipit:&lt;/code&gt;&lt;/p&gt;
-&lt;p&gt;&lt;img src=&quot;/assets/images/help/writing/emoji-rendered.png&quot; alt=&quot;Screenshot of rendered GitHub Markdown showing how emoji codes for +1 and shipit render visually as emoji.&quot; /&gt;&lt;/p&gt;
-&lt;p&gt;Typing &lt;kbd&gt;:&lt;/kbd&gt; will bring up a list of suggested emoji. The list will filter as you type, so once you find the emoji you&amp;#039;re looking for, press &lt;strong&gt;Tab&lt;/strong&gt; or &lt;strong&gt;Enter&lt;/strong&gt; to complete the highlighted result.&lt;/p&gt;
-&lt;p&gt;For a full list of available emoji and codes, see &lt;a href=&quot;https://github.com/ikatyang/emoji-cheat-sheet/blob/github-actions-auto-update/README.md&quot;&gt;the Emoji-Cheat-Sheet&lt;/a&gt;.&lt;/p&gt;
-&lt;h2 id=&quot;paragraphs&quot;&gt;Paragraphs&lt;/h2&gt;
-&lt;p&gt;You can create a new paragraph by leaving a blank line between lines of text.&lt;/p&gt;
-&lt;h2 id=&quot;footnotes&quot;&gt;Footnotes&lt;/h2&gt;
-&lt;p&gt;You can add footnotes to your content by using this bracket syntax:&lt;/p&gt;
-&lt;pre class=&quot;text&quot;&gt;&lt;code&gt;Here is a simple footnote[^1].
-
-A footnote can also have multiple lines[^2].
-
-[^1]: My reference.
-[^2]: To add line breaks within a footnote, add 2 spaces to the end of a line.&#32;&#32;
-This is a second line.&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;The footnote will render like this:&lt;/p&gt;
-&lt;p&gt;&lt;img src=&quot;/assets/images/help/writing/footnote-rendered.png&quot; alt=&quot;Screenshot of rendered Markdown showing superscript numbers used to indicate footnotes, along with optional line breaks inside a note.&quot; /&gt;&lt;/p&gt;
-&lt;div class=&quot;note&quot;&gt;
-&lt;div class=&quot;title&quot;&gt;
-&lt;p&gt;Note&lt;/p&gt;
-&lt;/div&gt;
-&lt;p&gt;The position of a footnote in your Markdown does not influence where the footnote will be rendered. You can write a footnote right after your reference to the footnote, and the footnote will still render at the bottom of the Markdown. Footnotes are not supported in wikis.&lt;/p&gt;
-&lt;/div&gt;
-&lt;h2 id=&quot;alerts&quot;&gt;Alerts&lt;/h2&gt;
-&lt;p&gt;&lt;strong&gt;Alerts&lt;/strong&gt;, also sometimes known as &lt;strong&gt;callouts&lt;/strong&gt; or &lt;strong&gt;admonitions&lt;/strong&gt;, are a Markdown extension based on the blockquote syntax that you can use to emphasize critical information. On {% data variables.product.github %}, they are displayed with distinctive colors and icons to indicate the significance of the content.&lt;/p&gt;
-&lt;p&gt;Use alerts only when they are crucial for user success and limit them to one or two per article to prevent overloading the reader. Additionally, you should avoid placing alerts consecutively. Alerts cannot be nested within other elements.&lt;/p&gt;
-&lt;p&gt;To add an alert, use a special blockquote line specifying the alert type, followed by the alert information in a standard blockquote. Five types of alerts are available:&lt;/p&gt;
-&lt;pre class=&quot;markdown&quot;&gt;&lt;code&gt;&amp;gt; [!NOTE]
-&amp;gt; Useful information that users should know, even when skimming content.
-
-&amp;gt; [!TIP]
-&amp;gt; Helpful advice for doing things better or more easily.
-
-&amp;gt; [!IMPORTANT]
-&amp;gt; Key information users need to know to achieve their goal.
-
-&amp;gt; [!WARNING]
-&amp;gt; Urgent info that needs immediate user attention to avoid problems.
-
-&amp;gt; [!CAUTION]
-&amp;gt; Advises about risks or negative outcomes of certain actions.&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;Here are the rendered alerts:&lt;/p&gt;
-&lt;p&gt;&lt;img src=&quot;/assets/images/help/writing/alerts-rendered.png&quot; alt=&quot;Screenshot of rendered Markdown alerts showing how Note, Tip, Important, Warning, and Caution render with different colored text and icons.&quot; /&gt;&lt;/p&gt;
-&lt;h2 id=&quot;hiding-content-with-comments&quot;&gt;Hiding content with comments&lt;/h2&gt;
-&lt;p&gt;You can tell {% data variables.product.github %} to hide content from the rendered Markdown by placing the content in an HTML comment.&lt;/p&gt;
-&lt;pre class=&quot;text&quot;&gt;&lt;code&gt;&amp;lt;!-- This content will not appear in the rendered Markdown --&amp;gt;&lt;/code&gt;&lt;/pre&gt;
-&lt;h2 id=&quot;ignoring-markdown-formatting&quot;&gt;Ignoring Markdown formatting&lt;/h2&gt;
-&lt;p&gt;You can tell {% data variables.product.github %} to ignore (or escape) Markdown formatting by using &lt;kbd&gt;\&lt;/kbd&gt; before the Markdown character.&lt;/p&gt;
-&lt;p&gt;&lt;code&gt;Let&amp;#039;s rename \*our-new-project\* to \*our-old-project\*.&lt;/code&gt;&lt;/p&gt;
-&lt;p&gt;&lt;img src=&quot;/assets/images/help/writing/escaped-character-rendered.png&quot; alt=&quot;Screenshot of rendered GitHub Markdown showing how backslashes prevent the conversion of asterisks to italics.&quot; /&gt;&lt;/p&gt;
-&lt;p&gt;For more information on backslashes, see Daring Fireball&amp;#039;s &lt;a href=&quot;https://daringfireball.net/projects/markdown/syntax#backslash&quot;&gt;Markdown Syntax&lt;/a&gt;.&lt;/p&gt;
-&lt;div class=&quot;note&quot;&gt;
-&lt;div class=&quot;title&quot;&gt;
-&lt;p&gt;Note&lt;/p&gt;
-&lt;/div&gt;
-&lt;p&gt;The Markdown formatting will not be ignored in the title of an issue or a pull request.&lt;/p&gt;
-&lt;/div&gt;
-&lt;h2 id=&quot;disabling-markdown-rendering&quot;&gt;Disabling Markdown rendering&lt;/h2&gt;
-&lt;p&gt;{% data reusables.repositories.disabling-markdown-rendering %}&lt;/p&gt;
-&lt;h2 id=&quot;further-reading&quot;&gt;Further reading&lt;/h2&gt;
-&lt;ul&gt;
-&lt;li&gt;&lt;a href=&quot;https://github.github.com/gfm/&quot;&gt;{% data variables.product.prodname_dotcom %} Flavored Markdown Spec&lt;/a&gt;&lt;/li&gt;
-&lt;li&gt;&lt;a href=&quot;/get-started/writing-on-github/getting-started-with-writing-and-formatting-on-github/about-writing-and-formatting-on-github&quot;&gt;AUTOTITLE&lt;/a&gt;&lt;/li&gt;
-&lt;li&gt;&lt;a href=&quot;/get-started/writing-on-github/working-with-advanced-formatting&quot;&gt;AUTOTITLE&lt;/a&gt;&lt;/li&gt;
-&lt;li&gt;&lt;a href=&quot;/get-started/writing-on-github/getting-started-with-writing-and-formatting-on-github/quickstart-for-writing-on-github&quot;&gt;AUTOTITLE&lt;/a&gt;&lt;/li&gt;
-&lt;/ul&gt;&lt;/body&gt;&lt;/html&gt;</pre></section><section class="conversion-pane" id="markdown-github-writing-formatting-haskell"><div class="pane-head"><span class="pane-title">Haskell HTML</span><span class="pane-status status-ok">ok</span></div><iframe class="render-frame" data-sync-group="markdown-github-writing-formatting" title="GitHub writing and formatting syntax Haskell Pandoc HTML" src="outputs/markdown-github-writing-formatting/haskell.html"></iframe><pre class="source-box" data-sync-group="markdown-github-writing-formatting">&lt;!DOCTYPE html&gt;
+&lt;h2 id=&quot;autolinks-and-references&quot;&gt;Autolinks and references&lt;/h2&gt;
+&lt;p&gt;See &lt;a href=&quot;https://github.github.com/gfm/&quot; class=&quot;uri&quot;&gt;https://github.github.com/gfm/&lt;/a&gt; and &lt;a href=&quot;https://spec.commonmark.org/&quot;&gt;the CommonMark spec&lt;/a&gt;.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</pre></section><section class="conversion-pane" id="markdown-github-rendered-syntax-haskell"><div class="pane-head"><span class="pane-title">Haskell HTML</span><span class="pane-status status-ok">ok</span></div><iframe class="render-frame" data-sync-group="markdown-github-rendered-syntax" title="Rendered GitHub syntax packet Haskell Pandoc HTML" src="outputs/markdown-github-rendered-syntax/haskell.html"></iframe><pre class="source-box" data-sync-group="markdown-github-rendered-syntax">&lt;!DOCTYPE html&gt;
 &lt;html xmlns=&quot;http://www.w3.org/1999/xhtml&quot;&gt;
 &lt;head&gt;
   &lt;meta charset=&quot;utf-8&quot; /&gt;
@@ -113286,748 +112144,71 @@ This is a second line.&lt;/code&gt;&lt;/pre&gt;
       vertical-align: middle;
     }
     .display.math{display: block; text-align: center; margin: 0.5rem auto;}
-    /* CSS for syntax highlighting */
-    html { -webkit-text-size-adjust: 100%; }
-    pre &gt; code.sourceCode { white-space: pre; position: relative; }
-    pre &gt; code.sourceCode &gt; span { display: inline-block; line-height: 1.25; }
-    pre &gt; code.sourceCode &gt; span:empty { height: 1.2em; }
-    .sourceCode { overflow: visible; }
-    code.sourceCode &gt; span { color: inherit; text-decoration: inherit; }
-    div.sourceCode { margin: 1em 0; }
-    pre.sourceCode { margin: 0; }
-    @media screen {
-    div.sourceCode { overflow: auto; }
-    }
-    @media print {
-    pre &gt; code.sourceCode { white-space: pre-wrap; }
-    pre &gt; code.sourceCode &gt; span { text-indent: -5em; padding-left: 5em; }
-    }
-    pre.numberSource code
-      { counter-reset: source-line 0; }
-    pre.numberSource code &gt; span
-      { position: relative; left: -4em; counter-increment: source-line; }
-    pre.numberSource code &gt; span &gt; a:first-child::before
-      { content: counter(source-line);
-        position: relative; left: -1em; text-align: right; vertical-align: baseline;
-        border: none; display: inline-block;
-        -webkit-touch-callout: none; -webkit-user-select: none;
-        -khtml-user-select: none; -moz-user-select: none;
-        -ms-user-select: none; user-select: none;
-        padding: 0 4px; width: 4em;
-        color: #aaaaaa;
-      }
-    pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa;  padding-left: 4px; }
-    div.sourceCode
-      {   }
-    @media screen {
-    pre &gt; code.sourceCode &gt; span &gt; a:first-child::before { text-decoration: underline; }
-    }
-    code span.al { color: #ff0000; font-weight: bold; } /* Alert */
-    code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } /* Annotation */
-    code span.at { color: #7d9029; } /* Attribute */
-    code span.bn { color: #40a070; } /* BaseN */
-    code span.bu { color: #008000; } /* BuiltIn */
-    code span.cf { color: #007020; font-weight: bold; } /* ControlFlow */
-    code span.ch { color: #4070a0; } /* Char */
-    code span.cn { color: #880000; } /* Constant */
-    code span.co { color: #60a0b0; font-style: italic; } /* Comment */
-    code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } /* CommentVar */
-    code span.do { color: #ba2121; font-style: italic; } /* Documentation */
-    code span.dt { color: #902000; } /* DataType */
-    code span.dv { color: #40a070; } /* DecVal */
-    code span.er { color: #ff0000; font-weight: bold; } /* Error */
-    code span.ex { } /* Extension */
-    code span.fl { color: #40a070; } /* Float */
-    code span.fu { color: #06287e; } /* Function */
-    code span.im { color: #008000; font-weight: bold; } /* Import */
-    code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Information */
-    code span.kw { color: #007020; font-weight: bold; } /* Keyword */
-    code span.op { color: #666666; } /* Operator */
-    code span.ot { color: #007020; } /* Other */
-    code span.pp { color: #bc7a00; } /* Preprocessor */
-    code span.sc { color: #4070a0; } /* SpecialChar */
-    code span.ss { color: #bb6688; } /* SpecialString */
-    code span.st { color: #4070a0; } /* String */
-    code span.va { color: #19177c; } /* Variable */
-    code span.vs { color: #4070a0; } /* VerbatimString */
-    code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warning */
   &lt;/style&gt;
 &lt;/head&gt;
 &lt;body&gt;
 &lt;header id=&quot;title-block-header&quot;&gt;
 &lt;h1 class=&quot;title&quot;&gt;Haskell Pandoc output&lt;/h1&gt;
 &lt;/header&gt;
-&lt;hr /&gt;
-&lt;p&gt;title: Basic writing and formatting syntax intro: Create
-sophisticated formatting for your prose and code on GitHub with simple
-syntax. product: &#039;{% data reusables.gated-features.markdown-ui %}&#039;
-redirect_from:&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;/articles/basic-writing-and-formatting-syntax&lt;/li&gt;
-&lt;li&gt;/github/writing-on-github/basic-writing-and-formatting-syntax&lt;/li&gt;
-&lt;li&gt;/github/writing-on-github/getting-started-with-writing-and-formatting-on-github/basic-writing-and-formatting-syntax
-versions: fpt: &#039;&lt;em&gt;&#039; ghes: &#039;&lt;/em&gt;&#039; ghec: &#039;*&#039; shortTitle: Basic
-formatting syntax category:&lt;/li&gt;
-&lt;li&gt;&lt;h2 id=&quot;write-and-format-content&quot;&gt;Write and format content&lt;/h2&gt;
-&lt;h2 id=&quot;headings&quot;&gt;Headings&lt;/h2&gt;&lt;/li&gt;
+&lt;h1 id=&quot;github-flavored-markdown-feature-packet&quot;&gt;GitHub Flavored
+Markdown feature packet&lt;/h1&gt;
+&lt;p&gt;This paragraph uses &lt;strong&gt;bold&lt;/strong&gt;, &lt;em&gt;italic&lt;/em&gt;,
+&lt;del&gt;strikethrough&lt;/del&gt;, &lt;code&gt;inline code&lt;/code&gt;, a bare URL &lt;a
+href=&quot;https://github.com/openai&quot;
+class=&quot;uri&quot;&gt;https://github.com/openai&lt;/a&gt;, and a mention-like token
+@octocat.&lt;/p&gt;
+&lt;h2 id=&quot;task-list&quot;&gt;Task list&lt;/h2&gt;
+&lt;ul class=&quot;task-list&quot;&gt;
+&lt;li&gt;&lt;label&gt;&lt;input type=&quot;checkbox&quot; checked=&quot;&quot; /&gt;Parse GFM task list
+syntax&lt;/label&gt;&lt;/li&gt;
+&lt;li&gt;&lt;label&gt;&lt;input type=&quot;checkbox&quot; /&gt;Preserve unchecked
+tasks&lt;/label&gt;&lt;/li&gt;
+&lt;li&gt;&lt;label&gt;&lt;input type=&quot;checkbox&quot; checked=&quot;&quot; /&gt;Render nested formatting
+with &lt;strong&gt;bold and &lt;em&gt;italic&lt;/em&gt; text&lt;/strong&gt;&lt;/label&gt;&lt;/li&gt;
 &lt;/ul&gt;
-&lt;p&gt;To create a heading, add one to six &lt;kbd&gt;#&lt;/kbd&gt; symbols before your
-heading text. The number of &lt;kbd&gt;#&lt;/kbd&gt; you use will determine the
-hierarchy level and typeface size of the heading.&lt;/p&gt;
-&lt;div class=&quot;sourceCode&quot; id=&quot;cb1&quot;&gt;&lt;pre
-class=&quot;sourceCode markdown&quot;&gt;&lt;code class=&quot;sourceCode markdown&quot;&gt;&lt;span id=&quot;cb1-1&quot;&gt;&lt;a href=&quot;#cb1-1&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;&lt;span class=&quot;fu&quot;&gt;# A first-level heading&lt;/span&gt;&lt;/span&gt;
-&lt;span id=&quot;cb1-2&quot;&gt;&lt;a href=&quot;#cb1-2&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;&lt;span class=&quot;fu&quot;&gt;## A second-level heading&lt;/span&gt;&lt;/span&gt;
-&lt;span id=&quot;cb1-3&quot;&gt;&lt;a href=&quot;#cb1-3&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;&lt;span class=&quot;fu&quot;&gt;### A third-level heading&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
-&lt;p&gt;&lt;img src=&quot;/assets/images/help/writing/headings-rendered.png&quot;
-alt=&quot;Screenshot of rendered GitHub Markdown showing sample h1, h2, and h3 headers, which descend in type size and visual weight to show hierarchy level.&quot; /&gt;&lt;/p&gt;
-&lt;p&gt;When you use two or more headings, GitHub automatically generates a
-table of contents that you can access by clicking the &quot;Outline&quot; menu
-icon {% octicon &quot;list-unordered&quot; aria-label=&quot;Table of Contents&quot; %}
-within the file header. Each heading title is listed in the table of
-contents and you can click a title to navigate to the selected
-section.&lt;/p&gt;
-&lt;p&gt;&lt;img src=&quot;/assets/images/help/repository/headings-toc.png&quot;
-alt=&quot;Screenshot of a README file with the drop-down menu for the table of contents exposed. The table of contents icon is outlined in dark orange.&quot; /&gt;&lt;/p&gt;
-&lt;h2 id=&quot;styling-text&quot;&gt;Styling text&lt;/h2&gt;
-&lt;p&gt;You can indicate emphasis with bold, italic, strikethrough,
-subscript, or superscript text in comment fields and &lt;code&gt;.md&lt;/code&gt;
-files.&lt;/p&gt;
+&lt;h2 id=&quot;table-syntax&quot;&gt;Table syntax&lt;/h2&gt;
 &lt;table&gt;
-&lt;colgroup&gt;
-&lt;col style=&quot;width: 20%&quot; /&gt;
-&lt;col style=&quot;width: 20%&quot; /&gt;
-&lt;col style=&quot;width: 20%&quot; /&gt;
-&lt;col style=&quot;width: 20%&quot; /&gt;
-&lt;col style=&quot;width: 20%&quot; /&gt;
-&lt;/colgroup&gt;
 &lt;thead&gt;
 &lt;tr&gt;
-&lt;th&gt;Style&lt;/th&gt;
-&lt;th&gt;Syntax&lt;/th&gt;
-&lt;th&gt;Keyboard shortcut&lt;/th&gt;
-&lt;th&gt;Example&lt;/th&gt;
-&lt;th&gt;Output&lt;/th&gt;
+&lt;th&gt;Feature&lt;/th&gt;
+&lt;th&gt;Rendered example&lt;/th&gt;
 &lt;/tr&gt;
 &lt;/thead&gt;
 &lt;tbody&gt;
 &lt;tr&gt;
 &lt;td&gt;Bold&lt;/td&gt;
-&lt;td&gt;&lt;code&gt;** **&lt;/code&gt; or &lt;code&gt;__ __&lt;/code&gt;&lt;/td&gt;
-&lt;td&gt;&lt;kbd&gt;Command&lt;/kbd&gt;+&lt;kbd&gt;B&lt;/kbd&gt; (Mac) or
-&lt;kbd&gt;Ctrl&lt;/kbd&gt;+&lt;kbd&gt;B&lt;/kbd&gt; (Windows/Linux)&lt;/td&gt;
-&lt;td&gt;&lt;code&gt;**This is bold text**&lt;/code&gt;&lt;/td&gt;
 &lt;td&gt;&lt;strong&gt;This is bold text&lt;/strong&gt;&lt;/td&gt;
 &lt;/tr&gt;
 &lt;tr&gt;
 &lt;td&gt;Italic&lt;/td&gt;
-&lt;td&gt;&lt;code&gt;* *&lt;/code&gt; or &lt;code&gt;_ _&lt;/code&gt;     &lt;/td&gt;
-&lt;td&gt;&lt;kbd&gt;Command&lt;/kbd&gt;+&lt;kbd&gt;I&lt;/kbd&gt; (Mac) or
-&lt;kbd&gt;Ctrl&lt;/kbd&gt;+&lt;kbd&gt;I&lt;/kbd&gt; (Windows/Linux)&lt;/td&gt;
-&lt;td&gt;&lt;code&gt;_This text is italicized_&lt;/code&gt;&lt;/td&gt;
 &lt;td&gt;&lt;em&gt;This text is italicized&lt;/em&gt;&lt;/td&gt;
 &lt;/tr&gt;
 &lt;tr&gt;
 &lt;td&gt;Strikethrough&lt;/td&gt;
-&lt;td&gt;&lt;code&gt;~~ ~~&lt;/code&gt; or &lt;code&gt;~ ~&lt;/code&gt;&lt;/td&gt;
-&lt;td&gt;None&lt;/td&gt;
-&lt;td&gt;&lt;code&gt;~~This was mistaken text~~&lt;/code&gt;&lt;/td&gt;
 &lt;td&gt;&lt;del&gt;This was mistaken text&lt;/del&gt;&lt;/td&gt;
 &lt;/tr&gt;
 &lt;tr&gt;
-&lt;td&gt;Bold and nested italic&lt;/td&gt;
-&lt;td&gt;&lt;code&gt;** **&lt;/code&gt; and &lt;code&gt;_ _&lt;/code&gt;&lt;/td&gt;
-&lt;td&gt;None&lt;/td&gt;
-&lt;td&gt;&lt;code&gt;**This text is _extremely_ important**&lt;/code&gt;&lt;/td&gt;
-&lt;td&gt;&lt;strong&gt;This text is &lt;em&gt;extremely&lt;/em&gt; important&lt;/strong&gt;&lt;/td&gt;
+&lt;td&gt;Inline code&lt;/td&gt;
+&lt;td&gt;&lt;code&gt;git status&lt;/code&gt;&lt;/td&gt;
 &lt;/tr&gt;
 &lt;tr&gt;
-&lt;td&gt;All bold and italic&lt;/td&gt;
-&lt;td&gt;&lt;code&gt;*** ***&lt;/code&gt;&lt;/td&gt;
-&lt;td&gt;None&lt;/td&gt;
-&lt;td&gt;&lt;code&gt;***All this text is important***&lt;/code&gt;&lt;/td&gt;
-&lt;td&gt;&lt;strong&gt;&lt;em&gt;All this text is important&lt;/em&gt;&lt;/strong&gt;&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;Subscript&lt;/td&gt;
-&lt;td&gt;&lt;code&gt;&amp;lt;sub&amp;gt; &amp;lt;/sub&amp;gt;&lt;/code&gt;&lt;/td&gt;
-&lt;td&gt;None&lt;/td&gt;
-&lt;td&gt;&lt;code&gt;This is a &amp;lt;sub&amp;gt;subscript&amp;lt;/sub&amp;gt; text&lt;/code&gt;&lt;/td&gt;
-&lt;td&gt;This is a &lt;sub&gt;subscript&lt;/sub&gt; text&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;Superscript&lt;/td&gt;
-&lt;td&gt;&lt;code&gt;&amp;lt;sup&amp;gt; &amp;lt;/sup&amp;gt;&lt;/code&gt;&lt;/td&gt;
-&lt;td&gt;None&lt;/td&gt;
-&lt;td&gt;&lt;code&gt;This is a &amp;lt;sup&amp;gt;superscript&amp;lt;/sup&amp;gt; text&lt;/code&gt;&lt;/td&gt;
-&lt;td&gt;This is a &lt;sup&gt;superscript&lt;/sup&gt; text&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;Underline&lt;/td&gt;
-&lt;td&gt;&lt;code&gt;&amp;lt;ins&amp;gt; &amp;lt;/ins&amp;gt;&lt;/code&gt;&lt;/td&gt;
-&lt;td&gt;None&lt;/td&gt;
-&lt;td&gt;&lt;code&gt;This is an &amp;lt;ins&amp;gt;underlined&amp;lt;/ins&amp;gt; text&lt;/code&gt;&lt;/td&gt;
-&lt;td&gt;This is an &lt;ins&gt;underlined&lt;/ins&gt; text&lt;/td&gt;
+&lt;td&gt;Link&lt;/td&gt;
+&lt;td&gt;&lt;a href=&quot;https://openai.com/&quot;&gt;OpenAI&lt;/a&gt;&lt;/td&gt;
 &lt;/tr&gt;
 &lt;/tbody&gt;
 &lt;/table&gt;
-&lt;h2 id=&quot;quoting-text&quot;&gt;Quoting text&lt;/h2&gt;
-&lt;p&gt;You can quote text with a &lt;kbd&gt;&amp;gt;&lt;/kbd&gt;.&lt;/p&gt;
-&lt;div class=&quot;sourceCode&quot; id=&quot;cb2&quot;&gt;&lt;pre
-class=&quot;sourceCode markdown&quot;&gt;&lt;code class=&quot;sourceCode markdown&quot;&gt;&lt;span id=&quot;cb2-1&quot;&gt;&lt;a href=&quot;#cb2-1&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;Text that is not a quote&lt;/span&gt;
-&lt;span id=&quot;cb2-2&quot;&gt;&lt;a href=&quot;#cb2-2&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;&lt;/span&gt;
-&lt;span id=&quot;cb2-3&quot;&gt;&lt;a href=&quot;#cb2-3&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;&lt;span class=&quot;at&quot;&gt;&amp;gt; Text that is a quote&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
-&lt;p&gt;Quoted text is indented with a vertical line on the left and
-displayed using gray type.&lt;/p&gt;
-&lt;p&gt;&lt;img src=&quot;/assets/images/help/writing/quoted-text-rendered.png&quot;
-alt=&quot;Screenshot of rendered GitHub Markdown showing the difference between normal and quoted text.&quot; /&gt;&lt;/p&gt;
+&lt;h2 id=&quot;quote-and-alert-style-block&quot;&gt;Quote and alert-style block&lt;/h2&gt;
 &lt;div class=&quot;note&quot;&gt;
 &lt;div class=&quot;title&quot;&gt;
 &lt;p&gt;Note&lt;/p&gt;
 &lt;/div&gt;
-&lt;p&gt;When viewing a conversation, you can automatically quote text in a
-comment by highlighting the text, then typing &lt;kbd&gt;R&lt;/kbd&gt;. You can
-quote an entire comment by clicking {% octicon &quot;kebab-horizontal&quot;
-aria-label=&quot;The horizontal kebab icon&quot; %}, then &lt;strong&gt;Quote
-reply&lt;/strong&gt;. For more information about keyboard shortcuts, see &lt;a
-href=&quot;/get-started/accessibility/keyboard-shortcuts&quot;&gt;AUTOTITLE&lt;/a&gt;.&lt;/p&gt;
+&lt;p&gt;This block intentionally uses GitHub-style alert syntax without
+escaping it.&lt;/p&gt;
 &lt;/div&gt;
-&lt;h2 id=&quot;quoting-code&quot;&gt;Quoting code&lt;/h2&gt;
-&lt;p&gt;You can call out code or a command within a sentence with single
-backticks. The text within the backticks will not be formatted. You can
-also press the &lt;kbd&gt;Command&lt;/kbd&gt;+&lt;kbd&gt;E&lt;/kbd&gt; (Mac) or
-&lt;kbd&gt;Ctrl&lt;/kbd&gt;+&lt;kbd&gt;E&lt;/kbd&gt; (Windows/Linux) keyboard shortcut to insert
-the backticks for a code block within a line of Markdown.&lt;/p&gt;
-&lt;div class=&quot;sourceCode&quot; id=&quot;cb3&quot;&gt;&lt;pre
-class=&quot;sourceCode markdown&quot;&gt;&lt;code class=&quot;sourceCode markdown&quot;&gt;&lt;span id=&quot;cb3-1&quot;&gt;&lt;a href=&quot;#cb3-1&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;Use &lt;span class=&quot;in&quot;&gt;`git status`&lt;/span&gt; to list all new or modified files that haven&amp;#39;t yet been committed.&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
-&lt;p&gt;&lt;img src=&quot;/assets/images/help/writing/inline-code-rendered.png&quot;
-alt=&quot;Screenshot of rendered GitHub Markdown showing that characters surrounded by backticks are shown in a fixed-width typeface, highlighted in light gray.&quot; /&gt;&lt;/p&gt;
-&lt;p&gt;To format code or text into its own distinct block, use triple
-backticks.&lt;/p&gt;
-&lt;div class=&quot;sourceCode&quot; id=&quot;cb4&quot;&gt;&lt;pre
-class=&quot;sourceCode markdown&quot;&gt;&lt;code class=&quot;sourceCode markdown&quot;&gt;&lt;span id=&quot;cb4-1&quot;&gt;&lt;a href=&quot;#cb4-1&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;&lt;span class=&quot;an&quot;&gt;Some basic Git commands are:&lt;/span&gt;&lt;/span&gt;
-&lt;span id=&quot;cb4-2&quot;&gt;&lt;a href=&quot;#cb4-2&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;&lt;span class=&quot;in&quot;&gt;```&lt;/span&gt;&lt;/span&gt;
-&lt;span id=&quot;cb4-3&quot;&gt;&lt;a href=&quot;#cb4-3&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;&lt;span class=&quot;in&quot;&gt;git status&lt;/span&gt;&lt;/span&gt;
-&lt;span id=&quot;cb4-4&quot;&gt;&lt;a href=&quot;#cb4-4&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;&lt;span class=&quot;in&quot;&gt;git add&lt;/span&gt;&lt;/span&gt;
-&lt;span id=&quot;cb4-5&quot;&gt;&lt;a href=&quot;#cb4-5&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;&lt;span class=&quot;in&quot;&gt;git commit&lt;/span&gt;&lt;/span&gt;
-&lt;span id=&quot;cb4-6&quot;&gt;&lt;a href=&quot;#cb4-6&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;&lt;span class=&quot;in&quot;&gt;```&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
-&lt;p&gt;&lt;img src=&quot;/assets/images/help/writing/code-block-rendered.png&quot;
-alt=&quot;Screenshot of rendered GitHub Markdown showing a simple code block without syntax highlighting.&quot; /&gt;&lt;/p&gt;
-&lt;p&gt;For more information, see &lt;a
-href=&quot;/get-started/writing-on-github/working-with-advanced-formatting/creating-and-highlighting-code-blocks&quot;&gt;AUTOTITLE&lt;/a&gt;.&lt;/p&gt;
-&lt;p&gt;{% data reusables.user-settings.enabling-fixed-width-fonts %}&lt;/p&gt;
-&lt;h2 id=&quot;supported-color-models&quot;&gt;Supported color models&lt;/h2&gt;
-&lt;p&gt;In issues, pull requests, and discussions, you can call out colors
-within a sentence by using backticks. A supported color model within
-backticks will display a visualization of the color.&lt;/p&gt;
-&lt;div class=&quot;sourceCode&quot; id=&quot;cb5&quot;&gt;&lt;pre
-class=&quot;sourceCode markdown&quot;&gt;&lt;code class=&quot;sourceCode markdown&quot;&gt;&lt;span id=&quot;cb5-1&quot;&gt;&lt;a href=&quot;#cb5-1&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;The background color is &lt;span class=&quot;in&quot;&gt;`#ffffff`&lt;/span&gt; for light mode and &lt;span class=&quot;in&quot;&gt;`#000000`&lt;/span&gt; for dark mode.&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
-&lt;p&gt;&lt;img
-src=&quot;/assets/images/help/writing/supported-color-models-rendered.png&quot;
-alt=&quot;Screenshot of rendered GitHub Markdown showing how HEX values within backticks create small circles of color, here white and then black.&quot; /&gt;&lt;/p&gt;
-&lt;p&gt;Here are the currently supported color models.&lt;/p&gt;
-&lt;table&gt;
-&lt;colgroup&gt;
-&lt;col style=&quot;width: 25%&quot; /&gt;
-&lt;col style=&quot;width: 25%&quot; /&gt;
-&lt;col style=&quot;width: 25%&quot; /&gt;
-&lt;col style=&quot;width: 25%&quot; /&gt;
-&lt;/colgroup&gt;
-&lt;thead&gt;
-&lt;tr&gt;
-&lt;th&gt;Color&lt;/th&gt;
-&lt;th&gt;Syntax&lt;/th&gt;
-&lt;th&gt;Example&lt;/th&gt;
-&lt;th&gt;Output&lt;/th&gt;
-&lt;/tr&gt;
-&lt;/thead&gt;
-&lt;tbody&gt;
-&lt;tr&gt;
-&lt;td&gt;HEX&lt;/td&gt;
-&lt;td&gt;&lt;code&gt;`#RRGGBB`&lt;/code&gt;&lt;/td&gt;
-&lt;td&gt;&lt;code&gt;`#0969DA`&lt;/code&gt;&lt;/td&gt;
-&lt;td&gt;&lt;img
-src=&quot;/assets/images/help/writing/supported-color-models-hex-rendered.png&quot;
-alt=&quot;Screenshot of rendered GitHub Markdown showing how HEX value #0969DA appears with a blue circle.&quot; /&gt;&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;RGB&lt;/td&gt;
-&lt;td&gt;&lt;code&gt;`rgb(R,G,B)`&lt;/code&gt;&lt;/td&gt;
-&lt;td&gt;&lt;code&gt;`rgb(9, 105, 218)`&lt;/code&gt;&lt;/td&gt;
-&lt;td&gt;&lt;img
-src=&quot;/assets/images/help/writing/supported-color-models-rgb-rendered.png&quot;
-alt=&quot;Screenshot of rendered GitHub Markdown showing how RGB value 9, 105, 218 appears with a blue circle.&quot; /&gt;&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;HSL&lt;/td&gt;
-&lt;td&gt;&lt;code&gt;`hsl(H,S,L)`&lt;/code&gt;&lt;/td&gt;
-&lt;td&gt;&lt;code&gt;`hsl(212, 92%, 45%)`&lt;/code&gt;&lt;/td&gt;
-&lt;td&gt;&lt;img
-src=&quot;/assets/images/help/writing/supported-color-models-hsl-rendered.png&quot;
-alt=&quot;Screenshot of rendered GitHub Markdown showing how HSL value 212, 92%, 45% appears with a blue circle.&quot; /&gt;&lt;/td&gt;
-&lt;/tr&gt;
-&lt;/tbody&gt;
-&lt;/table&gt;
-&lt;div class=&quot;note&quot;&gt;
-&lt;div class=&quot;title&quot;&gt;
-&lt;p&gt;Note&lt;/p&gt;
-&lt;/div&gt;
-&lt;ul&gt;
-&lt;li&gt;A supported color model cannot have any leading or trailing spaces
-within the backticks.&lt;/li&gt;
-&lt;li&gt;The visualization of the color is only supported in issues, pull
-requests, and discussions.&lt;/li&gt;
-&lt;/ul&gt;
-&lt;/div&gt;
-&lt;h2 id=&quot;links&quot;&gt;Links&lt;/h2&gt;
-&lt;p&gt;You can create an inline link by wrapping link text in brackets
-&lt;code&gt;[ ]&lt;/code&gt;, and then wrapping the URL in parentheses
-&lt;code&gt;( )&lt;/code&gt;. You can also use the keyboard shortcut
-&lt;kbd&gt;Command&lt;/kbd&gt;+&lt;kbd&gt;K&lt;/kbd&gt; to create a link. When you have text
-selected, you can paste a URL from your clipboard to automatically
-create a link from the selection.&lt;/p&gt;
-&lt;p&gt;You can also create a Markdown hyperlink by highlighting the text and
-using the keyboard shortcut &lt;kbd&gt;Command&lt;/kbd&gt;+&lt;kbd&gt;V&lt;/kbd&gt;. If you&#039;d
-like to replace the text with the link, use the keyboard shortcut
-&lt;kbd&gt;Command&lt;/kbd&gt;+&lt;kbd&gt;Shift&lt;/kbd&gt;+&lt;kbd&gt;V&lt;/kbd&gt;.&lt;/p&gt;
-&lt;p&gt;&lt;code&gt;This site was built using [GitHub Pages](https://pages.github.com/).&lt;/code&gt;&lt;/p&gt;
-&lt;p&gt;&lt;img src=&quot;/assets/images/help/writing/link-rendered.png&quot;
-alt=&quot;Screenshot of rendered GitHub Markdown showing how text within brackets, &amp;quot;GitHub Pages,&amp;quot; appears as a blue hyperlink.&quot; /&gt;&lt;/p&gt;
-&lt;div class=&quot;note&quot;&gt;
-&lt;div class=&quot;title&quot;&gt;
-&lt;p&gt;Note&lt;/p&gt;
-&lt;/div&gt;
-&lt;p&gt;{% data variables.product.github %} automatically creates links when
-valid URLs are written in a comment. For more information, see &lt;a
-href=&quot;/get-started/writing-on-github/working-with-advanced-formatting/autolinked-references-and-urls&quot;&gt;AUTOTITLE&lt;/a&gt;.&lt;/p&gt;
-&lt;/div&gt;
-&lt;h2 id=&quot;section-links&quot;&gt;Section links&lt;/h2&gt;
-&lt;p&gt;{% data reusables.repositories.section-links %}&lt;/p&gt;
-&lt;p&gt;If you need to determine the anchor for a heading in a file you are
-editing, you can use the following basic rules:&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;Letters are converted to lower-case.&lt;/li&gt;
-&lt;li&gt;Spaces are replaced by hyphens (&lt;code&gt;-&lt;/code&gt;). Any other
-whitespace or punctuation characters are removed.&lt;/li&gt;
-&lt;li&gt;Leading and trailing whitespace are removed.&lt;/li&gt;
-&lt;li&gt;Markup formatting is removed, leaving only the contents (for
-example, &lt;code&gt;_italics_&lt;/code&gt; becomes &lt;code&gt;italics&lt;/code&gt;).&lt;/li&gt;
-&lt;li&gt;If the automatically generated anchor for a heading is identical to
-an earlier anchor in the same document, a unique identifier is generated
-by appending a hyphen and an auto-incrementing integer.&lt;/li&gt;
-&lt;/ul&gt;
-&lt;p&gt;For more detailed information on the requirements of URI fragments,
-see &lt;a href=&quot;https://www.rfc-editor.org/rfc/rfc3986#section-3.5&quot;&gt;RFC
-3986: Uniform Resource Identifier (URI): Generic Syntax, Section
-3.5&lt;/a&gt;.&lt;/p&gt;
-&lt;p&gt;The code block below demonstrates the basic rules used to generate
-anchors from headings in rendered content.&lt;/p&gt;
-&lt;div class=&quot;sourceCode&quot; id=&quot;cb6&quot;&gt;&lt;pre
-class=&quot;sourceCode markdown&quot;&gt;&lt;code class=&quot;sourceCode markdown&quot;&gt;&lt;span id=&quot;cb6-1&quot;&gt;&lt;a href=&quot;#cb6-1&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;&lt;span class=&quot;fu&quot;&gt;# Example headings&lt;/span&gt;&lt;/span&gt;
-&lt;span id=&quot;cb6-2&quot;&gt;&lt;a href=&quot;#cb6-2&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;&lt;/span&gt;
-&lt;span id=&quot;cb6-3&quot;&gt;&lt;a href=&quot;#cb6-3&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;&lt;span class=&quot;fu&quot;&gt;## Sample Section&lt;/span&gt;&lt;/span&gt;
-&lt;span id=&quot;cb6-4&quot;&gt;&lt;a href=&quot;#cb6-4&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;&lt;/span&gt;
-&lt;span id=&quot;cb6-5&quot;&gt;&lt;a href=&quot;#cb6-5&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;&lt;span class=&quot;fu&quot;&gt;## This&amp;#39;ll be a _Helpful_ Section About the Greek Letter Θ!&lt;/span&gt;&lt;/span&gt;
-&lt;span id=&quot;cb6-6&quot;&gt;&lt;a href=&quot;#cb6-6&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;A heading containing characters not allowed in fragments, UTF-8 characters, two consecutive spaces between the first and second words, and formatting.&lt;/span&gt;
-&lt;span id=&quot;cb6-7&quot;&gt;&lt;a href=&quot;#cb6-7&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;&lt;/span&gt;
-&lt;span id=&quot;cb6-8&quot;&gt;&lt;a href=&quot;#cb6-8&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;&lt;span class=&quot;fu&quot;&gt;## This heading is not unique in the file&lt;/span&gt;&lt;/span&gt;
-&lt;span id=&quot;cb6-9&quot;&gt;&lt;a href=&quot;#cb6-9&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;&lt;/span&gt;
-&lt;span id=&quot;cb6-10&quot;&gt;&lt;a href=&quot;#cb6-10&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;TEXT 1&lt;/span&gt;
-&lt;span id=&quot;cb6-11&quot;&gt;&lt;a href=&quot;#cb6-11&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;&lt;/span&gt;
-&lt;span id=&quot;cb6-12&quot;&gt;&lt;a href=&quot;#cb6-12&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;&lt;span class=&quot;fu&quot;&gt;## This heading is not unique in the file&lt;/span&gt;&lt;/span&gt;
-&lt;span id=&quot;cb6-13&quot;&gt;&lt;a href=&quot;#cb6-13&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;&lt;/span&gt;
-&lt;span id=&quot;cb6-14&quot;&gt;&lt;a href=&quot;#cb6-14&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;TEXT 2&lt;/span&gt;
-&lt;span id=&quot;cb6-15&quot;&gt;&lt;a href=&quot;#cb6-15&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;&lt;/span&gt;
-&lt;span id=&quot;cb6-16&quot;&gt;&lt;a href=&quot;#cb6-16&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;&lt;span class=&quot;fu&quot;&gt;# Links to the example headings above&lt;/span&gt;&lt;/span&gt;
-&lt;span id=&quot;cb6-17&quot;&gt;&lt;a href=&quot;#cb6-17&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;&lt;/span&gt;
-&lt;span id=&quot;cb6-18&quot;&gt;&lt;a href=&quot;#cb6-18&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;Link to the sample section: &lt;span class=&quot;co&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;ot&quot;&gt;Link Text&lt;/span&gt;&lt;span class=&quot;co&quot;&gt;](#sample-section)&lt;/span&gt;.&lt;/span&gt;
-&lt;span id=&quot;cb6-19&quot;&gt;&lt;a href=&quot;#cb6-19&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;&lt;/span&gt;
-&lt;span id=&quot;cb6-20&quot;&gt;&lt;a href=&quot;#cb6-20&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;Link to the helpful section: &lt;span class=&quot;co&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;ot&quot;&gt;Link Text&lt;/span&gt;&lt;span class=&quot;co&quot;&gt;](#thisll-be-a-helpful-section-about-the-greek-letter-Θ)&lt;/span&gt;.&lt;/span&gt;
-&lt;span id=&quot;cb6-21&quot;&gt;&lt;a href=&quot;#cb6-21&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;&lt;/span&gt;
-&lt;span id=&quot;cb6-22&quot;&gt;&lt;a href=&quot;#cb6-22&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;Link to the first non-unique section: &lt;span class=&quot;co&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;ot&quot;&gt;Link Text&lt;/span&gt;&lt;span class=&quot;co&quot;&gt;](#this-heading-is-not-unique-in-the-file)&lt;/span&gt;.&lt;/span&gt;
-&lt;span id=&quot;cb6-23&quot;&gt;&lt;a href=&quot;#cb6-23&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;&lt;/span&gt;
-&lt;span id=&quot;cb6-24&quot;&gt;&lt;a href=&quot;#cb6-24&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;Link to the second non-unique section: &lt;span class=&quot;co&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;ot&quot;&gt;Link Text&lt;/span&gt;&lt;span class=&quot;co&quot;&gt;](#this-heading-is-not-unique-in-the-file-1)&lt;/span&gt;.&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
-&lt;div class=&quot;note&quot;&gt;
-&lt;div class=&quot;title&quot;&gt;
-&lt;p&gt;Note&lt;/p&gt;
-&lt;/div&gt;
-&lt;p&gt;If you edit a heading, or if you change the order of headings with
-&quot;identical&quot; anchors, you will also need to update any links to those
-headings as the anchors will change.&lt;/p&gt;
-&lt;/div&gt;
-&lt;h2 id=&quot;relative-links&quot;&gt;Relative links&lt;/h2&gt;
-&lt;p&gt;{% data reusables.repositories.relative-links %}&lt;/p&gt;
-&lt;h2 id=&quot;custom-anchors&quot;&gt;Custom anchors&lt;/h2&gt;
-&lt;p&gt;You can use standard HTML anchor tags
-(&lt;code&gt;&amp;lt;a name=&quot;unique-anchor-name&quot;&amp;gt;&amp;lt;/a&amp;gt;&lt;/code&gt;) to create
-navigation anchor points for any location in the document. To avoid
-ambiguous references, use a unique naming scheme for anchor tags, such
-as adding a prefix to the &lt;code&gt;name&lt;/code&gt; attribute value.&lt;/p&gt;
-&lt;div class=&quot;note&quot;&gt;
-&lt;div class=&quot;title&quot;&gt;
-&lt;p&gt;Note&lt;/p&gt;
-&lt;/div&gt;
-&lt;p&gt;Custom anchors will not be included in the document outline/Table of
-Contents.&lt;/p&gt;
-&lt;/div&gt;
-&lt;p&gt;You can link to a custom anchor using the value of the
-&lt;code&gt;name&lt;/code&gt; attribute you gave the anchor. The syntax is exactly
-the same as when you link to an anchor that is automatically generated
-for a heading.&lt;/p&gt;
-&lt;p&gt;For example:&lt;/p&gt;
-&lt;div class=&quot;sourceCode&quot; id=&quot;cb7&quot;&gt;&lt;pre
-class=&quot;sourceCode markdown&quot;&gt;&lt;code class=&quot;sourceCode markdown&quot;&gt;&lt;span id=&quot;cb7-1&quot;&gt;&lt;a href=&quot;#cb7-1&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;&lt;span class=&quot;fu&quot;&gt;# Section Heading&lt;/span&gt;&lt;/span&gt;
-&lt;span id=&quot;cb7-2&quot;&gt;&lt;a href=&quot;#cb7-2&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;&lt;/span&gt;
-&lt;span id=&quot;cb7-3&quot;&gt;&lt;a href=&quot;#cb7-3&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;Some body text of this section.&lt;/span&gt;
-&lt;span id=&quot;cb7-4&quot;&gt;&lt;a href=&quot;#cb7-4&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;&lt;/span&gt;
-&lt;span id=&quot;cb7-5&quot;&gt;&lt;a href=&quot;#cb7-5&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;&lt;span class=&quot;dt&quot;&gt;&amp;lt;&lt;/span&gt;&lt;span class=&quot;kw&quot;&gt;a&lt;/span&gt;&lt;span class=&quot;ot&quot;&gt; name&lt;/span&gt;&lt;span class=&quot;op&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;st&quot;&gt;&amp;quot;my-custom-anchor-point&amp;quot;&lt;/span&gt;&lt;span class=&quot;dt&quot;&gt;&amp;gt;&amp;lt;/&lt;/span&gt;&lt;span class=&quot;kw&quot;&gt;a&lt;/span&gt;&lt;span class=&quot;dt&quot;&gt;&amp;gt;&lt;/span&gt;&lt;/span&gt;
-&lt;span id=&quot;cb7-6&quot;&gt;&lt;a href=&quot;#cb7-6&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;Some text I want to provide a direct link to, but which doesn&amp;#39;t have its own heading.&lt;/span&gt;
-&lt;span id=&quot;cb7-7&quot;&gt;&lt;a href=&quot;#cb7-7&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;&lt;/span&gt;
-&lt;span id=&quot;cb7-8&quot;&gt;&lt;a href=&quot;#cb7-8&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;(… more content…)&lt;/span&gt;
-&lt;span id=&quot;cb7-9&quot;&gt;&lt;a href=&quot;#cb7-9&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;&lt;/span&gt;
-&lt;span id=&quot;cb7-10&quot;&gt;&lt;a href=&quot;#cb7-10&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;&lt;span class=&quot;co&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;ot&quot;&gt;A link to that custom anchor&lt;/span&gt;&lt;span class=&quot;co&quot;&gt;](#my-custom-anchor-point)&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
-&lt;div class=&quot;tip&quot;&gt;
-&lt;div class=&quot;title&quot;&gt;
-&lt;p&gt;Tip&lt;/p&gt;
-&lt;/div&gt;
-&lt;p&gt;Custom anchors are not considered by the automatic naming and
-numbering behavior of automatic heading links.&lt;/p&gt;
-&lt;/div&gt;
-&lt;h2 id=&quot;line-breaks&quot;&gt;Line breaks&lt;/h2&gt;
-&lt;p&gt;If you&#039;re writing in issues, pull requests, or discussions in a
-repository, {% data variables.product.github %} will render a line break
-automatically:&lt;/p&gt;
-&lt;div class=&quot;sourceCode&quot; id=&quot;cb8&quot;&gt;&lt;pre
-class=&quot;sourceCode markdown&quot;&gt;&lt;code class=&quot;sourceCode markdown&quot;&gt;&lt;span id=&quot;cb8-1&quot;&gt;&lt;a href=&quot;#cb8-1&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;This example&lt;/span&gt;
-&lt;span id=&quot;cb8-2&quot;&gt;&lt;a href=&quot;#cb8-2&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;Will span two lines&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
-&lt;p&gt;However, if you are writing in an .md file, the example above would
-render on one line without a line break. To create a line break in an
-.md file, you will need to include one of the following:&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;&lt;p&gt;Include two spaces at the end of the first line. &lt;pre&gt; This
-example   Will span two lines &lt;/pre&gt;&lt;/p&gt;&lt;/li&gt;
-&lt;li&gt;&lt;p&gt;Include a backslash at the end of the first line.&lt;/p&gt;
-&lt;div class=&quot;sourceCode&quot; id=&quot;cb9&quot;&gt;&lt;pre
-class=&quot;sourceCode markdown&quot;&gt;&lt;code class=&quot;sourceCode markdown&quot;&gt;&lt;span id=&quot;cb9-1&quot;&gt;&lt;a href=&quot;#cb9-1&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;This example\&lt;/span&gt;
-&lt;span id=&quot;cb9-2&quot;&gt;&lt;a href=&quot;#cb9-2&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;Will span two lines&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/li&gt;
-&lt;li&gt;&lt;p&gt;Include an HTML single line break tag at the end of the first
-line.&lt;/p&gt;
-&lt;div class=&quot;sourceCode&quot; id=&quot;cb10&quot;&gt;&lt;pre
-class=&quot;sourceCode markdown&quot;&gt;&lt;code class=&quot;sourceCode markdown&quot;&gt;&lt;span id=&quot;cb10-1&quot;&gt;&lt;a href=&quot;#cb10-1&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;This example&lt;span class=&quot;dt&quot;&gt;&amp;lt;&lt;/span&gt;&lt;span class=&quot;kw&quot;&gt;br&lt;/span&gt;&lt;span class=&quot;dt&quot;&gt;/&amp;gt;&lt;/span&gt;&lt;/span&gt;
-&lt;span id=&quot;cb10-2&quot;&gt;&lt;a href=&quot;#cb10-2&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;Will span two lines&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/li&gt;
-&lt;/ul&gt;
-&lt;p&gt;If you leave a blank line between two lines, both .md files and
-Markdown in issues, pull requests, and discussions will render the two
-lines separated by the blank line:&lt;/p&gt;
-&lt;div class=&quot;sourceCode&quot; id=&quot;cb11&quot;&gt;&lt;pre
-class=&quot;sourceCode markdown&quot;&gt;&lt;code class=&quot;sourceCode markdown&quot;&gt;&lt;span id=&quot;cb11-1&quot;&gt;&lt;a href=&quot;#cb11-1&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;This example&lt;/span&gt;
-&lt;span id=&quot;cb11-2&quot;&gt;&lt;a href=&quot;#cb11-2&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;&lt;/span&gt;
-&lt;span id=&quot;cb11-3&quot;&gt;&lt;a href=&quot;#cb11-3&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;Will have a blank line separating both lines&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
-&lt;h2 id=&quot;images&quot;&gt;Images&lt;/h2&gt;
-&lt;p&gt;You can display an image by adding &lt;kbd&gt;!&lt;/kbd&gt; and wrapping the alt
-text in &lt;code&gt;[ ]&lt;/code&gt;. Alt text is a short text equivalent of the
-information in the image. Then, wrap the link for the image in
-parentheses &lt;code&gt;()&lt;/code&gt;.&lt;/p&gt;
-&lt;p&gt;&lt;code&gt;![Screenshot of a comment on a GitHub issue showing an image, added in the Markdown, of an Octocat smiling and raising a tentacle.](https://myoctocat.com/assets/images/base-octocat.svg)&lt;/code&gt;&lt;/p&gt;
-&lt;p&gt;&lt;img src=&quot;/assets/images/help/writing/image-rendered.png&quot;
-alt=&quot;Screenshot of a comment on a GitHub issue showing an image, added in the Markdown, of an Octocat smiling and raising a tentacle.&quot; /&gt;&lt;/p&gt;
-&lt;p&gt;{% data variables.product.github %} supports embedding images into
-your issues, pull requests{% ifversion fpt or ghec %}, discussions{%
-endif %}, comments and &lt;code&gt;.md&lt;/code&gt; files. You can display an image
-from your repository, add a link to an online image, or upload an image.
-For more information, see &lt;a href=&quot;#uploading-assets&quot;&gt;Uploading
-assets&lt;/a&gt;.&lt;/p&gt;
-&lt;div class=&quot;note&quot;&gt;
-&lt;div class=&quot;title&quot;&gt;
-&lt;p&gt;Note&lt;/p&gt;
-&lt;/div&gt;
-&lt;p&gt;When you want to display an image that is in your repository, use
-relative links instead of absolute links.&lt;/p&gt;
-&lt;/div&gt;
-&lt;p&gt;Here are some examples for using relative links to display an
-image.&lt;/p&gt;
-&lt;table&gt;
-&lt;colgroup&gt;
-&lt;col style=&quot;width: 42%&quot; /&gt;
-&lt;col style=&quot;width: 57%&quot; /&gt;
-&lt;/colgroup&gt;
-&lt;thead&gt;
-&lt;tr&gt;
-&lt;th&gt;Context&lt;/th&gt;
-&lt;th&gt;Relative Link&lt;/th&gt;
-&lt;/tr&gt;
-&lt;/thead&gt;
-&lt;tbody&gt;
-&lt;tr&gt;
-&lt;td&gt;In a &lt;code&gt;.md&lt;/code&gt; file on the same branch&lt;/td&gt;
-&lt;td&gt;&lt;code&gt;/assets/images/electrocat.png&lt;/code&gt;&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;In a &lt;code&gt;.md&lt;/code&gt; file on another branch&lt;/td&gt;
-&lt;td&gt;&lt;code&gt;/../main/assets/images/electrocat.png&lt;/code&gt;&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;In issues, pull requests and comments of the repository&lt;/td&gt;
-&lt;td&gt;&lt;code&gt;../blob/main/assets/images/electrocat.png?raw=true&lt;/code&gt;&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;In a &lt;code&gt;.md&lt;/code&gt; file in another repository&lt;/td&gt;
-&lt;td&gt;&lt;code&gt;/../../../../github/docs/blob/main/assets/images/electrocat.png&lt;/code&gt;&lt;/td&gt;
-&lt;/tr&gt;
-&lt;tr&gt;
-&lt;td&gt;In issues, pull requests and comments of another repository&lt;/td&gt;
-&lt;td&gt;&lt;code&gt;../../../github/docs/blob/main/assets/images/electrocat.png?raw=true&lt;/code&gt;&lt;/td&gt;
-&lt;/tr&gt;
-&lt;/tbody&gt;
-&lt;/table&gt;
-&lt;div class=&quot;note&quot;&gt;
-&lt;div class=&quot;title&quot;&gt;
-&lt;p&gt;Note&lt;/p&gt;
-&lt;/div&gt;
-&lt;p&gt;The last two relative links in the table above will work for images
-in a private repository only if the viewer has at least read access to
-the private repository that contains these images.&lt;/p&gt;
-&lt;/div&gt;
-&lt;p&gt;For more information, see &lt;a href=&quot;#relative-links&quot;&gt;Relative
-Links&lt;/a&gt;.&lt;/p&gt;
-&lt;h3 id=&quot;the-picture-element&quot;&gt;The Picture element&lt;/h3&gt;
-&lt;p&gt;The &lt;code&gt;&amp;lt;picture&amp;gt;&lt;/code&gt; HTML element is supported.&lt;/p&gt;
-&lt;h2 id=&quot;lists&quot;&gt;Lists&lt;/h2&gt;
-&lt;p&gt;You can make an unordered list by preceding one or more lines of text
-with &lt;kbd&gt;-&lt;/kbd&gt;, &lt;kbd&gt;*&lt;/kbd&gt;, or &lt;kbd&gt;+&lt;/kbd&gt;.&lt;/p&gt;
-&lt;div class=&quot;sourceCode&quot; id=&quot;cb12&quot;&gt;&lt;pre
-class=&quot;sourceCode markdown&quot;&gt;&lt;code class=&quot;sourceCode markdown&quot;&gt;&lt;span id=&quot;cb12-1&quot;&gt;&lt;a href=&quot;#cb12-1&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;&lt;span class=&quot;ss&quot;&gt;- &lt;/span&gt;George Washington&lt;/span&gt;
-&lt;span id=&quot;cb12-2&quot;&gt;&lt;a href=&quot;#cb12-2&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;&lt;span class=&quot;ss&quot;&gt;* &lt;/span&gt;John Adams&lt;/span&gt;
-&lt;span id=&quot;cb12-3&quot;&gt;&lt;a href=&quot;#cb12-3&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;&lt;span class=&quot;ss&quot;&gt;+ &lt;/span&gt;Thomas Jefferson&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
-&lt;p&gt;&lt;img src=&quot;/assets/images/help/writing/unordered-list-rendered.png&quot;
-alt=&quot;Screenshot of rendered GitHub Markdown showing a bulleted list of the names of the first three American presidents.&quot; /&gt;&lt;/p&gt;
-&lt;p&gt;To order your list, precede each line with a number.&lt;/p&gt;
-&lt;div class=&quot;sourceCode&quot; id=&quot;cb13&quot;&gt;&lt;pre
-class=&quot;sourceCode markdown&quot;&gt;&lt;code class=&quot;sourceCode markdown&quot;&gt;&lt;span id=&quot;cb13-1&quot;&gt;&lt;a href=&quot;#cb13-1&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;&lt;span class=&quot;ss&quot;&gt;1. &lt;/span&gt;James Madison&lt;/span&gt;
-&lt;span id=&quot;cb13-2&quot;&gt;&lt;a href=&quot;#cb13-2&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;&lt;span class=&quot;ss&quot;&gt;2. &lt;/span&gt;James Monroe&lt;/span&gt;
-&lt;span id=&quot;cb13-3&quot;&gt;&lt;a href=&quot;#cb13-3&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;&lt;span class=&quot;ss&quot;&gt;3. &lt;/span&gt;John Quincy Adams&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
-&lt;p&gt;&lt;img src=&quot;/assets/images/help/writing/ordered-list-rendered.png&quot;
-alt=&quot;Screenshot of rendered GitHub Markdown showing a numbered list of the names of the fourth, fifth, and sixth American presidents.&quot; /&gt;&lt;/p&gt;
-&lt;h3 id=&quot;nested-lists&quot;&gt;Nested Lists&lt;/h3&gt;
-&lt;p&gt;You can create a nested list by indenting one or more list items
-below another item.&lt;/p&gt;
-&lt;p&gt;To create a nested list using the web editor on {% data
-variables.product.github %} or a text editor that uses a monospaced
-font, like &lt;a href=&quot;https://code.visualstudio.com/&quot;&gt;{% data
-variables.product.prodname_vscode %}&lt;/a&gt;, you can align your list
-visually. Type space characters in front of your nested list item until
-the list marker character (&lt;kbd&gt;-&lt;/kbd&gt; or &lt;kbd&gt;*&lt;/kbd&gt;) lies directly
-below the first character of the text in the item above it.&lt;/p&gt;
-&lt;div class=&quot;sourceCode&quot; id=&quot;cb14&quot;&gt;&lt;pre
-class=&quot;sourceCode markdown&quot;&gt;&lt;code class=&quot;sourceCode markdown&quot;&gt;&lt;span id=&quot;cb14-1&quot;&gt;&lt;a href=&quot;#cb14-1&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;&lt;span class=&quot;ss&quot;&gt;1. &lt;/span&gt;First list item&lt;/span&gt;
-&lt;span id=&quot;cb14-2&quot;&gt;&lt;a href=&quot;#cb14-2&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;&lt;span class=&quot;ss&quot;&gt;   - &lt;/span&gt;First nested list item&lt;/span&gt;
-&lt;span id=&quot;cb14-3&quot;&gt;&lt;a href=&quot;#cb14-3&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;&lt;span class=&quot;ss&quot;&gt;     - &lt;/span&gt;Second nested list item&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
-&lt;div class=&quot;note&quot;&gt;
-&lt;div class=&quot;title&quot;&gt;
-&lt;p&gt;Note&lt;/p&gt;
-&lt;/div&gt;
-&lt;p&gt;In the web-based editor, you can indent or dedent one or more lines
-of text by first highlighting the desired lines and then using
-&lt;kbd&gt;Tab&lt;/kbd&gt; or &lt;kbd&gt;Shift&lt;/kbd&gt;+&lt;kbd&gt;Tab&lt;/kbd&gt; respectively.&lt;/p&gt;
-&lt;/div&gt;
-&lt;p&gt;&lt;img src=&quot;/assets/images/help/writing/nested-list-alignment.png&quot;
-alt=&quot;Screenshot of Markdown in {% data variables.product.prodname_vscode %} showing indentation of nested numbered lines and bullets.&quot; /&gt;&lt;/p&gt;
-&lt;p&gt;&lt;img src=&quot;/assets/images/help/writing/nested-list-example-1.png&quot;
-alt=&quot;Screenshot of rendered GitHub Markdown showing a numbered item followed by nested bullets at two different levels of nesting.&quot; /&gt;&lt;/p&gt;
-&lt;p&gt;To create a nested list in the comment editor on {% data
-variables.product.github %}, which doesn&#039;t use a monospaced font, you
-can look at the list item immediately above the nested list and count
-the number of characters that appear before the content of the item.
-Then type that number of space characters in front of the nested list
-item.&lt;/p&gt;
-&lt;p&gt;In this example, you could add a nested list item under the list item
-&lt;code&gt;100. First list item&lt;/code&gt; by indenting the nested list item a
-minimum of five spaces, since there are five characters
-(&lt;code&gt;100.&lt;/code&gt;) before &lt;code&gt;First list item&lt;/code&gt;.&lt;/p&gt;
-&lt;div class=&quot;sourceCode&quot; id=&quot;cb15&quot;&gt;&lt;pre
-class=&quot;sourceCode markdown&quot;&gt;&lt;code class=&quot;sourceCode markdown&quot;&gt;&lt;span id=&quot;cb15-1&quot;&gt;&lt;a href=&quot;#cb15-1&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;&lt;span class=&quot;ss&quot;&gt;100. &lt;/span&gt;First list item&lt;/span&gt;
-&lt;span id=&quot;cb15-2&quot;&gt;&lt;a href=&quot;#cb15-2&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;&lt;span class=&quot;ss&quot;&gt;     - &lt;/span&gt;First nested list item&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
-&lt;p&gt;&lt;img src=&quot;/assets/images/help/writing/nested-list-example-3.png&quot;
-alt=&quot;Screenshot of rendered GitHub Markdown showing a numbered item prefaced by the number 100 followed by a bulleted item nested one level.&quot; /&gt;&lt;/p&gt;
-&lt;p&gt;You can create multiple levels of nested lists using the same method.
-For example, because the first nested list item has seven characters
-(&lt;code&gt;␣␣␣␣␣-␣&lt;/code&gt;) before the nested list content
-&lt;code&gt;First nested list item&lt;/code&gt;, you would need to indent the second
-nested list item by at least two more characters (nine spaces
-minimum).&lt;/p&gt;
-&lt;div class=&quot;sourceCode&quot; id=&quot;cb16&quot;&gt;&lt;pre
-class=&quot;sourceCode markdown&quot;&gt;&lt;code class=&quot;sourceCode markdown&quot;&gt;&lt;span id=&quot;cb16-1&quot;&gt;&lt;a href=&quot;#cb16-1&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;&lt;span class=&quot;ss&quot;&gt;100. &lt;/span&gt;First list item&lt;/span&gt;
-&lt;span id=&quot;cb16-2&quot;&gt;&lt;a href=&quot;#cb16-2&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;&lt;span class=&quot;ss&quot;&gt;     - &lt;/span&gt;First nested list item&lt;/span&gt;
-&lt;span id=&quot;cb16-3&quot;&gt;&lt;a href=&quot;#cb16-3&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;&lt;span class=&quot;ss&quot;&gt;       - &lt;/span&gt;Second nested list item&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
-&lt;p&gt;&lt;img src=&quot;/assets/images/help/writing/nested-list-example-2.png&quot;
-alt=&quot;Screenshot of rendered GitHub Markdown showing a numbered item prefaced by the number 100 followed by bullets at two different levels of nesting.&quot; /&gt;&lt;/p&gt;
-&lt;p&gt;For more examples, see the &lt;a
-href=&quot;https://github.github.com/gfm/#example-265&quot;&gt;GitHub Flavored
-Markdown Spec&lt;/a&gt;.&lt;/p&gt;
-&lt;h2 id=&quot;task-lists&quot;&gt;Task lists&lt;/h2&gt;
-&lt;p&gt;{% data reusables.repositories.task-list-markdown %}&lt;/p&gt;
-&lt;p&gt;If a task list item description begins with a parenthesis, you&#039;ll
-need to escape it with &lt;kbd&gt;\&lt;/kbd&gt;:&lt;/p&gt;
-&lt;p&gt;&lt;code&gt;- [ ] \(Optional) Open a followup issue&lt;/code&gt;&lt;/p&gt;
-&lt;p&gt;For more information, see &lt;a
-href=&quot;/get-started/writing-on-github/working-with-advanced-formatting/about-task-lists&quot;&gt;AUTOTITLE&lt;/a&gt;.&lt;/p&gt;
-&lt;h2 id=&quot;mentioning-people-and-teams&quot;&gt;Mentioning people and teams&lt;/h2&gt;
-&lt;p&gt;You can mention a person or &lt;a
-href=&quot;/organizations/organizing-members-into-teams&quot;&gt;team&lt;/a&gt; on {% data
-variables.product.github %} by typing &lt;kbd&gt;@&lt;/kbd&gt; plus their username
-or team name. This will trigger a notification and bring their attention
-to the conversation. People will also receive a notification if you edit
-a comment to mention their username or team name. For more information
-about notifications, see &lt;a
-href=&quot;/account-and-profile/managing-subscriptions-and-notifications-on-github/setting-up-notifications/about-notifications&quot;&gt;AUTOTITLE&lt;/a&gt;.&lt;/p&gt;
-&lt;div class=&quot;note&quot;&gt;
-&lt;div class=&quot;title&quot;&gt;
-&lt;p&gt;Note&lt;/p&gt;
-&lt;/div&gt;
-&lt;p&gt;A person will only be notified about a mention if the person has read
-access to the repository and, if the repository is owned by an
-organization, the person is a member of the organization.&lt;/p&gt;
-&lt;/div&gt;
-&lt;p&gt;&lt;code&gt;@github/support What do you think about these updates?&lt;/code&gt;&lt;/p&gt;
-&lt;p&gt;&lt;img src=&quot;/assets/images/help/writing/mention-rendered.png&quot;
-alt=&quot;Screenshot of rendered GitHub Markdown showing how the team mention &amp;quot;@github/support&amp;quot; renders as bold, clickable text.&quot; /&gt;&lt;/p&gt;
-&lt;p&gt;When you mention a parent team, members of its child teams also
-receive notifications, simplifying communication with multiple groups of
-people. For more information, see &lt;a
-href=&quot;/organizations/organizing-members-into-teams/about-teams&quot;&gt;AUTOTITLE&lt;/a&gt;.&lt;/p&gt;
-&lt;p&gt;Typing an &lt;kbd&gt;@&lt;/kbd&gt; symbol will bring up a list of people or teams
-on a project. The list filters as you type, so once you find the name of
-the person or team you are looking for, you can use the arrow keys to
-select it and press either tab or enter to complete the name. For teams,
-enter the @organization/team-name and all members of that team will get
-subscribed to the conversation.&lt;/p&gt;
-&lt;p&gt;{% ifversion enterprise-teams-ga %}&lt;/p&gt;
-&lt;p&gt;You can also mention an enterprise team. Enterprise team slugs use an
-&lt;code&gt;ent:&lt;/code&gt; prefix in the format &lt;code&gt;@/ent:TEAM-SLUG&lt;/code&gt;, for
-example &lt;code&gt;@/ent:platform-sre&lt;/code&gt;. You can mention an enterprise
-team from any organization the team is assigned to. See &lt;a
-href=&quot;/admin/concepts/enterprise-fundamentals/teams-in-an-enterprise&quot;&gt;AUTOTITLE&lt;/a&gt;.&lt;/p&gt;
-&lt;p&gt;{% endif %}&lt;/p&gt;
-&lt;p&gt;The autocomplete results are restricted to repository collaborators
-and any other participants on the thread.&lt;/p&gt;
-&lt;h2 id=&quot;referencing-issues-and-pull-requests&quot;&gt;Referencing issues and
-pull requests&lt;/h2&gt;
-&lt;p&gt;You can bring up a list of suggested issues and pull requests within
-the repository by typing &lt;kbd&gt;#&lt;/kbd&gt;. Type the issue or pull request
-number or title to filter the list, and then press either tab or enter
-to complete the highlighted result.&lt;/p&gt;
-&lt;p&gt;For more information, see &lt;a
-href=&quot;/get-started/writing-on-github/working-with-advanced-formatting/autolinked-references-and-urls&quot;&gt;AUTOTITLE&lt;/a&gt;.&lt;/p&gt;
-&lt;h2 id=&quot;referencing-external-resources&quot;&gt;Referencing external
-resources&lt;/h2&gt;
-&lt;p&gt;{% data reusables.repositories.autolink-references %}&lt;/p&gt;
-&lt;h2 id=&quot;uploading-assets&quot;&gt;Uploading assets&lt;/h2&gt;
-&lt;p&gt;You can upload assets like images by dragging and dropping, selecting
-from a file browser, or pasting. You can upload assets to issues, pull
-requests, comments, and &lt;code&gt;.md&lt;/code&gt; files in your repository.&lt;/p&gt;
-&lt;h2 id=&quot;using-emojis&quot;&gt;Using emojis&lt;/h2&gt;
-&lt;p&gt;You can add emoji to your writing by typing &lt;code&gt;:EMOJICODE:&lt;/code&gt;,
-a colon followed by the name of the emoji.&lt;/p&gt;
-&lt;p&gt;&lt;code&gt;@octocat :+1: This PR looks great - it&#039;s ready to merge! :shipit:&lt;/code&gt;&lt;/p&gt;
-&lt;p&gt;&lt;img src=&quot;/assets/images/help/writing/emoji-rendered.png&quot;
-alt=&quot;Screenshot of rendered GitHub Markdown showing how emoji codes for +1 and shipit render visually as emoji.&quot; /&gt;&lt;/p&gt;
-&lt;p&gt;Typing &lt;kbd&gt;:&lt;/kbd&gt; will bring up a list of suggested emoji. The list
-will filter as you type, so once you find the emoji you&#039;re looking for,
-press &lt;strong&gt;Tab&lt;/strong&gt; or &lt;strong&gt;Enter&lt;/strong&gt; to complete the
-highlighted result.&lt;/p&gt;
-&lt;p&gt;For a full list of available emoji and codes, see &lt;a
-href=&quot;https://github.com/ikatyang/emoji-cheat-sheet/blob/github-actions-auto-update/README.md&quot;&gt;the
-Emoji-Cheat-Sheet&lt;/a&gt;.&lt;/p&gt;
-&lt;h2 id=&quot;paragraphs&quot;&gt;Paragraphs&lt;/h2&gt;
-&lt;p&gt;You can create a new paragraph by leaving a blank line between lines
-of text.&lt;/p&gt;
-&lt;h2 id=&quot;footnotes&quot;&gt;Footnotes&lt;/h2&gt;
-&lt;p&gt;You can add footnotes to your content by using this bracket
-syntax:&lt;/p&gt;
-&lt;pre class=&quot;text&quot;&gt;&lt;code&gt;Here is a simple footnote[^1].
-
-A footnote can also have multiple lines[^2].
-
-[^1]: My reference.
-[^2]: To add line breaks within a footnote, add 2 spaces to the end of a line.&#32;&#32;
-This is a second line.&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;The footnote will render like this:&lt;/p&gt;
-&lt;p&gt;&lt;img src=&quot;/assets/images/help/writing/footnote-rendered.png&quot;
-alt=&quot;Screenshot of rendered Markdown showing superscript numbers used to indicate footnotes, along with optional line breaks inside a note.&quot; /&gt;&lt;/p&gt;
-&lt;div class=&quot;note&quot;&gt;
-&lt;div class=&quot;title&quot;&gt;
-&lt;p&gt;Note&lt;/p&gt;
-&lt;/div&gt;
-&lt;p&gt;The position of a footnote in your Markdown does not influence where
-the footnote will be rendered. You can write a footnote right after your
-reference to the footnote, and the footnote will still render at the
-bottom of the Markdown. Footnotes are not supported in wikis.&lt;/p&gt;
-&lt;/div&gt;
-&lt;h2 id=&quot;alerts&quot;&gt;Alerts&lt;/h2&gt;
-&lt;p&gt;&lt;strong&gt;Alerts&lt;/strong&gt;, also sometimes known as
-&lt;strong&gt;callouts&lt;/strong&gt; or &lt;strong&gt;admonitions&lt;/strong&gt;, are a
-Markdown extension based on the blockquote syntax that you can use to
-emphasize critical information. On {% data variables.product.github %},
-they are displayed with distinctive colors and icons to indicate the
-significance of the content.&lt;/p&gt;
-&lt;p&gt;Use alerts only when they are crucial for user success and limit them
-to one or two per article to prevent overloading the reader.
-Additionally, you should avoid placing alerts consecutively. Alerts
-cannot be nested within other elements.&lt;/p&gt;
-&lt;p&gt;To add an alert, use a special blockquote line specifying the alert
-type, followed by the alert information in a standard blockquote. Five
-types of alerts are available:&lt;/p&gt;
-&lt;div class=&quot;sourceCode&quot; id=&quot;cb18&quot;&gt;&lt;pre
-class=&quot;sourceCode markdown&quot;&gt;&lt;code class=&quot;sourceCode markdown&quot;&gt;&lt;span id=&quot;cb18-1&quot;&gt;&lt;a href=&quot;#cb18-1&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;&lt;span class=&quot;at&quot;&gt;&amp;gt; &lt;/span&gt;&lt;span class=&quot;co&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;ot&quot;&gt;!NOTE&lt;/span&gt;&lt;span class=&quot;co&quot;&gt;]&lt;/span&gt;&lt;/span&gt;
-&lt;span id=&quot;cb18-2&quot;&gt;&lt;a href=&quot;#cb18-2&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;&lt;span class=&quot;at&quot;&gt;&amp;gt; Useful information that users should know, even when skimming content.&lt;/span&gt;&lt;/span&gt;
-&lt;span id=&quot;cb18-3&quot;&gt;&lt;a href=&quot;#cb18-3&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;&lt;/span&gt;
-&lt;span id=&quot;cb18-4&quot;&gt;&lt;a href=&quot;#cb18-4&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;&lt;span class=&quot;at&quot;&gt;&amp;gt; &lt;/span&gt;&lt;span class=&quot;co&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;ot&quot;&gt;!TIP&lt;/span&gt;&lt;span class=&quot;co&quot;&gt;]&lt;/span&gt;&lt;/span&gt;
-&lt;span id=&quot;cb18-5&quot;&gt;&lt;a href=&quot;#cb18-5&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;&lt;span class=&quot;at&quot;&gt;&amp;gt; Helpful advice for doing things better or more easily.&lt;/span&gt;&lt;/span&gt;
-&lt;span id=&quot;cb18-6&quot;&gt;&lt;a href=&quot;#cb18-6&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;&lt;/span&gt;
-&lt;span id=&quot;cb18-7&quot;&gt;&lt;a href=&quot;#cb18-7&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;&lt;span class=&quot;at&quot;&gt;&amp;gt; &lt;/span&gt;&lt;span class=&quot;co&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;ot&quot;&gt;!IMPORTANT&lt;/span&gt;&lt;span class=&quot;co&quot;&gt;]&lt;/span&gt;&lt;/span&gt;
-&lt;span id=&quot;cb18-8&quot;&gt;&lt;a href=&quot;#cb18-8&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;&lt;span class=&quot;at&quot;&gt;&amp;gt; Key information users need to know to achieve their goal.&lt;/span&gt;&lt;/span&gt;
-&lt;span id=&quot;cb18-9&quot;&gt;&lt;a href=&quot;#cb18-9&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;&lt;/span&gt;
-&lt;span id=&quot;cb18-10&quot;&gt;&lt;a href=&quot;#cb18-10&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;&lt;span class=&quot;at&quot;&gt;&amp;gt; &lt;/span&gt;&lt;span class=&quot;co&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;ot&quot;&gt;!WARNING&lt;/span&gt;&lt;span class=&quot;co&quot;&gt;]&lt;/span&gt;&lt;/span&gt;
-&lt;span id=&quot;cb18-11&quot;&gt;&lt;a href=&quot;#cb18-11&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;&lt;span class=&quot;at&quot;&gt;&amp;gt; Urgent info that needs immediate user attention to avoid problems.&lt;/span&gt;&lt;/span&gt;
-&lt;span id=&quot;cb18-12&quot;&gt;&lt;a href=&quot;#cb18-12&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;&lt;/span&gt;
-&lt;span id=&quot;cb18-13&quot;&gt;&lt;a href=&quot;#cb18-13&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;&lt;span class=&quot;at&quot;&gt;&amp;gt; &lt;/span&gt;&lt;span class=&quot;co&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;ot&quot;&gt;!CAUTION&lt;/span&gt;&lt;span class=&quot;co&quot;&gt;]&lt;/span&gt;&lt;/span&gt;
-&lt;span id=&quot;cb18-14&quot;&gt;&lt;a href=&quot;#cb18-14&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;&lt;span class=&quot;at&quot;&gt;&amp;gt; Advises about risks or negative outcomes of certain actions.&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
-&lt;p&gt;Here are the rendered alerts:&lt;/p&gt;
-&lt;p&gt;&lt;img src=&quot;/assets/images/help/writing/alerts-rendered.png&quot;
-alt=&quot;Screenshot of rendered Markdown alerts showing how Note, Tip, Important, Warning, and Caution render with different colored text and icons.&quot; /&gt;&lt;/p&gt;
-&lt;h2 id=&quot;hiding-content-with-comments&quot;&gt;Hiding content with comments&lt;/h2&gt;
-&lt;p&gt;You can tell {% data variables.product.github %} to hide content from
-the rendered Markdown by placing the content in an HTML comment.&lt;/p&gt;
-&lt;pre class=&quot;text&quot;&gt;&lt;code&gt;&amp;lt;!-- This content will not appear in the rendered Markdown --&amp;gt;&lt;/code&gt;&lt;/pre&gt;
-&lt;h2 id=&quot;ignoring-markdown-formatting&quot;&gt;Ignoring Markdown formatting&lt;/h2&gt;
-&lt;p&gt;You can tell {% data variables.product.github %} to ignore (or
-escape) Markdown formatting by using &lt;kbd&gt;\&lt;/kbd&gt; before the Markdown
-character.&lt;/p&gt;
-&lt;p&gt;&lt;code&gt;Let&#039;s rename \*our-new-project\* to \*our-old-project\*.&lt;/code&gt;&lt;/p&gt;
-&lt;p&gt;&lt;img src=&quot;/assets/images/help/writing/escaped-character-rendered.png&quot;
-alt=&quot;Screenshot of rendered GitHub Markdown showing how backslashes prevent the conversion of asterisks to italics.&quot; /&gt;&lt;/p&gt;
-&lt;p&gt;For more information on backslashes, see Daring Fireball&#039;s &lt;a
-href=&quot;https://daringfireball.net/projects/markdown/syntax#backslash&quot;&gt;Markdown
-Syntax&lt;/a&gt;.&lt;/p&gt;
-&lt;div class=&quot;note&quot;&gt;
-&lt;div class=&quot;title&quot;&gt;
-&lt;p&gt;Note&lt;/p&gt;
-&lt;/div&gt;
-&lt;p&gt;The Markdown formatting will not be ignored in the title of an issue
-or a pull request.&lt;/p&gt;
-&lt;/div&gt;
-&lt;h2 id=&quot;disabling-markdown-rendering&quot;&gt;Disabling Markdown rendering&lt;/h2&gt;
-&lt;p&gt;{% data reusables.repositories.disabling-markdown-rendering %}&lt;/p&gt;
-&lt;h2 id=&quot;further-reading&quot;&gt;Further reading&lt;/h2&gt;
-&lt;ul&gt;
-&lt;li&gt;&lt;a href=&quot;https://github.github.com/gfm/&quot;&gt;{% data
-variables.product.prodname_dotcom %} Flavored Markdown Spec&lt;/a&gt;&lt;/li&gt;
-&lt;li&gt;&lt;a
-href=&quot;/get-started/writing-on-github/getting-started-with-writing-and-formatting-on-github/about-writing-and-formatting-on-github&quot;&gt;AUTOTITLE&lt;/a&gt;&lt;/li&gt;
-&lt;li&gt;&lt;a
-href=&quot;/get-started/writing-on-github/working-with-advanced-formatting&quot;&gt;AUTOTITLE&lt;/a&gt;&lt;/li&gt;
-&lt;li&gt;&lt;a
-href=&quot;/get-started/writing-on-github/getting-started-with-writing-and-formatting-on-github/quickstart-for-writing-on-github&quot;&gt;AUTOTITLE&lt;/a&gt;&lt;/li&gt;
-&lt;/ul&gt;
+&lt;h2 id=&quot;autolinks-and-references&quot;&gt;Autolinks and references&lt;/h2&gt;
+&lt;p&gt;See &lt;a href=&quot;https://github.github.com/gfm/&quot;
+class=&quot;uri&quot;&gt;https://github.github.com/gfm/&lt;/a&gt; and &lt;a
+href=&quot;https://spec.commonmark.org/&quot;&gt;the CommonMark spec&lt;/a&gt;.&lt;/p&gt;
 &lt;/body&gt;
 &lt;/html&gt;
 </pre></section></div><div class="note">Deprecated upstream token handled as a GFM-family Markdown variant by the shared Markdown reader implementation-equivalence gate.</div></section></article></section><section class="format-section" id="format-markdown_mmd"><div class="format-heading"><h2>markdown_mmd</h2><span>1 sample</span></div><article class="comparison" id="markdown-mmd-quickstart"><section class="original"><div class="panel-head"><h3>MultiMarkdown Quick Start guide</h3><p class="meta">24452 bytes | <a href="https://raw.githubusercontent.com/fletcher/MultiMarkdown-6/master/QuickStart/QuickStart.txt">fletcher/MultiMarkdown-6 QuickStart/QuickStart.txt</a></p></div><div class="original-body"><pre class="source-preview">Title:	MultiMarkdown v6 Quick Start Guide
@@ -196868,7 +195049,7 @@ Pandoc can convert to PDF, but not from PDF.</pre></section></div><div class="no
 &lt;!-- /wp:heading --&gt;
 
 &lt;!-- wp:paragraph --&gt;
-&lt;p&gt;Dynamic languages such as JavaScript are more difficult to compile than statically typed ones. Since no concrete type information is available, traditional compilers need to emit generic code that can handle all possible type combinations at runtime. We present an alternative compilation technique for dynamically-typed languages that identifies frequently executed loop traces at run-time and then generates machine code on the fly that is specialized for the actual dynamic types occurring on each path through the loop. Our method provides cheap inter-procedural type specialization, and an elegant and efficient way of incrementally compiling lazily discovered alternative paths through nested loops. We have implemented a dynamic compiler for JavaScript based on our technique and we have measured speedups of 10x and more for certain benchmarks. Languages such as JavaScript, Python, and Ruby, are popular since they are expressive, accessible to non-experts, and make deployment as easy as distributing a source file. They are used for small scripts as well as for complex applications. JavaScript is used for the application logic of browser-based productivity applications such as Google Mail, Google Docs and Zimbra Collaboration Suite. In this domain, in order to provide a fluid user experience and enable a new generation of applications, virtual machines must provide a low startup time and high performance.&lt;/p&gt;
+&lt;p&gt;Dynamic languages such as JavaScript are more difficult to compile than statically typed ones. Since no concrete type information is available, traditional compilers need to emit generic code that can handle all possible type combinations at runtime. We present an alternative compilation technique for dynamically-typed languages that identifies frequently executed loop traces at run-time and then generates machine code on the fly that is specialized for the actual dynamic types occurring on each path through the loop. Our method provides cheap inter-procedural type specialization, and an elegant and efficient way of incrementally compiling lazily discovered alternative paths through nested loops. We have implemented a dynamic compiler for JavaScript based on our technique and we have measured speedups of 10x and more for certain benchmarks. Languages such as JavaScript, Python, and Ruby, are popular since they are expressive, accessible to non-experts, and make deployment as easy as distributing a source file. They are used for small scripts as well as for complex applications. JavaScript, for example, is the de facto standard for client-side web programming and is used for the application logic of browser-based productivity applications such as Google Mail, Google Docs and Zimbra Collaboration Suite. In this domain, in order to provide a fluid user experience and enable a new generation of applications, virtual machines must provide a low startup time and high performance.&lt;/p&gt;
 &lt;!-- /wp:paragraph --&gt;
 
 &lt;!-- wp:paragraph --&gt;
@@ -196876,11 +195057,11 @@ Pandoc can convert to PDF, but not from PDF.</pre></section></div><div class="no
 &lt;!-- /wp:paragraph --&gt;
 
 &lt;!-- wp:paragraph --&gt;
-&lt;p&gt;We present a trace-based compilation technique for dynamic languages that reconciles speed of compilation with excellent performance of the generated machine code. Our system uses a mixed mode execution approach: the system starts running JavaScript in a fast-starting bytecode interpreter. As the program runs, the system (frequently executed)bytecode sequences, records them, and compiles them to fast native code. We call such a sequence a trace. Unlike method-based dynamic compilers, our dynamic compiler operates at the granularity of individual loops. This design choice is based on the expectation that programs spend most of their time in hot loops. Even in dynamically typed languages, we , meaning that the types of values are invariant.(12)For example, we would expect loop counters that start as integers to remain integers for all iterations. When both of these expectations hold, a trace-based compiler can cover the program execution with a small number of type-specialized, efficiently compiled traces.&lt;/p&gt;
+&lt;p&gt;We present a trace-based compilation technique for dynamic languages that reconciles speed of compilation with excellent performance of the generated machine code. Our system uses a mixed mode execution approach: the system starts running JavaScript in a fast-starting bytecode interpreter. As the program runs, the system (frequently executed)bytecode sequences, records them, and compiles them to fast native code. We call such a sequence a trace. Unlike method-based dynamic compilers, our dynamic compiler operates at the granularity of individual loops. This design choice is based on the expectation that programs spend most of their time in hot loops. Even in dynamically typed languages, we expect hot loops to be mostly type-stable, meaning that the types of values are invariant. (12) For example, we would expect loop counters that start as integers to remain integers for all iterations. When both of these expectations hold, a trace-based compiler can cover the program execution with a small number of type-specialized, efficiently compiled traces.&lt;/p&gt;
 &lt;!-- /wp:paragraph --&gt;
 
 &lt;!-- wp:paragraph --&gt;
-&lt;p&gt;Each compiled trace covers one path through the program with one mapping of values to types. When the VM executes a compiled trace, it cannot guarantee that the same path will be followed or that the same types will occur in subsequent loop iterations. that the path and typing will be exactly as they were during recording for subsequent iterations of the loop. (checks)required to validate the speculation. If one of the guards fails(if control flow is different, or a value of a different type is generated), the branch starting at the exit to cover the new path. In this way, the VM covering all the hot paths through the loop.&lt;/p&gt;
+&lt;p&gt;Each compiled trace covers one path through the program with one mapping of values to types. When the VM executes a compiled trace, it cannot guarantee that the same path will be followed or that the same types will occur in subsequent loop iterations. Hence, recording and compiling a trace speculates that the path and typing will be exactly as they were during recording for subsequent iterations of the loop. Every compiled trace contains all the guards (checks) required to validate the speculation. If one of the guards fails(if control flow is different, or a value of a different type is generated), the trace exits. If an exit becomes hot, the VM can record a branch trace starting at the exit to cover the new path. In this way, the VM records a trace tree covering all the hot paths through the loop.&lt;/p&gt;
 &lt;!-- /wp:paragraph --&gt;
 
 &lt;!-- wp:paragraph --&gt;
@@ -196888,7 +195069,7 @@ Pandoc can convert to PDF, but not from PDF.</pre></section></div><div class="no
 &lt;!-- /wp:paragraph --&gt;
 
 &lt;!-- wp:paragraph --&gt;
-&lt;p&gt;But this requires tracing a copy of the outer loop for every side exit and type combination in the inner loop. In essence, this is a form of unintended tail duplication, which can easily overflow the code cache. Alternatively, the VM could simply stop tracing, and give up on ever tracing outer loops. nested trace . Our system traces the inner loop exactly as the naive version.&lt;/p&gt;
+&lt;p&gt;But this requires tracing a copy of the outer loop for every side exit and type combination in the inner loop. In essence, this is a form of unintended tail duplication, which can easily overflow the code cache. Alternatively, the VM could simply stop tracing, and give up on ever tracing outer loops. We solve the nested loop problem by recording nested trace trees. Our system traces the inner loop exactly as the naive version.&lt;/p&gt;
 &lt;!-- /wp:paragraph --&gt;
 
 &lt;!-- wp:paragraph --&gt;
@@ -197442,12 +195623,12 @@ Pandoc can convert to PDF, but not from PDF.</pre></section></div><div class="no
 &lt;!-- wp:paragraph --&gt;
 &lt;p&gt;. Ph Dthesis, University Of California, Irvine, 2006. [11]A. Gal, C. W. Probst, and M. Franz. Hot path VM: An effective JIT , pages 144–153.ACMPress,2006. [12]C. Garrett, J. Dean, D. Grove, and C. Chambers. Measurement and Application of Dynamic Receiver Class Distributions.1994. [13]J. Ha, M. R. Haghighat, S. Cong, and K. S. Mc Kinley. A concurrent trace-based just-in-time compiler for javascript. Dept.of Computer Sciences, The University of Texas at Austin, TR-09-06,2009. [14]B. Mc Closkey. Personal communication. [15]I. Piumartaand F. Riccardi. Optimizingdirectthreadedcodebyselec- , pages291– 300.ACMNew York, NY, USA,1998. [16]A. Rigo. Representation-Based Just-In-time Specialization and the ,2004. [17]M. Salib. Star killer: A Static Type Inference rand Compiler for ,2004. [18]T. Suganuma, T. Yasue, and T. Nakatani. A Region-Based Compila- ACMTransactionson Pro- ,28(1):134–174,2006. [19]M. Zaleski, A. D. Brown, and K. Stoodley. YETI: Agraduall Y , pages83–93.ACM Press,2007.&lt;/p&gt;
 &lt;!-- /wp:paragraph --&gt;</pre></section><section class="conversion-pane" id="pdf-tracemonkey-phpHtml"><div class="pane-head"><span class="pane-title">PHP HTML</span><span class="pane-status status-ok">ok</span></div><iframe class="render-frame" data-sync-group="pdf-tracemonkey" title="TraceMonkey technical PDF PHP HTML" src="outputs/pdf-tracemonkey/php.html"></iframe><pre class="source-box" data-sync-group="pdf-tracemonkey">&lt;!doctype html&gt;&lt;html lang=&quot;en&quot;&gt;&lt;head&gt;&lt;meta charset=&quot;utf-8&quot;&gt;&lt;meta name=&quot;viewport&quot; content=&quot;width=device-width, initial-scale=1&quot;&gt;&lt;title&gt;PHP Pandoc HTML output&lt;/title&gt;&lt;style&gt;html{line-height:1.5;font-family:Georgia,&quot;Times New Roman&quot;,serif;font-size:18px;color:#1f2933;background:#fdfdfd;}body{margin:0 auto;max-width:46em;padding:2.5em 1.25em;}h1,h2,h3,h4,h5,h6{font-family:system-ui,-apple-system,BlinkMacSystemFont,&quot;Segoe UI&quot;,sans-serif;line-height:1.25;margin:1.4em 0 .45em;}h1{font-size:2em;}h2{font-size:1.55em;}h3{font-size:1.25em;}p{margin:1em 0;}a{color:#1f6feb;}img,svg,video{max-width:100%;height:auto;}pre,code,kbd,samp{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.9em;}code{background:#eef1f5;padding:.1em .25em;border-radius:3px;}pre{overflow:auto;background:#f6f8fa;border:1px solid #d8dde3;border-radius:6px;padding:1em;}pre code{background:transparent;padding:0;}blockquote{margin:1.25em 0;padding-left:1em;border-left:4px solid #d8dde3;color:#4b5563;}table{border-collapse:collapse;margin:1.25em 0;width:100%;font-size:.92em;}th,td{border:1px solid #d8dde3;padding:.35em .55em;vertical-align:top;}th{background:#f6f8fa;}math{font-family:math,serif;}math[display=&quot;block&quot;]{display:block;margin:1em 0;overflow-x:auto;}&lt;/style&gt;&lt;/head&gt;&lt;body&gt;&lt;h1&gt;Trace-based Just-in-Time Type Specialization for Dynamic&lt;/h1&gt;
-&lt;p&gt;Dynamic languages such as JavaScript are more difficult to compile than statically typed ones. Since no concrete type information is available, traditional compilers need to emit generic code that can handle all possible type combinations at runtime. We present an alternative compilation technique for dynamically-typed languages that identifies frequently executed loop traces at run-time and then generates machine code on the fly that is specialized for the actual dynamic types occurring on each path through the loop. Our method provides cheap inter-procedural type specialization, and an elegant and efficient way of incrementally compiling lazily discovered alternative paths through nested loops. We have implemented a dynamic compiler for JavaScript based on our technique and we have measured speedups of 10x and more for certain benchmarks. Languages such as JavaScript, Python, and Ruby, are popular since they are expressive, accessible to non-experts, and make deployment as easy as distributing a source file. They are used for small scripts as well as for complex applications. JavaScript is used for the application logic of browser-based productivity applications such as Google Mail, Google Docs and Zimbra Collaboration Suite. In this domain, in order to provide a fluid user experience and enable a new generation of applications, virtual machines must provide a low startup time and high performance.&lt;/p&gt;
+&lt;p&gt;Dynamic languages such as JavaScript are more difficult to compile than statically typed ones. Since no concrete type information is available, traditional compilers need to emit generic code that can handle all possible type combinations at runtime. We present an alternative compilation technique for dynamically-typed languages that identifies frequently executed loop traces at run-time and then generates machine code on the fly that is specialized for the actual dynamic types occurring on each path through the loop. Our method provides cheap inter-procedural type specialization, and an elegant and efficient way of incrementally compiling lazily discovered alternative paths through nested loops. We have implemented a dynamic compiler for JavaScript based on our technique and we have measured speedups of 10x and more for certain benchmarks. Languages such as JavaScript, Python, and Ruby, are popular since they are expressive, accessible to non-experts, and make deployment as easy as distributing a source file. They are used for small scripts as well as for complex applications. JavaScript, for example, is the de facto standard for client-side web programming and is used for the application logic of browser-based productivity applications such as Google Mail, Google Docs and Zimbra Collaboration Suite. In this domain, in order to provide a fluid user experience and enable a new generation of applications, virtual machines must provide a low startup time and high performance.&lt;/p&gt;
 &lt;p&gt;Compilers for statically typed languages rely on type information to generate efficient machine code. In a dynamically typed programming language such as JavaScript, the types of expressions may vary at runtime. This means that the compiler can no longer easily transform operations into machine instructions that operate on one specific type. Without exact type information, the compiler must emit slower generalized machine code that can deal with all potential type combinations. While compile-time static type inference might be able to gather type information to generate optimized machine code, traditional static analysis is very expensive and hence not well suited for the highly interactive environment of a web browser.&lt;/p&gt;
-&lt;p&gt;We present a trace-based compilation technique for dynamic languages that reconciles speed of compilation with excellent performance of the generated machine code. Our system uses a mixed mode execution approach: the system starts running JavaScript in a fast-starting bytecode interpreter. As the program runs, the system (frequently executed)bytecode sequences, records them, and compiles them to fast native code. We call such a sequence a trace. Unlike method-based dynamic compilers, our dynamic compiler operates at the granularity of individual loops. This design choice is based on the expectation that programs spend most of their time in hot loops. Even in dynamically typed languages, we , meaning that the types of values are invariant.(12)For example, we would expect loop counters that start as integers to remain integers for all iterations. When both of these expectations hold, a trace-based compiler can cover the program execution with a small number of type-specialized, efficiently compiled traces.&lt;/p&gt;
-&lt;p&gt;Each compiled trace covers one path through the program with one mapping of values to types. When the VM executes a compiled trace, it cannot guarantee that the same path will be followed or that the same types will occur in subsequent loop iterations. that the path and typing will be exactly as they were during recording for subsequent iterations of the loop. (checks)required to validate the speculation. If one of the guards fails(if control flow is different, or a value of a different type is generated), the branch starting at the exit to cover the new path. In this way, the VM covering all the hot paths through the loop.&lt;/p&gt;
+&lt;p&gt;We present a trace-based compilation technique for dynamic languages that reconciles speed of compilation with excellent performance of the generated machine code. Our system uses a mixed mode execution approach: the system starts running JavaScript in a fast-starting bytecode interpreter. As the program runs, the system (frequently executed)bytecode sequences, records them, and compiles them to fast native code. We call such a sequence a trace. Unlike method-based dynamic compilers, our dynamic compiler operates at the granularity of individual loops. This design choice is based on the expectation that programs spend most of their time in hot loops. Even in dynamically typed languages, we expect hot loops to be mostly type-stable, meaning that the types of values are invariant. (12) For example, we would expect loop counters that start as integers to remain integers for all iterations. When both of these expectations hold, a trace-based compiler can cover the program execution with a small number of type-specialized, efficiently compiled traces.&lt;/p&gt;
+&lt;p&gt;Each compiled trace covers one path through the program with one mapping of values to types. When the VM executes a compiled trace, it cannot guarantee that the same path will be followed or that the same types will occur in subsequent loop iterations. Hence, recording and compiling a trace speculates that the path and typing will be exactly as they were during recording for subsequent iterations of the loop. Every compiled trace contains all the guards (checks) required to validate the speculation. If one of the guards fails(if control flow is different, or a value of a different type is generated), the trace exits. If an exit becomes hot, the VM can record a branch trace starting at the exit to cover the new path. In this way, the VM records a trace tree covering all the hot paths through the loop.&lt;/p&gt;
 &lt;p&gt;Nested loops can be difficult to optimize for tracing VMs. In a naive implementation, inner loops would become hot first, and the VM would start tracing there. When the inner loop exits, the VM would detect that a different branch was taken. The VM would try to record a branch trace, and find that the trace reaches not the inner loop header, but the outer loop header. At this point, the VM could continue tracing until it reaches the inner loop header again, thus tracing the outer loop inside a trace tree for the inner loop.&lt;/p&gt;
-&lt;p&gt;But this requires tracing a copy of the outer loop for every side exit and type combination in the inner loop. In essence, this is a form of unintended tail duplication, which can easily overflow the code cache. Alternatively, the VM could simply stop tracing, and give up on ever tracing outer loops. nested trace . Our system traces the inner loop exactly as the naive version.&lt;/p&gt;
+&lt;p&gt;But this requires tracing a copy of the outer loop for every side exit and type combination in the inner loop. In essence, this is a form of unintended tail duplication, which can easily overflow the code cache. Alternatively, the VM could simply stop tracing, and give up on ever tracing outer loops. We solve the nested loop problem by recording nested trace trees. Our system traces the inner loop exactly as the naive version.&lt;/p&gt;
 &lt;p&gt;The system stops extending the inner tree when it reaches an outer loop, but then it starts a new trace at the outer loop header. When the outer loop reaches the inner loop header, the system tries to call the trace tree for the inner loop. If the call succeeds, the VM records the call to the inner tree as part of the outer trace and finishes the outer trace as normal. In this way, our system can trace any number of loops nested to any depth without causing excessive tail duplication.&lt;/p&gt;
 &lt;p&gt;These techniques allow a VM to dynamically translate a program to nested, type-specialized trace trees. Because traces can cross function call boundaries, our techniques also achieve the effects of inlining. Because traces have no internal control-flow joins, they can be optimized in linear time by a simple compiler(10).&lt;/p&gt;
 &lt;p&gt;Thus, our tracing VM efficiently performs the same kind of optimizations that would require inter procedural analysis in a static optimization setting. This makes tracing an attractive and effective tool to type specialize even complex function call-rich code.&lt;/p&gt;

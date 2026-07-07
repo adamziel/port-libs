@@ -4870,10 +4870,14 @@ return [
             . '1 0 0 1 72 652 Tm (languagesthatidentifiesfrequentlyexecutedlooptracesatrun-timeandthen) Tj '
             . '1 0 0 1 72 620 Tm (Eachcompiledtracecoversonepaththroughtheprogramwith) Tj '
             . '1 0 0 1 72 604 Tm (onemappingofvaluestotypes.WhentheVMexecutesacompiled) Tj '
-            . '1 0 0 1 72 588 Tm (NestedloopscanbedifficulttooptimizefortracingVMs.) Tj '
-            . '1 0 0 1 72 572 Tm (Alternatively,theVMcouldsimplystoptracing,andgiveup) Tj '
-            . '1 0 0 1 72 556 Tm (The systemstopsextendingtheinnertreewhenitreachesanouter) Tj '
-            . '1 0 0 1 72 540 Tm (oursystemcantraceanynumberofloopsnestedtoanydepthwithoutcausingexcessivetailduplication.) Tj '
+            . '1 0 0 1 72 588 Tm (thatthepathand) Tj '
+            . '1 0 0 1 72 572 Tm (typingwillbeexactlyastheywereduringrecordingforsubsequent) Tj '
+            . '1 0 0 1 72 556 Tm (iterationsoftheloop.) Tj '
+            . '1 0 0 1 72 540 Tm (\\(checks\\)required) Tj '
+            . '1 0 0 1 72 508 Tm (NestedloopscanbedifficulttooptimizefortracingVMs.) Tj '
+            . '1 0 0 1 72 492 Tm (Alternatively,theVMcouldsimplystoptracing,andgiveup) Tj '
+            . '1 0 0 1 72 476 Tm (The systemstopsextendingtheinnertreewhenitreachesanouter) Tj '
+            . '1 0 0 1 72 460 Tm (oursystemcantraceanynumberofloopsnestedtoanydepthwithoutcausingexcessivetailduplication.) Tj '
             . 'ET'
         );
 
@@ -4893,6 +4897,7 @@ return [
         $t->contains('We present an alternative compilation technique for dynamically-typed languages', $text);
         $t->contains('run-time and then', $text);
         $t->contains('Each compiled trace covers one path through the program with one mapping of values to types. When the VM executes a compiled', $text);
+        $t->contains('Every compiled trace contains all the guards (checks) required', $text);
         $t->contains('Nested loops can be difficult to optimize for tracing VMs.', $text);
         $t->contains('the VM could simply stop tracing, and give up', $text);
         $t->contains('The system stops extending the inner tree when it reaches an outer', $text);

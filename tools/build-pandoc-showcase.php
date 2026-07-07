@@ -175,6 +175,39 @@ This is a Jira wiki markup page from a migration ticket.
 |DOCX|partial|
 JIRA;
 
+    $githubMarkdown = <<<'GFM'
+# GitHub Flavored Markdown feature packet
+
+This paragraph uses **bold**, _italic_, ~~strikethrough~~, `inline code`, a bare URL https://github.com/openai, and a mention-like token @octocat.
+
+## Task list
+
+- [x] Parse GFM task list syntax
+- [ ] Preserve unchecked tasks
+- [x] Render nested formatting with **bold and _italic_ text**
+
+## Table syntax
+
+| Feature | Rendered example |
+| --- | --- |
+| Bold | **This is bold text** |
+| Italic | _This text is italicized_ |
+| Strikethrough | ~~This was mistaken text~~ |
+| Inline code | `git status` |
+| Link | [OpenAI](https://openai.com/) |
+
+## Quote and alert-style block
+
+> [!NOTE]
+> This block intentionally uses GitHub-style alert syntax without escaping it.
+
+## Autolinks and references
+
+See https://github.github.com/gfm/ and [the CommonMark spec][commonmark].
+
+[commonmark]: https://spec.commonmark.org/
+GFM;
+
     $json = <<<'JSON'
 {
   "pandoc-api-version": [1, 23, 1],
@@ -342,14 +375,14 @@ RIS;
             ),
         ],
         'markdown_github' => [
-            remote_sample(
-                'markdown-github-writing-formatting',
+            inline_sample(
+                'markdown-github-rendered-syntax',
                 'markdown_github',
-                'https://raw.githubusercontent.com/github/docs/main/content/get-started/writing-on-github/getting-started-with-writing-and-formatting-on-github/basic-writing-and-formatting-syntax.md',
-                'basic-writing-and-formatting-syntax.md',
-                'GitHub writing and formatting syntax',
-                'github/docs GitHub writing and formatting syntax',
-                'Real GitHub Docs article with front matter, Liquid tags, pipe tables, strikethrough, task lists, images, emoji, alerts, mentions, and fenced code examples.'
+                'github-rendered-syntax.md',
+                'Rendered GitHub syntax packet',
+                $githubMarkdown,
+                'Inline GFM sample with unescaped syntax rendered as document content.',
+                'Compact GitHub Flavored Markdown sample that renders the actual syntax for emphasis, task lists, tables, autolinks, references, code, and alert-style blockquotes instead of showing only escaped examples.'
             ),
         ],
         'html' => [

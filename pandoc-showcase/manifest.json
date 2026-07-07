@@ -1,5 +1,5 @@
 {
-    "generatedAt": "2026-07-07T09:19:01+00:00",
+    "generatedAt": "2026-07-07T09:56:25+00:00",
     "pandocVersion": "pandoc 3.10\nFeatures: +server +lua\nScripting engine: Lua 5.4\nUser data directory: $REPO\nCopyright (C) 2006-2025 John MacFarlane. Web:  https://pandoc.org\nThis is free software; see the source for copying conditions. There is no\nwarranty, not even for merchantability or fitness for a particular purpose.",
     "formats": [
         "biblatex",
@@ -89,16 +89,16 @@
     ],
     "blockUsage": {
         "totals": {
-            "code": 624,
-            "group": 292,
-            "heading": 3912,
+            "code": 607,
+            "group": 270,
+            "heading": 3890,
             "html": 51,
-            "image": 121,
-            "list": 1155,
-            "paragraph": 15482,
+            "image": 102,
+            "list": 1152,
+            "paragraph": 15392,
             "quote": 65,
             "separator": 62,
-            "table": 544,
+            "table": 542,
             "verse": 1
         },
         "sampleCount": 73
@@ -1173,15 +1173,15 @@
             }
         },
         {
-            "id": "markdown-github-writing-formatting",
+            "id": "markdown-github-rendered-syntax",
             "format": "markdown_github",
-            "label": "GitHub writing and formatting syntax",
-            "description": "Real GitHub Docs article with front matter, Liquid tags, pipe tables, strikethrough, task lists, images, emoji, alerts, mentions, and fenced code examples.",
-            "source": "github/docs GitHub writing and formatting syntax",
-            "sourceUrl": "https://raw.githubusercontent.com/github/docs/main/content/get-started/writing-on-github/getting-started-with-writing-and-formatting-on-github/basic-writing-and-formatting-syntax.md",
-            "samplePath": "samples/markdown-github-writing-formatting-basic-writing-and-formatting-syntax.md",
-            "sampleSize": 24715,
-            "preview": "---\ntitle: Basic writing and formatting syntax\nintro: Create sophisticated formatting for your prose and code on GitHub with simple syntax.\nproduct: '{% data reusables.gated-features.markdown-ui %}'\nredirect_from:\n  - /articles/basic-writing-and-formatting-syntax\n  - /github/writing-on-github/basic-writing-and-formatting-syntax\n  - /github/writing-on-github/getting-started-with-writing-and-formatting-on-github/basic-writing-and-formatting-syntax\nversions:\n  fpt: '*'\n  ghes: '*'\n  ghec: '*'\nshortTitle: Basic formatting syntax\ncategory:\n  - Write and format content\n---\n## Headings\n\nTo create a heading, add one to six <kbd>#</kbd> symbols before your heading text. The number of <kbd>#</kbd> you use will determine the hierarchy level and typeface size of the heading.\n\n```markdown\n# A first-level heading\n## A second-level heading\n### A third-level heading\n```\n\n![Screenshot of rendered GitHub Markdown showing sample h1, h2, and h3 headers, which descend in type size and visual weight to show hierarchy level.](/assets/images/help/writing/headings-rendered.png)\n\nWhen you use two or more headings, GitHub automatically generates a table of contents that you can access by clicking the \"Outline\" menu icon {% octicon \"list-unordered\" aria-label=\"Table of Contents\" %} within the file header. Each heading title is listed in the table of contents and you can click a title to navigate to the selected section.\n\n![Screenshot of a README file with the drop-down menu for the table of contents exposed. The table of contents icon is outlined in dark orange.](/assets/images/help/repository/headings-toc.png)\n\n## Styling text\n\nYou can indicate emphasis with bold, italic, strikethrough, subscript, or superscript text in comment fields and `.md` files.\n\n| Style | Syntax | Keyboard shortcut | Example | Output |\n| --- | --- | --- | --- | --- |\n| Bold | `** **` or `__ __`| <kbd>Command</kbd>+<kbd>B</kbd> (Mac) or <kbd>Ctrl</kbd>+<kbd>B</kbd> (Windows/Linux) | `**This is bold text**` | **This is bold text** |\n| Italic | `* *` or `_ _` \u2003\u2003\u2003\u2003| <kbd>Command</kbd>+<kbd>I</kbd> (Mac) or <kbd>Ctrl</kbd>+<kbd>I</kbd> (Windows/Linux) | `_This text is italicized_` | _This text is italicized_ |\n| Strikethrough | `~~ ~~` or `~ ~` | None | `~~This was mistaken text~~` | ~~This was mistaken text~~ |\n| Bold and nested italic | `** **` and `_ _` | None | `**This text is _extremely_ important**` | **This text is _extremely_ important** |\n| All bold and italic | `*** ***` | None | `***All this text is important***` | ***All this text is important*** | <!-- markdownlint-disable-line emphasis-style -->\n| Subscript | `<sub> </sub>` | None | `This is a <sub>subscript</sub> text` | This is a <sub>subscript</sub> text |\n| Superscript | `<sup> </sup>` | None | `This is a <sup>superscript</sup> text` | This is a <sup>superscript</sup> text |\n| Underline | `<ins> </ins>` | None | `This is an <ins>underlined</ins> text` | This is an <ins>underlined</ins> text |\n\n## Quoting text\n\nYou can quote text with a <kbd>></kbd>.\n\n```markdown\nText that is not a quote\n\n> Text that is a quote\n```\n\nQuoted text is indented with a vertical line on the left and displayed using gray type.\n\n![Screenshot of rendered GitHub Markdown showing the difference between normal and quoted text.](/assets/images/help/writing/quoted-text-rendered.png)\n\n> [!NOTE]\n> When viewing a conversation, you can automatically quote text in a comment by highlighting the text, then typing <kbd>R</kbd>. You can quote an entire comment by clicking {% octicon \"kebab-horizontal\" aria-label=\"The horizontal kebab icon\" %}, then **Quote reply**. For more information about keyboard shortcuts, see [AUTOTITLE](/get-started/accessibility/keyboard-shortcuts).\n\n## Quoting code\n\nYou can call out code or a command within a sentence with single backticks. The text within the backticks will not be formatted. You can also press the <kbd>Command</kbd>+<kbd>E</kbd> (Mac) or <kbd>Ctrl</kbd>+<kbd>E</kbd> (Windows/Linux) keyboard shortcut to insert the backticks for a code block within a line of Markdown.\n\n```markdown\nUse `git status` to list all new or modified files that haven't yet been committed.\n```\n\n![Screenshot of rendered GitHub Markdown showing that characters surrounded by backticks are shown in a fixed-width typeface, highlighted in light gray.](/assets/images/help/writing/inline-code-rendered.png)\n\nTo format code or text into its own distinct block, use triple backticks.\n\n````markdown\nSome basic Git commands are:\n```\ngit status\n...",
+            "label": "Rendered GitHub syntax packet",
+            "description": "Compact GitHub Flavored Markdown sample that renders the actual syntax for emphasis, task lists, tables, autolinks, references, code, and alert-style blockquotes instead of showing only escaped examples.",
+            "source": "Inline GFM sample with unescaped syntax rendered as document content.",
+            "sourceUrl": "",
+            "samplePath": "samples/markdown-github-rendered-syntax-github-rendered-syntax.md",
+            "sampleSize": 855,
+            "preview": "# GitHub Flavored Markdown feature packet\n\nThis paragraph uses **bold**, _italic_, ~~strikethrough~~, `inline code`, a bare URL https://github.com/openai, and a mention-like token @octocat.\n\n## Task list\n\n- [x] Parse GFM task list syntax\n- [ ] Preserve unchecked tasks\n- [x] Render nested formatting with **bold and _italic_ text**\n\n## Table syntax\n\n| Feature | Rendered example |\n| --- | --- |\n| Bold | **This is bold text** |\n| Italic | _This text is italicized_ |\n| Strikethrough | ~~This was mistaken text~~ |\n| Inline code | `git status` |\n| Link | [OpenAI](https://openai.com/) |\n\n## Quote and alert-style block\n\n> [!NOTE]\n> This block intentionally uses GitHub-style alert syntax without escaping it.\n\n## Autolinks and references\n\nSee https://github.github.com/gfm/ and [the CommonMark spec][commonmark].\n\n[commonmark]: https://spec.commonmark.org/",
             "support": {
                 "status": "reader-equivalent",
                 "implementation": "PortLibs\\Pandoc\\MarkdownReader",
@@ -1189,24 +1189,22 @@
             },
             "haskell": {
                 "ok": true,
-                "path": "outputs/markdown-github-writing-formatting/haskell.html"
+                "path": "outputs/markdown-github-rendered-syntax/haskell.html"
             },
             "phpHtml": {
                 "ok": true,
-                "path": "outputs/markdown-github-writing-formatting/php.html"
+                "path": "outputs/markdown-github-rendered-syntax/php.html"
             },
             "wpBlocks": {
                 "ok": true,
-                "path": "outputs/markdown-github-writing-formatting/wordpress-blocks.html"
+                "path": "outputs/markdown-github-rendered-syntax/wordpress-blocks.html"
             },
             "wpBlockCounts": {
-                "code": 17,
-                "group": 24,
-                "heading": 27,
-                "image": 19,
-                "list": 4,
-                "paragraph": 94,
-                "table": 3
+                "group": 2,
+                "heading": 5,
+                "list": 1,
+                "paragraph": 4,
+                "table": 1
             }
         },
         {
