@@ -12,7 +12,7 @@
     <div class="hero-inner">
       <p class="eyebrow">adamziel/port-libs</p>
       <h1>Convert a document into a WordPress page</h1>
-      <p class="lede">Try the PHP Pandoc port as a live WordPress import pipeline. Upload a document, convert it to native block markup inside an embedded WordPress Playground, import the rendered images into the media library, and inspect the resulting page immediately.</p>
+      <p class="lede">Try the PHP Pandoc port as a live WordPress import pipeline. Upload a document, convert it to native block markup inside an embedded WordPress Playground, import the rendered images into the media library, and inspect the resulting page immediately. It is a practical way to see whether a document can become real WordPress content instead of a pasted blob of HTML.</p>
       <div class="hero-actions">
         <a href="index.html">Showcase</a>
         <a href="block-usage.html">Block usage guide</a>
@@ -85,14 +85,29 @@
         <pre id="log-output"></pre>
       </div>
 
+      <div class="value-panel value-panel-primary" aria-label="Why this converter is useful">
+        <h3>Why this is useful</h3>
+        <p>Most document converters stop at HTML. This page goes one step further: it shows whether an uploaded file can become an editable WordPress page with native blocks, media-library images, links, tables, lists, code, math, and document structure that you can inspect immediately.</p>
+      </div>
+
       <div class="value-panel" aria-label="What this converter does">
-        <h3>What you can do here</h3>
+        <h3>What you can do</h3>
         <ul>
-          <li>Preview how real documents become editable WordPress pages, not just static HTML.</li>
-          <li>Check whether headings, paragraphs, lists, tables, code, math, links, and images survive conversion.</li>
-          <li>Test imports without a server, database setup, plugin install, or permanent WordPress site.</li>
+          <li>Drop in a document and open the converted result as a WordPress page.</li>
+          <li>Edit the generated blocks in the WordPress editor to see what is truly usable.</li>
+          <li>Compare tricky source files against the showcase output and report conversion gaps.</li>
           <li>Verify that only images used by rendered <code>&lt;img&gt;</code> tags become media-library files.</li>
         </ul>
+      </div>
+
+      <div class="value-panel" aria-label="What happens during conversion">
+        <h3>What happens</h3>
+        <ol>
+          <li>The uploaded file is parsed by the port-libs Pandoc readers.</li>
+          <li>The document is rewritten as WordPress block markup.</li>
+          <li>Referenced rendered images are imported into the Playground media library.</li>
+          <li>A new page opens so you can inspect, edit, and publish-test the result.</li>
+        </ol>
       </div>
 
       <details class="format-details">
