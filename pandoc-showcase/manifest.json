@@ -1,5 +1,5 @@
 {
-    "generatedAt": "2026-07-07T10:45:42+00:00",
+    "generatedAt": "2026-07-07T11:21:43+00:00",
     "pandocVersion": "pandoc 3.10\nFeatures: +server +lua\nScripting engine: Lua 5.4\nUser data directory: $REPO\nCopyright (C) 2006-2025 John MacFarlane. Web:  https://pandoc.org\nThis is free software; see the source for copying conditions. There is no\nwarranty, not even for merchantability or fitness for a particular purpose.",
     "formats": [
         "biblatex",
@@ -91,17 +91,17 @@
         "totals": {
             "code": 607,
             "group": 270,
-            "heading": 3901,
+            "heading": 3928,
             "html": 51,
             "image": 102,
             "list": 1152,
-            "paragraph": 15376,
+            "paragraph": 15444,
             "quote": 65,
             "separator": 62,
             "table": 542,
             "verse": 1
         },
-        "sampleCount": 73
+        "sampleCount": 77
     },
     "records": [
         {
@@ -2607,6 +2607,137 @@
             "wpBlockCounts": {
                 "heading": 18,
                 "paragraph": 128
+            }
+        },
+        {
+            "id": "pdf-cdc-hand-hygiene-brochure",
+            "format": "pdf",
+            "label": "CDC hand hygiene brochure",
+            "description": "Short public health brochure with flyer-like layout, large headings, side-by-side blocks, and image-heavy design elements.",
+            "source": "Centers for Disease Control and Prevention hand hygiene brochure PDF",
+            "sourceUrl": "https://www.cdc.gov/clean-hands/media/pdfs/cdc-handhygiene-brochure-508.pdf",
+            "samplePath": "samples/pdf-cdc-hand-hygiene-brochure-cdc-handhygiene-brochure.pdf",
+            "sampleSize": 347256,
+            "preview": "",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\PdfReader",
+                "notes": "Project-local markerPDF bridge extracts searchable PDF text lines and structural provenance for simple PDFs. Complex multi-column or untagged PDFs may lose spacing/order or be exposed only as extraction diagnostics. PDF is not an upstream Pandoc input format."
+            },
+            "haskell": {
+                "ok": false,
+                "error": "Unknown input format 'pdf'\nPandoc can convert to PDF, but not from PDF.",
+                "path": "outputs/pdf-cdc-hand-hygiene-brochure/haskell.html.error.txt"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/pdf-cdc-hand-hygiene-brochure/php.html"
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/pdf-cdc-hand-hygiene-brochure/wordpress-blocks.html"
+            },
+            "wpBlockCounts": {
+                "heading": 2,
+                "paragraph": 19
+            }
+        },
+        {
+            "id": "pdf-grand-canyon-north-rim-map",
+            "format": "pdf",
+            "label": "Grand Canyon North Rim pocket map",
+            "description": "National Park Service leaflet-style pocket map with map panels, services, columns, and mixed visual/text layout.",
+            "source": "National Park Service Grand Canyon North Rim Services Guide pocket map PDF",
+            "sourceUrl": "https://www.nps.gov/grca/learn/news/upload/nr-pocket-map.pdf",
+            "samplePath": "samples/pdf-grand-canyon-north-rim-map-grand-canyon-north-rim-pocket-map.pdf",
+            "sampleSize": 2030834,
+            "preview": "",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\PdfReader",
+                "notes": "Project-local markerPDF bridge extracts searchable PDF text lines and structural provenance for simple PDFs. Complex multi-column or untagged PDFs may lose spacing/order or be exposed only as extraction diagnostics. PDF is not an upstream Pandoc input format."
+            },
+            "haskell": {
+                "ok": false,
+                "error": "Unknown input format 'pdf'\nPandoc can convert to PDF, but not from PDF.",
+                "path": "outputs/pdf-grand-canyon-north-rim-map/haskell.html.error.txt"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/pdf-grand-canyon-north-rim-map/php.html"
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/pdf-grand-canyon-north-rim-map/wordpress-blocks.html"
+            },
+            "wpBlockCounts": {
+                "heading": 22,
+                "paragraph": 27
+            }
+        },
+        {
+            "id": "pdf-archive-motograph-book",
+            "format": "pdf",
+            "label": "Public-domain scanned book PDF",
+            "description": "Internet Archive public-domain scanned small book with OCR text, title pages, and book-like page flow.",
+            "source": "Internet Archive public-domain scan of The Motograph Moving Picture Book",
+            "sourceUrl": "https://archive.org/download/motographmoving00laugoog/motographmoving00laugoog.pdf",
+            "samplePath": "samples/pdf-archive-motograph-book-motograph-moving-picture-book.pdf",
+            "sampleSize": 1980820,
+            "preview": "",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\PdfReader",
+                "notes": "Project-local markerPDF bridge extracts searchable PDF text lines and structural provenance for simple PDFs. Complex multi-column or untagged PDFs may lose spacing/order or be exposed only as extraction diagnostics. PDF is not an upstream Pandoc input format."
+            },
+            "haskell": {
+                "ok": false,
+                "error": "Unknown input format 'pdf'\nPandoc can convert to PDF, but not from PDF.",
+                "path": "outputs/pdf-archive-motograph-book/haskell.html.error.txt"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/pdf-archive-motograph-book/php.html"
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/pdf-archive-motograph-book/wordpress-blocks.html"
+            },
+            "wpBlockCounts": {
+                "paragraph": 8
+            }
+        },
+        {
+            "id": "pdf-muir-beach-brochure",
+            "format": "pdf",
+            "label": "Muir Beach illustrated brochure",
+            "description": "Small National Park Service brochure with photos, map-oriented visitor information, headings, and short panels.",
+            "source": "National Park Service Muir Beach brochure PDF",
+            "sourceUrl": "https://www.nps.gov/goga/planyourvisit/upload/MUBE-sb_web_17e.pdf",
+            "samplePath": "samples/pdf-muir-beach-brochure-muir-beach-brochure.pdf",
+            "sampleSize": 2559393,
+            "preview": "",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\PdfReader",
+                "notes": "Project-local markerPDF bridge extracts searchable PDF text lines and structural provenance for simple PDFs. Complex multi-column or untagged PDFs may lose spacing/order or be exposed only as extraction diagnostics. PDF is not an upstream Pandoc input format."
+            },
+            "haskell": {
+                "ok": false,
+                "error": "Unknown input format 'pdf'\nPandoc can convert to PDF, but not from PDF.",
+                "path": "outputs/pdf-muir-beach-brochure/haskell.html.error.txt"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/pdf-muir-beach-brochure/php.html"
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/pdf-muir-beach-brochure/wordpress-blocks.html"
+            },
+            "wpBlockCounts": {
+                "heading": 3,
+                "paragraph": 14
             }
         },
         {

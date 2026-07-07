@@ -1,4 +1,4 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Pandoc PHP Port Conversion Showcase</title><link rel="stylesheet" href="styles.css"></head><body><header class="hero"><div class="hero-inner"><p class="eyebrow">adamziel/port-libs</p><h1>Pandoc PHP port conversion showcase</h1><p class="lede">Real public documents and upstream fixtures are converted three ways: Haskell Pandoc to HTML, the local PHP port to HTML, and the local PHP port to WordPress block markup. The stress samples are intentionally messy enough to expose timeouts, memory limits, package complexity, and block coverage.</p><div class="stats"><div class="stat"><strong>37</strong><span>covered input formats</span></div><div class="stat"><strong>77</strong><span>source files</span></div><div class="stat"><strong>217/231</strong><span>successful conversions</span></div><div class="stat"><strong>2026-07-07</strong><span>generated</span></div></div><ul class="stress-samples" aria-label="Real-world stress samples"><li><a href="#docx-oasis-kmip-spec">OASIS KMIP DOCX</a></li><li><a href="#epub-gutenberg-alice-illustrated">Illustrated Alice EPUB</a></li><li><a href="#markdown-pandoc-manual">Pandoc manual Markdown</a></li><li><a href="#odt-oasis-opendocument-schema">OASIS OpenDocument ODT</a></li><li><a href="#pdf-irs-w4">IRS Form W-4 PDF</a></li><li><a href="#pptx-cdc-food-safety-slides">CDC PPTX</a></li><li><a href="#xlsx-census-tax-parameter-workbook">Census XLSX</a></li></ul><div class="hero-actions"><a href="block-usage.html">WordPress block usage guide</a><a href="manifest.json">Manifest JSON</a></div></div></header><main class="layout"><nav class="format-nav" aria-label="Formats"><a href="#format-biblatex">biblatex</a><a href="#format-bibtex">bibtex</a><a href="#format-bits">bits</a><a href="#format-commonmark">commonmark</a><a href="#format-commonmark_x">commonmark_x</a><a href="#format-csljson">csljson</a><a href="#format-csv">csv</a><a href="#format-doc">doc</a><a href="#format-docbook">docbook</a><a href="#format-docx">docx</a><a href="#format-endnotexml">endnotexml</a><a href="#format-epub">epub</a><a href="#format-fb2">fb2</a><a href="#format-gfm">gfm</a><a href="#format-html">html</a><a href="#format-ipynb">ipynb</a><a href="#format-jats">jats</a><a href="#format-jira">jira</a><a href="#format-json">json</a><a href="#format-latex">latex</a><a href="#format-man">man</a><a href="#format-markdown">markdown</a><a href="#format-markdown_github">markdown_github</a><a href="#format-markdown_mmd">markdown_mmd</a><a href="#format-markdown_phpextra">markdown_phpextra</a><a href="#format-markdown_strict">markdown_strict</a><a href="#format-mediawiki">mediawiki</a><a href="#format-native">native</a><a href="#format-odt">odt</a><a href="#format-opml">opml</a><a href="#format-pdf">pdf</a><a href="#format-pptx">pptx</a><a href="#format-ris">ris</a><a href="#format-rtf">rtf</a><a href="#format-tsv">tsv</a><a href="#format-xlsx">xlsx</a><a href="#format-xml">xml</a></nav><p class="status-warn">Missing local support entries with no sample yet: dokuwiki, mdoc, rst</p><section class="format-section" id="format-biblatex"><div class="format-heading"><h2>biblatex</h2><span>2 samples</span></div><article class="comparison" id="biblatex-biblio"><section class="original"><div class="panel-head"><h3>BibLaTeX-style bibliography</h3><p class="meta">459 bytes | <a href="https://raw.githubusercontent.com/jgm/pandoc/912bfa5e2e3f5c74eb125dfc19404f67c61ca58b/test/command/biblio.bib">jgm/pandoc upstream fixture at test/command/biblio.bib</a></p></div><div class="original-body"><pre class="source-preview">@Book{item1,
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Pandoc PHP Port Conversion Showcase</title><link rel="stylesheet" href="styles.css"></head><body><header class="hero"><div class="hero-inner"><p class="eyebrow">adamziel/port-libs</p><h1>Pandoc PHP port conversion showcase</h1><p class="lede">Real public documents and upstream fixtures are converted three ways: Haskell Pandoc to HTML, the local PHP port to HTML, and the local PHP port to WordPress block markup. The stress samples are intentionally messy enough to expose timeouts, memory limits, package complexity, and block coverage.</p><div class="stats"><div class="stat"><strong>37</strong><span>covered input formats</span></div><div class="stat"><strong>81</strong><span>source files</span></div><div class="stat"><strong>225/243</strong><span>successful conversions</span></div><div class="stat"><strong>2026-07-07</strong><span>generated</span></div></div><ul class="stress-samples" aria-label="Real-world stress samples"><li><a href="#docx-oasis-kmip-spec">OASIS KMIP DOCX</a></li><li><a href="#epub-gutenberg-alice-illustrated">Illustrated Alice EPUB</a></li><li><a href="#markdown-pandoc-manual">Pandoc manual Markdown</a></li><li><a href="#odt-oasis-opendocument-schema">OASIS OpenDocument ODT</a></li><li><a href="#pdf-irs-w4">IRS Form W-4 PDF</a></li><li><a href="#pptx-cdc-food-safety-slides">CDC PPTX</a></li><li><a href="#xlsx-census-tax-parameter-workbook">Census XLSX</a></li></ul><div class="hero-actions"><a href="block-usage.html">WordPress block usage guide</a><a href="manifest.json">Manifest JSON</a></div></div></header><main class="layout"><nav class="format-nav" aria-label="Formats"><a href="#format-biblatex">biblatex</a><a href="#format-bibtex">bibtex</a><a href="#format-bits">bits</a><a href="#format-commonmark">commonmark</a><a href="#format-commonmark_x">commonmark_x</a><a href="#format-csljson">csljson</a><a href="#format-csv">csv</a><a href="#format-doc">doc</a><a href="#format-docbook">docbook</a><a href="#format-docx">docx</a><a href="#format-endnotexml">endnotexml</a><a href="#format-epub">epub</a><a href="#format-fb2">fb2</a><a href="#format-gfm">gfm</a><a href="#format-html">html</a><a href="#format-ipynb">ipynb</a><a href="#format-jats">jats</a><a href="#format-jira">jira</a><a href="#format-json">json</a><a href="#format-latex">latex</a><a href="#format-man">man</a><a href="#format-markdown">markdown</a><a href="#format-markdown_github">markdown_github</a><a href="#format-markdown_mmd">markdown_mmd</a><a href="#format-markdown_phpextra">markdown_phpextra</a><a href="#format-markdown_strict">markdown_strict</a><a href="#format-mediawiki">mediawiki</a><a href="#format-native">native</a><a href="#format-odt">odt</a><a href="#format-opml">opml</a><a href="#format-pdf">pdf</a><a href="#format-pptx">pptx</a><a href="#format-ris">ris</a><a href="#format-rtf">rtf</a><a href="#format-tsv">tsv</a><a href="#format-xlsx">xlsx</a><a href="#format-xml">xml</a></nav><p class="status-warn">Missing local support entries with no sample yet: dokuwiki, mdoc, rst</p><section class="format-section" id="format-biblatex"><div class="format-heading"><h2>biblatex</h2><span>2 samples</span></div><article class="comparison" id="biblatex-biblio"><section class="original"><div class="panel-head"><h3>BibLaTeX-style bibliography</h3><p class="meta">459 bytes | <a href="https://raw.githubusercontent.com/jgm/pandoc/912bfa5e2e3f5c74eb125dfc19404f67c61ca58b/test/command/biblio.bib">jgm/pandoc upstream fixture at test/command/biblio.bib</a></p></div><div class="original-body"><pre class="source-preview">@Book{item1,
 author=&quot;John Doe&quot;,
 title=&quot;First Book&quot;,
 year=&quot;2005&quot;,
@@ -194990,7 +194990,7 @@ currency symbol&lt;/p&gt;&lt;/td&gt;&lt;td&gt;&lt;p&gt;&amp;quot;100&amp;quot;&l
 &lt;h2&gt;Compare Haskell Pandoc and PHP port&lt;/h2&gt;
 &lt;/body&gt;
 &lt;/html&gt;
-</pre></section></div><div class="note">Bounded OPML reader maps document title, owner, modified date, nested outlines, link outlines, and Markdown notes into the shared AST, with canonical native semantic parity for the pinned upstream opml-reader fixture. Full option and edge-case parity remains open.</div></section></article></section><section class="format-section" id="format-pdf"><div class="format-heading"><h2>pdf</h2><span>2 samples</span></div><article class="comparison" id="pdf-irs-w4"><section class="original"><div class="panel-head"><h3>IRS Form W-4 PDF</h3><p class="meta">208845 bytes | <a href="https://www.irs.gov/pub/irs-pdf/fw4.pdf">Internal Revenue Service Form W-4 PDF</a></p></div><div class="original-body"><div class="download-only"><p>No local thumbnail is available for this binary or packaged file.</p><p><a href="samples/pdf-irs-w4-irs-form-w4.pdf">Download original file</a></p></div><p class="meta">Real IRS fillable tax form with labels, headings, instructions, form-style layout, and bounded extraction runtime.</p></div></section><section class="converted" data-sample="pdf-irs-w4"><div class="converted-toolbar"><span class="meta">Converted representations</span><button class="view-source" type="button" data-source-toggle>View source</button></div><div class="comparison-grid"><section class="conversion-pane" id="pdf-irs-w4-wpBlocks"><div class="pane-head"><span class="pane-title">WP blocks</span><span class="pane-status status-ok">ok</span></div><iframe class="render-frame" data-sync-group="pdf-irs-w4" title="IRS Form W-4 PDF PHP WordPress blocks" src="outputs/pdf-irs-w4/wordpress-blocks.html"></iframe><pre class="source-box" data-sync-group="pdf-irs-w4">&lt;!-- wp:heading {&quot;level&quot;:1} --&gt;
+</pre></section></div><div class="note">Bounded OPML reader maps document title, owner, modified date, nested outlines, link outlines, and Markdown notes into the shared AST, with canonical native semantic parity for the pinned upstream opml-reader fixture. Full option and edge-case parity remains open.</div></section></article></section><section class="format-section" id="format-pdf"><div class="format-heading"><h2>pdf</h2><span>6 samples</span></div><article class="comparison" id="pdf-irs-w4"><section class="original"><div class="panel-head"><h3>IRS Form W-4 PDF</h3><p class="meta">208845 bytes | <a href="https://www.irs.gov/pub/irs-pdf/fw4.pdf">Internal Revenue Service Form W-4 PDF</a></p></div><div class="original-body"><div class="download-only"><p>No local thumbnail is available for this binary or packaged file.</p><p><a href="samples/pdf-irs-w4-irs-form-w4.pdf">Download original file</a></p></div><p class="meta">Real IRS fillable tax form with labels, headings, instructions, form-style layout, and bounded extraction runtime.</p></div></section><section class="converted" data-sample="pdf-irs-w4"><div class="converted-toolbar"><span class="meta">Converted representations</span><button class="view-source" type="button" data-source-toggle>View source</button></div><div class="comparison-grid"><section class="conversion-pane" id="pdf-irs-w4-wpBlocks"><div class="pane-head"><span class="pane-title">WP blocks</span><span class="pane-status status-ok">ok</span></div><iframe class="render-frame" data-sync-group="pdf-irs-w4" title="IRS Form W-4 PDF PHP WordPress blocks" src="outputs/pdf-irs-w4/wordpress-blocks.html"></iframe><pre class="source-box" data-sync-group="pdf-irs-w4">&lt;!-- wp:heading {&quot;level&quot;:1} --&gt;
 &lt;h1&gt;Address&lt;/h1&gt;
 &lt;!-- /wp:heading --&gt;
 
@@ -195743,6 +195743,477 @@ Pandoc can convert to PDF, but not from PDF.</pre></section></div><div class="no
 &lt;h2&gt;Efficient Bytecode Verification and Compilation in a Virtual&lt;/h2&gt;
 &lt;p&gt;. Ph Dthesis, University Of California, Irvine, [11]A. Gal, C. W. Probst, andM. Franz. Hot path VM: AneffectiveJIT , pages 144–153.ACMPress, 2006. [12]C. Garrett, J. Dean, D. Grove, andC. Chambers. Measurement and Application of Dynamic Receiver Class Distributions.1994. [13]J. Ha, M. R. Haghighat, S. Cong, andK. S. Mc Kinley. A concurrent trace-based just-in-time compiler for javascript. Dept.of Computer Sciences, The University of Texas at Austin, TR-09-06, 2009. [14]B. Mc Closkey. Personal communication. [15]I. PiumartaandF. Riccardi. Optimizingdirectthreadedcodebyselec- , pages291– 300.ACMNew York, NY, USA, 1998. [16]A. Rigo. Representation-Based Just-In-time Specialization and the , 2004. [17]M. Salib. Star killer: A Static Type Inference rand Compiler for , 2004. [18]T. Suganuma, T. Yasue, andT. Nakatani. A Region-Based Compila- ACMTransactionson Pro- , 28(1): 134–174, 2006. [19]M. Zaleski, A. D. Brown, andK. Stoodley. YETI: A graduallY , pages83–93.ACM Press, 2007.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</pre></section><section class="conversion-pane" id="pdf-tracemonkey-haskell"><div class="pane-head"><span class="pane-title">Haskell HTML</span><span class="pane-status status-fail">failed</span></div><pre class="error-box" data-sync-group="pdf-tracemonkey">Unknown input format &#039;pdf&#039;
 Pandoc can convert to PDF, but not from PDF.</pre><pre class="source-box" data-sync-group="pdf-tracemonkey">Unknown input format &#039;pdf&#039;
+Pandoc can convert to PDF, but not from PDF.</pre></section></div><div class="note">Project-local markerPDF bridge extracts searchable PDF text lines and structural provenance for simple PDFs. Complex multi-column or untagged PDFs may lose spacing/order or be exposed only as extraction diagnostics. PDF is not an upstream Pandoc input format.</div></section></article><article class="comparison" id="pdf-cdc-hand-hygiene-brochure"><section class="original"><div class="panel-head"><h3>CDC hand hygiene brochure</h3><p class="meta">347256 bytes | <a href="https://www.cdc.gov/clean-hands/media/pdfs/cdc-handhygiene-brochure-508.pdf">Centers for Disease Control and Prevention hand hygiene brochure PDF</a></p></div><div class="original-body"><div class="download-only"><p>No local thumbnail is available for this binary or packaged file.</p><p><a href="samples/pdf-cdc-hand-hygiene-brochure-cdc-handhygiene-brochure.pdf">Download original file</a></p></div><p class="meta">Short public health brochure with flyer-like layout, large headings, side-by-side blocks, and image-heavy design elements.</p></div></section><section class="converted" data-sample="pdf-cdc-hand-hygiene-brochure"><div class="converted-toolbar"><span class="meta">Converted representations</span><button class="view-source" type="button" data-source-toggle>View source</button></div><div class="comparison-grid"><section class="conversion-pane" id="pdf-cdc-hand-hygiene-brochure-wpBlocks"><div class="pane-head"><span class="pane-title">WP blocks</span><span class="pane-status status-ok">ok</span></div><iframe class="render-frame" data-sync-group="pdf-cdc-hand-hygiene-brochure" title="CDC hand hygiene brochure PHP WordPress blocks" src="outputs/pdf-cdc-hand-hygiene-brochure/wordpress-blocks.html"></iframe><pre class="source-box" data-sync-group="pdf-cdc-hand-hygiene-brochure">&lt;!-- wp:heading {&quot;level&quot;:1} --&gt;
+&lt;h1&gt;Hand Hygiene is&lt;/h1&gt;
+&lt;!-- /wp:heading --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;the #1 way to prevent the spread of infections You can take action by practicing Why? hand hygiene regularly and by as king those around you to practice it as well.&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;You and your loved ones should When? clean your hands very often, especially after touching objects or surfaces in the hospital room, before eating, and after using the rest room. Your health care provider should practice hand hygiene every time they enter your room.&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;It only takes 15 seconds of using How? either soap and water or an alcohol­based hand rub to kill the germs that cause infections.&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;Use soap and water when your Which? hands look dirty; otherwise, you can use an alcohol­based hand rub.&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;You, your loved ones, and your Who? health care providers should practice hand hygiene.&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;F or more information, please visit www.cdc.gov/hand hygiene or call 1 ­800­CDC­INFO CDC acknowledgesthefollowingpartnersinthedevelopmentofthe Hand Hygiene Saves Livesvideo: the Association for Professionalsin Infection Control and Epidemiology and Safe Care Campaign.&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;ThisbrochurewasdevelopedwithsupportfromtheCDC Foundation and Kimberly­Clark Corporation.&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;A Patient’s Guide aves Lives hand hygiene • Washing hand swith soap and water. • Cleansinghands usingan alcohol­ base dhan drub. • Preventingthespread ofgermsandinfections.&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;Why?&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;When?&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;To prevent hospital You should practice infections. hand hygiene: • Inthe United States, hospitalpatients • Before prep a ring or eating food. getnearly2millioninfectionseachyear. • Beforetouchingyoureyes, nose, That’sabout1 infectionper20 patients! or mouth. • Infectionsyougetinthehospitalcanbe • Beforeandafterchangingwound life­threatening and hard to treat. dressingsorbandages. • All patient sare at risk for hospital • Afterusingtherestroom. infections. • After blowing your nose, coughing, • Youcantakeaction by as king both your or sneezing. healthcareprovidersandvisitorsto • Aftertouchinghospitalsurfacessuch washtheirhands. asbedrails, bedside tables, doorknobs, remotecontrols, or the phone.&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;Health care pro viders {Remember: Hand should practice hand hygiene saves lives. hygiene: • Every time they enter your room.* • Beforeputtingongloves. Wearing T o make a difference glovesaloneisnotenoughtoprevent in your own health. the spread of infection. • Hand hygiene is one of the most • Afterremovinggloves. important way stop revent the spread of infections, includingthecommon cold, Remember: Ask your flu, and even hard­to­treatinfections, {doctors and nurses }to suchasmethicillin­resistant clean theirhands before Staphylococcus aureus, orMRSA. they examine you. * Ifyoualreadyhaveaninfection, your health care providersmay takespecialmeasures(isolation precautions)to prevent the spread of your infection toot hers. They might enter your room wearing protective equipment(e.g., gloves, gown, mask).&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;Youdonotneedtoaskthemtocleantheirhands becausetheyshouldhavedonesobeforetheyput ongloves.&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;How?&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;Which?&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;With soap and water: Use soap and water: 1.Wetyourhandswithwarm water. • When yourhandslookdirty.&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;Use liquid soap if possible. Apply a • Afteryouusethebathroom. nickel­or quarter­sized amount of • Beforeyoueatorpreparefood. soaptoyourhands. 2.Rub your hand stog ether until soap Use an alcohol­based formsa latherandthenruballover hand rub: thetopofyourhands, in between your • When yourhandsdonotlookdirty. finger sand the are a around and under • If soap and water are not available. thefingernails. 3.Continuerubbingyourhandsfor15 Alcohol based hand rubs seconds. Needa timer? Imagine singing • Productsthatkillgermsonthehands. the“Happy Birthday”song twice. • Shouldcontain60% to95% ethanol 4.Rinse your hand swell under running orisopropanol(types of alcohol). water. • Are fast­acting and convenient. 5.Dryyourhandsusinga paper towel if possible. Then use your paper towel to turnoffthefaucetandtoopenthedoor ifneeded.&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;Who?&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:heading {&quot;level&quot;:2} --&gt;
+&lt;h2&gt;Remember: It only&lt;/h2&gt;
+&lt;!-- /wp:heading --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;You can make a {takes 15 seconds to } difference in your protect yourself and own health: others. • Healthcareprovidersknowtheyshould practice hand hygiene, but they With an alcohol­based sometimes forget. Most welcome your hand rub: friendly reminder. 1.Followdirectionsonthebottleforhow • Askhealthcareproviderstopractice much of the product to use. hand hygiene in a polite way— tell 2.Rub handstogetherandthenrub them thatyouknowhow easy it is for productalloverthetopofyourhands, peopletogetinfectionsinthehospital in between your finger sand the are a and that youd on’twant it to happen aroundandunderthefingernails. toyou. 3.Continue rubbing until your hand sare dry. Ifenoughrubwas used to kill Remember: Take germs, itshouldtakeatleast15 control of your health, secondsofrubbingbeforeyourhands practice hand hygiene. feeldry. Youshouldnotrinseyourhands withwaterordrythemwith a towel.&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;</pre></section><section class="conversion-pane" id="pdf-cdc-hand-hygiene-brochure-phpHtml"><div class="pane-head"><span class="pane-title">PHP HTML</span><span class="pane-status status-ok">ok</span></div><iframe class="render-frame" data-sync-group="pdf-cdc-hand-hygiene-brochure" title="CDC hand hygiene brochure PHP HTML" src="outputs/pdf-cdc-hand-hygiene-brochure/php.html"></iframe><pre class="source-box" data-sync-group="pdf-cdc-hand-hygiene-brochure">&lt;!doctype html&gt;&lt;html lang=&quot;en&quot;&gt;&lt;head&gt;&lt;meta charset=&quot;utf-8&quot;&gt;&lt;meta name=&quot;viewport&quot; content=&quot;width=device-width, initial-scale=1&quot;&gt;&lt;title&gt;PHP Pandoc HTML output&lt;/title&gt;&lt;style&gt;html{line-height:1.5;font-family:Georgia,&quot;Times New Roman&quot;,serif;font-size:18px;color:#1f2933;background:#fdfdfd;}body{margin:0 auto;max-width:46em;padding:2.5em 1.25em;}h1,h2,h3,h4,h5,h6{font-family:system-ui,-apple-system,BlinkMacSystemFont,&quot;Segoe UI&quot;,sans-serif;line-height:1.25;margin:1.4em 0 .45em;}h1{font-size:2em;}h2{font-size:1.55em;}h3{font-size:1.25em;}p{margin:1em 0;}a{color:#1f6feb;}img,svg,video{max-width:100%;height:auto;}pre,code,kbd,samp{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.9em;}code{background:#eef1f5;padding:.1em .25em;border-radius:3px;}pre{overflow:auto;background:#f6f8fa;border:1px solid #d8dde3;border-radius:6px;padding:1em;}pre code{background:transparent;padding:0;}blockquote{margin:1.25em 0;padding-left:1em;border-left:4px solid #d8dde3;color:#4b5563;}table{border-collapse:collapse;margin:1.25em 0;width:100%;font-size:.92em;}th,td{border:1px solid #d8dde3;padding:.35em .55em;vertical-align:top;}th{background:#f6f8fa;}math{font-family:math,serif;}math[display=&quot;block&quot;]{display:block;margin:1em 0;overflow-x:auto;}&lt;/style&gt;&lt;/head&gt;&lt;body&gt;&lt;h1&gt;Hand Hygiene is&lt;/h1&gt;
+&lt;p&gt;the #1 way to prevent the spread of infections You can take action by practicing Why? hand hygiene regularly and by as king those around you to practice it as well.&lt;/p&gt;
+&lt;p&gt;You and your loved ones should When? clean your hands very often, especially after touching objects or surfaces in the hospital room, before eating, and after using the rest room. Your health care provider should practice hand hygiene every time they enter your room.&lt;/p&gt;
+&lt;p&gt;It only takes 15 seconds of using How? either soap and water or an alcohol­based hand rub to kill the germs that cause infections.&lt;/p&gt;
+&lt;p&gt;Use soap and water when your Which? hands look dirty; otherwise, you can use an alcohol­based hand rub.&lt;/p&gt;
+&lt;p&gt;You, your loved ones, and your Who? health care providers should practice hand hygiene.&lt;/p&gt;
+&lt;p&gt;F or more information, please visit www.cdc.gov/hand hygiene or call 1 ­800­CDC­INFO CDC acknowledgesthefollowingpartnersinthedevelopmentofthe Hand Hygiene Saves Livesvideo: the Association for Professionalsin Infection Control and Epidemiology and Safe Care Campaign.&lt;/p&gt;
+&lt;p&gt;ThisbrochurewasdevelopedwithsupportfromtheCDC Foundation and Kimberly­Clark Corporation.&lt;/p&gt;
+&lt;p&gt;A Patient’s Guide aves Lives hand hygiene • Washing hand swith soap and water. • Cleansinghands usingan alcohol­ base dhan drub. • Preventingthespread ofgermsandinfections.&lt;/p&gt;
+&lt;p&gt;Why?&lt;/p&gt;
+&lt;p&gt;When?&lt;/p&gt;
+&lt;p&gt;To prevent hospital You should practice infections. hand hygiene: • Inthe United States, hospitalpatients • Before prep a ring or eating food. getnearly2millioninfectionseachyear. • Beforetouchingyoureyes, nose, That’sabout1 infectionper20 patients! or mouth. • Infectionsyougetinthehospitalcanbe • Beforeandafterchangingwound life­threatening and hard to treat. dressingsorbandages. • All patient sare at risk for hospital • Afterusingtherestroom. infections. • After blowing your nose, coughing, • Youcantakeaction by as king both your or sneezing. healthcareprovidersandvisitorsto • Aftertouchinghospitalsurfacessuch washtheirhands. asbedrails, bedside tables, doorknobs, remotecontrols, or the phone.&lt;/p&gt;
+&lt;p&gt;Health care pro viders {Remember: Hand should practice hand hygiene saves lives. hygiene: • Every time they enter your room.* • Beforeputtingongloves. Wearing T o make a difference glovesaloneisnotenoughtoprevent in your own health. the spread of infection. • Hand hygiene is one of the most • Afterremovinggloves. important way stop revent the spread of infections, includingthecommon cold, Remember: Ask your flu, and even hard­to­treatinfections, {doctors and nurses }to suchasmethicillin­resistant clean theirhands before Staphylococcus aureus, orMRSA. they examine you. * Ifyoualreadyhaveaninfection, your health care providersmay takespecialmeasures(isolation precautions)to prevent the spread of your infection toot hers. They might enter your room wearing protective equipment(e.g., gloves, gown, mask).&lt;/p&gt;
+&lt;p&gt;Youdonotneedtoaskthemtocleantheirhands becausetheyshouldhavedonesobeforetheyput ongloves.&lt;/p&gt;
+&lt;p&gt;How?&lt;/p&gt;
+&lt;p&gt;Which?&lt;/p&gt;
+&lt;p&gt;With soap and water: Use soap and water: 1.Wetyourhandswithwarm water. • When yourhandslookdirty.&lt;/p&gt;
+&lt;p&gt;Use liquid soap if possible. Apply a • Afteryouusethebathroom. nickel­or quarter­sized amount of • Beforeyoueatorpreparefood. soaptoyourhands. 2.Rub your hand stog ether until soap Use an alcohol­based formsa latherandthenruballover hand rub: thetopofyourhands, in between your • When yourhandsdonotlookdirty. finger sand the are a around and under • If soap and water are not available. thefingernails. 3.Continuerubbingyourhandsfor15 Alcohol based hand rubs seconds. Needa timer? Imagine singing • Productsthatkillgermsonthehands. the“Happy Birthday”song twice. • Shouldcontain60% to95% ethanol 4.Rinse your hand swell under running orisopropanol(types of alcohol). water. • Are fast­acting and convenient. 5.Dryyourhandsusinga paper towel if possible. Then use your paper towel to turnoffthefaucetandtoopenthedoor ifneeded.&lt;/p&gt;
+&lt;p&gt;Who?&lt;/p&gt;
+&lt;h2&gt;Remember: It only&lt;/h2&gt;
+&lt;p&gt;You can make a {takes 15 seconds to } difference in your protect yourself and own health: others. • Healthcareprovidersknowtheyshould practice hand hygiene, but they With an alcohol­based sometimes forget. Most welcome your hand rub: friendly reminder. 1.Followdirectionsonthebottleforhow • Askhealthcareproviderstopractice much of the product to use. hand hygiene in a polite way— tell 2.Rub handstogetherandthenrub them thatyouknowhow easy it is for productalloverthetopofyourhands, peopletogetinfectionsinthehospital in between your finger sand the are a and that youd on’twant it to happen aroundandunderthefingernails. toyou. 3.Continue rubbing until your hand sare dry. Ifenoughrubwas used to kill Remember: Take germs, itshouldtakeatleast15 control of your health, secondsofrubbingbeforeyourhands practice hand hygiene. feeldry. Youshouldnotrinseyourhands withwaterordrythemwith a towel.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</pre></section><section class="conversion-pane" id="pdf-cdc-hand-hygiene-brochure-haskell"><div class="pane-head"><span class="pane-title">Haskell HTML</span><span class="pane-status status-fail">failed</span></div><pre class="error-box" data-sync-group="pdf-cdc-hand-hygiene-brochure">Unknown input format &#039;pdf&#039;
+Pandoc can convert to PDF, but not from PDF.</pre><pre class="source-box" data-sync-group="pdf-cdc-hand-hygiene-brochure">Unknown input format &#039;pdf&#039;
+Pandoc can convert to PDF, but not from PDF.</pre></section></div><div class="note">Project-local markerPDF bridge extracts searchable PDF text lines and structural provenance for simple PDFs. Complex multi-column or untagged PDFs may lose spacing/order or be exposed only as extraction diagnostics. PDF is not an upstream Pandoc input format.</div></section></article><article class="comparison" id="pdf-grand-canyon-north-rim-map"><section class="original"><div class="panel-head"><h3>Grand Canyon North Rim pocket map</h3><p class="meta">2030834 bytes | <a href="https://www.nps.gov/grca/learn/news/upload/nr-pocket-map.pdf">National Park Service Grand Canyon North Rim Services Guide pocket map PDF</a></p></div><div class="original-body"><div class="download-only"><p>No local thumbnail is available for this binary or packaged file.</p><p><a href="samples/pdf-grand-canyon-north-rim-map-grand-canyon-north-rim-pocket-map.pdf">Download original file</a></p></div><p class="meta">National Park Service leaflet-style pocket map with map panels, services, columns, and mixed visual/text layout.</p></div></section><section class="converted" data-sample="pdf-grand-canyon-north-rim-map"><div class="converted-toolbar"><span class="meta">Converted representations</span><button class="view-source" type="button" data-source-toggle>View source</button></div><div class="comparison-grid"><section class="conversion-pane" id="pdf-grand-canyon-north-rim-map-wpBlocks"><div class="pane-head"><span class="pane-title">WP blocks</span><span class="pane-status status-ok">ok</span></div><iframe class="render-frame" data-sync-group="pdf-grand-canyon-north-rim-map" title="Grand Canyon North Rim pocket map PHP WordPress blocks" src="outputs/pdf-grand-canyon-north-rim-map/wordpress-blocks.html"></iframe><pre class="source-box" data-sync-group="pdf-grand-canyon-north-rim-map">&lt;!-- wp:heading {&quot;level&quot;:1} --&gt;
+&lt;h1&gt;Pocket Map North Rim Services Guide&lt;/h1&gt;
+&lt;!-- /wp:heading --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;© JESSE BARDEN NPS Services, Facilities, and View points In side the Park North Rim Visitor Center / Grand Canyon Lodge Campground / Back country Information Center Information, lodging, restaurants, services, and Grand Canyon views Camping, fuel, services, and hiking information Visitor Info Station and Park Store North Rim Campground Park in the designated parking area and walk to the east end of the Operated by the National Park Service; no hookups; dump station. parking lot. Bring this Pocket Map and your questions. The park store Reservation only May 15 to October 15: 877-444-6777 or recreation. Canyon (15 minutes from the Visitor Center). is located at the south end of the parking lot and features books, gov. Features park ranger programs and access to the Bridle Path and gifts, passport stamp, rest room, drinking water, self-pay fee station, Transept Trail. canyon views, and access to Bright Angel Point Trail. Hours vary.&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:heading {&quot;level&quot;:2} --&gt;
+&lt;h2&gt;Service Station Lost and Found&lt;/h2&gt;
+&lt;!-- /wp:heading --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;On the road to the campground; open daily 8 am–5 pm; 24 hour pay- Turn in found items at the North Rim Visitor Center. Inquire about lost at-the-pump; gas and diesel available. items at the visitor center or Grand Canyon Lodge front desk.&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:heading {&quot;level&quot;:2} --&gt;
+&lt;h2&gt;General Store Grand Canyon Lodge&lt;/h2&gt;
+&lt;!-- /wp:heading --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;limited Wi-Fi. Hours vary by season.&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;Due to high demand, advanced lodging and dining reservations required. Contact Aramark: 866-499-2574; grand canyon north.com.&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:heading {&quot;level&quot;:2} --&gt;
+&lt;h2&gt;Back country Information Center&lt;/h2&gt;
+&lt;!-- /wp:heading --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;Reservations available on a 13-month rolling basis. Features National Historic Landmark, ranger programs, rest room, drinking water, and (18.5 km) south of the entrance station. Open 8 am to noon and access to Bright Angel Point Trail, Transept Trail, and Bridle Path. 1–5 pm. Information, hiking maps, overnight back country perm its; Cape Royal Road Operates mid-May to mid-October.&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;Dining Options back country.htm Meals and grab and go food are available in the vicinity of Grand Canyon Lodge at the Deli in the Pines, the Lodge Dining Room, Camping Out side the Park and the Roughrider Saloon. The General Store at the Campground De Motte Campground offers limited grocery and drinks. Inquire at the lodge, or at 18 miles (18.5 km) north of North Rim Visitor Center. Half the sites are grand canyon north.com for hours. Food service is available from midfirst-come, first-served; reserve sites at recreation.gov.&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;May to mid-October.&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:heading {&quot;level&quot;:2} --&gt;
+&lt;h2&gt;Jacob Lake Campground&lt;/h2&gt;
+&lt;!-- /wp:heading --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;Gift Shop 45 miles (72 km) north of North Rim Visitor Center. Half the sites are Bright Angel Point Souvenirs and books; 8 am–9 pm. first-come, first-served; reserve half the sites at recreation.gov. Grand Canyon Lodge Veranda Post Office Kaibab Camper Village Window service Monday through Friday, 8 am to noon and 1–5 pm; 0.25 miles (0.5 km) south of Jacob Lake on Forest Service Road 461 closed weekends and federal holidays. off AZ 67. Reserve sites at 928-643-7804.&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:heading {&quot;level&quot;:2} --&gt;
+&lt;h2&gt;Religious Services Dispersed Camping&lt;/h2&gt;
+&lt;!-- /wp:heading --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;Check the bulletin board in the lodge for a schedule of services. Stop at the Kaibab Plateau Visitor Center in Jacob Lake, Arizona for Canyon Trail Rides information. Pack out what you take in. Bring water. Camp at least Offers 1-hour rides along the rim, 3-hour rides to Uncle Jim Point, and 0.25 mile (0.4 km) from water sources. Check fire restrictions; be fire 3-hour rides to Supai Tunnel. Register at canyonrides.com, the Canyon safe; carry a shovel and bucket. Bury human waste at least 6 inches Scenic Drive Trail Rides desk in the lodge lobby, 7 am–5 pm, or call 435-679-8665.(15 cm) deep and 100 feet (30 m) from water sources and drainage bottoms. Practice back country ethics and eliminate all signs of your Services Out side the Park camp.&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;Kaibab Lodge 18 miles (30 km) north of the North Rim Visitor Center. Information at 928-638-2389 or kaibab lodge.com.&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:heading {&quot;level&quot;:2} --&gt;
+&lt;h2&gt;Trip Plan ning&lt;/h2&gt;
+&lt;!-- /wp:heading --&gt;
+
+&lt;!-- wp:heading {&quot;level&quot;:2} --&gt;
+&lt;h2&gt;North Rim Country Store&lt;/h2&gt;
+&lt;!-- /wp:heading --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;Hiking, view points, and scenic drives 18 miles (30 km) north of the North Rim Visitor Center; open May 15 to mid-October. Offers convenience store, gas station, tire repair, 1-2 Hours propane, and ATM. 928-638-2383 Hiking Jacob Lake Inn Take the Bright Angel Point Trail to one of the best views of Grand 45 miles (72 km) north of North Rim Visitor Center in Jacob Lake, Canyon (15 minutes from the Visitor Center). Then, wind along the Arizona; open year-round, hours vary by season. Offers a restaurant, Canyon rim on the Transept Trail. Take in sweeping views on this easy gift shop, propane, and gas station with 24 hour pay-at-the-pump. to moderate trail. Follow the path until you are ready to turn around, 928-643-7232 or make a loop with the forested Bridle Path. 4 miles (6.4 km), 90 Roosevelt Point minutes round trip.&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:heading {&quot;level&quot;:2} --&gt;
+&lt;h2&gt;Kaibab Plateau Visitor Center&lt;/h2&gt;
+&lt;!-- /wp:heading --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;45 miles (72 km) north of North Rim Visitor Center in Jacob Lake, OR Arizona. Offers information and a Grand Canyon Conservancy Park Cape Royal Road Store with books, maps, and gifts. 928-643-7298 Point Imperial, Vista Encantada, and Roosevelt Point make for a quick, but spectacular visit on the scenic drive. Stroll the Ken Patrick Free Park Ranger Programs details below. Grand Canyon National Park offers free park ranger programs on the North Rim. Learn about geology, plants, animals, and people during walks, talks, hikes, and other ranger guided experiences! Programs may be canceled in inclement weather or during special events. Check North Rim Visitor Center or go.nps.gov/gc_programs for a full listing.&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:heading {&quot;level&quot;:2} --&gt;
+&lt;h2&gt;Grand Canyon National Park&lt;/h2&gt;
+&lt;!-- /wp:heading --&gt;
+
+&lt;!-- wp:heading {&quot;level&quot;:2} --&gt;
+&lt;h2&gt;National Park Service&lt;/h2&gt;
+&lt;!-- /wp:heading --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;Arizona U. S. Department of the Interior © JESSE BARDEN NPS Trip Plan ning Continued Protect the Park, Protect Yourself Use sunblock, stay hydrated, take required) check with the Back country Half Day your time, and rest to reduce the Information Center.&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;Hiking risk of sunburn, dehydration, nausea, shortness of breath, and exhaustion. Keep wildlife wild. Approaching Take the Bright Angel Point Trail to one of the best views of Grand The North Rim’s high elevation (8, 000 and feeding wildlife is dangerous ft / 2, 438 m) and dry climate affects and illegal. Bison and deer can become aggressive and will defend you differently than your home Next, enjoy magnificent views on the Widforss trail. This trail skirts the environment. their space. Keep a safe distance of two Canyon rim for most of its 5 miles (8 km) before arriving at Widforss bus lengths or 100 feet (30 m) from all Drive with care. Watch for people and wildlife. Do not feed the squirrels. They Point. Hike as much as you have time for, but remember your return wildlife. Increase caution at night and will bite and can carry disease. trip. Parking and restrooms are available at the trail head. Water is not during wet conditions. Observe posted available. speed limits; maximum speed limit 45 Leashed pets are only allowed mph (72 kmph). Vehicles longer than on the Bridle Path and Arizona Adjacent to the campground; groceries, gifts, camping supplies, ATM, OR Hike the North Kaibab Trail to Coconino Overlook. Hiking into 22 feet (6.7 m) prohibited on the roads National Scenic Trail—Pets are the Canyon offers a different perspective. Be prepared for strenuous to Cape Royal, Point Imperial, and not allowed on any other trail or in buildings. These restrictions do not hiking and high temperatures. Hike Smart: Bring water, salty snacks, Widforss Trail. Oversized vehicle parking apply to service animals. Any one sun protections and avoid hiking between 10 am and 4 pm to avoid limited; park at Grand Canyon Lodge or North Rim Campground. Arizona wishing to take a service animal Located in the Administration and Back country Office, 11.5 miles the hot test part of the day. 1.5 miles (2.4 km), 1-3 hours round trip. below the rim must check in at the highway information: 511 or 888-411- Back country Information Center ROAD or az511.gov. before starting their hike. No kennel is drinking water, rest room. Information: nps.gov/grca/plan your visit/Explore the view points and trails along the 23 mile (37 km), 45 Monsoon storms are common in available on the North Rim. summer. When you hear thunder or minute (one way) scenic drive. Cape Royal and Point Imperial are the see lightning, move away from the Stay behind railings and away from “must see” views. Hike to Cape Final for sweeping canyon vistas (4.2 cliffs. Hold on to children. Do not back canyon rim. Do not stand under a tree. mi, 6.8 km round trip). Allow at least three hours to travel the entire up without looking around you. Always Seek shelter in side a vehicle or building. road. Visit Point Imperial, Vista Encantada, and Roosevelt Point for a Be aware of possible flash floods and be aware of your surroundings. shorter stay. Bring food and water. More details below. falling rocks during and after storms.&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;Hikers and wildlife can be injured Weather varies greatly and changes by rocks, coins, and trash tossed over Best Places to See Sunset the edge of Grand Canyon and rocks suddenly. Be prepared to layer Cape Royal dislodged by walking off trail. clothing for heat, cold, rain, wind, or snow. Weather posted in North Rim Laun ching, landing, or operating Visitor Center. Park road and weather unmanned aircraft (drones) is conditions: 928-638-7496. prohibited in side Grand Canyon Best Places to See Sunrise Free, spring-fed drinking water is National Park.&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;Point Imperial available from bottle filling stations Bright Angel Point The walls of Grand Canyon tell an at the North Rim Visitor Center, Grand Canyon Lodge Veranda amazing story. You alter that story Administration and Back country Office, when you leave graffiti. and North Kaibab Trail head.&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;Leave rocks, plants, wood, and Camping is only permitted in artifacts where you find them. the North Rim Campground. For back country camping options (permit Emergencies call 911 A winding scenic drive to diverse view points, picnic areas, and hiking trails. No food or water is available on the Scenic Drive. No vehicles longer than 22 feet Information (7 m). Allow a half- to a full-day.&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:heading {&quot;level&quot;:2} --&gt;
+&lt;h2&gt;Superintendent Ed Keable&lt;/h2&gt;
+&lt;!-- /wp:heading --&gt;
+
+&lt;!-- wp:heading {&quot;level&quot;:2} --&gt;
+&lt;h2&gt;Point Imperial Grand Canyon National Park&lt;/h2&gt;
+&lt;!-- /wp:heading --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;Parking, rest room, picnic area, and access to the unmaintained Ken PO Box 129 Patrick Trail and Point Imperial Trail. Highest point on the North Rim at Grand Canyon, AZ 86023-0129 USA 8, 803 feet (2, 683 m); overlooks the Painted Desert, Marble Canyon, and eastern Grand Canyon. Layers of red and black Precambrian rocks, Park Headquarters not visible at Bright Angel Point, add contrast and color. Part of the 928-638-7888 viewpoint is accessible. Eleven miles (18 km) from North Rim Visitor Center; allow 20 minutes driving time one-way.&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;Web site nps.gov/grca Vista Encantada Parking, picnic area, canyon views.&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;Follow Us Parking, access to Roosevelt Point Trail.&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:heading {&quot;level&quot;:2} --&gt;
+&lt;h2&gt;Grand Canyon National Park&lt;/h2&gt;
+&lt;!-- /wp:heading --&gt;
+
+&lt;!-- wp:heading {&quot;level&quot;:2} --&gt;
+&lt;h2&gt;Located in northern Arizona, this World Heritage Site encompasses 277&lt;/h2&gt;
+&lt;!-- /wp:heading --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;Walhalla Overlook / Walhalla Glades Pueblo miles (446 km) of the Colorado River and adjacent uplands. One of the Parking, canyon views, short trail to ancestral Puebloan home site. most spectacular examples of erosion any where in the world, Grand Cape Royal Canyon offers visitors incomparable vistas. Trail south from Point Imperial for a half mile for an easy hike with Parking, rest room, picnic area, accessible Cape Royal Trail leads to a The Pocket Map is published by Grand Canyon National Park with breath taking views. 20 miles (32 km), 30 minutes one way. More viewpoint giving expansive east and west vistas. See the natural arch of support from your entrance fees. Ask at the North Rim Visitor Center for Angels Window framing the Colorado River, and look for Desert View a hiking brochure. Watchtower across the canyon on the South Rim. 23 miles (37 km) from the North Rim Visitor Center; 45 minutes driving time one-way. The National Park Service cares for the special places saved by the American people so that all may experience our heritage.&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:heading {&quot;level&quot;:2} --&gt;
+&lt;h2&gt;EXPERIENCE YOUR AMERICA&lt;/h2&gt;
+&lt;!-- /wp:heading --&gt;
+
+&lt;!-- wp:heading {&quot;level&quot;:2} --&gt;
+&lt;h2&gt;North Rim Day Hikes&lt;/h2&gt;
+&lt;!-- /wp:heading --&gt;
+
+&lt;!-- wp:heading {&quot;level&quot;:2} --&gt;
+&lt;h2&gt;Bright Angel Point Trail&lt;/h2&gt;
+&lt;!-- /wp:heading --&gt;
+
+&lt;!-- wp:heading {&quot;level&quot;:2} --&gt;
+&lt;h2&gt;North Kaibab Trail&lt;/h2&gt;
+&lt;!-- /wp:heading --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;0.5 miles (0.8 km) round trip; allow 30 Distances and hiking times vary; ask minutes. A short, but steep, walk on for a hiking brochure at the North a paved trail to a spectacular view of Rim Visitor Center. This is the only Grand Canyon. Begin at the log shelter maintained trail into the canyon from in the parking area near the North Rim the North Rim. Under no circumstances Visitor Center or from the Grand Canyon should you attempt to hike from the Lodge back porch. rim to the Colorado River and back in one day. The opening of this trail may Transept Trail be delayed due to winter damage. 2 miles (3.2 km) one-way; allow one Mules use this trail; step off the trail on hour. Follow the canyon rim from Grand the uphill side, keep still, and follow the Canyon Lodge to past the North Rim wrangler’s instructions.&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:heading {&quot;level&quot;:2} --&gt;
+&lt;h2&gt;Campground along the Transept, a&lt;/h2&gt;
+&lt;!-- /wp:heading --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;beautiful side canyon.&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:heading {&quot;level&quot;:2} --&gt;
+&lt;h2&gt;Roosevelt Point Trail&lt;/h2&gt;
+&lt;!-- /wp:heading --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;0.2 miles (0.3 km) round trip; allow 20 Bridle Path minutes. Stroll this secluded woodland 1.9 miles (3.1 km) one-way; allow one loop offering spectacular views and hour. This trail follows the road as it benches for relaxing. Trail begins from connects Grand Canyon Lodge with the Roosevelt Point parking area.&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;North Kaibab Trail head. Pets on a leash and bicycles are permitted on this hard- Cape Final Trail packed trail. 4.2 miles (6.8 km) round trip; allow two-three hours. Enjoy a forested walk Widforss Trail from the dirt parking area to Cape Final. 9.6 miles (15.5 km) round trip; allow six This trail offers a view of the canyon hours. Wander through a blend of forest and beyond to the Painted Desert. Trail and canyon scenery—even a short walk begins 2.4 miles (3.9 km) north of the can be very satisfying. To locate the Cape Royal parking lot. trail head, take the dirt road 0.25 miles (0.4 km) south of the road to Cape Royal Cliff Spring Trail for one mile (1.6 km) to the Widforss 0.8 mile (1.3 km) round trip; allow one Trail parking area. hour. Path meanders down a forested ravine and ends where a chest-high Uncle Jim Trail boulder rests under a large overhang. 4.7 miles (7.6 km) round trip; allow three The spring is on the cliff side of the hours. Stroll through the forest to a boulder—do not drink the water. Trail viewpoint over looking the canyon and begins across the road from a small North Kaibab Trail switchbacks. Begin pull out on a curve 0.3 miles (0.5 km) from the North Kaibab Trail parking lot. north of Cape Royal.&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;Mules use this trail; step off the trail, keep still, and follow the wrangler’s Cape Royal Trail instructions. 0.8 miles (1.3 km) round trip; allow one hour. An easy walk on a flat, paved Ken Patrick Trail trail with views of the canyon, Angels 9.8 miles (15.8 km) one-way; allow six Window, and Colorado River. Signs hours. Wind through the forest and interpret the area’s natural history. Trail along the rim from Point Imperial to the begins from the southeast side of the North Kaibab Trail parking area on this Cape Royal parking area. unmaintained trail.&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:heading {&quot;level&quot;:2} --&gt;
+&lt;h2&gt;Arizona National Scenic Trail&lt;/h2&gt;
+&lt;!-- /wp:heading --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;12.1 miles (19.5 km) one-way; allow seven hours. A section of this trail enters Stock use the park near the north entrance and roughly parallels AZ 67 until it connects with the North Kaibab Trail. Pets on a leash and bicycles permitted.&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;</pre></section><section class="conversion-pane" id="pdf-grand-canyon-north-rim-map-phpHtml"><div class="pane-head"><span class="pane-title">PHP HTML</span><span class="pane-status status-ok">ok</span></div><iframe class="render-frame" data-sync-group="pdf-grand-canyon-north-rim-map" title="Grand Canyon North Rim pocket map PHP HTML" src="outputs/pdf-grand-canyon-north-rim-map/php.html"></iframe><pre class="source-box" data-sync-group="pdf-grand-canyon-north-rim-map">&lt;!doctype html&gt;&lt;html lang=&quot;en&quot;&gt;&lt;head&gt;&lt;meta charset=&quot;utf-8&quot;&gt;&lt;meta name=&quot;viewport&quot; content=&quot;width=device-width, initial-scale=1&quot;&gt;&lt;title&gt;PHP Pandoc HTML output&lt;/title&gt;&lt;style&gt;html{line-height:1.5;font-family:Georgia,&quot;Times New Roman&quot;,serif;font-size:18px;color:#1f2933;background:#fdfdfd;}body{margin:0 auto;max-width:46em;padding:2.5em 1.25em;}h1,h2,h3,h4,h5,h6{font-family:system-ui,-apple-system,BlinkMacSystemFont,&quot;Segoe UI&quot;,sans-serif;line-height:1.25;margin:1.4em 0 .45em;}h1{font-size:2em;}h2{font-size:1.55em;}h3{font-size:1.25em;}p{margin:1em 0;}a{color:#1f6feb;}img,svg,video{max-width:100%;height:auto;}pre,code,kbd,samp{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.9em;}code{background:#eef1f5;padding:.1em .25em;border-radius:3px;}pre{overflow:auto;background:#f6f8fa;border:1px solid #d8dde3;border-radius:6px;padding:1em;}pre code{background:transparent;padding:0;}blockquote{margin:1.25em 0;padding-left:1em;border-left:4px solid #d8dde3;color:#4b5563;}table{border-collapse:collapse;margin:1.25em 0;width:100%;font-size:.92em;}th,td{border:1px solid #d8dde3;padding:.35em .55em;vertical-align:top;}th{background:#f6f8fa;}math{font-family:math,serif;}math[display=&quot;block&quot;]{display:block;margin:1em 0;overflow-x:auto;}&lt;/style&gt;&lt;/head&gt;&lt;body&gt;&lt;h1&gt;Pocket Map North Rim Services Guide&lt;/h1&gt;
+&lt;p&gt;© JESSE BARDEN NPS Services, Facilities, and View points In side the Park North Rim Visitor Center / Grand Canyon Lodge Campground / Back country Information Center Information, lodging, restaurants, services, and Grand Canyon views Camping, fuel, services, and hiking information Visitor Info Station and Park Store North Rim Campground Park in the designated parking area and walk to the east end of the Operated by the National Park Service; no hookups; dump station. parking lot. Bring this Pocket Map and your questions. The park store Reservation only May 15 to October 15: 877-444-6777 or recreation. Canyon (15 minutes from the Visitor Center). is located at the south end of the parking lot and features books, gov. Features park ranger programs and access to the Bridle Path and gifts, passport stamp, rest room, drinking water, self-pay fee station, Transept Trail. canyon views, and access to Bright Angel Point Trail. Hours vary.&lt;/p&gt;
+&lt;h2&gt;Service Station Lost and Found&lt;/h2&gt;
+&lt;p&gt;On the road to the campground; open daily 8 am–5 pm; 24 hour pay- Turn in found items at the North Rim Visitor Center. Inquire about lost at-the-pump; gas and diesel available. items at the visitor center or Grand Canyon Lodge front desk.&lt;/p&gt;
+&lt;h2&gt;General Store Grand Canyon Lodge&lt;/h2&gt;
+&lt;p&gt;limited Wi-Fi. Hours vary by season.&lt;/p&gt;
+&lt;p&gt;Due to high demand, advanced lodging and dining reservations required. Contact Aramark: 866-499-2574; grand canyon north.com.&lt;/p&gt;
+&lt;h2&gt;Back country Information Center&lt;/h2&gt;
+&lt;p&gt;Reservations available on a 13-month rolling basis. Features National Historic Landmark, ranger programs, rest room, drinking water, and (18.5 km) south of the entrance station. Open 8 am to noon and access to Bright Angel Point Trail, Transept Trail, and Bridle Path. 1–5 pm. Information, hiking maps, overnight back country perm its; Cape Royal Road Operates mid-May to mid-October.&lt;/p&gt;
+&lt;p&gt;Dining Options back country.htm Meals and grab and go food are available in the vicinity of Grand Canyon Lodge at the Deli in the Pines, the Lodge Dining Room, Camping Out side the Park and the Roughrider Saloon. The General Store at the Campground De Motte Campground offers limited grocery and drinks. Inquire at the lodge, or at 18 miles (18.5 km) north of North Rim Visitor Center. Half the sites are grand canyon north.com for hours. Food service is available from midfirst-come, first-served; reserve sites at recreation.gov.&lt;/p&gt;
+&lt;p&gt;May to mid-October.&lt;/p&gt;
+&lt;h2&gt;Jacob Lake Campground&lt;/h2&gt;
+&lt;p&gt;Gift Shop 45 miles (72 km) north of North Rim Visitor Center. Half the sites are Bright Angel Point Souvenirs and books; 8 am–9 pm. first-come, first-served; reserve half the sites at recreation.gov. Grand Canyon Lodge Veranda Post Office Kaibab Camper Village Window service Monday through Friday, 8 am to noon and 1–5 pm; 0.25 miles (0.5 km) south of Jacob Lake on Forest Service Road 461 closed weekends and federal holidays. off AZ 67. Reserve sites at 928-643-7804.&lt;/p&gt;
+&lt;h2&gt;Religious Services Dispersed Camping&lt;/h2&gt;
+&lt;p&gt;Check the bulletin board in the lodge for a schedule of services. Stop at the Kaibab Plateau Visitor Center in Jacob Lake, Arizona for Canyon Trail Rides information. Pack out what you take in. Bring water. Camp at least Offers 1-hour rides along the rim, 3-hour rides to Uncle Jim Point, and 0.25 mile (0.4 km) from water sources. Check fire restrictions; be fire 3-hour rides to Supai Tunnel. Register at canyonrides.com, the Canyon safe; carry a shovel and bucket. Bury human waste at least 6 inches Scenic Drive Trail Rides desk in the lodge lobby, 7 am–5 pm, or call 435-679-8665.(15 cm) deep and 100 feet (30 m) from water sources and drainage bottoms. Practice back country ethics and eliminate all signs of your Services Out side the Park camp.&lt;/p&gt;
+&lt;p&gt;Kaibab Lodge 18 miles (30 km) north of the North Rim Visitor Center. Information at 928-638-2389 or kaibab lodge.com.&lt;/p&gt;
+&lt;h2&gt;Trip Plan ning&lt;/h2&gt;
+&lt;h2&gt;North Rim Country Store&lt;/h2&gt;
+&lt;p&gt;Hiking, view points, and scenic drives 18 miles (30 km) north of the North Rim Visitor Center; open May 15 to mid-October. Offers convenience store, gas station, tire repair, 1-2 Hours propane, and ATM. 928-638-2383 Hiking Jacob Lake Inn Take the Bright Angel Point Trail to one of the best views of Grand 45 miles (72 km) north of North Rim Visitor Center in Jacob Lake, Canyon (15 minutes from the Visitor Center). Then, wind along the Arizona; open year-round, hours vary by season. Offers a restaurant, Canyon rim on the Transept Trail. Take in sweeping views on this easy gift shop, propane, and gas station with 24 hour pay-at-the-pump. to moderate trail. Follow the path until you are ready to turn around, 928-643-7232 or make a loop with the forested Bridle Path. 4 miles (6.4 km), 90 Roosevelt Point minutes round trip.&lt;/p&gt;
+&lt;h2&gt;Kaibab Plateau Visitor Center&lt;/h2&gt;
+&lt;p&gt;45 miles (72 km) north of North Rim Visitor Center in Jacob Lake, OR Arizona. Offers information and a Grand Canyon Conservancy Park Cape Royal Road Store with books, maps, and gifts. 928-643-7298 Point Imperial, Vista Encantada, and Roosevelt Point make for a quick, but spectacular visit on the scenic drive. Stroll the Ken Patrick Free Park Ranger Programs details below. Grand Canyon National Park offers free park ranger programs on the North Rim. Learn about geology, plants, animals, and people during walks, talks, hikes, and other ranger guided experiences! Programs may be canceled in inclement weather or during special events. Check North Rim Visitor Center or go.nps.gov/gc_programs for a full listing.&lt;/p&gt;
+&lt;h2&gt;Grand Canyon National Park&lt;/h2&gt;
+&lt;h2&gt;National Park Service&lt;/h2&gt;
+&lt;p&gt;Arizona U. S. Department of the Interior © JESSE BARDEN NPS Trip Plan ning Continued Protect the Park, Protect Yourself Use sunblock, stay hydrated, take required) check with the Back country Half Day your time, and rest to reduce the Information Center.&lt;/p&gt;
+&lt;p&gt;Hiking risk of sunburn, dehydration, nausea, shortness of breath, and exhaustion. Keep wildlife wild. Approaching Take the Bright Angel Point Trail to one of the best views of Grand The North Rim’s high elevation (8, 000 and feeding wildlife is dangerous ft / 2, 438 m) and dry climate affects and illegal. Bison and deer can become aggressive and will defend you differently than your home Next, enjoy magnificent views on the Widforss trail. This trail skirts the environment. their space. Keep a safe distance of two Canyon rim for most of its 5 miles (8 km) before arriving at Widforss bus lengths or 100 feet (30 m) from all Drive with care. Watch for people and wildlife. Do not feed the squirrels. They Point. Hike as much as you have time for, but remember your return wildlife. Increase caution at night and will bite and can carry disease. trip. Parking and restrooms are available at the trail head. Water is not during wet conditions. Observe posted available. speed limits; maximum speed limit 45 Leashed pets are only allowed mph (72 kmph). Vehicles longer than on the Bridle Path and Arizona Adjacent to the campground; groceries, gifts, camping supplies, ATM, OR Hike the North Kaibab Trail to Coconino Overlook. Hiking into 22 feet (6.7 m) prohibited on the roads National Scenic Trail—Pets are the Canyon offers a different perspective. Be prepared for strenuous to Cape Royal, Point Imperial, and not allowed on any other trail or in buildings. These restrictions do not hiking and high temperatures. Hike Smart: Bring water, salty snacks, Widforss Trail. Oversized vehicle parking apply to service animals. Any one sun protections and avoid hiking between 10 am and 4 pm to avoid limited; park at Grand Canyon Lodge or North Rim Campground. Arizona wishing to take a service animal Located in the Administration and Back country Office, 11.5 miles the hot test part of the day. 1.5 miles (2.4 km), 1-3 hours round trip. below the rim must check in at the highway information: 511 or 888-411- Back country Information Center ROAD or az511.gov. before starting their hike. No kennel is drinking water, rest room. Information: nps.gov/grca/plan your visit/Explore the view points and trails along the 23 mile (37 km), 45 Monsoon storms are common in available on the North Rim. summer. When you hear thunder or minute (one way) scenic drive. Cape Royal and Point Imperial are the see lightning, move away from the Stay behind railings and away from “must see” views. Hike to Cape Final for sweeping canyon vistas (4.2 cliffs. Hold on to children. Do not back canyon rim. Do not stand under a tree. mi, 6.8 km round trip). Allow at least three hours to travel the entire up without looking around you. Always Seek shelter in side a vehicle or building. road. Visit Point Imperial, Vista Encantada, and Roosevelt Point for a Be aware of possible flash floods and be aware of your surroundings. shorter stay. Bring food and water. More details below. falling rocks during and after storms.&lt;/p&gt;
+&lt;p&gt;Hikers and wildlife can be injured Weather varies greatly and changes by rocks, coins, and trash tossed over Best Places to See Sunset the edge of Grand Canyon and rocks suddenly. Be prepared to layer Cape Royal dislodged by walking off trail. clothing for heat, cold, rain, wind, or snow. Weather posted in North Rim Laun ching, landing, or operating Visitor Center. Park road and weather unmanned aircraft (drones) is conditions: 928-638-7496. prohibited in side Grand Canyon Best Places to See Sunrise Free, spring-fed drinking water is National Park.&lt;/p&gt;
+&lt;p&gt;Point Imperial available from bottle filling stations Bright Angel Point The walls of Grand Canyon tell an at the North Rim Visitor Center, Grand Canyon Lodge Veranda amazing story. You alter that story Administration and Back country Office, when you leave graffiti. and North Kaibab Trail head.&lt;/p&gt;
+&lt;p&gt;Leave rocks, plants, wood, and Camping is only permitted in artifacts where you find them. the North Rim Campground. For back country camping options (permit Emergencies call 911 A winding scenic drive to diverse view points, picnic areas, and hiking trails. No food or water is available on the Scenic Drive. No vehicles longer than 22 feet Information (7 m). Allow a half- to a full-day.&lt;/p&gt;
+&lt;h2&gt;Superintendent Ed Keable&lt;/h2&gt;
+&lt;h2&gt;Point Imperial Grand Canyon National Park&lt;/h2&gt;
+&lt;p&gt;Parking, rest room, picnic area, and access to the unmaintained Ken PO Box 129 Patrick Trail and Point Imperial Trail. Highest point on the North Rim at Grand Canyon, AZ 86023-0129 USA 8, 803 feet (2, 683 m); overlooks the Painted Desert, Marble Canyon, and eastern Grand Canyon. Layers of red and black Precambrian rocks, Park Headquarters not visible at Bright Angel Point, add contrast and color. Part of the 928-638-7888 viewpoint is accessible. Eleven miles (18 km) from North Rim Visitor Center; allow 20 minutes driving time one-way.&lt;/p&gt;
+&lt;p&gt;Web site nps.gov/grca Vista Encantada Parking, picnic area, canyon views.&lt;/p&gt;
+&lt;p&gt;Follow Us Parking, access to Roosevelt Point Trail.&lt;/p&gt;
+&lt;h2&gt;Grand Canyon National Park&lt;/h2&gt;
+&lt;h2&gt;Located in northern Arizona, this World Heritage Site encompasses 277&lt;/h2&gt;
+&lt;p&gt;Walhalla Overlook / Walhalla Glades Pueblo miles (446 km) of the Colorado River and adjacent uplands. One of the Parking, canyon views, short trail to ancestral Puebloan home site. most spectacular examples of erosion any where in the world, Grand Cape Royal Canyon offers visitors incomparable vistas. Trail south from Point Imperial for a half mile for an easy hike with Parking, rest room, picnic area, accessible Cape Royal Trail leads to a The Pocket Map is published by Grand Canyon National Park with breath taking views. 20 miles (32 km), 30 minutes one way. More viewpoint giving expansive east and west vistas. See the natural arch of support from your entrance fees. Ask at the North Rim Visitor Center for Angels Window framing the Colorado River, and look for Desert View a hiking brochure. Watchtower across the canyon on the South Rim. 23 miles (37 km) from the North Rim Visitor Center; 45 minutes driving time one-way. The National Park Service cares for the special places saved by the American people so that all may experience our heritage.&lt;/p&gt;
+&lt;h2&gt;EXPERIENCE YOUR AMERICA&lt;/h2&gt;
+&lt;h2&gt;North Rim Day Hikes&lt;/h2&gt;
+&lt;h2&gt;Bright Angel Point Trail&lt;/h2&gt;
+&lt;h2&gt;North Kaibab Trail&lt;/h2&gt;
+&lt;p&gt;0.5 miles (0.8 km) round trip; allow 30 Distances and hiking times vary; ask minutes. A short, but steep, walk on for a hiking brochure at the North a paved trail to a spectacular view of Rim Visitor Center. This is the only Grand Canyon. Begin at the log shelter maintained trail into the canyon from in the parking area near the North Rim the North Rim. Under no circumstances Visitor Center or from the Grand Canyon should you attempt to hike from the Lodge back porch. rim to the Colorado River and back in one day. The opening of this trail may Transept Trail be delayed due to winter damage. 2 miles (3.2 km) one-way; allow one Mules use this trail; step off the trail on hour. Follow the canyon rim from Grand the uphill side, keep still, and follow the Canyon Lodge to past the North Rim wrangler’s instructions.&lt;/p&gt;
+&lt;h2&gt;Campground along the Transept, a&lt;/h2&gt;
+&lt;p&gt;beautiful side canyon.&lt;/p&gt;
+&lt;h2&gt;Roosevelt Point Trail&lt;/h2&gt;
+&lt;p&gt;0.2 miles (0.3 km) round trip; allow 20 Bridle Path minutes. Stroll this secluded woodland 1.9 miles (3.1 km) one-way; allow one loop offering spectacular views and hour. This trail follows the road as it benches for relaxing. Trail begins from connects Grand Canyon Lodge with the Roosevelt Point parking area.&lt;/p&gt;
+&lt;p&gt;North Kaibab Trail head. Pets on a leash and bicycles are permitted on this hard- Cape Final Trail packed trail. 4.2 miles (6.8 km) round trip; allow two-three hours. Enjoy a forested walk Widforss Trail from the dirt parking area to Cape Final. 9.6 miles (15.5 km) round trip; allow six This trail offers a view of the canyon hours. Wander through a blend of forest and beyond to the Painted Desert. Trail and canyon scenery—even a short walk begins 2.4 miles (3.9 km) north of the can be very satisfying. To locate the Cape Royal parking lot. trail head, take the dirt road 0.25 miles (0.4 km) south of the road to Cape Royal Cliff Spring Trail for one mile (1.6 km) to the Widforss 0.8 mile (1.3 km) round trip; allow one Trail parking area. hour. Path meanders down a forested ravine and ends where a chest-high Uncle Jim Trail boulder rests under a large overhang. 4.7 miles (7.6 km) round trip; allow three The spring is on the cliff side of the hours. Stroll through the forest to a boulder—do not drink the water. Trail viewpoint over looking the canyon and begins across the road from a small North Kaibab Trail switchbacks. Begin pull out on a curve 0.3 miles (0.5 km) from the North Kaibab Trail parking lot. north of Cape Royal.&lt;/p&gt;
+&lt;p&gt;Mules use this trail; step off the trail, keep still, and follow the wrangler’s Cape Royal Trail instructions. 0.8 miles (1.3 km) round trip; allow one hour. An easy walk on a flat, paved Ken Patrick Trail trail with views of the canyon, Angels 9.8 miles (15.8 km) one-way; allow six Window, and Colorado River. Signs hours. Wind through the forest and interpret the area’s natural history. Trail along the rim from Point Imperial to the begins from the southeast side of the North Kaibab Trail parking area on this Cape Royal parking area. unmaintained trail.&lt;/p&gt;
+&lt;h2&gt;Arizona National Scenic Trail&lt;/h2&gt;
+&lt;p&gt;12.1 miles (19.5 km) one-way; allow seven hours. A section of this trail enters Stock use the park near the north entrance and roughly parallels AZ 67 until it connects with the North Kaibab Trail. Pets on a leash and bicycles permitted.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</pre></section><section class="conversion-pane" id="pdf-grand-canyon-north-rim-map-haskell"><div class="pane-head"><span class="pane-title">Haskell HTML</span><span class="pane-status status-fail">failed</span></div><pre class="error-box" data-sync-group="pdf-grand-canyon-north-rim-map">Unknown input format &#039;pdf&#039;
+Pandoc can convert to PDF, but not from PDF.</pre><pre class="source-box" data-sync-group="pdf-grand-canyon-north-rim-map">Unknown input format &#039;pdf&#039;
+Pandoc can convert to PDF, but not from PDF.</pre></section></div><div class="note">Project-local markerPDF bridge extracts searchable PDF text lines and structural provenance for simple PDFs. Complex multi-column or untagged PDFs may lose spacing/order or be exposed only as extraction diagnostics. PDF is not an upstream Pandoc input format.</div></section></article><article class="comparison" id="pdf-archive-motograph-book"><section class="original"><div class="panel-head"><h3>Public-domain scanned book PDF</h3><p class="meta">1980820 bytes | <a href="https://archive.org/download/motographmoving00laugoog/motographmoving00laugoog.pdf">Internet Archive public-domain scan of The Motograph Moving Picture Book</a></p></div><div class="original-body"><div class="download-only"><p>No local thumbnail is available for this binary or packaged file.</p><p><a href="samples/pdf-archive-motograph-book-motograph-moving-picture-book.pdf">Download original file</a></p></div><p class="meta">Internet Archive public-domain scanned small book with OCR text, title pages, and book-like page flow.</p></div></section><section class="converted" data-sample="pdf-archive-motograph-book"><div class="converted-toolbar"><span class="meta">Converted representations</span><button class="view-source" type="button" data-source-toggle>View source</button></div><div class="comparison-grid"><section class="conversion-pane" id="pdf-archive-motograph-book-wpBlocks"><div class="pane-head"><span class="pane-title">WP blocks</span><span class="pane-status status-ok">ok</span></div><iframe class="render-frame" data-sync-group="pdf-archive-motograph-book" title="Public-domain scanned book PDF PHP WordPress blocks" src="outputs/pdf-archive-motograph-book/wordpress-blocks.html"></iframe><pre class="source-box" data-sync-group="pdf-archive-motograph-book">&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;Thisisadigitalcopyofabookthatwaspreservedforgenerationsonlibraryshelvesbeforeitwascarefullyscannedby Google a spart of a project to make the world&amp;#039;sbooksdiscoverableonline.&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;Ithassurvivedlongenoughforthecopyrighttoexpireandthebooktoenterthepublicdomain. A public domain book is one that was never subject tocopyrightorwhoselegalcopyrighttermhasexpired. Whether a book is in the public domain may vary country to country. Publicdomainbooks are our gate ways to the past, represent inga wealth of history, culture and knowledge that&amp;#039;softendif cult to discover.&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;Marks, notation sand other marginalia present in the original volume will appear in this le-a reminder of this book&amp;#039;slongjourneyfromthe Googleisproudtopartnerwithlibrariestodigitizepublicdomainmaterialsandmakethemwidelyaccessible. Publicdomainbooksbelongtothe publicandwearemerelytheircustodians. Nevertheless, this work is expensive, soinordertokeepprovidingthisresource, wehavetakenstepsto preventabusebycommercialparties, includingplacingtechnicalrestrictionsonautomatedquerying.&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;Wealsoaskthatyou: We designed Google Book Searchforusebyindividuals, andwerequestthatyouusethese lesfor&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;personal, non-commercialpurposes.&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;Donotsendautomatedqueriesofanysortto Google&amp;#039;ssystem: Ifyouareconductingresearchonmachine translation, optical character recognition or other are as where access to a large amount of text is helpful, pleasecontactus. We encourage the useofpublicdomainmaterialsforthesepurposesandmaybeabletohelp.&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;TheGoogle�watermark�youseeoneachleisessentialforinformingpeopleaboutthisprojectandhelpingthemnd additionalmaterialsthroughGoogleBookSearch.Pleasedonotremoveit.&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;Whatever your use, rememberthatyouareresponsibleforensuringthatwhatyouaredoingislegal. Donotassumethatjust becausewebelieveabookisinthepublicdomainforusersinthe United States, thattheworkisalsointhepublicdomainforusersinother countries. Whetherabookisstillincopyrightvariesfromcountrytocountry, and we can&amp;#039;tofferguidanceonwhetheranyspeci cuseof anyspeci cbookisallowed. Pleasedonotassumethatabook&amp;#039;sappearancein Google Book Search means it can be used in any manner Google&amp;#039;smissionistoorganizetheworld&amp;#039;sinformationandtomakeituniversallyaccessibleanduseful. Google Book Searchhelpsreaders discover the world&amp;#039;sbookswhilehelpingauthorsandpublishersreachnewaudiences. Youcansearchthroughthefulltextofthisbookontheweb 1&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;</pre></section><section class="conversion-pane" id="pdf-archive-motograph-book-phpHtml"><div class="pane-head"><span class="pane-title">PHP HTML</span><span class="pane-status status-ok">ok</span></div><iframe class="render-frame" data-sync-group="pdf-archive-motograph-book" title="Public-domain scanned book PDF PHP HTML" src="outputs/pdf-archive-motograph-book/php.html"></iframe><pre class="source-box" data-sync-group="pdf-archive-motograph-book">&lt;!doctype html&gt;&lt;html lang=&quot;en&quot;&gt;&lt;head&gt;&lt;meta charset=&quot;utf-8&quot;&gt;&lt;meta name=&quot;viewport&quot; content=&quot;width=device-width, initial-scale=1&quot;&gt;&lt;title&gt;PHP Pandoc HTML output&lt;/title&gt;&lt;style&gt;html{line-height:1.5;font-family:Georgia,&quot;Times New Roman&quot;,serif;font-size:18px;color:#1f2933;background:#fdfdfd;}body{margin:0 auto;max-width:46em;padding:2.5em 1.25em;}h1,h2,h3,h4,h5,h6{font-family:system-ui,-apple-system,BlinkMacSystemFont,&quot;Segoe UI&quot;,sans-serif;line-height:1.25;margin:1.4em 0 .45em;}h1{font-size:2em;}h2{font-size:1.55em;}h3{font-size:1.25em;}p{margin:1em 0;}a{color:#1f6feb;}img,svg,video{max-width:100%;height:auto;}pre,code,kbd,samp{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.9em;}code{background:#eef1f5;padding:.1em .25em;border-radius:3px;}pre{overflow:auto;background:#f6f8fa;border:1px solid #d8dde3;border-radius:6px;padding:1em;}pre code{background:transparent;padding:0;}blockquote{margin:1.25em 0;padding-left:1em;border-left:4px solid #d8dde3;color:#4b5563;}table{border-collapse:collapse;margin:1.25em 0;width:100%;font-size:.92em;}th,td{border:1px solid #d8dde3;padding:.35em .55em;vertical-align:top;}th{background:#f6f8fa;}math{font-family:math,serif;}math[display=&quot;block&quot;]{display:block;margin:1em 0;overflow-x:auto;}&lt;/style&gt;&lt;/head&gt;&lt;body&gt;&lt;p&gt;Thisisadigitalcopyofabookthatwaspreservedforgenerationsonlibraryshelvesbeforeitwascarefullyscannedby Google a spart of a project to make the world&amp;#039;sbooksdiscoverableonline.&lt;/p&gt;
+&lt;p&gt;Ithassurvivedlongenoughforthecopyrighttoexpireandthebooktoenterthepublicdomain. A public domain book is one that was never subject tocopyrightorwhoselegalcopyrighttermhasexpired. Whether a book is in the public domain may vary country to country. Publicdomainbooks are our gate ways to the past, represent inga wealth of history, culture and knowledge that&amp;#039;softendif cult to discover.&lt;/p&gt;
+&lt;p&gt;Marks, notation sand other marginalia present in the original volume will appear in this le-a reminder of this book&amp;#039;slongjourneyfromthe Googleisproudtopartnerwithlibrariestodigitizepublicdomainmaterialsandmakethemwidelyaccessible. Publicdomainbooksbelongtothe publicandwearemerelytheircustodians. Nevertheless, this work is expensive, soinordertokeepprovidingthisresource, wehavetakenstepsto preventabusebycommercialparties, includingplacingtechnicalrestrictionsonautomatedquerying.&lt;/p&gt;
+&lt;p&gt;Wealsoaskthatyou: We designed Google Book Searchforusebyindividuals, andwerequestthatyouusethese lesfor&lt;/p&gt;
+&lt;p&gt;personal, non-commercialpurposes.&lt;/p&gt;
+&lt;p&gt;Donotsendautomatedqueriesofanysortto Google&amp;#039;ssystem: Ifyouareconductingresearchonmachine translation, optical character recognition or other are as where access to a large amount of text is helpful, pleasecontactus. We encourage the useofpublicdomainmaterialsforthesepurposesandmaybeabletohelp.&lt;/p&gt;
+&lt;p&gt;TheGoogle�watermark�youseeoneachleisessentialforinformingpeopleaboutthisprojectandhelpingthemnd additionalmaterialsthroughGoogleBookSearch.Pleasedonotremoveit.&lt;/p&gt;
+&lt;p&gt;Whatever your use, rememberthatyouareresponsibleforensuringthatwhatyouaredoingislegal. Donotassumethatjust becausewebelieveabookisinthepublicdomainforusersinthe United States, thattheworkisalsointhepublicdomainforusersinother countries. Whetherabookisstillincopyrightvariesfromcountrytocountry, and we can&amp;#039;tofferguidanceonwhetheranyspeci cuseof anyspeci cbookisallowed. Pleasedonotassumethatabook&amp;#039;sappearancein Google Book Search means it can be used in any manner Google&amp;#039;smissionistoorganizetheworld&amp;#039;sinformationandtomakeituniversallyaccessibleanduseful. Google Book Searchhelpsreaders discover the world&amp;#039;sbookswhilehelpingauthorsandpublishersreachnewaudiences. Youcansearchthroughthefulltextofthisbookontheweb 1&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</pre></section><section class="conversion-pane" id="pdf-archive-motograph-book-haskell"><div class="pane-head"><span class="pane-title">Haskell HTML</span><span class="pane-status status-fail">failed</span></div><pre class="error-box" data-sync-group="pdf-archive-motograph-book">Unknown input format &#039;pdf&#039;
+Pandoc can convert to PDF, but not from PDF.</pre><pre class="source-box" data-sync-group="pdf-archive-motograph-book">Unknown input format &#039;pdf&#039;
+Pandoc can convert to PDF, but not from PDF.</pre></section></div><div class="note">Project-local markerPDF bridge extracts searchable PDF text lines and structural provenance for simple PDFs. Complex multi-column or untagged PDFs may lose spacing/order or be exposed only as extraction diagnostics. PDF is not an upstream Pandoc input format.</div></section></article><article class="comparison" id="pdf-muir-beach-brochure"><section class="original"><div class="panel-head"><h3>Muir Beach illustrated brochure</h3><p class="meta">2559393 bytes | <a href="https://www.nps.gov/goga/planyourvisit/upload/MUBE-sb_web_17e.pdf">National Park Service Muir Beach brochure PDF</a></p></div><div class="original-body"><div class="download-only"><p>No local thumbnail is available for this binary or packaged file.</p><p><a href="samples/pdf-muir-beach-brochure-muir-beach-brochure.pdf">Download original file</a></p></div><p class="meta">Small National Park Service brochure with photos, map-oriented visitor information, headings, and short panels.</p></div></section><section class="converted" data-sample="pdf-muir-beach-brochure"><div class="converted-toolbar"><span class="meta">Converted representations</span><button class="view-source" type="button" data-source-toggle>View source</button></div><div class="comparison-grid"><section class="conversion-pane" id="pdf-muir-beach-brochure-wpBlocks"><div class="pane-head"><span class="pane-title">WP blocks</span><span class="pane-status status-ok">ok</span></div><iframe class="render-frame" data-sync-group="pdf-muir-beach-brochure" title="Muir Beach illustrated brochure PHP WordPress blocks" src="outputs/pdf-muir-beach-brochure/wordpress-blocks.html"></iframe><pre class="source-box" data-sync-group="pdf-muir-beach-brochure">&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;Muir Beach To cherish what remains of the Earth and to foster its renewal is our only legitimate hope of survival. —Wendell Berry National Park Service U. S. Department of Interior Golden Gate National Recreation Area At Muir Beach, a complex network of fresh water wetlands, lagoon, and dunes defines the meeting place of Redwood Creek and the Pacific Ocean. Here, across a broad flood plain, intertwined natural systems perform an intricate seasonal and biological dance. Redwood Creek drains an 8.9-square-mile watershed that extends from the ridge tops of Mt. Tamalpais through the old-growth forest of Muir Woods National Monument to the ocean. Largely undeveloped, the watershed functions as an essentially intact unit. With in this compact territory, a highly diverse range of habitats, many of them irreplaceable to their inhabitants, can be found.&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;A Biodiversity Redwood Creek watershed is part of the Golden Gate Biosphere Reserve as well as one of North Hot spot America’s biodiversity “hotspots.” These ecologically critical areas represent some of the planet’s richest and most threatened reservoirs of plant and animal life.&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;The watershed is home to several of the West Coast’s most imperiled species, among them, coho salmon, steelhead trout, and the California redlegged frog. Habitat restoration has helped its redlegged frog population, but coho salmon are still in a highly precarious position. When salmon return to their native spawning grounds in upper Redwood Creek, they bring deep-ocean nutrients to the redwood forest. Without the salmon, a key piece of the age-old cycle of the redwood forest is gone and an important connection is lost.&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;EXPERIENCE YOUR AMERICA™ www.nwww.nps.gov/gogaps.gov/goga The First For more than 10, 000 years, the Coast Miwok lived in roughly 600 small family Stewards communities along the shore line.&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;Stewards of the land, they managed the local watersheds where creek and ocean resources were most abundant, including the Muir Beach flood plain. Here, they hunted, fished, and harvested many of the native plants for food, medicine, and other traditional uses. In developing traditional ecological knowledge, land tending principles, and alignment of cultural customs with the seasons, they fostered a harmonious relationship with the natural world.&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;In the late 1700s, European settlement forced the Coast Miwok off their land and abruptly shifted their way of life forever.&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:heading {&quot;level&quot;:2} --&gt;
+&lt;h2&gt;Descendants of the Coast Miwok,&lt;/h2&gt;
+&lt;!-- /wp:heading --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;members of what is known today as the Federated Indians of Grat on Rancheria, continue to participate in research, education, cultural revitalization, and preservation of sacred sites.&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;Portuguese Beginning in the mid-19th century, much of the watershed’s land was leased to Dairymen Portuguese dairymen, who had emigrated from the Azores on whaling ships. By the 1880s, Marin County was California’s largest producer of fresh milk and butter.&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:heading {&quot;level&quot;:2} --&gt;
+&lt;h2&gt;After World War II, the ranches declined,&lt;/h2&gt;
+&lt;!-- /wp:heading --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;and most were incorporated into the California State Park system in the 1960s.&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;Get-together at a local dairy ranch. (photos from George Kristian Lindholdt) Bygone Days Muir Beach—known as Big Lagoon Beach until the late 1930s—has always been a at the Beach popular place for recreation. Early-day beachgoers picnicked, camped, fished for salmon and trout, and hiked here.&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;Others came to dine and dance at the Old Tavern, built in the early 1920s, or stay in one of the summer cottages.&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;W eekend visitors catch a few fish (photos from George Kristian Lindholdt) EXPERIENCE YOUR AMERICA™ Left, Top &amp;amp; Bottom images: Traditional prayer led by a representative of the Coast Miwok at the annual Welcome Back Salmon ceremony at Muir Beach. www.nwww.nps.gov/gogaps.gov/goga Restoring During the 20th century, human use changed the natural landscape of the Ecological wetland and creek habitat at Muir Beach.&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:heading {&quot;level&quot;:2} --&gt;
+&lt;h2&gt;Integrity Make a Difference&lt;/h2&gt;
+&lt;!-- /wp:heading --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;Click the link for more information. • Lend a hand in the ongoing effort to restore www.parksconservancy.org • Learn what you can do to help protect the ocean. www.thankyouocean.org • Get involved in the campaign to improve air quality in the San Francisco Bay Area. www.sparetheair.org www.nps.gov/goga In collaboration with public agencies and nonprofit partners, the National Park Service implemented a multi-year, large-scale restoration plan. This work has freed the creek to meander naturally www.blue front.org5gyres.orgment collectively confined the creek, cut it off from its flood plain, caused it to fill - C o R a e st d V w ie o w o T d ra C il r e R T ek ed w oo O d T S T C o T O re S IN MU e lid S I k e O R Tr R N W ail an B OODS c E h A C H GOLDEN GATE DAIRY Pelican Inn O w l T y ra MUIR a il BEACH W M OVERLOOK c u ifi ri c B a e MUIR BEACH P a hc COMMUNITY Tr a MUIR BEACH Horses, Bikes, Vault Toilets Hiking Emergency Phone Horses and Hiking only Parking North Hiking only Picnic Area Dogs on leash allowed Trail head Main Road Stables Secondary Road 0 Food Creeks Lodging Location li ar T 1 e 0 g 1 di y R a s w lch Trail D ia h u DIAS ig G H en To re RIDGE G y w a Zen Center ig h H Green G ulch Farm elin e or K Sh aa ail si lch Tr W a G reen G u y iddle M een r Gu G lc le h dd T i ra M il il UPHILL BICYCLE O N R S LY FO ssee Valley Road Tenne l Fire To sta oa C Pirate s C o v e Tra il 0.5 miles PIRATES 1 kilometer COVE Muir Beach is halfway between Stinson Beach and the Marin Headlands, where Shore line Highway (Hwy. 1) meets Muir Woods Road. The Coastal, Redwood Creek, and Dias Ridge Trails connect with Muir Beach.&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;EXPERIENCE YOUR AMERICA™ www.nps.gov/goga&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;</pre></section><section class="conversion-pane" id="pdf-muir-beach-brochure-phpHtml"><div class="pane-head"><span class="pane-title">PHP HTML</span><span class="pane-status status-ok">ok</span></div><iframe class="render-frame" data-sync-group="pdf-muir-beach-brochure" title="Muir Beach illustrated brochure PHP HTML" src="outputs/pdf-muir-beach-brochure/php.html"></iframe><pre class="source-box" data-sync-group="pdf-muir-beach-brochure">&lt;!doctype html&gt;&lt;html lang=&quot;en&quot;&gt;&lt;head&gt;&lt;meta charset=&quot;utf-8&quot;&gt;&lt;meta name=&quot;viewport&quot; content=&quot;width=device-width, initial-scale=1&quot;&gt;&lt;title&gt;PHP Pandoc HTML output&lt;/title&gt;&lt;style&gt;html{line-height:1.5;font-family:Georgia,&quot;Times New Roman&quot;,serif;font-size:18px;color:#1f2933;background:#fdfdfd;}body{margin:0 auto;max-width:46em;padding:2.5em 1.25em;}h1,h2,h3,h4,h5,h6{font-family:system-ui,-apple-system,BlinkMacSystemFont,&quot;Segoe UI&quot;,sans-serif;line-height:1.25;margin:1.4em 0 .45em;}h1{font-size:2em;}h2{font-size:1.55em;}h3{font-size:1.25em;}p{margin:1em 0;}a{color:#1f6feb;}img,svg,video{max-width:100%;height:auto;}pre,code,kbd,samp{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.9em;}code{background:#eef1f5;padding:.1em .25em;border-radius:3px;}pre{overflow:auto;background:#f6f8fa;border:1px solid #d8dde3;border-radius:6px;padding:1em;}pre code{background:transparent;padding:0;}blockquote{margin:1.25em 0;padding-left:1em;border-left:4px solid #d8dde3;color:#4b5563;}table{border-collapse:collapse;margin:1.25em 0;width:100%;font-size:.92em;}th,td{border:1px solid #d8dde3;padding:.35em .55em;vertical-align:top;}th{background:#f6f8fa;}math{font-family:math,serif;}math[display=&quot;block&quot;]{display:block;margin:1em 0;overflow-x:auto;}&lt;/style&gt;&lt;/head&gt;&lt;body&gt;&lt;p&gt;Muir Beach To cherish what remains of the Earth and to foster its renewal is our only legitimate hope of survival. —Wendell Berry National Park Service U. S. Department of Interior Golden Gate National Recreation Area At Muir Beach, a complex network of fresh water wetlands, lagoon, and dunes defines the meeting place of Redwood Creek and the Pacific Ocean. Here, across a broad flood plain, intertwined natural systems perform an intricate seasonal and biological dance. Redwood Creek drains an 8.9-square-mile watershed that extends from the ridge tops of Mt. Tamalpais through the old-growth forest of Muir Woods National Monument to the ocean. Largely undeveloped, the watershed functions as an essentially intact unit. With in this compact territory, a highly diverse range of habitats, many of them irreplaceable to their inhabitants, can be found.&lt;/p&gt;
+&lt;p&gt;A Biodiversity Redwood Creek watershed is part of the Golden Gate Biosphere Reserve as well as one of North Hot spot America’s biodiversity “hotspots.” These ecologically critical areas represent some of the planet’s richest and most threatened reservoirs of plant and animal life.&lt;/p&gt;
+&lt;p&gt;The watershed is home to several of the West Coast’s most imperiled species, among them, coho salmon, steelhead trout, and the California redlegged frog. Habitat restoration has helped its redlegged frog population, but coho salmon are still in a highly precarious position. When salmon return to their native spawning grounds in upper Redwood Creek, they bring deep-ocean nutrients to the redwood forest. Without the salmon, a key piece of the age-old cycle of the redwood forest is gone and an important connection is lost.&lt;/p&gt;
+&lt;p&gt;EXPERIENCE YOUR AMERICA™ www.nwww.nps.gov/gogaps.gov/goga The First For more than 10, 000 years, the Coast Miwok lived in roughly 600 small family Stewards communities along the shore line.&lt;/p&gt;
+&lt;p&gt;Stewards of the land, they managed the local watersheds where creek and ocean resources were most abundant, including the Muir Beach flood plain. Here, they hunted, fished, and harvested many of the native plants for food, medicine, and other traditional uses. In developing traditional ecological knowledge, land tending principles, and alignment of cultural customs with the seasons, they fostered a harmonious relationship with the natural world.&lt;/p&gt;
+&lt;p&gt;In the late 1700s, European settlement forced the Coast Miwok off their land and abruptly shifted their way of life forever.&lt;/p&gt;
+&lt;h2&gt;Descendants of the Coast Miwok,&lt;/h2&gt;
+&lt;p&gt;members of what is known today as the Federated Indians of Grat on Rancheria, continue to participate in research, education, cultural revitalization, and preservation of sacred sites.&lt;/p&gt;
+&lt;p&gt;Portuguese Beginning in the mid-19th century, much of the watershed’s land was leased to Dairymen Portuguese dairymen, who had emigrated from the Azores on whaling ships. By the 1880s, Marin County was California’s largest producer of fresh milk and butter.&lt;/p&gt;
+&lt;h2&gt;After World War II, the ranches declined,&lt;/h2&gt;
+&lt;p&gt;and most were incorporated into the California State Park system in the 1960s.&lt;/p&gt;
+&lt;p&gt;Get-together at a local dairy ranch. (photos from George Kristian Lindholdt) Bygone Days Muir Beach—known as Big Lagoon Beach until the late 1930s—has always been a at the Beach popular place for recreation. Early-day beachgoers picnicked, camped, fished for salmon and trout, and hiked here.&lt;/p&gt;
+&lt;p&gt;Others came to dine and dance at the Old Tavern, built in the early 1920s, or stay in one of the summer cottages.&lt;/p&gt;
+&lt;p&gt;W eekend visitors catch a few fish (photos from George Kristian Lindholdt) EXPERIENCE YOUR AMERICA™ Left, Top &amp;amp; Bottom images: Traditional prayer led by a representative of the Coast Miwok at the annual Welcome Back Salmon ceremony at Muir Beach. www.nwww.nps.gov/gogaps.gov/goga Restoring During the 20th century, human use changed the natural landscape of the Ecological wetland and creek habitat at Muir Beach.&lt;/p&gt;
+&lt;h2&gt;Integrity Make a Difference&lt;/h2&gt;
+&lt;p&gt;Click the link for more information. • Lend a hand in the ongoing effort to restore www.parksconservancy.org • Learn what you can do to help protect the ocean. www.thankyouocean.org • Get involved in the campaign to improve air quality in the San Francisco Bay Area. www.sparetheair.org www.nps.gov/goga In collaboration with public agencies and nonprofit partners, the National Park Service implemented a multi-year, large-scale restoration plan. This work has freed the creek to meander naturally www.blue front.org5gyres.orgment collectively confined the creek, cut it off from its flood plain, caused it to fill - C o R a e st d V w ie o w o T d ra C il r e R T ek ed w oo O d T S T C o T O re S IN MU e lid S I k e O R Tr R N W ail an B OODS c E h A C H GOLDEN GATE DAIRY Pelican Inn O w l T y ra MUIR a il BEACH W M OVERLOOK c u ifi ri c B a e MUIR BEACH P a hc COMMUNITY Tr a MUIR BEACH Horses, Bikes, Vault Toilets Hiking Emergency Phone Horses and Hiking only Parking North Hiking only Picnic Area Dogs on leash allowed Trail head Main Road Stables Secondary Road 0 Food Creeks Lodging Location li ar T 1 e 0 g 1 di y R a s w lch Trail D ia h u DIAS ig G H en To re RIDGE G y w a Zen Center ig h H Green G ulch Farm elin e or K Sh aa ail si lch Tr W a G reen G u y iddle M een r Gu G lc le h dd T i ra M il il UPHILL BICYCLE O N R S LY FO ssee Valley Road Tenne l Fire To sta oa C Pirate s C o v e Tra il 0.5 miles PIRATES 1 kilometer COVE Muir Beach is halfway between Stinson Beach and the Marin Headlands, where Shore line Highway (Hwy. 1) meets Muir Woods Road. The Coastal, Redwood Creek, and Dias Ridge Trails connect with Muir Beach.&lt;/p&gt;
+&lt;p&gt;EXPERIENCE YOUR AMERICA™ www.nps.gov/goga&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</pre></section><section class="conversion-pane" id="pdf-muir-beach-brochure-haskell"><div class="pane-head"><span class="pane-title">Haskell HTML</span><span class="pane-status status-fail">failed</span></div><pre class="error-box" data-sync-group="pdf-muir-beach-brochure">Unknown input format &#039;pdf&#039;
+Pandoc can convert to PDF, but not from PDF.</pre><pre class="source-box" data-sync-group="pdf-muir-beach-brochure">Unknown input format &#039;pdf&#039;
 Pandoc can convert to PDF, but not from PDF.</pre></section></div><div class="note">Project-local markerPDF bridge extracts searchable PDF text lines and structural provenance for simple PDFs. Complex multi-column or untagged PDFs may lose spacing/order or be exposed only as extraction diagnostics. PDF is not an upstream Pandoc input format.</div></section></article></section><section class="format-section" id="format-pptx"><div class="format-heading"><h2>pptx</h2><span>4 samples</span></div><article class="comparison" id="pptx-basic"><section class="original"><div class="panel-head"><h3>Basic PPTX</h3><p class="meta">111674 bytes | <a href="https://raw.githubusercontent.com/jgm/pandoc/912bfa5e2e3f5c74eb125dfc19404f67c61ca58b/test/pptx-reader/basic.pptx">jgm/pandoc upstream fixture at test/pptx-reader/basic.pptx</a></p></div><div class="original-body"><div class="download-only"><p>No local thumbnail is available for this binary or packaged file.</p><p><a href="samples/pptx-basic-basic.pptx">Download original file</a></p></div><p class="meta">Presentation fixture from upstream Pandoc tests.</p></div></section><section class="converted" data-sample="pptx-basic"><div class="converted-toolbar"><span class="meta">Converted representations</span><button class="view-source" type="button" data-source-toggle>View source</button></div><div class="comparison-grid"><section class="conversion-pane" id="pptx-basic-wpBlocks"><div class="pane-head"><span class="pane-title">WP blocks</span><span class="pane-status status-ok">ok</span></div><iframe class="render-frame" data-sync-group="pptx-basic" title="Basic PPTX PHP WordPress blocks" src="outputs/pptx-basic/wordpress-blocks.html"></iframe><pre class="source-box" data-sync-group="pptx-basic">&lt;!-- wp:heading {&quot;level&quot;:2} --&gt;
 &lt;h2 id=&quot;slide-1&quot;&gt;LLMs&lt;/h2&gt;
 &lt;!-- /wp:heading --&gt;
