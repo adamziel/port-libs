@@ -670,6 +670,7 @@ final class PdfReader
         $line = $this->removeStandaloneBraceArtifacts($line);
         $line = preg_replace('/([,;:!?])(?=\S)/u', '$1 ', $line) ?? $line;
         $line = preg_replace('/(?<!\d)\.(?=[A-Z])/u', '. ', $line) ?? $line;
+        $line = preg_replace('/([a-z])([A-Z]{1,4})(?=\s|[.,;:)])/u', '$1 $2', $line) ?? $line;
         $line = preg_replace('/([a-z])([A-Z][a-z])/u', '$1 $2', $line) ?? $line;
         $line = preg_replace('/\b(section|figure|table|chapter|page)(\d+)/iu', '$1 $2 ', $line) ?? $line;
         $line = preg_replace('/\b(and|or|but)(a|an|the)\b/iu', '$1 $2', $line) ?? $line;
@@ -677,6 +678,7 @@ final class PdfReader
         $line = preg_replace('/((?:do|does|can|should|would|could|wo|is|are|was|were|did|have|has|had)n[\x{2019}\']t)(?=[A-Za-z])/iu', '$1 ', $line) ?? $line;
         $line = preg_replace('/([\x{2019}\']t)(?=[A-Za-z])/u', '$1 ', $line) ?? $line;
         $line = preg_replace('/(^|[^A-Za-z])turnoff(?=\s+(?:a|an|the|this|that|these|those|your|my|our|their)(?:\s|$|[^A-Za-z]))/iu', '$1turn off', $line) ?? $line;
+        $line = preg_replace('/(^|[^A-Za-z])touse(?=\s|$|[^A-Za-z])/iu', '$1to use', $line) ?? $line;
         $line = $this->repairSplitWordFragments($line);
         $line = preg_replace_callback('/\b[A-Za-z]{5,}\b/u', function (array $match): string {
             return $this->segmentGluedAsciiWord($match[0]);
@@ -904,7 +906,7 @@ final class PdfReader
 
         $shortParts = 0;
         foreach ($parts as $part) {
-            if (strlen($part) <= 2 && !in_array(strtolower($part), ['a', 'an', 'as', 'at', 'be', 'by', 'if', 'in', 'is', 'it', 'js', 'me', 'no', 'of', 'on', 'or', 'pc', 'so', 'tm', 'to', 'vm', 'we'], true)) {
+            if (strlen($part) <= 2 && !in_array(strtolower($part), ['a', 'an', 'as', 'at', 'be', 'by', 'do', 'if', 'in', 'is', 'it', 'js', 'me', 'no', 'of', 'on', 'or', 'pc', 'so', 'tm', 'to', 'vm', 'we'], true)) {
                 $shortParts++;
             }
         }
@@ -1028,6 +1030,7 @@ final class PdfReader
         $dictionary = [];
         $rank = 1;
         $builtin = preg_split('/\s+/', trim(<<<'WORDS'
+set rate rates see table tables united states addition total totals school schools student students eligible ineligible responding nonresponding original sample sampled sampling percent percentage assessment assessed booklet completed participating participated participate participation substitute substitutes substitution population populations international national target coverage weighted unweighted desired education educational system systems denotes enrollment size age classroom classrooms selected selection probability exclusion exclusions excluded replacement combined overall zealand federation republic calculated calculating without including included include includes independent matched pairs annotation annotations indicating indicated indicate defined deined nation nations each methods method using focused exclusively nonresponse adjusted adjustment weights factors statistically significant signiicant signiicantly predictors predictor reduced price priced lunch possible might provide provides provided information presence regression analysis analyses variable variables distribution respondents nonrespondents response bias public private community poverty central procedure account fact samples both mean ccd data percentage percentages two just base below assumed comparing compared characteristics timss
 the of and to in a is that for on as with by this are be or an from at it we can all any not but such than no more most one each ones when while if then into out up down over under through between during before after yet
 these those there their they them our ours your its his her was were been being have has had do does did may might must should would could will shall also both either neither same other another because since where which who whose what why how means uses use runs makes stops allows give decide decides invokes crosses crossed crossing second immediately currently always begins
 dynamic language languages javascript script python ruby compile compiler compilers compilation compiled compiling code machine native bytecode interpreter runtime run time typed type types information expression expressions operation operations instruction instructions generic generalized concrete possible combinations traditional static analysis inference optimized optimization optimizations performance startup browser web application applications google mail docs zimbra collaboration suite available handle combinations runtime present alternative fly elegant way incrementally lazily discovered measured certain
@@ -3363,8 +3366,45 @@ WORDS)) ?: [];
         $text = preg_replace('/(?<=[\p{Ll}])(\d+)(?=[:;])/u', ' $1', $text) ?? $text;
         $text = preg_replace('/(?<=\d)(?=[\p{L}]{2,}\s+\d)/u', ' ', $text) ?? $text;
         $text = preg_replace('/\s+/u', ' ', $text) ?? $text;
+        if ($this->looksLikePdfProseTableCell($text)) {
+            $text = preg_replace('/(?<=[\p{Ll}])(?=\d{1,4}[\p{L}])/u', ' ', $text) ?? $text;
+            $text = preg_replace('/(?<=\d)(?=[\p{L}]{3,})/u', ' ', $text) ?? $text;
+            $text = $this->repairGluedProseLine($text);
+        }
 
         return trim($text);
+    }
+
+    private function looksLikePdfProseTableCell(string $text): bool
+    {
+        if (strlen($text) < 28) {
+            return false;
+        }
+
+        if (preg_match_all('/\p{L}/u', $text, $letters) === false) {
+            return false;
+        }
+        $letterCount = count($letters[0]);
+        $nonSpaceCount = strlen(preg_replace('/\s+/u', '', $text) ?? $text);
+        if ($nonSpaceCount === 0 || $letterCount / $nonSpaceCount < 0.55) {
+            return false;
+        }
+
+        if (preg_match_all('/[\p{L}]{3,}/u', $text, $words) === false) {
+            return false;
+        }
+        $longAlphaRun = false;
+        foreach ($words[0] as $word) {
+            if (strlen($word) >= 18) {
+                $longAlphaRun = true;
+                break;
+            }
+        }
+        if (count($words[0]) < 3 && !$longAlphaRun) {
+            return false;
+        }
+
+        return preg_match('/(?:[a-z]{2,}(?:of|in|to|as|and|the|with|from|for|by)[a-z]{2,}|[a-z]\d+[a-z]|[a-z]{12,})/iu', $text) === 1;
     }
 
     private function positiveSpan(mixed $value): int

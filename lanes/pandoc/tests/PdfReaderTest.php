@@ -4911,6 +4911,7 @@ return [
             'BT /F1 12 Tf '
             . '1 0 0 1 72 720 Tm (Field  Value) Tj '
             . '1 0 0 1 72 704 Tm (Mayoría:Votos  Página 1de 9) Tj '
+            . '1 0 0 1 72 688 Tm (whereY denotes the setofeligiblenon-respondingoriginal  response rateof96percent\\(seetableA-1\\).) Tj '
             . 'ET'
         );
 
@@ -4923,8 +4924,12 @@ return [
         $t->same('table', $document->children[0]->type);
         $t->contains('<td>Mayoría: Votos</td>', $html);
         $t->contains('<td>Página 1 de 9</td>', $html);
+        $t->contains('<td>where Y denotes the set of eligible non-responding original</td>', $html);
+        $t->contains('<td>response rate of 96 percent(see table A-1).</td>', $html);
         $t->true(!str_contains($html, 'Mayoría:Votos'));
         $t->true(!str_contains($html, '1de 9'));
+        $t->true(!str_contains($html, 'setofeligible'));
+        $t->true(!str_contains($html, 'rateof96percent'));
     },
     'repairs glued prose in bounded pdf text extraction' => static function (TestRunner $t) use ($pdfWithContent): void {
         $pdf = $pdfWithContent(
