@@ -12,7 +12,7 @@
     <div class="hero-inner">
       <p class="eyebrow">adamziel/port-libs</p>
       <h1>Convert a document into a WordPress page</h1>
-      <p class="lede">Upload a supported document, convert it to WordPress block markup inside an embedded WordPress Playground, import only the images that are actually rendered as image tags, and open the published page.</p>
+      <p class="lede">Try the PHP Pandoc port as a live WordPress import pipeline. Upload a document, convert it to native block markup inside an embedded WordPress Playground, import the rendered images into the media library, and inspect the resulting page immediately.</p>
       <div class="hero-actions">
         <a href="index.html">Showcase</a>
         <a href="block-usage.html">Block usage guide</a>
@@ -84,6 +84,23 @@
         </div>
         <pre id="log-output"></pre>
       </div>
+
+      <div class="value-panel" aria-label="What this converter does">
+        <h3>What you can do here</h3>
+        <ul>
+          <li>Preview how real documents become editable WordPress pages, not just static HTML.</li>
+          <li>Check whether headings, paragraphs, lists, tables, code, math, links, and images survive conversion.</li>
+          <li>Test imports without a server, database setup, plugin install, or permanent WordPress site.</li>
+          <li>Verify that only images used by rendered <code>&lt;img&gt;</code> tags become media-library files.</li>
+        </ul>
+      </div>
+
+      <details class="format-details">
+        <summary>Supported input formats</summary>
+        <div class="format-chip-list" aria-label="Supported input formats">
+          <span>bibtex</span><span>biblatex</span><span>bits</span><span>commonmark</span><span>commonmark_x</span><span>csljson</span><span>csv</span><span>tsv</span><span>docbook</span><span>docx</span><span>dokuwiki</span><span>endnotexml</span><span>epub</span><span>fb2</span><span>gfm</span><span>markdown_github</span><span>html</span><span>ipynb</span><span>jats</span><span>jira</span><span>json</span><span>latex</span><span>markdown</span><span>markdown_mmd</span><span>markdown_phpextra</span><span>markdown_strict</span><span>mediawiki</span><span>man</span><span>mdoc</span><span>native</span><span>odt</span><span>opml</span><span>pptx</span><span>ris</span><span>rtf</span><span>rst</span><span>xlsx</span><span>xml</span><span>pdf</span><span>doc</span>
+        </div>
+      </details>
     </section>
 
     <section class="playground-panel" aria-label="WordPress Playground">
