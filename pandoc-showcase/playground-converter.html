@@ -12,10 +12,24 @@
     <div class="hero-inner">
       <p class="eyebrow">adamziel/port-libs</p>
       <h1>Convert a document into a WordPress page</h1>
-      <p class="lede">This is a zero-install WordPress import lab. Upload a real document, let the PHP Pandoc port convert it to native block markup inside an embedded WordPress Playground, import only the images that are actually used by rendered <code>&lt;img&gt;</code> tags, and open the finished page immediately. It shows whether a file can become editable WordPress content, not just a pasted blob of HTML.</p>
+      <p class="lede">Use this page to answer the question that matters in a migration: can this file become an editable WordPress page, with real blocks and media, without installing anything?</p>
       <div class="hero-actions">
         <a href="index.html">Showcase</a>
         <a href="block-usage.html">Block usage guide</a>
+      </div>
+      <div class="why-strip" aria-label="Why this converter is useful">
+        <div>
+          <strong>It runs the whole import path</strong>
+          <span>The document is parsed by the PHP Pandoc port, rewritten as WordPress block markup, imported into a live WordPress Playground, and opened as a page.</span>
+        </div>
+        <div>
+          <strong>It makes the result inspectable</strong>
+          <span>You can edit the page, inspect the block structure, check tables and lists, and see whether the content behaves like WordPress content instead of pasted HTML.</span>
+        </div>
+        <div>
+          <strong>It keeps media honest</strong>
+          <span>Extracted images are uploaded to the media library only when the converted page actually renders an <code>&lt;img&gt;</code> tag for them.</span>
+        </div>
       </div>
     </div>
   </header>
@@ -24,37 +38,37 @@
     <section class="upload-panel" aria-labelledby="upload-heading">
       <div>
         <h2 id="upload-heading">Upload</h2>
-        <p class="meta">The file is processed in this browser session by WordPress Playground. Nothing needs to be installed locally.</p>
+        <p class="meta">Drop a source document here, choose or confirm the input format, and the embedded Playground will create a WordPress page from it.</p>
       </div>
 
       <div class="intro-panel" aria-label="What this page is for">
-        <h3>Turn real documents into editable WordPress pages</h3>
-        <p>This page is useful because it tests the whole publishing path, not just a standalone HTML preview. You can take a file people already have, run it through the PHP Pandoc port in the browser, and inspect the result inside WordPress as blocks, media-library files, links, tables, lists, code, math, and headings.</p>
-        <div class="reason-grid" aria-label="Why this is interesting">
+        <h3>What you can learn from one upload</h3>
+        <p>A static HTML preview can hide the hard parts of a WordPress migration. This tool shows the real editing surface: blocks, media-library attachments, links, tables, lists, code, math, headings, and the places where conversion still needs work.</p>
+        <div class="reason-grid" aria-label="What this page helps you decide">
           <div>
-            <strong>See whether import is practical</strong>
-            <span>Open the generated page in WordPress and check whether an editor could continue working with it.</span>
+            <strong>Can editors keep working?</strong>
+            <span>Open the generated page and decide whether the result is structured enough for normal block editing.</span>
           </div>
           <div>
-            <strong>Test hard source material</strong>
+            <strong>Which documents are migration-ready?</strong>
             <span>Try policy PDFs, DOCX reports, Markdown specs, spreadsheets, EPUBs, slides, wiki pages, man pages, and archived formats.</span>
           </div>
           <div>
-            <strong>Verify media handling</strong>
-            <span>Images are imported only when they are actually referenced by rendered <code>&lt;img&gt;</code> tags, so unused extracted files do not become media clutter.</span>
+            <strong>Did images become real media?</strong>
+            <span>Check that rendered images were imported and unused extracted files were left out.</span>
           </div>
           <div>
-            <strong>Find conversion gaps quickly</strong>
+            <strong>Where is the converter weak?</strong>
             <span>Use the live page and log to catch spacing problems, missing images, flattened tables, broken links, or syntax the converter still needs to learn.</span>
           </div>
         </div>
         <div class="try-panel" aria-label="What you can do here">
-          <h4>What you can do here</h4>
+          <h4>Useful things to try</h4>
           <ul>
-            <li>Drop a document and immediately open the converted WordPress page.</li>
-            <li>Edit the generated blocks to see what remained structured instead of becoming raw HTML.</li>
-            <li>Inspect the media library to confirm which images were imported.</li>
-            <li>Compare tricky files against the static showcase output and report specific conversion bugs.</li>
+            <li>Upload one representative file before planning a larger migration.</li>
+            <li>Edit the generated blocks and check whether tables, lists, and headings survived as real structure.</li>
+            <li>Open the media library and confirm which rendered images were imported.</li>
+            <li>Use the log and page output to create precise bug reports for conversion gaps.</li>
           </ul>
         </div>
       </div>
