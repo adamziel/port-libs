@@ -11,7 +11,7 @@ final class PdfReader
     private const DEFAULT_MAX_TEXT_BYTES = 120000;
 
     /**
-     * @param array{maxTextBytes?: int, password?: string, pdfPassword?: string} $options
+     * @param array{maxTextBytes?: int, password?: string, pdfPassword?: string, geometryTables?: bool, pdfGeometryTables?: bool, extractGeometryTables?: bool} $options
      */
     public function __construct(private readonly array $options = [])
     {
@@ -25,9 +25,10 @@ final class PdfReader
 
         $extractor = new PdfTextExtractor($this->options);
         $lines = $this->normalizeLines($extractor->extractTextLines($pdfBytes));
+        $geometryTablesEnabled = $this->geometryTablesEnabled();
         $runs = $extractor->extractTextRuns($pdfBytes);
-        $positionedRuns = $extractor->extractPositionedTextRuns($pdfBytes);
-        $filledRectangles = $extractor->extractFilledRectangles($pdfBytes);
+        $positionedRuns = $geometryTablesEnabled ? $extractor->extractPositionedTextRuns($pdfBytes) : [];
+        $filledRectangles = $geometryTablesEnabled ? $extractor->extractFilledRectangles($pdfBytes) : [];
         $diagnostics = $extractor->diagnostics($pdfBytes);
         $plainText = implode("\n", $lines);
         $maxTextBytes = max(0, (int) ($this->options['maxTextBytes'] ?? self::DEFAULT_MAX_TEXT_BYTES));
@@ -53,7 +54,7 @@ final class PdfReader
             is_array($diagnostics['taggedStructureItems'] ?? null) ? $diagnostics['taggedStructureItems'] : [],
             $limitedLines
         );
-        $geometryTableBlocks = $taggedBlocks === [] ? $this->blocksFromPositionedTables($limitedPositionedRuns, $filledRectangles) : [];
+        $geometryTableBlocks = $geometryTablesEnabled && $taggedBlocks === [] ? $this->blocksFromPositionedTables($limitedPositionedRuns, $filledRectangles) : [];
         $blocks = $taggedBlocks !== [] ? $taggedBlocks : ($geometryTableBlocks !== [] ? $geometryTableBlocks : $this->blocksFromLines($limitedLines));
         $blocks = $appliedLinkAnnotations === [] ? $blocks : $this->applyLinkAnnotationsToBlocks($blocks, $appliedLinkAnnotations);
         $metadata = array_replace($this->structuralMetadata($pdfBytes), [
@@ -68,6 +69,7 @@ final class PdfReader
             'pdfTextLimited' => strlen($insertedText) < strlen($plainText),
             'pdfDetectedTables' => $this->countNodesOfType($blocks, 'table'),
             'pdfGeometryTables' => $this->countNodesOfType($geometryTableBlocks, 'table'),
+            'pdfGeometryTablesEnabled' => $geometryTablesEnabled,
             'pdfTableReconstruction' => $taggedBlocks !== [] ? 'tagged' : ($geometryTableBlocks !== [] ? 'geometry' : 'text'),
             'pdfDiagnostics' => $diagnostics,
             'pdfWarnings' => $diagnostics['warnings'],
@@ -107,6 +109,17 @@ final class PdfReader
         ]);
 
         return new AstNode('document', ['meta' => $metadata], $blocks);
+    }
+
+    private function geometryTablesEnabled(): bool
+    {
+        foreach (['pdfGeometryTables', 'geometryTables', 'extractGeometryTables'] as $key) {
+            if (array_key_exists($key, $this->options)) {
+                return (bool) $this->options[$key];
+            }
+        }
+
+        return true;
     }
 
     /**

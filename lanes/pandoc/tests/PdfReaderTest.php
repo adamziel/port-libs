@@ -4839,6 +4839,25 @@ return [
         $t->contains('<td>Widget Alpha stackable storage case</td><td>30</td><td>40x60x80mm</td>', $blocks);
         $t->contains('<td>Organizer</td><td>12</td><td>120x200mm</td>', $blocks);
     },
+    'can bypass positioned pdf geometry tables for bounded text extraction' => static function (TestRunner $t) use ($pdfWithContent): void {
+        $pdf = $pdfWithContent(
+            'BT /F1 12 Tf '
+            . '1 0 0 1 72 720 Tm (Product) Tj 1 0 0 1 250 720 Tm (Qty) Tj '
+            . '1 0 0 1 72 704 Tm (Widget Alpha) Tj 1 0 0 1 250 704 Tm (30) Tj '
+            . 'ET'
+        );
+
+        $document = (new PdfReader(['pdfGeometryTables' => false]))->read($pdf);
+        $meta = $document->attr('meta');
+
+        $t->same(false, $meta['pdfGeometryTablesEnabled']);
+        $t->same(0, $meta['pdfGeometryTables']);
+        $t->same('text', $meta['pdfTableReconstruction']);
+        $t->same(0, $meta['pdfPositionedTextRuns']);
+        $t->true(in_array($document->children[0]->type, ['heading', 'paragraph'], true));
+        $t->contains('Product', $document->children[0]->attr('text'));
+        $t->contains('Widget Alpha', $document->children[1]->attr('text'));
+    },
     'preserves positioned pdf tables embedded between surrounding text' => static function (TestRunner $t) use ($pdfWithContent): void {
         $pdf = $pdfWithContent(
             'BT /F1 12 Tf '

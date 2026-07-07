@@ -1,5791 +1,1448 @@
-<!-- wp:heading {"level":1} -->
-<h1>Trace-basedJust-in-TimeTypeSpecializationforDynamic</h1>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>PHP Pandoc HTML output</title><style>html{line-height:1.5;font-family:Georgia,"Times New Roman",serif;font-size:18px;color:#1f2933;background:#fdfdfd;}body{margin:0 auto;max-width:46em;padding:2.5em 1.25em;}h1,h2,h3,h4,h5,h6{font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.25;margin:1.4em 0 .45em;}h1{font-size:2em;}h2{font-size:1.55em;}h3{font-size:1.25em;}p{margin:1em 0;}a{color:#1f6feb;}img,svg,video{max-width:100%;height:auto;}pre,code,kbd,samp{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.9em;}code{background:#eef1f5;padding:.1em .25em;border-radius:3px;}pre{overflow:auto;background:#f6f8fa;border:1px solid #d8dde3;border-radius:6px;padding:1em;}pre code{background:transparent;padding:0;}blockquote{margin:1.25em 0;padding-left:1em;border-left:4px solid #d8dde3;color:#4b5563;}table{border-collapse:collapse;margin:1.25em 0;width:100%;font-size:.92em;}th,td{border:1px solid #d8dde3;padding:.35em .55em;vertical-align:top;}th{background:#f6f8fa;}math{font-family:math,serif;}math[display="block"]{display:block;margin:1em 0;overflow-x:auto;}</style></head><body><h1>Trace-basedJust-in-TimeTypeSpecializationforDynamic</h1>
 <p>,</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>,</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>DynamiclanguagessuchasJavaScriptaremoredifficulttocom-</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>pilethanstaticallytypedones.Sincenoconcretetypeinformation</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>isavailable,traditionalcompilersneedtoemitgenericcodethatcan</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>handleallpossibletypecombinationsatruntime.Wepresentanal-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>ternativecompilationtechniquefordynamically-typedlanguages</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>thatidentifiesfrequentlyexecutedlooptracesatrun-timeandthen</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>generatesmachinecodeontheflythatisspecializedfortheac-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>tualdynamictypesoccurringoneachpaththroughtheloop.Our</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>methodprovidescheapinter-proceduraltypespecialization,andan</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>elegantandefficientwayofincrementallycompilinglazilydiscov-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>eredalternativepathsthroughnestedloops.Wehaveimplemented</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>adynamiccompilerforJavaScriptbasedonourtechniqueandwe</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>havemeasuredspeedupsof10xandmoreforcertainbenchmark</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>ProgrammingLan-</h2>
-<!-- /wp:heading -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Design,Experimentation,Measurement,Perfor-</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>suchasJavaScript,Python,andRuby,arepop-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>ularsincetheyareexpressive,accessibletonon-experts,andmake</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>deploymentaseasyasdistributingasourcefile.Theyareusedfor</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>smallscriptsaswellasforcomplexapplications.JavaScript,for</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Permissiontomakedigitalorhardcopiesofallorpartofthisworkforpersonalor</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>classroomuseisgrantedwithoutfeeprovidedthatcopiesarenotmadeordistributed</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>forprofitorcommercialadvantageandthatcopiesbearthisnoticeandthefullcitation</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>onthefirstpage.Tocopyotherwise,torepublish,topostonserversortoredistribute</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>June15–20,2009,Dublin,Ireland.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Copyright</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>andisusedfortheapplicationlogicofbrowser-basedproductivity</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>applicationssuchasGoogleMail,GoogleDocsandZimbraCol-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>laborationSuite.Inthisdomain,inordertoprovideafluiduser</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>experienceandenableanewgenerationofapplications,virtualma-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>chinesmustprovidealowstartuptimeandhighperformance.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Compilersforstaticallytypedlanguagesrelyontypeinforma-</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>tiontogenerateefficientmachinecode.Inadynamicallytypedpro-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>gramminglanguagesuchasJavaScript,thetypesofexpressions</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>mayvaryatruntime.Thismeansthatthecompilercannolonger</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>easilytransformoperationsintomachineinstructionsthatoperate</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>ononespecifictype.Withoutexacttypeinformation,thecompiler</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>mustemitslowergeneralizedmachinecodethatcandealwithall</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>potentialtypecombinations.Whilecompile-timestatictypeinfer-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>encemightbeabletogathertypeinformationtogenerateopti-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>mizedmachinecode,traditionalstaticanalysisisveryexpensive</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>andhencenotwellsuitedforthehighlyinteractiveenvironmentof</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>awebbrowser.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Wepresentatrace-basedcompilationtechniquefordynamic</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>languagesthatreconcilesspeedofcompilationwithexcellentper-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>formanceofthegeneratedmachinecode.Oursystemusesamixed-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>modeexecutionapproach:thesystemstartsrunningJavaScriptina</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>fast-startingbytecodeinterpreter.Astheprogramruns,thesystem</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>(frequentlyexecuted)bytecodesequences,records</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>them,andcompilesthemtofastnativecode.Wecallsuchase-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Unlikemethod-baseddynamiccompilers,ourdynamiccom-</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>pileroperatesatthegranularityofindividualloops.Thisdesign</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>choiceisbasedontheexpectationthatprogramsspendmostof</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>theirtimeinhotloops.Evenindynamicallytypedlanguages,we</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>,meaningthatthetypesof</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>valuesareinvariant.(12)Forexample,wewouldexpectloopcoun-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>tersthatstartasintegerstoremainintegersforalliterations.When</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>bothoftheseexpectationshold,atrace-basedcompilercancover</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>theprogramexecutionwithasmallnumberoftype-specialized,ef-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>ficientlycompiledtraces.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Eachcompiledtracecoversonepaththroughtheprogramwith</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>onemappingofvaluestotypes.WhentheVMexecutesacompiled</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>trace,itcannotguaranteethatthesamepathwillbefollowed</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>orthatthesametypeswilloccurinsubsequentloopiterations.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>thatthepathand</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>typingwillbeexactlyastheywereduringrecordingforsubsequent</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>iterationsoftheloop.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>(checks)required</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>tovalidatethespeculation.Ifoneoftheguardsfails(ifcontrol</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>flowisdifferent,oravalueofadifferenttypeisgenerated),the</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>branch</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>startingattheexittocoverthenewpath.Inthisway,theVM</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>coveringallthehotpathsthroughtheloop.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>NestedloopscanbedifficulttooptimizefortracingVMs.In</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>ana</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>¨</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>ıveimplementation,innerloopswouldbecomehotfirst,and</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>theVMwouldstarttracingthere.Whentheinnerloopexits,the</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>VMwoulddetectthatadifferentbranchwastaken.TheVMwould</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>trytorecordabranchtrace,andfindthatthetracereachesnotthe</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>innerloopheader,buttheouterloopheader.Atthispoint,theVM</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>couldcontinuetracinguntilitreachestheinnerloopheaderagain,</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>thustracingtheouterloopinsideatracetreefortheinnerloop.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Butthisrequirestracingacopyoftheouterloopforeverysideexit</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>andtypecombinationintheinnerloop.Inessence,thisisaform</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>ofunintendedtailduplication,whichcaneasilyoverflowthecode</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>cache.Alternatively,theVMcouldsimplystoptracing,andgiveup</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>onevertracingouterloops.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>nestedtrace</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>.Oursystemtracestheinnerloopexactlyasthena</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>¨</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>ıveversion.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Thesystemstopsextendingtheinnertreewhenitreachesanouter</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>loop,butthenitstartsanewtraceattheouterloopheader.When</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>theouterloopreachestheinnerloopheader,thesystemtriestocall</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>thetracetreefortheinnerloop.Ifthecallsucceeds,theVMrecords</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>thecalltotheinnertreeaspartoftheoutertraceandfinishes</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>theoutertraceasnormal.Inthisway,oursystemcantraceany</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>numberofloopsnestedtoanydepthwithoutcausingexcessivetail</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>duplication.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>ThesetechniquesallowaVMtodynamicallytranslateapro-</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>gramtonested,type-specializedtracetrees.Becausetracescan</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>crossfunctioncallboundaries,ourtechniquesalsoachievetheef-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>fectsofinlining.Becausetraceshavenointernalcontrol-flowjoins,</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>theycanbeoptimizedinlineartimebyasimplecompiler(10).</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Thus,ourtracingVMefficientlyperformsthesamekindofop-</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>timizationsthatwouldrequireinterproceduralanalysisinastatic</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>optimizationsetting.Thismakestracinganattractiveandeffective</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>tooltotypespecializeevencomplexfunctioncall-richcode.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>WeimplementedthesetechniquesforanexistingJavaScriptin-</h2>
-<!-- /wp:heading -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Trace-</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>.TraceMonkeysupportsalltheJavaScriptfeaturesofSpi-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>derMonkey,witha2x-20xspeedupfortraceableprograms.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Weexplainanalgorithmfordynamicallyformingtracetreesto</h2>
-<!-- /wp:heading -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Weexplainhowtospeculativelygenerateefficienttype-specialized</h2>
-<!-- /wp:heading -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Wevalidateourtracingtechniquesinanimplementationbased</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>ontheSpiderMonkeyJavaScriptinterpreter,achieving2x-20x</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>speedupsonmanyprograms.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>Theremainderofthispaperisorganizedasfollows.Section3is</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>ageneraloverviewoftracetreebasedcompilationweusetocap-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>tureandcompilefrequentlyexecutedcoderegions.InSection4</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>wedescribeourapproachofcoveringnestedloopsusinganum-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>berofindividualtracetrees.InSection5wedescribeourtrace-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>compilationbasedspeculativetypespecializationapproachweuse</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>togenerateefficientmachinecodefromrecordedbytecodetraces.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Ourimplementationofadynamictype-specializingcompilerfor</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>JavaScriptisdescribedinSection6.Relatedworkisdiscussedin</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>1for(vari=2;i&lt;100;++i){</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>2if(!primes[i])</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>3continue;</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>4for(vark=i+i;i&lt;100;k+=i)</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>5primes[k]=false;</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>6}</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>is</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>valuesonentrytothiscode</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>snippet.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>StatemachinedescribingthemajoractivitiesofTrace-</h2>
-<!-- /wp:heading -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Monkeyandtheconditionsthatcausetransitionstoanewactiv-</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>ity.Inthedarkbox,TMexecutesJSascompiledtraces.Inthe</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>lightgrayboxes,TMexecutesJSinthestandardinterpreter.White</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>boxesareoverhead.Thus,tomaximizeperformance,weneedto</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>maximizetimespentinthedarkestboxandminimizetimespentin</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>thewhiteboxes.Thebestcaseisaloopwherethetypesattheloop</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>edgearethesameasthetypesonentry–thenTMcanstayinnative</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>codeuntiltheloopisdone.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>asetofindustrybenchmarks.Thepaperendswithconclusionsin</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Thissectionprovidesanoverviewofoursystembydescribing</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>howTraceMonkeyexecutesanexampleprogram.Theexample</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>program,showninFigure1,computesthefirst100primenumbers</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>withnestedloops.ThenarrativeshouldbereadalongwithFigure2,</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>whichdescribestheactivitiesTraceMonkeyperformsandwhenit</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>transitionsbetweentheloops.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>TraceMonkeyalwaysbeginsexecutingaprograminthebyte-</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>codeinterpreter.Everyloopbackedgeisapotentialtracepoint.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Whentheinterpretercrossesaloopedge,TraceMonkeyinvokes</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>,whichmaydecidetorecordorexecuteanative</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>trace.Atthestartofexecution,therearenocompiledtracesyet,so</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>thetracemonitorcountsthenumberoftimeseachloopbackedgeis</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>,currentlyafter2crossings.Note</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>thatthewayourloopsarecompiled,theloopedgeiscrossedbefore</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>enteringtheloop,sothesecondcrossingoccursimmediatelyafter</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>thefirstiteration.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Hereisthesequenceofeventsbrokendownbyouterloop</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>iteration:</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>v0:=ldstate[748]//loadprimesfromthetraceactivationrecord</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>stsp[0],v0//storeprimestointerpreterstack</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>v1:=ldstate[764]//loadkfromthetraceactivationrecord</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>v2:=i2f(v1)//convertkfrominttodouble</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>stsp[8],v1//storektointerpreterstack</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>stsp[16],0//storefalsetointerpreterstack</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>v3:=ldv0[4]//loadclasswordforprimes</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>v4:=andv3,-4//maskoutobjectclasstagforprimes</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>v5:=eqv4,Array//testwhetherprimesisanarray</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>xfv5//sideexitifv5isfalse</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>v6:=js_Array_set(v0,v2,false)//callfunctiontosetarrayelement</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>v7:=eqv6,0//testreturnvaluefromcall</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>xtv7//sideexitifjs_Array_setreturnsfalse.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>ThisistheLIRrecordedforline5ofthesampleprograminFigure1.TheLIRencodes</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>thesemanticsinSSAformusingtemporaryvariables.TheLIRalsoencodesallthestoresthattheinterpreterwoulddotoitsdatastack.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>Sometimesthesestorescanbeoptimizedawayasthestacklocationsareliveonlyonexitstotheinterpreter.Finally,theLIRrecordsguards</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>movedx,ebx(748)//loadprimesfromthetraceactivationrecord</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>movedi(0),edx//(*)storeprimestointerpreterstack</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>movesi,ebx(764)//loadkfromthetraceactivationrecord</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>movedi(8),esi//(*)storektointerpreterstack</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>movedi(16),0//(*)storefalsetointerpreterstack</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>moveax,edx(4)//(*)loadobjectclasswordforprimes</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>andeax,-4//(*)maskoutobjectclasstagforprimes</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>cmpeax,Array//(*)testwhetherprimesisanarray</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>jneside_exit_1//(*)sideexitifprimesisnotanarray</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>subesp,8//bumpstackforcallalignmentconvention</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>pushfalse//pushlastargumentforcall</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>pushesi//pushfirstargumentforcall</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>calljs_Array_set//callfunctiontosetarrayelement</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>addesp,8//cleanupextrastackspace</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>movecx,ebx//(*)createdbyregisterallocator</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>testeax,eax//(*)testreturnvalueofjs_Array_set</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>jeside_exit_2//(*)sideexitifcallfailed</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>...</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>side_exit_1:</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>movecx,ebp(-4)//restoreecx</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>movesp,ebp//restoreesp</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>jmpepilog//jumptoretstatement</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>Thisisthex86codecompiledfromtheLIRsnippetinFigure3.MostLIRinstructionscompile</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>wouldbeomittedbyanidealizedcompilerthatknewthatnoneofthesideexits</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>wouldeverbetaken.The17instructionsgeneratedbythecompilercomparefavorablywiththe100+instructionsthattheinterpreterwould</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>Thisisthefirstiterationoftheouterloop.Theloopon</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>lines4-5becomeshotonitsseconditeration,soTraceMonkeyen-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>tersrecordingmodeonline4.Inrecordingmode,TraceMonkey</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>recordsthecodealongthetraceinalow-levelcompilerintermedi-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>.TheLIRtraceencodesalltheoper-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>ationsperformedandthetypesofalloperands.TheLIRtracealso</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>,whicharechecksthatverifythatthecontrolflow</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>andtypesareidenticaltothoseobservedduringtracerecording.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Thus,onlaterexecutions,ifandonlyifallguardsarepassed,the</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>tracehastherequiredprogramsemantics.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>TraceMonkeystopsrecordingwhenexecutionreturnstothe</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>loopheaderorexitstheloop.Inthiscase,executionreturnstothe</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>loopheaderonline4.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Afterrecordingisfinished,TraceMonkeycompilesthetraceto</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>nativecodeusingtherecordedtypeinformationforoptimization.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Theresultisanativecodefragmentthatcanbeenteredifthe</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>interpreterPCandthetypesofvaluesmatchthoseobservedwhen</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>,</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>,</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Nowtheloopheaderatline1hasbecomehot,soTrace-</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>Monkeystartsrecording.Whenrecordingreachesline4,Trace-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Monkeyobservesthatithasreachedaninnerloopheaderthatal-</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>readyhasacompiledtrace,soTraceMonkeyattemptstonestthe</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>innerloopinsidethecurrenttrace.Thefirststepistocalltheinner</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>traceasasubroutine.Thisexecutesthelooponline4tocompletion</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>andthenreturnstotherecorder.TraceMonkeyverifiesthatthecall</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>wassuccessfulandthenrecordsthecalltotheinnertraceaspartof</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>thecurrenttrace.Recordingcontinuesuntilexecutionreachesline</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>1,andatwhichpointTraceMonkeyfinishesandcompilesatrace</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>statementonline2istaken.Thisbranchwasnottakeninthe</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>tofailaguardandtakeasideexit.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Theexitisnotyethot,soTraceMonkeyreturnstotheinterpreter,</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>loopsbacktoitsownheader,startingthenextiteration</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>Onthisiteration,thesideexitonline2istakenagain.This</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>isrecordedthat</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>.Thesideexitispatchedsothat</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Atthispoint,TraceMonkeyhascompiledenoughtracestocover</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>theentirenestedloopstructure,sotherestoftheprogramruns</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Inthissection,wedescribetraces,tracetrees,andhowtheyare</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>formedatruntime.Althoughourtechniquesapplytoanydynamic</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>languageinterpreter,wewilldescribethemassumingabytecode</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>issimplyaprogrampath,whichmaycrossfunctioncall</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>,thatoriginateat</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>aloopedgeandrepresentasingleiterationthroughtheassociated</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>loop.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Similartoanextendedbasicblock,atraceisonlyenteredat</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>thetop,butmayhavemanyexits.Incontrasttoanextendedbasic</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>block,atracecancontainjoinnodes.Sinceatracealwaysonly</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>followsonesinglepaththroughtheoriginalprogram,however,join</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>nodesarenotrecognizableassuchinatraceandhaveasingle</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>predecessornodelikeregularnodes.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>isatraceannotatedwithatypeforeveryvariable</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>givingtherequiredtypesforvariablesusedonthetrace</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>,meaningthatthetracemaybeentered</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>.Theentrytypemapismuchlikethesignature</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>ofafunction.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Inthispaper,weonlydiscusstypedlooptraces,andwewill</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>refertothemsimplyas“traces”.Thekeypropertyoftypedloop</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>tracesisthattheycanbecompiledtoefficientmachinecodeusing</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>thesametechniquesusedfortypedlanguages.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>(low-levelintermediaterepresentation).Intrace-flavoredSSA(or</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>TSSA),phinodesappearonlyattheentrypoint,whichisreached</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>bothonentryandvialoopedges.TheimportantLIRprimitives</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>areconstantvalues,memoryloadsandstores(byaddressand</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>offset),integeroperators,floating-pointoperators,functioncalls,</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>andconditionalexits.Typeconversions,suchasintegertodouble,</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>arerepresentedbyfunctioncalls.ThismakestheLIRusedby</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>TraceMonkeyindependentoftheconcretetypesystemandtype</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>conversionrulesofthesourcelanguage.TheLIRoperationsare</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>genericenoughthatthebackendcompilerislanguageindependent.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>Figure3showsanexampleLIRtrace.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Bytecodeinterpreterstypicallyrepresentvaluesinavarious</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>complexdatastructures(e.g.,hashtables)inaboxedformat(i.e.,</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>withattachedtypetagbits).Sinceatraceisintendedtorepresent</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>efficientcodethateliminatesallthatcomplexity,ourtracesoper-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>ateonunboxedvaluesinsimplevariablesandarraysasmuchas</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>possible.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Atracerecordsallitsintermediatevaluesinasmallactivation</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>recordarea.Tomakevariableaccessesfastontrace,thetracealso</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>importslocalandglobalvariablesbyunboxingthemandcopying</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>themtoitsactivationrecord.Thus,thetracecanreadandwrite</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>thesevariableswithsimpleloadsandstoresfromanativeactivation</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>recording,independentlyoftheboxingmechanismusedbythe</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>interpreter.Whenthetraceexits,theVMboxesthevaluesfrom</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>thisnativestoragelocationandcopiesthembacktotheinterpreter</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>structures.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Foreverycontrol-flowbranchinthesourceprogram,the</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>recordergeneratesconditionalexitLIRinstructions.Theseinstruc-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>tionsexitfromthetraceifrequiredcontrolflowisdifferentfrom</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>whatitwasattracerecording,ensuringthatthetraceinstructions</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>instructions.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>LIRinstruction.Thisisjustanunconditionalbranchtothetopof</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>thetrace.Suchtracesreturnonlyviaguards.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Now,wedescribethekeyoptimizationsthatareperformedas</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>partofrecordingLIR.Alloftheseoptimizationsreducecomplex</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>dynamiclanguageconstructstosimpletypedconstructsbyspe-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>cializingforthecurrenttrace.Eachoptimizationrequiresguardin-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>structionstoverifytheirassumptionsaboutthestateandexitthe</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>AllLIRprimitivesapplytooperandsofspecifictypes.Thus,</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>LIRtracesarenecessarilytype-specialized,andacompilercan</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>easilyproduceatranslationthatrequiresnotypedispatches.A</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>typicalbytecodeinterpretercarriestagbitsalongwitheachvalue,</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>andtoperformanyoperation,mustcheckthetagbits,dynamically</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>dispatch,maskoutthetagbitstorecovertheuntaggedvalue,</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>performtheoperation,andthenreapplytags.LIRomitseverything</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>excepttheoperationitself.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Apotentialproblemisthatsomeoperationscanproducevalues</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>ofunpredictabletypes.Forexample,readingapropertyfroman</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>objectcouldyieldavalueofanytype,notnecessarilythetype</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>observedduringrecording.Therecorderemitsguardinstructions</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>thatconditionallyexitiftheoperationyieldsavalueofadifferent</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>typefromthatseenduringrecording.Theseguardinstructions</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>guaranteethataslongasexecutionisontrace,thetypesofvalues</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>matchthoseofthetypedtrace.WhentheVMobservesasideexit</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>alongsuchatypeguard,anewtypedtraceisrecordedoriginating</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>atthesideexitlocation,capturingthenewtypeoftheoperationin</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>InJavaScript,name</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>lookupsemanticsarecomplexandpotentiallyexpensivebecause</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>.Toevaluate</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>,theinterpretermust</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>andallofitsprototypesandparents.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Propertymapscanbeimplementedwithdifferentdatastructures</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>(e.g.,per-objecthashtablesorsharedhashtables),sothesearch</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>processalsomustdispatchontherepresentationofeachobject</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>foundduringsearch.TraceMonkeycansimplyobservetheresultof</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>thesearchprocessandrecordthesimplestpossibleLIRtoaccess</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>,whichusesasharedhash-tablerepresen-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>inslot2ofapropertyvector.Thentherecorded</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>withjusttwoorthreeloads:oneto</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>gettheprototype,possiblyonetogetthepropertyvaluevector,and</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>onemoretogetslot2fromthevector.Thisisavastsimplification</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>andspeedupcomparedtotheoriginalinterpretercode.Inheritance</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>relationshipsandobjectrepresentationscanchangeduringexecu-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>tion,sothesimplifiedcoderequiresguardinstructionsthatensure</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>theobjectrepresentationisthesame.InTraceMonkey,objects’rep-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>JavaScripthasno</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>integertype,onlyaNumbertypethatisthesetof64-bitIEEE-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>754floating-pointernumbers(“doubles”).ButmanyJavaScript</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>operators,inparticulararrayaccessesandbitwiseoperators,really</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>operateonintegers,sotheyfirstconvertthenumbertoaninteger,</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Clearly,a</h2>
-<!-- /wp:heading -->
-
-<!-- wp:heading {"level":2} -->
 <h2>JavaScriptVMthatwantstobefastmustfindawaytooperateon</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>integersdirectlyandavoidtheseconversions.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>InTraceMonkey,wesupporttworepresentationsfornumbers:</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>integersanddoubles.Theinterpreterusesintegerrepresentations</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>asmuchasitcan,switchingforresultsthatcanonlyberepresented</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>asdoubles.Whenatraceisstarted,somevaluesmaybeimported</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>andrepresentedasintegers.Someoperationsonintegersrequire</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>guards.Forexample,addingtwointegerscanproduceavaluetoo</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>LIRtracescancrossfunctionboundaries</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>ineitherdirection,achievingfunctioninlining.Moveinstructions</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>needtoberecordedforfunctionentryandexittocopyarguments</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>inandreturnvaluesout.Thesemovestatementsarethenoptimized</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>awaybythecompilerusingcopypropagation.Inordertobeable</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>toreturntotheinterpreter,thetracemustalsogenerateLIRto</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>recordthatacallframehasbeenenteredandexited.Theframe</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>entryandexitLIRsavesjustenoughinformationtoallowthe</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>intepretercallstacktoberestoredlaterandismuchsimplerthan</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>theinterpreter’sstandardcallcode.Ifthefunctionbeingentered</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>isnotconstant(whichinJavaScriptincludesanycallbyfunction</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>name),therecordermustalsoemitLIRtoguardthatthefunction</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Eachoptimizationdescribedabove</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>requiresoneormoreguardstoverifytheassumptionsmadein</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>doingtheoptimization.AguardisjustagroupofLIRinstructions</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>,asmalloff-tracepieceofLIRthatreturnsapointerto</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>astructurethatdescribesthereasonfortheexitalongwiththe</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>interpreterPCattheexitpointandanyotherdataneededtorestore</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>SomeconstructsaredifficulttorecordinLIRtraces.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>orcallstoexternalfunctionscanchangethe</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>programstateinunpredictableways,makingitdifficultforthe</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>tracertoknowthecurrenttypemapinordertocontinuetracing.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Atracingimplementationcanalsohaveanynumberofotherlimi-</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>tations,e.g.,asmall-memorydevicemaylimitthelengthoftraces.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Whenanysituationoccursthatpreventstheimplementationfrom</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>tracerecord-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Especiallysimpleloops,namelythosewherecontrolflow,value</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>types,valuerepresentations,andinlinedfunctionsareallinvariant,</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>canberepresentedbyasingletrace.Butmostloopshaveatleast</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>somevariation,andsotheprogramwilltakesideexitsfromthe</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>maintrace.Whenasideexitbecomeshot,TraceMonkeystartsa</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>fromthatpointandpatchesthesideexittojump</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>directlytothattrace.Inthisway,asingletraceexpandsondemand</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Thissectionexplainshowtracetreesareformedduringexecu-</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>tion.Thegoalistoformtracetreesduringexecutionthatcoverall</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>thehotpathsoftheprogram.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Arraysareactuallyworsethanthis:iftheindexvalueisanumber,itmust</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>beconvertedfromadoubletoastringforthepropertyaccessoperator,and</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Treetreesalwaysstartatloopheaders,because</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>theyareanaturalplacetolookforhotpaths.InTraceMonkey,loop</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>headersareeasytodetect–thebytecodecompilerensuresthata</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>bytecodeisaloopheaderiffitisthetargetofabackwardbranch.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>TraceMonkeystartsatreewhenagivenloopheaderhasbeenexe-</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>cutedacertainnumberoftimes(2inthecurrentimplementation).</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Startingatreejustmeansstartingrecordingatraceforthecurrent</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>pointandtypemapandmarkingthetraceastherootofatree.Each</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>treeisassociatedwithaloopheaderandtypemap,sotheremaybe</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>Tracerecordingcanendinseveralways.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Ideally,thetracereachestheloopheaderwhereitstartedwith</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>loop</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>iteration.Inthiscase,theendofthetracecanjumprighttothe</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>beginning,asallthevaluerepresentationsareexactlyasneededto</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>enterthetrace.Thejumpcanevenskiptheusualcodethatwould</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>copyoutthestateattheendofthetraceandcopyitbackintothe</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>traceactivationrecordtoenteratrace.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Incertaincasesthetracemightreachtheloopheaderwitha</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>differenttypemap.Thisscenarioissometimeobservedforthefirst</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>,beforetheyaresettoaconcretetypeduringthefirstloop</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>iteration.Whenrecordingsuchaniteration,therecordercannot</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Instead,theiterationisterminatedwithasideexitthatwillalways</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>failandreturntotheinterpreter.Atthesametimeanewtraceis</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>recordedwiththenewtypemap.Everytimeanadditionaltype-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>unstabletraceisaddedtoaregion,itsexittypemapiscomparedto</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>theentrymapofallexistingtracesincasetheycomplementeach</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>other.Withthisapproachweareabletocovertype-unstableloop</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>iterationsaslongtheyeventuallyformastableequilibrium.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Finally,thetracemightexittheloopbeforereachingtheloop</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>statement.Inthiscase,theVMsimplyendsthetracewithanexit</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>tothetracemonitor.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Asmentionedpreviously,wemayspeculativelychosetorep-</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>resentcertainNumber-typedvaluesasintegersontrace.Wedoso</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>whenweobservethatNumber-typedvariablescontainaninteger</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>valueattraceentry.Ifduringtracerecordingthevariableisunex-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>pectedlyassignedanon-integervalue,wehavetowidenthetype</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>ofthevariabletoadouble.Asaresult,therecordedtracebecomes</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>inherentlytype-unstablesinceitstartswithanintegervaluebut</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>endswithadoublevalue.Thisrepresentsamis-speculation,since</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>attraceentrywespecializedtheNumber-typedvaluetoaninteger,</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>assumingthatattheloopedgewewouldagainfindanintegervalue</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>inthevariable,allowingustoclosetheloop.Toavoidfuturespec-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>ulativefailuresinvolvingthisvariable,andtoobtainatype-stable</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>tracewenotethefactthatthevariableinquestionasbeenobserved</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>tosometimesholdnon-integervaluesinanadvisorydatastructure</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>whichwecallthe“oracle”.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Whencompilingloops,weconsulttheoraclebeforespecializ-</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>ingvaluestointegers.Speculationtowardsintegersisperformed</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>onlyifnoadverseinformationisknowntotheoracleaboutthat</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>particularvariable.Wheneverweaccidentallycompilealoopthat</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>istype-unstableduetomis-speculationofaNumber-typedvari-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>able,weimmediatelytriggertherecordingofanewtrace,which</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>basedonthenowupdatedoracleinformationwillstartwithadou-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Sideexitsleadtodifferentpathsthrough</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>theloop,orpathswithdifferenttypesorrepresentations.Thus,to</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>completelycovertheloop,theVMmustrecordtracesstartingatall</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>sideexits.Thesetracesarerecordedmuchlikeroottraces:thereis</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>acounterforeachsideexit,andwhenthecounterreachesahotness</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>threshold,recordingstarts.Recordingstopsexactlyasfortheroot</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>trace,usingtheloopheaderoftheroottraceasthetargettoreach.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>Ourimplementationdoesnotextendatallsideexits.Itextends</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>onlyifthesideexitisforacontrol-flowbranch,andonlyiftheside</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>exitdoesnotleavetheloop.Inparticularwedonotwanttoextend</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>atracetreealongapaththatleadstoanouterloop,becausewe</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Sometimes,aprogramfollowsapaththatcannotbecompiled</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>intoatrace,usuallybecauseoflimitationsintheimplementation.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>TraceMonkeydoesnotcurrentlysupportrecordingthrowingand</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>catchingofarbitraryexceptions.Thisdesigntradeoffwaschosen,</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>becauseexceptionsareusuallyrareinJavaScript.However,ifa</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>programoptstouseexceptionsintensively,wewouldsuddenly</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>incurapunishingruntimeoverheadifwerepeatedlytrytorecord</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>atraceforthispathandrepeatedlyfailtodoso,sinceweabort</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>tracingeverytimeweobserveanexceptionbeingthrown.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Asaresult,ifahotloopcontainstracesthatalwaysfail,theVM</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>couldpotentiallyrunmuchmoreslowlythanthebaseinterpreter:</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>theVMrepeatedlyspendstimetryingtorecordtraces,butisnever</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>abletorunany.Toavoidthisproblem,whenevertheVMisabout</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>tostarttracing,itmusttrytopredictwhetheritwillfinishthetrace.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>tracesthat</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>havebeentriedandfailed.WhentheVMfailstofinishatracestart-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>ingatagivenpoint,theVMrecordsthatafailurehasoccurred.The</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>VMalsosetsacountersothatitwillnottrytorecordatracestarting</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>atthatpointuntilitispassedafewmoretimes(32inourimple-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>countergivestemporaryconditionsthat</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>preventtracingachancetoend.Forexample,aloopmaybehave</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>differentlyduringstartupthanduringitssteady-stateexecution.Af-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>teragivennumberoffailures(2inourimplementation),theVM</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>marksthefragmentasblacklisted,whichmeanstheVMwillnever</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>againstartrecordingatthatpoint.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Afterimplementingthisbasicstrategy,weobservedthatfor</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>smallloopsthatgetblacklisted,thesystemcanspendanoticeable</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>amountoftimejustfindingtheloopfragmentanddeterminingthat</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>ithasbeenblacklisted.Wenowavoidthatproblembypatchingthe</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>bytecode.Wedefineanextrano-opbytecodethatindicatesaloop</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>header.TheVMcallsintothetracemonitoreverytimetheinter-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>preterexecutesaloopheaderno-op.Toblacklistafragment,we</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>simplyreplacetheloopheaderno-opwitharegularno-op.Thus,</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>theinterpreterwillneveragainevencallintothetracemonitor.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Thereisarelatedproblemwehavenotyetsolved,whichoccurs</h2>
-<!-- /wp:heading -->
-
-<!-- wp:heading {"level":2} -->
 <h2>ThereisatleastonehotsideexitforwhichtheVMcannot</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>Theloopbodyisshort.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Inthiscase,theVMwillrepeatedlypasstheloopheader,search</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>foratrace,findit,executeit,andfallbacktotheinterpreter.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Withashortloopbody,theoverheadoffindingandcallingthe</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>traceishigh,andcausesperformancetobeevenslowerthanthe</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>basicinterpreter.Sofar,inthissituationwehaveimprovedthe</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>implementationsothattheVMcancompletethebranchtrace.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>Butitishardtoguaranteethatthissituationwillneverhappen.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Asfuturework,thissituationcouldbeavoidedbydetectingand</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>blacklistingloopsforwhichtheaveragetracecallexecutesfew</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Figure7showsbasictracetreecompilation(11)appliedtoanested</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>loopwheretheinnerloopcontainstwopaths.Usually,theinner</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>)becomeshotfirst,andatracetreeisrooted</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>atthatpoint.Forexample,thefirstrecordedtracemaybeacycle</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>T</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>T</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>runk T</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>r</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>ace</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>T</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>r</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>ee Anchor</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>T</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>r</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>ace Anchor</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>Br</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>anch T</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>r</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>ace</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Guar</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>d</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>Side Exit</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Atreewithtwotraces,atrunktraceandonebranch</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>trace.Thetrunktracecontainsaguardtowhichabranchtracewas</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>attached.Thebranchtracecontainaguardthatmayfailandtrigger</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>asideexit.Boththetrunkandthebranchtraceloopbacktothetree</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>anchor,whichisthebeginningofthetracetree.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>T</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>r</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>ace 2</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>T</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>r</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>ace 1</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>T</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>r</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>ace 2</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>T</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>r</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>ace 1</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Closed</h2>
-<!-- /wp:heading -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Link</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>ed</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Link</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>ed</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Link</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>ed</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Number</h2>
-<!-- /wp:heading -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Number</h2>
-<!-- /wp:heading -->
-
-<!-- wp:heading {"level":2} -->
 <h2>String</h2>
-<!-- /wp:heading -->
-
-<!-- wp:heading {"level":2} -->
 <h2>String</h2>
-<!-- /wp:heading -->
-
-<!-- wp:heading {"level":2} -->
 <h2>String</h2>
-<!-- /wp:heading -->
-
-<!-- wp:heading {"level":2} -->
 <h2>String</h2>
-<!-- /wp:heading -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Boolean</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>T</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>r</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>ace 2</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>T</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>r</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>ace 1</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>T</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>r</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>ace 3</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Link</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>ed</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Link</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>ed</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Link</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>ed</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Closed</h2>
-<!-- /wp:heading -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Number</h2>
-<!-- /wp:heading -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Number</h2>
-<!-- /wp:heading -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Number</h2>
-<!-- /wp:heading -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Boolean</h2>
-<!-- /wp:heading -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Number</h2>
-<!-- /wp:heading -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Boolean</h2>
-<!-- /wp:heading -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Number</h2>
-<!-- /wp:heading -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Boolean</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>(a)</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>(b)</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>(c)</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Wehandletype-unstableloopsbyallowingtracesto</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>compilethatcannotloopbacktothemselvesduetoatypemis-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>match.Assuchtracesaccumulate,weattempttoconnecttheirloop</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>edgestoformgroupsoftracetreesthatcanexecutewithouthaving</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>toside-exittotheinterpretertocoveroddtypecases.Thisispar-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>ticularlyimportantfornestedtracetreeswhereanoutertreetriesto</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>callaninnertree(orinthiscaseaforestofinnertrees),sinceinner</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>loopsfrequentlyhaveinitiallyundefinedvalueswhichchangetype</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>toaconcretevalueafterthefirstiteration.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>symbolisusedto</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>indicatethatthetraceloopsbackthetreeanchor.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Whenexecutionleavestheinnerloop,thebasicdesignhastwo</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>choices.First,thesystemcanstoptracingandgiveuponcompiling</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>theouterloop,clearlyanundesirablesolution.Theotherchoiceis</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>tocontinuetracing,compilingtracesfortheouterloopinsidethe</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>innerloop’stracetree.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>andrecordabranch</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>andthen</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>.Thus,theouterloopisrecordedand</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>compiledtwice,andbothcopiesmustberetainedinthetracecache.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>i</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>2</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>i</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>3</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>i</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>4</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>i</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>5</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>i</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>1</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>i</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>6</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>i</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>7</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>t</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>1</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>t</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>2</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>T</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>r</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>ee Call</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Out</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>er T</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>r</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>ee</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Nes</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>t</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>ed T</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>r</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>ee</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>Exit Guar</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>d</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>(a)</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>(b)</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Controlflowgraphofanestedloopwithanifstatement</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>insidetheinnermostloop(a).Aninnertreecapturestheinner</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>loop,andisnestedinsideanoutertreewhich“calls”theinnertree.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Theinnertreereturnstotheoutertreeonceitexitsalongitsloop</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>conditionguard(b).</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>paths</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>(ongeometricaverage),thisna</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>¨</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>traces,</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>whichcaneasilyfillthetracecache.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Inordertoexecuteprogramswithnestedloopsefficiently,a</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>tracingsystemneedsatechniqueforcoveringthenestedloopswith</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Thekeyinsightisthatifeachloopisrepresentedbyitsowntrace</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>tree,thecodeforeachloopcanbecontainedonlyinitsowntree,</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>andouterlooppathswillnotbeduplicated.Anotherkeyfactisthat</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>wearenottracingarbitrarybytecodesthatmighthaveirreduceable</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>controlflowgraphs,butratherbytecodesproducedbyacompiler</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>foralanguagewithstructuredcontrolflow.Thus,giventwoloop</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>edges,thesystemcaneasilydeterminewhethertheyarenested</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>andwhichistheinnerloop.Usingthisknowledge,thesystemcan</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>compileinnerandouterloopsseparately,andmaketheouterloop’s</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>theinnerloop’stracetree.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>Thealgorithmforbuildingnestedtracetreesisasfollows.We</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>starttracingatloopheadersexactlyasinthebasictracingsystem.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Whenweexitaloop(detectedbycomparingtheinterpreterPC</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>withtherangegivenbytheloopedge),westopthetrace.The</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>keystepofthealgorithmoccurswhenwearerecordingatrace</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>forloopbeingrecorded)andwereachtheheader</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>mustbean</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>as</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>anestedtracetree.Ifthecallsucceeds,thenwerecordthecall</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>will</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>doesnothaveatype-matchingcompiledtracetreeyet,</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>wehavetoobtainitbeforeweareabletoproceed.Inorder</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>todothis,wesimplyabortrecordingthefirsttrace.Thetrace</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>monitorwillseetheinnerloopheader,andwillimmediately</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Ifalltheloopsinanestaretype-stable,thenloopnestingcreates</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>,andeach</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Insteadofabortingtheouterrecording,wecouldprincipallymerelysus-</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>pendtherecording,butthatwouldrequiretheimplementationtobeable</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>torecordseveraltracessimultaneously,complicatingtheimplementation,</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>whilesavingonlyafewiterationsintheinterpreter.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>i</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>2</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>i</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>3</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>i</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>1</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>i</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>6</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>i</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>4</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>i</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>5</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>t</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>2</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>t</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>1</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>t</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>4</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>Exit Guar</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>d</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Nes</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>t</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>ed T</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>r</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>ee</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Controlflowgraphofaloopwithtwonestedloops(left)</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>anditsnestedtracetreeconfiguration(right).Theoutertreecalls</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>thetwoinnernestedtracetreesandplacesguardsattheirsideexit</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>locations.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>differenttypemaps(ongeometricaverage),</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>iscloseto1,theresultingtracetreeswillbetractable.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Animportantdetailisthatthecalltotheinnertracetreemustact</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>likeafunctioncallsite:itmustreturntothesamepointeverytime.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Thegoalofnestingistomakeinnerandouterloopsindependent;</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>thuswhentheinnertreeiscalled,itmustexittothesamepoint</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>intheoutertreeeverytimewiththesametypemap.Becausewe</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>cannotactuallyguaranteethisproperty,wemustguardonitafter</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>thecall,andsideexitifthepropertydoesnothold.Acommon</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>reasonfortheinnertreenottoreturntothesamepointwould</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>beiftheinnertreetookanewsideexitforwhichithadnever</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>compiledatrace.Atthispoint,theinterpreterPCisintheinner</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>tree,sowecannotcontinuerecordingorexecutingtheoutertree.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Ifthishappensduringrecording,weaborttheoutertrace,togive</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>theinnertreeachancetofinishgrowing.Afutureexecutionofthe</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>outertreewouldthenbeabletoproperlyfinishandrecordacallto</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>theinnertree.Ifaninnertreesideexithappensduringexecutionof</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>acompiledtracefortheoutertree,wesimplyexittheoutertrace</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Theblacklistingalgorithmneedsmodificationtoworkwellwith</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>nesting.Theproblemisthatouterlooptracesoftenabortduring</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>startup(becausetheinnertreeisnotavailableortakesasideexit),</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>whichwouldleadtotheirbeingquicklyblacklistedbythebasic</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>algorithm.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Thekeyobservationisthatwhenanoutertraceabortsbecause</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>theinnertreeisnotready,thisisprobablyatemporarycondition.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Thus,weshouldnotcountsuchabortstowardblacklistingaslong</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>asweareabletobuildupmoretracesfortheinnertree.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Inourimplementation,whenanoutertreeabortsontheinner</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>tree,weincrementtheoutertree’sblacklistcounterasusualand</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>backoffoncompilingit.Whentheinnertreefinishesatrace,we</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>decrementtheblacklistcounterontheouterloop,“forgiving”the</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>outerloopforabortingpreviously.Wealsoundothebackoffsothat</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>theoutertreecanstartimmediatelytryingtocompilethenexttime</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Thissectionexplainshowarecordedtraceistranslatedtoan</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>,isseparatefromtheVMandcanbeusedforother</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>applications.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>nodes,certainoptimizationsareeasytoimplement.Inorderto</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>getgoodstartupperformance,theoptimizationsmustrunquickly,</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>sowechoseasmallsetofoptimizations.Weimplementedthe</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>optimizationsaspipelinedfilterssothattheycanbeturnedonand</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>offindependently,andyetallruninjusttwolooppassesoverthe</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>trace:oneforwardandonebackward.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>EverytimethetracerecorderemitsaLIRinstruction,thein-</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>structionisimmediatelypassedtothefirstfilterintheforward</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>pipeline.Thus,forwardfilteroptimizationsareperformedasthe</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>traceisrecorded.Eachfiltermaypasseachinstructiontothenext</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>filterunchanged,writeadifferentinstructiontothenextfilter,or</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>writenoinstructionatall.Forexample,theconstantfoldingfilter</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>witha</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>OnISAswithoutfloating-pointinstructions,asoft-floatfilter</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>convertsfloating-pointLIRinstructionstosequencesofinteger</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>expressionsimplification,includingconstantfoldingandafew</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>sourcelanguagesemantic-specificexpressionsimplification,</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>tobereplaced</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>andthenbackagainwouldberemovedbythisfilter.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Whentracerecordingiscompleted,nanojitrunsthebackward</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>optimizationfilters.Theseareusedforoptimizationsthatrequire</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>backwardprogramanalysis.Whenrunningthebackwardfilters,</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>nanojitreadsoneLIRinstructionatatime,andthereadsarepassed</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>throughthepipeline.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>Deaddata-stackstoreelimination.TheLIRtraceencodesmany</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>storestolocationsintheinterpreterstack.Butthesevaluesare</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>neverreadbackbeforeexitingthetrace(bytheinterpreteror</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>anothertrace).Thus,storestothestackthatareoverwritten</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>beforethenextexitaredead.Storestolocationsthatareoff</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>Deadcall-stackstoreelimination.Thisisthesameoptimization</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>asabove,exceptappliedtotheinterpreter’scallstackusedfor</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>Deadcodeelimination.Thiseliminatesanyoperationthat</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>storestoavaluethatisneverused.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>AfteraLIRinstructionissuccessfullyread(“pulled”)from</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>thebackwardfilterpipeline,nanojit’scodegeneratoremitsnative</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Weuseasimplegreedyregisterallocatorthatmakesasingle</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>backwardpassoverthetrace(itisintegratedwiththecodegen-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>havenotyetbeenassignedregisters,theallocatorassignsafree</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>registertoeach.Iftherearenofreeregisters,avalueisselectedfor</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>spilling.Weuseaclassheuristicthatselectsthe“oldest”register-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>carriedvalue(6).</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>inregistersimme-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>bethelast</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>isreferredto.Thenthe</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Tag</h2>
-<!-- /wp:heading -->
-
-<!-- wp:heading {"level":2} -->
 <h2>JSType</h2>
-<!-- /wp:heading -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Description</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>xx1</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>number</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>31-bitintegerrepresentation</h2>
-<!-- /wp:heading -->
-
-<!-- wp:heading {"level":2} -->
 <h2>000</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>object</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>pointertoJSObjecthandle</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>010</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>number</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>pointertodoublehandle</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>100</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>string</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>pointertoJSStringhandle</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>110</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>boolean</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>enumerationfornull,undefined,true,false</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>null,or</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>undefined</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Testingtags,unboxing(extractingtheuntaggedvalue)andboxing</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>(creatingtaggedvalues)aresignificantcosts.Avoidingthesecosts</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>isakeybenefitoftracing.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>.Themotivationisthatthis</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>freesuparegisterforaslongaspossiblegivenasinglespill.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>atthispoint,wegeneratethe</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>restorecodejustafterthecodeforthecurrentinstruction.The</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>ismarkedfreefor</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>theprecedingcode,becausethatregistercannowbeusedfreely</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Todemonstratetheeffectivenessofourapproach,wehaveim-</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>plementedatrace-baseddynamiccompilerfortheSpiderMonkey</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>JavaScriptVirtualMachine(4).SpiderMonkeyistheJavaScript</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>VMembeddedinMozilla’sFirefoxopen-sourcewebbrowser(2),</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>whichisusedbymorethan200millionusersworld-wide.Thecore</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>ofSpiderMonkeyisabytecodeinterpreterimplementedinC++.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>InSpiderMonkey,allJavaScriptvaluesarerepresentedbythe</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>ismachinewordinwhichuptothe3ofthe</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>leastsignificantbitsareatypetag,andtheremainingbitsaredata.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>pointto</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>GC-controlledblocksalignedon8-byteboundaries.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>valuesaremappingsofstring-valuedproperty</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>namestoarbitraryvalues.Theyarerepresentedinoneoftwoways</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>inSpiderMonkey.Mostobjectsarerepresentedbyasharedstruc-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>,thatmapspropertynames</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>toarrayindexesusingahashtable.Theobjectstoresapointerto</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>theshapeandthearrayofitsownpropertyvalues.Objectswith</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>large,uniquesetsofpropertynamesstoretheirpropertiesdirectly</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>inahashtable.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Thegarbagecollectorisanexact,non-generational,stop-the-</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>worldmark-and-sweepcollector.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>IntherestofthissectionwediscusskeyareasoftheTraceMon-</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>,indexedbyintepreter</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>PCandtypemap.Tracesarecompiledsothattheymaybe</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>onx86).</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Theinterpretermusthitaloopedgeandenterthemonitorin</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>ordertocallanativetraceforthefirsttime.Themonitorcomputes</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>thecurrenttypemap,checksthetracecacheforatraceforthe</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>currentPCandtypemap,andifitfindsone,executesthetrace.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Toexecuteatrace,themonitormustbuildatraceactivation</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>recordcontainingimportedlocalandglobalvariables,temporary</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>stackspace,andspaceforargumentstonativecalls.Thelocaland</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>globalvaluesarethencopiedfromtheinterpreterstatetothetrace</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>activationrecord.Then,thetraceiscalledlikeanormalCfunction</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>pointer.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Whenatracecallreturns,themonitorrestorestheinterpreter</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>state.First,themonitorchecksthereasonforthetraceexitand</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>appliesblacklistingifneeded.Then,itpopsorsynthesizesinter-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>preterJavaScriptcallstackframesasneeded.Finally,itcopiesthe</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>importedvariablesbackfromthetraceactivationrecordtothein-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>terpreterstate.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Atleastinthecurrentimplementation,thesestepshaveanon-</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>negligibleruntimecost,sominimizingthenumberofinterpreter-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>to-traceandtrace-to-interpretertransitionsisessentialforperfor-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>mance.(seealsoSection3.3).Ourexperiments(seeFigure12)</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>showthatforprogramswecantracewellsuchtransitionshap-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>peninfrequentlyandhencedonotcontributesignificantlytototal</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>runtime.Inafewprograms,wherethesystemispreventedfrom</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>recordingbranchtracesforhotsideexitsbyaborts,thiscostcan</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Transitionsfromatracetoabranchtraceatasideexitavoidthe</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>trace</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>.Atasideexit,theexitingtraceonlyneedstowritelive</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>register-carriedvaluesbacktoitstraceactivationrecord.Inourim-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>plementation,identicaltypemapsyieldidenticalactivationrecord</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>layouts,sothetraceactivationrecordcanbereusedimmediately</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>bythebranchtrace.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Inprogramswithbranchytracetreeswithsmalltraces,trace</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>stitchinghasanoticeablecost.Althoughwritingtomemoryand</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>thensoonreadingbackwouldbeexpectedtohaveahighL1</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>cachehitrate,forsmalltracestheincreasedinstructioncounthas</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>anoticeablecost.Also,ifthewritesandreadsareveryclose</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>inthedynamicinstructionstream,wehavefoundthatcurrent</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>x86processorsoftenincurpenaltiesof6cyclesormore(e.g.,if</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>theinstructionsusedifferentbaseregisterswithequalvalues,the</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>processormaynotbeabletodetectthattheaddressesarethesame</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>rightaway).</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Thealternatesolutionistorecompileanentiretracetree,thus</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>achievinginter-traceregisterallocation(10).Thedisadvantageis</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>thattreerecompilationtakestimequadraticinthenumberoftraces.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Webelievethatthecostofrecompilingatracetreeeverytime</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>abranchisaddedwouldbeprohibitive.Thatproblemmightbe</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>mitigatedbyrecompilingonlyatcertainpoints,oronlyforvery</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>hot,stabletrees.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Inthefuture,multicorehardwareisexpectedtobecommon,</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>makingbackgroundtreerecompilationattractive.Inacloselyre-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>latedproject(13)backgroundrecompilationyieldedspeedupsof</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>upto1.25xonbenchmarkswithmanybranchtraces.Weplanto</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>ThejobofthetracerecorderistoemitLIRwithidenticalsemantics</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>tothecurrentlyrunninginterpreterbytecodetrace.Agoodimple-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>mentationshouldhavelowimpactonnon-tracinginterpreterper-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>formanceandaconvenientwayforimplementerstomaintainse-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>manticequivalence.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Inourimplementation,theonlydirectmodificationtotheinter-</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>preterisacalltothetracemonitoratloopedges.Inourbenchmark</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>results(seeFigure12)thetotaltimespentinthemonitor(forall</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>activities)isusuallylessthan5%,soweconsidertheinterpreter</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>impactrequirementmet.Incrementingtheloophitcounterisex-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>pensivebecauseitrequiresustolookuptheloopinthetracecache,</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>butwehavetunedourloopstobecomehotandtraceveryquickly</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>(ontheseconditeration).Thehitcounterimplementationcouldbe</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>improved,whichmightgiveusasmallincreaseinoverallperfor-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>mance,aswellasmoreflexibilitywithtuninghotnessthresholds.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Oncealoopisblacklistedwenevercallintothetracemonitorfor</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>thatloop(seeSection3.3).</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Recordingisactivatedbyapointerswapthatsetstheinter-</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>preter’sdispatchtabletocallasingle“interrupt”routineforev-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>erybytecode.Theinterruptroutinefirstcallsabytecode-specific</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>recordingroutine.Then,itturnsoffrecordingifnecessary(e.g.,</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>thetraceended).Finally,itjumpstothestandardinterpreterbyte-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>codeimplementation.Somebytecodeshaveeffectsonthetypemap</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>thatcannotbepredictedbeforeexecutingthebytecode(e.g.,call-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>ifthe</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>indexargumentisoutofrange).Forthese,wearrangefortheinter-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>pretertocallintotherecorderagainafterexecutingthebytecode.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Sincesuchhooksarerelativelyrare,weembedthemdirectlyinto</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>theinterpreter,withanadditionalruntimechecktoseewhethera</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>recorderiscurrentlyactive.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Whileseparatingtheinterpreterfromtherecorderreducesindi-</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>vidualcodecomplexity,italsorequirescarefulimplementationand</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>extensivetestingtoachievesemanticequivalence.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>InsomecasesachievingthisequivalenceisdifficultsinceSpi-</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>design,whichwasfoundtobe</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>beneficialtopureinterpreterperformance.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Infat-bytecodedesigns,individualbytecodescanimplement</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>bytecode,whichimple-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>mentsfullJavaScriptpropertyvalueaccess,includingspecialcases</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>forcachedanddensearrayaccess).</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Fatbytecodeshavetwoadvantages:fewerbytecodesmeans</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>lowerdispatchcost,andbiggerbytecodeimplementationsgivethe</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>compilermoreopportunitiestooptimizetheinterpreter.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>FatbytecodesareaproblemforTraceMonkeybecausethey</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>requiretherecordertoreimplementthesamespecialcaselogic</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>inthesameway.Also,theadvantagesarereducedbecause(a)</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>dispatchcostsareeliminatedentirelyincompiledtraces,(b)the</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>tracescontainonlyonespecialcase,nottheinterpreter’slarge</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>chunkofcode,and(c)TraceMonkeyspendslesstimerunningthe</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>baseinterpreter.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Onewaywehavemitigatedtheseproblemsisbyimplementing</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>certaincomplexbytecodesintherecorderassequencesofsimple</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>bytecodes.Expressingtheoriginalsemanticsthiswayisnottoodif-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>ficult,andrecordingsimplebytecodesismucheasier.Thisenables</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>ustoretaintheadvantagesoffatbytecodeswhileavoidingsomeof</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>theirproblemsfortracerecording.Thisisparticularlyeffectivefor</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>fatbytecodesthatrecursebackintotheinterpreter,forexampleto</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>convertanobjectintoaprimitivevaluebyinvokingawell-known</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>methodontheobject,sinceitletsusinlinethisfunctioncall.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Itisimportanttonotethatwesplitfatopcodesintothinnerop-</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>codesonlyduringrecording.Whenrunningpurelyinterpretatively</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>(i.e.codethathasbeenblacklisted),theinterpreterdirectlyandef-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>SpiderMonkey,likemanyVMs,needstopreempttheuserprogram</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>periodically.Themainreasonsaretopreventinfinitelylooping</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>scriptsfromlockingupthehostsystemandtoscheduleGC.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>Intheinterpreter,thishadbeenimplementedbysettinga“pre-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>emptnow”flagthatwascheckedoneverybackwardjump.This</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>strategycarriedoverintoTraceMonkey:theVMinsertsaguardon</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>thepreemptionflagateveryloopedge.Wemeasuredlessthana</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>1%increaseinruntimeonmostbenchmarksforthisextraguard.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Inpractice,thecostisdetectableonlyforprogramswithveryshort</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>loops.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Wetestedandrejectedasolutionthatavoidedtheguardsby</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>compilingtheloopedgeasanunconditionaljump,andpatching</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>thejumptargettoanexitroutinewhenpreemptionisrequired.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Thissolutioncanmakethenormalcaseslightlyfaster,butthen</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>preemptionbecomesveryslow.Theimplementationwasalsovery</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>complex,especiallytryingtorestartexecutionafterthepreemption.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Likemostinterpreters,SpiderMonkeyhasaforeignfunctioninter-</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>face(FFI)thatallowsittocallCbuiltinsandhostsystemfunctions</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>(e.g.,webbrowsercontrolandDOMaccess).TheFFIhasastan-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>dardsignatureforJS-callablefunctions,thekeyargumentofwhich</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>isanarrayofboxedvalues.Externalfunctionscalledthroughthe</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>FFIinteractwiththeprogramstatethroughaninterpreterAPI(e.g.,</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>toreadapropertyfromanargument).Therearealsocertaininter-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>preterbuiltinsthatdonotusetheFFI,butinteractwiththeprogram</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>function</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>usedwithiteratorobjects.TraceMonkeymustsupportthisFFIin</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>ordertospeedupcodethatinteractswiththehostsysteminsidehot</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>loops.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>CallingexternalfunctionsfromTraceMonkeyispotentiallydif-</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>ficultbecausetracesdonotupdatetheinterpreterstateuntilexit-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>ing.Inparticular,externalfunctionsmayneedthecallstackorthe</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>globalvariables,buttheymaybeoutofdate.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Fortheout-of-datecallstackproblem,werefactoredsomeof</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>theinterpreterAPIimplementationfunctionstore-materializethe</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>interpretercallstackondemand.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>WedevelopedaC++staticanalysisandannotatedsomeinter-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>preterfunctionsinordertoverifythatthecallstackisrefreshed</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>atanypointitneedstobeused.Inordertoaccessthecallstack,</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>.Theseannotationsarealsorequiredinordertocall</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>functions,whicharepresumedtoaccessthecall</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>isatrustedannotation,applied</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>toonly5functions,thatmeansthefunctionrefreshesthecallstack.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>isanuntrustedannotationthatmeansthefunc-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>tionmayonlybecalledifthecallstackhasalreadybeenrefreshed.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Similarly,wedetectwhenhostfunctionsattempttodirectly</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>readorwriteglobalvariables,andforcethecurrentlyrunningtrace</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>tosideexit.Thisisnecessarysincewecacheandunboxglobal</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>variablesintotheactivationrecordduringtraceexecution.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Sincebothcall-stackaccessandglobalvariableaccessare</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>rarelyperformedbyhostfunctions,performanceisnotsignificantly</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>affectedbythesesafetymechanisms.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Anotherproblemisthatexternalfunctionscanreentertheinter-</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>preterbycallingscripts,whichinturnagainmightwanttoaccess</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>thecallstackorglobalvariables.Toaddressthisproblem,wemade</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>theVMsetaflagwhenevertheinterpreterisreenteredwhileacom-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>piledtraceisrunning.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Everycalltoanexternalfunctionthenchecksthisflagandexits</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>thetraceimmediatelyafterreturningfromtheexternalfunctioncall</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>ifitisset.Therearemanyexternalfunctionsthatseldomornever</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>reenter,andtheycanbecalledwithoutproblem,andwillcause</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>traceexitonlyifnecessary.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>TheFFI’sboxedvaluearrayrequirementhasaperformance</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>cost,sowedefinedanewFFIthatallowsCfunctionstobean-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>notatedwiththeirargumenttypessothatthetracercancallthem</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>directly,withoutunnecessaryargumentconversions.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Currently,wedonotsupportcallingnativepropertygetandset</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>overridefunctionsorDOMfunctionsdirectlyfromtrace.Support</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Duringdevelopment,wehadaccesstoexistingJavaScripttest</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>suites,butmostofthemwerenotdesignedwithtracingVMsin</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>mindandcontainedfewloops.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>OnetoolthathelpedusgreatlywasMozilla’sJavaScriptfuzz</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>,whichgeneratesrandomJavaScriptprograms</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>togenerateloops,andalsototestmoreheavilycertainconstructs</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>wesuspectedwouldrevealflawsinourimplementation.Forexam-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>ple,wesuspectedbugsinTraceMonkey’shandlingoftype-unstable</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>!&quot;#</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>$!&quot;#</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>%!&quot;#</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>&amp;!&quot;#</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>&#039;!&quot;#</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>(!&quot;#</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>)!&quot;#</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>*!&quot;#</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>+!&quot;#</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>,!&quot;#</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>$!!&quot;#</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>&amp;-./012#3%4%56#</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>&amp;-.789:;#3%4,56#</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>&amp;-.9&lt;=&gt;9&lt;/2#3$4%56#</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>&lt;//2??.1@A&lt;9=.&gt;922?#3!4,56#</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>&lt;//2??.B&lt;AAC0/;#3%4%56#</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>&lt;//2??.A18-=#3&#039;4%56#</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>&lt;//2??.A?@2D2#3&amp;4!56#</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>1@&gt;8:?.&amp;1@&gt;.1@&gt;?.@A.1=&gt;2#3%(4(56#</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>1@&gt;8:?.1@&gt;?.@A.1=&gt;2#3+4*56#</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>1@&gt;8:?.1@&gt;E@?2.&lt;A-#3%(4%56#</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>1@&gt;8:?.A?@2D2.1@&gt;?#3%4*56#</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>/8A&gt;98FG8E.92/09?@D2#3$4!56#</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>/9=:&gt;8.&lt;2?#3$4)56#</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>/9=:&gt;8.7-(#3%4&amp;56#</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>/9=:&gt;8.?;&lt;$#3(4,56#</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>-&lt;&gt;2.B897&lt;&gt;.&gt;8H2#3$4$56#</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>-&lt;&gt;2.B897&lt;&gt;.5:&lt;91#3$4!56#</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>7&lt;&gt;;./89-@/#3&#039;4,56#</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>7&lt;&gt;;.:&lt;9I&lt;F.?07?#3(4,56#</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>7&lt;&gt;;.?:2/&gt;9&lt;F.A897#3*4$56#</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>92J25:.-A&lt;#3&#039;4%56#</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>?&gt;9@AJ.1&lt;?2)&#039;#3%4(56#</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>?&gt;9@AJ.B&lt;?&gt;&lt;#3$4(56#</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>?&gt;9@AJ.&gt;&lt;J/F80-#3$4$56#</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>?&gt;9@AJ.0A:&lt;/C./8-2#3$4%56#</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>?&gt;9@AJ.D&lt;F@-&lt;&gt;2.@A:0&gt;#3$4,56#</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>KA&gt;29:92&gt;#</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>L&lt;ID2#</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>Figure11.Fractionofdynamicbytecodesexecutedbyinter-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>Thespeedupvs.interpreterisshown</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>inparenthesesnexttoeachtest.Thefractionofbytecodesexe-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>cutedwhilerecordingistoosmalltoseeinthisfigure,except</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>,wherefully3%ofbytecodesareexecutedwhile</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>recording.Inmostofthetests,almostallthebytecodesareexe-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>cutedbycompiledtraces.Threeofthebenchmarksarenottraced</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>atallandrunintheinterpreter.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>loopsandheavilybranchingcode,andaspecializedfuzztesterin-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>WeevaluatedourJavaScripttracingimplementationusingSun-</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>Spider,theindustrystandardJavaScriptbenchmarksuite.SunSpi-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>derconsistsof26short-running(lessthan250ms,average26ms)</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>JavaScriptprograms.Thisisinstarkcontrasttobenchmarksuites</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>suchasSpecJVM98(3)usedtoevaluatedesktopandserverJava</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>VMs.Manyprogramsinthosebenchmarksuselargedatasetsand</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>executeforminutes.TheSunSpiderprogramscarryoutavarietyof</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>tasks,primarily3drendering,bit-bashing,cryptographicencoding,</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>mathkernels,andstringprocessing.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>AllexperimentswereperformedonaMacBookProwith2.2</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Themainquestioniswhetherprograms</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>runfasterwithtracing.Forthis,weranthestandardSunSpidertest</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>driver,whichstartsaJavaScriptinterpreter,loadsandrunseach</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>programonceforwarmup,thenloadsandrunseachprogram10</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>timesandreportstheaveragetimetakenbyeach.Weran4differ-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>entconfigurationsforcomparison:(a)SpiderMonkey,thebaseline</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>interpreter,(b)TraceMonkey,(d)SquirrelFishExtreme(SFX),the</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>call-threadedJavaScriptinterpreterusedinApple’sWebKit,and</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>(e)V8,themethod-compilingJavaScriptVMfromGoogle.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Figure10showstherelativespeedupsachievedbytracing,SFX,</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>andV8againstthebaseline(SpiderMonkey).Tracingachievesthe</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>bestspeedupsininteger-heavybenchmarks,uptothe25xspeedup</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>TraceMonkeyisthefastestVMon9ofthe26benchmarks</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>bitops-bitwise-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>math-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>).</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>!&quot;</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>#&quot;</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>$!&quot;</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>$#&quot;</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>%!&quot;</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>%#&quot;</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>&amp;&#039;()*+,&quot;</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>-./&quot;</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>01&quot;</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>Speedupvs.abaselineJavaScriptinterpreter(SpiderMonkey)forourtrace-basedJITcompiler,Apple’sSquirrelFishExtreme</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>inlinethreadinginterpreterandGoogle’sV8JScompiler.Oursystemgeneratesparticularlyefficientcodeforprogramsthatbenefitmostfrom</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>typespecialization,whichincludesSunSpiderBenchmarkprogramsthatperformbitmanipulation.Wetype-specializethecodeinquestion</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>touseintegerarithmetic,whichsubstantiallyimprovesperformance.Foroneofthebenchmarkprogramsweexecute25timesfasterthan</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>theSpiderMonkeyinterpreter,andalmost5timesfasterthanV8andSFX.ForalargenumberofbenchmarksallthreeVMsproducesimilar</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>results.Weperformworstonbenchmarkprogramsthatwedonottraceandinsteadfallbackontotheinterpreter.Thisincludestherecursive</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>,forwhichwecurrentlydon’tgenerateanynativecode.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>benchmarksareshortprogramsthatper-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>formmanybitwiseoperations,soTraceMonkeycancovertheen-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>tireprogramwith1or2tracesthatoperateonintegers.TraceMon-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>keyrunsalltheotherprogramsinthissetalmostentirelyasnative</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>isdominatedbyregularexpressionmatching,</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>whichisimplementedinall3VMsbyaspecialregularexpression</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>compiler.Thus,performanceonthisbenchmarkhaslittlerelation</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>tothetracecompilationapproachdiscussedinthispaper.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>TraceMonkey’ssmallerspeedupsontheotherbenchmarkscan</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Theimplementationdoesnotcurrentlytracerecursion,so</h2>
-<!-- /wp:heading -->
-
-<!-- wp:heading {"level":2} -->
 <h2>TraceMonkeyachievesasmallspeedupornospeedupon</h2>
-<!-- /wp:heading -->
-
-<!-- wp:heading {"level":2} -->
 <h2>3d-</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>andsome</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>date-format-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>usesuchfunctionsintheir</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Theimplementationdoesnotcurrentlytracethroughregular</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>operations.Thereplacefunctioncanbe</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>passedafunctionobjectusedtocomputethereplacementtext.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Ourimplementationcurrentlydoesnottracefunctionscalled</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>is</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>formsoneverylongtrace.Weexpecttoimproveperformance</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>onthisprogramsbyimprovingthecompilationspeedofnano-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Someprogramstraceverywell,andspeedupcomparedto</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>access-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>.Thereasonis</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>notclear,butalloftheseprogramshavenestedloopswith</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>smallbodies,sowesuspectthattheimplementationhasarela-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>traces</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>well,butitsruntimeisdominatedbystringprocessingbuiltins,</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>whichareunaffectedbytracingandseemtobelessefficientin</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>InFigure11weshowthefrac-</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>tionofinstructionsinterpretedandthefractionofinstructionsexe-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>cutedasnativecode.Thisfigureshowsthatformanyprograms,we</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>areabletoexecutealmostallthecodenatively.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Figure12breaksdownthetotalexecutiontimeintofouractiv-</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>ities:interpretingbytecodeswhilenotrecording,recordingtraces</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>(includingtimetakentointerprettherecordedtrace),compiling</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>tracestonativecode,andexecutingnativecodetraces.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Thesedetailedmetricsallowustoestimateparametersfora</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>simplemodeloftracingperformance.Theseestimatesshouldbe</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>consideredveryrough,asthevaluesobservedontheindividual</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>benchmarkshavelargestandarddeviations(ontheorderofthe</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>LoopsTreesTracesAbortsFlushesTrees/LoopTraces/TreeTraces/LoopSpeedup</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>3d-cube252729301.11.11.22.20x</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>3d-morph588201.61.01.62.86x</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>3d-raytrace10251001012.54.010.01.18x</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>access-binary-trees00050---0.93x</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>access-fannkuch1034572403.41.75.72.20x</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>access-nbody81618502.01.12.34.19x</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>access-nsieve368302.01.32.73.05x</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>bitops-3bit-bits-in-byte222001.01.01.025.47x</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>bitops-bits-in-byte334101.01.31.38.67x</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>bitops-bitwise-and111001.01.01.025.20x</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>bitops-nsieve-bits335001.01.71.72.75x</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>controlflow-recursive00010---0.98x</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>crypto-aes5072781901.41.11.61.64x</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>crypto-md5445001.01.31.32.30x</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>crypto-sha15510001.02.02.05.95x</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>date-format-tofte334701.01.31.31.07x</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>date-format-xparb3311301.03.73.70.98x</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>math-cordic245102.01.32.54.92x</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>math-partial-sums244102.01.02.05.90x</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>math-spectral-norm152020001.31.01.37.12x</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>regexp-dna222001.01.01.04.21x</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>string-base64357001.71.42.32.53x</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>string-fasta51115602.21.43.01.49x</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>string-tagcloud366502.01.02.01.09x</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>string-unpack-code4437001.09.39.31.20x</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>string-validate-input61013101.71.32.21.86x</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>DetailedtracerecordingstatisticsfortheSunSpiderbenchmarkset.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>fromthefollowingcalculations,</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>becausemostofitstimeisspentintheregularexpressionmatcher,</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>whichhasmuchdifferentperformancecharacteristicsfromthe</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>otherprograms.(Notethatthisonlymakesadifferenceofabout</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>10%intheresults.)Dividingthetotalexecutiontimeinprocessor</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>clockcyclesbythenumberofbytecodesexecutedinthebase</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>interpretershowsthatonaverage,abytecodeexecutesinabout</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>35cycles.Nativetracestakeabout9cyclesperbytecode,a3.9x</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>speedupovertheinterpreter.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Usingsimilarcomputations,wefindthattracerecordingtakes</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>about3800cyclesperbytecode,andcompilation3150cyclesper</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>bytecode.Hence,duringrecordingandcompilingtheVMrunsat</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>1/200thespeedoftheinterpreter.Becauseitcosts6950cyclesto</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>compileabytecode,andwesave26cycleseachtimethatcodeis</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>runnatively,webreakevenafterrunningatrace270times.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>TheotherVMswecomparedwithachieveanoverallspeedup</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>of3.0xrelativetoourbaselineinterpreter.Ourestimatednative</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>codespeedupof3.9xissignificantlybetter.Thissuggeststhat</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>ourcompilationtechniquescangeneratemoreefficientnativecode</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>thananyothercurrentJavaScriptVM.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Theseestimatesalsoindicatethatourstartupperformancecould</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>besubstantiallybetterifweimprovedthespeedoftracerecording</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>andcompilation.Theestimated200xslowdownforrecordingand</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>compilationisveryrough,andmaybeinfluencedbystartupfactors</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>intheinterpreter(e.g.,cachesthathavenotwarmedupyetduring</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>recording).Oneobservationsupportingthisconjectureisthatin</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>thetracer,interpretedbytecodestakeabout180cyclestorun.Still,</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>recordingandcompilationareclearlybothexpensive,andabetter</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>implementation,possiblyincludingredesignoftheLIRabstract</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>syntaxorencoding,wouldimprovestartupperformance.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Ourperformanceresultsconfirmthattypespecializationusing</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>tracetreessubstantiallyimprovesperformance.Weareableto</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>outperformthefastestavailableJavaScriptcompiler(V8)andthe</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>fastestavailableJavaScriptinlinethreadedinterpreter(SFX)on9</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Theclosestareaof</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>relatedworkisonapplyingtraceoptimizationtotype-specialize</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>dynamiclanguages.Existingworksharestheideaofgenerating</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>type-specializedcodespeculativelywithguardsalonginterpreter</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>traces.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>Toourknowledge,Rigo’sPsyco(16)istheonlypublished</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>type-specializingtracecompilerforadynamiclanguage(Python).</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>Psycodoesnotattempttoidentifyhotloopsorinlinefunctioncalls.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Instead,Psycotransformsloopstomutualrecursionbeforerunning</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>andtracesalloperations.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>Pall’sLuaJITisaLuaVMindevelopmentthatusestracecom-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>pilationideas.(1).TherearenopublicationsonLuaJITbutthecre-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>atorhastoldusthatLuaJIThasasimilardesigntooursystem,but</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>willusealessaggressivetypespeculation(e.g.,usingafloating-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>pointrepresentationforallnumbervalues)anddoesnotgenerate</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Generaltraceoptimizationhas</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>alongerhistorythathastreatedmostlynativecodeandtyped</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>languageslikeJava.Thus,thesesystemshavefocusedlessontype</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>specializationandmoreonotheroptimizations.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Dynamo(7)byBalaetal,introducednativecodetracingasa</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>replacementforprofile-guidedoptimization(PGO).Amajorgoal</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>wastoperformPGOonlinesothattheprofilewasspecificto</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>thecurrentexecution.Dynamousedloopheadersascandidatehot</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>traces,butdidnottrytocreatelooptracesspecifically.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>TracetreeswereoriginallyproposedbyGaletal.(11)inthe</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>contextofJava,astaticallytypedlanguage.Theirtracetreesac-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>tuallyinlinedpartsofouterloopswithintheinnerloops(because</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>!&quot;#</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>$!&quot;#</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>%!&quot;#</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>&amp;!&quot;#</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>&#039;!&quot;#</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>(!!&quot;#</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>)*+,-./#0$1$23#</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>)*+45678#0$1923#</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>)*+6:;&lt;6:,/#0(1$23#</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>:,,/==+.&gt;?:6;+&lt;6//=#0!1923#</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>:,,/==+@:??A-,8#0$1$23#</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>:,,/==+?.5*;#0%1$23#</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>:,,/==+?=&gt;/B/#0)1!23#</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>.&gt;&lt;57=+).&gt;&lt;+.&gt;&lt;=+&gt;?+.;&lt;/#0$C1C23#</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>.&gt;&lt;57=+.&gt;&lt;=+&gt;?+.;&lt;/#0&#039;1D23#</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>.&gt;&lt;57=+.&gt;&lt;E&gt;=/+:?*#0$C1$23#</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>.&gt;&lt;57=+?=&gt;/B/+.&gt;&lt;=#0$1D23#</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>,5?&lt;65FG5E+6/,-6=&gt;B/#0(1!23#</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>,6;7&lt;5+:/=#0(1&amp;23#</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>,6;7&lt;5+4*C#0$1)23#</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>,6;7&lt;5+=8:(#0C1923#</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>*:&lt;/+@564:&lt;+&lt;5H/#0(1(23#</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>*:&lt;/+@564:&lt;+27:6.#0(1!23#</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>4:&lt;8+,56*&gt;,#0%1923#</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>4:&lt;8+7:6I:F+=-4=#0C1923#</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>4:&lt;8+=7/,&lt;6:F+?564#0D1(23#</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>6/J/27+*?:#0%1$23#</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>=&lt;6&gt;?J+.:=/&amp;%#0$1C23#</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>=&lt;6&gt;?J+@:=&lt;:#0(1C23#</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>=&lt;6&gt;?J+&lt;:J,F5-*#0(1(23#</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>=&lt;6&gt;?J+-?7:,A+,5*/#0(1$23#</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>=&lt;6&gt;?J+B:F&gt;*:&lt;/+&gt;?7-&lt;#0(1923#</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>K?&lt;/676/&lt;#</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>L5?&gt;&lt;56#</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>M/,56*#</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>N547&gt;F/#</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>N:FF#O6:,/#</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>M-?#O6:,/#</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>The</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>speedupvs.interpreterisshowninparenthesesnexttoeachtest.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>MostprogramswheretheVMspendsthemajorityofitstimerun-</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>ningnativecodehaveagoodspeedup.Recordingandcompilation</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>costscanbesubstantial;speedingupthosepartsoftheimplemen-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>tationwouldimproveSunSpiderperformance.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>innerloopsbecomehotfirst),leadingtomuchgreatertailduplica-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>tion.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>YETI,fromZaleskietal.(19)appliedDynamo-styletracing</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>toJavainordertoachieveinlining,indirectjumpelimination,</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>andotheroptimizations.Theirprimaryfocuswasondesigningan</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>interpreterthatcouldeasilybegraduallyre-engineeredasatracing</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>VM.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>Suganumaetal.(18)describedregion-basedcompilation(RBC),</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>arelativeoftracing.Aregionisansubprogramworthoptimizing</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>thatcanincludesubsetsofanynumberofmethods.Thus,thecom-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>pilerhasmoreflexibilityandcanpotentiallygeneratebettercode,</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>buttheprofilingandcompilationsystemsarecorrespondinglymore</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Dynamiclan-</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>guageimplementorshavelongrecognizedtheimportanceoftype</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>specializationforperformance.Mostpreviousworkhasfocusedon</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>methodsinsteadoftraces.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>Chamberset.al(9)pioneeredtheideaofcompilingmultiple</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>versionsofaprocedurespecializedfortheinputtypesinthelan-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>guageSelf.Inoneimplementation,theygeneratedaspecialized</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>methodonlineeachtimeamethodwascalledwithnewinputtypes.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Inanother,theyusedanofflinewhole-programstaticanalysisto</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>inferinputtypesandconstantreceivertypesatcallsites.Interest-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>ingly,thetwotechniquesproducednearlythesameperformance.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Salib(17)designedatypeinferencealgorithmforPythonbased</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>ontheCartesianProductAlgorithmandusedtheresultstospecial-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>izeontypesandtranslatetheprogramtoC++.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>McCloskey(14)hasworkinprogressbasedonalanguage-</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>independenttypeinferencethatisusedtogenerateefficientC</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Thetraditionalinter-</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>preterdesignisavirtualmachinethatdirectlyexecutesASTsor</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>machine-code-likebytecodes.Researchershaveshownhowtogen-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>eratenativecodewithnearlythesamestructurebutbetterperfor-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>mance.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Callthreading,alsoknownascontextthreading(8),compiles</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>methodsbygeneratinganativecallinstructiontoaninterpreter</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>methodforeachinterpreterbytecode.Acall-returnpairhasbeen</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>showntobeapotentiallymuchmoreefficientdispatchmechanism</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>thantheindirectjumpsusedinstandardbytecodeinterpreters.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Inlinethreading(15)copieschunksofinterpreternativecode</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>whichimplementtherequiredbytecodesintoanativecodecache,</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>thusactingasasimpleper-methodJITcompilerthateliminatesthe</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>dispatchoverhead.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Neithercallthreadingnorinlinethreadingperformtypespecial-</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>ization.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>Apple’sSquirrelFishExtreme(5)isaJavaScriptimplementa-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>tionbasedoncallthreadingwithselectiveinlinethreading.Com-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>binedwithefficientinterpreterengineering,thesethreadingtech-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>niqueshavegivenSFXexcellentperformanceonthestandardSun-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>Spiderbenchmarks.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>Google’sV8isaJavaScriptimplementationprimarilybased</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>oninlinethreading,withcallthreadingonlyforverycomplex</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Thispaperdescribedhowtorundynamiclanguagesefficientlyby</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>recordinghottracesandgeneratingtype-specializednativecode.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Ourtechniquefocusesonaggressivelyinlinedloops,andforeach</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>loop,itgeneratesatreeofnativecodetracesrepresentingthe</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>pathsandvaluetypesthroughtheloopobservedatruntime.We</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>explainedhowtoidentifyloopnestingrelationshipsandgenerate</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>nestedtracesinordertoavoidexcessivecodeduplicationdue</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>tothemanypathsthroughaloopnest.Wedescribedourtype</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>specializationalgorithm.Wealsodescribedourtracecompiler,</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>whichtranslatesatracefromanintermediaterepresentationto</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>optimizednativecodeintwolinearpasses.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Ourexperimentalresultsshowthatinpracticeloopstypically</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>areenteredwithonlyafewdifferentcombinationsofvaluetypes</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>ofvariables.Thus,asmallnumberoftracesperloopissufficient</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>torunaprogramefficiently.Ourexperimentsalsoshowthaton</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Workisunderwayinanumberofareastofurtherimprovethe</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>performanceofourtrace-basedJavaScriptcompiler.Wecurrently</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>donottraceacrossrecursivefunctioncalls,butplantoaddthe</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>supportforthiscapabilityinthenearterm.Wearealsoexploring</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>adoptionoftheexistingworkontreerecompilationinthecontext</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>ofthepresenteddynamiccompilerinordertominimizeJITpause</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>timesandobtainthebestofbothworlds,fasttreestitchingaswell</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>astheimprovedcodequalityduetotreerecompilation.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Wealsoplanonaddingsupportfortracingacrossregularex-</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>pressionsubstitutionsusinglambdafunctions,functionapplica-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>.Alltheselanguage</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>constructsarecurrentlyexecutedviainterpretation,whichlimits</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>PartsofthisefforthavebeensponsoredbytheNationalScience</h2>
-<!-- /wp:heading -->
-
-<!-- wp:heading {"level":2} -->
 <h2>FoundationundergrantsCNS-0615443andCNS-0627747,aswell</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>asbytheCaliforniaMICROProgramandindustrialsponsorSun</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>MicrosystemsunderProjectNo.07-127.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>TheU.S.Governmentisauthorizedtoreproduceanddistribute</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>reprintsforGovernmentalpurposesnotwithstandinganycopyright</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>annotationthereon.Anyopinions,findings,andconclusionsorrec-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>ommendationsexpressedherearethoseoftheauthorandshould</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>notbeinterpretedasnecessarilyrepresentingtheofficialviews,</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>policiesorendorsements,eitherexpressedorimplied,oftheNa-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>tionalSciencefoundation(NSF),anyotheragencyoftheU.S.Gov-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>[1]LuaJITroadmap2008-<a href="http://lua-users.org/lists/lua-l/2008-">http://lua-users.org/lists/lua-l/2008-</a></p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>02/msg00051.html.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>[2]Mozilla—FirefoxwebbrowserandThunderbirdemailclient-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p><a href="http://www.mozilla.com">http://www.mozilla.com</a>.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>[3]SPECJVM98-<a href="http://www.spec.org/jvm98/">http://www.spec.org/jvm98/</a>.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>[4]SpiderMonkey(JavaScript-C)Engine-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p><a href="http://www.mozilla.org/js/spidermonkey/">http://www.mozilla.org/js/spidermonkey/</a>.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>[5]Surfin’Safari-BlogArchive-AnnouncingSquirrelFishExtreme-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p><a href="http://webkit.org/blog/214/introducing-squirrelfish-extreme/">http://webkit.org/blog/214/introducing-squirrelfish-extreme/</a>.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>[6]A.Aho,R.Sethi,J.Ullman,andM.Lam.Compilers:Principles,</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>techniques,andtools,2006.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>[7]V.Bala,E.Duesterwald,andS.Banerjia.Dynamo:Atransparent</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>ProceedingsoftheACMSIGPLAN</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>,</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>pages1–12.ACMPress,2000.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>[8]M.Berndl,B.Vitale,M.Zaleski,andA.Brown.ContextThreading:</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>aFlexibleandEfficientDispatchTechniqueforVirtualMachineIn-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>CodeGenerationandOptimization,2005.CGO2005.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>,pages15–26,2005.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>[9]C.ChambersandD.Ungar.Customization:OptimizingCompiler</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>TechnologyforSELF,aDynamically-TypedObject-OrientedPro-</h2>
-<!-- /wp:heading -->
-
-<!-- wp:heading {"level":2} -->
 <h2>ProceedingsoftheACMSIGPLAN1989</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>,</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>pages146–160.ACMNewYork,NY,USA,1989.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>EfficientBytecodeVerificationandCompilationinaVirtual</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>.PhDthesis,UniversityOfCalifornia,Irvine,</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>2006.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>[11]A.Gal,C.W.Probst,andM.Franz.HotpathVM:AneffectiveJIT</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>Proceedingsofthe</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>,pages</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>144–153.ACMPress,2006.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>[12]C.Garrett,J.Dean,D.Grove,andC.Chambers.Measurementand</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>ApplicationofDynamicReceiverClassDistributions.1994.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>[13]J.Ha,M.R.Haghighat,S.Cong,andK.S.McKinley.Aconcurrent</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>trace-basedjust-in-timecompilerforjavascript.Dept.ofComputer</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>Sciences,TheUniversityofTexasatAustin,TR-09-06,2009.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>[14]B.McCloskey.Personalcommunication.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>[15]I.PiumartaandF.Riccardi.Optimizingdirectthreadedcodebyselec-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>ProceedingsoftheACMSIGPLAN1998conference</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>,pages291–</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>300.ACMNewYork,NY,USA,1998.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>[16]A.Rigo.Representation-BasedJust-In-timeSpecializationandthe</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>,2004.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>[17]M.Salib.Starkiller:AStaticTypeInferencerandCompilerfor</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>,2004.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>[18]T.Suganuma,T.Yasue,andT.Nakatani.ARegion-BasedCompila-</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>ACMTransactionsonPro-</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>,28(1):134–174,2006.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>[19]M.Zaleski,A.D.Brown,andK.Stoodley.YETI:AgraduallY</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
 <h2>ProceedingsoftheInternational</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
 <p>,pages83–93.ACM</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
-<p>Press,2007.</p>
-<!-- /wp:paragraph -->
+<p>Press,2007.</p></body></html>

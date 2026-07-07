@@ -1,4 +1,4 @@
-<h1 id="synopsis">Synopsis</h1>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>PHP Pandoc HTML output</title><style>html{line-height:1.5;font-family:Georgia,"Times New Roman",serif;font-size:18px;color:#1f2933;background:#fdfdfd;}body{margin:0 auto;max-width:46em;padding:2.5em 1.25em;}h1,h2,h3,h4,h5,h6{font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.25;margin:1.4em 0 .45em;}h1{font-size:2em;}h2{font-size:1.55em;}h3{font-size:1.25em;}p{margin:1em 0;}a{color:#1f6feb;}img,svg,video{max-width:100%;height:auto;}pre,code,kbd,samp{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.9em;}code{background:#eef1f5;padding:.1em .25em;border-radius:3px;}pre{overflow:auto;background:#f6f8fa;border:1px solid #d8dde3;border-radius:6px;padding:1em;}pre code{background:transparent;padding:0;}blockquote{margin:1.25em 0;padding-left:1em;border-left:4px solid #d8dde3;color:#4b5563;}table{border-collapse:collapse;margin:1.25em 0;width:100%;font-size:.92em;}th,td{border:1px solid #d8dde3;padding:.35em .55em;vertical-align:top;}th{background:#f6f8fa;}math{font-family:math,serif;}math[display="block"]{display:block;margin:1em 0;overflow-x:auto;}</style></head><body><h1 id="synopsis">Synopsis</h1>
 <p><code>pandoc</code> [<em>options</em>] [<em>input-file</em>]…</p>
 <h1 id="description">Description</h1>
 <p>Pandoc is a <a href="https://www.haskell.org">Haskell</a> library for converting from one markup format to another, and a command-line tool that uses this library.</p>
@@ -1507,7 +1507,7 @@ gladtex -d image_dir myfile.htex
 <tr><td>keywor</td><td>ds <code>it</code>, <code>if</code>, <code>else</code>, <code>endif</code>, <code>for</code>, <code>sep</code>, and <code>endfor</code> may</td></tr>
 <tr><td>not be</td><td>used as variable names. Examples:</td></tr>
 <tr><td>```</td><td></td></tr>
-<tr><td><span class="math inline">\(foo\)</span></td><td></td></tr>
+<tr><td><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><semantics><mrow><mi>f</mi><mi>o</mi><mi>o</mi></mrow><annotation encoding="application/x-tex">foo</annotation></semantics></math></td><td></td></tr>
 <tr><td>$foo.b</td><td>ar.baz$</td></tr>
 <tr><td>$foo_b</td><td>ar.baz-bim$</td></tr>
 <tr><td>$ foo</td><td>$</td></tr>
@@ -1547,13 +1547,13 @@ gladtex -d image_dir myfile.htex
 <tr><td>use `-</td><td>V foo=false<code>, but not if you use </code>-M foo=false`.</td></tr>
 <tr><td>Exampl</td><td>es:</td></tr>
 <tr><td>```</td><td></td></tr>
-<tr><td>$if(fo</td><td>o)<span class="math inline">\(bar\)</span>endif$</td></tr>
+<tr><td>$if(fo</td><td>o)<math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><semantics><mrow><mi>b</mi><mi>a</mi><mi>r</mi></mrow><annotation encoding="application/x-tex">bar</annotation></semantics></math>endif$</td></tr>
 <tr><td>$if(fo</td><td>o)$</td></tr>
 <tr><td>$foo</td><td>$</td></tr>
 <tr><td>$endif</td><td>$</td></tr>
 <tr><td>$if(fo</td><td>o)$</td></tr>
 <tr><td>part o</td><td>ne</td></tr>
-<tr><td><span class="math inline">\(else\)</span></td><td></td></tr>
+<tr><td><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><semantics><mrow><mi>e</mi><mi>l</mi><mi>s</mi><mi>e</mi></mrow><annotation encoding="application/x-tex">else</annotation></semantics></math></td><td></td></tr>
 <tr><td>part t</td><td>wo</td></tr>
 <tr><td>$endif</td><td>$</td></tr>
 <tr><td>${if(f</td><td>oo)}bar${endif}</td></tr>
@@ -1573,7 +1573,7 @@ gladtex -d image_dir myfile.htex
 <tr><td>XXX</td><td></td></tr>
 <tr><td>$elsei</td><td>f(bar)$</td></tr>
 <tr><td>YYY</td><td></td></tr>
-<tr><td><span class="math inline">\(else\)</span></td><td></td></tr>
+<tr><td><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><semantics><mrow><mi>e</mi><mi>l</mi><mi>s</mi><mi>e</mi></mrow><annotation encoding="application/x-tex">else</annotation></semantics></math></td><td></td></tr>
 <tr><td>ZZZ</td><td></td></tr>
 <tr><td>$endif</td><td>$</td></tr>
 <tr><td>```</td><td></td></tr>
@@ -1590,22 +1590,22 @@ gladtex -d image_dir myfile.htex
 <tr><td>a ma</td><td>p, a single iteration will be performed on its value.</td></tr>
 <tr><td>Exampl</td><td>es:</td></tr>
 <tr><td>```</td><td></td></tr>
-<tr><td>$for(f</td><td>oo)<span class="math display">\[foo\]</span>sep<span class="math inline">\(, $endfor\)</span></td></tr>
+<tr><td>$for(f</td><td>oo)<math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mrow><mi>f</mi><mi>o</mi><mi>o</mi></mrow><annotation encoding="application/x-tex">foo</annotation></semantics></math>sep<math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><semantics><mrow><mo>,</mo><mo>$</mo><mi>e</mi><mi>n</mi><mi>d</mi><mi>f</mi><mi>o</mi><mi>r</mi></mrow><annotation encoding="application/x-tex">, $endfor</annotation></semantics></math></td></tr>
 <tr><td>$for(f</td><td>oo)$</td></tr>
-<tr><td>- $f</td><td>oo.last<span class="math inline">\(, $foo.first\)</span></td></tr>
+<tr><td>- $f</td><td>oo.last<math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><semantics><mrow><mo>,</mo><mo>$</mo><mi>f</mi><mi>o</mi><mi>o</mi><mo>.</mo><mi>f</mi><mi>i</mi><mi>r</mi><mi>s</mi><mi>t</mi></mrow><annotation encoding="application/x-tex">, $foo.first</annotation></semantics></math></td></tr>
 <tr><td>$endfo</td><td>r$</td></tr>
 <tr><td>${ for</td><td>(foo.bar) }</td></tr>
 <tr><td>- ${</td><td>foo.bar.last }, ${ foo.bar.first }</td></tr>
 <tr><td>${ end</td><td>for }</td></tr>
 <tr><td>$for(m</td><td>ymap)$</td></tr>
-<tr><td>$it.na</td><td>me<span class="math inline">\(: $it.office\)</span></td></tr>
+<tr><td>$it.na</td><td>me<math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><semantics><mrow><mo>:</mo><mo>$</mo><mi>i</mi><mi>t</mi><mo>.</mo><mi>o</mi><mi>f</mi><mi>f</mi><mi>i</mi><mi>c</mi><mi>e</mi></mrow><annotation encoding="application/x-tex">: $it.office</annotation></semantics></math></td></tr>
 <tr><td>$endfo</td><td>r$</td></tr>
 <tr><td>```</td><td></td></tr>
 <tr><td>You ma</td><td>y optionally specify a separator between consecutive</td></tr>
 <tr><td>values</td><td>using <code>sep</code> (enclosed in matched delimiters).  The</td></tr>
 <tr><td>materi</td><td>al between <code>sep</code> and the <code>endfor</code> is the separator.</td></tr>
 <tr><td>```</td><td></td></tr>
-<tr><td>${ for</td><td>(foo) }<span class="math inline">\({ foo }\)</span>{ sep }, ${ endfor }</td></tr>
+<tr><td>${ for</td><td>(foo) }<math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><semantics><mrow><mi>f</mi><mi>o</mi><mi>o</mi></mrow><annotation encoding="application/x-tex">{ foo }</annotation></semantics></math>{ sep }, ${ endfor }</td></tr>
 <tr><td>```</td><td></td></tr>
 <tr><td>Instea</td><td>d of using <code>variable</code> inside the loop, the special</td></tr>
 <tr><td>anapho</td><td>ric keyword <code>it</code> may be used.</td></tr>
@@ -1667,7 +1667,7 @@ gladtex -d image_dir myfile.htex
 <tr><td>To ens</td><td>ure that content is “nested,” that is, subsequent lines</td></tr>
 <tr><td>indent</td><td>ed, use the <code>^</code> directive:</td></tr>
 <tr><td>```</td><td></td></tr>
-<tr><td>$item.</td><td>number$  <span class="math inline">\(^$\)</span>item.description$ (<span class="math inline">\(item.price\)</span>)</td></tr>
+<tr><td>$item.</td><td>number$  <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><semantics><mrow><mo>^</mo><mo>$</mo></mrow><annotation encoding="application/x-tex">^$</annotation></semantics></math>item.description$ (<math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><semantics><mrow><mi>i</mi><mi>t</mi><mi>e</mi><mi>m</mi><mo>.</mo><mi>p</mi><mi>r</mi><mi>i</mi><mi>c</mi><mi>e</mi></mrow><annotation encoding="application/x-tex">item.price</annotation></semantics></math>)</td></tr>
 <tr><td>```</td><td></td></tr>
 <tr><td>In thi</td><td>s example, if <code>item.description</code> has multiple lines,</td></tr>
 <tr><td>they w</td><td>ill all be indented to line up with the first line:</td></tr>
@@ -1677,7 +1677,7 @@ gladtex -d image_dir myfile.htex
 <tr><td>To nes</td><td>t multiple lines to the same level, align them</td></tr>
 <tr><td>with t</td><td>he <code>^</code> directive in the template. For example:</td></tr>
 <tr><td>```</td><td></td></tr>
-<tr><td>$item.</td><td>number$  <span class="math inline">\(^$\)</span>item.description$ (<span class="math inline">\(item.price\)</span>) (Available til <span class="math inline">\(item.sellby\)</span>.)</td></tr>
+<tr><td>$item.</td><td>number$  <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><semantics><mrow><mo>^</mo><mo>$</mo></mrow><annotation encoding="application/x-tex">^$</annotation></semantics></math>item.description$ (<math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><semantics><mrow><mi>i</mi><mi>t</mi><mi>e</mi><mi>m</mi><mo>.</mo><mi>p</mi><mi>r</mi><mi>i</mi><mi>c</mi><mi>e</mi></mrow><annotation encoding="application/x-tex">item.price</annotation></semantics></math>) (Available til <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><semantics><mrow><mi>i</mi><mi>t</mi><mi>e</mi><mi>m</mi><mo>.</mo><mi>s</mi><mi>e</mi><mi>l</mi><mi>l</mi><mi>b</mi><mi>y</mi></mrow><annotation encoding="application/x-tex">item.sellby</annotation></semantics></math>.)</td></tr>
 <tr><td>```</td><td></td></tr>
 <tr><td>will p</td><td>roduce</td></tr>
 <tr><td>```</td><td></td></tr>
@@ -1693,8 +1693,8 @@ gladtex -d image_dir myfile.htex
 <tr><td>made b</td><td>reakable in part of the template by using the <code>~</code> keyword</td></tr>
 <tr><td>(ended</td><td>with another <code>~</code>).</td></tr>
 <tr><td>```</td><td></td></tr>
-<tr><td><span class="math inline">\(~\)</span>Thi</td><td>s long line may break if the document is rendered</td></tr>
-<tr><td>with a</td><td>short line length.<span class="math inline">\(~\)</span></td></tr>
+<tr><td><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><semantics><mo>~</mo><annotation encoding="application/x-tex">~</annotation></semantics></math>Thi</td><td>s long line may break if the document is rendered</td></tr>
+<tr><td>with a</td><td>short line length.<math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><semantics><mo>~</mo><annotation encoding="application/x-tex">~</annotation></semantics></math></td></tr>
 <tr><td>```</td><td></td></tr>
 <tr><td>### Pi</td><td>pes</td></tr>
 <tr><td>A pipe</td><td>transforms the value of a variable or partial. Pipes are</td></tr>
@@ -1705,14 +1705,14 @@ gladtex -d image_dir myfile.htex
 <tr><td>$name/</td><td>uppercase$</td></tr>
 <tr><td>$endfo</td><td>r$</td></tr>
 <tr><td>$for(m</td><td>etadata/pairs)$</td></tr>
-<tr><td>- $it.</td><td>key<span class="math inline">\(: $it.value\)</span></td></tr>
+<tr><td>- $it.</td><td>key<math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><semantics><mrow><mo>:</mo><mo>$</mo><mi>i</mi><mi>t</mi><mo>.</mo><mi>v</mi><mi>a</mi><mi>l</mi><mi>u</mi><mi>e</mi></mrow><annotation encoding="application/x-tex">: $it.value</annotation></semantics></math></td></tr>
 <tr><td>$endfo</td><td>r$</td></tr>
 <tr><td>$emplo</td><td>yee:name()/uppercase$</td></tr>
 <tr><td>```</td><td></td></tr>
 <tr><td>Pipes</td><td>may be chained:</td></tr>
 <tr><td>```</td><td></td></tr>
 <tr><td>$for(e</td><td>mployees/pairs)$</td></tr>
-<tr><td>$it.ke</td><td>y/alpha/uppercase<span class="math inline">\(. $it.name\)</span></td></tr>
+<tr><td>$it.ke</td><td>y/alpha/uppercase<math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><semantics><mrow><mo>.</mo><mo>$</mo><mi>i</mi><mi>t</mi><mo>.</mo><mi>n</mi><mi>a</mi><mi>m</mi><mi>e</mi></mrow><annotation encoding="application/x-tex">. $it.name</annotation></semantics></math></td></tr>
 <tr><td>$endfo</td><td>r$</td></tr>
 <tr><td>```</td><td></td></tr>
 <tr><td>Some p</td><td>ipes take parameters:</td></tr>
@@ -2283,7 +2283,7 @@ gladtex -d image_dir myfile.htex
 <tr><td>`s</td><td>ourcefile` can also be a list if input comes from multiple files,</td></tr>
 <tr><td>or</td><td>empty if input is from stdin. You can use the following snippet in</td></tr>
 <tr><td>yo</td><td>ur template to distinguish them:</td></tr>
-<tr><td></td><td><span class="math inline">\(if(sourcefile)\)</span> <span class="math inline">\(for(sourcefile)\)</span> <span class="math inline">\(sourcefile\)</span> <span class="math inline">\(endfor\)</span> <span class="math inline">\(else\)</span> (stdin) <span class="math inline">\(endif\)</span></td></tr>
+<tr><td></td><td><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><semantics><mrow><mi>i</mi><mi>f</mi><mo>(</mo><mi>s</mi><mi>o</mi><mi>u</mi><mi>r</mi><mi>c</mi><mi>e</mi><mi>f</mi><mi>i</mi><mi>l</mi><mi>e</mi><mo>)</mo></mrow><annotation encoding="application/x-tex">if(sourcefile)</annotation></semantics></math> <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><semantics><mrow><mi>f</mi><mi>o</mi><mi>r</mi><mo>(</mo><mi>s</mi><mi>o</mi><mi>u</mi><mi>r</mi><mi>c</mi><mi>e</mi><mi>f</mi><mi>i</mi><mi>l</mi><mi>e</mi><mo>)</mo></mrow><annotation encoding="application/x-tex">for(sourcefile)</annotation></semantics></math> <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><semantics><mrow><mi>s</mi><mi>o</mi><mi>u</mi><mi>r</mi><mi>c</mi><mi>e</mi><mi>f</mi><mi>i</mi><mi>l</mi><mi>e</mi></mrow><annotation encoding="application/x-tex">sourcefile</annotation></semantics></math> <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><semantics><mrow><mi>e</mi><mi>n</mi><mi>d</mi><mi>f</mi><mi>o</mi><mi>r</mi></mrow><annotation encoding="application/x-tex">endfor</annotation></semantics></math> <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><semantics><mrow><mi>e</mi><mi>l</mi><mi>s</mi><mi>e</mi></mrow><annotation encoding="application/x-tex">else</annotation></semantics></math> (stdin) <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><semantics><mrow><mi>e</mi><mi>n</mi><mi>d</mi><mi>i</mi><mi>f</mi></mrow><annotation encoding="application/x-tex">endif</annotation></semantics></math></td></tr>
 <tr><td>Si</td><td>milarly, <code>outputfile</code> can be <code>-</code> if output goes to the terminal.</td></tr>
 <tr><td>If</td><td>you need absolute paths, use e.g. <code>$curdir$/$sourcefile$</code>.</td></tr>
 <tr><td>`pdf-e</td><td>ngine`</td></tr>
@@ -4534,4 +4534,4 @@ pdfstandard:
 <li id="fn3"><p>This scheme is due to Michel Fortin, who proposed it on the <a href="http://six.pairlist.net/pipermail/markdown-discuss/2005-March/001097.html">Markdown discussion list</a>.<a href="#fnref3" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
 <li id="fn4"><p>Note that if <code>--file-scope</code> is used, a div written this way will be given an identifier of the form <code>FILE__refs</code>, to avoid duplicate identifiers (see <code>--file-scope</code>). In view of this possibility, pandoc will place the bibliography in any div whose identifier is <code>refs</code> <em>or</em> ends with <code>__refs</code>.<a href="#fnref4" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
 </ol>
-</div>
+</div></body></html>

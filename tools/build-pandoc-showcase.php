@@ -18,7 +18,7 @@ if (($argv[1] ?? '') === '--convert-local') {
         fwrite(STDERR, "Usage: php tools/build-pandoc-showcase.php --convert-local <path> <from> <to>\n");
         exit(2);
     }
-    echo PandocConverter::convertFile($path, $format, $to);
+    echo PandocConverter::convertFile($path, $format, $to, showcase_converter_options($format, $to));
     exit(0);
 }
 
@@ -506,13 +506,13 @@ RIS;
         ],
         'pdf' => [
             [
-                'id' => 'pdf-irs-publication-17',
+                'id' => 'pdf-irs-w4',
                 'format' => 'pdf',
-                'label' => 'IRS Publication 17 PDF',
-                'description' => 'Real multi-page IRS tax publication with dense prose, headings, tables, forms-style layouts, links, and extraction stress.',
-                'url' => 'https://www.irs.gov/pub/irs-pdf/p17.pdf',
-                'source' => 'Internal Revenue Service Publication 17 PDF',
-                'filename' => 'irs-publication-17.pdf',
+                'label' => 'IRS Form W-4 PDF',
+                'description' => 'Real IRS fillable tax form with labels, headings, instructions, form-style layout, and bounded extraction runtime.',
+                'url' => 'https://www.irs.gov/pub/irs-pdf/fw4.pdf',
+                'source' => 'Internal Revenue Service Form W-4 PDF',
+                'filename' => 'irs-form-w4.pdf',
             ],
             [
                 'id' => 'pdf-tracemonkey',
@@ -600,6 +600,47 @@ function download_file(string $url, string $target): bool
 }
 
 /**
+ * @return array{readerOptions?: array<string, mixed>, writerOptions?: array<string, mixed>}
+ */
+function showcase_converter_options(string $from, string $to): array
+{
+    $readerOptions = [];
+    $writerOptions = [];
+    if (PandocConverter::canonicalInputFormat($from) === 'pdf') {
+        $readerOptions['maxTextBytes'] = 80000;
+        $readerOptions['pdfGeometryTables'] = false;
+    }
+    if (in_array(PandocConverter::canonicalOutputFormat($to), ['html', 'wordpress'], true)) {
+        $writerOptions['writerHTMLMathMethod'] = 'mathml';
+    }
+
+    return array_filter([
+        'readerOptions' => $readerOptions,
+        'writerOptions' => $writerOptions,
+    ]);
+}
+
+function wrap_local_html_document(string $body, string $title): string
+{
+    return '<!doctype html><html lang="en"><head><meta charset="utf-8">'
+        . '<meta name="viewport" content="width=device-width, initial-scale=1">'
+        . '<title>' . htmlspecialchars($title, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</title>'
+        . '<style>'
+        . 'html{line-height:1.5;font-family:Georgia,"Times New Roman",serif;font-size:18px;color:#1f2933;background:#fdfdfd;}'
+        . 'body{margin:0 auto;max-width:46em;padding:2.5em 1.25em;}'
+        . 'h1,h2,h3,h4,h5,h6{font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.25;margin:1.4em 0 .45em;}'
+        . 'h1{font-size:2em;}h2{font-size:1.55em;}h3{font-size:1.25em;}p{margin:1em 0;}'
+        . 'a{color:#1f6feb;}img,svg,video{max-width:100%;height:auto;}'
+        . 'pre,code,kbd,samp{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.9em;}'
+        . 'code{background:#eef1f5;padding:.1em .25em;border-radius:3px;}'
+        . 'pre{overflow:auto;background:#f6f8fa;border:1px solid #d8dde3;border-radius:6px;padding:1em;}pre code{background:transparent;padding:0;}'
+        . 'blockquote{margin:1.25em 0;padding-left:1em;border-left:4px solid #d8dde3;color:#4b5563;}'
+        . 'table{border-collapse:collapse;margin:1.25em 0;width:100%;font-size:.92em;}th,td{border:1px solid #d8dde3;padding:.35em .55em;vertical-align:top;}th{background:#f6f8fa;}'
+        . 'math{font-family:math,serif;}math[display="block"]{display:block;margin:1em 0;overflow-x:auto;}'
+        . '</style></head><body>' . $body . '</body></html>';
+}
+
+/**
  * @param list<string> $cmd
  * @return array{exitCode:int, stdout:string, stderr:string}
  */
@@ -658,9 +699,13 @@ function run_process(array $cmd, int $timeoutSeconds = 0): array
  */
 function write_output_from_process(string $dir, string $name, string $sourcePath, string $from, string $to): array
 {
-    $result = run_process([PHP_BINARY, __FILE__, '--convert-local', $sourcePath, $from, $to], 25);
+    $timeout = PandocConverter::canonicalInputFormat($from) === 'pdf' ? 75 : 25;
+    $result = run_process([PHP_BINARY, __FILE__, '--convert-local', $sourcePath, $from, $to], $timeout);
     if ($result['exitCode'] === 0) {
-        file_put_contents($dir . '/' . $name, $result['stdout']);
+        $stdout = $to === 'html'
+            ? wrap_local_html_document($result['stdout'], 'PHP Pandoc HTML output')
+            : $result['stdout'];
+        file_put_contents($dir . '/' . $name, $stdout);
 
         return ['ok' => true, 'path' => 'outputs/' . basename($dir) . '/' . $name];
     }
@@ -1060,7 +1105,7 @@ h1 {
 }
 .comparison {
   display: grid;
-  grid-template-columns: minmax(260px, 0.9fr) minmax(360px, 1.4fr);
+  grid-template-columns: 1fr;
   gap: 14px;
   margin-bottom: 18px;
   align-items: stretch;
@@ -1108,7 +1153,7 @@ h1 {
   padding: 18px;
   background: #fbfcfd;
 }
-.tabs {
+.converted-toolbar {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
@@ -1116,7 +1161,37 @@ h1 {
   padding: 10px;
   border-bottom: 1px solid var(--line);
 }
-.tab {
+.comparison-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0;
+}
+.conversion-pane {
+  min-width: 0;
+  border-right: 1px solid var(--line);
+  background: #fff;
+}
+.conversion-pane:last-child {
+  border-right: 0;
+}
+.pane-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 43px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+  background: #fbfcfd;
+}
+.pane-title {
+  font-weight: 700;
+  font-size: 13px;
+}
+.pane-status {
+  font-size: 12px;
+}
+.view-source {
   appearance: none;
   border: 1px solid var(--line);
   background: #fff;
@@ -1127,34 +1202,22 @@ h1 {
   cursor: pointer;
   font: inherit;
   font-size: 13px;
-}
-.tab[aria-selected="true"] {
-  background: var(--accent);
-  color: var(--accent-ink);
-  border-color: var(--accent);
-}
-.view-source {
   margin-left: auto;
 }
 .status-ok { color: var(--ok); }
 .status-fail { color: var(--bad); }
 .status-warn { color: var(--warn); }
-.tab-panel {
-  display: none;
-}
-.tab-panel.active {
-  display: block;
-}
 .render-frame {
   width: 100%;
-  height: 430px;
+  height: 520px;
   border: 0;
   background: #fff;
+  display: block;
 }
 .error-box,
 .source-box {
   margin: 0;
-  height: 430px;
+  height: 520px;
   overflow: auto;
   padding: 14px;
   background: #111827;
@@ -1181,8 +1244,15 @@ h1 {
   font-size: 13px;
 }
 @media (max-width: 860px) {
-  .comparison {
+  .comparison-grid {
     grid-template-columns: 1fr;
+  }
+  .conversion-pane {
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .conversion-pane:last-child {
+    border-bottom: 0;
   }
   h1 {
     font-size: 38px;
@@ -1195,19 +1265,6 @@ CSS;
 
 $js = <<<'JS'
 document.addEventListener('click', (event) => {
-  const tab = event.target.closest('[data-tab-target]');
-  if (tab) {
-    const box = tab.closest('.converted');
-    const target = tab.getAttribute('data-tab-target');
-    box.querySelectorAll('[data-tab-target]').forEach((button) => {
-      button.setAttribute('aria-selected', button === tab ? 'true' : 'false');
-    });
-    box.querySelectorAll('.tab-panel').forEach((panel) => {
-      panel.classList.toggle('active', panel.id === target);
-    });
-    box.classList.remove('source-mode');
-  }
-
   const source = event.target.closest('[data-source-toggle]');
   if (source) {
     const box = source.closest('.converted');
@@ -1215,6 +1272,77 @@ document.addEventListener('click', (event) => {
     source.textContent = enabled ? 'Rendered view' : 'View source';
   }
 });
+
+const syncGroups = new Map();
+let syncing = false;
+
+function scrollState(scroller) {
+  const maxTop = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
+  const maxLeft = Math.max(0, scroller.scrollWidth - scroller.clientWidth);
+
+  return {
+    top: maxTop === 0 ? 0 : scroller.scrollTop / maxTop,
+    left: maxLeft === 0 ? 0 : scroller.scrollLeft / maxLeft,
+  };
+}
+
+function applyScrollState(scroller, state) {
+  const maxTop = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
+  const maxLeft = Math.max(0, scroller.scrollWidth - scroller.clientWidth);
+  scroller.scrollTop = Math.round(maxTop * state.top);
+  scroller.scrollLeft = Math.round(maxLeft * state.left);
+}
+
+function wireScroller(group, scroller) {
+  if (!scroller || scroller.dataset.syncWired === 'true') {
+    return;
+  }
+  scroller.dataset.syncWired = 'true';
+  if (!syncGroups.has(group)) {
+    syncGroups.set(group, new Set());
+  }
+  syncGroups.get(group).add(scroller);
+  scroller.addEventListener('scroll', () => {
+    if (syncing) {
+      return;
+    }
+    syncing = true;
+    const state = scrollState(scroller);
+    for (const peer of syncGroups.get(group) || []) {
+      if (peer !== scroller) {
+        applyScrollState(peer, state);
+      }
+    }
+    window.requestAnimationFrame(() => {
+      syncing = false;
+    });
+  }, { passive: true });
+}
+
+function iframeScroller(frame) {
+  try {
+    const doc = frame.contentDocument;
+    return doc ? (doc.scrollingElement || doc.documentElement || doc.body) : null;
+  } catch (error) {
+    return null;
+  }
+}
+
+function wireSyncPane(pane) {
+  const group = pane.getAttribute('data-sync-group');
+  if (!group) {
+    return;
+  }
+  if (pane.tagName === 'IFRAME') {
+    const attach = () => wireScroller(group, iframeScroller(pane));
+    pane.addEventListener('load', attach);
+    attach();
+    return;
+  }
+  wireScroller(group, pane);
+}
+
+document.querySelectorAll('[data-sync-group]').forEach(wireSyncPane);
 JS;
 
 file_put_contents($siteDir . '/styles.css', $css);
@@ -1251,7 +1379,7 @@ foreach ([
     'epub-gutenberg-alice-illustrated' => 'Illustrated Alice EPUB',
     'markdown-pandoc-manual' => 'Pandoc manual Markdown',
     'odt-oasis-opendocument-schema' => 'OASIS OpenDocument ODT',
-    'pdf-irs-publication-17' => 'IRS Publication 17 PDF',
+    'pdf-irs-w4' => 'IRS Form W-4 PDF',
     'pptx-cdc-food-safety-slides' => 'CDC PPTX',
     'xlsx-census-tax-parameter-workbook' => 'Census XLSX',
 ] as $id => $label) {
@@ -1285,41 +1413,37 @@ foreach ($byFormat as $format => $formatRecords) {
             $html .= '<p class="meta">' . h($record['description']) . '</p>';
         }
         $html .= '</div></section>';
-        $html .= '<section class="converted" data-sample="' . h($record['id']) . '"><div class="tabs" role="tablist">';
+        $html .= '<section class="converted" data-sample="' . h($record['id']) . '">';
+        $html .= '<div class="converted-toolbar"><span class="meta">Converted representations</span><button class="view-source" type="button" data-source-toggle>View source</button></div>';
+        $html .= '<div class="comparison-grid">';
         $tabs = [
             'wpBlocks' => ['label' => 'PHP WordPress blocks', 'short' => 'WP blocks'],
             'phpHtml' => ['label' => 'PHP HTML', 'short' => 'PHP HTML'],
             'haskell' => ['label' => 'Haskell Pandoc HTML', 'short' => 'Haskell HTML'],
         ];
-        $first = true;
-        foreach ($tabs as $key => $tabInfo) {
-            $state = ($record[$key]['ok'] ?? false) ? 'status-ok' : 'status-fail';
-            $html .= '<button class="tab ' . $state . '" type="button" role="tab" aria-selected="' . ($first ? 'true' : 'false') . '" data-tab-target="' . h($record['id'] . '-' . $key) . '">' . h($tabInfo['short']) . '</button>';
-            $first = false;
-        }
-        $html .= '<button class="tab view-source" type="button" data-source-toggle>View source</button></div>';
-        $first = true;
         foreach ($tabs as $key => $tabInfo) {
             $panelId = $record['id'] . '-' . $key;
             $result = $record[$key];
-            $html .= '<div class="tab-panel' . ($first ? ' active' : '') . '" id="' . h($panelId) . '" role="tabpanel">';
+            $ok = ($result['ok'] ?? false) === true;
+            $state = $ok ? 'status-ok' : 'status-fail';
+            $html .= '<section class="conversion-pane" id="' . h($panelId) . '">';
+            $html .= '<div class="pane-head"><span class="pane-title">' . h($tabInfo['short']) . '</span><span class="pane-status ' . $state . '">' . ($ok ? 'ok' : 'failed') . '</span></div>';
             if (($result['ok'] ?? false) === true) {
                 $path = (string) $result['path'];
                 $source = file_get_contents($siteDir . '/' . $path);
-                $html .= '<iframe class="render-frame" title="' . h($record['label'] . ' ' . $tabInfo['label']) . '" src="' . h($path) . '"></iframe>';
-                $html .= '<pre class="source-box">' . h(is_string($source) ? $source : '') . '</pre>';
+                $html .= '<iframe class="render-frame" data-sync-group="' . h($record['id']) . '" title="' . h($record['label'] . ' ' . $tabInfo['label']) . '" src="' . h($path) . '"></iframe>';
+                $html .= '<pre class="source-box" data-sync-group="' . h($record['id']) . '">' . h(is_string($source) ? $source : '') . '</pre>';
             } else {
                 $error = (string) ($result['error'] ?? 'Conversion failed.');
                 $errorPath = isset($result['path']) ? $siteDir . '/' . $result['path'] : '';
                 $source = is_file($errorPath) ? file_get_contents($errorPath) : $error;
-                $html .= '<pre class="error-box">' . h($error) . '</pre>';
-                $html .= '<pre class="source-box">' . h(is_string($source) ? $source : $error) . '</pre>';
+                $html .= '<pre class="error-box" data-sync-group="' . h($record['id']) . '">' . h($error) . '</pre>';
+                $html .= '<pre class="source-box" data-sync-group="' . h($record['id']) . '">' . h(is_string($source) ? $source : $error) . '</pre>';
             }
-            $html .= '</div>';
-            $first = false;
+            $html .= '</section>';
         }
         $notes = is_array($record['support']) ? (string) ($record['support']['notes'] ?? '') : '';
-        $html .= '<div class="note">' . h($notes) . '</div></section>';
+        $html .= '</div><div class="note">' . h($notes) . '</div></section>';
         $html .= '</article>';
     }
     $html .= '</section>';

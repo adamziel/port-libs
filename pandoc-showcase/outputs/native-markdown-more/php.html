@@ -1,4 +1,4 @@
-<h1 id="additional-markdown-reader-tests">Additional markdown reader tests</h1>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>PHP Pandoc HTML output</title><style>html{line-height:1.5;font-family:Georgia,"Times New Roman",serif;font-size:18px;color:#1f2933;background:#fdfdfd;}body{margin:0 auto;max-width:46em;padding:2.5em 1.25em;}h1,h2,h3,h4,h5,h6{font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.25;margin:1.4em 0 .45em;}h1{font-size:2em;}h2{font-size:1.55em;}h3{font-size:1.25em;}p{margin:1em 0;}a{color:#1f6feb;}img,svg,video{max-width:100%;height:auto;}pre,code,kbd,samp{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.9em;}code{background:#eef1f5;padding:.1em .25em;border-radius:3px;}pre{overflow:auto;background:#f6f8fa;border:1px solid #d8dde3;border-radius:6px;padding:1em;}pre code{background:transparent;padding:0;}blockquote{margin:1.25em 0;padding-left:1em;border-left:4px solid #d8dde3;color:#4b5563;}table{border-collapse:collapse;margin:1.25em 0;width:100%;font-size:.92em;}th,td{border:1px solid #d8dde3;padding:.35em .55em;vertical-align:top;}th{background:#f6f8fa;}math{font-family:math,serif;}math[display="block"]{display:block;margin:1em 0;overflow-x:auto;}</style></head><body><h1 id="additional-markdown-reader-tests">Additional markdown reader tests</h1>
 <h2 id="blank-line-before-url-in-link-reference">Blank line before URL in link reference</h2>
 <p><a href="/url">foo</a> and <a href="/url" title="title">bar</a></p>
 <h2 id="raw-context-environments">Raw ConTeXt environments</h2>
@@ -15,8 +15,8 @@
 <p><a></a></p>
 <h3 id="my-header">my header</h3>
 <h2 id="in-math">$ in math</h2>
-<p><span class="math inline">\(\$2 + \$3\)</span></p>
-<p><span class="math inline">\(x = \text{the $n$th root of $y$}\)</span></p>
+<p><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><semantics><mrow><mo>$</mo><mn>2</mn><mo>+</mo><mo>$</mo><mn>3</mn></mrow><annotation encoding="application/x-tex">\$2 + \$3</annotation></semantics></math></p>
+<p><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><semantics><mrow><mi>x</mi><mo>=</mo><mrow><mtext>the </mtext><mi>n</mi><mtext>th root of </mtext><mi>y</mi></mrow></mrow><annotation encoding="application/x-tex">x = \text{the $n$th root of $y$}</annotation></semantics></math></p>
 <p>This should not be math:</p>
 <p>$PATH 90 $PATH</p>
 <h2 id="commented-out-list-item">Commented-out list item</h2>
@@ -64,7 +64,7 @@ there</p>
 <li>Third example.</li>
 </ol>
 <h2 id="macros">Macros</h2>
-<p><span class="math inline">\(\langle x,y \rangle\)</span></p>
+<p><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><semantics><mrow><mo>⟨</mo><mi>x</mi><mo>,</mo><mi>y</mi><mo>⟩</mo></mrow><annotation encoding="application/x-tex">\langle x,y \rangle</annotation></semantics></math></p>
 <h2 id="case-insensitive-references">Case-insensitive references</h2>
 <p><a href="/fum">Fum</a></p>
 <p><a href="/fum">FUM</a></p>
@@ -233,4 +233,4 @@ there</p>
 <li>blah blah blah blah blah blah blah blah blah blah blah blah blah blah 2015.</li>
 </ul>
 <h2 id="bracketed-spans">Bracketed spans</h2>
-<p><span id="id" class="class" key="val"><em>foo</em> bar baz <a href="url">link</a></span></p>
+<p><span id="id" class="class" key="val"><em>foo</em> bar baz <a href="url">link</a></span></p></body></html>

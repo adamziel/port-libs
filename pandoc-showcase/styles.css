@@ -181,7 +181,7 @@ h1 {
 }
 .comparison {
   display: grid;
-  grid-template-columns: minmax(260px, 0.9fr) minmax(360px, 1.4fr);
+  grid-template-columns: 1fr;
   gap: 14px;
   margin-bottom: 18px;
   align-items: stretch;
@@ -229,7 +229,7 @@ h1 {
   padding: 18px;
   background: #fbfcfd;
 }
-.tabs {
+.converted-toolbar {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
@@ -237,7 +237,37 @@ h1 {
   padding: 10px;
   border-bottom: 1px solid var(--line);
 }
-.tab {
+.comparison-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0;
+}
+.conversion-pane {
+  min-width: 0;
+  border-right: 1px solid var(--line);
+  background: #fff;
+}
+.conversion-pane:last-child {
+  border-right: 0;
+}
+.pane-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 43px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+  background: #fbfcfd;
+}
+.pane-title {
+  font-weight: 700;
+  font-size: 13px;
+}
+.pane-status {
+  font-size: 12px;
+}
+.view-source {
   appearance: none;
   border: 1px solid var(--line);
   background: #fff;
@@ -248,34 +278,22 @@ h1 {
   cursor: pointer;
   font: inherit;
   font-size: 13px;
-}
-.tab[aria-selected="true"] {
-  background: var(--accent);
-  color: var(--accent-ink);
-  border-color: var(--accent);
-}
-.view-source {
   margin-left: auto;
 }
 .status-ok { color: var(--ok); }
 .status-fail { color: var(--bad); }
 .status-warn { color: var(--warn); }
-.tab-panel {
-  display: none;
-}
-.tab-panel.active {
-  display: block;
-}
 .render-frame {
   width: 100%;
-  height: 430px;
+  height: 520px;
   border: 0;
   background: #fff;
+  display: block;
 }
 .error-box,
 .source-box {
   margin: 0;
-  height: 430px;
+  height: 520px;
   overflow: auto;
   padding: 14px;
   background: #111827;
@@ -302,8 +320,15 @@ h1 {
   font-size: 13px;
 }
 @media (max-width: 860px) {
-  .comparison {
+  .comparison-grid {
     grid-template-columns: 1fr;
+  }
+  .conversion-pane {
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .conversion-pane:last-child {
+    border-bottom: 0;
   }
   h1 {
     font-size: 38px;
