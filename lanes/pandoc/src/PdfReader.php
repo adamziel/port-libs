@@ -78,7 +78,7 @@ final class PdfReader
             }
         }
         $repairedLines = $taggedBlocks === [] && $geometryTableBlocks === [] && $proseRepairEnabled
-            ? ($this->looksLikeProseRepairCandidate($repairSourceLines) ? $this->repairProseTextLines($repairSourceLines) : $repairSourceLines)
+            ? $this->repairProseTextLines($repairSourceLines, $this->looksLikeProseRepairCandidate($repairSourceLines))
             : $limitedLines;
         $blocks = $taggedBlocks !== [] ? $taggedBlocks : ($geometryTableBlocks !== [] ? $geometryTableBlocks : $this->blocksFromLines($repairedLines));
         $blocks = $appliedLinkAnnotations === [] ? $blocks : $this->applyLinkAnnotationsToBlocks($blocks, $appliedLinkAnnotations);
@@ -689,7 +689,7 @@ final class PdfReader
      * @param list<string> $lines
      * @return list<string>
      */
-    private function repairProseTextLines(array $lines): array
+    private function repairProseTextLines(array $lines, bool $repairGluedText = true): array
     {
         $cleaned = [];
         foreach ($lines as $line) {
@@ -702,7 +702,7 @@ final class PdfReader
         $merged = $this->mergeRepairedProseLines($cleaned);
         $repaired = [];
         foreach ($merged as $line) {
-            $line = $this->repairGluedProseLine($line);
+            $line = $repairGluedText ? $this->repairGluedProseLine($line) : trim($line);
             if ($line !== '') {
                 $repaired[] = $line;
             }
@@ -1022,10 +1022,10 @@ final class PdfReader
         if ($this->lineHasPdfListBlockEvidence($line)) {
             return true;
         }
-        if ($this->looksLikeRepairedPdfTitle($this->repairGluedProseLine($previous))) {
+        if ($this->repairedLineLooksLikeSectionLabel($previous) || $this->repairedLineLooksLikeSectionLabel($line)) {
             return true;
         }
-        if (preg_match('/^(ABSTRACT|Categories and Subject Descriptors|General Terms|Keywords|Permission to make|Copyright)/i', $line) === 1) {
+        if ($this->looksLikeRepairedPdfTitle($this->repairGluedProseLine($previous))) {
             return true;
         }
 
@@ -1038,6 +1038,11 @@ final class PdfReader
         }
 
         return false;
+    }
+
+    private function repairedLineLooksLikeSectionLabel(string $line): bool
+    {
+        return preg_match('/^(ABSTRACT|Categories and Subject Descriptors|General Terms|Keywords|Permission to make|Copyright)\b/i', trim($line)) === 1;
     }
 
     private function looksLikeRepairedPdfTitle(string $line): bool

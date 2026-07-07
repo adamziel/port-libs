@@ -5273,6 +5273,39 @@ return [
         $t->true(!str_contains($text, 'market projecti ons'));
         $t->true(!str_contains($text, 'paper argu es'));
     },
+    'merges clean wrapped pdf prose lines without requiring glued-word damage' => static function (TestRunner $t) use ($pdfWithContent): void {
+        $pdf = $pdfWithContent(
+            'BT /F1 12 Tf '
+            . '1 0 0 1 72 748 Tm (Abstract) Tj '
+            . '1 0 0 1 72 732 Tm (This paper examines how pharmaceutical Artificial Intelligence \\(AI\\) advancements) Tj '
+            . '1 0 0 1 72 716 Tm (may affect the development of new drugs in the coming years. The question was) Tj '
+            . '1 0 0 1 72 700 Tm (answered by reviewing a rich body of source material, including industry literature,) Tj '
+            . '1 0 0 1 72 684 Tm (research journals, AI studies, market reports, market projections, discussion papers,) Tj '
+            . '1 0 0 1 72 668 Tm (press releases, and organizations’ websites. The paper argues that continued) Tj '
+            . '1 0 0 1 72 652 Tm (innovation in pharmaceutical AI will enable rapid development of safe and effective) Tj '
+            . '1 0 0 1 72 636 Tm (therapies for previously untreatable diseases.) Tj '
+            . 'ET'
+        );
+
+        $document = (new PdfReader([
+            'pdfGeometryTables' => false,
+            'pdfRepairProseText' => true,
+        ]))->read($pdf);
+        $html = PandocConverter::write($document, 'html');
+        $text = preg_replace('/\s+/', ' ', html_entity_decode(strip_tags($html), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')) ?? '';
+        $meta = $document->attr('meta');
+
+        $t->same(true, $meta['pdfTextRepair']);
+        $t->same('heading', $document->children[0]->type);
+        $t->same('Abstract', $document->children[0]->attr('text'));
+        $t->same('paragraph', $document->children[1]->type);
+        $t->same(2, count($document->children));
+        $t->contains('This paper examines how pharmaceutical Artificial Intelligence (AI) advancements may affect the development of new drugs in the coming years.', $text);
+        $t->contains('answered by reviewing a rich body of source material, including industry literature, research journals, AI studies, market reports, market projections, discussion papers, press releases, and organizations’ websites.', $text);
+        $t->true(!str_contains($html, '</p><p>may affect'));
+        $t->true(!str_contains($html, '</p><p>answered by'));
+        $t->true(!str_contains($html, '</p><p>research journals'));
+    },
     'preserves positioned pdf tables embedded between surrounding text' => static function (TestRunner $t) use ($pdfWithContent): void {
         $pdf = $pdfWithContent(
             'BT /F1 12 Tf '

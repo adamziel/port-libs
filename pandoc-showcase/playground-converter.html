@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Import any document into WordPress</title>
   <link rel="stylesheet" href="styles.css">
-  <link rel="stylesheet" href="playground-converter.css?v=page-drop-20260707">
+  <link rel="stylesheet" href="playground-converter.css?v=pdf-prose-upload-20260707">
 </head>
 <body>
   <main class="playground-tool">
@@ -60,13 +60,15 @@
       </div>
 
       <form id="converter-form" class="upload-form">
-        <label id="dropzone" class="file-button" for="file-input">
-          <span>Choose file</span>
-          <input id="file-input" name="file" type="file">
-        </label>
-        <div class="selected-file">
-          <span>Drop a file anywhere to convert</span>
-          <strong id="file-name">No file selected</strong>
+        <div class="upload-primary">
+          <label id="dropzone" class="file-button" for="file-input">
+            <span>Choose a document</span>
+            <input id="file-input" name="file" type="file">
+          </label>
+          <div class="selected-file">
+            <span>or drop a file anywhere to convert</span>
+            <strong id="file-name">No file selected</strong>
+          </div>
         </div>
 
         <div class="field-grid">
@@ -150,6 +152,6 @@
     <strong>Drop to import into WordPress</strong>
   </div>
 
-  <script type="module" src="playground-converter.js?v=page-drop-20260707"></script>
+  <script type="module" src="playground-converter.js?v=pdf-prose-upload-20260707"></script>
 </body>
 </html>
