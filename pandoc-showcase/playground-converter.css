@@ -259,6 +259,7 @@ body {
   top: 24px;
   min-height: calc(100vh - 48px);
   background: #121820;
+  isolation: isolate;
 }
 
 .playground-empty {
@@ -294,14 +295,49 @@ body {
   background: #fff;
 }
 
+.playground-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: none;
+  place-content: center;
+  gap: 10px;
+  padding: 32px;
+  background:
+    linear-gradient(135deg, rgba(215, 166, 66, 0.12), transparent 46%),
+    rgba(18, 24, 32, 0.94);
+  color: #fffdf8;
+  text-align: center;
+}
+
+.playground-overlay span {
+  color: #d7a642;
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.playground-overlay strong {
+  max-width: 12ch;
+  font-size: clamp(42px, 6vw, 84px);
+  line-height: 0.92;
+  letter-spacing: 0;
+}
+
 .playground-panel[data-state="loading"] .playground-empty,
+.playground-panel[data-state="converting"] .playground-empty,
 .playground-panel[data-state="ready"] .playground-empty {
   display: none;
 }
 
 .playground-panel[data-state="loading"] iframe,
+.playground-panel[data-state="converting"] iframe,
 .playground-panel[data-state="ready"] iframe {
   display: block;
+}
+
+.playground-panel[data-state="converting"] .playground-overlay {
+  display: grid;
 }
 
 @media (max-width: 1080px) {
