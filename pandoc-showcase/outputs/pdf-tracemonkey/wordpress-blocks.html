@@ -10,164 +10,100 @@
 <p>Compilers for statically typed languages rely on type information to generate efficient machine code. In a dynamically typed programming language such as JavaScript, the types of expressions may vary at runtime. This means that the compiler can no longer easily transform operations into machine instructions that operate on one specific type. Without exact type information, the compiler must emit slower generalized machine code that can deal with all potential type combinations. While compile-time static type inference might be able to gather type information to generate optimized machine code, traditional static analysis is very expensive and hence not well suited for the highly interactive environment of a web browser.</p>
 <!-- /wp:paragraph -->
 
-<!-- wp:heading {"level":2} -->
-<h2>We present a trace-based compilation technique for dynamic</h2>
-<!-- /wp:heading -->
-
 <!-- wp:paragraph -->
-<p>languages that reconciles speed of compilation with excellent performance of the generated machine code. Our system uses a mixed mode execution approach: the system starts running JavaScript ina fast-starting bytecode interpreter. As the program runs, the system (frequently executed)bytecode sequences, records them, and compiles them to fast native code. Wecallsuchase- Unlike method-based dynamic compilers, our dynamic compile roper ates at the granularity of individual loops. This design choice is based on the expectation that programs spend most of their time in hot loops. Even in dynamically typed languages, we , meaning that the types of values are invariant.(12)For example, we would expect loop counters that start as integers to remain integers for all iterations. When both of these expectations hold, atrace-based compiler can cover the program execution with a small number of type-specialized, efficiently compiled traces.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
-<h2>Each compiled trace covers one path through the program with</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
-<p>one mapping of values to types. Whenthe VM executes a compiled trace, it cannot guarantee that the same path will be followed or that the same types will occur in subsequent loop iterations. that the path and typing will be exactly as they were during recording for subsequent iterations of the loop. (checks)required to validate the speculation. If one of the guards fails(if control flow is different, or a value of a different type is generated), the branch starting at the exit to cover the new path. In this way, the VM covering all the hot paths through the loop.</p>
+<p>We present a trace-based compilation technique for dynamic languages that reconciles speed of compilation with excellent performance of the generated machine code. Our system uses a mixed mode execution approach: the system starts running JavaScript in a fast-starting bytecode interpreter. As the program runs, the system (frequently executed)bytecode sequences, records them, and compiles them to fast native code. We call such a sequence a trace. Unlike method-based dynamic compilers, our dynamic compiler operates at the granularity of individual loops. This design choice is based on the expectation that programs spend most of their time in hot loops. Even in dynamically typed languages, we , meaning that the types of values are invariant.(12)For example, we would expect loop counters that start as integers to remain integers for all iterations. When both of these expectations hold, a trace-based compiler can cover the program execution with a small number of type-specialized, efficiently compiled traces.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p>Nested loops can be difficult to optimize for tracing VMs. In ana ¨ ıveimplementation, inner loops would become hot first, and the VM would start tracing there. When the inner loop exits, the VM would detect that a different branch was taken. The VMwould try to record a branch trace, and find that the trace reaches not the inner loop header, but the outer loop header. At this point, the VM could continue tracing until it reaches the inner loop header again, thus tracing the outer loop in side a trace tree for the inner loop.</p>
+<p>Each compiled trace covers one path through the program with one mapping of values to types. When the VM executes a compiled trace, it cannot guarantee that the same path will be followed or that the same types will occur in subsequent loop iterations. that the path and typing will be exactly as they were during recording for subsequent iterations of the loop. (checks)required to validate the speculation. If one of the guards fails(if control flow is different, or a value of a different type is generated), the branch starting at the exit to cover the new path. In this way, the VM covering all the hot paths through the loop.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p>But this requires tracing a copy of the outer loop for every side exit and type combination in the inner loop. In essence, this is a form of unintended tail duplication, which can easily overflow the code cache. Alternatively, the VM could simply stop tracing, andgiveup on ever tracing outer loops. nested trace . Our system traces the inner loop exactly as then a ¨ ıveversion.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
-<h2>The systems tops extending the inner tree when it reaches an outer</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
-<p>loop, but then it starts a new trace at the outer loop header. When the outer loop reaches the inner loop header, the system tries to call the trace tree for the inner loop. If the call succeeds, the VM records the call to the inner tree a spart of the outer trace and finishes the outer trace as normal. In this way, oursystemcantraceany numberofloopsnestedtoanydepthwithoutcausingexcessivetail duplication.</p>
+<p>Nested loops can be difficult to optimize for tracing VMs. In a naive implementation, inner loops would become hot first, and the VM would start tracing there. When the inner loop exits, the VM would detect that a different branch was taken. The VM would try to record a branch trace, and find that the trace reaches not the inner loop header, but the outer loop header. At this point, the VM could continue tracing until it reaches the inner loop header again, thus tracing the outer loop inside a trace tree for the inner loop.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p>These technique sallow a VM to dynamically translate a program to nested, type-specialized trace trees. Because traces can cross function call bound aries, our techniques also achieve the effects of inlining. Because traces have no internal control-flowjoins, they can be optimized in linear time by a simple compiler(10).</p>
+<p>But this requires tracing a copy of the outer loop for every side exit and type combination in the inner loop. In essence, this is a form of unintended tail duplication, which can easily overflow the code cache. Alternatively, the VM could simply stop tracing, and give up on ever tracing outer loops. nested trace . Our system traces the inner loop exactly as the naive version.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>The system stops extending the inner tree when it reaches an outer loop, but then it starts a new trace at the outer loop header. When the outer loop reaches the inner loop header, the system tries to call the trace tree for the inner loop. If the call succeeds, the VM records the call to the inner tree as part of the outer trace and finishes the outer trace as normal. In this way, our system can trace any number of loops nested to any depth without causing excessive tail duplication.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>These techniques allow a VM to dynamically translate a program to nested, type-specialized trace trees. Because traces can cross function call boundaries, our techniques also achieve the effects of inlining. Because traces have no internal control-flow joins, they can be optimized in linear time by a simple compiler(10).</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
 <p>Thus, our tracing VM efficiently performs the same kind of optimizations that would require inter procedural analysis in a static optimization setting. This makes tracing an attractive and effective tool to type specialize even complex function call-rich code.</p>
 <!-- /wp:paragraph -->
 
-<!-- wp:heading {"level":2} -->
-<h2>We implemented these techniques for an existing JavaScript in-</h2>
-<!-- /wp:heading -->
-
 <!-- wp:paragraph -->
-<p>Trace- . TraceMonkey supports all the JavaScript features of SpiderMonkey, witha2x-20xspeedupfortraceableprograms.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
-<h2>We explain an algorithm for dynamically forming trace trees to</h2>
-<!-- /wp:heading -->
-
-<!-- wp:heading {"level":2} -->
-<h2>We explain how to speculatively generate efficient type-specialized</h2>
-<!-- /wp:heading -->
-
-<!-- wp:heading {"level":2} -->
-<h2>We validate our tracing techniques in an implementation based</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
-<p>onthe SpiderMonkey JavaScript interpreter, achieving2x-20x speedups on many programs.</p>
+<p>We implemented these techniques for an existing JavaScript engine. TraceMonkey supports all the JavaScript features of SpiderMonkey, with a 2x-20x speedup for traceable programs.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p>The remainder of this paper is organized as follows. Section3is ageneraloverviewoftracetreebasedcompilationweusetocaptureandcompilefrequentlyexecutedcoderegions. In Section4 wedescribeourapproachofcoveringnestedloopsusinganumberofindividualtracetrees. In Section5wedescribeourtracecompilationbasedspeculativetypespecializationapproachweuse to generate efficient machine code from recorded bytecode traces.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
-<h2>Our implementation of a dynamic type-specializingcompilerfor</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
-<p>JavaScript is described in Section6.Relatedworkisdiscussedin 1for(vari=2; i&lt;100;++i){ 2if(! primes[i]) 3continue; 4for(vark=i+i; i&lt;100; k+=i) 5primes[k]=false; 6} is values on entry to this code snippet.</p>
+<p>We explain an algorithm for dynamically forming trace trees to We explain how to speculatively generate efficient type-specialized We validate our tracing techniques in an implementation based on the SpiderMonkey JavaScript interpreter, achieving 2x-20x speedups on many programs.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p>Statemachinedescribingthemajoractivitiesof Trace- Monkeyandtheconditionsthatcausetransitionstoanewactivity. Inthedarkbox, TMexecutes JSascompiledtraces. Inthe lightgrayboxes, TMexecutes JSinthestandardinterpreter. White boxesareoverhead. Thus, to maximize performance, we need to maximizetimespentinthedarkestboxandminimizetimespentin thewhiteboxes. The best case is a loop where the types at the loop edge are the same as the types on entry–then TMcanstayinnative code until the loop is done. asetofindustrybenchmarks. Thepaperendswithconclusionsin Thissectionprovidesanoverviewofoursystembydescribing how TraceMonkey executes an example program. The example program, shownin Figure1, computesthefirst100primenumbers with nested loops. The narrative should be read along with Figure2, which describes the activities TraceMonkey performs and when it transitions between the loops.</p>
+<p>The remainder of this paper is organized as follows. Section 3 is a general overview of trace tree based compilation we use to capture and compile frequently executed code regions. In Section 4 we describe our approach of covering nested loops using a number of individual trace trees. In Section 5 we describe our trace compilation based speculative type specialization approach we use to generate efficient machine code from recorded bytecode traces.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p>TraceMonkey alwaysbeginsexecutingaprograminthebytecodeinterpreter. Every loop back edge is a potential trace point.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
-<h2>When the interpreter crosse saloop edge, TraceMonkey invokes</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
-<p>, which may decide to record or execute a native trace. At the start of execution, therearenocompiledtracesyet, so thetracemonitorcountsthenumberoftimeseachloopbackedgeis , currentlyafter2crossings. Note that the way our loops are compiled, the loop edge is crossed before entering the loop, sothesecondcrossingoccursimmediatelyafter the first iteration.</p>
+<p>Our implementation of a dynamic type-specializing compiler for JavaScript is described in Section 6. Related work is discussed in 1for(vari=2; i&lt;100;++i){ 2if(! primes[i]) 3continue; 4for(vark=i+i; i&lt;100; k+=i) 5primes[k]=false; 6} is values on entry to this code snippet.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p>Hereisthesequenceofeventsbrokendownbyouterloop iteration: v0:=ldstate[748]//load primes from the trace activation record stsp[0], v0//store primes to interpreter stack v1:=ldstate[764]//loadkfromthetraceactivationrecord v2:=i2f(v1)//convertkfrominttodouble stsp[8], v1//storektointerpreterstack stsp[16],0//store false to interpreter stack v3:=ldv0[4]//load class word for primes v4:=andv3,-4//mask out object class tag for primes v5:=eqv4, Array//test whether primes is an array xfv5//sideexitifv5isfalse v6:=js_Array_set(v0, v2, false)//callfunctiontosetarrayelement v7:=eqv6,0//test return value from call xtv7//sideexitifjs_Array_setreturnsfalse.</p>
+<p>State machine describing the major activities of TraceMonkey and the conditions that cause transition to a new activity. In the dark box, TM executes JS as compiled traces. In the light gray boxes, TM executes JS in the standard interpreter. White boxes are overhead. Thus, to maximize performance, we need to maximize time spent in the darkest box and minimize time spent in the white boxes. The best case is a loop where the types at the loop edge are the same as the types on entry–then TM can stay in native code until the loop is done. a set of industry benchmarks. The paper ends with conclusions in This section provides an overview of our system by describing how TraceMonkey executes an example program. The example program, shown in Figure 1, computes the first 100 prime numbers with nested loops. The narrative should be read along with Figure 2, which describes the activities TraceMonkey performs and when it transitions between the loops.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p>This is the LIRrecordedforline5ofthesampleprogramin Figure1.The LIRencodes the semantics in SSAformusingtemporaryvariables. The LIRalsoencodesallthestoresthattheinterpreterwoulddotoitsdatastack.</p>
+<p>TraceMonkey always begins executing a program in the bytecode interpreter. Every loop back edge is a potential trace point.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p>Sometimes these store scan be optimized a way as the stack location sare live only on exits to the interpreter. Finally, the LIR records guards movedx, ebx(748)//load primes from the trace activation record movedi(0), edx//(*)store primes to interpreter stack movesi, ebx(764)//loadkfromthetraceactivationrecord movedi(8), esi//(*)storektointerpreterstack movedi(16),0//(*)store false to interpreter stack moveax, edx(4)//(*)load object class word for primes andeax,-4//(*)mask out object class tag for primes cmpeax, Array//(*)test whether primes is an array jneside_exit_1//(*)side exit if primes is not an array subesp,8//bump stack for call alignment convention push false//push last argument for call pushesi//push first argument for call calljs_Array_set//callfunctiontosetarrayelement addesp,8//cleanup extra stack space movecx, ebx//(*)createdbyregisterallocator testeax, eax//(*)testreturnvalueofjs_Array_set jeside_exit_2//(*)sideexitifcallfailed side_exit_1: movecx, ebp(-4)//restoreecx movesp, ebp//restoreesp jmpepilog//jumptoretstatement Thisisthex86codecompiledfromthe LIR snippet in Figure3.Most LIR instructions compile wouldbeomittedbyanidealizedcompilerthatknewthatnoneofthesideexits would ever be taken. The17instructionsgeneratedbythecompilercomparefavorablywiththe100+instructions that the interpreter would This is the first iteration of the outer loop. The loop on lines4-5becomeshotonitsseconditeration, so TraceMonkey entersrecordingmodeonline4.In recording mode, TraceMonkey records the code along the trace in a low-levelcompilerintermedi- . The LIRtraceencodesalltheoperationsperformedandthetypesofalloperands. The LIR trace also , whicharechecksthatverifythatthecontrolflow andtypesareidenticaltothoseobservedduringtracerecording.</p>
+<p>When the interpreter crosses a loop edge, TraceMonkey invokes , which may decide to record or execute a native trace. At the start of execution, there are no compiled traces yet, so the trace monitor counts the number of times each loop back edge is , currently after 2 crossings. Note that the way our loops are compiled, the loop edge is crossed before entering the loop, so the second crossing occurs immediately after the first iteration.</p>
 <!-- /wp:paragraph -->
 
-<!-- wp:heading {"level":2} -->
-<h2>Thus, onlaterexecutions, ifandonlyifallguardsarepassed, the</h2>
-<!-- /wp:heading -->
+<!-- wp:paragraph -->
+<p>Here is the sequence of events broken down by outer loop iteration: v0:=ldstate[748]//load primes from the trace activation record stsp[0], v0//store primes to interpreter stack v1:=ldstate[764]//loadkfromthetraceactivationrecord v2:=i2f(v1)//convertkfrominttodouble stsp[8], v1//storektointerpreterstack stsp[16],0//store false to interpreter stack v3:=ldv0[4]//load class word for primes v4:=andv3,-4//mask out object class tag for primes v5:=eqv4, Array//test whether primes is an array xfv5//sideexitifv5isfalse v6:=js_Array_set(v0, v2, false)//callfunctiontosetarrayelement v7:=eqv6,0//test return value from call xtv7//sideexitifjs_Array_setreturnsfalse.</p>
+<!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p>tracehastherequiredprogramsemantics.</p>
+<p>This is the LIRrecordedforline5ofthesampleprogramin Figure 1.The LIRencodes the semantics in SSAformusingtemporaryvariables. The LIRalsoencodesallthestoresthattheinterpreterwoulddotoitsdatastack.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>Sometimes these stores can be optimized away as the stack locations are live only on exits to the interpreter. Finally, the LIR records guards movedx, ebx(748)//load primes from the trace activation record movedi(0), edx//(*)store primes to interpreter stack movesi, ebx(764)//loadkfromthetraceactivationrecord movedi(8), esi//(*)storektointerpreterstack movedi(16),0//(*)store false to interpreter stack moveax, edx(4)//(*)load object class word for primes andeax,-4//(*)mask out object class tag for primes cmpeax, Array//(*)test whether primes is an array jneside_exit_1//(*)side exit if primes is not an array subesp,8//bump stack for call alignment convention push false//push last argument for call pushesi//push first argument for call calljs_Array_set//callfunctiontosetarrayelement addesp,8//cleanup extra stack space movecx, ebx//(*)createdbyregisterallocator testeax, eax//(*)testreturnvalueofjs_Array_set jeside_exit_2//(*)sideexitifcallfailed side_exit_1: movecx, ebp(-4)//restoreecx movesp, ebp//restoreesp jmpepilog//jumptoretstatement Thisisthex86codecompiledfromthe LIR snippet in Figure 3.Most LIR instructions compile wouldbeomittedbyanidealizedcompilerthatknewthatnoneofthesideexits would ever be taken. The17instructionsgeneratedbythecompilercomparefavorablywiththe100+instructions that the interpreter would This is the first iteration of the outer loop. The loop on lines4-5becomeshotonitsseconditeration, so TraceMonkey entersrecordingmodeonline4.In recording mode, TraceMonkey records the code along the trace in a low-levelcompilerintermedi- . The LIRtraceencodesalltheoperationsperformedandthetypesofalloperands. The LIR trace also , whicharechecksthatverifythatthecontrolflow and types are identical to those observed during trace recording.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>Thus, onlaterexecutions, if and only if all guards are passed, the tracehastherequiredprogramsemantics.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
 <p>TraceMonkey stopsrecordingwhenexecutionreturnstothe loop header or exits the loop. In this case, executionreturnstothe loopheaderonline4.</p>
 <!-- /wp:paragraph -->
 
-<!-- wp:heading {"level":2} -->
-<h2>After recording is finished, TraceMonkey compiles the trace to</h2>
-<!-- /wp:heading -->
-
 <!-- wp:paragraph -->
-<p>nativecodeusingtherecordedtypeinformationforoptimization.</p>
+<p>After recording is finished, TraceMonkey compiles the trace to nativecodeusingtherecordedtypeinformationforoptimization.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p>Theresultisanativecodefragmentthatcanbeenteredifthe interpreter PCandthetypesofvaluesmatchthoseobservedwhen</p>
+<p>The result is a native code fragment that can be entered if the interpreter PCandthetypesofvaluesmatchthoseobservedwhen Nowtheloopheaderatline1hasbecomehot, so TraceMonkey starts recording. Whenrecordingreachesline4, Trace- Monkeyobservesthatithasreachedaninnerloopheaderthatalreadyhasacompiledtrace, so TraceMonkey attemptstonestthe inner loop inside the current trace. The first step is to call the inner traceasasubroutine. Thisexecutesthelooponline4tocompletion and then return stot here corder. TraceMonkey verifiesthatthecall was successful and then records the call to the inner trace as part of the current trace. Recordingcontinuesuntilexecutionreachesline 1, and at which point TraceMonkey finishes and compiles a trace statementonline2istaken. This branch was not taken in the to fail a guard and take a side exit.</p>
 <!-- /wp:paragraph -->
 
-<!-- wp:heading {"level":2} -->
-<h2>Nowtheloopheaderatline1hasbecomehot, so Trace-</h2>
-<!-- /wp:heading -->
-
 <!-- wp:paragraph -->
-<p>Monkey starts recording. Whenrecordingreachesline4, Trace- Monkeyobservesthatithasreachedaninnerloopheaderthatalreadyhasacompiledtrace, so TraceMonkey attemptstonestthe inner loop in side the current trace. The first step is to call the inner traceasasubroutine. Thisexecutesthelooponline4tocompletion and then return stot here corder. TraceMonkey verifiesthatthecall was successful and then records the call to the inner trace a spart of the current trace. Recordingcontinuesuntilexecutionreachesline 1, and at which point TraceMonkey finishes and compiles a trace statementonline2istaken. This branch was not taken in the to fail a guard and take a side exit.</p>
+<p>The exit is not yet hot, so TraceMonkey returnstotheinterpreter, loops back to it sown header, starting the next iteration On this iteration, thesideexitonline2istakenagain. This is recorded that . Thesideexitispatchedsothat At this point, TraceMonkey has compiled enough traces to cover the entire nested loop structure, sotherestoftheprogramruns In this section, we describe traces, trace trees, and how they are formed at runtime. Although our techniques apply to any dynamic language interpreter, we will describe them assuming a bytecode is simply a program path, which may cross function call , that originate at a loop edge and represent a single iteration through the associated loop.</p>
 <!-- /wp:paragraph -->
 
-<!-- wp:heading {"level":2} -->
-<h2>Theexitisnotyethot, so TraceMonkey returnstotheinterpreter,</h2>
-<!-- /wp:heading -->
-
 <!-- wp:paragraph -->
-<p>loops back to it sown header, starting the next iteration On this iteration, thesideexitonline2istakenagain. This is recorded that . Thesideexitispatchedsothat At this point, TraceMonkey has compiled enough traces to cover the entire nested loop structure, sotherestoftheprogramruns In this section, we describe traces, trace trees, and how they are formed at runtime. Althoughourtechniquesapplytoanydynamic language interpreter, we will describe them assuming a bytecode is simply a program path, which may cross function call , that originate at a loop edge and represent a single iteration through the associated loop.</p>
+<p>Similar to an extended basic block, a trace is only entered at thetop, but may have many exits. In contrast to an extended basic block, atracecancontainjoinnodes. Since a trace always only follows ones ingle path through the original program, however, join node sare not recognizable as such in a trace and have a single predecessornodelikeregularnodes. isatraceannotatedwithatypeforeveryvariable givingtherequiredtypesforvariablesusedonthetrace , meaning that the trace may be entered . Theentrytypemapismuchlikethesignature of afunction.</p>
 <!-- /wp:paragraph -->
 
-<!-- wp:heading {"level":2} -->
-<h2>Similar to an extended basic block, atraceisonlyenteredat</h2>
-<!-- /wp:heading -->
-
 <!-- wp:paragraph -->
-<p>thetop, but may have many exits. In contrast to an extended basic block, atracecancontainjoinnodes. Since a trace always only follows ones ingle path through the original program, however, join node sare not recognizable as such in a trace and have a single predecessornodelikeregularnodes. isatraceannotatedwithatypeforeveryvariable givingtherequiredtypesforvariablesusedonthetrace , meaningthatthetracemaybeentered . Theentrytypemapismuchlikethesignature of afunction.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
-<h2>In this paper, we only discuss typed loop traces, and we will</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
-<p>refer to them simply as“traces”. Thekeypropertyoftypedloop tracesisthattheycanbecompiledtoefficientmachinecodeusing the same techniques used for typed languages. (low-level intermediate representation). Intrace-flavored SSA(or TSSA), phinodesappearonlyattheentrypoint, whichisreached bothonentryandvialoopedges. The important LIR primitives are constant values, memoryloadsandstores(by address and offset), integeroperators, floating-pointoperators, function calls, and conditional exits. Typeconversions, such as integer to double, arerepresentedbyfunctioncalls. This makes the LIR used by TraceMonkey independent of the concrete type system and type conversionrulesofthesourcelanguage. The LIR operations are genericenoughthatthebackendcompilerislanguageindependent.</p>
+<p>In this paper, we only discuss typed loop traces, and we will refer to them simply as“traces”. Thekeypropertyoftypedloop tracesisthattheycanbecompiledtoefficientmachinecodeusing the same techniques used for typed languages. (low-level intermediate representation). In trace-flavored SSA(or TSSA), phinodesappearonlyattheentrypoint, whichisreached bothonentryandvialoopedges. The important LIR primitives are constant values, memory load sand stores(by address and offset), integeroperators, floating-pointoperators, function calls, and conditional exits. Typeconversions, such as integer to double, arerepresentedbyfunctioncalls. This makes the LIR used by TraceMonkey independent of the concrete type system and type conversionrulesofthesourcelanguage. The LIR operations are genericenoughthatthebackendcompilerislanguageindependent.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
@@ -175,23 +111,15 @@
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p>Bytecodeinterpreterstypicallyrepresentvaluesinavarious complexdatastructures(e.g., hash tables)inaboxedformat(i.e., withattachedtypetagbits). Since a trace is intended to represent efficientcodethateliminatesallthatcomplexity, ourtracesoperateonunboxedvaluesinsimplevariablesandarraysasmuchas possible.</p>
+<p>Bytecode interpreters typically represent values in a various complexdatastructures(e.g., hash tables)inaboxedformat(i.e., withattachedtypetagbits). Since a trace is intended to represent efficientcodethateliminatesallthatcomplexity, ourtracesoperateonunboxedvaluesinsimplevariablesandarraysasmuchas possible.</p>
 <!-- /wp:paragraph -->
 
-<!-- wp:heading {"level":2} -->
-<h2>A trace records all its intermediate values in a small activation</h2>
-<!-- /wp:heading -->
-
 <!-- wp:paragraph -->
-<p>record are a. Tomakevariableaccessesfastontrace, the trace also importslocalandglobalvariablesbyunboxingthemandcopying them to its activation record. Thus, the trace can read and write thesevariableswithsimpleloadsandstoresfromanativeactivation recording, independently of the boxing mechanism used by the interpreter. When the trace exits, the VMboxesthevaluesfrom this native storage location and copies them back to the interpreter structures.</p>
+<p>A trace records all its intermediate values in a small activation record are a. Tomakevariableaccessesfastontrace, the trace also importslocalandglobalvariablesbyunboxingthemandcopying them to its activation record. Thus, the trace can read and write these variables with simple load sand stores from a native activation recording, independently of the boxing mechanism used by the interpreter. When the trace exits, the VM boxes the values from this native storage location and copies them back to the interpreter structures.</p>
 <!-- /wp:paragraph -->
 
-<!-- wp:heading {"level":2} -->
-<h2>For every control-flow branch in the source program, the</h2>
-<!-- /wp:heading -->
-
 <!-- wp:paragraph -->
-<p>recorder generates conditional exit LIR instructions. Theseinstructionsexitfromthetraceifrequiredcontrolflowisdifferentfrom what it was at trace recording, ensuringthatthetraceinstructions instructions.</p>
+<p>For every control-flow branch in the source program, the recorder generates conditional exit LIR instructions. Theseinstructionsexitfromthetraceifrequiredcontrolflowisdifferentfrom what it was at trace recording, ensuringthatthetraceinstructions instructions.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
@@ -199,211 +127,123 @@
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p>Now, wedescribethekeyoptimizationsthatareperformedas part of recording LIR. All of these optimizations reduce complex dynamiclanguageconstructstosimpletypedconstructsbyspecializingforthecurrenttrace. Eachoptimizationrequiresguardinstructionstoverifytheirassumptionsaboutthestateandexitthe All LIRprimitivesapplytooperandsofspecifictypes. Thus, LIR traces are necessarily type-specialized, and a compiler can easilyproduceatranslationthatrequiresnotypedispatches. A typicalbytecodeinterpretercarriestagbitsalongwitheachvalue, and toper for many operation, mustcheckthetagbits, dynamically dispatch, maskoutthetagbitstorecovertheuntaggedvalue, perform the operation, and then reapply tags. LIR omit severy thing except the operation itself.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
-<h2>A potential problem is that some operations can produce values</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
-<p>of unpredictable types. For example, reading a property from an objectcouldyieldavalueofanytype, not necessarily the type observedduringrecording. The recorder emits guard instructions thatconditionallyexitiftheoperationyieldsavalueofadifferent type from that seen during recording. These guard instructions guarantee that as long as execution is on trace, the types of values match those of the typed trace. Whenthe VMobservesasideexit along such a type guard, a new typed trace is recorded origin a ting at the side exit location, capturingthenewtypeoftheoperationin In JavaScript, name lookup semantics are complex and potentially expensive because . To evaluate , the interpreter must andallofitsprototypesandparents.</p>
+<p>Now, wedescribethekeyoptimizationsthatareperformedas part of recording LIR. All of these optimizations reduce complex dynamiclanguageconstructstosimpletypedconstructsbyspecializingforthecurrenttrace. Eachoptimizationrequiresguardinstructionstoverifytheirassumptionsaboutthestateandexitthe All LIRprimitivesapplytooperandsofspecifictypes. Thus, LIR traces are necessarily type-specialized, and a compiler can easilyproduceatranslationthatrequiresnotypedispatches. A typicalbytecodeinterpretercarriestagbitsalongwitheachvalue, and to perform any operation, mustcheckthetagbits, dynamically dispatch, maskoutthetagbitstorecovertheuntaggedvalue, perform the operation, and then reapply tags. LIR omit severy thing except the operation itself.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p>Propertymapscanbeimplementedwithdifferentdatastructures (e.g., per-objecthashtablesorsharedhashtables), sothesearch process also must dispatch on the representation of each object found during search. TraceMonkey can simply observe the result of the search process and record the simp lest possible LIR to access , whichusesasharedhash-tablerepreseninslot2ofapropertyvector. Then the recorded withjusttwoorthreeloads: oneto gettheprototype, possiblyonetogetthepropertyvaluevector, and onemoretogetslot2fromthevector. This is avast simplification andspeedupcomparedtotheoriginalinterpretercode. Inheritance relationship sand object representation scan change during execution, sothesimplifiedcoderequiresguardinstructionsthatensure the object representation is the same. In TraceMonkey, objects’rep- JavaScript hasno integer type, onlya Numbertypethatisthesetof64-bit IEEE- 754floating-pointernumbers(“doubles”). Butmany JavaScript operators, inparticulararrayaccessesandbitwiseoperators, really operate on integers, sotheyfirstconvertthenumbertoaninteger, Clearly, a JavaScript VMthatwantstobefastmustfindawaytooperateon integersdirectlyandavoidtheseconversions.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
-<h2>In TraceMonkey, wesupporttworepresentationsfornumbers:</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
-<p>integersanddoubles. Theinterpreterusesintegerrepresentations as much as it can, switchingforresultsthatcanonlyberepresented asdoubles. Whenatraceisstarted, somevaluesmaybeimported andrepresentedasintegers. Some operations on integers require guards. For example, addingtwointegerscanproduceavaluetoo LIR traces can cross function bound aries in either direction, achievingfunctioninlining. Move instructions needtoberecordedforfunctionentryandexittocopyarguments in and return values out. These move statement sare then optimized awaybythecompilerusingcopypropagation. In order to be able to return to the interpreter, the trace must also generate LIRto recordthatacallframehasbeenenteredandexited. The frame entry and exit LIRsavesjustenoughinformationtoallowthe intepretercallstacktoberestoredlaterandismuchsimplerthan the interpreter’sstandardcallcode. Ifthefunctionbeingentered is not constant(whichin JavaScript includesanycallbyfunction name), the recorder must also emit LIR to guard that the function Each optimization described above requiresoneormoreguardstoverifytheassumptionsmadein doing the optimization. A guard is just a group of LIR instructions , asmalloff-trace piece of LIR that return sapo inter to a structure that describes there as on for the exit along with the interpreter PCattheexitpointandanyotherdataneededtorestore Some construct sare difficult to record in LIR traces. or calls to external function scan change the program state in unpredictable ways, making it difficult for the tracertoknowthecurrenttypemapinordertocontinuetracing.</p>
+<p>A potential problem is that some operations can produce values of unpredictable types. For example, reading a property from an object could yield a value of any type, not necessarily the type observed during recording. The recorder emits guard instructions thatconditionallyexitiftheoperationyieldsavalueofadifferent type from that seen during recording. These guard instructions guarantee that as long as execution is on trace, the types of values match those of the typed trace. When the VMobservesasideexit along such a type guard, a new typed trace is recorded origin a ting at the side exit location, capturingthenewtypeoftheoperationin In JavaScript, name lookup semantics are complex and potentially expensive because . To evaluate , the interpreter must andallofitsprototypesandparents.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p>Atracingimplementationcanalsohaveanynumberofotherlimitations, e.g., asmall-memory device may limit the length of traces.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
-<h2>Whenanysituationoccursthatpreventstheimplementationfrom trace record-</h2>
-<!-- /wp:heading -->
-
-<!-- wp:heading {"level":2} -->
-<h2>Especially simple loops, namely those where control flow, value</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
-<p>types, valuerepresentations, and in lined function sare all invariant, canberepresentedbyasingletrace. But most loops have at least some variation, andsotheprogramwilltakesideexitsfromthe main trace. When a side exit becomes hot, TraceMonkey startsa fromthatpointandpatchesthesideexittojump directly to that trace. In this way, a single trace expand son demand This section explains how trace trees are formed during execution. The goal is to form trace trees during execution that cover all the hot paths of the program.</p>
+<p>Propertymapscanbeimplementedwithdifferentdatastructures (e.g., per-objecthashtablesorsharedhashtables), sothesearch process also must dispatch on the representation of each object found during search. TraceMonkey can simply observe the result of the search process and record the simp lest possible LIR to access , which use sash ared hash-tablerepreseninslot2ofapropertyvector. Then the recorded withjusttwoorthreeloads: oneto gettheprototype, possiblyonetogetthepropertyvaluevector, and onemoretogetslot2fromthevector. This is avast simplification andspeedupcomparedtotheoriginalinterpretercode. Inheritance relationship sand object representation scan change during execution, sothesimplifiedcoderequiresguardinstructionsthatensure the object representation is the same. In TraceMonkey, objects’rep- JavaScript hasno integer type, onlya Numbertypethatisthesetof64-bit IEEE- 754floating-pointer numbers(“doubles”). But many JavaScript operators, inparticulararrayaccessesandbitwiseoperators, really operate on integers, sotheyfirstconvertthenumbertoaninteger, Clearly, a JavaScript VMthatwantstobefastmustfindawaytooperateon integersdirectlyandavoidtheseconversions.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p>Array sare actually worse than this: if the index value is a number, itmust be converted from a double to a string for the property access operator, and Tree trees always start at loop headers, because they are a natural place to look for hot paths. In TraceMonkey, loop headers are easy to detect–thebytecodecompilerensuresthata bytecodeisaloopheaderiffitisthetargetofabackwardbranch.</p>
+<p>In TraceMonkey, wesupporttworepresentationsfornumbers: integersanddoubles. Theinterpreterusesintegerrepresentations as much as it can, switchingforresultsthatcanonlyberepresented asdoubles. Whenatraceisstarted, somevaluesmaybeimported andrepresentedasintegers. Some operations on integers require guards. For example, addingtwointegerscanproduceavaluetoo LIR traces can cross function boundaries in either direction, achievingfunctioninlining. Move instructions needtoberecordedforfunctionentryandexittocopyarguments in and return values out. These move statement sare then optimized awaybythecompilerusingcopypropagation. In order to be able to return to the interpreter, the trace must also generate LIRto recordthatacallframehasbeenenteredandexited. The frame entry and exit LIRsavesjustenoughinformationtoallowthe intepretercallstacktoberestoredlaterandismuchsimplerthan the interpreter’sstandardcallcode. If the function being entered is not constant(which in JavaScript includesanycallbyfunction name), the recorder must also emit LIR to guard that the function Each optimization described above requiresoneormoreguardstoverifytheassumptionsmadein doing the optimization. A guard is just a group of LIR instructions , asmalloff-trace piece of LIR that return sapo inter to a structure that describes there as on for the exit along with the interpreter PCattheexitpointandanyotherdataneededtorestore Some construct sare difficult to record in LIR traces. or calls to external function scan change the program state in unpredictable ways, making it difficult for the tracertoknowthecurrenttypemapinordertocontinuetracing.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>Atracingimplementationcanalsohaveanynumberofotherlimitations, e.g., a small-memory device may limit the length of traces.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>Whenanysituationoccursthatpreventstheimplementationfrom trace record- Especially simple loops, namely those where control flow, value types, valuerepresentations, and in lined function sare all invariant, canberepresentedbyasingletrace. But most loops have at least some variation, andsotheprogramwilltakesideexitsfromthe main trace. When a side exit becomes hot, TraceMonkey starts a fromthatpointandpatchesthesideexittojump directly to that trace. In this way, a single trace expand son demand This section explains how trace trees are formed during execution. The goal is to form trace trees during execution that cover all the hot paths of the program.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>Array sare actually worse than this: if the index value is a number, it must be converted from a double to a string for the property access operator, and Tree trees always start at loop headers, because they are a natural place to look for hot paths. In TraceMonkey, loop headers are easy to detect–thebytecodecompilerensuresthata bytecodeisaloopheaderiffitisthetargetofabackwardbranch.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
 <p>TraceMonkey starts a tree when a given loop header has been executed a certain number of times(2inthecurrentimplementation).</p>
 <!-- /wp:paragraph -->
 
-<!-- wp:heading {"level":2} -->
-<h2>Starting a tree just means starting recording a trace for the current</h2>
-<!-- /wp:heading -->
-
 <!-- wp:paragraph -->
-<p>pointandtypemapandmarkingthetraceastherootofatree. Each treeisassociatedwithaloopheaderandtypemap, sotheremaybe Tracerecordingcanendinseveralways.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
-<h2>Ideally, thetracereachestheloopheaderwhereitstartedwith loop</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
-<p>iteration. In this case, theendofthetracecanjumprighttothe beginning, asallthevaluerepresentationsareexactlyasneededto enter the trace. The jump can even skip the usual code that would copyoutthestateattheendofthetraceandcopyitbackintothe trace activation record to enter a trace.</p>
+<p>Starting a tree just means starting recording a trace for the current pointandtypemapandmarkingthetraceastherootofatree. Each treeisassociatedwithaloopheaderandtypemap, sotheremaybe Tracerecordingcanendinseveralways.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p>Incertaincasesthetracemightreachtheloopheaderwitha differenttypemap. Thisscenarioissometimeobservedforthefirst , before they a reset to a concrete type during the first loop iteration. When recording such an iteration, the recorder cannot Instead, theiterationisterminatedwithasideexitthatwillalways fail and return to the interpreter. At the same time a new trace is recordedwiththenewtypemap. Every time an additional type unstable trace is added to a region, itsexittypemapiscomparedto the entry mapo fall existing traces incase they complement each other. With this approach we are able to cover type-unstable loop iterations as long they eventually for mast able equilibrium.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
-<h2>Finally, the trace might exit the loop before reaching the loop</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
-<p>statement. In this case, the VMsimplyendsthetracewithanexit to the trace monitor.</p>
+<p>Ideally, thetracereachestheloopheaderwhereitstartedwith loop iteration. In this case, theendofthetracecanjumprighttothe beginning, asallthevaluerepresentationsareexactlyasneededto enter the trace. The jump can even skip the usual code that would copyoutthestateattheendofthetraceandcopyitbackintothe trace activation record to enter a trace.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p>Asmentionedpreviously, we may speculatively chose to represent certain Number-typed values as integers on trace. Wedoso when we observe that Number-typed variables contain an integer value at trace entry. If during trace recording the variable is unexpectedly assigned a non-integer value, we have to widen the type of the variable to a double. As a result, the recorded trace becomes inherently type-unstable since it starts with an integer value but endswithadoublevalue. Thisrepresentsamis-speculation, since at trace entry we specialized the Number-typed value to an integer, assuming that at the loop edge we would again find an integer value in the variable, allow in gusto close the loop. Toavoidfuturespeculativefailuresinvolvingthisvariable, and to obtain a type-stable tracewenotethefactthatthevariableinquestionasbeenobserved to sometimes hold non-integer values in an advisory data structure which we call the“oracle”.</p>
+<p>Incertaincasesthetracemightreachtheloopheaderwitha differenttypemap. This scenario is sometime observed for the first , before they a reset to a concrete type during the first loop iteration. When recording such an iteration, the recorder cannot Instead, theiterationisterminatedwithasideexitthatwillalways fail and return to the interpreter. At the same time a new trace is recordedwiththenewtypemap. Every time an additional type unstable trace is added to a region, itsexittypemapiscomparedto the entry mapo fall existing traces incase they complement each other. With this approach we are able to cover type-unstable loop iterations as long they eventually for mast able equilibrium.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p>When compiling loops, weconsulttheoraclebeforespecializingvaluestointegers. Speculationtowardsintegersisperformed only if no adverse information is known to the oracle about that particular variable. Whenever we accidentally compile a loop that istype-unstableduetomis-speculation of a Number-typed variable, we immediately trigger the recording of a new trace, which basedonthenowupdatedoracleinformationwillstartwithadou- Side exits lead to different paths through theloop, orpathswithdifferenttypesorrepresentations. Thus, to completely cover the loop, the VM must record traces starting at all side exits. These traces are recorded much like root traces: thereis a counter for each side exit, and when the counter reaches a hotness threshold, recording starts. Recordingstopsexactlyasfortheroot trace, usingtheloopheaderoftheroottraceasthetargettoreach.</p>
+<p>Finally, the trace might exit the loop before reaching the loop statement. In this case, the VMsimplyendsthetracewithanexit to the trace monitor.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>Asmentionedpreviously, we may speculatively chose to represent certain Number-typed values as integers on trace. Wedoso when we observe that Number-typed variables contain an integer value at trace entry. If during trace recording the variable is unexpectedly assigned a non-integer value, we have to widen the type of the variable to a double. As a result, the recorded trace becomes inherently type-unstable since it starts with an integer value but endswithadoublevalue. Thisrepresentsamis-speculation, since at trace entry we specialized the Number-typed value to an integer, assuming that at the loop edge we would again find an integer value in the variable, allow in gusto close the loop. Toavoidfuturespeculativefailuresinvolvingthisvariable, and to obtain a type-stable trace we note the fact that the variable in question as been observed to sometimes hold non-integer values in an advisory data structure which we call the“oracle”.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>When compiling loops, weconsulttheoraclebeforespecializingvaluestointegers. Speculationtowardsintegersisperformed only if no adverse information is known to the oracle about that particular variable. Whenever we accidentally compile a loop that is type-unstableduetomis-speculation of a Number-typed variable, we immediately trigger the recording of a new trace, which basedonthenowupdatedoracleinformationwillstartwithadou- Side exits lead to different paths through the loop, orpathswithdifferenttypesorrepresentations. Thus, to completely cover the loop, the VM must record traces starting at all side exits. These traces are recorded much like root traces: there is a counter for each side exit, and when the counter reaches a hotness threshold, recording starts. Recording stops exactly as for the root trace, usingtheloopheaderoftheroottraceasthetargettoreach.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
 <p>Our implementation does not extend at all side exits. Itextends only if the side exit is for a control-flow branch, and only if the side exit does not leave the loop. Inparticularwedonotwanttoextend a trace tree a longa path that leads to an outer loop, because we Sometimes, a program follows a path that cannot be compiled into a trace, usuallybecauseoflimitationsintheimplementation.</p>
 <!-- /wp:paragraph -->
 
-<!-- wp:heading {"level":2} -->
-<h2>TraceMonkey does not currently support recording throwing and</h2>
-<!-- /wp:heading -->
-
 <!-- wp:paragraph -->
-<p>catchingofarbitraryexceptions. Thisdesigntradeoffwaschosen, because exception sare usually rare in JavaScript. However, ifa programoptstouseexceptionsintensively, we would suddenly incur a punish in grun time overhead if we repeatedly try to record atraceforthispathandrepeatedlyfailtodoso, since we abort tracing every time we observe an exception being thrown.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
-<h2>As a result, ifahotloopcontainstracesthatalwaysfail, the VM</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
-<p>could potentially run much more slowly than the base interpreter: the VM repeatedly spend stime trying to record traces, but is never abletorunany. To avoid this problem, whenever the VM is about to start tracing, it must try to predict whether it will finish the trace. traces that havebeentriedandfailed. Whenthe VM fails to finish a trace starting at a given point, the VM records that a failure has occurred. The VMalsosetsacountersothatitwillnottrytorecordatracestarting atthatpointuntilitispassedafewmoretimes(32inourimplecountergivestemporaryconditionsthat preventtracingachancetoend. For example, a loop may be have differently during startup than during its steady-state execution. Afteragivennumberoffailures(2inourimplementation), the VM marksthefragmentasblacklisted, which means the VM will never again start recording at that point.</p>
+<p>TraceMonkey does not currently support recording throwing and catchingofarbitraryexceptions. Thisdesigntradeoffwaschosen, because exception sare usually rare in JavaScript. However, ifa programoptstouseexceptionsintensively, we would suddenly incur a punish in grun time overhead if we repeatedly try to record atraceforthispathandrepeatedlyfailtodoso, since we abort tracing every time we observe an exception being thrown.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p>Afterimplementingthisbasicstrategy, weobservedthatfor smallloopsthatgetblacklisted, the system can spend a notice able</p>
+<p>As a result, ifahotloopcontainstracesthatalwaysfail, the VM could potentially run much more slowly than the base interpreter: the VM repeatedly spend stime trying to record traces, but is never able to run any. To avoid this problem, whenever the VM is about to start tracing, it must try to predict whether it will finish the trace. traces that havebeentriedandfailed. When the VM fails to finish a trace starting at a given point, the VM records that a failure has occurred. The VMalsosetsacountersothatitwillnottrytorecordatracestarting atthatpointuntilitispassedafewmoretimes(32inourimplecountergivestemporaryconditionsthat preventtracingachancetoend. For example, a loop may be have differently during startup than during its steady-state execution. Afteragivennumberoffailures(2inourimplementation), the VM marksthefragmentasblacklisted, which means the VM will never again start recording at that point.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p>amount of time just finding the loop fragment and deter mining that it has been black listed. Wenowavoidthatproblembypatchingthe bytecode. We define an extra no-opbytecodethatindicatesaloop header. The VM calls into the trace monitor every time the interpreter executes a loop header no-op. To black list a fragment, we simply replace the loop header no-opwitharegularno-op. Thus, the interpreter will never again even call into the trace monitor.</p>
+<p>Afterimplementingthisbasicstrategy, we observed that for smallloopsthatgetblacklisted, the system can spend a notice able amount of time just finding the loop fragment and deter mining that it has been black listed. Wenowavoidthatproblembypatchingthe bytecode. We define an extra no-opbytecodethatindicatesaloop header. The VM calls into the trace monitor every time the interpreter executes a loop header no-op. To black list a fragment, we simply replace the loop header no-opwitharegularno-op. Thus, the interpreter will never again even call into the trace monitor.</p>
 <!-- /wp:paragraph -->
 
-<!-- wp:heading {"level":2} -->
-<h2>Thereisarelatedproblemwehavenotyetsolved, which occurs</h2>
-<!-- /wp:heading -->
-
 <!-- wp:paragraph -->
-<p>There is atle a stone hot side exit for which the VM cannot The loop body is short.</p>
+<p>Thereisarelatedproblemwehavenotyetsolved, which occurs There is atle a stone hot side exit for which the VM cannot The loop body is short.</p>
 <!-- /wp:paragraph -->
 
-<!-- wp:heading {"level":2} -->
-<h2>In this case, the VM will repeatedly pass the loop header, search</h2>
-<!-- /wp:heading -->
-
 <!-- wp:paragraph -->
-<p>for a trace, findit, execute it, and fallback to the interpreter.</p>
+<p>In this case, the VM will repeatedly pass the loop header, search for a trace, find it, execute it, and fallback to the interpreter.</p>
 <!-- /wp:paragraph -->
 
-<!-- wp:heading {"level":2} -->
-<h2>With a short loop body, the overhead of finding and calling the</h2>
-<!-- /wp:heading -->
-
 <!-- wp:paragraph -->
-<p>trace is high, andcausesperformancetobeevenslowerthanthe basic interpreter. Sofar, in this situation we have improved the implementationsothatthe VM can complete the branch trace.</p>
+<p>With a short loop body, the overhead of finding and calling the trace is high, and causes performance to be even slower than the basic interpreter. Sofar, in this situation we have improved the implementationsothatthe VM can complete the branch trace.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
 <p>But it is hard to guarantee that this situation will never happen.</p>
 <!-- /wp:paragraph -->
 
-<!-- wp:heading {"level":2} -->
-<h2>As future work, thissituationcouldbeavoidedbydetectingand</h2>
-<!-- /wp:heading -->
-
 <!-- wp:paragraph -->
-<p>blacklistingloopsforwhichtheaveragetracecallexecutesfew Figure7showsbasictracetreecompilation(11)applied to a nested loopwheretheinnerloopcontainstwopaths. Usually, the inner )becomes hot first, and a trace tree is rooted at that point. For example, the first recorded trace may be a cycle T T runk T r ace T r ee Anchor T r ace Anchor Br anch T r ace Guar d Side Exit Atreewithtwotraces, a trunk trace and one branch trace. Thetrunktracecontainsaguardtowhichabranchtracewas attached. The branch trace contain a guard that may fail and trigger a side exit. Both the trunk and the branch trace loop back to the tree anchor, which is the beginning of the trace tree.</p>
+<p>As future work, thissituationcouldbeavoidedbydetectingand blacklistingloopsforwhichtheaveragetracecallexecutesfew Figure7showsbasictracetreecompilation(11)applied to a nested loopwheretheinnerloopcontainstwopaths. Usually, the inner )becomes hot first, and a trace tree is rooted at that point. For example, the first recorded trace may be a cycle T T runk T r ace T r ee Anchor T r ace Anchor Br anch T r ace Guar d Side Exit Atreewithtwotraces, a trunk trace and one branch trace. Thetrunktracecontainsaguardtowhichabranchtracewas attached. The branch trace contain a guard that may fail and trigger a side exit. Both the trunk and the branch trace loop back to the tree anchor, which is the beginning of the trace tree.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:heading {"level":2} -->
-<h2>T r ace 2</h2>
-<!-- /wp:heading -->
-
-<!-- wp:heading {"level":2} -->
-<h2>T r ace 1</h2>
-<!-- /wp:heading -->
-
-<!-- wp:heading {"level":2} -->
-<h2>T r ace 2</h2>
-<!-- /wp:heading -->
-
-<!-- wp:heading {"level":2} -->
-<h2>T r ace 1</h2>
-<!-- /wp:heading -->
-
-<!-- wp:heading {"level":2} -->
-<h2>Closed Link ed</h2>
-<!-- /wp:heading -->
-
-<!-- wp:heading {"level":2} -->
-<h2>Link ed Link</h2>
+<h2>T r ace 2 T</h2>
 <!-- /wp:heading -->
 
 <!-- wp:paragraph -->
-<p>ed Number Number String String String String Boolean T r ace 2 T r ace 1 T r ace 3 Link ed Link ed Link ed Closed Number Number Number Boolean Number Boolean Number Boolean (a) (b) (c) We handle type-unstable loops by all owing traces to compilethatcannotloopbacktothemselvesduetoatypemismatch. As such traces accumulate, we attempt to connect their loop edgestoformgroupsoftracetreesthatcanexecutewithouthaving toside-exittotheinterpretertocoveroddtypecases. This is particularly important for nested trace trees where an outer tree tries to call an inner tree(or in this case a forest of inner trees), since inner loops frequently have initially undefined values which change type to a concrete value after the first iteration. symbol is used to indicate that the trace loops back the tree anchor.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
-<h2>When execution leaves the inner loop, thebasicdesignhastwo</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
-<p>choices. First, thesystemcanstoptracingandgiveuponcompiling the outer loop, clearly an undesirable solution. The other choice is to continue tracing, compiling traces for the outer loop in side the inner loop’stracetree. and record a branch andthen . Thus, the outer loop is recorded and compiled twice, andbothcopiesmustberetainedinthetracecache. i 2 i 3 i 4 i 5 i 1 i 6 i 7 t 1 t 2 T r ee Call Out er T r ee Nes t ed T r ee Exit Guar d (a) (b) Control flow graph of a nested loop with an if statement in side the inner most loop(a). Aninnertreecapturestheinner loop, and is nested in side an outer tree which“calls”the inner tree.</p>
+<p>r ace 1 T r ace 2 T r ace 1 Closed Link ed Link ed Link ed Number Number String String String String Boolean T r ace 2 T r ace 1 T r ace 3 Link ed Link ed Link ed Closed Number Number Number Boolean Number Boolean Number Boolean (a) (b) (c) We handle type-unstable loops by all owing traces to compilethatcannotloopbacktothemselvesduetoatypemismatch. As such traces accumulate, we attempt to connect their loop edgestoformgroupsoftracetreesthatcanexecutewithouthaving to side-exittotheinterpretertocoveroddtypecases. This is particularly important for nested trace trees where an outer tree tries to call an inner tree(or in this case a forest of inner trees), since inner loops frequently have initially undefined values which change type to a concrete value after the first iteration. symbol is used to indicate that the trace loops back the tree anchor.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p>Theinnertreereturnstotheoutertreeonceitexitsalongitsloop condition guard(b). paths (on geometric average), thisna ¨ traces, which can easily fill the trace cache.</p>
+<p>When execution leaves the inner loop, thebasicdesignhastwo choices. First, thesystemcanstoptracingandgiveuponcompiling the outer loop, clearly an undesirable solution. The other choice is to continue tracing, compiling traces for the outer loop inside the inner loop’stracetree. and record a branch and then . Thus, the outer loop is recorded and compiled twice, andbothcopiesmustberetainedinthetracecache. i 2 i 3 i 4 i 5 i 1 i 6 i 7 t 1 t 2 T r ee Call Out er T r ee Nes t ed T r ee Exit Guar d (a) (b) Control flow graph of a nested loop with an if statement inside the inner most loop(a). An inner tree captures the inner loop, and is nested inside an outer tree which“calls”the inner tree.</p>
 <!-- /wp:paragraph -->
 
-<!-- wp:heading {"level":2} -->
-<h2>In order to execute programs with nested loops efficiently, a</h2>
-<!-- /wp:heading -->
+<!-- wp:paragraph -->
+<p>Theinnertreereturnstotheoutertreeonceitexitsalongitsloop condition guard(b). paths (on geometric average), thisn a ¨ traces, which can easily fill the trace cache.</p>
+<!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p>tracing system needs a technique for covering the nested loops with Thekeyinsightisthatifeachloopisrepresentedbyitsowntrace tree, thecodeforeachloopcanbecontainedonlyinitsowntree, andouterlooppathswillnotbeduplicated. Anotherkeyfactisthat wearenottracingarbitrarybytecodesthatmighthaveirreduceable controlflowgraphs, but rather bytecodes produced by a compiler for a language with structured control flow. Thus, giventwoloop edges, the system can easily determine whether they are nested and which is the inner loop. Usingthisknowledge, the system can compile inner and outer loops separately, and make the outer loop’s the inner loop’stracetree.</p>
+<p>In order to execute programs with nested loops efficiently, a tracing system needs a technique for covering the nested loops with Thekeyinsightisthatifeachloopisrepresentedbyitsowntrace tree, thecodeforeachloopcanbecontainedonlyinitsowntree, andouterlooppathswillnotbeduplicated. Anotherkeyfactisthat wearenottracingarbitrarybytecodesthatmighthaveirreduceable controlflowgraphs, but rather bytecodes produced by a compiler for a language with structured control flow. Thus, giventwoloop edges, the system can easily determine whether they are nested and which is the inner loop. Usingthisknowledge, the system can compile inner and outer loops separately, and make the outer loop’s the inner loop’stracetree.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
 <p>The algorithm for building nested trace trees is as follows. We start tracing at loop headers exactly as in the basic tracing system.</p>
 <!-- /wp:paragraph -->
 
-<!-- wp:heading {"level":2} -->
-<h2>When we exit a loop(detectedbycomparingtheinterpreter PC</h2>
-<!-- /wp:heading -->
-
 <!-- wp:paragraph -->
-<p>with the range given by the loop edge), we stop the trace. The keystepofthealgorithmoccurswhenwearerecordingatrace for loop being recorded)and we reach the header must be an as a nested trace tree. If the call succeeds, then we record the call will does not have a type-matchingcompiledtracetreeyet, we have to obtain it before we are able to proceed. Inorder todothis, we simply abort recording the first trace. The trace monitor will seethe inner loop header, and will immediately If all the loops inane stare type-stable, thenloopnestingcreates , andeach Insteadofabortingtheouterrecording, we could principally merely suspend the recording, but that would require the implementation to be able to record several traces simultaneously, complicatingtheimplementation, whilesavingonlyafewiterationsintheinterpreter. i 2 i 3 i 1 i 6 i 4 i 5 t 2 t 1 t 4 Exit Guar d Nes t ed T r ee Controlflowgraphofaloopwithtwonestedloops(left) and its nested trace tree configuration(right). The outer tree calls thetwoinnernestedtracetreesandplacesguardsattheirsideexit locations. differenttypemaps(on geometric average), iscloseto1, the resulting trace trees will be tractable.</p>
+<p>When we exit a loop(detectedbycomparingtheinterpreter PC with the range given by the loop edge), we stop the trace. The keystepofthealgorithmoccurswhenwearerecordingatrace for loop being recorded)and we reach the header must be an as a nested trace tree. If the call succeeds, then we record the call will does not have a type-matching compiled trace tree yet, we have to obtain it before we are able to proceed. In order todothis, we simply abort recording the first trace. The trace monitor will seethe inner loop header, and will immediately If all the loops inane stare type-stable, thenloopnestingcreates , and each Insteadofabortingtheouterrecording, we could principally merely suspend the recording, but that would require the implementation to be able to record several traces simultaneously, complicatingtheimplementation, whilesavingonlyafewiterationsintheinterpreter. i 2 i 3 i 1 i 6 i 4 i 5 t 2 t 1 t 4 Exit Guar d Nes t ed T r ee Controlflowgraphofaloopwithtwonestedloops(left) and its nested trace tree configuration(right). The outer tree calls thetwoinnernestedtracetreesandplacesguardsattheirsideexit locations. differenttypemaps(on geometric average), iscloseto1, the resulting trace trees will be tractable.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
@@ -411,19 +251,11 @@
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p>Thegoalofnestingistomakeinnerandouterloopsindependent; thuswhentheinnertreeiscalled, it must exit to the same point</p>
+<p>Thegoalofnestingistomakeinnerandouterloopsindependent; thuswhentheinnertreeiscalled, it must exit to the same point intheoutertreeeverytimewiththesametypemap. Because we cannot actually guarantee this property, we must guard on it after the call, and side exit if the property does not hold. A common reason for the inner tree not to return to the same point would be if the inner tree took a new side exit for which it had never compiled a trace. At this point, the interpreter PCisintheinner tree, sowecannotcontinuerecordingorexecutingtheoutertree.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p>intheoutertreeeverytimewiththesametypemap. Because we cannot actually guarantee this property, we must guard on it after thecall, and side exit if the property does not hold. Acommon reason for the inner tree not to return to the same point would be if the inner tree took a new side exit for which it had never compiled a trace. At this point, the interpreter PCisintheinner tree, sowecannotcontinuerecordingorexecutingtheoutertree.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
-<h2>Ifthishappensduringrecording, we abort the outer trace, togive</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
-<p>the inner tree a chance to finish growing. A future execution of the outer tree would then be able to properly finish and record a call to the inner tree. Ifaninnertreesideexithappensduringexecutionof a compiled trace for the outer tree, we simply exit the outer trace The black listing algorithm needs modification to work well with nesting. The problem is that outer loop traces often abort during startup(becausetheinnertreeisnotavailableortakesasideexit), which would lead to their being quickly black listed by the basic algorithm.</p>
+<p>Ifthishappensduringrecording, we abort the outer trace, to give the inner tree a chance to finish growing. A future execution of the outer tree would then be able to properly finish and record a call to the inner tree. Ifaninnertreesideexithappensduringexecutionof a compiled trace for the outer tree, we simply exit the outer trace The black listing algorithm needs modification to work well with nesting. The problem is that outer loop traces often abort during startup(becausetheinnertreeisnotavailableortakesasideexit), which would lead to their being quickly black listed by the basic algorithm.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
@@ -434,40 +266,28 @@
 <p>Thus, weshouldnotcountsuchabortstowardblacklistingaslong as we are able to buildup more traces for the inner tree.</p>
 <!-- /wp:paragraph -->
 
-<!-- wp:heading {"level":2} -->
-<h2>In our implementation, when an outer tree abort son the inner</h2>
-<!-- /wp:heading -->
-
 <!-- wp:paragraph -->
-<p>tree, we increment the outer tree’sblacklistcounterasusualand backoffoncompilingit. When the inner tree finishes a trace, we decrement the black list counter on the outer loop,“forgiving”the outerloopforabortingpreviously. Wealsoundothebackoffsothat the outer tree can start immediately trying to compile the next time Thissectionexplainshowarecordedtraceistranslatedtoan , is separate from the VM and can be used for other applications. nodes, certain optimizations are easy to implement. In order to getgoodstartupperformance, the optimizations must run quickly, sowechoseasmallsetofoptimizations. We implemented the optimizationsaspipelinedfilterssothattheycanbeturnedonand offindependently, andyetallruninjusttwolooppassesoverthe trace: one forward and one backward.</p>
+<p>In our implementation, when an outer tree abort son the inner tree, we increment the outer tree’sblacklistcounterasusualand backoffoncompilingit. When the inner tree finishes a trace, we decrement the black list counter on the outer loop,“forgiving”the outerloopforabortingpreviously. Wealsoundothebackoffsothat the outer tree can start immediately trying to compile the next time Thissectionexplainshowarecordedtraceistranslatedtoan , is separate from the VM and can be used for other applications. nodes, certain optimizations are easy to implement. In order to getgoodstartupperformance, the optimizations must run quickly, sowechoseasmallsetofoptimizations. We implemented the optimizationsaspipelinedfilterssothattheycanbeturnedonand offindependently, andyetallruninjusttwolooppassesoverthe trace: one forward and one backward.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p>Every time the trace recorder emits a LIR instruction, theinstructionisimmediatelypassedtothefirstfilterintheforward</p>
+<p>Every time the trace recorder emits a LIR instruction, the instruction is immediately passed to the first filter in the forward pipeline. Thus, forwardfilteroptimizationsareperformedasthe trace is recorded. Each filter may pass each instruction to the next filter unchanged, write a different instruction to the next filter, or write no instruction at all. For example, the constant folding filter witha On IS As without floating-point instructions, asoft-float filter convertsfloating-point LIR instructions to sequences of integer expression simplification, includingconstantfoldingandafew source language semantic-specific expression simplification, tobereplaced and then back again would be removed by this filter.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p>pipeline. Thus, forwardfilteroptimizationsareperformedasthe trace is recorded. Each filter may pass each instruction to the next filter unchanged, write a different instruction to the next filter, or write no instruction at all. For example, the constant folding filter witha On IS As without floating-point instructions, asoft-float filter convertsfloating-point LIR instructions to sequences of integer expression simplification, includingconstantfoldingandafew source language semantic-specific expression simplification, tobereplaced and then back again would be removed by this filter.</p>
+<p>Whentracerecordingiscompleted, nanojitrunsthebackward optimizationfilters. These are used for optimizations that require backward program analysis. Whenrunningthebackwardfilters, nanojitreadsone LIR instruction at a time, and the read sare passed through the pipeline.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p>Whentracerecordingiscompleted, nanojitrunsthebackward optimizationfilters. These are used for optimizations that require backward program analysis. Whenrunningthebackwardfilters, nanojitreadsone LIR instruction at a time, andthereadsarepassed through the pipeline.</p>
+<p>Dead data-stack store elimination. The LIRtraceencodesmany stores to locations in the interpreter stack. But these values are neverreadbackbeforeexitingthetrace(by the interpreter or another trace). Thus, stores to the stack that are over written before the next exit are dead. Storestolocationsthatareoff Dead call-stack store elimination. This is the same optimization as above, except applied to the interpreter’scall stack used for Dead code elimination. Thiseliminatesanyoperationthat stores to a value that is never used.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p>Dead data-stack store elimination. The LIRtraceencodesmany storestolocationsintheinterpreterstack. But these values are neverreadbackbeforeexitingthetrace(by the interpreter or another trace). Thus, storestothestackthatareoverwritten before the next exit are dead. Storestolocationsthatareoff Dead call-stack store elimination. This is the same optimization asabove, except applied to the interpreter’scall stack used for Dead code elimination. Thiseliminatesanyoperationthat store stoa value that is never used.</p>
+<p>After a LIR instruction is successfully read(“pulled”)from the backward filter pipeline, nanojit’scodegeneratoremitsnative We use a simple greedy register allocator that makes a single backward passover the trace(itisintegratedwiththecodegenhavenotyetbeenassignedregisters, theallocatorassignsafree register to each. If there are no free registers, a value is selected for spilling. Weuseaclassheuristicthatselectsthe“oldest”register carried value(6). inregistersimmebethelast isreferredto. Then the Tag JSType Description xx1 number 31-bitintegerrepresentation 000 object pointer to JSObjecthandle 010 number pointer to double handle 100 string pointer to JSStringhandle 110 boolean enumeration for null, undefined, true, false null, or undefined Testing tags, unboxing(extractingtheuntaggedvalue)and boxing (crea ting tagged values)aresignificantcosts. Avoidingthesecosts is akey benefit of tracing. . The motivation is that this free supa register for as long as possible given a single spill. at this point, we generate the restore code just after the code for the current instruction. The is marked free for the preceding code, becausethatregistercannowbeusedfreely To demonstrate the effectiveness of our approach, we have implemented a trace-based dynamic compiler for the SpiderMonkey JavaScript Virtual Machine(4). SpiderMonkey isthe JavaScript VMembeddedin Mozilla’s Firefoxopen-source web browser(2), whichisusedbymorethan200millionusersworld-wide. The core of SpiderMonkey is a bytecode interpreter implemented in C++.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p>Aftera LIR instruction is successfully read(“pulled”)from the backward filter pipeline, nanojit’scodegeneratoremitsnative Weuseasimplegreedyregisterallocatorthatmakesasingle backward passover the trace(itisintegratedwiththecodegenhavenotyetbeenassignedregisters, theallocatorassignsafree register to each. If there are no free registers, a value is selected for spilling. Weuseaclassheuristicthatselectsthe“oldest”register carried value(6). inregistersimmebethelast isreferredto. Thenthe Tag JSType Description xx1 number 31-bitintegerrepresentation 000 object pointer to JSObjecthandle 010 number pointer to double handle 100 string pointer to JSStringhandle 110 boolean enumeration for null, undefined, true, false null, or undefined Testing tags, unboxing(extractingtheuntaggedvalue)and boxing (crea ting tagged values)aresignificantcosts. Avoidingthesecosts is akey benefit of tracing. . The motivation is that this free supa register for as long as possible given a single spill. at this point, we generate the restore code just after the code for the current instruction. The is marked free for the preceding code, becausethatregistercannowbeusedfreely To demonstrate the effectiveness of our approach, we have implemented a trace-based dynamic compiler for the SpiderMonkey JavaScript Virtual Machine(4). SpiderMonkey isthe JavaScript VMembeddedin Mozilla’s Firefoxopen-source web browser(2), whichisusedbymorethan200millionusersworld-wide. Thecore of SpiderMonkey is a bytecode interpreter implemented in C++.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
-<h2>In SpiderMonkey, all JavaScript valuesarerepresentedbythe</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
-<p>ismachinewordinwhichuptothe3ofthe leastsignificantbitsareatypetag, andtheremainingbitsaredata. pointto GC-controlledblocksalignedon8-byteboundaries. valuesaremappingsofstring-valued property namestoarbitraryvalues. Theyarerepresentedinoneoftwoways in SpiderMonkey. Mostobjectsarerepresentedbyasharedstruc- , thatmapspropertynames toarrayindexesusingahashtable. The object store sapo inter to the shape and the array of it sown property values. Objects with large, uniquesetsofpropertynamesstoretheirpropertiesdirectly in a hash table.</p>
+<p>In SpiderMonkey, all JavaScript valuesarerepresentedbythe ismachinewordinwhichuptothe3ofthe leastsignificantbitsareatypetag, andtheremainingbitsaredata. point to GC-controlledblocksalignedon8-byteboundaries. valuesaremappingsofstring-valued property namestoarbitraryvalues. Theyarerepresentedinoneoftwoways in SpiderMonkey. Mostobjectsarerepresentedbyasharedstruc- , thatmapspropertynames toarrayindexesusingahashtable. The object stores a pointer to the shape and the array of it sown property values. Objects with large, uniquesetsofpropertynamesstoretheirpropertiesdirectly in a hash table.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
@@ -482,12 +302,8 @@
 <p>Theinterpretermusthitaloopedgeandenterthemonitorin order to call a native trace for the first time. Themonitorcomputes thecurrenttypemap, checksthetracecacheforatraceforthe current PCandtypemap, andifitfindsone, executes the trace.</p>
 <!-- /wp:paragraph -->
 
-<!-- wp:heading {"level":2} -->
-<h2>To execute a trace, the monitor must build a trace activation</h2>
-<!-- /wp:heading -->
-
 <!-- wp:paragraph -->
-<p>recordcontainingimportedlocalandglobalvariables, temporary stack space, andspaceforargumentstonativecalls. The local and global values are then copied from the interpreter state to the trace activation record. Then, thetraceiscalledlikeanormal Cfunction pointer.</p>
+<p>To execute a trace, the monitor must build a trace activation recordcontainingimportedlocalandglobalvariables, temporary stack space, andspaceforargumentstonativecalls. The local and global values are then copied from the interpreter state to the trace activation record. Then, thetraceiscalledlikeanormal Cfunction pointer.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
@@ -495,103 +311,63 @@
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p>At least in the current implementation, these step shave a nonnegligible runtime cost, sominimizingthenumberofinterpreterto-trace and trace-to-interpreter transitions is essential for performance.(seealso Section3.3). Ourexperiments(see Figure12) showthatforprogramswecantracewellsuchtransitionshappeninfrequentlyandhencedonotcontributesignificantlytototal runtime. Inafewprograms, wherethesystemispreventedfrom recordingbranchtracesforhotsideexitsbyaborts, this cost can Transitions from a trace to a branch trace at a side exit avoid the trace . At a side exit, theexitingtraceonlyneedstowritelive register-carried values back to its trace activation record. In our implementation, identicaltypemapsyieldidenticalactivationrecord layouts, sothetraceactivationrecordcanbereusedimmediately by the branch trace.</p>
+<p>At least in the current implementation, these step shave a nonnegligible runtime cost, sominimizingthenumberofinterpreterto-trace and trace-to-interpreter transitions is essential for performance.(seealso Section 3.3). Ourexperiments(see Figure 12) showthatforprogramswecantracewellsuchtransitionshappeninfrequentlyandhencedonotcontributesignificantlytototal runtime. Inafewprograms, wherethesystemispreventedfrom recordingbranchtracesforhotsideexitsbyaborts, this cost can Transitions from a trace to a branch trace at a side exit avoid the trace . At a side exit, theexitingtraceonlyneedstowritelive register-carried values back to its trace activation record. In our implementation, identicaltypemapsyieldidenticalactivationrecord layouts, sothetraceactivationrecordcanbereusedimmediately by the branch trace.</p>
 <!-- /wp:paragraph -->
 
-<!-- wp:heading {"level":2} -->
-<h2>In programs with branchy trace trees with small traces, trace</h2>
-<!-- /wp:heading -->
-
 <!-- wp:paragraph -->
-<p>stitching has a notice able cost. Although writing to memory and thensoonreadingbackwouldbeexpectedtohaveahigh L1 cachehitrate, forsmalltracestheincreasedinstructioncounthas a notice able cost. Also, if the write sand read sare very close in the dynamic instruction stream, we have found that current x86processorsoftenincurpenaltiesof6cyclesormore(e.g., if theinstructionsusedifferentbaseregisterswithequalvalues, the processormaynotbeabletodetectthattheaddressesarethesame right a way).</p>
+<p>In programs with branchy trace trees with small traces, trace stitching has a notice able cost. Although writing to memory and thensoonreadingbackwouldbeexpectedtohaveahigh L1 cachehitrate, forsmalltracestheincreasedinstructioncounthas a notice able cost. Also, if the write sand read sare very close in the dynamic instruction stream, we have found that current x86processorsoftenincurpenaltiesof6cyclesormore(e.g., if the instructions use different base registers with equal values, the processormaynotbeabletodetectthattheaddressesarethesame right away).</p>
 <!-- /wp:paragraph -->
 
-<!-- wp:heading {"level":2} -->
-<h2>The alternate solution is to recompile an entire trace tree, thus</h2>
-<!-- /wp:heading -->
-
 <!-- wp:paragraph -->
-<p>achievinginter-trace register allocation(10). The disadvantage is that tree recompilation take stime quadratic in the number of traces.</p>
+<p>The alternate solution is to recompile an entire trace tree, thus achievinginter-trace register allocation(10). The disadvantage is that tree recompilation take stime quadratic in the number of traces.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
 <p>Webelievethatthecostofrecompilingatracetreeeverytime a branch is added would be prohibitive. That problem might be mitigatedbyrecompilingonlyatcertainpoints, or only for very hot, stable trees.</p>
 <!-- /wp:paragraph -->
 
-<!-- wp:heading {"level":2} -->
-<h2>In the future, multicorehardwareisexpectedtobecommon,</h2>
-<!-- /wp:heading -->
-
 <!-- wp:paragraph -->
-<p>making background tree recompilation attractive. In a closely related project(13)backgroundrecompilationyieldedspeedupsof upto1.25xonbenchmarkswithmanybranchtraces. We plan to Thejobofthetracerecorderistoemit LIR with identical semantics to the currently running interpreter bytecode trace. A good implementation should have low impact on non-tracinginterpreterperformanceandaconvenientwayforimplementerstomaintainsemanticequivalence.</p>
+<p>In the future, multicorehardwareisexpectedtobecommon, making background tree recompilation attractive. In a closely related project(13)backgroundrecompilationyieldedspeedupsof upto1.25xonbenchmarkswithmanybranchtraces. We plan to Thejobofthetracerecorderistoemit LIR with identical semantics to the currently running interpreter bytecode trace. A good implementation should have low impact on non-tracinginterpreterperformanceandaconvenientwayforimplementerstomaintainsemanticequivalence.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p>In our implementation, theonlydirectmodificationtotheinterpreterisacalltothetracemonitoratloopedges. In our benchmark results(see Figure12)the total time spent in the monitor(forall activities)isusuallylessthan5%, soweconsidertheinterpreter impactrequirementmet. Incrementingtheloophitcounterisexpensivebecauseitrequiresustolookuptheloopinthetracecache, but we have tuned our loops to become hot and trace very quickly (on the second iteration). Thehitcounterimplementationcouldbe improved, whichmightgiveusasmallincreaseinoverallperformance, aswellasmoreflexibilitywithtuninghotnessthresholds.</p>
+<p>In our implementation, the only direct modification to the interpreter is a call to the trace monitor at loop edges. In our benchmark results(see Figure 12)the total time spent in the monitor(for all activities)isusuallylessthan5%, soweconsidertheinterpreter impactrequirementmet. Incrementingtheloophitcounterisexpensivebecauseitrequiresustolookuptheloopinthetracecache, but we have tuned our loops to become hot and trace very quickly (on the second iteration). Thehitcounterimplementationcouldbe improved, whichmightgiveusasmallincreaseinoverallperformance, aswellasmoreflexibilitywithtuninghotnessthresholds.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p>Once a loop is black listed we never call into the trace monitor for that loop(see Section3.3).</p>
+<p>Once a loop is black listed we never call into the trace monitor for that loop(see Section 3.3).</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p>Recordingisactivatedbyapointerswapthatsetstheinterpreter’sdispatchtabletocallasingle“interrupt”routine for every bytecode. The interrupt routine first calls a bytecode-specific recording routine. Then, itturnsoffrecordingifnecessary(e.g., the trace ended). Finally, it jump stot hest an dard interpreter bytecode implementation. Somebytecodeshaveeffectsonthetypemap thatcannotbepredictedbeforeexecutingthebytecode(e.g., call if the index argument is out of range). For these, wearrangefortheinterpretertocallintotherecorderagainafterexecutingthebytecode.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
-<h2>Since such hook sare relatively rare, we embed them directly into</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
-<p>the interpreter, withanadditionalruntimechecktoseewhethera recorder is currently active.</p>
+<p>Recordingisactivatedbyapointerswapthatsetstheinterpreter’sdispatchtabletocallasingle“interrupt”routine for every bytecode. The interrupt routine first calls a bytecode-specific recording routine. Then, itturnsoffrecordingifnecessary(e.g., the trace ended). Finally, it jump stot hest an dard interpreter bytecode implementation. Somebytecodeshaveeffectsonthetypemap thatcannotbepredictedbeforeexecutingthebytecode(e.g., call if the index argument is out of range). For these, we arrange for the interpreter to call into the recorder again after executing the bytecode.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p>Whileseparatingtheinterpreterfromtherecorderreducesindividualcodecomplexity, it also requires careful implementation and</p>
+<p>Since such hook sare relatively rare, we embed them directly into the interpreter, withanadditionalruntimechecktoseewhethera recorder is currently active.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p>extensive testing to achieve semantic equivalence.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
-<h2>Insomecasesachievingthisequivalenceisdifficultsince Spidesign, which was found to be</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
-<p>beneficial to pure interpreter performance.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
-<h2>Infat-bytecodedesigns, individual bytecodes can implement</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
-<p>bytecode, whichimplementsfull JavaScript property value access, includingspecialcases for cache dand dense array access).</p>
+<p>Whileseparatingtheinterpreterfromtherecorderreducesindividualcodecomplexity, it also requires careful implementation and extensive testing to achieve semantic equivalence.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p>Fatbytecodeshavetwoadvantages: fewerbytecodesmeans lower dispatch cost, andbiggerbytecodeimplementationsgivethe</p>
+<p>Insomecasesachievingthisequivalenceisdifficultsince Spidesign, which was found to be beneficial to pure interpreter performance.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p>compilermoreopportunitiestooptimizetheinterpreter.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
-<h2>Fatbytecodesareaproblemfor TraceMonkey because they</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
-<p>require the recorder tore implement the same special case logic in the same way. Also, the advantage sare reduced because(a) dispatchcostsareeliminatedentirelyincompiledtraces,(b)the traces contain only on especial case, not the interpreter’slarge chunk of code, and(c)TraceMonkey spendslesstimerunningthe base interpreter.</p>
+<p>Infat-bytecodedesigns, individual bytecodes can implement bytecode, whichimplementsfull JavaScript property value access, includingspecialcases for cache dand dense array access).</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p>Onewaywehavemitigatedtheseproblemsisbyimplementing certain complex bytecodes in the recorder as sequences of simple</p>
+<p>Fatbytecodeshavetwoadvantages: fewerbytecodesmeans lower dispatch cost, andbiggerbytecodeimplementationsgivethe compilermoreopportunitiestooptimizetheinterpreter.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p>bytecodes. Expressingtheoriginalsemanticsthiswayisnottoodifficult, and recording simple bytecodes is much easier. Thisenables ustoretaintheadvantagesoffatbytecodeswhileavoidingsomeof theirproblemsfortracerecording. This is particularly effective for fatbytecodesthatrecursebackintotheinterpreter, for example to convertanobjectintoaprimitivevaluebyinvokingawell-known method on the object, sinceitletsusinlinethisfunctioncall.</p>
+<p>Fatbytecodesareaproblemfor TraceMonkey because they require the recorder tore implement the same special case logic in the same way. Also, the advantage sare reduced because(a) dispatchcostsareeliminatedentirelyincompiledtraces,(b)the traces contain only on especial case, not the interpreter’slarge chunk of code, and(c)TraceMonkey spendslesstimerunningthe base interpreter.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>Onewaywehavemitigatedtheseproblemsisbyimplementing certain complex bytecodes in the recorder as sequences of simple bytecodes. Expressingtheoriginalsemanticsthiswayisnottoodifficult, and recording simple bytecodes is much easier. Thisenables ustoretaintheadvantagesoffatbytecodeswhileavoidingsomeof theirproblemsfortracerecording. This is particularly effective for fatbytecodesthatrecursebackintotheinterpreter, for example to convertanobjectintoaprimitivevaluebyinvokingawell-known method on the object, sinceitletsusinlinethisfunctioncall.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
@@ -602,72 +378,44 @@
 <p>In the interpreter, this had been implemented by setting a“preemptnow”flag that was checked on every backward jump. This strategy carried over into TraceMonkey: the VMinsertsaguardon thepreemptionflagateveryloopedge. We measured less than a 1%increase in runtime on most benchmarks for this extra guard.</p>
 <!-- /wp:paragraph -->
 
-<!-- wp:heading {"level":2} -->
-<h2>In practice, the cost is detectable only for programs with very short</h2>
-<!-- /wp:heading -->
-
 <!-- wp:paragraph -->
-<p>loops.</p>
+<p>In practice, the cost is detectable only for programs with very short loops.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p>Wetestedandrejectedasolutionthatavoidedtheguardsby compiling the loop edge as an unconditional jump, andpatching</p>
+<p>Wetestedandrejectedasolutionthatavoidedtheguardsby compiling the loop edge as an unconditional jump, andpatching thejumptargettoanexitroutinewhenpreemptionisrequired.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p>thejumptargettoanexitroutinewhenpreemptionisrequired.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
-<h2>This solution can make the normal case slightly faster, butthen</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
-<p>preemptionbecomesveryslow. The implementation was also very complex, especiallytryingtorestartexecutionafterthepreemption.</p>
+<p>This solution can make the normal case slightly faster, but then preemptionbecomesveryslow. The implementation was also very complex, especiallytryingtorestartexecutionafterthepreemption.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p>Likemostinterpreters, SpiderMonkey has a foreign function interface(FFI)thatallowsittocall Cbuiltinsandhostsystemfunctions</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
-<p>(e.g., web browser control and DOMaccess). The FFIhasastandardsignaturefor JS-callablefunctions, thekeyargumentofwhich isanarrayofboxedvalues. External function scalled through the FFIinteractwiththeprogramstatethroughaninterpreter API(e.g., to read a property from an argument). Therearealsocertaininterpreterbuiltinsthatdonotusethe FFI, but interact with the program function used with iter at or objects. TraceMonkey must support this FFIin order to speedup code that inter acts with the host system in side hot loops.</p>
+<p>Like most interpreters, SpiderMonkey has a foreign function interface(FFI)that allows it to call Cbuiltinsandhostsystemfunctions (e.g., web browser control and DOMaccess). The FFIhasastandardsignaturefor JS-callablefunctions, thekeyargumentofwhich isanarrayofboxedvalues. External function scalled through the FFIinteractwiththeprogramstatethroughaninterpreter API(e.g., to read a property from an argument). Therearealsocertaininterpreterbuiltinsthatdonotusethe FFI, but interact with the program function used with iter at or objects. TraceMonkey must support this FFIin order to speedup code that inter acts with the host system inside hot loops.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
 <p>Callingexternalfunctionsfrom TraceMonkey ispotentiallydifficultbecausetracesdonotupdatetheinterpreterstateuntilexiting. In particular, externalfunctionsmayneedthecallstackorthe global variables, but they may be out of date.</p>
 <!-- /wp:paragraph -->
 
-<!-- wp:heading {"level":2} -->
-<h2>For the out-of-date call stack problem, werefactoredsomeof</h2>
-<!-- /wp:heading -->
-
 <!-- wp:paragraph -->
-<p>the interpreter APIimplementationfunctionstore-materialize the interpreter call stack on demand.</p>
+<p>For the out-of-date call stack problem, werefactoredsomeof the interpreter APIimplementationfunctionstore-materialize the interpreter call stack on demand.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p>Wede velo peda C++staticanalysisandannotatedsomeinterpreterfunctionsinordertoverifythatthecallstackisrefreshed atanypointitneedstobeused. In order to access the call stack, . Theseannotationsarealsorequiredinordertocall functions, whicharepresumedtoaccessthecall isatrustedannotation, applied toonly5functions, thatmeansthefunctionrefreshesthecallstack. isanuntrustedannotationthatmeansthefunctionmayonlybecalledifthecallstackhasalreadybeenrefreshed.</p>
+<p>Wede velo peda C++staticanalysisandannotatedsomeinterpreterfunctionsinordertoverifythatthecallstackisrefreshed at any point it needs to be used. In order to access the call stack, . Theseannotationsarealsorequiredinordertocall functions, whicharepresumedtoaccessthecall isatrustedannotation, applied toonly5functions, thatmeansthefunctionrefreshesthecallstack. isanuntrustedannotationthatmeansthefunctionmayonlybecalledifthecallstackhasalreadybeenrefreshed.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
 <p>Similarly, wedetectwhenhostfunctionsattempttodirectly read or write global variables, and force the currently running trace to side exit. This is necessary since we cache and unbox global variables into the activation record during trace execution.</p>
 <!-- /wp:paragraph -->
 
-<!-- wp:heading {"level":2} -->
-<h2>Since both call-stack access and global variable access are</h2>
-<!-- /wp:heading -->
-
 <!-- wp:paragraph -->
-<p>rarelyperformedbyhostfunctions, performance is not significantly affectedbythesesafetymechanisms.</p>
+<p>Since both call-stack access and global variable access are rarelyperformedbyhostfunctions, performance is not significantly affectedbythesesafetymechanisms.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p>Anotherproblemisthatexternalfunctionscanreentertheinterpreterbycallingscripts, which in turnagain might want to access</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
-<p>the call stack or global variables. To address this problem, wemade the VMsetaflagwhenevertheinterpreterisreenteredwhileacompiledtraceisrunning.</p>
+<p>Anotherproblemisthatexternalfunctionscanreentertheinterpreterbycallingscripts, which in turnagain might want to access the call stack or global variables. To address this problem, we made the VMsetaflagwhenevertheinterpreterisreenteredwhileacompiledtraceisrunning.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
@@ -683,11 +431,11 @@
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p>Onetoolthathelpedusgreatlywas Mozilla’s JavaScript fuzz , which generates random JavaScript programs to generate loops, andalsototestmoreheavilycertainconstructs wesuspectedwouldrevealflawsinourimplementation. For example, wesuspectedbugsin TraceMonkey’shandlingoftype-unstable !&quot;# $!&quot;# %!&quot;# &amp;!&quot;# &#039;!&quot;# (!&quot;# )!&quot;# *!&quot;# +!&quot;# ,!&quot;# $!!&quot;# &amp;-./012#3%4%56# &amp;-.789:;#3%4,56# &amp;-.9&lt;=&gt;9&lt;/2#3$4%56# &lt;//2??.1@A&lt;9=.&gt;922?#3!4,56# &lt;//2??. B&lt;AAC0/;#3%4%56# &lt;//2??. A18-=#3&#039;4%56# &lt;//2??. A?@2D2#3&amp;4!56# 1@&gt;8:?.&amp;1@&gt;.1@&gt;?.@A.1=&gt;2#3%(4(56# 1@&gt;8:?.1@&gt;?.@A.1=&gt;2#3+4*56# 1@&gt;8:?.1@&gt;E@?2.&lt;A-#3%(4%56# 1@&gt;8:?. A?@2D2.1@&gt;?#3%4*56# /8A&gt;98FG8E.92/09?@D2#3$4!56# /9=:&gt;8.&lt;2?#3$4)56# /9=:&gt;8.7-(#3%4&amp;56# /9=:&gt;8.?;&lt;$#3(4,56# -&lt;&gt;2.B897&lt;&gt;.&gt;8H2#3$4$56# -&lt;&gt;2.B897&lt;&gt;.5:&lt;91#3$4!56# 7&lt;&gt;;./89-@/#3&#039;4,56# 7&lt;&gt;;.:&lt;9I&lt;F.?07?#3(4,56# 7&lt;&gt;;.?:2/&gt;9&lt;F. A897#3*4$56# 92J25:.-A&lt;#3&#039;4%56# ?&gt;9@AJ.1&lt;?2)&#039;#3%4(56# ?&gt;9@AJ. B&lt;?&gt;&lt;#3$4(56# ?&gt;9@AJ.&gt;&lt;J/F80-#3$4$56# ?&gt;9@AJ.0A:&lt;/C./8-2#3$4%56# ?&gt;9@AJ. D&lt;F@-&lt;&gt;2.@A:0&gt;#3$4,56# KA&gt;29:92&gt;# L&lt;ID2# Figure11.Fraction of dynamic bytecodes executed by inter- Thespeedupvs.interpreter is shown in parentheses next to each test. Thefractionofbytecodesexecutedwhilerecordingistoosmalltoseeinthisfigure, except , wherefully3%of bytecodes are executed while recording. Inmostofthetests, almost all the bytecodes are executed by compiled traces. Three of the benchmarks are not traced at all and run in the interpreter. loops and heavily branching code, and a specialized fuzz tester in- We evaluate dour JavaScript tracingimplementationusing Sun- Spider, the industry standard JavaScript benchmark suite. Sun Spiderconsistsof26short-running(lessthan250ms, average26ms) JavaScript programs. Thisisinstarkcontrasttobenchmarksuites suchas Spec JVM98(3)used to evaluate desk to pand server Java VMs. Manyprogramsinthosebenchmarksuselargedatasetsand executeforminutes. The Sun Spider program scarry out a variety of tasks, primarily3drendering, bit-bashing, cryptographicencoding, mathkernels, andstringprocessing.</p>
+<p>Onetoolthathelpedusgreatlywas Mozilla’s JavaScript fuzz , which generates random JavaScript programs to generate loops, andalsototestmoreheavilycertainconstructs wesuspectedwouldrevealflawsinourimplementation. For example, wesuspectedbugsin TraceMonkey’shandlingoftype-unstable !&quot;# $!&quot;# %!&quot;# &amp;!&quot;# &#039;!&quot;# (!&quot;# )!&quot;# *!&quot;# +!&quot;# ,!&quot;# $!!&quot;# &amp;-./012#3%4%56# &amp;-.789:;#3%4,56# &amp;-.9&lt;=&gt;9&lt;/2#3$4%56# &lt;//2??.1@A&lt;9=.&gt;922?#3!4,56# &lt;//2??. B&lt;AAC0/;#3%4%56# &lt;//2??. A18-=#3&#039;4%56# &lt;//2??. A?@2D2#3&amp;4!56# 1@&gt;8:?.&amp;1@&gt;.1@&gt;?.@A.1=&gt;2#3%(4(56# 1@&gt;8:?.1@&gt;?.@A.1=&gt;2#3+4*56# 1@&gt;8:?.1@&gt;E@?2.&lt;A-#3%(4%56# 1@&gt;8:?. A?@2D2.1@&gt;?#3%4*56# /8A&gt;98FG8E.92/09?@D2#3$4!56# /9=:&gt;8.&lt;2?#3$4)56# /9=:&gt;8.7-(#3%4&amp;56# /9=:&gt;8.?;&lt;$#3(4,56# -&lt;&gt;2.B897&lt;&gt;.&gt;8H2#3$4$56# -&lt;&gt;2.B897&lt;&gt;.5:&lt;91#3$4!56# 7&lt;&gt;;./89-@/#3&#039;4,56# 7&lt;&gt;;.:&lt;9I&lt;F.?07?#3(4,56# 7&lt;&gt;;.?:2/&gt;9&lt;F. A897#3*4$56# 92J25:.-A&lt;#3&#039;4%56# ?&gt;9@AJ.1&lt;?2)&#039;#3%4(56# ?&gt;9@AJ. B&lt;?&gt;&lt;#3$4(56# ?&gt;9@AJ.&gt;&lt;J/F80-#3$4$56# ?&gt;9@AJ.0A:&lt;/C./8-2#3$4%56# ?&gt;9@AJ. D&lt;F@-&lt;&gt;2.@A:0&gt;#3$4,56# KA&gt;29:92&gt;# L&lt;ID2# Figure 11.Fraction of dynamic bytecodes executed by inter- Thespeedupvs.interpreter is shown in parentheses next to each test. Thefractionofbytecodesexecutedwhilerecordingistoosmalltoseeinthisfigure, except , wherefully3%of bytecodes are executed while recording. Inmostofthetests, almost all the bytecodes are executed by compiled traces. Three of the benchmarks are not traced at all and run in the interpreter. loops and heavily branching code, and a specialized fuzz tester in- We evaluate dour JavaScript tracingimplementationusing Sun- Spider, the industry standard JavaScript benchmark suite. Sun Spiderconsistsof26short-running(lessthan250ms, average26ms) JavaScript programs. Thisisinstarkcontrasttobenchmarksuites such as Spec JVM98(3)used to evaluate desk to pand server Java VMs. Manyprogramsinthosebenchmarksuselargedatasetsand executeforminutes. The Sun Spider program scarry out a variety of tasks, primarily3drendering, bit-bashing, cryptographicencoding, mathkernels, andstringprocessing.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p>Allexperimentswereperformedona Mac Book Prowith2.2 Them a in question is whether programs run faster with tracing. Forthis, we rant hest an dard Sun Spider test driver, which starts a JavaScript interpreter, load sand runs each programonceforwarmup, thenloadsandrunseachprogram10 timesandreportstheaveragetimetakenbyeach. Weran4differentconfigurationsforcomparison:(a)SpiderMonkey, the base line interpreter,(b)TraceMonkey,(d)Squirrel Fish Extreme(SFX), the call-threaded JavaScript interpreter used in Apple’s Web Kit, and (e)V8, the method-compiling JavaScript VMfrom Google.</p>
+<p>Allexperimentswereperformedona Mac Book Prowith2.2 Them a in question is whether programs run faster with tracing. For this, we rant hest an dard Sun Spider test driver, which starts a JavaScript interpreter, load sand runs each programonceforwarmup, thenloadsandrunseachprogram10 timesandreportstheaveragetimetakenbyeach. Weran4differentconfigurationsforcomparison:(a)SpiderMonkey, the base line interpreter,(b)TraceMonkey,(d)Squirrel Fish Extreme(SFX), the call-threaded JavaScript interpreter used in Apple’s Web Kit, and (e)V8, the method-compiling JavaScript VM from Google.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:heading {"level":2} -->
@@ -695,59 +443,39 @@
 <!-- /wp:heading -->
 
 <!-- wp:paragraph -->
-<p>and V8againstthebaseline(SpiderMonkey). Tracingachievesthe best speedups in integer-heavy benchmarks, uptothe25xspeedup TraceMonkey isthefastest VMon9ofthe26benchmarks bitops-bitwise math- !&quot; #&quot; $!&quot; $#&quot; %!&quot; %#&quot; &amp;&#039;()*+,&quot; -./&quot; 01&quot; Speedupvs.abase line JavaScript interpreter(SpiderMonkey)for our trace-based JITcompiler, Apple’s Squirrel Fish Extreme inlinethreadinginterpreterand Google’s V8JScompiler. Our system generates particularly efficient code for programs that benefit most from type specialization, whichincludes Sun Spider Benchmarkprogramsthatperformbitmanipulation. Wetype-specialize the code in question touse integer arithmetic, which substantially improves performance. Foroneofthebenchmarkprogramsweexecute25timesfasterthan the SpiderMonkey interpreter, andalmost5timesfasterthan V8and SFX. For a large number of benchmarks all three VMsproducesimilar results. Weperformworstonbenchmarkprogramsthatwedonottraceandinsteadfallbackontotheinterpreter. Thisincludestherecursive , forwhichwecurrentlydon’tgenerateanynativecode. benchmarks are short programs that perform many bitwise operations, so TraceMonkey cancovertheentireprogramwith1or2tracesthatoperateonintegers. TraceMonkey runs all the other programs in this setal most entirely as native is dominated by regular expression matching, whichisimplementedinall3VMsbyaspecialregularexpression compiler. Thus, performance on this benchmark has little relation tothetracecompilationapproachdiscussedinthispaper.</p>
+<p>and V8againstthebaseline(SpiderMonkey). Tracingachievesthe best speedups in integer-heavy benchmarks, uptothe25xspeedup TraceMonkey isthefastest VMon9ofthe26benchmarks bitops-bitwise math- !&quot; #&quot; $!&quot; $#&quot; %!&quot; %#&quot; &amp;&#039;()*+,&quot; -./&quot; 01&quot; Speedupvs.abase line JavaScript interpreter(SpiderMonkey)for our trace-based JITcompiler, Apple’s Squirrel Fish Extreme inlinethreadinginterpreterand Google’s V8JScompiler. Our system generates particularly efficient code for programs that benefit most from type specialization, whichincludes Sun Spider Benchmarkprogramsthatperformbitmanipulation. We type-specialize the code in question to use integer arithmetic, which substantially improves performance. Foroneofthebenchmarkprogramsweexecute25timesfasterthan the SpiderMonkey interpreter, andalmost5timesfasterthan V8and SFX. For a large number of benchmarks all three VMsproducesimilar results. Weperformworstonbenchmarkprogramsthatwedonottraceandinsteadfallbackontotheinterpreter. Thisincludestherecursive , forwhichwecurrentlydon’tgenerateanynativecode. benchmarks are short programs that perform many bitwise operations, so TraceMonkey cancovertheentireprogramwith1or2tracesthatoperateonintegers. TraceMonkey runs all the other programs in this setal most entirely as native is dominated by regular expression matching, whichisimplementedinall3VMsbyaspecialregularexpression compiler. Thus, performance on this benchmark has little relation to the trace compilation approach discussed in this paper.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p>TraceMonkey’ssmallerspeedupsontheotherbenchmarkscan The implementation does not currently trace recursion, so TraceMonkey achievesasmallspeedupornospeedupon 3dandsome date-formatusesuchfunctionsintheir The implementation does not currently trace through regular operations. The replace function can be passedafunctionobjectusedtocomputethereplacementtext.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
-<h2>Our implementation currently does not trace function scalled</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
-<p>is form son every long trace. We expect to improve performance onthisprogramsbyimprovingthecompilationspeedofnano- Some programs trace very well, andspeedupcomparedto access- . There as on is not clear, but all of these programs have nested loops with smallbodies, sowesuspectthattheimplementationhasarelatraces well, butitsruntimeisdominatedbystringprocessingbuiltins, which are unaffected by tracing and seem to be less efficient in In Figure11weshowthefractionofinstructionsinterpretedandthefractionofinstructionsexecutedasnativecode. Thisfigureshowsthatformanyprograms, we are able to execute almost all the code natively.</p>
+<p>TraceMonkey’ssmallerspeedupsontheotherbenchmarkscan The implementation does not currently trace recursion, so TraceMonkey achievesasmallspeedupornospeedupon 3dandsome date-formatusesuchfunctionsintheir The implementation does not currently trace through regular operations. The replace function can be passed afunction object used to compute the replacement text.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p>Figure12breaksdownthetotalexecutiontimeintofouractivities: interpretingbytecodeswhilenotrecording, recording traces</p>
+<p>Our implementation currently does not trace function scalled is form son every long trace. We expect to improve performance onthisprogramsbyimprovingthecompilationspeedofnano- Some programs trace very well, andspeedupcomparedto access- . There as on is not clear, but all of these programs have nested loops with smallbodies, sowesuspectthattheimplementationhasarelatraces well, butitsruntimeisdominatedbystringprocessingbuiltins, which are unaffected by tracing and seem to be less efficient in In Figure11weshowthefractionofinstructionsinterpretedandthefractionofinstructionsexecutedasnativecode. Thisfigureshowsthatformanyprograms, we are able to execute almost all the code natively.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p>(includingtimetakentointerprettherecordedtrace), compiling traces to native code, andexecutingnativecodetraces.</p>
+<p>Figure12breaksdownthetotalexecutiontimeintofouractivities: interpretingbytecodeswhilenotrecording, recording traces (includingtimetakentointerprettherecordedtrace), compiling traces to native code, and executing native code traces.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p>Thesedetailedmetricsallowustoestimateparametersfora simple model of tracing performance. Theseestimatesshouldbe considered very rough, as the values observe dont hein dividual benchmarkshavelargestandarddeviations(on the order of the Loops Trees Traces Aborts Flushes Trees/Loop Traces/Tree Traces/Loop Speedup 3d-cube252729301.11.11.22.20x 3d-morph588201.61.01.62.86x 3d-raytrace10251001012.54.010.01.18x access-binary-trees00050---0.93x access-fannkuch1034572403.41.75.72.20x access-nbody81618502.01.12.34.19x access-nsieve368302.01.32.73.05x bitops-3bit-bits-in-byte222001.01.01.025.47x bitops-bits-in-byte334101.01.31.38.67x bitops-bitwise-and111001.01.01.025.20x bitops-nsieve-bits335001.01.71.72.75x control flow-recursive00010---0.98x crypto-aes5072781901.41.11.61.64x crypto-md5445001.01.31.32.30x crypto-sha15510001.02.02.05.95x date-format-tofte334701.01.31.31.07x date-format-xparb3311301.03.73.70.98x math-cordic245102.01.32.54.92x math-partial-sums244102.01.02.05.90x math-spectral-norm152020001.31.01.37.12x regexp-dna222001.01.01.04.21x string-base64357001.71.42.32.53x string-fasta51115602.21.43.01.49x string-tagcloud366502.01.02.01.09x string-unpack-code4437001.09.39.31.20x string-validate-input61013101.71.32.21.86x Detailed trace recording statistics for the Sun Spiderbenchmarkset. fromthefollowingcalculations, because most of its time is spent in the regular expression matcher, whichhasmuchdifferentperformancecharacteristicsfromthe other programs.(Note that this only makes a difference of about 10%in the results.)Dividing the total execution time in processor clockcyclesbythenumberofbytecodesexecutedinthebase interpretershowsthatonaverage, a bytecode executes in about 35cycles. Nativetracestakeabout9cyclesperbytecode, a3.9x speedup over the interpreter.</p>
+<p>Thesedetailedmetricsallowustoestimateparametersfora simple model of tracing performance. Theseestimatesshouldbe considered very rough, as the values observed on the individual benchmarkshavelargestandarddeviations(on the order of the Loops Trees Traces Aborts Flushes Trees/Loop Traces/Tree Traces/Loop Speedup 3d-cube252729301.11.11.22.20x 3d-morph588201.61.01.62.86x 3d-raytrace10251001012.54.010.01.18x access-binary-trees00050---0.93x access-fannkuch1034572403.41.75.72.20x access-nbody81618502.01.12.34.19x access-nsieve368302.01.32.73.05x bitops-3bit-bits-in-byte222001.01.01.025.47x bitops-bits-in-byte334101.01.31.38.67x bitops-bitwise-and111001.01.01.025.20x bitops-nsieve-bits335001.01.71.72.75x control flow-recursive00010---0.98x crypto-aes5072781901.41.11.61.64x crypto-md5445001.01.31.32.30x crypto-sha15510001.02.02.05.95x date-format-tofte334701.01.31.31.07x date-format-xparb3311301.03.73.70.98x math-cordic245102.01.32.54.92x math-partial-sums244102.01.02.05.90x math-spectral-norm152020001.31.01.37.12x regexp-dna222001.01.01.04.21x string-base64357001.71.42.32.53x string-fasta51115602.21.43.01.49x string-tagcloud366502.01.02.01.09x string-unpack-code4437001.09.39.31.20x string-validate-input61013101.71.32.21.86x Detailed trace recording statistics for the Sun Spiderbenchmarkset. fromthefollowingcalculations, because most of its time is spent in the regular expression matcher, whichhasmuchdifferentperformancecharacteristicsfromthe other programs.(Note that this only makes a difference of about 10%in the results.)Dividing the total execution time in processor clockcyclesbythenumberofbytecodesexecutedinthebase interpretershowsthatonaverage, a bytecode executes in about 35cycles. Nativetracestakeabout9cyclesperbytecode, a3.9x speedup over the interpreter.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p>Usingsimilarcomputations, wefindthattracerecordingtakes about3800cyclesperbytecode, andcompilation3150cyclesper</p>
+<p>Usingsimilarcomputations, wefindthattracerecordingtakes about3800cyclesperbytecode, andcompilation3150cyclesper bytecode. Hence, during recording and compiling the VM runs at 1/200thespeedoftheinterpreter. Becauseitcosts6950cyclesto compile a bytecode, andwesave26cycleseachtimethatcodeis run natively, webreakevenafterrunningatrace270times.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p>bytecode. Hence, during recording and compiling the VM runs at 1/200thespeedoftheinterpreter. Becauseitcosts6950cyclesto compile a bytecode, andwesave26cycleseachtimethatcodeis run natively, webreakevenafterrunningatrace270times.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
-<h2>The other VMswecomparedwithachieveanoverallspeedup</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
-<p>of3.0xrelativetoourbaselineinterpreter. Ourestimatednative codespeedupof3.9xissignificantlybetter. Thissuggeststhat our compilation techniques can generate more efficient native code thananyothercurrent JavaScript VM.</p>
+<p>The other VMswecomparedwithachieveanoverallspeedup of3.0xrelativetoourbaselineinterpreter. Ourestimatednative codespeedupof3.9xissignificantlybetter. Thissuggeststhat our compilation techniques can generate more efficient native code than any other current JavaScript VM.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p>Theseestimatesalsoindicatethatourstartupperformancecould be substantially better if we improved the speed of trace recording</p>
+<p>Theseestimatesalsoindicatethatourstartupperformancecould be substantially better if we improved the speed of trace recording and compilation. Theestimated200xslowdownforrecordingand compilation is very rough, andmaybeinfluencedbystartupfactors in the interpreter(e.g., cachesthathavenotwarmedupyetduring recording). One observation supporting this conjecture is that in the tracer, interpretedbytecodestakeabout180cyclestorun. Still, recording and compilation are clearly both expensive, and a better implementation, possiblyincludingredesignofthe LIR abstract syntaxorencoding, would improve startup performance.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p>and compilation. Theestimated200xslowdownforrecordingand compilation is very rough, andmaybeinfluencedbystartupfactors in the interpreter(e.g., cachesthathavenotwarmedupyetduring recording). One observation supporting this conjecture is that in the tracer, interpretedbytecodestakeabout180cyclestorun. Still, recording and compilation are clearly both expensive, and a better implementation, possiblyincludingredesignofthe LIR abstract syntaxorencoding, would improve startup performance.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
-<p>Ourperformanceresultsconfirmthattypespecializationusing trace trees substantially improves performance. We are able to outperformthefastestavailable JavaScript compiler(V8)andthe fastestavailable JavaScript inline threaded interpreter(SFX)on9 The close stare a of relatedworkisonapplyingtraceoptimizationtotype-specialize dynamic languages. Existingworksharestheideaofgenerating type-specialized code speculatively with guards along interpreter traces.</p>
+<p>Ourperformanceresultsconfirmthattypespecializationusing trace trees substantially improves performance. We are able to outperformthefastestavailable JavaScript compiler(V8)and the fastestavailable JavaScript inline threaded interpreter(SFX)on9 The close stare a of relatedworkisonapplyingtraceoptimizationtotype-specialize dynamic languages. Existingworksharestheideaofgenerating type-specialized code speculatively with guards along interpreter traces.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
@@ -763,7 +491,7 @@
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p>Pall’s Lua JITisa Lua VMindevelopmentthatusestracecompilationideas.(1). There are no publication son Lua JITbutthecreatorhastoldusthat Lua JIThasasimilardesigntooursystem, but willusealessaggressivetypespeculation(e.g., usingafloatingpointrepresentationforallnumbervalues)and does not generate General trace optimization has alongerhistorythathastreatedmostlynativecodeandtyped languages like Java. Thus, thesesystemshavefocusedlessontype specialization and more on other optimizations.</p>
+<p>Pall’s Lua JITisa Lua VMindevelopmentthatusestracecompilationideas.(1). There are no publication son Lua JITbutthecreatorhastoldusthat Lua JIThasasimilardesigntooursystem, but will use a less aggressive type speculation(e.g., usingafloatingpointrepresentationforallnumbervalues)and does not generate General trace optimization has alongerhistorythathastreatedmostlynativecodeandtyped languages like Java. Thus, thesesystemshavefocusedlessontype specialization and more on other optimizations.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:heading {"level":2} -->
@@ -794,40 +522,24 @@
 <p>Chamberset.al(9)pioneeredtheideaofcompilingmultiple version sofa procedure specialized for the input types in the language Self. In one implementation, they generated a specialized methodonlineeachtimeamethodwascalledwithnewinputtypes.</p>
 <!-- /wp:paragraph -->
 
-<!-- wp:heading {"level":2} -->
-<h2>In another, theyusedanofflinewhole-program static analysis to</h2>
-<!-- /wp:heading -->
-
 <!-- wp:paragraph -->
-<p>inferinputtypesandconstantreceivertypesatcallsites. Interestingly, thetwotechniquesproducednearlythesameperformance.</p>
+<p>In another, theyusedanofflinewhole-program static analysis to inferinputtypesandconstantreceivertypesatcallsites. Interestingly, thetwotechniquesproducednearlythesameperformance.</p>
 <!-- /wp:paragraph -->
 
-<!-- wp:heading {"level":2} -->
-<h2>Salib(17)designed a type inference algorithm for Python based</h2>
-<!-- /wp:heading -->
-
 <!-- wp:paragraph -->
-<p>onthe Cartesian Product Algorithm and used the results to specialize on types and translate the program to C++.</p>
+<p>Salib(17)designed a type inference algorithm for Python based on the Cartesian Product Algorithm and used the results to specialize on types and translate the program to C++.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
 <p>Mc Closkey(14)has work in progress based on a language independent type inference that is used to generate efficient C The traditional interpreter design is a virtual machine that directly executes ASTsor machine-code-like bytecodes. Researcher shave shown how to generate native code with nearly the same structure but better performance.</p>
 <!-- /wp:paragraph -->
 
-<!-- wp:heading {"level":2} -->
-<h2>Callthreading, alsoknownascontextthreading(8), compiles</h2>
-<!-- /wp:heading -->
-
 <!-- wp:paragraph -->
-<p>methods by generating a native call instruction to an interpreter method for each interpreter bytecode. Acall-return pair has been shown to be a potentially much more efficient dispatch mechanism thantheindirectjumpsusedinstandardbytecodeinterpreters.</p>
+<p>Callthreading, alsoknownascontextthreading(8), compiles methods by generating a native call instruction to an interpreter method for each interpreter bytecode. Acall-return pair has been shown to be a potentially much more efficient dispatch mechanism thantheindirectjumpsusedinstandardbytecodeinterpreters.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p>Inlinethreading(15)copieschunksofinterpreternativecode whichimplementtherequiredbytecodesintoanativecodecache,</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
-<p>thus acting as a simp leper-method JITcompilerthateliminatesthe dispatch overhead.</p>
+<p>Inlinethreading(15)copieschunksofinterpreternativecode whichimplementtherequiredbytecodesintoanativecodecache, thus acting as a simp leper-method JITcompilerthateliminatesthe dispatch overhead.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
@@ -842,28 +554,20 @@
 <p>Google’s V8isa JavaScript implementation primarily based oninlinethreading, withcallthreadingonlyforverycomplex This paper described how to run dynamic languages efficiently by recording hot traces and generating type-specialized native code.</p>
 <!-- /wp:paragraph -->
 
-<!-- wp:heading {"level":2} -->
-<h2>Ourtechniquefocusesonaggressivelyinlinedloops, and for each</h2>
-<!-- /wp:heading -->
-
 <!-- wp:paragraph -->
-<p>loop, itgeneratesatreeofnativecodetracesrepresentingthe pathsandvaluetypesthroughtheloopobservedatruntime. We explainedhowtoidentifyloopnestingrelationshipsandgenerate nestedtracesinordertoavoidexcessivecodeduplicationdue to the many paths through a loop nest. We described our type specialization algorithm. We also described our trace compiler, whichtranslatesatracefromanintermediaterepresentationto optimizednativecodeintwolinearpasses.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
-<h2>Our experimental results show that in practice loops typically</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
-<p>areenteredwithonlyafewdifferentcombinationsofvaluetypes of variables. Thus, asmallnumberoftracesperloopissufficient to run a program efficiently. Ourexperimentsalsoshowthaton Work is under way in a number of are as to further improve the performance of our trace-based JavaScript compiler. We currently donottraceacrossrecursivefunctioncalls, butplantoaddthe support for this capability in the near term. We are also exploring adoption of the existing work on tree recompilation in the context ofthepresenteddynamiccompilerinordertominimize JITpause timesandobtainthebestofbothworlds, fast tree stitching as well astheimprovedcodequalityduetotreerecompilation.</p>
+<p>Ourtechniquefocusesonaggressivelyinlinedloops, and for each loop, itgeneratesatreeofnativecodetracesrepresentingthe paths and value types through the loop observed at runtime. We explainedhowtoidentifyloopnestingrelationshipsandgenerate nestedtracesinordertoavoidexcessivecodeduplicationdue to them any paths through a loop nest. We described our type specialization algorithm. We also described our trace compiler, whichtranslatesatracefromanintermediaterepresentationto optimizednativecodeintwolinearpasses.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p>Wealsoplanonaddingsupportfortracingacrossregularexpressionsubstitutionsusinglambdafunctions, functionapplica- . All these language constructsarecurrentlyexecutedviainterpretation, whichlimits Partsofthisefforthavebeensponsoredbythe National Science Foundationundergrants CNS-0615443and CNS-0627747, aswell asbythe California MICRO Program and industrial sponsor Sun Micro systems under Project No.07-127.</p>
+<p>Our experimental results show that in practice loops typically areenteredwithonlyafewdifferentcombinationsofvaluetypes of variables. Thus, asmallnumberoftracesperloopissufficient to run a program efficiently. Ourexperimentsalsoshowthaton Work is under way in a number of are as to further improve the performance of our trace-based JavaScript compiler. We currently donottraceacrossrecursivefunctioncalls, butplantoaddthe support for this capability in the near term. We are also exploring adoption of the existing work on tree recompilation in the context ofthepresenteddynamiccompilerinordertominimize JITpause timesandobtainthebestofbothworlds, fast tree stitching as well astheimprovedcodequalityduetotreerecompilation.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p>The U. S. Government is authorized to reproduce and distribute reprintsfor Governmentalpurposesnotwithstandinganycopyright annotation there on. Anyopinions, findings, andconclusionsorrecommendationsexpressedherearethoseoftheauthorandshould notbeinterpretedasnecessarilyrepresentingtheofficialviews, policiesorendorsements, eitherexpressedorimplied, ofthe National Science foundation(NSF), anyotheragencyofthe U. S. Gov- [1]Lua JITroadmap2008-<a href="http://lua-users.org/lists/lua-l/2008-">http://lua-users.org/lists/lua-l/2008-</a> 02/msg00051.html. [2]Mozilla—Firefoxwebbrowserand Thunderbirdemailclient<a href="http://www.mozilla.com">http://www.mozilla.com</a>. [3]SPECJVM98-<a href="http://www.spec.org/jvm98/">http://www.spec.org/jvm98/</a>. [4]SpiderMonkey(JavaScript-C)Engine<a href="http://www.mozilla.org/js/spider">http://www.mozilla.org/js/spider</a> monkey/. [5]Surfin’Safari-Blog Archive-Announcing Squirrel Fish Extreme<a href="http://webkit.org/blog/214/introducing-squirrelfish-extreme/">http://webkit.org/blog/214/introducing-squirrelfish-extreme/</a>. [6]A. Aho, R. Sethi, J. Ullman, and M. Lam. Compilers: Principles, techniques, andtools,2006. [7]V. Bala, E. Duesterwald, and S. Banerjia. Dynamo: A transparent pages1–12.ACMPress,2000. [8]M. Berndl, B. Vitale, M. Zaleski, and A. Brown. Context Threading: a Flexible and Efficient Dispatch Technique for Virtual Machine In- Code Generation and Optimization,2005.CGO2005. , pages15–26,2005. [9]C. Chamber sand D. Ungar. Customization: Optimizing Compiler Technology for SELF, a Dynamically-Typed Object-Oriented Propages146–160.ACMNew York, NY, USA,1989.</p>
+<p>Wealsoplanonaddingsupportfortracingacrossregularexpressionsubstitutionsusinglambdafunctions, functionapplica- . All these language constructsarecurrentlyexecutedviainterpretation, whichlimits Partsofthisefforthavebeensponsoredbythe National Science Foundationundergrants CNS-0615443and CNS-0627747, as well as by the California MICRO Program and industrial sponsor Sun Micro systems under Project No.07-127.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>The U. S. Government is authorized to reproduce and distribute reprintsfor Governmental purpose snot with standing any copyright annotation there on. Anyopinions, findings, andconclusionsorrecommendationsexpressedherearethoseoftheauthorandshould notbeinterpretedasnecessarilyrepresentingtheofficialviews, policiesorendorsements, eitherexpressedorimplied, ofthe National Science foundation(NSF), any other agency of the U. S. Gov- [1]Lua JITroadmap2008-<a href="http://lua-users.org/lists/lua-l/2008-">http://lua-users.org/lists/lua-l/2008-</a> 02/msg00051.html. [2]Mozilla—Firefoxwebbrowserand Thunderbirdemailclient<a href="http://www.mozilla.com">http://www.mozilla.com</a>. [3]SPECJVM98-<a href="http://www.spec.org/jvm98/">http://www.spec.org/jvm98/</a>. [4]SpiderMonkey(JavaScript-C)Engine<a href="http://www.mozilla.org/js/spider">http://www.mozilla.org/js/spider</a> monkey/. [5]Surf in’Safari-Blog Archive-Announcing Squirrel Fish Extreme<a href="http://webkit.org/blog/214/introducing-squirrelfish-extreme/">http://webkit.org/blog/214/introducing-squirrelfish-extreme/</a>. [6]A. Aho, R. Sethi, J. Ullman, and M. Lam. Compilers: Principles, techniques, andtools,2006. [7]V. Bala, E. Duesterwald, and S. Banerjia. Dynamo: A transparent pages1–12.ACMPress,2000. [8]M. Berndl, B. Vitale, M. Zaleski, and A. Brown. Context Threading: a Flexible and Efficient Dispatch Technique for Virtual Machine In- Code Generation and Optimization,2005.CGO2005. , pages15–26,2005. [9]C. Chamber sand D. Ungar. Customization: Optimizing Compiler Technology for SELF, a Dynamically-Typed Object-Oriented Propages146–160.ACMNew York, NY, USA,1989.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:heading {"level":2} -->
@@ -871,5 +575,5 @@
 <!-- /wp:heading -->
 
 <!-- wp:paragraph -->
-<p>. Ph Dthesis, University Of California, Irvine, 2006. [11]A. Gal, C. W. Probst, and M. Franz. Hotpath VM: An effective JIT , pages 144–153.ACMPress,2006. [12]C. Garrett, J. Dean, D. Grove, and C. Chambers. Measurement and Application of Dynamic Receiver Class Distributions.1994. [13]J. Ha, M. R. Haghighat, S. Cong, and K. S. Mc Kinley. A concurrent trace-based just-in-time compiler for javascript. Dept.of Computer Sciences, The University of Texasat Austin, TR-09-06,2009. [14]B. Mc Closkey. Personal communication. [15]I. Piumartaand F. Riccardi. Optimizingdirectthreadedcodebyselec- , pages291– 300.ACMNew York, NY, USA,1998. [16]A. Rigo. Representation-Based Just-In-time Specialization and the ,2004. [17]M. Salib. Star killer: AStatic Type Inference rand Compiler for ,2004. [18]T. Suganuma, T. Yasue, and T. Nakatani. ARegion-Based Compila- ACMTransactionson Pro- ,28(1):134–174,2006. [19]M. Zaleski, A. D. Brown, and K. Stoodley. YETI: Agraduall Y , pages83–93.ACM Press,2007.</p>
+<p>. Ph Dthesis, University Of California, Irvine, 2006. [11]A. Gal, C. W. Probst, and M. Franz. Hot path VM: An effective JIT , pages 144–153.ACMPress,2006. [12]C. Garrett, J. Dean, D. Grove, and C. Chambers. Measurement and Application of Dynamic Receiver Class Distributions.1994. [13]J. Ha, M. R. Haghighat, S. Cong, and K. S. Mc Kinley. A concurrent trace-based just-in-time compiler for javascript. Dept.of Computer Sciences, The University of Texas at Austin, TR-09-06,2009. [14]B. Mc Closkey. Personal communication. [15]I. Piumartaand F. Riccardi. Optimizingdirectthreadedcodebyselec- , pages291– 300.ACMNew York, NY, USA,1998. [16]A. Rigo. Representation-Based Just-In-time Specialization and the ,2004. [17]M. Salib. Star killer: A Static Type Inference rand Compiler for ,2004. [18]T. Suganuma, T. Yasue, and T. Nakatani. A Region-Based Compila- ACMTransactionson Pro- ,28(1):134–174,2006. [19]M. Zaleski, A. D. Brown, and K. Stoodley. YETI: Agraduall Y , pages83–93.ACM Press,2007.</p>
 <!-- /wp:paragraph -->

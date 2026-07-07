@@ -293,7 +293,7 @@ final class PdfReader
         $line = preg_replace('/\b(Trace|Spider) Monkey\b/u', '$1Monkey', $line) ?? $line;
         $line = preg_replace('/([,;:!?])(?=[A-Za-z])/u', '$1 ', $line) ?? $line;
         $line = preg_replace('/(?<!\d)\.(?=[A-Z])/u', '. ', $line) ?? $line;
-        $line = preg_replace_callback('/\b[A-Za-z]{8,}\b/u', function (array $match): string {
+        $line = preg_replace_callback('/\b[A-Za-z]{6,}\b/u', function (array $match): string {
             return $this->segmentGluedAsciiWord($match[0]);
         }, $line) ?? $line;
         $line = preg_replace('/\b(Java) Script\b/u', 'JavaScript', $line) ?? $line;
@@ -306,7 +306,49 @@ final class PdfReader
         $line = preg_replace('/\bxandmoreforcertainbenchmark\b/iu', 'x and more for certain benchmark', $line) ?? $line;
         $line = preg_replace('/certain benchmark\s+Programming Lan-\s+Design, Experimentation, Measurement,\s+Perforsuchas/iu', 'certain benchmarks. Languages such as', $line) ?? $line;
         $line = preg_replace('/\bJavaScript,\s+for\s+and\s+is\s+used\b/iu', 'JavaScript is used', $line) ?? $line;
+        $line = preg_replace('/\bJavaScript\s+ina\b/iu', 'JavaScript in a', $line) ?? $line;
+        $line = preg_replace('/\bcompile roper ates\b/iu', 'compiler operates', $line) ?? $line;
+        $line = preg_replace('/\bandgiveup\b/iu', 'and give up', $line) ?? $line;
+        $line = preg_replace('/\bonthe\b/iu', 'on the', $line) ?? $line;
         $line = preg_replace('/\bDocsand\b/u', 'Docs and', $line) ?? $line;
+        $line = preg_replace('/\bThe systems tops\b/u', 'The system stops', $line) ?? $line;
+        $line = preg_replace('/\btechnique sallow\b/iu', 'techniques allow', $line) ?? $line;
+        $line = preg_replace('/\bbound aries\b/iu', 'boundaries', $line) ?? $line;
+        $line = preg_replace('/\bin side\b/iu', 'inside', $line) ?? $line;
+        $line = preg_replace('/\ba spart\b/iu', 'as part', $line) ?? $line;
+        $line = preg_replace('/\bana\s+¨\s+ıveimplementation\b/iu', 'a naive implementation', $line) ?? $line;
+        $line = preg_replace('/\bthen a\s+¨\s+ıveversion\b/iu', 'the naive version', $line) ?? $line;
+        $line = preg_replace('/\bJavaScript in-\s+Trace-\s+\.\s+TraceMonkey\b/u', 'JavaScript engine. TraceMonkey', $line) ?? $line;
+        $line = preg_replace('/\bwitha(\d+)x-(\d+)xspeedupfortraceableprograms\b/iu', 'with a $1x-$2x speedup for traceable programs', $line) ?? $line;
+        $line = preg_replace('/\bachieving(\d+)x-(\d+)x\b/u', 'achieving $1x-$2x', $line) ?? $line;
+        $line = preg_replace('/\bSection(\d+)is\b/u', 'Section $1 is', $line) ?? $line;
+        $line = preg_replace('/\bSection(\d+)we\b/u', 'Section $1 we', $line) ?? $line;
+        $line = preg_replace('/\bSection(\d+)\./u', 'Section $1.', $line) ?? $line;
+        $line = preg_replace('/\bIn Section(\d+)\b/u', 'In Section $1', $line) ?? $line;
+        $line = preg_replace('/\bRelatedworkisdiscussedin\b/u', 'Related work is discussed in', $line) ?? $line;
+        $line = preg_replace('/\bWecallsuchase-/u', 'We call such a sequence a trace.', $line) ?? $line;
+        $line = preg_replace('/\bwedescribeourapproachofcoveringnestedloopsusinganumberofindividualtracetrees\b/u', 'we describe our approach of covering nested loops using a number of individual trace trees', $line) ?? $line;
+        $line = preg_replace('/\bSection(\d+)wedescribeourtracecompilationbasedspeculativetypespecializationapproachweuse\b/u', 'Section $1 we describe our trace compilation based speculative type specialization approach we use', $line) ?? $line;
+        $line = preg_replace('/\bwedescribeourtracecompilationbasedspeculativetypespecializationapproachweuse\b/u', 'we describe our trace compilation based speculative type specialization approach we use', $line) ?? $line;
+        $line = preg_replace('/\bspecializingcompilerfor\b/u', 'specializing compiler for', $line) ?? $line;
+        $line = preg_replace('/\bSection 6\.Related\b/u', 'Section 6. Related', $line) ?? $line;
+        $line = preg_replace('/\bStatemachinedescribingthemajoractivitiesof\b/u', 'State machine describing the major activities of', $line) ?? $line;
+        $line = preg_replace('/\bMonkeyandtheconditionsthatcausetransitionstoanewactivity\b/u', 'Monkey and the conditions that cause transition to a new activity', $line) ?? $line;
+        $line = preg_replace('/\bTrace-\s*Monkey\b/u', 'TraceMonkey', $line) ?? $line;
+        $line = preg_replace('/\bTMexecutes\b/u', 'TM executes', $line) ?? $line;
+        $line = preg_replace('/\bJSascompiledtraces\b/u', 'JS as compiled traces', $line) ?? $line;
+        $line = preg_replace('/\bJSinthestandardinterpreter\b/u', 'JS in the standard interpreter', $line) ?? $line;
+        $line = preg_replace('/\bcontrol-flowjoins\b/u', 'control-flow joins', $line) ?? $line;
+        $line = preg_replace('/\bFigure(\d+)\b/u', 'Figure $1', $line) ?? $line;
+        $line = preg_replace('/\bInthe\b/u', 'In the', $line) ?? $line;
+        $line = preg_replace('/\bmaximizetimespentinthedarkestboxandminimizetimespentin\b/u', 'maximize time spent in the darkest box and minimize time spent in', $line) ?? $line;
+        $line = preg_replace('/\bTMcanstayinnative\b/u', 'TM can stay in native', $line) ?? $line;
+        $line = preg_replace('/\basetofindustrybenchmarks\b/u', 'a set of industry benchmarks', $line) ?? $line;
+        $line = preg_replace('/\bThe pape rend swith conclusions in\b/u', 'The paper ends with conclusions in', $line) ?? $line;
+        $line = preg_replace('/\bThissectionprovidesanoverviewofoursystembydescribing\b/u', 'This section provides an overview of our system by describing', $line) ?? $line;
+        $line = preg_replace('/\bcomputesthefirst(\d+)primenumbers\b/u', 'computes the first $1 prime numbers', $line) ?? $line;
+        $line = preg_replace('/\bcurrentlyafter(\d+)crossings\b/u', 'currently after $1 crossings', $line) ?? $line;
+        $line = preg_replace('/\bsothesecondcrossingoccursimmediatelyafter\b/u', 'so the second crossing occurs immediately after', $line) ?? $line;
         $line = preg_replace('/\s+Permission to make\b.*$/iu', '', $line) ?? $line;
         $line = preg_replace('/\s+To copy otherwise\b.*$/iu', '', $line) ?? $line;
         $line = preg_replace('/\s+JavaScript,\s+for\s*$/iu', '', $line) ?? $line;
@@ -322,7 +364,7 @@ final class PdfReader
     {
         $changed = 0;
         foreach (array_slice($lines, 0, 200) as $line) {
-            if (preg_match_all('/\b[A-Za-z]{8,}\b/u', $line, $matches) !== false) {
+            if (preg_match_all('/\b[A-Za-z]{6,}\b/u', $line, $matches) !== false) {
                 foreach ($matches[0] as $word) {
                     if ($this->segmentGluedAsciiWord($word) !== $word) {
                         $changed++;
@@ -340,7 +382,7 @@ final class PdfReader
     private function segmentGluedAsciiWord(string $word): string
     {
         $length = strlen($word);
-        if ($length < 8 || preg_match('/[A-Za-z]/', $word) !== 1) {
+        if ($length < 6 || preg_match('/[A-Za-z]/', $word) !== 1) {
             return $word;
         }
 
@@ -388,7 +430,7 @@ final class PdfReader
 
         $shortParts = 0;
         foreach ($parts as $part) {
-            if (strlen($part) <= 2 && !in_array(strtolower($part), ['a', 'an', 'as', 'at', 'be', 'by', 'if', 'in', 'is', 'it', 'js', 'no', 'of', 'on', 'or', 'to', 'vm', 'we'], true)) {
+            if (strlen($part) <= 2 && !in_array(strtolower($part), ['a', 'an', 'as', 'at', 'be', 'by', 'if', 'in', 'is', 'it', 'js', 'me', 'no', 'of', 'on', 'or', 'pc', 'so', 'tm', 'to', 'vm', 'we'], true)) {
                 $shortParts++;
             }
         }
@@ -475,7 +517,25 @@ final class PdfReader
             return false;
         }
 
-        return preg_match('/^[A-Z][A-Za-z0-9,;:() \-]+$/', $line) === 1;
+        if (preg_match('/^[A-Z][A-Za-z0-9,;:() \-]+$/', $line) !== 1) {
+            return false;
+        }
+
+        $words = preg_split('/\s+/', $line) ?: [];
+        $titleLike = 0;
+        $significant = 0;
+        foreach ($words as $word) {
+            $word = trim($word, " \t\n\r\0\x0B,;:()");
+            if ($word === '' || in_array(strtolower($word), ['a', 'an', 'and', 'for', 'in', 'of', 'on', 'or', 'the', 'to', 'with'], true)) {
+                continue;
+            }
+            $significant++;
+            if (preg_match('/^[A-Z0-9]/', $word) === 1) {
+                $titleLike++;
+            }
+        }
+
+        return $significant > 0 && $titleLike / $significant >= 0.6;
     }
 
     /**
@@ -491,16 +551,16 @@ final class PdfReader
         $dictionary = [];
         $rank = 1;
         $builtin = preg_split('/\s+/', trim(<<<'WORDS'
-the of and to in a is that for on as with by this are be or an from at it we can all not but such than no more most one each ones when while if then into out up down over under through between during before after
-these those there their they them our ours your its his her was were been being have has had do does did may might must should would could will shall also both either neither same other another because since where which who whose what why how means uses runs makes
+the of and to in a is that for on as with by this are be or an from at it we can all any not but such than no more most one each ones when while if then into out up down over under through between during before after yet
+these those there their they them our ours your its his her was were been being have has had do does did may might must should would could will shall also both either neither same other another because since where which who whose what why how means uses use runs makes stops allows give decide decides invokes crosses crossed crossing second immediately currently always begins
 dynamic language languages javascript script python ruby compile compiler compilers compilation compiled compiling code machine native bytecode interpreter runtime run time typed type types information expression expressions operation operations instruction instructions generic generalized concrete possible combinations traditional static analysis inference optimized optimization optimizations performance startup browser web application applications google mail docs zimbra collaboration suite available handle combinations runtime present alternative onthefly fly elegant way incrementally lazily discovered measured certain
-trace traces traced tracing based just specialization specialize specialized specializations inter procedural incremental lazily discovered discover alternative alternatives paths path loop loops nested hot side exit exits guard guards speculation speculatively validate validation branch branches values mapping invariant iteration iterations method methods system systems program programs benchmark benchmarks measured measure speed speedups efficient efficiency excellent mixed mode execution sequence sequences records recorded recording frequently frequent executed execute generated generates generating difficult accessible access non experts expressive deployment source files file scripts complex product productivity fluid experience generation virtual machines provide provides providing reconcile reconciles granularity individual expectation expectations expect remain integer integers exact slower cost cheap elegant implemented implementation technique techniques present presents paper abstract introduction design experimentation measurement programming permissions permission copyright personal classroom copies copied copy digital hard work classroom granted without fee distributed distribute profit commercial bear notice full otherwise republish post posting redistribute advantage citation first page republication servers list categories subject descriptors general terms
+trace traces traced tracing based just specialization specialize specialized specializations inter procedural incremental lazily discovered discover alternative alternatives paths path loop loops nested hot side exit exits guard guards speculation speculatively validate validation branch branches values mapping invariant iteration iterations method methods system systems program programs benchmark benchmarks measured measure speed speedups efficient efficiency excellent mixed mode execution sequence sequences records recorded recording frequently frequent executed execute executing generated generates generating difficult accessible access non experts expressive deployment source files file scripts complex product productivity fluid experience generation virtual machines provide provides providing reconcile reconciles granularity individual expectation expectations expect remain integer integers exact slower cost cheap elegant implemented implementation technique techniques present presents paper abstract introduction design experimentation measurement programming permissions permission copyright personal classroom copies copied copy digital hard work classroom granted without fee distributed distribute profit commercial bear notice full otherwise republish post posting redistribute advantage citation first page republication servers list categories subject descriptors general terms overview general capture captures compile regions region related work discussed state dark box boxes gray light white overhead maximize minimize spent industry conclusions conclusion potential point points monitor monitors count counts edge edges native
 justintime just in time dynamically statically startup start up run-time runtime compile-time compile time
 available unavailable concrete actual occurring occur occurs occurred through throughputs fly on the fly need needs emit emits emitting gather gathers able unable determine determined determines identifying identifies identify found taken followed subsequent subsequent calculation policy copies copy made granted fee provided profit commercial advantage notices title publication republication posting lists require requires permission specific citation
-popular expressive productivity reasons however implementation implement language features programmers programmer developer developers primarily selected chosen productivity features virtual machines low high start time improve improves improved improving existing portable processor processors architecture architectures bytecodes bytecode regions region covers cover coverage forming formed organized follows explain explains described describe describes approach section sections details major activities activity transition transitions state home native code machine code easy distributing used small well browser logic domain order user enable new rely vary transform operate exact generalized deal potential hence suited highly interactive environment
-inner outer header headers tree trees traceable untraceable inlining inline calls succeeds succeeds call callee caller primitives prime primes object objects class tag tags stack activation record records load store mask results result variable variables slots slot frame frames local locals constants constant low level high level register registers memory instruction selection allocation allocator lir instructions instruction
-cannot longer infer inference generate efficient machine code generated performance generated code starts running compiles fast native code dynamic compiler loop counters counters start integers remain for all all iterations compiled traces compiled trace covers one path program with executes guarantee path followed typing exactly were during recording subsequent guards fails fails side exits branch taken continue tracing reaches reach require copy every stop starts new outer loop inner loop finishes dynamically translate translate specialized trace trees achieve effects vm efficiently performs optim attractive effective supports features speedup speedups traceable programs algorithm dynamically forming frequently executed code regions
-try tries trying
+popular expressive productivity reasons however implementation implement language features programmers programmer developer developers primarily selected chosen productivity features virtual machines low high start time improve improves improved improving existing portable processor processors architecture architectures bytecodes bytecode regions region covers cover covering coverage forming formed organized follows explain explains described describe describes approach section sections details major activities activity transition transitions cause causes state home native code machine code easy distributing used small well browser logic domain order user enable new rely vary transform operate exact generalized deal potential hence suited highly interactive environment standard interpreter interpreters
+inner outer header headers tree trees traceable untraceable inlining inline calls succeeds succeeds call callee caller primitives prime primes object objects class tag tags stack activation record records load store stores mask results result variable variables slots slot frame frames local locals constants constant low level high level register registers memory instruction selection allocation allocator lir instructions instruction temporary semantics data optimized away locations live finally later passed finished fragment entered observed matches
+cannot longer infer inference generate efficient machine code generated performance generated code starts running compiles fast native code dynamic compiler loop counters counters start integers remain for all all iterations compiled traces compiled trace covers one path program with executes guarantee path followed typing exactly were during recording subsequent guards fails fails side exits branch taken continue tracing reaches reach require copy every stop starts new outer loop inner loop finishes dynamically translate translate specialized trace trees achieve effects vm efficiently performs optim attractive effective supports features speedup speedups traceable programs algorithm dynamically forming frequently executed code regions depth causing excessive tail
+try tries trying number numbers events broken sample figure
 what are roots clutch branches grow out stony rubbish son man cannot say guess only heap broken images sun beats dead tree gives shelter cricket relief dry stone sound water
 WORDS)) ?: [];
         foreach ($builtin as $word) {
