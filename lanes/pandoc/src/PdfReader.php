@@ -578,6 +578,12 @@ final class PdfReader
             return true;
         }
 
+        $textSpacingDamage = $this->spacingDamageScore($textLines);
+        $positionedSpacingDamage = $this->spacingDamageScore($positionedLines);
+        if ($positionedSpacingDamage > $textSpacingDamage) {
+            return false;
+        }
+
         $positionedTokens = array_flip($this->significantTextTokens(implode(' ', array_slice($positionedLines, 0, 500))));
         if ($positionedTokens === []) {
             return false;
@@ -591,6 +597,26 @@ final class PdfReader
         }
 
         return $matched / count($textTokens) >= 0.55;
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function spacingDamageScore(array $lines): int
+    {
+        $score = 0;
+        foreach (array_slice($lines, 0, 500) as $line) {
+            if (preg_match_all('/\b[A-Za-z]{16,}\b/u', $line, $matches) !== false) {
+                foreach ($matches[0] as $word) {
+                    $segmented = $this->segmentGluedAsciiWord($word);
+                    if ($segmented !== $word) {
+                        $score += max(1, substr_count($segmented, ' '));
+                    }
+                }
+            }
+        }
+
+        return $score;
     }
 
     /**
@@ -1903,7 +1929,7 @@ WORDS)) ?: [];
      */
     private function significantTextTokens(string $text): array
     {
-        if (preg_match_all('/[\p{L}\p{N}][\p{L}\p{N}._-]*/u', strtolower($text), $matches) !== 1) {
+        if (preg_match_all('/[\p{L}\p{N}][\p{L}\p{N}._-]*/u', strtolower($text), $matches) === false) {
             return [];
         }
 
@@ -1945,6 +1971,17 @@ WORDS)) ?: [];
         $rightWord = $this->firstWordToken($rightText);
         if ($rightWord === '') {
             return false;
+        }
+
+        if ($gap >= max(1.5, $fontSize * 0.22)) {
+            $leftWord = $this->lastWordToken($leftText);
+            if ($leftWord !== ''
+                && $this->length($leftWord) >= 2
+                && $this->length($rightWord) >= 2
+                && preg_match('/^\p{L}+$/u', $leftWord . $rightWord) === 1
+            ) {
+                return true;
+            }
         }
 
         if ($gap >= max(1.0, $fontSize * 0.35)) {

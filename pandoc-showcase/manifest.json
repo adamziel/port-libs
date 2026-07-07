@@ -1,5 +1,5 @@
 {
-    "generatedAt": "2026-07-07T11:45:02+00:00",
+    "generatedAt": "2026-07-07T12:07:55+00:00",
     "pandocVersion": "pandoc 3.10\nFeatures: +server +lua\nScripting engine: Lua 5.4\nUser data directory: $REPO\nCopyright (C) 2006-2025 John MacFarlane. Web:  https://pandoc.org\nThis is free software; see the source for copying conditions. There is no\nwarranty, not even for merchantability or fitness for a particular purpose.",
     "formats": [
         "biblatex",
@@ -91,11 +91,11 @@
         "totals": {
             "code": 609,
             "group": 273,
-            "heading": 3930,
+            "heading": 3914,
             "html": 52,
             "image": 103,
             "list": 1153,
-            "paragraph": 15448,
+            "paragraph": 15394,
             "quote": 65,
             "separator": 62,
             "table": 542,
@@ -2608,8 +2608,8 @@
                 "path": "outputs/pdf-tracemonkey/wordpress-blocks.html"
             },
             "wpBlockCounts": {
-                "heading": 18,
-                "paragraph": 128
+                "heading": 4,
+                "paragraph": 82
             }
         },
         {
@@ -2641,7 +2641,6 @@
                 "path": "outputs/pdf-cdc-hand-hygiene-brochure/wordpress-blocks.html"
             },
             "wpBlockCounts": {
-                "heading": 2,
                 "paragraph": 19
             }
         },
@@ -2675,7 +2674,7 @@
             },
             "wpBlockCounts": {
                 "heading": 22,
-                "paragraph": 27
+                "paragraph": 25
             }
         },
         {
@@ -2707,7 +2706,7 @@
                 "path": "outputs/pdf-archive-motograph-book/wordpress-blocks.html"
             },
             "wpBlockCounts": {
-                "paragraph": 8
+                "paragraph": 2
             }
         },
         {

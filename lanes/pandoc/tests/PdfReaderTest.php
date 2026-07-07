@@ -4886,6 +4886,50 @@ return [
         $t->true(!str_contains($html, '<h2>Technical documents'), 'wrapped prose line is not promoted to a heading');
         $t->true(!str_contains($text, 'documentscanlosewordspaces'), 'glued prose is segmented');
     },
+    'preserves visual TJ array word gaps before prose repair' => static function (TestRunner $t) use ($pdfWithContent): void {
+        $pdf = $pdfWithContent(
+            'BT /F1 12 Tf '
+            . '1 0 0 1 72 748 Tm [(Health) -260 (care) -260 (providers) -260 (should) -260 (practice) -260 (hand) -260 (hygiene)] TJ '
+            . '1 0 0 1 72 732 Tm [(Before) -260 (putting) -260 (on) -260 (gloves.)] TJ '
+            . '1 0 0 1 72 716 Tm [(Hand) -260 (hygiene) -260 (saves) -260 (lives.)] TJ '
+            . 'ET'
+        );
+
+        $document = (new PdfReader([
+            'pdfGeometryTables' => false,
+            'pdfRepairProseText' => true,
+        ]))->read($pdf);
+        $text = preg_replace('/\s+/', ' ', html_entity_decode(strip_tags(PandocConverter::write($document, 'html')), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')) ?? '';
+
+        $t->contains('Health care providers should practice hand hygiene', $text);
+        $t->contains('Before putting on gloves.', $text);
+        $t->contains('Hand hygiene saves lives.', $text);
+        $t->true(!str_contains($text, 'Healthcareproviders'));
+        $t->true(!str_contains($text, 'Beforeputtingongloves'));
+        $t->true(!str_contains($text, 'Handhygienesaveslives'));
+    },
+    'keeps raw pdf text when positioned fragments would introduce glued words' => static function (TestRunner $t) use ($pdfWithContent): void {
+        $pdf = $pdfWithContent(
+            'BT /F1 12 Tf '
+            . '1 0 0 1 72 748 Tm (Befor) Tj '
+            . '1 0 0 1 103 748 Tm (e ) Tj '
+            . '1 0 0 1 101 748 Tm (put) Tj '
+            . '1 0 0 1 119 748 Tm (t) Tj '
+            . '1 0 0 1 125 748 Tm (ing ) Tj '
+            . '1 0 0 1 147 748 Tm (on ) Tj '
+            . '1 0 0 1 166 748 Tm (gloves.) Tj '
+            . 'ET'
+        );
+
+        $document = (new PdfReader([
+            'pdfGeometryTables' => false,
+            'pdfRepairProseText' => true,
+        ]))->read($pdf);
+        $text = preg_replace('/\s+/', ' ', html_entity_decode(strip_tags(PandocConverter::write($document, 'html')), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')) ?? '';
+
+        $t->contains('Before putting on gloves.', $text);
+        $t->true(!str_contains($text, 'Beforputetingongloves'));
+    },
     'orders positioned prose columns before repairing pdf text' => static function (TestRunner $t) use ($pdfWithContent): void {
         $pdf = $pdfWithContent(
             'BT /F1 12 Tf '

@@ -2595,6 +2595,25 @@ return [
         $runs = (new PdfTextExtractor())->extractTextRuns($pdfWithContent($content));
         $t->same(['Hello (WP)', 'Data Liberation'], $runs);
     },
+    'uses TJ array displacement as a visual word gap in text and positioned runs' => static function (TestRunner $t) use ($pdfWithContent): void {
+        $content = 'BT /F1 12 Tf 72 720 Td '
+            . '[(Health) -260 (care) -260 (providers) -260 (should) -260 (practice) -260 (hand) -260 (hygiene)] TJ '
+            . 'T* [(Before) -260 (putting) -260 (on) -260 (gloves.)] TJ ET';
+        $extractor = new PdfTextExtractor();
+        $pdf = $pdfWithContent($content);
+        $positionedRuns = $extractor->extractPositionedTextRuns($pdf);
+
+        $t->same([
+            'Health care providers should practice hand hygiene',
+            'Before putting on gloves.',
+        ], $extractor->extractTextLines($pdf));
+        $t->same([
+            'Health care providers should practice hand hygiene',
+            'Before putting on gloves.',
+        ], $extractor->extractTextRuns($pdf));
+        $t->same(['Health', 'care', 'providers', 'should'], array_slice(array_map(static fn (array $run): string => $run['text'], $positionedRuns), 0, 4));
+        $t->true(!str_contains($extractor->extractPlainText($pdf), 'Beforeputtingongloves'));
+    },
     'extracts positioned text runs with page and stream metadata' => static function (TestRunner $t) use ($pdfWithContent): void {
         $content = 'BT /F1 12 Tf '
             . '1 0 0 1 72 720 Tm (Item) Tj '

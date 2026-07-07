@@ -13063,7 +13063,7 @@ final class PdfTextExtractor
             if ($this->isTextShowingOperator($token)) {
                 $operand = $this->textShowingOperand($token, $operands);
                 if ($operand !== null && !$this->insideActualText($actualTextStack) && !$this->insideArtifact($artifactStack)) {
-                    $runs[] = $this->decodeTextOperand(
+                    $runs[] = $this->decodeTextOperandWithArraySpacing(
                         $operand,
                         $this->currentToUnicodeMap($fontToUnicodeMaps, $currentFontResource),
                         $this->currentFontEncoding($fontEncodings, $currentFontResource)
@@ -13542,10 +13542,6 @@ final class PdfTextExtractor
                     $toUnicodeMap = $this->currentToUnicodeMap($fontToUnicodeMaps, $currentFontResource);
                     $fontEncoding = $this->currentFontEncoding($fontEncodings, $currentFontResource);
                     $writingMode = $this->toUnicodeWritingMode($toUnicodeMap);
-                    $decoded = $this->decodeTextOperand($operand, $toUnicodeMap, $fontEncoding);
-                    if (!$this->insideActualText($actualTextStack) && !$this->insideArtifact($artifactStack)) {
-                        $this->appendPositionedText($currentLine, $decoded, $pendingPositionWordGap, $pendingPositionGap, $pendingPositionFontSize);
-                    }
                     $axis = $this->textProgressionAxis(
                         $currentTextXAxisX,
                         $currentTextXAxisY,
@@ -13553,6 +13549,25 @@ final class PdfTextExtractor
                         $currentTextYAxisY,
                         $writingMode
                     );
+                    if (!$this->insideActualText($actualTextStack) && !$this->insideArtifact($artifactStack)) {
+                        foreach ($this->textOperandVisualSegments(
+                            $operand,
+                            $toUnicodeMap,
+                            $fontEncoding,
+                            $currentFontSize,
+                            $characterSpacing,
+                            $wordSpacing,
+                            $horizontalScale,
+                            $axis
+                        ) as $segment) {
+                            if ($segment['gapBefore'] !== null && $currentLine !== '') {
+                                $pendingPositionWordGap = $this->tjAdjustmentGapLooksLikeWordBoundary($segment['gapBefore'], $currentFontSize);
+                                $pendingPositionGap = $segment['gapBefore'];
+                                $pendingPositionFontSize = $currentFontSize;
+                            }
+                            $this->appendPositionedText($currentLine, $segment['text'], $pendingPositionWordGap, $pendingPositionGap, $pendingPositionFontSize);
+                        }
+                    }
                     [$currentTextEndX, $currentTextEndY] = $this->advanceTextEndPointForOperand(
                         $currentTextEndX ?? $currentTextX,
                         $currentTextEndY ?? $currentTextY,
@@ -13850,7 +13865,6 @@ final class PdfTextExtractor
                     $toUnicodeMap = $this->currentToUnicodeMap($fontToUnicodeMaps, $currentFontResource);
                     $fontEncoding = $this->currentFontEncoding($fontEncodings, $currentFontResource);
                     $writingMode = $this->toUnicodeWritingMode($toUnicodeMap);
-                    $decoded = $this->decodeTextOperand($operand, $toUnicodeMap, $fontEncoding);
                     $axis = $this->textProgressionAxis(
                         $currentTextXAxisX,
                         $currentTextXAxisY,
@@ -13873,15 +13887,35 @@ final class PdfTextExtractor
                         $axis
                     );
 
-                    if ($decoded !== ''
-                        && !$this->insideActualText($actualTextStack)
+                    if (!$this->insideActualText($actualTextStack)
                         && !$this->insideArtifact($artifactStack)
                         && $startX !== null
                         && $startY !== null
-                        && $nextTextEndX !== null
-                        && $nextTextEndY !== null
                     ) {
-                        $runs[] = $this->positionedTextRun($decoded, $startX, $startY, $nextTextEndX, $nextTextEndY, $currentFontSize, $axis);
+                        foreach ($this->textOperandVisualSegments(
+                            $operand,
+                            $toUnicodeMap,
+                            $fontEncoding,
+                            $currentFontSize,
+                            $characterSpacing,
+                            $wordSpacing,
+                            $horizontalScale,
+                            $axis
+                        ) as $segment) {
+                            $segmentStartX = $startX + ($segment['startOffset'] * $axis['x']);
+                            $segmentStartY = $startY + ($segment['startOffset'] * $axis['y']);
+                            $segmentEndX = $startX + ($segment['endOffset'] * $axis['x']);
+                            $segmentEndY = $startY + ($segment['endOffset'] * $axis['y']);
+                            $runs[] = $this->positionedTextRun(
+                                $segment['text'],
+                                $segmentStartX,
+                                $segmentStartY,
+                                $segmentEndX,
+                                $segmentEndY,
+                                $currentFontSize,
+                                $axis
+                            );
+                        }
                     }
 
                     $currentTextEndX = $nextTextEndX;
@@ -15036,6 +15070,109 @@ final class PdfTextExtractor
         }
 
         return $advance;
+    }
+
+    /**
+     * @param array{cidWidths?: array<int, float>, cidDefaultWidth?: float, codeSpaceRanges?: list<array{start: int, end: int, width: int}>, map?: array<string, string>, sourceToCid?: array<string, int>}|null $toUnicodeMap
+     * @param array{widths?: array<int, float>, base?: string, differences?: array<int, string>, suppressUnmapped?: bool}|null $fontEncoding
+     */
+    private function decodeTextOperandWithArraySpacing(string $operand, ?array $toUnicodeMap, ?array $fontEncoding): string
+    {
+        $text = '';
+        foreach ($this->textOperandVisualSegments(
+            $operand,
+            $toUnicodeMap,
+            $fontEncoding,
+            12.0,
+            0.0,
+            0.0,
+            100.0,
+            ['x' => 1.0, 'y' => 0.0, 'scale' => 1.0]
+        ) as $segment) {
+            if ($segment['gapBefore'] !== null && $this->tjAdjustmentGapLooksLikeWordBoundary($segment['gapBefore'], 12.0)) {
+                $text = rtrim($text) . ' ';
+            }
+            $text .= $segment['text'];
+        }
+
+        return $text;
+    }
+
+    /**
+     * @param array{cidWidths?: array<int, float>, cidDefaultWidth?: float, codeSpaceRanges?: list<array{start: int, end: int, width: int}>, map?: array<string, string>, sourceToCid?: array<string, int>}|null $toUnicodeMap
+     * @param array{widths?: array<int, float>, base?: string, differences?: array<int, string>, suppressUnmapped?: bool}|null $fontEncoding
+     * @param array{x: float, y: float, scale: float} $axis
+     * @return list<array{text: string, startOffset: float, endOffset: float, gapBefore: ?float}>
+     */
+    private function textOperandVisualSegments(
+        string $operand,
+        ?array $toUnicodeMap,
+        ?array $fontEncoding,
+        ?float $fontSize,
+        float $characterSpacing,
+        float $wordSpacing,
+        float $horizontalScale,
+        array $axis
+    ): array {
+        $operand = trim($operand);
+        $resolvedFontSize = $fontSize ?? 12.0;
+        $scale = ($horizontalScale / 100.0) * $axis['scale'];
+
+        if (!str_starts_with($operand, '[')) {
+            $decoded = $this->decodeTextOperand($operand, $toUnicodeMap, $fontEncoding);
+            if ($decoded === '') {
+                return [];
+            }
+            $advance = $this->textOperandAdvanceForOperand($operand, $toUnicodeMap, $fontEncoding, $resolvedFontSize, $characterSpacing, $wordSpacing);
+
+            return [[
+                'text' => $decoded,
+                'startOffset' => 0.0,
+                'endOffset' => $advance * $scale,
+                'gapBefore' => null,
+            ]];
+        }
+
+        $segments = [];
+        $advance = 0.0;
+        $pendingGap = null;
+        foreach ($this->textArrayElements($operand) as $element) {
+            if ($element['type'] === 'text') {
+                $elementOperand = (string) $element['value'];
+                $decoded = $this->decodeTextOperand($elementOperand, $toUnicodeMap, $fontEncoding);
+                $elementAdvance = $this->textOperandBaseAdvance($decoded, $elementOperand, $toUnicodeMap, $fontEncoding, $resolvedFontSize)
+                    + $this->textOperandSpacingAdvance($decoded, $elementOperand, $toUnicodeMap, $fontEncoding, $characterSpacing, $wordSpacing);
+                if ($decoded !== '') {
+                    $segments[] = [
+                        'text' => $decoded,
+                        'startOffset' => $advance * $scale,
+                        'endOffset' => ($advance + $elementAdvance) * $scale,
+                        'gapBefore' => $pendingGap,
+                    ];
+                    $pendingGap = null;
+                }
+                $advance += $elementAdvance;
+                continue;
+            }
+
+            $adjustmentAdvance = -(((float) $element['value']) / 1000.0) * $resolvedFontSize;
+            $advance += $adjustmentAdvance;
+            $visualGap = $adjustmentAdvance * $scale;
+            if ($visualGap > 0.0 && $visualGap < $resolvedFontSize * 4.0) {
+                $pendingGap = max($pendingGap ?? 0.0, $visualGap);
+            }
+        }
+
+        return $segments;
+    }
+
+    private function tjAdjustmentGapLooksLikeWordBoundary(?float $gap, ?float $fontSize): bool
+    {
+        if ($gap === null) {
+            return false;
+        }
+
+        return $gap >= max(1.5, ($fontSize ?? 12.0) * 0.22);
     }
 
     /**
