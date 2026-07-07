@@ -118,7 +118,7 @@ function plpc_converter_options(string $format): array
     $canonicalFormat = PandocConverter::canonicalInputFormat($format);
     if ($canonicalFormat === 'pdf') {
         $readerOptions['maxTextBytes'] = 80000;
-        $readerOptions['pdfGeometryTables'] = false;
+        $readerOptions['pdfGeometryTables'] = true;
         $readerOptions['pdfRepairProseText'] = true;
     }
     if ($canonicalFormat === 'csv' || $canonicalFormat === 'tsv') {

@@ -1370,7 +1370,10 @@ WORDS)) ?: [];
             if ($pendingLines === []) {
                 return;
             }
-            foreach ($this->blocksFromLines($pendingLines) as $block) {
+            $lines = $this->proseTextRepairEnabled()
+                ? $this->repairProseTextLines($pendingLines, $this->looksLikeProseRepairCandidate($pendingLines))
+                : $pendingLines;
+            foreach ($this->blocksFromLines($lines) as $block) {
                 $blocks[] = $block;
             }
             $pendingLines = [];

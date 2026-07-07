@@ -5336,6 +5336,40 @@ return [
         $t->contains('<td>Widget Alpha stackable storage case</td><td>30</td><td>40x60x80mm</td>', $blocks);
         $t->contains('Payment due in 30 days', $blocks);
     },
+    'preserves pdf tables without regressing wrapped prose repair on same page' => static function (TestRunner $t) use ($pdfWithContent): void {
+        $pdf = $pdfWithContent(
+            'BT /F1 12 Tf '
+            . '1 0 0 1 72 752 Tm (Abstract) Tj '
+            . '1 0 0 1 72 736 Tm (This paper examines how pharmaceutical Artificial Intelligence \\(AI\\) advancements) Tj '
+            . '1 0 0 1 72 720 Tm (may affect the development of new drugs in the coming years.) Tj '
+            . '1 0 0 1 72 680 Tm (Product) Tj 1 0 0 1 220 680 Tm (Qty) Tj 1 0 0 1 320 680 Tm (Total) Tj '
+            . '1 0 0 1 72 664 Tm (Alpha) Tj 1 0 0 1 220 664 Tm (2) Tj 1 0 0 1 320 664 Tm ($6.00) Tj '
+            . '1 0 0 1 72 624 Tm (The conclusion keeps surrounding prose readable) Tj '
+            . '1 0 0 1 72 608 Tm (without turning every visual line into a paragraph.) Tj '
+            . 'ET'
+        );
+
+        $document = (new PdfReader([
+            'pdfGeometryTables' => true,
+            'pdfRepairProseText' => true,
+        ]))->read($pdf);
+        $html = PandocConverter::write($document, 'html');
+        $blocks = PandocConverter::write($document, 'blocks');
+        $text = preg_replace('/\s+/', ' ', html_entity_decode(strip_tags($html), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')) ?? '';
+        $meta = $document->attr('meta');
+
+        $t->same(1, $meta['pdfDetectedTables']);
+        $t->same(1, $meta['pdfGeometryTables']);
+        $t->same('geometry', $meta['pdfTableReconstruction']);
+        $t->same(['heading', 'paragraph', 'table', 'paragraph'], array_map(static fn (AstNode $node): string => $node->type, $document->children));
+        $t->contains('This paper examines how pharmaceutical Artificial Intelligence (AI) advancements may affect the development of new drugs in the coming years.', $text);
+        $t->contains('The conclusion keeps surrounding prose readable without turning every visual line into a paragraph.', $text);
+        $t->contains('<!-- wp:table -->', $blocks);
+        $t->contains('<th>Product</th><th>Qty</th><th>Total</th>', $blocks);
+        $t->contains('<td>Alpha</td><td>2</td><td>$6.00</td>', $blocks);
+        $t->true(!str_contains($html, '</p><p>may affect'));
+        $t->true(!str_contains($html, '</p><p>without turning every visual line'));
+    },
     'does not promote positioned prose word fragments to a table' => static function (TestRunner $t) use ($pdfWithContent): void {
         $pdf = $pdfWithContent(
             'BT /F1 12 Tf '
