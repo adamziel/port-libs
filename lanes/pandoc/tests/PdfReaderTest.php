@@ -4892,9 +4892,10 @@ return [
             . '1 0 0 1 72 748 Tm (TechnicaldocumentscanlosewordspacesduringPDFextraction.) Tj '
             . '1 0 0 1 72 732 Tm (Pro viders should practice hand hygiene: { } Every time they enter your room.) Tj '
             . '1 0 0 1 72 716 Tm (Before prep a ring food, keep ha nds clean by as king people to wash.) Tj '
-            . '1 0 0 1 72 700 Tm (Thisreaderusesadictionarybasedrepairtopreserveprose.) Tj '
-            . '1 0 0 1 72 684 Tm (Adjacentlinescanformavisualparagraphwithoutspecialcases.) Tj '
-            . '1 0 0 1 72 668 Tm (Markdownexamplesexerciseformatflavorfeatures.) Tj '
+            . '1 0 0 1 72 700 Tm (Use a towel to turnoff the faucet if you don’twant germs touse it.) Tj '
+            . '1 0 0 1 72 684 Tm (Thisreaderusesadictionarybasedrepairtopreserveprose.) Tj '
+            . '1 0 0 1 72 668 Tm (Adjacentlinescanformavisualparagraphwithoutspecialcases.) Tj '
+            . '1 0 0 1 72 652 Tm (Markdownexamplesexerciseformatflavorfeatures.) Tj '
             . 'ET'
         );
 
@@ -4908,12 +4909,16 @@ return [
         $t->same(true, $meta['pdfTextRepair']);
         $t->contains('Providers should practice hand hygiene: Every time they enter your room.', $text);
         $t->contains('Before preparing food, keep hands clean by asking people to wash.', $text);
+        $t->contains('Use a towel to turn off the faucet if you don’t want germs to use it.', $text);
         $t->true(!str_contains($text, '{ }'));
         $t->true(!str_contains($text, 'hygiene: { } Every'));
         $t->true(!str_contains($text, 'Pro viders'));
         $t->true(!str_contains($text, 'prep a ring'));
         $t->true(!str_contains($text, 'ha nds'));
         $t->true(!str_contains($text, 'as king'));
+        $t->true(!str_contains($text, 'turnoff'));
+        $t->true(!str_contains($text, 'don’twant'));
+        $t->true(!str_contains($text, 'touse'));
     },
     'turns repeated embedded pdf bullet markers into a list' => static function (TestRunner $t): void {
         $content = 'BT /F1 12 Tf '

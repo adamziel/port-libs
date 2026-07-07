@@ -674,8 +674,11 @@ final class PdfReader
         $line = preg_replace('/\b(section|figure|table|chapter|page)(\d+)/iu', '$1 $2 ', $line) ?? $line;
         $line = preg_replace('/\b(and|or|but)(a|an|the)\b/iu', '$1 $2', $line) ?? $line;
         $line = preg_replace('/\/\/(?=[A-Za-z])/', '// ', $line) ?? $line;
+        $line = preg_replace('/((?:do|does|can|should|would|could|wo|is|are|was|were|did|have|has|had)n[\x{2019}\']t)(?=[A-Za-z])/iu', '$1 ', $line) ?? $line;
+        $line = preg_replace('/([\x{2019}\']t)(?=[A-Za-z])/u', '$1 ', $line) ?? $line;
+        $line = preg_replace('/(^|[^A-Za-z])turnoff(?=\s+(?:a|an|the|this|that|these|those|your|my|our|their)(?:\s|$|[^A-Za-z]))/iu', '$1turn off', $line) ?? $line;
         $line = $this->repairSplitWordFragments($line);
-        $line = preg_replace_callback('/\b[A-Za-z]{6,}\b/u', function (array $match): string {
+        $line = preg_replace_callback('/\b[A-Za-z]{5,}\b/u', function (array $match): string {
             return $this->segmentGluedAsciiWord($match[0]);
         }, $line) ?? $line;
 
@@ -795,7 +798,7 @@ final class PdfReader
 
         $joined = implode('', $parts);
         $lower = strtolower($joined);
-        if (!isset($this->proseWordDictionary()[$lower])) {
+        if (!isset($this->splitWordJoinDictionary()[$lower])) {
             return null;
         }
 
@@ -807,6 +810,25 @@ final class PdfReader
         }
 
         return $lower;
+    }
+
+    /**
+     * @return array<string, true>
+     */
+    private function splitWordJoinDictionary(): array
+    {
+        return array_fill_keys([
+            'action',
+            'asking',
+            'hands',
+            'preparing',
+            'providers',
+            'risk',
+            'them',
+            'water',
+            'with',
+            'your',
+        ], true);
     }
 
     /**
@@ -834,7 +856,7 @@ final class PdfReader
     private function segmentGluedAsciiWord(string $word): string
     {
         $length = strlen($word);
-        if ($length < 6 || preg_match('/[A-Za-z]/', $word) !== 1) {
+        if ($length < 5 || preg_match('/[A-Za-z]/', $word) !== 1) {
             return $word;
         }
 
@@ -1014,7 +1036,7 @@ justintime just in time dynamically statically startup start up run-time runtime
 available unavailable concrete actual occurring occur occurs occurred through throughputs fly on the fly need needs emit emits emitting gather gathers able unable determine determined determines identifying identifies identify found taken followed subsequent subsequent calculation policy copies copy made granted fee provided profit commercial advantage notices title publication republication posting lists require requires permission specific citation
 popular expressive productivity reasons however implementation implement language features programmers programmer developer developers primarily selected chosen productivity features virtual machines low high start time improve improves improved improving existing portable processor processors architecture architectures bytecodes bytecode regions region covers cover covering coverage forming formed organized follows explain explains described describe describes approach section sections details major activities activity transition transitions cause causes state home native code machine code easy distributing used small well browser logic domain order user enable new rely vary transform operate exact generalized deal potential hence suited highly interactive environment standard interpreter interpreters
 document documents paragraph paragraphs column columns row rows layout layouts reader readers dictionary dictionaries repair repairs repaired preserve preserves prose text extraction extracted spacing spaces words word missing adjacent source target page pages title heading headings example examples sample samples content line lines visual visually arbitrary technical neutral generic pdf lose lost without special cases case flavor feature features left right sentence sentences continue continues interleave starts third finishes show shows
-action actions ask asking around clean cleaning cleaner cleansing health healthcare hygiene regularly provider providers practice practicing prepare prepares prepared preparing prevent prevents preventing risk risks hands hand water towel towels room rooms hospital hospitals infection infections germs surfaces bathroom alcohol based rub rubs
+action actions ask asking around clean cleaning cleaner cleansing health healthcare hygiene regularly provider providers practice practicing prepare prepares prepared preparing prevent prevents preventing risk risks hands hand water towel towels room rooms hospital hospitals infection infections germs surfaces bathroom alcohol based rub rubs turn turns turned turning off want wants wanted wanting
 inner outer header headers tree trees traceable untraceable inlining inline calls succeeds succeeds call callee caller primitives prime primes object objects class tag tags stack activation record records load store stores mask results result variable variables slots slot frame frames local locals constants constant low level high level register registers memory instruction selection allocation allocator lir instructions instruction temporary semantics data optimized away locations live finally later passed finished fragment entered observed matches
 cannot longer infer inference generate efficient machine code generated performance generated code starts running compiles fast native code dynamic compiler loop counters counters start integers remain for all all iterations compiled traces compiled trace covers one path program with executes guarantee path followed typing exactly were during recording subsequent guards fails fails side exits branch taken continue tracing reaches reach require copy every stop starts new outer loop inner loop finishes dynamically translate translate specialized trace trees achieve effects vm efficiently performs optim attractive effective supports features speedup speedups traceable programs algorithm dynamically forming frequently executed code regions depth causing excessive tail
 try tries trying number numbers events broken sample figure
