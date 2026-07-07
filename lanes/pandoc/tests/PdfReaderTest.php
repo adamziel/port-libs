@@ -4890,10 +4890,11 @@ return [
         $pdf = $pdfWithContent(
             'BT /F1 12 Tf '
             . '1 0 0 1 72 748 Tm (TechnicaldocumentscanlosewordspacesduringPDFextraction.) Tj '
-            . '1 0 0 1 72 732 Tm (Providers should practice hand hygiene: { } Every time they enter your room.) Tj '
-            . '1 0 0 1 72 716 Tm (Thisreaderusesadictionarybasedrepairtopreserveprose.) Tj '
-            . '1 0 0 1 72 700 Tm (Adjacentlinescanformavisualparagraphwithoutspecialcases.) Tj '
-            . '1 0 0 1 72 684 Tm (Markdownexamplesexerciseformatflavorfeatures.) Tj '
+            . '1 0 0 1 72 732 Tm (Pro viders should practice hand hygiene: { } Every time they enter your room.) Tj '
+            . '1 0 0 1 72 716 Tm (Before prep a ring food, keep ha nds clean by as king people to wash.) Tj '
+            . '1 0 0 1 72 700 Tm (Thisreaderusesadictionarybasedrepairtopreserveprose.) Tj '
+            . '1 0 0 1 72 684 Tm (Adjacentlinescanformavisualparagraphwithoutspecialcases.) Tj '
+            . '1 0 0 1 72 668 Tm (Markdownexamplesexerciseformatflavorfeatures.) Tj '
             . 'ET'
         );
 
@@ -4906,8 +4907,13 @@ return [
 
         $t->same(true, $meta['pdfTextRepair']);
         $t->contains('Providers should practice hand hygiene: Every time they enter your room.', $text);
+        $t->contains('Before preparing food, keep hands clean by asking people to wash.', $text);
         $t->true(!str_contains($text, '{ }'));
         $t->true(!str_contains($text, 'hygiene: { } Every'));
+        $t->true(!str_contains($text, 'Pro viders'));
+        $t->true(!str_contains($text, 'prep a ring'));
+        $t->true(!str_contains($text, 'ha nds'));
+        $t->true(!str_contains($text, 'as king'));
     },
     'turns repeated embedded pdf bullet markers into a list' => static function (TestRunner $t): void {
         $content = 'BT /F1 12 Tf '
@@ -5139,8 +5145,8 @@ return [
         $t->same('text', $meta['pdfTableReconstruction']);
         $t->true(!str_contains($blocks, '<!-- wp:table -->'));
         $t->contains('healthcare', $blocks);
-        $t->contains('basedhandrub.', $blocks);
-        $t->contains('Preventingthespread ofgermsandinfections.', $blocks);
+        $t->contains('based hand rub.', $blocks);
+        $t->contains('Preventing the spread of germs and infections.', $blocks);
     },
     'keeps positioned numeric grids as tables after fragment grid filtering' => static function (TestRunner $t) use ($pdfWithContent): void {
         $pdf = $pdfWithContent(

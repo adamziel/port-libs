@@ -674,6 +674,7 @@ final class PdfReader
         $line = preg_replace('/\b(section|figure|table|chapter|page)(\d+)/iu', '$1 $2 ', $line) ?? $line;
         $line = preg_replace('/\b(and|or|but)(a|an|the)\b/iu', '$1 $2', $line) ?? $line;
         $line = preg_replace('/\/\/(?=[A-Za-z])/', '// ', $line) ?? $line;
+        $line = $this->repairSplitWordFragments($line);
         $line = preg_replace_callback('/\b[A-Za-z]{6,}\b/u', function (array $match): string {
             return $this->segmentGluedAsciiWord($match[0]);
         }, $line) ?? $line;
@@ -693,6 +694,119 @@ final class PdfReader
         $line = preg_replace('/(^|\s)\{\s*\}(?=\s|$)/u', '$1', $line) ?? $line;
 
         return preg_replace('/\s+/u', ' ', $line) ?? $line;
+    }
+
+    private function repairSplitWordFragments(string $line): string
+    {
+        for ($pass = 0; $pass < 4; $pass++) {
+            $previous = $line;
+            $line = $this->repairSplitWordFragmentPass($line);
+            if ($line === $previous) {
+                break;
+            }
+        }
+
+        return $line;
+    }
+
+    private function repairSplitWordFragmentPass(string $line): string
+    {
+        $tokens = preg_split('/([A-Za-z]+)/u', $line, -1, PREG_SPLIT_DELIM_CAPTURE | PREG_SPLIT_NO_EMPTY);
+        if (!is_array($tokens) || count($tokens) < 3) {
+            return $line;
+        }
+
+        $repaired = [];
+        $count = count($tokens);
+        for ($index = 0; $index < $count; $index++) {
+            if (!$this->isAsciiWordToken($tokens[$index])) {
+                $repaired[] = $tokens[$index];
+                continue;
+            }
+
+            $joined = null;
+            $lastTokenIndex = $index;
+            foreach ([3, 2] as $wordCount) {
+                $wordIndexes = $this->splitWordFragmentWindow($tokens, $index, $wordCount);
+                if ($wordIndexes === null) {
+                    continue;
+                }
+                $parts = array_map(static fn (int $wordIndex): string => $tokens[$wordIndex], $wordIndexes);
+                $candidate = $this->joinedSplitWordFragment(...$parts);
+                if ($candidate === null) {
+                    continue;
+                }
+                $joined = $candidate;
+                $lastTokenIndex = $wordIndexes[count($wordIndexes) - 1];
+                break;
+            }
+
+            if ($joined === null) {
+                $repaired[] = $tokens[$index];
+                continue;
+            }
+
+            $repaired[] = $joined;
+            $index = $lastTokenIndex;
+        }
+
+        return implode('', $repaired);
+    }
+
+    /**
+     * @param list<string> $tokens
+     * @return list<int>|null
+     */
+    private function splitWordFragmentWindow(array $tokens, int $startIndex, int $wordCount): ?array
+    {
+        $wordIndexes = [];
+        $index = $startIndex;
+        for ($word = 0; $word < $wordCount; $word++) {
+            if (!isset($tokens[$index]) || !$this->isAsciiWordToken($tokens[$index])) {
+                return null;
+            }
+
+            $wordIndexes[] = $index;
+            if ($word === $wordCount - 1) {
+                return $wordIndexes;
+            }
+
+            $index++;
+            if (!isset($tokens[$index]) || preg_match('/^\s+$/u', $tokens[$index]) !== 1) {
+                return null;
+            }
+            $index++;
+        }
+
+        return null;
+    }
+
+    private function isAsciiWordToken(string $token): bool
+    {
+        return preg_match('/^[A-Za-z]+$/u', $token) === 1;
+    }
+
+    private function joinedSplitWordFragment(string ...$parts): ?string
+    {
+        $lengths = array_map('strlen', $parts);
+        if (min($lengths) > 3) {
+            return null;
+        }
+
+        $joined = implode('', $parts);
+        $lower = strtolower($joined);
+        if (!isset($this->proseWordDictionary()[$lower])) {
+            return null;
+        }
+
+        if (preg_match('/^[A-Z]+$/', implode('', $parts)) === 1) {
+            return strtoupper($joined);
+        }
+        if (preg_match('/^[A-Z]/', $parts[0]) === 1) {
+            return ucfirst($lower);
+        }
+
+        return $lower;
     }
 
     /**
@@ -900,6 +1014,7 @@ justintime just in time dynamically statically startup start up run-time runtime
 available unavailable concrete actual occurring occur occurs occurred through throughputs fly on the fly need needs emit emits emitting gather gathers able unable determine determined determines identifying identifies identify found taken followed subsequent subsequent calculation policy copies copy made granted fee provided profit commercial advantage notices title publication republication posting lists require requires permission specific citation
 popular expressive productivity reasons however implementation implement language features programmers programmer developer developers primarily selected chosen productivity features virtual machines low high start time improve improves improved improving existing portable processor processors architecture architectures bytecodes bytecode regions region covers cover covering coverage forming formed organized follows explain explains described describe describes approach section sections details major activities activity transition transitions cause causes state home native code machine code easy distributing used small well browser logic domain order user enable new rely vary transform operate exact generalized deal potential hence suited highly interactive environment standard interpreter interpreters
 document documents paragraph paragraphs column columns row rows layout layouts reader readers dictionary dictionaries repair repairs repaired preserve preserves prose text extraction extracted spacing spaces words word missing adjacent source target page pages title heading headings example examples sample samples content line lines visual visually arbitrary technical neutral generic pdf lose lost without special cases case flavor feature features left right sentence sentences continue continues interleave starts third finishes show shows
+action actions ask asking around clean cleaning cleaner cleansing health healthcare hygiene regularly provider providers practice practicing prepare prepares prepared preparing prevent prevents preventing risk risks hands hand water towel towels room rooms hospital hospitals infection infections germs surfaces bathroom alcohol based rub rubs
 inner outer header headers tree trees traceable untraceable inlining inline calls succeeds succeeds call callee caller primitives prime primes object objects class tag tags stack activation record records load store stores mask results result variable variables slots slot frame frames local locals constants constant low level high level register registers memory instruction selection allocation allocator lir instructions instruction temporary semantics data optimized away locations live finally later passed finished fragment entered observed matches
 cannot longer infer inference generate efficient machine code generated performance generated code starts running compiles fast native code dynamic compiler loop counters counters start integers remain for all all iterations compiled traces compiled trace covers one path program with executes guarantee path followed typing exactly were during recording subsequent guards fails fails side exits branch taken continue tracing reaches reach require copy every stop starts new outer loop inner loop finishes dynamically translate translate specialized trace trees achieve effects vm efficiently performs optim attractive effective supports features speedup speedups traceable programs algorithm dynamically forming frequently executed code regions depth causing excessive tail
 try tries trying number numbers events broken sample figure
