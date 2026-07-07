@@ -142,5 +142,53 @@
     "url": "https://raw.githubusercontent.com/tabulapdf/tabula-java/master/src/test/resources/technology/tabula/us-017.pdf",
     "expectedTables": 1,
     "notes": "US table extraction fixture from tabula-java."
+  },
+  {
+    "id": "tabula-twotables",
+    "label": "Tabula two tables",
+    "kind": "multi-table",
+    "url": "https://raw.githubusercontent.com/tabulapdf/tabula-java/master/src/test/resources/technology/tabula/twotables.pdf",
+    "expectedTables": 2,
+    "notes": "Two separate table regions on one page from tabula-java."
+  },
+  {
+    "id": "tabula-argentina-voting",
+    "label": "Tabula Argentina voting record",
+    "kind": "government-table",
+    "url": "https://raw.githubusercontent.com/tabulapdf/tabula-java/master/src/test/resources/technology/tabula/argentina_diputados_voting_record.pdf",
+    "expectedTables": 1,
+    "notes": "Legislative voting-record table with mixed text and image resources."
+  },
+  {
+    "id": "tabula-labor",
+    "label": "Tabula labor table",
+    "kind": "labor-table",
+    "url": "https://raw.githubusercontent.com/tabulapdf/tabula-java/master/src/test/resources/technology/tabula/labor.pdf",
+    "expectedTables": 1,
+    "notes": "Labor statistics table fixture with many aligned text cells."
+  },
+  {
+    "id": "tabula-spreadsheet-no-frame",
+    "label": "Tabula spreadsheet without frame",
+    "kind": "spreadsheet-table",
+    "url": "https://raw.githubusercontent.com/tabulapdf/tabula-java/master/src/test/resources/technology/tabula/spreadsheet_no_bounding_frame.pdf",
+    "expectedTables": 1,
+    "notes": "Spreadsheet-style table without a single outer bounding frame."
+  },
+  {
+    "id": "tabula-us-020",
+    "label": "Tabula US table 020",
+    "kind": "government-table",
+    "url": "https://raw.githubusercontent.com/tabulapdf/tabula-java/master/src/test/resources/technology/tabula/us-020.pdf",
+    "expectedTables": 1,
+    "notes": "Large US government table fixture with several reconstructed table regions."
+  },
+  {
+    "id": "tabula-us-024",
+    "label": "Tabula US table 024",
+    "kind": "government-table",
+    "url": "https://raw.githubusercontent.com/tabulapdf/tabula-java/master/src/test/resources/technology/tabula/us-024.pdf",
+    "expectedTables": 1,
+    "notes": "US government table fixture with compact numeric columns."
   }
 ]

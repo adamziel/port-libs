@@ -109,6 +109,17 @@ final class PdfTextExtractor
         0xF9 => 'bracketrighttp', 0xFA => 'bracketrightex', 0xFB => 'bracketrightbt',
         0xFC => 'bracerighttp', 0xFD => 'bracerightmid', 0xFE => 'bracerightbt',
     ];
+    /** @var array<string, array<int, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}>> */
+    private array $fontObjectToUnicodeMapsCache = [];
+
+    /** @var array<string, array<int, array{base: string, differences: array<int, string>, suppressUnmapped: bool}>> */
+    private array $fontObjectEncodingsCache = [];
+
+    /** @var array<string, list<array{body: string, objectNumber: int}>> */
+    private array $structTreeRootNodesCache = [];
+
+    /** @var array<string, list<array{body: string, objectNumber: int|null}>> */
+    private array $parentTreeRootNodesCache = [];
     private const ZAPF_DINGBATS_ENCODING_GLYPHS = [
         0x20 => 'space', 0x21 => 'a1', 0x22 => 'a2', 0x23 => 'a202',
         0x24 => 'a3', 0x25 => 'a4', 0x26 => 'a5', 0x27 => 'a119',
@@ -905,7 +916,7 @@ final class PdfTextExtractor
         $annotations = [];
         $pageNumber = 0;
 
-        foreach ($this->pageObjectNumbers($objects) as $pageObjectNumber) {
+        foreach ($this->limitedPageObjectNumbers($objects) as $pageObjectNumber) {
             $pageNumber++;
             $pageObjectBody = $objects[$pageObjectNumber] ?? null;
             if (!is_string($pageObjectBody) || !$this->isPageObjectBody($pageObjectBody)) {
@@ -948,7 +959,7 @@ final class PdfTextExtractor
         $annotations = [];
         $pageNumber = 0;
 
-        foreach ($this->pageObjectNumbers($objects) as $pageObjectNumber) {
+        foreach ($this->limitedPageObjectNumbers($objects) as $pageObjectNumber) {
             $pageNumber++;
             $pageObjectBody = $objects[$pageObjectNumber] ?? null;
             if (!is_string($pageObjectBody) || !$this->isPageObjectBody($pageObjectBody)) {
@@ -981,7 +992,7 @@ final class PdfTextExtractor
         $annotations = [];
         $pageNumber = 0;
 
-        foreach ($this->pageObjectNumbers($objects) as $pageObjectNumber) {
+        foreach ($this->limitedPageObjectNumbers($objects) as $pageObjectNumber) {
             $pageNumber++;
             $pageObjectBody = $objects[$pageObjectNumber] ?? null;
             if (!is_string($pageObjectBody) || !$this->isPageObjectBody($pageObjectBody)) {
@@ -1014,7 +1025,7 @@ final class PdfTextExtractor
         $annotations = [];
         $pageNumber = 0;
 
-        foreach ($this->pageObjectNumbers($objects) as $pageObjectNumber) {
+        foreach ($this->limitedPageObjectNumbers($objects) as $pageObjectNumber) {
             $pageNumber++;
             $pageObjectBody = $objects[$pageObjectNumber] ?? null;
             if (!is_string($pageObjectBody) || !$this->isPageObjectBody($pageObjectBody)) {
@@ -1047,7 +1058,7 @@ final class PdfTextExtractor
         $annotations = [];
         $pageNumber = 0;
 
-        foreach ($this->pageObjectNumbers($objects) as $pageObjectNumber) {
+        foreach ($this->limitedPageObjectNumbers($objects) as $pageObjectNumber) {
             $pageNumber++;
             $pageObjectBody = $objects[$pageObjectNumber] ?? null;
             if (!is_string($pageObjectBody) || !$this->isPageObjectBody($pageObjectBody)) {
@@ -3487,35 +3498,7 @@ final class PdfTextExtractor
      */
     private function structTreeRootDiagnosticNodes(array $objects): array
     {
-        $nodes = [];
-        $seen = [];
-
-        foreach ($objects as $body) {
-            $rootObjectNumber = $this->indirectObjectDictionaryValue($body, 'StructTreeRoot');
-            if ($rootObjectNumber === null || isset($seen[$rootObjectNumber]) || !isset($objects[$rootObjectNumber])) {
-                continue;
-            }
-
-            $seen[$rootObjectNumber] = true;
-            $nodes[] = [
-                'body' => $objects[$rootObjectNumber],
-                'objectNumber' => $rootObjectNumber,
-            ];
-        }
-
-        foreach ($objects as $objectNumber => $body) {
-            if (isset($seen[$objectNumber]) || $this->nameDictionaryValue($body, 'Type') !== 'StructTreeRoot') {
-                continue;
-            }
-
-            $seen[$objectNumber] = true;
-            $nodes[] = [
-                'body' => $body,
-                'objectNumber' => $objectNumber,
-            ];
-        }
-
-        return $nodes;
+        return $this->structTreeRootNodes($objects);
     }
 
     /**
@@ -4539,7 +4522,7 @@ final class PdfTextExtractor
     {
         $contexts = [];
         $pageNumber = 0;
-        foreach ($this->pageObjectNumbers($objects) as $objectNumber) {
+        foreach ($this->limitedPageObjectNumbers($objects) as $objectNumber) {
             $pageNumber++;
             $body = $objects[$objectNumber] ?? null;
             if (!is_string($body) || !$this->isPageObjectBody($body)) {
@@ -4609,6 +4592,21 @@ final class PdfTextExtractor
 
         $pageObjectNumbers = array_values(array_unique($pageObjectNumbers));
         return $pageObjectNumbers === [] ? $this->allPageObjectNumbers($objects) : $pageObjectNumbers;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return list<int>
+     */
+    private function limitedPageObjectNumbers(array $objects): array
+    {
+        $pageObjectNumbers = $this->pageObjectNumbers($objects);
+        $maxPages = $this->maxPages();
+        if ($maxPages === null) {
+            return $pageObjectNumbers;
+        }
+
+        return array_slice($pageObjectNumbers, 0, $maxPages);
     }
 
     /**
@@ -5111,7 +5109,7 @@ final class PdfTextExtractor
         $ignoredSubtypes = [];
         $ignoredCount = 0;
 
-        foreach ($this->pageObjectNumbers($objects) as $pageObjectNumber) {
+        foreach ($this->limitedPageObjectNumbers($objects) as $pageObjectNumber) {
             $body = $objects[$pageObjectNumber] ?? null;
             if (!is_string($body) || !$this->isPageObjectBody($body)) {
                 continue;
@@ -5160,7 +5158,7 @@ final class PdfTextExtractor
     {
         $issues = [];
         $page = 0;
-        foreach ($this->pageObjectNumbers($objects) as $pageObjectNumber) {
+        foreach ($this->limitedPageObjectNumbers($objects) as $pageObjectNumber) {
             $body = $objects[$pageObjectNumber] ?? null;
             if (!is_string($body) || !$this->isPageObjectBody($body)) {
                 continue;
@@ -6164,6 +6162,11 @@ final class PdfTextExtractor
      */
     private function fontObjectToUnicodeMaps(array $objects): array
     {
+        $cacheKey = $this->objectsCacheKey($objects);
+        if (array_key_exists($cacheKey, $this->fontObjectToUnicodeMapsCache)) {
+            return $this->fontObjectToUnicodeMapsCache[$cacheKey];
+        }
+
         $fontObjectMaps = [];
 
         foreach ($objects as $objectNumber => $body) {
@@ -6178,8 +6181,11 @@ final class PdfTextExtractor
         }
 
         if ($fontObjectMaps === []) {
+            $this->fontObjectToUnicodeMapsCache[$cacheKey] = [];
             return [];
         }
+
+        $this->fontObjectToUnicodeMapsCache[$cacheKey] = $fontObjectMaps;
 
         return $fontObjectMaps;
     }
@@ -6378,6 +6384,11 @@ final class PdfTextExtractor
      */
     private function fontObjectEncodings(array $objects): array
     {
+        $cacheKey = $this->objectsCacheKey($objects);
+        if (array_key_exists($cacheKey, $this->fontObjectEncodingsCache)) {
+            return $this->fontObjectEncodingsCache[$cacheKey];
+        }
+
         $fontObjectEncodings = [];
 
         foreach ($objects as $objectNumber => $body) {
@@ -6395,8 +6406,11 @@ final class PdfTextExtractor
         }
 
         if ($fontObjectEncodings === []) {
+            $this->fontObjectEncodingsCache[$cacheKey] = [];
             return [];
         }
+
+        $this->fontObjectEncodingsCache[$cacheKey] = $fontObjectEncodings;
 
         return $fontObjectEncodings;
     }
@@ -6650,10 +6664,35 @@ final class PdfTextExtractor
         }
 
         if ($pageObjectNumber !== null) {
+            if (!$this->objectsContainStructTreeRoot($objects)) {
+                return [];
+            }
+
             return $this->structTreeActualTextsForPage($pageObjectNumber, $objects);
         }
 
         return [];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function objectsContainStructTreeRoot(array $objects): bool
+    {
+        return $this->structTreeRootNodes($objects) !== [];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function objectsCacheKey(array $objects): string
+    {
+        $firstKey = array_key_first($objects);
+        $lastKey = array_key_last($objects);
+        $firstBody = is_int($firstKey) ? (string) ($objects[$firstKey] ?? '') : '';
+        $lastBody = is_int($lastKey) ? (string) ($objects[$lastKey] ?? '') : '';
+
+        return count($objects) . ':' . (string) $firstKey . ':' . (string) $lastKey . ':' . md5(substr($firstBody, 0, 256) . "\0" . substr($lastBody, 0, 256));
     }
 
     /**
@@ -6663,38 +6702,16 @@ final class PdfTextExtractor
     private function structTreeActualTextsForPage(int $pageObjectNumber, array $objects): array
     {
         $texts = [];
-        $seenRoots = [];
 
-        foreach ($objects as $body) {
-            $rootObjectNumber = $this->indirectObjectDictionaryValue($body, 'StructTreeRoot');
-            if ($rootObjectNumber === null) {
-                continue;
-            }
-
-            if (isset($seenRoots[$rootObjectNumber]) || !isset($objects[$rootObjectNumber])) {
-                continue;
-            }
-            $seenRoots[$rootObjectNumber] = true;
+        foreach ($this->structTreeRootNodes($objects) as $rootNode) {
             $texts = array_replace(
                 $texts,
                 $this->actualTextsFromStructTreeRootForPage(
-                    $objects[$rootObjectNumber],
+                    $rootNode['body'],
                     $objects,
                     $pageObjectNumber,
-                    [$rootObjectNumber => true]
+                    [$rootNode['objectNumber'] => true]
                 )
-            );
-        }
-
-        foreach ($objects as $objectNumber => $body) {
-            if (isset($seenRoots[$objectNumber]) || $this->nameDictionaryValue($body, 'Type') !== 'StructTreeRoot') {
-                continue;
-            }
-
-            $seenRoots[$objectNumber] = true;
-            $texts = array_replace(
-                $texts,
-                $this->actualTextsFromStructTreeRootForPage($body, $objects, $pageObjectNumber, [$objectNumber => true])
             );
         }
 
@@ -6703,20 +6720,64 @@ final class PdfTextExtractor
 
     /**
      * @param array<int, string> $objects
+     * @return list<array{body: string, objectNumber: int}>
+     */
+    private function structTreeRootNodes(array $objects): array
+    {
+        $cacheKey = $this->objectsCacheKey($objects);
+        if (array_key_exists($cacheKey, $this->structTreeRootNodesCache)) {
+            return $this->structTreeRootNodesCache[$cacheKey];
+        }
+
+        $nodes = [];
+        $seen = [];
+
+        foreach ($objects as $body) {
+            $rootObjectNumber = $this->indirectObjectDictionaryValue($body, 'StructTreeRoot');
+            if ($rootObjectNumber === null || isset($seen[$rootObjectNumber]) || !isset($objects[$rootObjectNumber])) {
+                continue;
+            }
+
+            $seen[$rootObjectNumber] = true;
+            $nodes[] = [
+                'body' => $objects[$rootObjectNumber],
+                'objectNumber' => $rootObjectNumber,
+            ];
+        }
+
+        foreach ($objects as $objectNumber => $body) {
+            if (isset($seen[$objectNumber]) || $this->nameDictionaryValue($body, 'Type') !== 'StructTreeRoot') {
+                continue;
+            }
+
+            $seen[$objectNumber] = true;
+            $nodes[] = [
+                'body' => $body,
+                'objectNumber' => $objectNumber,
+            ];
+        }
+
+        $this->structTreeRootNodesCache[$cacheKey] = $nodes;
+
+        return $nodes;
+    }
+
+    /**
+     * @param array<int, string> $objects
      * @return list<array{body: string, objectNumber: int|null}>
      */
     private function parentTreeRootNodes(array $objects): array
     {
+        $cacheKey = $this->objectsCacheKey($objects);
+        if (array_key_exists($cacheKey, $this->parentTreeRootNodesCache)) {
+            return $this->parentTreeRootNodesCache[$cacheKey];
+        }
+
         $nodes = [];
         $seenObjectNumbers = [];
 
-        foreach ($objects as $body) {
-            $structTreeObjectNumber = $this->indirectObjectDictionaryValue($body, 'StructTreeRoot');
-            if ($structTreeObjectNumber === null || !isset($objects[$structTreeObjectNumber])) {
-                continue;
-            }
-
-            foreach ($this->parentTreeNodesFromStructTreeBody($objects[$structTreeObjectNumber], $objects) as $node) {
+        foreach ($this->structTreeRootNodes($objects) as $rootNode) {
+            foreach ($this->parentTreeNodesFromStructTreeBody($rootNode['body'], $objects) as $node) {
                 $objectNumber = $node['objectNumber'];
                 if ($objectNumber !== null) {
                     if (isset($seenObjectNumbers[$objectNumber])) {
@@ -6728,22 +6789,7 @@ final class PdfTextExtractor
             }
         }
 
-        foreach ($objects as $body) {
-            if ($this->nameDictionaryValue($body, 'Type') !== 'StructTreeRoot') {
-                continue;
-            }
-
-            foreach ($this->parentTreeNodesFromStructTreeBody($body, $objects) as $node) {
-                $objectNumber = $node['objectNumber'];
-                if ($objectNumber !== null) {
-                    if (isset($seenObjectNumbers[$objectNumber])) {
-                        continue;
-                    }
-                    $seenObjectNumbers[$objectNumber] = true;
-                }
-                $nodes[] = $node;
-            }
-        }
+        $this->parentTreeRootNodesCache[$cacheKey] = $nodes;
 
         return $nodes;
     }
