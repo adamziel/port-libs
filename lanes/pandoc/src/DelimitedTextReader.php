@@ -17,7 +17,7 @@ final class DelimitedTextReader
     private const DIALECT_DETECTION_MIN_SCORE_MARGIN = 0.15;
 
     /**
-     * @param array{header?:bool, extension?:string, sourcePath?:string, delimiter?:string, quote?:string|null|false, escape?:string|null|false, keepSpace?:bool, strictParsing?:bool, cellLineBreak?:string} $options
+     * @param array{header?:bool, extension?:string, sourcePath?:string, delimiter?:string, quote?:string|null|false, escape?:string|null|false, keepSpace?:bool, strictParsing?:bool, allowBlankRecords?:bool, cellLineBreak?:string} $options
      */
     public function readCsv(string $text, array $options = []): AstNode
     {
@@ -25,7 +25,7 @@ final class DelimitedTextReader
     }
 
     /**
-     * @param array{header?:bool, extension?:string, sourcePath?:string, delimiter?:string, quote?:string|null|false, escape?:string|null|false, keepSpace?:bool, strictParsing?:bool, cellLineBreak?:string} $options
+     * @param array{header?:bool, extension?:string, sourcePath?:string, delimiter?:string, quote?:string|null|false, escape?:string|null|false, keepSpace?:bool, strictParsing?:bool, allowBlankRecords?:bool, cellLineBreak?:string} $options
      */
     public function readTsv(string $text, array $options = []): AstNode
     {
@@ -33,7 +33,7 @@ final class DelimitedTextReader
     }
 
     /**
-     * @param array{header?:bool, extension?:string, sourcePath?:string, delimiter?:string, quote?:string|null|false, escape?:string|null|false, keepSpace?:bool, strictParsing?:bool, cellLineBreak?:string} $options
+     * @param array{header?:bool, extension?:string, sourcePath?:string, delimiter?:string, quote?:string|null|false, escape?:string|null|false, keepSpace?:bool, strictParsing?:bool, allowBlankRecords?:bool, cellLineBreak?:string} $options
      */
     public function readAuto(string $text, array $options = []): AstNode
     {
@@ -41,12 +41,13 @@ final class DelimitedTextReader
     }
 
     /**
-     * @param array{header?:bool, extension?:string, sourcePath?:string, delimiter?:string, quote?:string|null|false, escape?:string|null|false, keepSpace?:bool, strictParsing?:bool, cellLineBreak?:string} $options
+     * @param array{header?:bool, extension?:string, sourcePath?:string, delimiter?:string, quote?:string|null|false, escape?:string|null|false, keepSpace?:bool, strictParsing?:bool, allowBlankRecords?:bool, cellLineBreak?:string} $options
      */
     public function read(string $text, string $format = 'csv', array $options = []): AstNode
     {
         $inputPrefix = $this->inputPrefixReview($text);
         $strictParsing = $this->strictParsingOption($options);
+        $allowBlankRecords = $this->allowBlankRecordsOption($options);
         $prefixText = $strictParsing
             ? $this->inputTextAfterBomPrefix($text, $inputPrefix)
             : $this->inputTextAfterSupportedPrefix($text, $inputPrefix);
@@ -62,7 +63,7 @@ final class DelimitedTextReader
 
         $parse = $this->parseRowsWithDiagnostics($sourceText, $dialect);
         if ($strictParsing) {
-            $this->assertStrictParsing($format, $inputPrefix, $parse);
+            $this->assertStrictParsing($format, $inputPrefix, $parse, $allowBlankRecords);
         }
         $rows = $parse['rows'];
         $fieldMetadataRows = $parse['fieldMetadataRows'];
@@ -771,6 +772,21 @@ final class DelimitedTextReader
     }
 
     /**
+     * @param array{allowBlankRecords?:bool} $options
+     */
+    private function allowBlankRecordsOption(array $options): bool
+    {
+        if (!array_key_exists('allowBlankRecords', $options)) {
+            return false;
+        }
+        if (!is_bool($options['allowBlankRecords'])) {
+            throw new \InvalidArgumentException('Delimited text allowBlankRecords option must be a boolean');
+        }
+
+        return $options['allowBlankRecords'];
+    }
+
+    /**
      * @param list<int> $widths
      */
     private function repairedColumnCount(array $widths, bool $hasHeader): int
@@ -1311,7 +1327,7 @@ final class DelimitedTextReader
      *     metrics:array<string, int>
      * } $parse
      */
-    private function assertStrictParsing(string $format, array $inputPrefix, array $parse): void
+    private function assertStrictParsing(string $format, array $inputPrefix, array $parse, bool $allowBlankRecords = false): void
     {
         $diagnostic = $this->firstParseDiagnostic($parse, 'delimited-text-empty-first-field-without-delimiter');
         if ($diagnostic !== null) {
@@ -1320,7 +1336,7 @@ final class DelimitedTextReader
             throw new \InvalidArgumentException("Malformed {$format} input: empty first field at line {$row}, column {$column}; Pandoc requires a delimiter after an empty first field.");
         }
 
-        $blankRows = $this->strictRejectedBlankRows($parse);
+        $blankRows = $allowBlankRecords ? [] : $this->strictRejectedBlankRows($parse);
         if ($blankRows !== []) {
             $row = $blankRows[0] + 1;
             throw new \InvalidArgumentException("Malformed {$format} input: blank record at line {$row}.");

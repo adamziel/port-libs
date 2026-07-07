@@ -1486,6 +1486,31 @@ NATIVE;
         $t->contains('Plain [ Str "after" , Space , Str "blank" ]', $native);
         $t->same($nativeTokenStream($fixture['native']), $nativeTokenStream($native));
     },
+    'allows csv blank records without disabling other strict parsing checks' => static function (TestRunner $t): void {
+        $document = (new DelimitedTextReader())->readCsv("id,title\n1,Alpha\n\n2,Beta\n", [
+            'allowBlankRecords' => true,
+        ]);
+        $table = $document->children[0];
+        $packet = $table->attr('delimitedText');
+
+        $t->same(['id', 'title'], $table->attr('columnNames'));
+        $t->same(3, $packet['rowCount'] ?? null);
+        $t->same(2, $packet['bodyRowCount'] ?? null);
+        $t->same(1, $packet['blankRowCount'] ?? null);
+        $t->same([2], $packet['blankRows'] ?? null);
+        $t->same('Alpha', $table->children[1]->children[0]->children[1]->attr('text'));
+        $t->same('Beta', $table->children[1]->children[1]->children[1]->attr('text'));
+
+        $message = '';
+        try {
+            (new DelimitedTextReader())->readCsv("id,note\n1,\"bad\" trailing\n", [
+                'allowBlankRecords' => true,
+            ]);
+        } catch (InvalidArgumentException $exception) {
+            $message = $exception->getMessage();
+        }
+        $t->contains('text after a closing quote', $message);
+    },
     'matches generated csv backslash escaped nonquote native parity fixture without inflating csv denominator' => static function (TestRunner $t) use ($generatedCsvNativeFixture, $nativeTokenStream): void {
         $fixture = $generatedCsvNativeFixture('backslash-escaped-nonquote');
         $document = (new DelimitedTextReader())->readCsv($fixture['input'], [

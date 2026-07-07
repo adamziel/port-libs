@@ -115,10 +115,14 @@ function plpc_convert_uploaded_document(WP_REST_Request $request): WP_REST_Respo
 function plpc_converter_options(string $format): array
 {
     $readerOptions = [];
-    if (PandocConverter::canonicalInputFormat($format) === 'pdf') {
+    $canonicalFormat = PandocConverter::canonicalInputFormat($format);
+    if ($canonicalFormat === 'pdf') {
         $readerOptions['maxTextBytes'] = 80000;
         $readerOptions['pdfGeometryTables'] = false;
         $readerOptions['pdfRepairProseText'] = true;
+    }
+    if ($canonicalFormat === 'csv' || $canonicalFormat === 'tsv') {
+        $readerOptions['allowBlankRecords'] = true;
     }
 
     return [
