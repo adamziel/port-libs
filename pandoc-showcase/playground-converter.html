@@ -12,7 +12,7 @@
     <div class="hero-inner">
       <p class="eyebrow">adamziel/port-libs</p>
       <h1>Convert a document into a WordPress page</h1>
-      <p class="lede">Try the PHP Pandoc port as a live WordPress import pipeline. Upload a document, convert it to native block markup inside an embedded WordPress Playground, import the rendered images into the media library, and inspect the resulting page immediately. It is a practical way to see whether a document can become real WordPress content instead of a pasted blob of HTML.</p>
+      <p class="lede">This is a zero-install WordPress import lab. Upload a real document, let the PHP Pandoc port convert it to native block markup inside an embedded WordPress Playground, import only the images that are actually used by rendered <code>&lt;img&gt;</code> tags, and open the finished page immediately. It shows whether a file can become editable WordPress content, not just a pasted blob of HTML.</p>
       <div class="hero-actions">
         <a href="index.html">Showcase</a>
         <a href="block-usage.html">Block usage guide</a>
@@ -24,7 +24,26 @@
     <section class="upload-panel" aria-labelledby="upload-heading">
       <div>
         <h2 id="upload-heading">Upload</h2>
-        <p class="meta">The file is processed in your browser session by WordPress Playground.</p>
+        <p class="meta">The file is processed in this browser session by WordPress Playground. Nothing needs to be installed locally.</p>
+      </div>
+
+      <div class="intro-panel" aria-label="What this page is for">
+        <h3>Turn documents into something WordPress can actually use</h3>
+        <p>Migration tests usually answer the wrong question: "did it render?" This page answers the useful question: "can an editor work with it after import?" Try policy PDFs, DOCX reports, Markdown specs, spreadsheets, EPUBs, slides, wiki pages, and other awkward files, then inspect the resulting blocks in a real WordPress editor.</p>
+        <div class="use-grid" aria-label="Useful checks">
+          <div>
+            <strong>Validate migrations</strong>
+            <span>Check headings, lists, tables, links, code, math, images, and document structure before writing importer code.</span>
+          </div>
+          <div>
+            <strong>Debug conversion gaps</strong>
+            <span>Use the live result and diagnostics to spot spacing problems, missing media, flattened tables, or unsupported syntax.</span>
+          </div>
+          <div>
+            <strong>Prototype workflows</strong>
+            <span>See how files from authors, archives, docs teams, or legacy CMS exports could land in WordPress.</span>
+          </div>
+        </div>
       </div>
 
       <form id="converter-form">
@@ -87,16 +106,17 @@
 
       <div class="value-panel value-panel-primary" aria-label="Why this converter is useful">
         <h3>Why this is useful</h3>
-        <p>Most document converters stop at HTML. This page goes one step further: it shows whether an uploaded file can become an editable WordPress page with native blocks, media-library images, links, tables, lists, code, math, and document structure that you can inspect immediately.</p>
+        <p>Most document converters stop at HTML. This one creates a WordPress page, so you can judge the parts that matter for publishing: editable blocks, media-library files, preserved links, tables, lists, code, math, and document structure.</p>
       </div>
 
       <div class="value-panel" aria-label="What this converter does">
         <h3>What you can do</h3>
         <ul>
           <li>Drop in a document and open the converted result as a WordPress page.</li>
-          <li>Edit the generated blocks in the WordPress editor to see what is truly usable.</li>
+          <li>Edit the generated blocks in the WordPress editor to see what survived as structured content.</li>
+          <li>Open the media library and confirm which extracted images were imported.</li>
+          <li>Test documents that usually break importers, including tables, multi-column PDFs, footnotes, math, code blocks, and embedded media.</li>
           <li>Compare tricky source files against the showcase output and report conversion gaps.</li>
-          <li>Verify that only images used by rendered <code>&lt;img&gt;</code> tags become media-library files.</li>
         </ul>
       </div>
 
