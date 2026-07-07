@@ -1233,9 +1233,26 @@ WORDS)) ?: [];
         }
 
         ksort($runsByPage);
+        $blocksByPage = [];
+        $hasTable = false;
+        foreach ($runsByPage as $page => $pageRuns) {
+            $pageBlocks = $this->blocksFromPositionedPageTables($pageRuns, $filledRectanglesByPage[$page] ?? []);
+            if ($this->countNodesOfType($pageBlocks, 'table') > 0) {
+                $hasTable = true;
+            }
+            $blocksByPage[$page] = $pageBlocks;
+        }
+        if (!$hasTable) {
+            return [];
+        }
+
         $blocks = [];
         foreach ($runsByPage as $page => $pageRuns) {
-            foreach ($this->blocksFromPositionedPageTables($pageRuns, $filledRectanglesByPage[$page] ?? []) as $block) {
+            $pageBlocks = $blocksByPage[$page] ?? [];
+            if ($pageBlocks === []) {
+                $pageBlocks = $this->blocksFromPositionedPageProse($pageRuns);
+            }
+            foreach ($pageBlocks as $block) {
                 $blocks[] = $block;
             }
         }
@@ -1403,6 +1420,23 @@ WORDS)) ?: [];
         $flushPendingLines();
 
         return $blocks;
+    }
+
+    /**
+     * @param list<array{page: int, text: string, x1: float, y1: float, x2: float, y2: float, textX1: float, textY1: float, textX2: float, textY2: float, fontSize: float}> $runs
+     * @return list<AstNode>
+     */
+    private function blocksFromPositionedPageProse(array $runs): array
+    {
+        $lines = $this->positionedProseLinesForPage($runs);
+        if ($lines === []) {
+            return [];
+        }
+        if ($this->proseTextRepairEnabled()) {
+            $lines = $this->repairProseTextLines($lines, $this->looksLikeProseRepairCandidate($lines));
+        }
+
+        return $this->blocksFromLines($lines);
     }
 
     /**
@@ -2223,6 +2257,8 @@ WORDS)) ?: [];
         }
 
         $wordCounts = [];
+        $numericAnchors = 0;
+        $oneWordCells = 0;
         foreach ($rows as $row) {
             foreach ($row as $cell) {
                 $text = trim($this->cellTextValue($cell));
@@ -2230,9 +2266,13 @@ WORDS)) ?: [];
                     continue;
                 }
                 if ($this->positionedCellLooksNumericAnchor($text)) {
-                    return false;
+                    $numericAnchors++;
                 }
-                $wordCounts[] = $this->positionedCellWordCount($text);
+                $wordCount = $this->positionedCellWordCount($text);
+                if ($wordCount <= 1) {
+                    $oneWordCells++;
+                }
+                $wordCounts[] = $wordCount;
             }
         }
         if (count($wordCounts) < 4) {
@@ -2241,6 +2281,18 @@ WORDS)) ?: [];
 
         sort($wordCounts, SORT_NUMERIC);
         $median = $wordCounts[intdiv(count($wordCounts), 2)] ?? 0;
+        if ($numericAnchors > 0 && $columnCount < 18) {
+            return false;
+        }
+        if ($numericAnchors > 0) {
+            $oneWordRatio = $oneWordCells / max(1, count($wordCounts));
+            $numericRatio = $numericAnchors / max(1, count($wordCounts));
+            if ($median <= 1 && $oneWordRatio >= 0.80 && $numericRatio < 0.55) {
+                return true;
+            }
+
+            return false;
+        }
 
         return $median <= 2;
     }

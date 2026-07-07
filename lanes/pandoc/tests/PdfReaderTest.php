@@ -5370,6 +5370,44 @@ return [
         $t->true(!str_contains($html, '</p><p>may affect'));
         $t->true(!str_contains($html, '</p><p>without turning every visual line'));
     },
+    'preserves non table pdf pages when later pages contain geometry tables' => static function (TestRunner $t): void {
+        $pageOne = 'BT /F1 12 Tf '
+            . '1 0 0 1 72 748 Tm (Abstract) Tj '
+            . '1 0 0 1 72 732 Tm (This paper examines how pharmaceutical Artificial Intelligence \\(AI\\) advancements) Tj '
+            . '1 0 0 1 72 716 Tm (may affect the development of new drugs in the coming years.) Tj '
+            . 'ET';
+        $pageTwo = 'BT /F1 12 Tf '
+            . '1 0 0 1 72 720 Tm (Product) Tj 1 0 0 1 220 720 Tm (Qty) Tj 1 0 0 1 320 720 Tm (Total) Tj '
+            . '1 0 0 1 72 704 Tm (Alpha) Tj 1 0 0 1 220 704 Tm (2) Tj 1 0 0 1 320 704 Tm ($6.00) Tj '
+            . 'ET';
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n"
+            . "2 0 obj<</Type/Pages/Kids[3 0 R 4 0 R]/Count 2>>endobj\n"
+            . "3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]/Resources<</Font<</F1 5 0 R>>>>/Contents 6 0 R>>endobj\n"
+            . "4 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]/Resources<</Font<</F1 5 0 R>>>>/Contents 7 0 R>>endobj\n"
+            . "5 0 obj<</Type/Font/Subtype/Type1/BaseFont/Helvetica/Encoding/WinAnsiEncoding>>endobj\n"
+            . "6 0 obj<</Length " . strlen($pageOne) . ">>stream\n{$pageOne}\nendstream\nendobj\n"
+            . "7 0 obj<</Length " . strlen($pageTwo) . ">>stream\n{$pageTwo}\nendstream\nendobj\n"
+            . "trailer<</Root 1 0 R>>\n%%EOF";
+
+        $document = (new PdfReader([
+            'pdfGeometryTables' => true,
+            'pdfRepairProseText' => true,
+        ]))->read($pdf);
+        $html = PandocConverter::write($document, 'html');
+        $blocks = PandocConverter::write($document, 'blocks');
+        $text = preg_replace('/\s+/', ' ', html_entity_decode(strip_tags($html), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')) ?? '';
+        $meta = $document->attr('meta');
+
+        $t->same(1, $meta['pdfDetectedTables']);
+        $t->same(1, $meta['pdfGeometryTables']);
+        $t->same(['heading', 'paragraph', 'table'], array_map(static fn (AstNode $node): string => $node->type, $document->children));
+        $t->contains('This paper examines how pharmaceutical Artificial Intelligence (AI) advancements may affect the development of new drugs in the coming years.', $text);
+        $t->contains('<!-- wp:table -->', $blocks);
+        $t->contains('<th>Product</th><th>Qty</th><th>Total</th>', $blocks);
+        $t->contains('<td>Alpha</td><td>2</td><td>$6.00</td>', $blocks);
+        $t->true(!str_contains($html, '</p><p>may affect'));
+    },
     'does not promote positioned prose word fragments to a table' => static function (TestRunner $t) use ($pdfWithContent): void {
         $pdf = $pdfWithContent(
             'BT /F1 12 Tf '
@@ -5390,6 +5428,23 @@ return [
         $t->contains('healthcare', $blocks);
         $t->contains('based hand rub.', $blocks);
         $t->contains('Preventing the spread of germs and infections.', $blocks);
+    },
+    'treats extreme width numeric fragment grids as extraction noise' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $fragmentGrid = new ReflectionMethod($reader, 'positionedRenderedRowsLookLikeFragmentGrid');
+        $wideFragmentRows = [
+            ['Paul', 'North', 'Retired', 'SPPS', 'MN', '08/01/12', '$25', 'A', 'Yes', 'Road', 'Ward', 'City', 'Fund', 'Vote', 'Lake', 'Ave', 'Box', 'One', 'East', 'West'],
+            ['Jane', 'Smith', 'Teacher', 'SPFT', 'MN', '08/02/12', '$50', 'B', 'Yes', 'Street', 'Ward', 'City', 'Fund', 'Vote', 'Park', 'Ave', 'Box', 'Two', 'East', 'West'],
+            ['Alex', 'Chen', 'Retired', 'SPPS', 'MN', '08/03/12', '$75', 'C', 'Yes', 'Place', 'Ward', 'City', 'Fund', 'Vote', 'Hill', 'Ave', 'Box', 'Three', 'East', 'West'],
+        ];
+        $invoiceRows = [
+            ['Product', 'Qty', 'Rate', 'Total'],
+            ['Alpha', '2', '$3.00', '$6.00'],
+            ['Beta', '1', '$4.00', '$4.00'],
+        ];
+
+        $t->same(true, $fragmentGrid->invoke($reader, $wideFragmentRows));
+        $t->same(false, $fragmentGrid->invoke($reader, $invoiceRows));
     },
     'keeps positioned numeric grids as tables after fragment grid filtering' => static function (TestRunner $t) use ($pdfWithContent): void {
         $pdf = $pdfWithContent(
