@@ -1,10 +1,11 @@
-const pluginBuild = '2af979062b00b470';
+const pluginBuild = '04cfe2998ccb4ead';
 const playgroundClientModuleUrl = 'https://playground.wordpress.net/client/index.js';
 
 const iframe = document.getElementById('wp-playground');
 const playgroundPanel = document.getElementById('playground-panel');
 const form = document.getElementById('converter-form');
 const fileInput = document.getElementById('file-input');
+const directoryInput = document.getElementById('directory-input');
 const formatInput = document.getElementById('format-input');
 const titleInput = document.getElementById('title-input');
 const convertButton = document.getElementById('convert-button');
@@ -60,19 +61,25 @@ const formatByExtension = new Map(Object.entries({
   wiki: 'mediawiki',
   xlsx: 'xlsx',
   xml: 'xml',
+  zip: 'zip',
 }));
 
 let playgroundClient = null;
 let playgroundReady = false;
 let playgroundBootPromise = null;
 let startPlaygroundWeb = null;
-let selectedFile = null;
+let selectedUpload = null;
 let conversionActive = false;
 let dragDepth = 0;
 
 fileInput.addEventListener('change', async () => {
-  const file = fileInput.files && fileInput.files[0] ? fileInput.files[0] : null;
-  setSelectedFile(file);
+  const files = fileInput.files ? Array.from(fileInput.files) : [];
+  setSelectedUpload(uploadFromFiles(files));
+});
+
+directoryInput.addEventListener('change', async () => {
+  const files = directoryInput.files ? Array.from(directoryInput.files) : [];
+  setSelectedUpload(uploadFromFiles(files, { forceBatch: true }));
 });
 
 document.addEventListener('dragenter', (event) => {
@@ -113,13 +120,12 @@ document.addEventListener('drop', async (event) => {
   event.preventDefault();
   dragDepth = 0;
   setPageDragActive(false);
-  const file = event.dataTransfer && event.dataTransfer.files.length > 0
-    ? event.dataTransfer.files[0]
-    : null;
-  if (!file) {
+  const upload = event.dataTransfer ? await uploadFromDataTransfer(event.dataTransfer) : null;
+  if (!upload) {
     return;
   }
-  setSelectedFile(file);
+  setSelectedUpload(upload);
+  await convertSelectedFile();
 });
 
 form.addEventListener('submit', async (event) => {
@@ -128,7 +134,7 @@ form.addEventListener('submit', async (event) => {
 });
 
 async function convertSelectedFile() {
-  if (!selectedFile) {
+  if (!selectedUpload) {
     return;
   }
   if (conversionActive) {
@@ -143,13 +149,8 @@ async function convertSelectedFile() {
   try {
     await bootPlayground();
     setProgressStatus('Reading document...');
-    log(`Reading ${selectedFile.name} (${formatBytes(selectedFile.size)})`);
-    const payload = {
-      filename: selectedFile.name,
-      format: formatInput.value,
-      title: titleInput.value,
-      bytes: await readFileAsBase64(selectedFile),
-    };
+    log(`Reading ${selectedUpload.displayName} (${formatBytes(selectedUpload.totalSize)})`);
+    const payload = await payloadFromUpload(selectedUpload);
 
     setStatus('loading', 'Converting in WordPress Playground...');
     setProgressStatus('Converting document in WordPress...');
@@ -166,7 +167,14 @@ async function convertSelectedFile() {
       throw new Error(data.message || 'Conversion failed.');
     }
 
-    log(`Created page #${data.postId}: ${data.title}`);
+    if (data.batch && Array.isArray(data.posts)) {
+      log(`Created ${data.posts.length} page${data.posts.length === 1 ? '' : 's'} from ${selectedUpload.displayName}`);
+      for (const post of data.posts) {
+        log(`Created page #${post.postId}: ${post.title} (${post.path})`);
+      }
+    } else {
+      log(`Created page #${data.postId}: ${data.title}`);
+    }
     log(`Rendered image tags: ${data.imageTagCount}; imported media files: ${data.imagesImported}`);
     for (const diagnostic of data.diagnostics || []) {
       log(diagnostic);
@@ -257,25 +265,27 @@ async function startPlayground() {
   }
 }
 
-function setSelectedFile(file) {
-  selectedFile = file;
-  if (!file) {
+function setSelectedUpload(upload) {
+  selectedUpload = upload;
+  if (!upload) {
     fileName.textContent = 'No file selected';
+    titleInput.value = '';
+    formatInput.value = '';
     updateConvertAvailability();
     return;
   }
 
-  fileName.textContent = `${file.name} (${formatBytes(file.size)})`;
-  titleInput.value = titleFromFilename(file.name);
-  const extension = file.name.includes('.') ? file.name.split('.').pop().toLowerCase() : '';
-  formatInput.value = formatByExtension.get(extension) || '';
+  fileName.textContent = `${upload.displayName} (${formatBytes(upload.totalSize)})`;
+  titleInput.value = upload.title;
+  formatInput.value = upload.format;
   updateConvertAvailability();
 }
 
 function setBusy(busy) {
   form.dataset.busy = busy ? 'true' : 'false';
-  convertButton.disabled = busy || !selectedFile;
+  convertButton.disabled = busy || !selectedUpload;
   fileInput.disabled = busy;
+  directoryInput.disabled = busy;
   dropzone.dataset.disabled = busy ? 'true' : 'false';
   formatInput.disabled = busy;
   titleInput.disabled = busy;
@@ -283,7 +293,7 @@ function setBusy(busy) {
 }
 
 function updateConvertAvailability() {
-  convertButton.disabled = !selectedFile;
+  convertButton.disabled = !selectedUpload;
   convertButton.textContent = convertButtonLabel();
 }
 
@@ -320,6 +330,132 @@ function log(message) {
   logOutput.scrollTop = logOutput.scrollHeight;
 }
 
+function uploadFromFiles(files, options = {}) {
+  const entries = files
+    .filter((file) => file && file.size > 0)
+    .map((file) => ({
+      file,
+      path: normalizeRelativePath(file._plpcRelativePath || file.webkitRelativePath || file.name),
+    }))
+    .filter((entry) => entry.path);
+  if (entries.length === 0) {
+    return null;
+  }
+
+  const forceBatch = options.forceBatch || entries.length > 1 || entries.some((entry) => entry.path.includes('/'));
+  if (!forceBatch && entries.length === 1) {
+    const file = entries[0].file;
+    const extension = extensionFromName(file.name);
+
+    return {
+      kind: 'single',
+      displayName: file.name,
+      title: titleFromFilename(file.name),
+      format: formatByExtension.get(extension) || '',
+      totalSize: file.size,
+      entries,
+    };
+  }
+
+  const root = commonRoot(entries.map((entry) => entry.path));
+  const displayName = root || `${entries.length} files`;
+
+  return {
+    kind: 'collection',
+    displayName,
+    title: titleFromFilename(displayName),
+    format: '',
+    totalSize: entries.reduce((sum, entry) => sum + entry.file.size, 0),
+    entries,
+  };
+}
+
+async function uploadFromDataTransfer(dataTransfer) {
+  const entries = Array.from(dataTransfer.items || [])
+    .map((item) => (typeof item.webkitGetAsEntry === 'function' ? item.webkitGetAsEntry() : null))
+    .filter(Boolean);
+  if (entries.length > 0) {
+    const files = [];
+    for (const entry of entries) {
+      await collectEntryFiles(entry, '', files);
+    }
+    return uploadFromFiles(files.map((item) => item.fileWithPath), {
+      forceBatch: files.some((item) => item.path.includes('/')) || files.length > 1,
+    });
+  }
+
+  return uploadFromFiles(Array.from(dataTransfer.files || []));
+}
+
+async function collectEntryFiles(entry, parentPath, files) {
+  const path = normalizeRelativePath(parentPath ? `${parentPath}/${entry.name}` : entry.name);
+  if (!path) {
+    return;
+  }
+  if (entry.isFile) {
+    const file = await fileFromEntry(entry);
+    try {
+      Object.defineProperty(file, '_plpcRelativePath', {
+        value: path,
+        configurable: true,
+      });
+    } catch {
+      file._plpcRelativePath = path;
+    }
+    files.push({ path, fileWithPath: file });
+    return;
+  }
+  if (!entry.isDirectory) {
+    return;
+  }
+
+  const reader = entry.createReader();
+  for (;;) {
+    const children = await readDirectoryEntries(reader);
+    if (children.length === 0) {
+      break;
+    }
+    for (const child of children) {
+      await collectEntryFiles(child, path, files);
+    }
+  }
+}
+
+function fileFromEntry(entry) {
+  return new Promise((resolve, reject) => {
+    entry.file(resolve, reject);
+  });
+}
+
+function readDirectoryEntries(reader) {
+  return new Promise((resolve, reject) => {
+    reader.readEntries(resolve, reject);
+  });
+}
+
+async function payloadFromUpload(upload) {
+  if (upload.kind === 'single') {
+    const entry = upload.entries[0];
+
+    return {
+      filename: entry.file.name,
+      format: upload.format,
+      title: upload.title,
+      bytes: await readFileAsBase64(entry.file),
+    };
+  }
+
+  return {
+    filename: upload.displayName,
+    title: upload.title,
+    files: await Promise.all(upload.entries.map(async (entry) => ({
+      path: entry.path,
+      filename: entry.file.name,
+      bytes: await readFileAsBase64(entry.file),
+    }))),
+  };
+}
+
 function readFileAsBase64(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -345,8 +481,42 @@ function isLikelyIOS() {
 }
 
 function titleFromFilename(name) {
-  const stem = name.replace(/\.[^.]+$/, '').replace(/[-_]+/g, ' ').trim();
+  const last = name.split('/').filter(Boolean).pop() || name;
+  const stem = last.replace(/\.[^.]+$/, '').replace(/[-_]+/g, ' ').trim();
   return stem ? stem.replace(/\b\w/g, (letter) => letter.toUpperCase()) : 'Converted document';
+}
+
+function extensionFromName(name) {
+  return name.includes('.') ? name.split('.').pop().toLowerCase() : '';
+}
+
+function normalizeRelativePath(path) {
+  const parts = String(path || '')
+    .replaceAll('\\', '/')
+    .split('/')
+    .filter((part) => part && part !== '.');
+  const normalized = [];
+  for (const part of parts) {
+    if (part === '..') {
+      normalized.pop();
+    } else {
+      normalized.push(part);
+    }
+  }
+
+  return normalized.join('/');
+}
+
+function commonRoot(paths) {
+  const roots = paths
+    .map((path) => path.split('/').filter(Boolean)[0] || '')
+    .filter(Boolean);
+  if (roots.length === 0) {
+    return '';
+  }
+  const first = roots[0];
+
+  return roots.every((root) => root === first) ? first : '';
 }
 
 function formatBytes(bytes) {

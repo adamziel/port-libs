@@ -140,7 +140,6 @@ body[data-dragging="true"] {
   background: #f7f2e8;
   color: #121820;
   text-align: center;
-  cursor: pointer;
   transition: border-color 160ms ease, background 160ms ease;
 }
 
@@ -153,7 +152,6 @@ body[data-dragging="true"] {
 .file-dropzone[data-disabled="true"] {
   background: #efede8;
   color: #6b7280;
-  cursor: not-allowed;
 }
 
 .dropzone-title {
@@ -168,7 +166,41 @@ body[data-dragging="true"] {
   font-weight: 750;
 }
 
-.file-dropzone input {
+.picker-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
+.picker-button {
+  box-sizing: border-box;
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 14px;
+  border: 1px solid #202833;
+  border-radius: 6px;
+  background: #174ea6;
+  color: #fffdf8;
+  font-size: 14px;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.picker-button-secondary {
+  background: #fffdf8;
+  color: #202833;
+}
+
+.file-dropzone[data-disabled="true"] .picker-button {
+  pointer-events: none;
+  background: #d9d6cf;
+  color: #6b7280;
+}
+
+.picker-button input {
   position: absolute;
   inline-size: 1px;
   block-size: 1px;
@@ -456,6 +488,14 @@ body[data-dragging="true"] .page-drop-overlay {
   .file-dropzone {
     min-height: 150px;
     padding: 20px 14px;
+  }
+
+  .picker-actions {
+    width: 100%;
+  }
+
+  .picker-button {
+    width: min(100%, 220px);
   }
 
   .selected-file strong {

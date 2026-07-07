@@ -14,6 +14,10 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
+const PLPC_MAX_COLLECTION_FILES = 200;
+const PLPC_MAX_COLLECTION_TOTAL_BYTES = 90000000;
+const PLPC_MAX_COLLECTION_FILE_BYTES = 25000000;
+
 spl_autoload_register(static function (string $class): void {
     $prefixes = [
         'PortLibs\\Pandoc\\' => __DIR__ . '/lanes/pandoc/src/',
@@ -66,40 +70,36 @@ function plpc_convert_uploaded_document(WP_REST_Request $request): WP_REST_Respo
             $title = plpc_title_from_filename($filename);
         }
 
+        if (isset($payload['files']) && is_array($payload['files'])) {
+            return plpc_collection_response(plpc_collection_from_payload($payload, $title), $title);
+        }
+
         $base64 = (string) ($payload['bytes'] ?? '');
         $bytes = base64_decode($base64, true);
         if (!is_string($bytes) || $bytes === '') {
             throw new RuntimeException('The uploaded file was empty or could not be decoded.');
         }
 
-        $options = plpc_converter_options($format);
-        $document = PandocConverter::read($bytes, $format, $options['readerOptions']);
-        $blocks = PandocConverter::write($document, 'wordpress', $options['writerOptions']);
-
-        $imageSources = plpc_rendered_image_sources($blocks);
-        $mediaResult = plpc_import_rendered_images($blocks, $imageSources, $bytes, $filename);
-        $blocks = $mediaResult['blocks'];
-
-        $postId = wp_insert_post([
-            'post_type' => 'page',
-            'post_title' => $title,
-            'post_status' => 'publish',
-            'post_content' => $blocks,
-        ], true);
-        if (is_wp_error($postId)) {
-            throw new RuntimeException($postId->get_error_message());
+        if (plpc_should_expand_zip_upload($format, $filename, $bytes)) {
+            return plpc_collection_response(plpc_collection_from_zip($bytes, $filename, $title), $title);
         }
+
+        $result = plpc_convert_collection_file_to_page([
+            'path' => $filename,
+            'bytes' => $bytes,
+        ], null, $title);
 
         return new WP_REST_Response([
             'ok' => true,
-            'postId' => (int) $postId,
-            'pageUrl' => get_permalink((int) $postId),
-            'editUrl' => get_edit_post_link((int) $postId, 'raw'),
-            'format' => $format,
-            'title' => get_the_title((int) $postId),
-            'imageTagCount' => count($imageSources),
-            'imagesImported' => $mediaResult['imported'],
-            'diagnostics' => $mediaResult['diagnostics'],
+            'postId' => $result['postId'],
+            'pageUrl' => $result['pageUrl'],
+            'editUrl' => $result['editUrl'],
+            'format' => $result['format'],
+            'title' => $result['title'],
+            'path' => $result['path'],
+            'imageTagCount' => $result['imageTagCount'],
+            'imagesImported' => $result['imagesImported'],
+            'diagnostics' => $result['diagnostics'],
         ]);
     } catch (Throwable $error) {
         return new WP_REST_Response([
@@ -107,6 +107,333 @@ function plpc_convert_uploaded_document(WP_REST_Request $request): WP_REST_Respo
             'message' => $error->getMessage(),
         ], 500);
     }
+}
+
+function plpc_should_expand_zip_upload(string $format, string $filename, string $bytes): bool
+{
+    return ($format === 'zip' || strtolower(pathinfo($filename, PATHINFO_EXTENSION)) === 'zip')
+        && plpc_zip_package($bytes) !== null;
+}
+
+/**
+ * @param array<string, mixed> $payload
+ * @return array{label: string, files: list<array{path: string, bytes: string}>}
+ */
+function plpc_collection_from_payload(array $payload, string $fallbackTitle): array
+{
+    $files = [];
+    $totalBytes = 0;
+    foreach ($payload['files'] ?? [] as $index => $file) {
+        if (!is_array($file)) {
+            continue;
+        }
+        $path = plpc_normalize_collection_path((string) ($file['path'] ?? $file['filename'] ?? 'file-' . $index));
+        if ($path === '' || plpc_collection_path_is_ignored($path)) {
+            continue;
+        }
+        $bytes = base64_decode((string) ($file['bytes'] ?? ''), true);
+        if (!is_string($bytes) || $bytes === '') {
+            continue;
+        }
+        $size = strlen($bytes);
+        if ($size > PLPC_MAX_COLLECTION_FILE_BYTES) {
+            continue;
+        }
+        $totalBytes += $size;
+        if ($totalBytes > PLPC_MAX_COLLECTION_TOTAL_BYTES) {
+            throw new RuntimeException('The selected files are too large to import together.');
+        }
+        $files[] = [
+            'path' => $path,
+            'bytes' => $bytes,
+        ];
+        if (count($files) >= PLPC_MAX_COLLECTION_FILES) {
+            break;
+        }
+    }
+
+    if ($files === []) {
+        throw new RuntimeException('No readable files were found in the selected folder.');
+    }
+
+    return [
+        'label' => sanitize_text_field((string) ($payload['filename'] ?? $fallbackTitle)) ?: $fallbackTitle,
+        'files' => plpc_sort_collection_files($files),
+    ];
+}
+
+/**
+ * @return array{label: string, files: list<array{path: string, bytes: string}>}
+ */
+function plpc_collection_from_zip(string $bytes, string $filename, string $fallbackTitle = ''): array
+{
+    $package = plpc_zip_package($bytes);
+    if ($package === null) {
+        throw new RuntimeException('The ZIP file could not be read.');
+    }
+
+    $files = [];
+    $totalBytes = 0;
+    foreach ($package->entries() as $entry) {
+        if ($entry->isDirectory()) {
+            continue;
+        }
+        $path = plpc_normalize_collection_path($entry->name);
+        if ($path === '' || plpc_collection_path_is_ignored($path)) {
+            continue;
+        }
+        if ($entry->uncompressedSize > PLPC_MAX_COLLECTION_FILE_BYTES) {
+            continue;
+        }
+        $totalBytes += $entry->uncompressedSize;
+        if ($totalBytes > PLPC_MAX_COLLECTION_TOTAL_BYTES) {
+            throw new RuntimeException('The ZIP file is too large to import in one batch.');
+        }
+        try {
+            $entryBytes = $package->read($entry->name, PLPC_MAX_COLLECTION_FILE_BYTES);
+        } catch (Throwable) {
+            continue;
+        }
+        if ($entryBytes === '') {
+            continue;
+        }
+        $files[] = [
+            'path' => $path,
+            'bytes' => $entryBytes,
+        ];
+        if (count($files) >= PLPC_MAX_COLLECTION_FILES) {
+            break;
+        }
+    }
+
+    if ($files === []) {
+        throw new RuntimeException('No readable files were found in the ZIP file.');
+    }
+
+    return [
+        'label' => $fallbackTitle !== '' ? $fallbackTitle : plpc_title_from_filename($filename),
+        'files' => plpc_sort_collection_files($files),
+    ];
+}
+
+/**
+ * @param list<array{path: string, bytes: string}> $files
+ * @return list<array{path: string, bytes: string}>
+ */
+function plpc_sort_collection_files(array $files): array
+{
+    usort($files, static fn (array $left, array $right): int => strnatcasecmp($left['path'], $right['path']));
+
+    return array_values($files);
+}
+
+function plpc_normalize_collection_path(string $path, string $baseDir = ''): string
+{
+    $path = html_entity_decode($path, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    $path = rawurldecode($path);
+    $path = str_replace('\\', '/', $path);
+    $path = preg_replace('#/+#', '/', $path) ?? $path;
+    if ($baseDir !== '' && !str_starts_with($path, '/')) {
+        $path = rtrim($baseDir, '/') . '/' . $path;
+    }
+    $path = ltrim($path, '/');
+
+    $segments = [];
+    foreach (explode('/', $path) as $segment) {
+        if ($segment === '' || $segment === '.') {
+            continue;
+        }
+        if ($segment === '..') {
+            array_pop($segments);
+            continue;
+        }
+        $segments[] = $segment;
+    }
+
+    return implode('/', $segments);
+}
+
+function plpc_collection_path_is_ignored(string $path): bool
+{
+    $basename = basename($path);
+
+    return $basename === ''
+        || $basename === '.DS_Store'
+        || str_starts_with($basename, '.')
+        || str_starts_with($path, '__MACOSX/')
+        || str_ends_with($path, '/');
+}
+
+/**
+ * @param array{label: string, files: list<array{path: string, bytes: string}>} $collection
+ */
+function plpc_collection_response(array $collection, string $title): WP_REST_Response
+{
+    $documents = plpc_convertible_collection_files($collection);
+    if ($documents === []) {
+        throw new RuntimeException('No supported document files were found.');
+    }
+
+    $posts = [];
+    $diagnostics = [];
+    $imageTagCount = 0;
+    $imagesImported = 0;
+    foreach ($documents as $file) {
+        try {
+            $result = plpc_convert_collection_file_to_page($file, $collection);
+            $posts[] = $result;
+            $imageTagCount += $result['imageTagCount'];
+            $imagesImported += $result['imagesImported'];
+            foreach ($result['diagnostics'] as $diagnostic) {
+                $diagnostics[] = $file['path'] . ':' . $diagnostic;
+            }
+        } catch (Throwable $error) {
+            $diagnostics[] = $file['path'] . ':document-failed:' . $error->getMessage();
+        }
+    }
+
+    if ($posts === []) {
+        throw new RuntimeException('None of the supported files could be converted.');
+    }
+
+    if (count($posts) === 1) {
+        $post = $posts[0];
+
+        return new WP_REST_Response([
+            'ok' => true,
+            'batch' => true,
+            'postCount' => 1,
+            'posts' => $posts,
+            'postId' => $post['postId'],
+            'pageUrl' => $post['pageUrl'],
+            'editUrl' => $post['editUrl'],
+            'format' => $post['format'],
+            'title' => $post['title'],
+            'path' => $post['path'],
+            'imageTagCount' => $imageTagCount,
+            'imagesImported' => $imagesImported,
+            'diagnostics' => $diagnostics,
+        ]);
+    }
+
+    $indexTitle = $title !== '' ? $title : (string) $collection['label'];
+    $indexBlocks = plpc_collection_index_blocks($indexTitle, $posts);
+    $indexPostId = wp_insert_post([
+        'post_type' => 'page',
+        'post_title' => $indexTitle,
+        'post_status' => 'publish',
+        'post_content' => $indexBlocks,
+    ], true);
+    if (is_wp_error($indexPostId)) {
+        throw new RuntimeException($indexPostId->get_error_message());
+    }
+
+    return new WP_REST_Response([
+        'ok' => true,
+        'batch' => true,
+        'postCount' => count($posts),
+        'posts' => $posts,
+        'postId' => (int) $indexPostId,
+        'pageUrl' => get_permalink((int) $indexPostId),
+        'editUrl' => get_edit_post_link((int) $indexPostId, 'raw'),
+        'title' => get_the_title((int) $indexPostId),
+        'imageTagCount' => $imageTagCount,
+        'imagesImported' => $imagesImported,
+        'diagnostics' => $diagnostics,
+    ]);
+}
+
+/**
+ * @param array{label: string, files: list<array{path: string, bytes: string}>} $collection
+ * @return list<array{path: string, bytes: string, format: string}>
+ */
+function plpc_convertible_collection_files(array $collection): array
+{
+    $documents = [];
+    foreach ($collection['files'] as $file) {
+        $path = $file['path'];
+        if (plpc_path_is_image($path)) {
+            continue;
+        }
+        $format = plpc_normalize_format('', $path);
+        if ($format === '' || $format === 'zip') {
+            continue;
+        }
+        try {
+            if (!PandocConverter::canRead($format)) {
+                continue;
+            }
+        } catch (Throwable) {
+            continue;
+        }
+        $documents[] = [
+            'path' => $path,
+            'bytes' => $file['bytes'],
+            'format' => $format,
+        ];
+    }
+
+    return $documents;
+}
+
+/**
+ * @param array{path: string, bytes: string, format?: string} $file
+ * @param array{label: string, files: list<array{path: string, bytes: string}>}|null $collection
+ * @return array{postId: int, pageUrl: string, editUrl: string, format: string, title: string, path: string, imageTagCount: int, imagesImported: int, diagnostics: list<string>}
+ */
+function plpc_convert_collection_file_to_page(array $file, ?array $collection = null, ?string $title = null): array
+{
+    $path = $file['path'];
+    $format = (string) ($file['format'] ?? plpc_normalize_format('', $path));
+    $postTitle = $title !== null && $title !== '' ? $title : plpc_title_from_filename($path);
+    $options = plpc_converter_options($format);
+    $document = PandocConverter::read($file['bytes'], $format, $options['readerOptions']);
+    $blocks = PandocConverter::write($document, 'wordpress', $options['writerOptions']);
+
+    $imageSources = plpc_rendered_image_sources($blocks);
+    $mediaResult = plpc_import_rendered_images($blocks, $imageSources, $file['bytes'], basename($path), $collection, $path);
+    $blocks = $mediaResult['blocks'];
+
+    $postId = wp_insert_post([
+        'post_type' => 'page',
+        'post_title' => $postTitle,
+        'post_status' => 'publish',
+        'post_content' => $blocks,
+    ], true);
+    if (is_wp_error($postId)) {
+        throw new RuntimeException($postId->get_error_message());
+    }
+
+    return [
+        'postId' => (int) $postId,
+        'pageUrl' => get_permalink((int) $postId),
+        'editUrl' => get_edit_post_link((int) $postId, 'raw'),
+        'format' => $format,
+        'title' => get_the_title((int) $postId),
+        'path' => $path,
+        'imageTagCount' => count($imageSources),
+        'imagesImported' => $mediaResult['imported'],
+        'diagnostics' => $mediaResult['diagnostics'],
+    ];
+}
+
+/**
+ * @param list<array{postId: int, pageUrl: string, editUrl: string, format: string, title: string, path: string, imageTagCount: int, imagesImported: int, diagnostics: list<string>}> $posts
+ */
+function plpc_collection_index_blocks(string $title, array $posts): string
+{
+    $items = '';
+    foreach ($posts as $post) {
+        $items .= '<li><a href="' . esc_url($post['pageUrl']) . '">' . esc_html($post['title']) . '</a>'
+            . ' <code>' . esc_html($post['path']) . '</code></li>';
+    }
+
+    return '<!-- wp:heading {"level":1} -->'
+        . "\n" . '<h1 class="wp-block-heading">' . esc_html($title) . '</h1>'
+        . "\n" . '<!-- /wp:heading -->'
+        . "\n\n" . '<!-- wp:list -->'
+        . "\n" . '<ul class="wp-block-list">' . $items . '</ul>'
+        . "\n" . '<!-- /wp:list -->';
 }
 
 /**
@@ -171,6 +498,7 @@ function plpc_normalize_format(string $format, string $filename): string
         'wiki' => 'mediawiki',
         'xlsx' => 'xlsx',
         'xml' => 'xml',
+        'zip' => 'zip',
     ];
 
     return $map[$extension] ?? $extension;
@@ -207,15 +535,16 @@ function plpc_rendered_image_sources(string $blocks): array
 
 /**
  * @param list<string> $imageSources
+ * @param array{label: string, files: list<array{path: string, bytes: string}>}|null $collection
  * @return array{blocks: string, imported: int, diagnostics: list<string>}
  */
-function plpc_import_rendered_images(string $blocks, array $imageSources, string $uploadedBytes, string $filename): array
+function plpc_import_rendered_images(string $blocks, array $imageSources, string $uploadedBytes, string $filename, ?array $collection = null, string $documentPath = ''): array
 {
     $diagnostics = [];
     $imported = 0;
     $package = plpc_zip_package($uploadedBytes);
     foreach ($imageSources as $source) {
-        $resolved = plpc_resolve_image_source($source, $uploadedBytes, $package);
+        $resolved = plpc_resolve_image_source($source, $uploadedBytes, $package, $collection, $documentPath);
         if ($resolved === null) {
             $diagnostics[] = 'image-not-resolved:' . $source;
             continue;
@@ -257,9 +586,10 @@ function plpc_zip_package(string $bytes): ?ZipPackage
 }
 
 /**
+ * @param array{label: string, files: list<array{path: string, bytes: string}>}|null $collection
  * @return array{bytes: string, filename: string, mimeType: string}|null
  */
-function plpc_resolve_image_source(string $source, string $uploadedBytes, ?ZipPackage $package): ?array
+function plpc_resolve_image_source(string $source, string $uploadedBytes, ?ZipPackage $package, ?array $collection = null, string $documentPath = ''): ?array
 {
     if (str_starts_with($source, 'data:')) {
         $decoded = plpc_decode_data_uri($source);
@@ -269,6 +599,13 @@ function plpc_resolve_image_source(string $source, string $uploadedBytes, ?ZipPa
             'filename' => sha1($decoded['bytes']) . plpc_extension_for_mime($decoded['mimeType']),
             'mimeType' => $decoded['mimeType'],
         ];
+    }
+
+    if ($collection !== null && !plpc_source_is_remote($source)) {
+        $resolved = plpc_find_collection_image($collection, $source, $documentPath);
+        if ($resolved !== null) {
+            return $resolved;
+        }
     }
 
     if ($package === null) {
@@ -296,6 +633,70 @@ function plpc_resolve_image_source(string $source, string $uploadedBytes, ?ZipPa
         'filename' => sanitize_file_name(basename($entry)),
         'mimeType' => plpc_mime_for_filename($entry),
     ];
+}
+
+function plpc_source_is_remote(string $source): bool
+{
+    $parts = wp_parse_url($source);
+    if (!is_array($parts)) {
+        return false;
+    }
+    $scheme = strtolower((string) ($parts['scheme'] ?? ''));
+
+    return $scheme !== '' && !in_array($scheme, ['file'], true);
+}
+
+/**
+ * @param array{label: string, files: list<array{path: string, bytes: string}>} $collection
+ * @return array{bytes: string, filename: string, mimeType: string}|null
+ */
+function plpc_find_collection_image(array $collection, string $source, string $documentPath): ?array
+{
+    $path = plpc_media_path_from_url($source);
+    if ($path === '') {
+        return null;
+    }
+
+    $documentDir = trim(dirname($documentPath), '.\\/');
+    $candidates = [$path];
+    if ($documentDir !== '') {
+        $candidates[] = plpc_normalize_collection_path($source, $documentDir);
+        $candidates[] = plpc_normalize_collection_path($path, $documentDir);
+    }
+    $candidates[] = basename($path);
+    $candidates = array_values(array_unique(array_filter($candidates, static fn (string $candidate): bool => $candidate !== '')));
+
+    $filesByLower = [];
+    foreach ($collection['files'] as $file) {
+        if (!plpc_path_is_image($file['path'])) {
+            continue;
+        }
+        $filesByLower[strtolower($file['path'])] = $file;
+    }
+
+    foreach ($candidates as $candidate) {
+        $file = $filesByLower[strtolower($candidate)] ?? null;
+        if (is_array($file)) {
+            return [
+                'bytes' => $file['bytes'],
+                'filename' => sanitize_file_name(basename($file['path'])),
+                'mimeType' => plpc_mime_for_filename($file['path']),
+            ];
+        }
+    }
+
+    $basename = strtolower(basename($path));
+    foreach ($filesByLower as $file) {
+        if (strtolower(basename($file['path'])) === $basename) {
+            return [
+                'bytes' => $file['bytes'],
+                'filename' => sanitize_file_name(basename($file['path'])),
+                'mimeType' => plpc_mime_for_filename($file['path']),
+            ];
+        }
+    }
+
+    return null;
 }
 
 /**

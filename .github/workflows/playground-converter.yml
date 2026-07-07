@@ -1,0 +1,62 @@
+name: Playground converter
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/playground-converter.yml'
+      - 'lanes/pandoc/**'
+      - 'lanes/markerpdf/**'
+      - 'pandoc-showcase/playground-converter.*'
+      - 'pandoc-showcase/playground/**'
+      - 'tools/build-playground-converter-plugin.php'
+      - 'tools/playground-converter-plugin/**'
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/playground-converter.yml'
+      - 'lanes/pandoc/**'
+      - 'lanes/markerpdf/**'
+      - 'pandoc-showcase/playground-converter.*'
+      - 'pandoc-showcase/playground/**'
+      - 'tools/build-playground-converter-plugin.php'
+      - 'tools/playground-converter-plugin/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  focused-playground-converter:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: dom, intl, mbstring, zip
+          coverage: none
+
+      - name: Lint converter files
+        run: |
+          php -l tools/playground-converter-plugin/port-libs-playground-converter.php
+          php -l lanes/pandoc/tests/PlaygroundConverterPluginTest.php
+          node --check pandoc-showcase/playground-converter.js
+
+      - name: Run converter tests
+        run: |
+          php tools/run-tests.php lanes/pandoc/tests/PlaygroundConverterPluginTest.php
+
+      - name: Build plugin archive
+        run: |
+          php tools/build-playground-converter-plugin.php
+          test -s pandoc-showcase/playground/port-libs-playground-converter.zip
+
+      - name: Verify archive includes current converter code
+        run: |
+          set -euo pipefail
+          unzip -p pandoc-showcase/playground/port-libs-playground-converter.zip port-libs-playground-converter/port-libs-playground-converter.php | grep -q 'plpc_collection_from_zip'
+          unzip -p pandoc-showcase/playground/port-libs-playground-converter.zip port-libs-playground-converter/port-libs-playground-converter.php | grep -q 'plpc_find_collection_image'
