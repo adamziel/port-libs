@@ -11,23 +11,23 @@
   <header class="hero">
     <div class="hero-inner">
       <p class="eyebrow">adamziel/port-libs</p>
-      <h1>Convert a document into a WordPress page</h1>
-      <p class="lede">Use this page to answer the question that matters in a migration: can this file become an editable WordPress page, with real blocks and media, without installing anything?</p>
+      <h1>Convert a document into a real WordPress page</h1>
+      <p class="lede">This is a hands-on migration lab. Upload a source file, let the PHP Pandoc port convert it to WordPress block markup, and inspect the result inside a live WordPress Playground before installing anything or touching a production site.</p>
       <div class="hero-actions">
         <a href="index.html">Showcase</a>
         <a href="block-usage.html">Block usage guide</a>
       </div>
       <div class="why-strip" aria-label="Why this converter is useful">
         <div>
-          <strong>It runs the whole import path</strong>
-          <span>The document is parsed by the PHP Pandoc port, rewritten as WordPress block markup, imported into a live WordPress Playground, and opened as a page.</span>
+          <strong>It tests the real import path</strong>
+          <span>The file is parsed, rewritten as block markup, imported into WordPress, and opened as an editable page.</span>
         </div>
         <div>
-          <strong>It makes the result inspectable</strong>
-          <span>You can edit the page, inspect the block structure, check tables and lists, and see whether the content behaves like WordPress content instead of pasted HTML.</span>
+          <strong>It shows whether content stays editable</strong>
+          <span>You can check blocks, tables, lists, links, headings, math, code, and media in the editor instead of trusting a static preview.</span>
         </div>
         <div>
-          <strong>It keeps media honest</strong>
+          <strong>It keeps image imports honest</strong>
           <span>Extracted images are uploaded to the media library only when the converted page actually renders an <code>&lt;img&gt;</code> tag for them.</span>
         </div>
       </div>
@@ -42,8 +42,8 @@
       </div>
 
       <div class="intro-panel" aria-label="What this page is for">
-        <h3>What you can learn from one upload</h3>
-        <p>A static HTML preview can hide the hard parts of a WordPress migration. This tool shows the real editing surface: blocks, media-library attachments, links, tables, lists, code, math, headings, and the places where conversion still needs work.</p>
+        <h3>Why this is useful</h3>
+        <p>A static HTML preview can look fine while the WordPress result is hard to edit. This page answers the practical migration question: did the document become structured WordPress content, or did it become a fragile blob?</p>
         <div class="reason-grid" aria-label="What this page helps you decide">
           <div>
             <strong>Can editors keep working?</strong>
@@ -62,15 +62,16 @@
             <span>Use the live page and log to catch spacing problems, missing images, flattened tables, broken links, or syntax the converter still needs to learn.</span>
           </div>
         </div>
-        <div class="try-panel" aria-label="What you can do here">
-          <h4>Useful things to try</h4>
-          <ul>
-            <li>Upload one representative file before planning a larger migration.</li>
-            <li>Edit the generated blocks and check whether tables, lists, and headings survived as real structure.</li>
-            <li>Open the media library and confirm which rendered images were imported.</li>
-            <li>Use the log and page output to create precise bug reports for conversion gaps.</li>
-          </ul>
-        </div>
+      </div>
+
+      <div class="action-panel" aria-label="What you can do">
+        <h3>What you can do here</h3>
+        <ul>
+          <li><strong>Smoke-test a migration candidate.</strong> Try one representative PDF, DOCX, Markdown file, spreadsheet, EPUB, slide deck, wiki page, or man page before committing to a batch import.</li>
+          <li><strong>Inspect the generated editor surface.</strong> Open the created page, edit blocks, move content around, and verify that tables, lists, headings, code, math, links, and captions are still recognizable.</li>
+          <li><strong>Audit media handling.</strong> Check the page and media library to confirm that only images used by rendered <code>&lt;img&gt;</code> tags were imported.</li>
+          <li><strong>Turn failures into precise fixes.</strong> Use the live output and conversion log to report concrete gaps such as glued PDF words, flattened tables, missing image references, or unsupported syntax.</li>
+        </ul>
       </div>
 
       <form id="converter-form">
@@ -135,14 +136,15 @@
         <h3>What happens</h3>
         <ol>
           <li>The uploaded file is parsed by the port-libs Pandoc readers.</li>
-          <li>The document is rewritten as WordPress block markup.</li>
-          <li>Referenced rendered images are imported into the Playground media library.</li>
-          <li>A new page opens so you can inspect, edit, and publish-test the result.</li>
+          <li>The document is rewritten as WordPress block markup, not just displayed as loose HTML.</li>
+          <li>Rendered image references are matched to extracted files and imported into the Playground media library.</li>
+          <li>A new page opens so you can inspect, edit, and publish-test the result in WordPress.</li>
         </ol>
       </div>
 
       <details class="format-details">
         <summary>Supported input formats</summary>
+        <p>Use auto-detect for common extensions, or choose a reader explicitly when testing a specific flavor such as GitHub Flavored Markdown, MediaWiki, man, DocBook, JATS, or Pandoc native/JSON.</p>
         <div class="format-chip-list" aria-label="Supported input formats">
           <span>bibtex</span><span>biblatex</span><span>bits</span><span>commonmark</span><span>commonmark_x</span><span>csljson</span><span>csv</span><span>tsv</span><span>docbook</span><span>docx</span><span>dokuwiki</span><span>endnotexml</span><span>epub</span><span>fb2</span><span>gfm</span><span>markdown_github</span><span>html</span><span>ipynb</span><span>jats</span><span>jira</span><span>json</span><span>latex</span><span>markdown</span><span>markdown_mmd</span><span>markdown_phpextra</span><span>markdown_strict</span><span>mediawiki</span><span>man</span><span>mdoc</span><span>native</span><span>odt</span><span>opml</span><span>pptx</span><span>ris</span><span>rtf</span><span>rst</span><span>xlsx</span><span>xml</span><span>pdf</span><span>doc</span>
         </div>

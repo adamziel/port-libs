@@ -109,6 +109,35 @@
 .try-panel li + li {
   margin-top: 4px;
 }
+.action-panel {
+  margin-top: 16px;
+  border: 1px solid #d4ded8;
+  background: #f8fbf8;
+  padding: 14px;
+  border-radius: 6px;
+}
+.action-panel h3 {
+  margin: 0 0 9px;
+  font-size: 16px;
+}
+.action-panel ul {
+  margin: 0;
+  padding-left: 18px;
+  color: #3f4852;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.action-panel li + li {
+  margin-top: 7px;
+}
+.action-panel strong {
+  color: var(--ink);
+}
+.action-panel code {
+  font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  background: #eef1f5;
+  padding: 1px 4px;
+}
 .value-panel {
   margin-top: 16px;
   border: 1px solid var(--line);
@@ -260,6 +289,12 @@
 .format-details summary {
   cursor: pointer;
   font-weight: 700;
+}
+.format-details p {
+  margin: 8px 0 0;
+  color: #3f4852;
+  font-size: 13px;
+  line-height: 1.45;
 }
 .format-chip-list {
   display: flex;
