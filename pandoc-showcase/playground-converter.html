@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Import any document into WordPress</title>
   <link rel="stylesheet" href="styles.css">
-  <link rel="stylesheet" href="playground-converter.css?v=pdf-prose-upload-20260707">
+  <link rel="stylesheet" href="playground-converter.css?v=form-dropzone-20260707">
 </head>
 <body>
   <main class="playground-tool">
@@ -60,69 +60,18 @@
       </div>
 
       <form id="converter-form" class="upload-form">
-        <div class="upload-primary">
-          <label id="dropzone" class="file-button" for="file-input">
-            <span>Choose a document</span>
-            <input id="file-input" name="file" type="file">
-          </label>
+        <label id="dropzone" class="file-dropzone" for="file-input">
+          <span class="dropzone-title">Choose a document</span>
+          <span class="dropzone-help">or drop a file here</span>
+          <input id="file-input" name="file" type="file">
           <div class="selected-file">
-            <span>or drop a file anywhere to convert</span>
+            <span>Selected file</span>
             <strong id="file-name">No file selected</strong>
           </div>
-        </div>
+        </label>
 
-        <div class="field-grid">
-          <label>
-            <span>Input format</span>
-            <select id="format-input" name="format">
-              <option value="">Detect from filename</option>
-              <option value="pdf">PDF</option>
-              <option value="docx">DOCX</option>
-              <option value="doc">DOC</option>
-              <option value="odt">ODT</option>
-              <option value="epub">EPUB</option>
-              <option value="html">HTML</option>
-              <option value="markdown">Markdown</option>
-              <option value="gfm">GitHub Flavored Markdown</option>
-              <option value="markdown_github">GitHub Markdown (legacy)</option>
-              <option value="commonmark">CommonMark</option>
-              <option value="commonmark_x">CommonMark with extensions</option>
-              <option value="markdown_mmd">MultiMarkdown</option>
-              <option value="markdown_phpextra">PHP Markdown Extra</option>
-              <option value="markdown_strict">strict Markdown</option>
-              <option value="pptx">PPTX</option>
-              <option value="xlsx">XLSX</option>
-              <option value="csv">CSV</option>
-              <option value="tsv">TSV</option>
-              <option value="mediawiki">MediaWiki</option>
-              <option value="dokuwiki">DokuWiki</option>
-              <option value="jira">Jira</option>
-              <option value="man">man</option>
-              <option value="mdoc">mdoc</option>
-              <option value="docbook">DocBook</option>
-              <option value="jats">JATS</option>
-              <option value="bits">BITS</option>
-              <option value="latex">LaTeX</option>
-              <option value="rtf">RTF</option>
-              <option value="opml">OPML</option>
-              <option value="ipynb">Jupyter Notebook</option>
-              <option value="xml">XML</option>
-              <option value="json">Pandoc JSON</option>
-              <option value="native">Pandoc native</option>
-              <option value="bibtex">BibTeX</option>
-              <option value="biblatex">BibLaTeX</option>
-              <option value="csljson">CSL JSON</option>
-              <option value="endnotexml">EndNote XML</option>
-              <option value="ris">RIS</option>
-              <option value="fb2">FB2</option>
-              <option value="rst">reStructuredText</option>
-            </select>
-          </label>
-          <label>
-            <span>Page title</span>
-            <input id="title-input" name="title" type="text" placeholder="Converted document">
-          </label>
-        </div>
+        <input id="format-input" name="format" type="hidden">
+        <input id="title-input" name="title" type="hidden">
 
         <button id="convert-button" type="submit" disabled>Start WordPress and convert</button>
       </form>
@@ -149,9 +98,9 @@
     </section>
   </main>
   <div id="page-drop-overlay" class="page-drop-overlay" aria-hidden="true">
-    <strong>Drop to import into WordPress</strong>
+    <strong>Drop to select document</strong>
   </div>
 
-  <script type="module" src="playground-converter.js?v=pdf-prose-upload-20260707"></script>
+  <script type="module" src="playground-converter.js?v=form-dropzone-20260707"></script>
 </body>
 </html>

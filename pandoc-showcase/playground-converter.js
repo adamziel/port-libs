@@ -73,9 +73,6 @@ let dragDepth = 0;
 fileInput.addEventListener('change', async () => {
   const file = fileInput.files && fileInput.files[0] ? fileInput.files[0] : null;
   setSelectedFile(file);
-  if (file) {
-    await convertSelectedFile();
-  }
 });
 
 document.addEventListener('dragenter', (event) => {
@@ -123,7 +120,6 @@ document.addEventListener('drop', async (event) => {
     return;
   }
   setSelectedFile(file);
-  await convertSelectedFile();
 });
 
 form.addEventListener('submit', async (event) => {
