@@ -5,11 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Import any document into WordPress</title>
   <link rel="stylesheet" href="styles.css">
-  <link rel="stylesheet" href="playground-converter.css?v=301c09c440616fbf">
+  <link rel="stylesheet" href="playground-converter.css?v=ios-lazy-20260707">
 </head>
 <body>
   <main class="playground-tool">
     <section class="landing-panel" aria-labelledby="page-heading">
+      <div class="masthead">
+        <a href="index.html">Showcase</a>
+        <a href="block-usage.html">Blocks</a>
+      </div>
       <h1 id="page-heading">import any document into WordPress</h1>
 
       <div class="format-cloud" aria-label="Supported input formats">
@@ -54,6 +58,10 @@
       </div>
 
       <form id="converter-form" class="upload-form">
+        <div class="form-heading">
+          <span>Upload</span>
+          <span>WordPress Playground starts when you convert.</span>
+        </div>
         <label id="dropzone" class="dropzone" for="file-input">
           <span class="dropzone-title">Drop a document here</span>
           <span id="file-name" class="dropzone-meta">or choose a file</span>
@@ -113,23 +121,27 @@
           </label>
         </div>
 
-        <button id="convert-button" type="submit" disabled>Convert and open page</button>
+        <button id="convert-button" type="submit" disabled>Start WordPress and convert</button>
       </form>
 
       <div class="status-panel" aria-live="polite">
         <div class="status-row">
-          <span id="playground-status" class="status-dot" data-state="loading"></span>
-          <span id="status-text">Starting WordPress Playground...</span>
+          <span id="playground-status" class="status-dot" data-state="idle"></span>
+          <span id="status-text">Choose a document to start.</span>
         </div>
         <pre id="log-output"></pre>
       </div>
     </section>
 
-    <section class="playground-panel" aria-label="WordPress Playground">
+    <section id="playground-panel" class="playground-panel" data-state="idle" aria-label="WordPress Playground">
+      <div class="playground-empty">
+        <span>WordPress Playground</span>
+        <strong>Ready when you convert</strong>
+      </div>
       <iframe id="wp-playground" title="WordPress Playground"></iframe>
     </section>
   </main>
 
-  <script type="module" src="playground-converter.js?v=301c09c440616fbf"></script>
+  <script type="module" src="playground-converter.js?v=ios-lazy-20260707"></script>
 </body>
 </html>

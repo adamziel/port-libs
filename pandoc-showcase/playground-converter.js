@@ -1,8 +1,8 @@
-import { startPlaygroundWeb } from 'https://playground.wordpress.net/client/index.js';
-
 const pluginBuild = '301c09c440616fbf';
+const playgroundClientModuleUrl = 'https://playground.wordpress.net/client/index.js';
 
 const iframe = document.getElementById('wp-playground');
+const playgroundPanel = document.getElementById('playground-panel');
 const form = document.getElementById('converter-form');
 const fileInput = document.getElementById('file-input');
 const formatInput = document.getElementById('format-input');
@@ -62,9 +62,9 @@ const formatByExtension = new Map(Object.entries({
 
 let playgroundClient = null;
 let playgroundReady = false;
+let playgroundBootPromise = null;
+let startPlaygroundWeb = null;
 let selectedFile = null;
-
-bootPlayground();
 
 fileInput.addEventListener('change', () => {
   setSelectedFile(fileInput.files && fileInput.files[0] ? fileInput.files[0] : null);
@@ -96,19 +96,19 @@ dropzone.addEventListener('drop', (event) => {
 
 form.addEventListener('submit', async (event) => {
   event.preventDefault();
-  if (!selectedFile || !playgroundReady || !playgroundClient) {
+  if (!selectedFile) {
     return;
   }
 
   setBusy(true);
-  log(`Reading ${selectedFile.name} (${formatBytes(selectedFile.size)})`);
   try {
-    const bytes = new Uint8Array(await selectedFile.arrayBuffer());
+    await bootPlayground();
+    log(`Reading ${selectedFile.name} (${formatBytes(selectedFile.size)})`);
     const payload = {
       filename: selectedFile.name,
       format: formatInput.value,
       title: titleInput.value,
-      bytes: bytesToBase64(bytes),
+      bytes: await readFileAsBase64(selectedFile),
     };
 
     setStatus('loading', 'Converting in WordPress Playground...');
@@ -141,9 +141,31 @@ form.addEventListener('submit', async (event) => {
 });
 
 async function bootPlayground() {
+  if (playgroundReady) {
+    return;
+  }
+  if (playgroundBootPromise) {
+    await playgroundBootPromise;
+    return;
+  }
+
+  playgroundBootPromise = startPlayground();
+  await playgroundBootPromise;
+}
+
+async function startPlayground() {
   try {
     const pluginUrl = new URL(`playground/port-libs-playground-converter.zip?v=${pluginBuild}`, window.location.href).href;
+    setPlaygroundState('loading');
+    setStatus('loading', 'Starting WordPress Playground...');
     log('Starting WordPress Playground');
+    if (isLikelyIOS()) {
+      log('iOS detected; using on-demand Playground startup to reduce memory pressure.');
+    }
+    if (!startPlaygroundWeb) {
+      const playgroundModule = await import(playgroundClientModuleUrl);
+      startPlaygroundWeb = playgroundModule.startPlaygroundWeb;
+    }
     log(`Installing converter plugin from ${pluginUrl}`);
 
     playgroundClient = await startPlaygroundWeb({
@@ -154,7 +176,7 @@ async function bootPlayground() {
           php: '8.3',
           wp: 'latest',
         },
-        landingPage: '/wp-admin/',
+        landingPage: '/',
         features: {
           networking: true,
         },
@@ -175,11 +197,15 @@ async function bootPlayground() {
     });
     await playgroundClient.isReady();
     playgroundReady = true;
+    setPlaygroundState('ready');
     setStatus('ready', 'WordPress Playground is ready.');
     updateConvertAvailability();
   } catch (error) {
+    playgroundBootPromise = null;
+    setPlaygroundState('idle');
     setStatus('error', 'WordPress Playground failed to start.');
     log(error instanceof Error ? error.stack || error.message : String(error));
+    throw error;
   }
 }
 
@@ -203,20 +229,29 @@ function setSelectedFile(file) {
 }
 
 function setBusy(busy) {
-  convertButton.disabled = busy || !selectedFile || !playgroundReady;
+  convertButton.disabled = busy || !selectedFile;
   fileInput.disabled = busy;
   formatInput.disabled = busy;
   titleInput.disabled = busy;
-  convertButton.textContent = busy ? 'Converting...' : 'Convert and open page';
+  convertButton.textContent = busy ? 'Converting...' : convertButtonLabel();
 }
 
 function updateConvertAvailability() {
-  convertButton.disabled = !selectedFile || !playgroundReady;
+  convertButton.disabled = !selectedFile;
+  convertButton.textContent = convertButtonLabel();
+}
+
+function convertButtonLabel() {
+  return playgroundReady ? 'Convert and open page' : 'Start WordPress and convert';
 }
 
 function setStatus(state, text) {
   statusDot.dataset.state = state;
   statusText.textContent = text;
+}
+
+function setPlaygroundState(state) {
+  playgroundPanel.dataset.state = state;
 }
 
 function log(message) {
@@ -225,15 +260,28 @@ function log(message) {
   logOutput.scrollTop = logOutput.scrollHeight;
 }
 
-function bytesToBase64(bytes) {
-  let binary = '';
-  const chunkSize = 0x8000;
-  for (let offset = 0; offset < bytes.length; offset += chunkSize) {
-    const chunk = bytes.subarray(offset, offset + chunkSize);
-    binary += String.fromCharCode(...chunk);
-  }
+function readFileAsBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.addEventListener('error', () => {
+      reject(reader.error || new Error('The file could not be read.'));
+    });
+    reader.addEventListener('load', () => {
+      const result = typeof reader.result === 'string' ? reader.result : '';
+      const comma = result.indexOf(',');
+      if (comma === -1) {
+        reject(new Error('The file could not be encoded.'));
+        return;
+      }
+      resolve(result.slice(comma + 1));
+    });
+    reader.readAsDataURL(file);
+  });
+}
 
-  return btoa(binary);
+function isLikelyIOS() {
+  return /iPad|iPhone|iPod/.test(navigator.userAgent)
+    || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 }
 
 function titleFromFilename(name) {
