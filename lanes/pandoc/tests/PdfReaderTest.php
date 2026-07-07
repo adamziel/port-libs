@@ -4878,6 +4878,15 @@ return [
             . '1 0 0 1 72 492 Tm (Alternatively,theVMcouldsimplystoptracing,andgiveup) Tj '
             . '1 0 0 1 72 476 Tm (The systemstopsextendingtheinnertreewhenitreachesanouter) Tj '
             . '1 0 0 1 72 460 Tm (oursystemcantraceanynumberofloopsnestedtoanydepthwithoutcausingexcessivetailduplication.) Tj '
+            . '1 0 0 1 72 428 Tm (This is the LIRrecordedforline5ofthesampleprogramin Figure 1.The LIRencodes the semantics in SSAformusingtemporaryvariables.) Tj '
+            . '1 0 0 1 72 412 Tm (The LIRalsoencodesallthestoresthattheinterpreterwoulddotoitsdatastack.) Tj '
+            . '1 0 0 1 72 396 Tm (Thus, onlaterexecutions, if and only if all guards are passed, the tracehastherequiredprogramsemantics.) Tj '
+            . '1 0 0 1 72 380 Tm (TraceMonkey stopsrecordingwhenexecutionreturnstothe loop header or exits the loop.) Tj '
+            . '1 0 0 1 72 364 Tm (In this case, executionreturnstothe loopheaderonline4.) Tj '
+            . '1 0 0 1 72 348 Tm (Thisisjustanunconditionalbranchtothetopof the trace. Suchtracesreturnonlyviaguards.) Tj '
+            . '1 0 0 1 72 332 Tm (Now, wedescribethekeyoptimizationsthatareperformedas part of recording LIR.) Tj '
+            . '1 0 0 1 72 316 Tm (All of these optimizations reduce complex dynamiclanguageconstructstosimpletypedconstructsbyspecializingforthecurrenttrace.) Tj '
+            . '1 0 0 1 72 300 Tm (Eachoptimizationrequiresguardinstructionstoverifytheirassumptionsaboutthestateandexitthe trace if necessary.) Tj '
             . 'ET'
         );
 
@@ -4902,6 +4911,15 @@ return [
         $t->contains('the VM could simply stop tracing, and give up', $text);
         $t->contains('The system stops extending the inner tree when it reaches an outer', $text);
         $t->contains('our system can trace any number of loops nested to any depth without causing excessive tail duplication.', $text);
+        $t->contains('This is the LIR recorded for line 5 of the sample program in Figure 1. The LIR encodes the semantics in SSA form using temporary variables.', $text);
+        $t->contains('The LIR also encodes all the stores that the interpreter would do to its data stack.', $text);
+        $t->contains('Thus, on later executions, if and only if all guards are passed, the trace has the required program semantics.', $text);
+        $t->contains('TraceMonkey stops recording when execution returns to the loop header or exits the loop.', $text);
+        $t->contains('execution returns to the loop header on line 4.', $text);
+        $t->contains('This is just an unconditional branch to the top of the trace. Such traces return only via guards.', $text);
+        $t->contains('Now, we describe the key optimizations that are performed as part of recording LIR.', $text);
+        $t->contains('dynamic language constructs to simple typed constructs by specializing for the current trace.', $text);
+        $t->contains('Each optimization requires guard instructions to verify their assumptions about the state and exit the trace if necessary.', $text);
         $t->true(!str_contains($html, '<h2>Each compiled trace covers'), 'wrapped prose line is not promoted to a heading');
         $t->true(!str_contains($text, 'Java Script'), 'JavaScript remains a protected technical term');
         $t->true(!str_contains($text, 'aremoredifficult'), 'glued prose is segmented');
