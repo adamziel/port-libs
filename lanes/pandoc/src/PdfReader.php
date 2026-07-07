@@ -60,6 +60,9 @@ final class PdfReader
         $geometryTableFallback = false;
         if ($geometryTableBlocks !== [] && $this->blocksHaveSuspiciousPdfTableText($geometryTableBlocks)) {
             $textTableBlocks = $this->blocksFromLines($limitedLines);
+            if ($this->countNodesOfType($textTableBlocks, 'table') === 0 || $this->blocksHaveSuspiciousPdfTableText($textTableBlocks)) {
+                $textTableBlocks = $this->blocksFromCurrencyRecordLines($limitedLines);
+            }
             if ($this->countNodesOfType($textTableBlocks, 'table') > 0 && !$this->blocksHaveSuspiciousPdfTableText($textTableBlocks)) {
                 $geometryTableBlocks = $textTableBlocks;
                 $geometryTableFallback = true;
@@ -3111,6 +3114,204 @@ WORDS)) ?: [];
     }
 
     /**
+     * @param list<string> $lines
+     * @return list<AstNode>
+     */
+    private function blocksFromCurrencyRecordLines(array $lines): array
+    {
+        $rows = [];
+        $recordRows = 0;
+        $pending = [];
+        foreach ($lines as $line) {
+            $line = trim(preg_replace('/\s+/u', ' ', $line) ?? $line);
+            if ($line === '') {
+                continue;
+            }
+
+            $totalRow = $this->currencyRecordTotalRow($line);
+            if ($totalRow !== null) {
+                $rows[] = $totalRow;
+                $pending = [];
+                continue;
+            }
+
+            $amountOnlyRow = $this->currencyRecordAmountOnlyRow($line);
+            if ($amountOnlyRow !== null) {
+                $rows[] = $amountOnlyRow;
+                $pending = [];
+                continue;
+            }
+
+            $pending[] = $line;
+            $candidate = implode(' ', $pending);
+            $recordRow = $this->currencyRecordDataRow($candidate);
+            if ($recordRow === null) {
+                if (count($pending) > 5 || strlen($candidate) > 260) {
+                    $pending = [];
+                }
+                continue;
+            }
+
+            $rows[] = $recordRow;
+            $recordRows++;
+            $pending = [];
+        }
+
+        if ($recordRows < 4 || count($rows) < 6) {
+            return [];
+        }
+
+        array_unshift($rows, ['Name', 'Location', 'Category', 'Amount']);
+
+        return [$this->table($rows)];
+    }
+
+    /**
+     * @return list<string>|null
+     */
+    private function currencyRecordDataRow(string $line): ?array
+    {
+        if (preg_match('/^(?<beforeAmount>.+?)\s*(?<amount>[$€£¥]\s*\d[\d,]*(?:\.\d{2})?)$/u', $line, $amountMatch) !== 1) {
+            return null;
+        }
+
+        $beforeAmount = trim($amountMatch['beforeAmount']);
+        if (preg_match('/^(?<beforeCategory>.+,\s*[A-Z]{2})(?<category>[A-Z][A-Z &\/-]*)$/u', $beforeAmount, $categoryMatch) !== 1) {
+            return null;
+        }
+
+        $nameAndLocation = $this->splitCurrencyRecordNameAndLocation(trim($categoryMatch['beforeCategory']));
+        if ($nameAndLocation === null) {
+            return null;
+        }
+        [$name, $location] = $nameAndLocation;
+        $category = trim($categoryMatch['category']);
+        $amount = trim($amountMatch['amount']);
+        if ($name === '' || $location === '' || $category === '' || $amount === '' || preg_match('/[A-Z]{3,}/', $category) !== 1) {
+            return null;
+        }
+
+        return [
+            $this->repairCurrencyRecordName($name),
+            $this->repairCurrencyRecordLocation($location),
+            $this->positionedCellText($category),
+            preg_replace('/\s+/', '', $amount) ?? $amount,
+        ];
+    }
+
+    /**
+     * @return array{0: string, 1: string}|null
+     */
+    private function splitCurrencyRecordNameAndLocation(string $text): ?array
+    {
+        if (preg_match('/^(?<prefix>.+),\s*(?<state>[A-Z]{2})$/u', $text, $stateMatch) !== 1) {
+            return null;
+        }
+
+        $prefix = trim($stateMatch['prefix']);
+        $state = $stateMatch['state'];
+        $tokens = preg_split('/\s+/u', $prefix) ?: [];
+        if (count($tokens) < 3) {
+            return null;
+        }
+
+        $best = null;
+        $bestScore = -INF;
+        $tokenCount = count($tokens);
+        for ($split = 1; $split < $tokenCount; $split++) {
+            $name = trim(implode(' ', array_slice($tokens, 0, $split)));
+            $cityTokens = array_slice($tokens, $split);
+            $city = trim(implode(' ', $cityTokens));
+            if ($name === '' || $city === '' || !str_contains($name, ',') || preg_match('/^[A-Z]{2,}/u', $cityTokens[0] ?? '') !== 1) {
+                continue;
+            }
+
+            $score = $this->currencyRecordNameLocationSplitScore($name, $cityTokens);
+            if ($score > $bestScore) {
+                $bestScore = $score;
+                $best = [$name, $city . ', ' . $state];
+            }
+        }
+
+        return $bestScore > 0 && $best !== null ? $best : null;
+    }
+
+    /**
+     * @param list<string> $cityTokens
+     */
+    private function currencyRecordNameLocationSplitScore(string $name, array $cityTokens): int
+    {
+        $score = 0;
+        $commaCount = substr_count($name, ',');
+        $score += $commaCount >= 2 ? 4 : 2;
+
+        $afterLastComma = trim(substr($name, strrpos($name, ',') + 1));
+        $afterCommaTokens = $afterLastComma === '' ? [] : (preg_split('/\s+/u', $afterLastComma) ?: []);
+        $afterCommaCount = count($afterCommaTokens);
+        if ($afterCommaCount === 1) {
+            $score += 3;
+        } elseif ($afterCommaCount === 2) {
+            $score += 2;
+        } elseif ($afterCommaCount > 3) {
+            $score -= 3;
+        }
+
+        if ($commaCount >= 2 && $afterCommaCount > 0 && preg_match('/^[A-Z]$/', $afterCommaTokens[0]) === 1) {
+            $score += 2;
+        }
+
+        $cityTokenCount = count($cityTokens);
+        if ($cityTokenCount === 2) {
+            $score += 2;
+        } elseif ($cityTokenCount === 3) {
+            $score += 1;
+        } elseif ($cityTokenCount > 4) {
+            $score -= 6;
+        }
+
+        $city = implode(' ', $cityTokens);
+        if (str_contains($city, '&') || preg_match('/\b(?:MEDICINE|PULMONARY|REGIONAL|SLEEP|CENTER|ASSOCIATES|GROUP)\b/u', $city) === 1) {
+            $score -= 4;
+        }
+
+        return $score;
+    }
+
+    /**
+     * @return list<string>|null
+     */
+    private function currencyRecordTotalRow(string $line): ?array
+    {
+        if (preg_match('/^TOTAL\s+(?<amount>[$€£¥]\s*\d[\d,]*(?:\.\d{2})?)$/u', $line, $match) !== 1) {
+            return null;
+        }
+
+        return ['TOTAL', '', '', preg_replace('/\s+/', '', trim($match['amount'])) ?? trim($match['amount'])];
+    }
+
+    /**
+     * @return list<string>|null
+     */
+    private function currencyRecordAmountOnlyRow(string $line): ?array
+    {
+        if (preg_match('/^(?<amount>[$€£¥]\s*\d[\d,]*(?:\.\d{2})?)$/u', $line, $match) !== 1) {
+            return null;
+        }
+
+        return ['TOTAL', '', '', preg_replace('/\s+/', '', trim($match['amount'])) ?? trim($match['amount'])];
+    }
+
+    private function repairCurrencyRecordName(string $name): string
+    {
+        return $this->positionedCellText(preg_replace('/\s*,\s*/u', ', ', $name) ?? $name);
+    }
+
+    private function repairCurrencyRecordLocation(string $location): string
+    {
+        return $this->positionedCellText(preg_replace('/\s*,\s*/u', ', ', $location) ?? $location);
+    }
+
+    /**
      * @return list<string>|null
      */
     private function tableCells(string $line): ?array
@@ -3394,6 +3595,8 @@ WORDS)) ?: [];
         $text = preg_replace('/(?<=[\p{L}])([:;])(?=[\p{L}\d])/u', '$1 ', $text) ?? $text;
         $text = preg_replace('/(?<!\d)\.(?=[A-Z][a-z])/u', '. ', $text) ?? $text;
         $text = preg_replace('/(?<=[\p{Ll}])(\d+)(?=[:;])/u', ' $1', $text) ?? $text;
+        $text = preg_replace('/(?<=\d)\s+,(?=\d)/u', ',', $text) ?? $text;
+        $text = preg_replace('/(?<=\d,)\s+(?=\d{3}(?:\.\d{2})?\b)/u', '', $text) ?? $text;
         $text = preg_replace('/(?<=\d)(?=[\p{L}]{2,}\s+\d)/u', ' ', $text) ?? $text;
         $text = preg_replace('/\s+/u', ' ', $text) ?? $text;
         if ($this->looksLikePdfProseTableCell($text)) {

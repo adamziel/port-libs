@@ -4871,6 +4871,35 @@ return [
         $t->same(['upper-left', 'middle-left', 'upper-right', 'middle-right'], array_column($rows[0]['runs'], 'text'));
         $t->same(['lower-left', 'lower-right'], array_column($rows[1]['runs'], 'text'));
     },
+    'uses dense currency record text when positioned pdf table cells are overprinted' => static function (TestRunner $t) use ($pdfWithContent): void {
+        $pdf = $pdfWithContent(
+            'BT /F1 12 Tf '
+            . '1 0 0 1 72 760 Tm (AANONSEN, DEBORAH, A STATEN ISLAND, NYMEALS $85.00) Tj '
+            . '1 0 0 1 72 744 Tm (TOTAL $85.00) Tj '
+            . '1 0 0 1 72 728 Tm (AARON, JOHN CLARKSVILLE, TNMEALS $20.39) Tj '
+            . '1 0 0 1 72 712 Tm (TOTAL $20.39) Tj '
+            . '1 0 0 1 72 696 Tm (AARONSON, GARY, A PHILADELPHIA, PAMEALS $205.17) Tj '
+            . '1 0 0 1 72 680 Tm (TOTAL $205.17) Tj '
+            . '1 0 0 1 72 664 Tm (ABAD, JOSE, F FOLSOM, CAMEALS $30.28) Tj '
+            . '1 0 0 1 72 648 Tm (TOTAL $30.28) Tj '
+            . '1 0 0 1 72 612 Tm (Name) Tj 1 0 0 1 260 612 Tm (Amount) Tj '
+            . '1 0 0 1 72 596 Tm (EDUCATIONALATATBAOOIARTTTLOAAEONLLMSSS) Tj 1 0 0 1 260 596 Tm ($85.00) Tj '
+            . '1 0 0 1 72 580 Tm (Beta) Tj 1 0 0 1 260 580 Tm ($20.39) Tj '
+            . 'ET'
+        );
+
+        $document = (new PdfReader(['pdfGeometryTables' => true]))->read($pdf);
+        $blocks = PandocConverter::write($document, 'blocks');
+        $meta = $document->attr('meta');
+
+        $t->same('table', $document->children[0]->type);
+        $t->same(1, $meta['pdfGeometryTables']);
+        $t->same('text-fallback', $meta['pdfTableReconstruction']);
+        $t->contains('<th>Name</th><th>Location</th><th>Category</th><th>Amount</th>', $blocks);
+        $t->contains('<td>AANONSEN, DEBORAH, A</td><td>STATEN ISLAND, NY</td><td>MEALS</td><td>$85.00</td>', $blocks);
+        $t->contains('<td>AARON, JOHN</td><td>CLARKSVILLE, TN</td><td>MEALS</td><td>$20.39</td>', $blocks);
+        $t->true(!str_contains($blocks, 'EDUCATIONALATATBAOOIARTTTLOAAEONLLMSSS'));
+    },
     'maps positioned pdf tables through indirect font resource ToUnicode maps' => static function (TestRunner $t): void {
         $content = 'BT /F1 12 Tf '
             . '1 0 0 1 72 720 Tm <01> Tj 1 0 0 1 160 720 Tm <02> Tj 1 0 0 1 248 720 Tm <03> Tj '
@@ -4944,6 +4973,8 @@ return [
             . '1 0 0 1 72 720 Tm (Field  Value) Tj '
             . '1 0 0 1 72 704 Tm (Mayoría:Votos  Página 1de 9) Tj '
             . '1 0 0 1 72 688 Tm (whereY denotes the setofeligiblenon-respondingoriginal  response rateof96percent\\(seetableA-1\\).) Tj '
+            . '1 0 0 1 72 672 Tm (Count  1 ,693) Tj '
+            . '1 0 0 1 72 656 Tm (Amount  $4, 700.00) Tj '
             . 'ET'
         );
 
@@ -4958,10 +4989,14 @@ return [
         $t->contains('<td>Página 1 de 9</td>', $html);
         $t->contains('<td>where Y denotes the set of eligible non-responding original</td>', $html);
         $t->contains('<td>response rate of 96 percent(see table A-1).</td>', $html);
+        $t->contains('<td>1,693</td>', $html);
+        $t->contains('<td>$4,700.00</td>', $html);
         $t->true(!str_contains($html, 'Mayoría:Votos'));
         $t->true(!str_contains($html, '1de 9'));
         $t->true(!str_contains($html, 'setofeligible'));
         $t->true(!str_contains($html, 'rateof96percent'));
+        $t->true(!str_contains($html, '1 ,693'));
+        $t->true(!str_contains($html, '$4, 700.00'));
     },
     'repairs glued prose in bounded pdf text extraction' => static function (TestRunner $t) use ($pdfWithContent): void {
         $pdf = $pdfWithContent(
