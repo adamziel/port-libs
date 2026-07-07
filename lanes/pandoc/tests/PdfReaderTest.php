@@ -4839,6 +4839,38 @@ return [
         $t->contains('<td>Widget Alpha stackable storage case</td><td>30</td><td>40x60x80mm</td>', $blocks);
         $t->contains('<td>Organizer</td><td>12</td><td>120x200mm</td>', $blocks);
     },
+    'keeps nearby positioned pdf baselines from bridging into one table row' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $clusterRows = new ReflectionMethod($reader, 'clusterPositionedRows');
+        $run = static function (string $text, float $x, float $baseline): array {
+            return [
+                'page' => 1,
+                'text' => $text,
+                'x1' => $x - 3.0,
+                'y1' => $baseline - 3.0,
+                'x2' => $x + 30.0,
+                'y2' => $baseline + 12.0,
+                'textX1' => $x,
+                'textY1' => $baseline,
+                'textX2' => $x + 24.0,
+                'textY2' => $baseline,
+                'fontSize' => 12.0,
+            ];
+        };
+
+        $rows = $clusterRows->invoke($reader, [
+            $run('upper-left', 72.0, 720.0),
+            $run('upper-right', 220.0, 720.0),
+            $run('middle-left', 72.0, 716.0),
+            $run('middle-right', 220.0, 716.0),
+            $run('lower-left', 72.0, 712.0),
+            $run('lower-right', 220.0, 712.0),
+        ], 6.6);
+
+        $t->same(2, count($rows));
+        $t->same(['upper-left', 'middle-left', 'upper-right', 'middle-right'], array_column($rows[0]['runs'], 'text'));
+        $t->same(['lower-left', 'lower-right'], array_column($rows[1]['runs'], 'text'));
+    },
     'maps positioned pdf tables through indirect font resource ToUnicode maps' => static function (TestRunner $t): void {
         $content = 'BT /F1 12 Tf '
             . '1 0 0 1 72 720 Tm <01> Tj 1 0 0 1 160 720 Tm <02> Tj 1 0 0 1 248 720 Tm <03> Tj '

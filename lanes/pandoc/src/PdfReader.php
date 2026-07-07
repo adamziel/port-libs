@@ -56,6 +56,15 @@ final class PdfReader
             $limitedLines
         );
         $geometryTableBlocks = $geometryTablesEnabled && $taggedBlocks === [] ? $this->blocksFromPositionedTables($limitedPositionedRuns, $filledRectangles) : [];
+        $geometryTableCount = $this->countNodesOfType($geometryTableBlocks, 'table');
+        $geometryTableFallback = false;
+        if ($geometryTableBlocks !== [] && $this->blocksHaveSuspiciousPdfTableText($geometryTableBlocks)) {
+            $textTableBlocks = $this->blocksFromLines($limitedLines);
+            if ($this->countNodesOfType($textTableBlocks, 'table') > 0 && !$this->blocksHaveSuspiciousPdfTableText($textTableBlocks)) {
+                $geometryTableBlocks = $textTableBlocks;
+                $geometryTableFallback = true;
+            }
+        }
         $repairSourceLines = $limitedLines;
         $repairSource = 'text';
         if ($taggedBlocks === [] && $geometryTableBlocks === [] && $proseRepairEnabled) {
@@ -84,9 +93,9 @@ final class PdfReader
             'pdfTextRepair' => $repairedLines !== $limitedLines,
             'pdfTextRepairSource' => $repairedLines !== $limitedLines ? $repairSource : null,
             'pdfDetectedTables' => $this->countNodesOfType($blocks, 'table'),
-            'pdfGeometryTables' => $this->countNodesOfType($geometryTableBlocks, 'table'),
+            'pdfGeometryTables' => $geometryTableCount,
             'pdfGeometryTablesEnabled' => $geometryTablesEnabled,
-            'pdfTableReconstruction' => $taggedBlocks !== [] ? 'tagged' : ($geometryTableBlocks !== [] ? 'geometry' : 'text'),
+            'pdfTableReconstruction' => $taggedBlocks !== [] ? 'tagged' : ($geometryTableBlocks !== [] ? ($geometryTableFallback ? 'text-fallback' : 'geometry') : 'text'),
             'pdfDiagnostics' => $diagnostics,
             'pdfWarnings' => $diagnostics['warnings'],
             'pdfEncryptionDecrypted' => $diagnostics['encryptionDecrypted'] ?? false,
@@ -1509,18 +1518,20 @@ WORDS)) ?: [];
     private function clusterPositionedRows(array $runs, float $tolerance): array
     {
         usort($runs, static function (array $left, array $right): int {
-            $leftCenter = ($left['y1'] + $left['y2']) / 2.0;
-            $rightCenter = ($right['y1'] + $right['y2']) / 2.0;
+            $leftCenter = self::positionedRunRowCenter($left);
+            $rightCenter = self::positionedRunRowCenter($right);
 
             return ($rightCenter <=> $leftCenter) ?: ($left['x1'] <=> $right['x1']);
         });
 
         $rows = [];
         foreach ($runs as $run) {
-            $center = ($run['y1'] + $run['y2']) / 2.0;
+            $center = self::positionedRunRowCenter($run);
             $matchedIndex = null;
             foreach ($rows as $index => $row) {
-                if (abs($center - $row['center']) <= $tolerance) {
+                $minCenter = min((float) ($row['minCenter'] ?? $row['center']), $center);
+                $maxCenter = max((float) ($row['maxCenter'] ?? $row['center']), $center);
+                if (abs($center - $row['center']) <= $tolerance && ($maxCenter - $minCenter) <= $tolerance) {
                     $matchedIndex = $index;
                     break;
                 }
@@ -1529,6 +1540,8 @@ WORDS)) ?: [];
             if ($matchedIndex === null) {
                 $rows[] = [
                     'center' => $center,
+                    'minCenter' => $center,
+                    'maxCenter' => $center,
                     'runs' => [$run],
                 ];
                 continue;
@@ -1536,16 +1549,33 @@ WORDS)) ?: [];
 
             $count = count($rows[$matchedIndex]['runs']);
             $rows[$matchedIndex]['center'] = (($rows[$matchedIndex]['center'] * $count) + $center) / ($count + 1);
+            $rows[$matchedIndex]['minCenter'] = min((float) ($rows[$matchedIndex]['minCenter'] ?? $center), $center);
+            $rows[$matchedIndex]['maxCenter'] = max((float) ($rows[$matchedIndex]['maxCenter'] ?? $center), $center);
             $rows[$matchedIndex]['runs'][] = $run;
         }
 
         usort($rows, static fn (array $left, array $right): int => $right['center'] <=> $left['center']);
         foreach ($rows as &$row) {
             usort($row['runs'], static fn (array $left, array $right): int => $left['x1'] <=> $right['x1']);
+            unset($row['minCenter'], $row['maxCenter']);
         }
         unset($row);
 
         return $rows;
+    }
+
+    /**
+     * @param array{textY1: float, textY2: float, y1: float, y2: float} $run
+     */
+    private static function positionedRunRowCenter(array $run): float
+    {
+        $textY1 = (float) $run['textY1'];
+        $textY2 = (float) $run['textY2'];
+        if (abs($textY2 - $textY1) <= max(0.5, abs($run['y2'] - $run['y1']) * 0.35)) {
+            return ($textY1 + $textY2) / 2.0;
+        }
+
+        return ((float) $run['y1'] + (float) $run['y2']) / 2.0;
     }
 
     /**
@@ -3780,6 +3810,26 @@ WORDS)) ?: [];
         }
 
         return $count;
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     */
+    private function blocksHaveSuspiciousPdfTableText(array $nodes): bool
+    {
+        foreach ($nodes as $node) {
+            if ($node->type === 'table_cell') {
+                $text = trim((string) ($node->attrs['text'] ?? ''));
+                if ($text !== '' && preg_match('/\b[A-Za-z]{24,}\b/u', $text) === 1) {
+                    return true;
+                }
+            }
+            if ($node->children !== [] && $this->blocksHaveSuspiciousPdfTableText($node->children)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function pdfInfoValue(string $pdfBytes, string $key): string
