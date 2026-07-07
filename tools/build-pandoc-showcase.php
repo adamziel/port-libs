@@ -176,38 +176,47 @@ This is a Jira wiki markup page from a migration ticket.
 JIRA;
 
     $githubMarkdown = <<<'GFM'
-# GitHub Flavored Markdown feature packet
+# GitHub Flavored Markdown full syntax packet
 
-This paragraph uses **bold**, _italic_, ***bold italic***, ~~strikethrough~~, `inline code`, a bare URL https://github.com/openai, an issue-like reference #42, and a mention-like token @octocat.
+This document intentionally exercises the rendered syntax surface of GitHub Flavored Markdown. It includes CommonMark leaf blocks, container blocks, inline syntax, and the GFM extensions for tables, task list items, strikethrough, autolinks, and raw HTML filtering.
 
-## Alerts
+Setext heading level 1
+======================
 
-> [!NOTE]
-> GitHub alert syntax should render as a callout-style block, with **inline formatting** inside.
+Setext heading level 2
+----------------------
 
-> [!WARNING]
-> Alert bodies can contain links such as [GitHub Docs](https://docs.github.com/).
+## Paragraphs, breaks, and escapes
 
-## Task lists
+Adjacent lines in one paragraph
+stay in one rendered paragraph unless a blank line separates them.
+This next line uses a backslash hard break.\
+This line follows the backslash hard break.
 
-- [x] Parse GFM task list syntax
-- [ ] Preserve unchecked tasks
-- [x] Render nested formatting with **bold and _italic_ text**
-  - [ ] Nested follow-up task with `inline code`
-  - [x] Nested completed task with ~~old wording~~
+Backslash escapes render punctuation literally: \*not emphasis\*, \[not a link\], \# not a heading, and \`not code\`.
 
-## Table syntax
+Character references render as characters: &amp; &lt; &gt; &quot; &#35; &#x1F680;.
 
-| Feature | Rendered example | Alignment |
-| :--- | :---: | ---: |
-| Bold | **This is bold text** | left |
-| Italic | _This text is italicized_ | center |
-| Strikethrough | ~~This was mistaken text~~ | right |
-| Inline code | `git status --short` | code |
-| Link | [OpenAI](https://openai.com/) | link |
-| Escaped pipe | `a \| b` | cell |
+---
 
-## Code fences
+***
+
+___
+
+## Emphasis, strong emphasis, and strikethrough
+
+This paragraph uses *asterisk emphasis*, _underscore emphasis_, **asterisk strong**, __underscore strong__, ***combined strong emphasis***, ___combined underscore strong emphasis___, and ~~GFM strikethrough~~.
+
+Intraword underscores should stay literal in snake_case_identifier, while intraword emphasis can still appear as foo*bar*baz.
+
+## Code spans
+
+Use `inline code`, ``code with ` one backtick``, and `` spaced code span `` inside normal prose.
+
+## Indented and fenced code blocks
+
+    Four leading spaces create an indented code block.
+    Markdown syntax like **strong** stays literal here.
 
 ```php
 <?php
@@ -217,6 +226,18 @@ function render_packet(array $items): string
 }
 ```
 
+~~~js
+const rows = ["tables", "tasks", "autolinks"];
+console.log(rows.map((row) => row.toUpperCase()).join(", "));
+~~~
+
+````
+Fence length can contain shorter fences:
+```
+not the end of this block
+```
+````
+
 ```mermaid
 flowchart LR
   markdown_github --> parser
@@ -224,28 +245,196 @@ flowchart LR
   parser --> wordpress
 ```
 
-## Images and HTML blocks
+## Block quotes
+
+> A block quote can contain a paragraph with **inline formatting**.
+>
+> - A list inside a quote
+> - A second item with `code`
+>
+> > Nested quotes should remain nested.
+
+> [!NOTE]
+> GitHub alert syntax should render as a callout-style block when supported.
+
+> [!TIP]
+> Alerts can include [links](https://docs.github.com/) and **formatting**.
+
+> [!IMPORTANT]
+> Important callouts should survive as quoted content even without native alert blocks.
+
+> [!WARNING]
+> Warning callouts exercise another alert label.
+
+> [!CAUTION]
+> Caution callouts complete the GitHub alert set.
+
+## Lists
+
+- Tight unordered item one
+- Tight unordered item two
+  - Nested bullet
+  - Nested bullet with **strong text**
+
+* Asterisk bullet marker
++ Plus bullet marker
+- Hyphen bullet marker
+
+1. Ordered item one
+2. Ordered item two
+   1. Nested ordered item
+   2. Nested ordered item with `code`
+3. Ordered item three
+
+1999. Ordered lists can start at a non-one number.
+2000. The next marker should continue the list.
+
+- Loose unordered item with a paragraph.
+
+  Continuation paragraph in the same list item.
+
+- Second loose item with a nested quote.
+
+  > Quote inside a loose list item.
+
+1. Loose ordered item with a paragraph.
+
+   Continuation paragraph in the ordered item.
+
+2. Second loose ordered item.
+
+## Task list items
+
+- [x] Parse checked task list syntax
+- [X] Parse uppercase checked task markers
+- [ ] Preserve unchecked tasks
+- [x] Render nested formatting with **bold and _italic_ text**
+  - [ ] Nested follow-up task with `inline code`
+  - [x] Nested completed task with ~~old wording~~
+
+## Tables
+
+| Feature | Rendered example | Alignment |
+| :--- | :---: | ---: |
+| Bold | **This is bold text** | left |
+| Italic | _This text is italicized_ | center |
+| Strikethrough | ~~This was mistaken text~~ | right |
+| Inline code | `git status --short` | code |
+| Link | [OpenAI](https://openai.com/) | link |
+| Escaped pipe | `a \| b` | cell |
+| Entity | &copy; 2026 | entity |
+
+| Short header | Extra body cell |
+| --- | --- |
+| Missing body cell |
+| Body | cells | beyond | header |
+
+## Links
+
+Inline link: [OpenAI](https://openai.com/ "OpenAI home").
+
+Reference link: [GitHub Flavored Markdown spec][gfm].
+
+Collapsed reference link: [CommonMark][].
+
+Shortcut reference link: [GitHub Docs].
+
+Reference labels can be reused with different casing: [gfm].
+
+Autolink URI: <https://github.github.com/gfm/>.
+
+Autolink email: <support@github.com>.
+
+Bare GFM autolinks: https://github.com/openai, http://example.com/a_(b), www.github.com, and user@example.com.
+
+Issue-like and mention-like tokens should remain visible: #42, GH-123, @octocat, and @github/docs.
+
+[gfm]: https://github.github.com/gfm/ "GFM spec"
+[CommonMark]: https://spec.commonmark.org/
+[GitHub Docs]: https://docs.github.com/
+
+## Images
+
+Inline image:
 
 ![GitHub mark](https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png "GitHub mark")
+
+Reference image:
+
+![Octocat logo][octocat]
+
+[octocat]: https://github.githubassets.com/images/icons/emoji/octocat.png "Octocat"
+
+## Raw HTML blocks and inline HTML
 
 <details>
 <summary>Rendered details block</summary>
 
-GitHub allows raw HTML islands such as collapsible details.
+GitHub allows raw HTML islands such as collapsible details, and Markdown inside the block should remain inspectable.
+
+- HTML block list item
+- Another item with **formatting**
 
 </details>
 
-## Autolinks and references
+<table>
+<tr><th>HTML table head</th><th>Value</th></tr>
+<tr><td>Inline HTML <strong>strong</strong></td><td>42</td></tr>
+</table>
 
-See https://github.github.com/gfm/, <support@github.com>, and [the CommonMark spec][commonmark].
+Inline HTML appears in prose: <kbd>Ctrl</kbd> + <kbd>K</kbd>, <sub>subscript</sub>, <sup>superscript</sup>, and <span data-kind="sample">span text</span>.
+
+Disallowed raw HTML tags should be escaped or filtered by a GFM-safe renderer:
+
+<script type="text/plain">alert("blocked")</script>
+
+<style media="not all">body { color: red; }</style>
+
+<iframe src="about:blank" title="blocked iframe"></iframe>
+
+<noembed>blocked noembed</noembed>
+
+<noframes>blocked noframes</noframes>
+
+<textarea>blocked textarea</textarea>
+
+## Footnotes, emoji, math, and diagrams used on GitHub
 
 Footnotes should stay connected to their references.[^gfm-note]
 
-Emoji shortcodes such as :rocket: and :heart: should remain visible for GitHub-style rendering.
+Emoji shortcodes such as :rocket:, :heart:, :+1:, and :octocat: should remain visible for GitHub-style rendering.
 
-[commonmark]: https://spec.commonmark.org/
+Inline math uses dollar delimiters when enabled: $E = mc^2$.
 
-[^gfm-note]: Footnote bodies can include **formatting**, links, and `code`.
+Block math:
+
+$$
+\int_0^1 x^2\,dx = \frac{1}{3}
+$$
+
+```geojson
+{
+  "type": "Point",
+  "coordinates": [-122.4194, 37.7749]
+}
+```
+
+```topojson
+{
+  "type": "Topology",
+  "objects": {},
+  "arcs": []
+}
+```
+
+```stl
+solid cube
+endsolid cube
+```
+
+[^gfm-note]: Footnote bodies can include **formatting**, links, `code`, and lists.
+
+    This indented line remains part of the footnote.
 GFM;
 
     $json = <<<'JSON'
@@ -419,10 +608,10 @@ RIS;
                 'markdown-github-rendered-syntax',
                 'markdown_github',
                 'github-rendered-syntax.md',
-                'Rendered GitHub syntax packet',
+                'Full GitHub syntax packet',
                 $githubMarkdown,
-                'Inline GFM sample with unescaped syntax rendered as document content.',
-                'Compact GitHub Flavored Markdown sample that renders the actual syntax for emphasis, task lists, tables, autolinks, references, code, and alert-style blockquotes instead of showing only escaped examples.'
+                'Inline GFM sample with broad unescaped syntax rendered as document content.',
+                'Expanded GitHub Flavored Markdown showcase covering CommonMark leaf blocks, container blocks, inline syntax, GFM tables, task lists, strikethrough, autolinks, raw HTML filtering, alerts, footnotes, emoji, math, and diagram fences.'
             ),
         ],
         'html' => [

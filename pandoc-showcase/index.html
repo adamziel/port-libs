@@ -111861,38 +111861,47 @@ class=&quot;footnote-back&quot; role=&quot;doc-backlink&quot;&gt;↩︎&lt;/a&gt
 &lt;/section&gt;
 &lt;/body&gt;
 &lt;/html&gt;
-</pre></section></div><div class="note">Primary native PHP reader; the Markdown reader implementation-equivalence gate covers 137/137 checked-in Markdown/native pairs across the selected Pandoc Markdown dialect profiles.</div></section></article></section><section class="format-section" id="format-markdown_github"><div class="format-heading"><h2>markdown_github</h2><span>1 sample</span></div><article class="comparison" id="markdown-github-rendered-syntax"><section class="original"><div class="panel-head"><h3>Rendered GitHub syntax packet</h3><p class="meta">1961 bytes | Inline GFM sample with unescaped syntax rendered as document content.</p></div><div class="original-body"><pre class="source-preview"># GitHub Flavored Markdown feature packet
+</pre></section></div><div class="note">Primary native PHP reader; the Markdown reader implementation-equivalence gate covers 137/137 checked-in Markdown/native pairs across the selected Pandoc Markdown dialect profiles.</div></section></article></section><section class="format-section" id="format-markdown_github"><div class="format-heading"><h2>markdown_github</h2><span>1 sample</span></div><article class="comparison" id="markdown-github-rendered-syntax"><section class="original"><div class="panel-head"><h3>Full GitHub syntax packet</h3><p class="meta">6576 bytes | Inline GFM sample with broad unescaped syntax rendered as document content.</p></div><div class="original-body"><pre class="source-preview"># GitHub Flavored Markdown full syntax packet
 
-This paragraph uses **bold**, _italic_, ***bold italic***, ~~strikethrough~~, `inline code`, a bare URL https://github.com/openai, an issue-like reference #42, and a mention-like token @octocat.
+This document intentionally exercises the rendered syntax surface of GitHub Flavored Markdown. It includes CommonMark leaf blocks, container blocks, inline syntax, and the GFM extensions for tables, task list items, strikethrough, autolinks, and raw HTML filtering.
 
-## Alerts
+Setext heading level 1
+======================
 
-&gt; [!NOTE]
-&gt; GitHub alert syntax should render as a callout-style block, with **inline formatting** inside.
+Setext heading level 2
+----------------------
 
-&gt; [!WARNING]
-&gt; Alert bodies can contain links such as [GitHub Docs](https://docs.github.com/).
+## Paragraphs, breaks, and escapes
 
-## Task lists
+Adjacent lines in one paragraph
+stay in one rendered paragraph unless a blank line separates them.
+This next line uses a backslash hard break.\
+This line follows the backslash hard break.
 
-- [x] Parse GFM task list syntax
-- [ ] Preserve unchecked tasks
-- [x] Render nested formatting with **bold and _italic_ text**
-  - [ ] Nested follow-up task with `inline code`
-  - [x] Nested completed task with ~~old wording~~
+Backslash escapes render punctuation literally: \*not emphasis\*, \[not a link\], \# not a heading, and \`not code\`.
 
-## Table syntax
+Character references render as characters: &amp;amp; &amp;lt; &amp;gt; &amp;quot; &amp;#35; &amp;#x1F680;.
 
-| Feature | Rendered example | Alignment |
-| :--- | :---: | ---: |
-| Bold | **This is bold text** | left |
-| Italic | _This text is italicized_ | center |
-| Strikethrough | ~~This was mistaken text~~ | right |
-| Inline code | `git status --short` | code |
-| Link | [OpenAI](https://openai.com/) | link |
-| Escaped pipe | `a \| b` | cell |
+---
 
-## Code fences
+***
+
+___
+
+## Emphasis, strong emphasis, and strikethrough
+
+This paragraph uses *asterisk emphasis*, _underscore emphasis_, **asterisk strong**, __underscore strong__, ***combined strong emphasis***, ___combined underscore strong emphasis___, and ~~GFM strikethrough~~.
+
+Intraword underscores should stay literal in snake_case_identifier, while intraword emphasis can still appear as foo*bar*baz.
+
+## Code spans
+
+Use `inline code`, ``code with ` one backtick``, and `` spaced code span `` inside normal prose.
+
+## Indented and fenced code blocks
+
+    Four leading spaces create an indented code block.
+    Markdown syntax like **strong** stays literal here.
 
 ```php
 &lt;?php
@@ -111902,6 +111911,18 @@ function render_packet(array $items): string
 }
 ```
 
+~~~js
+const rows = [&quot;tables&quot;, &quot;tasks&quot;, &quot;autolinks&quot;];
+console.log(rows.map((row) =&gt; row.toUpperCase()).join(&quot;, &quot;));
+~~~
+
+````
+Fence length can contain shorter fences:
+```
+not the end of this block
+```
+````
+
 ```mermaid
 flowchart LR
   markdown_github --&gt; parser
@@ -111909,38 +111930,126 @@ flowchart LR
   parser --&gt; wordpress
 ```
 
-## Images and HTML blocks
+## Block quotes
 
-![GitHub mark](https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png &quot;GitHub mark&quot;)
+&gt; A block quote can contain a paragraph with **inline formatting**.
+&gt;
+&gt; - A list inside a quote
+&gt; - A second item with `code`
+&gt;
+&gt; &gt; Nested quotes should remain nested.
 
-&lt;details&gt;
-&lt;summary&gt;Rendered details block&lt;/summary&gt;
-
-GitHub allows raw HTML islands such as collapsible details.
-
-&lt;/details&gt;
-
-## Autolinks and references
-
-See https://github.github.com/gfm/, &lt;support@github.com&gt;, and [the CommonMark spec][commonmark].
-
-Footnotes should stay connected to their references.[^gfm-note]
-
-Emoji shortcodes such as :rocket: and :heart: should remain visible for GitHub-style rendering.
-
-[commonmark]: https://spec.commonmark.org/
-
-[^gfm-note]: Footnote bodies can include **formatting**, links, and `code`.</pre><p class="meta"><a href="samples/markdown-github-rendered-syntax-github-rendered-syntax.md">Download original file</a></p><p class="meta">Compact GitHub Flavored Markdown sample that renders the actual syntax for emphasis, task lists, tables, autolinks, references, code, and alert-style blockquotes instead of showing only escaped examples.</p></div></section><section class="converted" data-sample="markdown-github-rendered-syntax"><div class="converted-toolbar"><span class="meta">Converted representations</span><button class="view-source" type="button" data-source-toggle>View source</button></div><div class="comparison-grid"><section class="conversion-pane" id="markdown-github-rendered-syntax-wpBlocks"><div class="pane-head"><span class="pane-title">WP blocks</span><span class="pane-status status-ok">ok</span></div><iframe class="render-frame" data-sync-group="markdown-github-rendered-syntax" title="Rendered GitHub syntax packet PHP WordPress blocks" src="outputs/markdown-github-rendered-syntax/wordpress-blocks.html"></iframe><pre class="source-box" data-sync-group="markdown-github-rendered-syntax">&lt;!-- wp:heading {&quot;level&quot;:1} --&gt;
-&lt;h1 id=&quot;github-flavored-markdown-feature-packet&quot;&gt;GitHub Flavored Markdown feature packet&lt;/h1&gt;
+&gt; [!NOTE]
+&gt; GitHub alert syntax should render as a callout-style block when supported.
+...</pre><p class="meta"><a href="samples/markdown-github-rendered-syntax-github-rendered-syntax.md">Download original file</a></p><p class="meta">Expanded GitHub Flavored Markdown showcase covering CommonMark leaf blocks, container blocks, inline syntax, GFM tables, task lists, strikethrough, autolinks, raw HTML filtering, alerts, footnotes, emoji, math, and diagram fences.</p></div></section><section class="converted" data-sample="markdown-github-rendered-syntax"><div class="converted-toolbar"><span class="meta">Converted representations</span><button class="view-source" type="button" data-source-toggle>View source</button></div><div class="comparison-grid"><section class="conversion-pane" id="markdown-github-rendered-syntax-wpBlocks"><div class="pane-head"><span class="pane-title">WP blocks</span><span class="pane-status status-ok">ok</span></div><iframe class="render-frame" data-sync-group="markdown-github-rendered-syntax" title="Full GitHub syntax packet PHP WordPress blocks" src="outputs/markdown-github-rendered-syntax/wordpress-blocks.html"></iframe><pre class="source-box" data-sync-group="markdown-github-rendered-syntax">&lt;!-- wp:heading {&quot;level&quot;:1} --&gt;
+&lt;h1 id=&quot;github-flavored-markdown-full-syntax-packet&quot;&gt;GitHub Flavored Markdown full syntax packet&lt;/h1&gt;
 &lt;!-- /wp:heading --&gt;
 
 &lt;!-- wp:paragraph --&gt;
-&lt;p&gt;This paragraph uses &lt;strong&gt;bold&lt;/strong&gt;, &lt;em&gt;italic&lt;/em&gt;, &lt;strong&gt;&lt;em&gt;bold italic&lt;/em&gt;&lt;/strong&gt;, &lt;del&gt;strikethrough&lt;/del&gt;, &lt;code&gt;inline code&lt;/code&gt;, a bare URL &lt;a href=&quot;https://github.com/openai&quot;&gt;https://github.com/openai&lt;/a&gt;, an issue-like reference #42, and a mention-like token @octocat.&lt;/p&gt;
+&lt;p&gt;This document intentionally exercises the rendered syntax surface of GitHub Flavored Markdown. It includes CommonMark leaf blocks, container blocks, inline syntax, and the GFM extensions for tables, task list items, strikethrough, autolinks, and raw HTML filtering.&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:heading {&quot;level&quot;:1} --&gt;
+&lt;h1 id=&quot;setext-heading-level-1&quot;&gt;Setext heading level 1&lt;/h1&gt;
+&lt;!-- /wp:heading --&gt;
+
+&lt;!-- wp:heading {&quot;level&quot;:2} --&gt;
+&lt;h2 id=&quot;setext-heading-level-2&quot;&gt;Setext heading level 2&lt;/h2&gt;
+&lt;!-- /wp:heading --&gt;
+
+&lt;!-- wp:heading {&quot;level&quot;:2} --&gt;
+&lt;h2 id=&quot;paragraphs-breaks-and-escapes&quot;&gt;Paragraphs, breaks, and escapes&lt;/h2&gt;
+&lt;!-- /wp:heading --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;Adjacent lines in one paragraph
+stay in one rendered paragraph unless a blank line separates them.
+This next line uses a backslash hard break.&lt;br/&gt;This line follows the backslash hard break.&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;Backslash escapes render punctuation literally: *not emphasis*, [not a link], # not a heading, and `not code`.&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;Character references render as characters: &amp;amp; &amp;lt; &amp;gt; &amp;quot; # 🚀.&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:separator --&gt;
+&lt;hr class=&quot;wp-block-separator has-alpha-channel-opacity&quot;/&gt;
+&lt;!-- /wp:separator --&gt;
+
+&lt;!-- wp:separator --&gt;
+&lt;hr class=&quot;wp-block-separator has-alpha-channel-opacity&quot;/&gt;
+&lt;!-- /wp:separator --&gt;
+
+&lt;!-- wp:separator --&gt;
+&lt;hr class=&quot;wp-block-separator has-alpha-channel-opacity&quot;/&gt;
+&lt;!-- /wp:separator --&gt;
+
+&lt;!-- wp:heading {&quot;level&quot;:2} --&gt;
+&lt;h2 id=&quot;emphasis-strong-emphasis-and-strikethrough&quot;&gt;Emphasis, strong emphasis, and strikethrough&lt;/h2&gt;
+&lt;!-- /wp:heading --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;This paragraph uses &lt;em&gt;asterisk emphasis&lt;/em&gt;, &lt;em&gt;underscore emphasis&lt;/em&gt;, &lt;strong&gt;asterisk strong&lt;/strong&gt;, &lt;strong&gt;underscore strong&lt;/strong&gt;, &lt;strong&gt;&lt;em&gt;combined strong emphasis&lt;/em&gt;&lt;/strong&gt;, &lt;strong&gt;&lt;em&gt;combined underscore strong emphasis&lt;/em&gt;&lt;/strong&gt;, and &lt;del&gt;GFM strikethrough&lt;/del&gt;.&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;Intraword underscores should stay literal in snake_case_identifier, while intraword emphasis can still appear as foo&lt;em&gt;bar&lt;/em&gt;baz.&lt;/p&gt;
 &lt;!-- /wp:paragraph --&gt;
 
 &lt;!-- wp:heading {&quot;level&quot;:2} --&gt;
-&lt;h2 id=&quot;alerts&quot;&gt;Alerts&lt;/h2&gt;
+&lt;h2 id=&quot;code-spans&quot;&gt;Code spans&lt;/h2&gt;
 &lt;!-- /wp:heading --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;Use &lt;code&gt;inline code&lt;/code&gt;, &lt;code&gt;code with ` one backtick&lt;/code&gt;, and &lt;code&gt;spaced code span&lt;/code&gt; inside normal prose.&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:heading {&quot;level&quot;:2} --&gt;
+&lt;h2 id=&quot;indented-and-fenced-code-blocks&quot;&gt;Indented and fenced code blocks&lt;/h2&gt;
+&lt;!-- /wp:heading --&gt;
+
+&lt;!-- wp:code --&gt;
+&lt;pre class=&quot;wp-block-code&quot;&gt;&lt;code&gt;Four leading spaces create an indented code block.
+Markdown syntax like **strong** stays literal here.&lt;/code&gt;&lt;/pre&gt;
+&lt;!-- /wp:code --&gt;
+
+&lt;!-- wp:code {&quot;language&quot;:&quot;php&quot;} --&gt;
+&lt;pre class=&quot;wp-block-code&quot;&gt;&lt;code class=&quot;language-php&quot;&gt;&amp;lt;?php
+function render_packet(array $items): string
+{
+    return implode(&amp;quot;\n&amp;quot;, array_map(&amp;#039;strtoupper&amp;#039;, $items));
+}&lt;/code&gt;&lt;/pre&gt;
+&lt;!-- /wp:code --&gt;
+
+&lt;!-- wp:code {&quot;language&quot;:&quot;javascript&quot;} --&gt;
+&lt;pre class=&quot;wp-block-code&quot;&gt;&lt;code class=&quot;language-javascript&quot;&gt;const rows = [&amp;quot;tables&amp;quot;, &amp;quot;tasks&amp;quot;, &amp;quot;autolinks&amp;quot;];
+console.log(rows.map((row) =&amp;gt; row.toUpperCase()).join(&amp;quot;, &amp;quot;));&lt;/code&gt;&lt;/pre&gt;
+&lt;!-- /wp:code --&gt;
+
+&lt;!-- wp:code --&gt;
+&lt;pre class=&quot;wp-block-code&quot;&gt;&lt;code&gt;Fence length can contain shorter fences:
+```
+not the end of this block
+```&lt;/code&gt;&lt;/pre&gt;
+&lt;!-- /wp:code --&gt;
+
+&lt;!-- wp:code {&quot;language&quot;:&quot;mermaid&quot;} --&gt;
+&lt;pre class=&quot;wp-block-code&quot;&gt;&lt;code class=&quot;language-mermaid&quot;&gt;flowchart LR
+  markdown_github --&amp;gt; parser
+  parser --&amp;gt; html
+  parser --&amp;gt; wordpress&lt;/code&gt;&lt;/pre&gt;
+&lt;!-- /wp:code --&gt;
+
+&lt;!-- wp:heading {&quot;level&quot;:2} --&gt;
+&lt;h2 id=&quot;block-quotes&quot;&gt;Block quotes&lt;/h2&gt;
+&lt;!-- /wp:heading --&gt;
+
+&lt;!-- wp:quote --&gt;
+&lt;blockquote class=&quot;wp-block-quote&quot;&gt;&lt;p&gt;A block quote can contain a paragraph with &lt;strong&gt;inline formatting&lt;/strong&gt;.&lt;/p&gt;&lt;ul&gt;&lt;li&gt;A list inside a quote&lt;/li&gt;&lt;li&gt;A second item with &lt;code&gt;code&lt;/code&gt;&lt;/li&gt;&lt;/ul&gt;&lt;blockquote&gt;&lt;p&gt;Nested quotes should remain nested.&lt;/p&gt;&lt;/blockquote&gt;&lt;/blockquote&gt;
+&lt;!-- /wp:quote --&gt;
 
 &lt;!-- wp:group --&gt;
 &lt;div class=&quot;wp-block-group note&quot;&gt;
@@ -111953,7 +112062,39 @@ Emoji shortcodes such as :rocket: and :heart: should remain visible for GitHub-s
 &lt;!-- /wp:group --&gt;
 
 &lt;!-- wp:paragraph --&gt;
-&lt;p&gt;GitHub alert syntax should render as a callout-style block, with &lt;strong&gt;inline formatting&lt;/strong&gt; inside.&lt;/p&gt;
+&lt;p&gt;GitHub alert syntax should render as a callout-style block when supported.&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+&lt;/div&gt;
+&lt;!-- /wp:group --&gt;
+
+&lt;!-- wp:group --&gt;
+&lt;div class=&quot;wp-block-group tip&quot;&gt;
+&lt;!-- wp:group --&gt;
+&lt;div class=&quot;wp-block-group title&quot;&gt;
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;Tip&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+&lt;/div&gt;
+&lt;!-- /wp:group --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;Alerts can include &lt;a href=&quot;https://docs.github.com/&quot;&gt;links&lt;/a&gt; and &lt;strong&gt;formatting&lt;/strong&gt;.&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+&lt;/div&gt;
+&lt;!-- /wp:group --&gt;
+
+&lt;!-- wp:group --&gt;
+&lt;div class=&quot;wp-block-group important&quot;&gt;
+&lt;!-- wp:group --&gt;
+&lt;div class=&quot;wp-block-group title&quot;&gt;
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;Important&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+&lt;/div&gt;
+&lt;!-- /wp:group --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;Important callouts should survive as quoted content even without native alert blocks.&lt;/p&gt;
 &lt;!-- /wp:paragraph --&gt;
 &lt;/div&gt;
 &lt;!-- /wp:group --&gt;
@@ -111969,103 +112110,371 @@ Emoji shortcodes such as :rocket: and :heart: should remain visible for GitHub-s
 &lt;!-- /wp:group --&gt;
 
 &lt;!-- wp:paragraph --&gt;
-&lt;p&gt;Alert bodies can contain links such as &lt;a href=&quot;https://docs.github.com/&quot;&gt;GitHub Docs&lt;/a&gt;.&lt;/p&gt;
+&lt;p&gt;Warning callouts exercise another alert label.&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+&lt;/div&gt;
+&lt;!-- /wp:group --&gt;
+
+&lt;!-- wp:group --&gt;
+&lt;div class=&quot;wp-block-group caution&quot;&gt;
+&lt;!-- wp:group --&gt;
+&lt;div class=&quot;wp-block-group title&quot;&gt;
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;Caution&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+&lt;/div&gt;
+&lt;!-- /wp:group --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;Caution callouts complete the GitHub alert set.&lt;/p&gt;
 &lt;!-- /wp:paragraph --&gt;
 &lt;/div&gt;
 &lt;!-- /wp:group --&gt;
 
 &lt;!-- wp:heading {&quot;level&quot;:2} --&gt;
-&lt;h2 id=&quot;task-lists&quot;&gt;Task lists&lt;/h2&gt;
+&lt;h2 id=&quot;lists&quot;&gt;Lists&lt;/h2&gt;
 &lt;!-- /wp:heading --&gt;
 
 &lt;!-- wp:list --&gt;
-&lt;ul class=&quot;task-list&quot;&gt;&lt;li&gt;&lt;label&gt;&lt;input type=&quot;checkbox&quot; checked=&quot;&quot; /&gt;Parse GFM task list syntax&lt;/label&gt;&lt;/li&gt;&lt;li&gt;&lt;label&gt;&lt;input type=&quot;checkbox&quot; /&gt;Preserve unchecked tasks&lt;/label&gt;&lt;/li&gt;&lt;li&gt;&lt;label&gt;&lt;input type=&quot;checkbox&quot; checked=&quot;&quot; /&gt;Render nested formatting with &lt;strong&gt;bold and &lt;em&gt;italic&lt;/em&gt; text&lt;/strong&gt;&lt;/label&gt;&lt;ul class=&quot;task-list&quot;&gt;&lt;li&gt;&lt;label&gt;&lt;input type=&quot;checkbox&quot; /&gt;Nested follow-up task with &lt;code&gt;inline code&lt;/code&gt;&lt;/label&gt;&lt;/li&gt;&lt;li&gt;&lt;label&gt;&lt;input type=&quot;checkbox&quot; checked=&quot;&quot; /&gt;Nested completed task with &lt;del&gt;old wording&lt;/del&gt;&lt;/label&gt;&lt;/li&gt;&lt;/ul&gt;&lt;/li&gt;&lt;/ul&gt;
+&lt;ul&gt;&lt;li&gt;Tight unordered item one&lt;/li&gt;&lt;li&gt;Tight unordered item two&lt;ul&gt;&lt;li&gt;Nested bullet&lt;/li&gt;&lt;li&gt;Nested bullet with &lt;strong&gt;strong text&lt;/strong&gt;&lt;/li&gt;&lt;/ul&gt;&lt;/li&gt;&lt;/ul&gt;
+&lt;!-- /wp:list --&gt;
+
+&lt;!-- wp:list --&gt;
+&lt;ul&gt;&lt;li&gt;Asterisk bullet marker&lt;/li&gt;&lt;/ul&gt;
+&lt;!-- /wp:list --&gt;
+
+&lt;!-- wp:list --&gt;
+&lt;ul&gt;&lt;li&gt;Plus bullet marker&lt;/li&gt;&lt;/ul&gt;
+&lt;!-- /wp:list --&gt;
+
+&lt;!-- wp:list --&gt;
+&lt;ul&gt;&lt;li&gt;Hyphen bullet marker&lt;/li&gt;&lt;/ul&gt;
+&lt;!-- /wp:list --&gt;
+
+&lt;!-- wp:list {&quot;ordered&quot;:true} --&gt;
+&lt;ol&gt;&lt;li&gt;&lt;p&gt;Ordered item one&lt;/p&gt;&lt;/li&gt;&lt;li&gt;&lt;p&gt;Ordered item two&lt;/p&gt;&lt;ol&gt;&lt;li&gt;Nested ordered item&lt;/li&gt;&lt;li&gt;Nested ordered item with &lt;code&gt;code&lt;/code&gt;&lt;/li&gt;&lt;/ol&gt;&lt;/li&gt;&lt;li&gt;&lt;p&gt;Ordered item three&lt;/p&gt;&lt;/li&gt;&lt;li&gt;&lt;p&gt;Ordered lists can start at a non-one number.&lt;/p&gt;&lt;/li&gt;&lt;li&gt;&lt;p&gt;The next marker should continue the list.&lt;/p&gt;&lt;/li&gt;&lt;/ol&gt;
+&lt;!-- /wp:list --&gt;
+
+&lt;!-- wp:list --&gt;
+&lt;ul&gt;&lt;li&gt;&lt;p&gt;Loose unordered item with a paragraph.&lt;/p&gt;&lt;p&gt;Continuation paragraph in the same list item.&lt;/p&gt;&lt;/li&gt;&lt;li&gt;&lt;p&gt;Second loose item with a nested quote.&lt;/p&gt;&lt;blockquote&gt;&lt;p&gt;Quote inside a loose list item.&lt;/p&gt;&lt;/blockquote&gt;&lt;/li&gt;&lt;/ul&gt;
+&lt;!-- /wp:list --&gt;
+
+&lt;!-- wp:list {&quot;ordered&quot;:true} --&gt;
+&lt;ol&gt;&lt;li&gt;&lt;p&gt;Loose ordered item with a paragraph.&lt;/p&gt;&lt;p&gt;Continuation paragraph in the ordered item.&lt;/p&gt;&lt;/li&gt;&lt;li&gt;&lt;p&gt;Second loose ordered item.&lt;/p&gt;&lt;/li&gt;&lt;/ol&gt;
 &lt;!-- /wp:list --&gt;
 
 &lt;!-- wp:heading {&quot;level&quot;:2} --&gt;
-&lt;h2 id=&quot;table-syntax&quot;&gt;Table syntax&lt;/h2&gt;
+&lt;h2 id=&quot;task-list-items&quot;&gt;Task list items&lt;/h2&gt;
+&lt;!-- /wp:heading --&gt;
+
+&lt;!-- wp:list --&gt;
+&lt;ul class=&quot;task-list&quot;&gt;&lt;li&gt;&lt;label&gt;&lt;input type=&quot;checkbox&quot; checked=&quot;&quot; /&gt;Parse checked task list syntax&lt;/label&gt;&lt;/li&gt;&lt;li&gt;&lt;label&gt;&lt;input type=&quot;checkbox&quot; checked=&quot;&quot; /&gt;Parse uppercase checked task markers&lt;/label&gt;&lt;/li&gt;&lt;li&gt;&lt;label&gt;&lt;input type=&quot;checkbox&quot; /&gt;Preserve unchecked tasks&lt;/label&gt;&lt;/li&gt;&lt;li&gt;&lt;label&gt;&lt;input type=&quot;checkbox&quot; checked=&quot;&quot; /&gt;Render nested formatting with &lt;strong&gt;bold and &lt;em&gt;italic&lt;/em&gt; text&lt;/strong&gt;&lt;/label&gt;&lt;ul class=&quot;task-list&quot;&gt;&lt;li&gt;&lt;label&gt;&lt;input type=&quot;checkbox&quot; /&gt;Nested follow-up task with &lt;code&gt;inline code&lt;/code&gt;&lt;/label&gt;&lt;/li&gt;&lt;li&gt;&lt;label&gt;&lt;input type=&quot;checkbox&quot; checked=&quot;&quot; /&gt;Nested completed task with &lt;del&gt;old wording&lt;/del&gt;&lt;/label&gt;&lt;/li&gt;&lt;/ul&gt;&lt;/li&gt;&lt;/ul&gt;
+&lt;!-- /wp:list --&gt;
+
+&lt;!-- wp:heading {&quot;level&quot;:2} --&gt;
+&lt;h2 id=&quot;tables&quot;&gt;Tables&lt;/h2&gt;
 &lt;!-- /wp:heading --&gt;
 
 &lt;!-- wp:table --&gt;
-&lt;figure class=&quot;wp-block-table&quot;&gt;&lt;table&gt;&lt;thead&gt;&lt;tr&gt;&lt;th style=&quot;text-align:left&quot;&gt;Feature&lt;/th&gt;&lt;th style=&quot;text-align:center&quot;&gt;Rendered example&lt;/th&gt;&lt;th style=&quot;text-align:right&quot;&gt;Alignment&lt;/th&gt;&lt;/tr&gt;&lt;/thead&gt;&lt;tbody&gt;&lt;tr&gt;&lt;td style=&quot;text-align:left&quot;&gt;Bold&lt;/td&gt;&lt;td style=&quot;text-align:center&quot;&gt;&lt;strong&gt;This is bold text&lt;/strong&gt;&lt;/td&gt;&lt;td style=&quot;text-align:right&quot;&gt;left&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td style=&quot;text-align:left&quot;&gt;Italic&lt;/td&gt;&lt;td style=&quot;text-align:center&quot;&gt;&lt;em&gt;This text is italicized&lt;/em&gt;&lt;/td&gt;&lt;td style=&quot;text-align:right&quot;&gt;center&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td style=&quot;text-align:left&quot;&gt;Strikethrough&lt;/td&gt;&lt;td style=&quot;text-align:center&quot;&gt;&lt;del&gt;This was mistaken text&lt;/del&gt;&lt;/td&gt;&lt;td style=&quot;text-align:right&quot;&gt;right&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td style=&quot;text-align:left&quot;&gt;Inline code&lt;/td&gt;&lt;td style=&quot;text-align:center&quot;&gt;&lt;code&gt;git status --short&lt;/code&gt;&lt;/td&gt;&lt;td style=&quot;text-align:right&quot;&gt;code&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td style=&quot;text-align:left&quot;&gt;Link&lt;/td&gt;&lt;td style=&quot;text-align:center&quot;&gt;&lt;a href=&quot;https://openai.com/&quot;&gt;OpenAI&lt;/a&gt;&lt;/td&gt;&lt;td style=&quot;text-align:right&quot;&gt;link&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td style=&quot;text-align:left&quot;&gt;Escaped pipe&lt;/td&gt;&lt;td style=&quot;text-align:center&quot;&gt;&lt;code&gt;a \| b&lt;/code&gt;&lt;/td&gt;&lt;td style=&quot;text-align:right&quot;&gt;cell&lt;/td&gt;&lt;/tr&gt;&lt;/tbody&gt;&lt;/table&gt;&lt;/figure&gt;
+&lt;figure class=&quot;wp-block-table&quot;&gt;&lt;table&gt;&lt;thead&gt;&lt;tr&gt;&lt;th style=&quot;text-align:left&quot;&gt;Feature&lt;/th&gt;&lt;th style=&quot;text-align:center&quot;&gt;Rendered example&lt;/th&gt;&lt;th style=&quot;text-align:right&quot;&gt;Alignment&lt;/th&gt;&lt;/tr&gt;&lt;/thead&gt;&lt;tbody&gt;&lt;tr&gt;&lt;td style=&quot;text-align:left&quot;&gt;Bold&lt;/td&gt;&lt;td style=&quot;text-align:center&quot;&gt;&lt;strong&gt;This is bold text&lt;/strong&gt;&lt;/td&gt;&lt;td style=&quot;text-align:right&quot;&gt;left&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td style=&quot;text-align:left&quot;&gt;Italic&lt;/td&gt;&lt;td style=&quot;text-align:center&quot;&gt;&lt;em&gt;This text is italicized&lt;/em&gt;&lt;/td&gt;&lt;td style=&quot;text-align:right&quot;&gt;center&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td style=&quot;text-align:left&quot;&gt;Strikethrough&lt;/td&gt;&lt;td style=&quot;text-align:center&quot;&gt;&lt;del&gt;This was mistaken text&lt;/del&gt;&lt;/td&gt;&lt;td style=&quot;text-align:right&quot;&gt;right&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td style=&quot;text-align:left&quot;&gt;Inline code&lt;/td&gt;&lt;td style=&quot;text-align:center&quot;&gt;&lt;code&gt;git status --short&lt;/code&gt;&lt;/td&gt;&lt;td style=&quot;text-align:right&quot;&gt;code&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td style=&quot;text-align:left&quot;&gt;Link&lt;/td&gt;&lt;td style=&quot;text-align:center&quot;&gt;&lt;a href=&quot;https://openai.com/&quot;&gt;OpenAI&lt;/a&gt;&lt;/td&gt;&lt;td style=&quot;text-align:right&quot;&gt;link&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td style=&quot;text-align:left&quot;&gt;Escaped pipe&lt;/td&gt;&lt;td style=&quot;text-align:center&quot;&gt;&lt;code&gt;a \| b&lt;/code&gt;&lt;/td&gt;&lt;td style=&quot;text-align:right&quot;&gt;cell&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td style=&quot;text-align:left&quot;&gt;Entity&lt;/td&gt;&lt;td style=&quot;text-align:center&quot;&gt;© 2026&lt;/td&gt;&lt;td style=&quot;text-align:right&quot;&gt;entity&lt;/td&gt;&lt;/tr&gt;&lt;/tbody&gt;&lt;/table&gt;&lt;/figure&gt;
+&lt;!-- /wp:table --&gt;
+
+&lt;!-- wp:table --&gt;
+&lt;figure class=&quot;wp-block-table&quot;&gt;&lt;table&gt;&lt;thead&gt;&lt;tr&gt;&lt;th&gt;Short header&lt;/th&gt;&lt;th&gt;Extra body cell&lt;/th&gt;&lt;/tr&gt;&lt;/thead&gt;&lt;tbody&gt;&lt;tr&gt;&lt;td&gt;Missing body cell&lt;/td&gt;&lt;td&gt;&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;Body&lt;/td&gt;&lt;td&gt;cells&lt;/td&gt;&lt;/tr&gt;&lt;/tbody&gt;&lt;/table&gt;&lt;/figure&gt;
 &lt;!-- /wp:table --&gt;
 
 &lt;!-- wp:heading {&quot;level&quot;:2} --&gt;
-&lt;h2 id=&quot;code-fences&quot;&gt;Code fences&lt;/h2&gt;
+&lt;h2 id=&quot;links&quot;&gt;Links&lt;/h2&gt;
 &lt;!-- /wp:heading --&gt;
 
-&lt;!-- wp:code {&quot;language&quot;:&quot;php&quot;} --&gt;
-&lt;pre class=&quot;wp-block-code&quot;&gt;&lt;code class=&quot;language-php&quot;&gt;&amp;lt;?php
-function render_packet(array $items): string
-{
-    return implode(&amp;quot;\n&amp;quot;, array_map(&amp;#039;strtoupper&amp;#039;, $items));
-}&lt;/code&gt;&lt;/pre&gt;
-&lt;!-- /wp:code --&gt;
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;Inline link: &lt;a href=&quot;https://openai.com/&quot; title=&quot;OpenAI home&quot;&gt;OpenAI&lt;/a&gt;.&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
 
-&lt;!-- wp:code {&quot;language&quot;:&quot;mermaid&quot;} --&gt;
-&lt;pre class=&quot;wp-block-code&quot;&gt;&lt;code class=&quot;language-mermaid&quot;&gt;flowchart LR
-  markdown_github --&amp;gt; parser
-  parser --&amp;gt; html
-  parser --&amp;gt; wordpress&lt;/code&gt;&lt;/pre&gt;
-&lt;!-- /wp:code --&gt;
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;Reference link: &lt;a href=&quot;https://github.github.com/gfm/&quot; title=&quot;GFM spec&quot;&gt;GitHub Flavored Markdown spec&lt;/a&gt;.&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;Collapsed reference link: &lt;a href=&quot;https://spec.commonmark.org/&quot;&gt;CommonMark&lt;/a&gt;.&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;Shortcut reference link: &lt;a href=&quot;https://docs.github.com/&quot;&gt;GitHub Docs&lt;/a&gt;.&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;Reference labels can be reused with different casing: &lt;a href=&quot;https://github.github.com/gfm/&quot; title=&quot;GFM spec&quot;&gt;gfm&lt;/a&gt;.&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;Autolink URI: &lt;a href=&quot;https://github.github.com/gfm/&quot;&gt;https://github.github.com/gfm/&lt;/a&gt;.&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;Autolink email: &lt;a href=&quot;mailto:support@github.com&quot;&gt;support@github.com&lt;/a&gt;.&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;Bare GFM autolinks: &lt;a href=&quot;https://github.com/openai&quot;&gt;https://github.com/openai&lt;/a&gt;, &lt;a href=&quot;http://example.com/a_(b)&quot;&gt;http://example.com/a_(b)&lt;/a&gt;, &lt;a href=&quot;http://www.github.com&quot;&gt;www.github.com&lt;/a&gt;, and &lt;a href=&quot;mailto:user@example.com&quot;&gt;user@example.com&lt;/a&gt;.&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;Issue-like and mention-like tokens should remain visible: #42, GH-123, @octocat, and @github/docs.&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
 
 &lt;!-- wp:heading {&quot;level&quot;:2} --&gt;
-&lt;h2 id=&quot;images-and-html-blocks&quot;&gt;Images and HTML blocks&lt;/h2&gt;
+&lt;h2 id=&quot;images&quot;&gt;Images&lt;/h2&gt;
 &lt;!-- /wp:heading --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;Inline image:&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
 
 &lt;!-- wp:image --&gt;
 &lt;figure class=&quot;wp-block-image&quot;&gt;&lt;img src=&quot;https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png&quot; alt=&quot;GitHub mark&quot; title=&quot;GitHub mark&quot;/&gt;&lt;/figure&gt;
 &lt;!-- /wp:image --&gt;
 
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;Reference image:&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:image --&gt;
+&lt;figure class=&quot;wp-block-image&quot;&gt;&lt;img src=&quot;https://github.githubassets.com/images/icons/emoji/octocat.png&quot; alt=&quot;Octocat logo&quot; title=&quot;Octocat&quot;/&gt;&lt;/figure&gt;
+&lt;!-- /wp:image --&gt;
+
+&lt;!-- wp:heading {&quot;level&quot;:2} --&gt;
+&lt;h2 id=&quot;raw-html-blocks-and-inline-html&quot;&gt;Raw HTML blocks and inline HTML&lt;/h2&gt;
+&lt;!-- /wp:heading --&gt;
+
 &lt;!-- wp:html --&gt;
 &lt;details&gt;
+&lt;!-- /wp:html --&gt;
+
+&lt;!-- wp:html --&gt;
 &lt;summary&gt;Rendered details block&lt;/summary&gt;
+&lt;!-- /wp:html --&gt;
 
-GitHub allows raw HTML islands such as collapsible details.
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;GitHub allows raw HTML islands such as collapsible details, and Markdown inside the block should remain inspectable.&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
 
+&lt;!-- wp:list --&gt;
+&lt;ul&gt;&lt;li&gt;HTML block list item&lt;/li&gt;&lt;li&gt;Another item with &lt;strong&gt;formatting&lt;/strong&gt;&lt;/li&gt;&lt;/ul&gt;
+&lt;!-- /wp:list --&gt;
+
+&lt;!-- wp:html --&gt;
 &lt;/details&gt;
 &lt;!-- /wp:html --&gt;
 
-&lt;!-- wp:heading {&quot;level&quot;:2} --&gt;
-&lt;h2 id=&quot;autolinks-and-references&quot;&gt;Autolinks and references&lt;/h2&gt;
-&lt;!-- /wp:heading --&gt;
+&lt;!-- wp:table --&gt;
+&lt;figure class=&quot;wp-block-table&quot;&gt;&lt;table&gt;&lt;colgroup&gt;&lt;col style=&quot;width:50%&quot;/&gt;&lt;col style=&quot;width:50%&quot;/&gt;&lt;/colgroup&gt;&lt;thead&gt;&lt;tr&gt;&lt;th&gt;HTML table head&lt;/th&gt;&lt;th&gt;Value&lt;/th&gt;&lt;/tr&gt;&lt;/thead&gt;&lt;tbody&gt;&lt;tr&gt;&lt;td&gt;Inline HTML &lt;strong&gt;strong&lt;/strong&gt;&lt;/td&gt;&lt;td&gt;42&lt;/td&gt;&lt;/tr&gt;&lt;/tbody&gt;&lt;/table&gt;&lt;/figure&gt;
+&lt;!-- /wp:table --&gt;
 
 &lt;!-- wp:paragraph --&gt;
-&lt;p&gt;See &lt;a href=&quot;https://github.github.com/gfm/&quot;&gt;https://github.github.com/gfm/&lt;/a&gt;, &lt;a href=&quot;mailto:support@github.com&quot;&gt;support@github.com&lt;/a&gt;, and &lt;a href=&quot;https://spec.commonmark.org/&quot;&gt;the CommonMark spec&lt;/a&gt;.&lt;/p&gt;
+&lt;p&gt;Inline HTML appears in prose: &lt;kbd&gt;Ctrl&lt;/kbd&gt; + &lt;kbd&gt;K&lt;/kbd&gt;, &lt;sub&gt;subscript&lt;/sub&gt;, &lt;sup&gt;superscript&lt;/sup&gt;, and &lt;span data-kind=&quot;sample&quot;&gt;span text&lt;/span&gt;.&lt;/p&gt;
 &lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;Disallowed raw HTML tags should be escaped or filtered by a GFM-safe renderer:&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:html --&gt;
+&lt;script type=&quot;text/plain&quot;&gt;alert(&quot;blocked&quot;)&lt;/script&gt;
+&lt;!-- /wp:html --&gt;
+
+&lt;!-- wp:html --&gt;
+&lt;style media=&quot;not all&quot;&gt;body { color: red; }&lt;/style&gt;
+&lt;!-- /wp:html --&gt;
+
+&lt;!-- wp:html --&gt;
+&lt;iframe src=&quot;about:blank&quot; title=&quot;blocked iframe&quot;&gt;&lt;/iframe&gt;
+&lt;!-- /wp:html --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;&lt;noembed&gt;blocked noembed&lt;/noembed&gt;&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:html --&gt;
+&lt;noframes&gt;blocked noframes&lt;/noframes&gt;
+&lt;!-- /wp:html --&gt;
+
+&lt;!-- wp:html --&gt;
+&lt;textarea&gt;blocked textarea&lt;/textarea&gt;
+&lt;!-- /wp:html --&gt;
+
+&lt;!-- wp:heading {&quot;level&quot;:2} --&gt;
+&lt;h2 id=&quot;footnotes-emoji-math-and-diagrams-used-on-github&quot;&gt;Footnotes, emoji, math, and diagrams used on GitHub&lt;/h2&gt;
+&lt;!-- /wp:heading --&gt;
 
 &lt;!-- wp:paragraph --&gt;
 &lt;p&gt;Footnotes should stay connected to their references.&lt;sup id=&quot;fnref-1&quot;&gt;&lt;a href=&quot;#fn-1&quot; role=&quot;doc-noteref&quot;&gt;1&lt;/a&gt;&lt;/sup&gt;&lt;/p&gt;
 &lt;!-- /wp:paragraph --&gt;
 
 &lt;!-- wp:paragraph --&gt;
-&lt;p&gt;Emoji shortcodes such as &lt;span class=&quot;emoji&quot; data-emoji=&quot;rocket&quot;&gt;🚀&lt;/span&gt; and &lt;span class=&quot;emoji&quot; data-emoji=&quot;heart&quot;&gt;❤️&lt;/span&gt; should remain visible for GitHub-style rendering.&lt;/p&gt;
+&lt;p&gt;Emoji shortcodes such as &lt;span class=&quot;emoji&quot; data-emoji=&quot;rocket&quot;&gt;🚀&lt;/span&gt;, &lt;span class=&quot;emoji&quot; data-emoji=&quot;heart&quot;&gt;❤️&lt;/span&gt;, &lt;span class=&quot;emoji&quot; data-emoji=&quot;+1&quot;&gt;👍&lt;/span&gt;, and :octocat: should remain visible for GitHub-style rendering.&lt;/p&gt;
 &lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;Inline math uses dollar delimiters when enabled: &lt;math xmlns=&quot;http://www.w3.org/1998/Math/MathML&quot; display=&quot;inline&quot;&gt;&lt;semantics&gt;&lt;mrow&gt;&lt;mi&gt;E&lt;/mi&gt;&lt;mo&gt;=&lt;/mo&gt;&lt;mi&gt;m&lt;/mi&gt;&lt;msup&gt;&lt;mi&gt;c&lt;/mi&gt;&lt;mn&gt;2&lt;/mn&gt;&lt;/msup&gt;&lt;/mrow&gt;&lt;annotation encoding=&quot;application/x-tex&quot;&gt;E = mc^2&lt;/annotation&gt;&lt;/semantics&gt;&lt;/math&gt;.&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;Block math:&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;&lt;math xmlns=&quot;http://www.w3.org/1998/Math/MathML&quot; display=&quot;block&quot;&gt;&lt;semantics&gt;&lt;mrow&gt;&lt;msubsup&gt;&lt;mo&gt;∫&lt;/mo&gt;&lt;mn&gt;0&lt;/mn&gt;&lt;mn&gt;1&lt;/mn&gt;&lt;/msubsup&gt;&lt;msup&gt;&lt;mi&gt;x&lt;/mi&gt;&lt;mn&gt;2&lt;/mn&gt;&lt;/msup&gt;&lt;mspace width=&quot;0.1667em&quot;&gt;&lt;/mspace&gt;&lt;mi&gt;d&lt;/mi&gt;&lt;mi&gt;x&lt;/mi&gt;&lt;mo&gt;=&lt;/mo&gt;&lt;mfrac&gt;&lt;mn&gt;1&lt;/mn&gt;&lt;mn&gt;3&lt;/mn&gt;&lt;/mfrac&gt;&lt;/mrow&gt;&lt;annotation encoding=&quot;application/x-tex&quot;&gt;\int_0^1 x^2\,dx = \frac{1}{3}&lt;/annotation&gt;&lt;/semantics&gt;&lt;/math&gt;&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:code {&quot;language&quot;:&quot;geojson&quot;} --&gt;
+&lt;pre class=&quot;wp-block-code&quot;&gt;&lt;code class=&quot;language-geojson&quot;&gt;{
+  &amp;quot;type&amp;quot;: &amp;quot;Point&amp;quot;,
+  &amp;quot;coordinates&amp;quot;: [-122.4194, 37.7749]
+}&lt;/code&gt;&lt;/pre&gt;
+&lt;!-- /wp:code --&gt;
+
+&lt;!-- wp:code {&quot;language&quot;:&quot;topojson&quot;} --&gt;
+&lt;pre class=&quot;wp-block-code&quot;&gt;&lt;code class=&quot;language-topojson&quot;&gt;{
+  &amp;quot;type&amp;quot;: &amp;quot;Topology&amp;quot;,
+  &amp;quot;objects&amp;quot;: {},
+  &amp;quot;arcs&amp;quot;: []
+}&lt;/code&gt;&lt;/pre&gt;
+&lt;!-- /wp:code --&gt;
+
+&lt;!-- wp:code {&quot;language&quot;:&quot;stl&quot;} --&gt;
+&lt;pre class=&quot;wp-block-code&quot;&gt;&lt;code class=&quot;language-stl&quot;&gt;solid cube
+endsolid cube&lt;/code&gt;&lt;/pre&gt;
+&lt;!-- /wp:code --&gt;
 
 &lt;!-- wp:group --&gt;
 &lt;div class=&quot;wp-block-group footnotes&quot; role=&quot;doc-endnotes&quot;&gt;
 &lt;!-- wp:list {&quot;ordered&quot;:true} --&gt;
-&lt;ol&gt;&lt;li id=&quot;fn-1&quot;&gt;&lt;p&gt;Footnote bodies can include &lt;strong&gt;formatting&lt;/strong&gt;, links, and &lt;code&gt;code&lt;/code&gt;.&lt;/p&gt; &lt;a href=&quot;#fnref-1&quot; aria-label=&quot;Back to content&quot;&gt;Back&lt;/a&gt;&lt;/li&gt;&lt;/ol&gt;
+&lt;ol&gt;&lt;li id=&quot;fn-1&quot;&gt;&lt;p&gt;Footnote bodies can include &lt;strong&gt;formatting&lt;/strong&gt;, links, &lt;code&gt;code&lt;/code&gt;, and lists.&lt;/p&gt;&lt;p&gt;This indented line remains part of the footnote.&lt;/p&gt; &lt;a href=&quot;#fnref-1&quot; aria-label=&quot;Back to content&quot;&gt;Back&lt;/a&gt;&lt;/li&gt;&lt;/ol&gt;
 &lt;!-- /wp:list --&gt;
 &lt;/div&gt;
-&lt;!-- /wp:group --&gt;</pre></section><section class="conversion-pane" id="markdown-github-rendered-syntax-phpHtml"><div class="pane-head"><span class="pane-title">PHP HTML</span><span class="pane-status status-ok">ok</span></div><iframe class="render-frame" data-sync-group="markdown-github-rendered-syntax" title="Rendered GitHub syntax packet PHP HTML" src="outputs/markdown-github-rendered-syntax/php.html"></iframe><pre class="source-box" data-sync-group="markdown-github-rendered-syntax">&lt;!doctype html&gt;&lt;html lang=&quot;en&quot;&gt;&lt;head&gt;&lt;meta charset=&quot;utf-8&quot;&gt;&lt;meta name=&quot;viewport&quot; content=&quot;width=device-width, initial-scale=1&quot;&gt;&lt;title&gt;PHP Pandoc HTML output&lt;/title&gt;&lt;style&gt;html{line-height:1.5;font-family:Georgia,&quot;Times New Roman&quot;,serif;font-size:18px;color:#1f2933;background:#fdfdfd;}body{margin:0 auto;max-width:46em;padding:2.5em 1.25em;}h1,h2,h3,h4,h5,h6{font-family:system-ui,-apple-system,BlinkMacSystemFont,&quot;Segoe UI&quot;,sans-serif;line-height:1.25;margin:1.4em 0 .45em;}h1{font-size:2em;}h2{font-size:1.55em;}h3{font-size:1.25em;}p{margin:1em 0;}a{color:#1f6feb;}img,svg,video{max-width:100%;height:auto;}pre,code,kbd,samp{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.9em;}code{background:#eef1f5;padding:.1em .25em;border-radius:3px;}pre{overflow:auto;background:#f6f8fa;border:1px solid #d8dde3;border-radius:6px;padding:1em;}pre code{background:transparent;padding:0;}blockquote{margin:1.25em 0;padding-left:1em;border-left:4px solid #d8dde3;color:#4b5563;}table{border-collapse:collapse;margin:1.25em 0;width:100%;font-size:.92em;}th,td{border:1px solid #d8dde3;padding:.35em .55em;vertical-align:top;}th{background:#f6f8fa;}math{font-family:math,serif;}math[display=&quot;block&quot;]{display:block;margin:1em 0;overflow-x:auto;}&lt;/style&gt;&lt;/head&gt;&lt;body&gt;&lt;h1 id=&quot;github-flavored-markdown-feature-packet&quot;&gt;GitHub Flavored Markdown feature packet&lt;/h1&gt;
-&lt;p&gt;This paragraph uses &lt;strong&gt;bold&lt;/strong&gt;, &lt;em&gt;italic&lt;/em&gt;, &lt;strong&gt;&lt;em&gt;bold italic&lt;/em&gt;&lt;/strong&gt;, &lt;del&gt;strikethrough&lt;/del&gt;, &lt;code&gt;inline code&lt;/code&gt;, a bare URL &lt;a href=&quot;https://github.com/openai&quot; class=&quot;uri&quot;&gt;https://github.com/openai&lt;/a&gt;, an issue-like reference #42, and a mention-like token @octocat.&lt;/p&gt;
-&lt;h2 id=&quot;alerts&quot;&gt;Alerts&lt;/h2&gt;
+&lt;!-- /wp:group --&gt;</pre></section><section class="conversion-pane" id="markdown-github-rendered-syntax-phpHtml"><div class="pane-head"><span class="pane-title">PHP HTML</span><span class="pane-status status-ok">ok</span></div><iframe class="render-frame" data-sync-group="markdown-github-rendered-syntax" title="Full GitHub syntax packet PHP HTML" src="outputs/markdown-github-rendered-syntax/php.html"></iframe><pre class="source-box" data-sync-group="markdown-github-rendered-syntax">&lt;!doctype html&gt;&lt;html lang=&quot;en&quot;&gt;&lt;head&gt;&lt;meta charset=&quot;utf-8&quot;&gt;&lt;meta name=&quot;viewport&quot; content=&quot;width=device-width, initial-scale=1&quot;&gt;&lt;title&gt;PHP Pandoc HTML output&lt;/title&gt;&lt;style&gt;html{line-height:1.5;font-family:Georgia,&quot;Times New Roman&quot;,serif;font-size:18px;color:#1f2933;background:#fdfdfd;}body{margin:0 auto;max-width:46em;padding:2.5em 1.25em;}h1,h2,h3,h4,h5,h6{font-family:system-ui,-apple-system,BlinkMacSystemFont,&quot;Segoe UI&quot;,sans-serif;line-height:1.25;margin:1.4em 0 .45em;}h1{font-size:2em;}h2{font-size:1.55em;}h3{font-size:1.25em;}p{margin:1em 0;}a{color:#1f6feb;}img,svg,video{max-width:100%;height:auto;}pre,code,kbd,samp{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.9em;}code{background:#eef1f5;padding:.1em .25em;border-radius:3px;}pre{overflow:auto;background:#f6f8fa;border:1px solid #d8dde3;border-radius:6px;padding:1em;}pre code{background:transparent;padding:0;}blockquote{margin:1.25em 0;padding-left:1em;border-left:4px solid #d8dde3;color:#4b5563;}table{border-collapse:collapse;margin:1.25em 0;width:100%;font-size:.92em;}th,td{border:1px solid #d8dde3;padding:.35em .55em;vertical-align:top;}th{background:#f6f8fa;}math{font-family:math,serif;}math[display=&quot;block&quot;]{display:block;margin:1em 0;overflow-x:auto;}&lt;/style&gt;&lt;/head&gt;&lt;body&gt;&lt;h1 id=&quot;github-flavored-markdown-full-syntax-packet&quot;&gt;GitHub Flavored Markdown full syntax packet&lt;/h1&gt;
+&lt;p&gt;This document intentionally exercises the rendered syntax surface of GitHub Flavored Markdown. It includes CommonMark leaf blocks, container blocks, inline syntax, and the GFM extensions for tables, task list items, strikethrough, autolinks, and raw HTML filtering.&lt;/p&gt;
+&lt;h1 id=&quot;setext-heading-level-1&quot;&gt;Setext heading level 1&lt;/h1&gt;
+&lt;h2 id=&quot;setext-heading-level-2&quot;&gt;Setext heading level 2&lt;/h2&gt;
+&lt;h2 id=&quot;paragraphs-breaks-and-escapes&quot;&gt;Paragraphs, breaks, and escapes&lt;/h2&gt;
+&lt;p&gt;Adjacent lines in one paragraph stay in one rendered paragraph unless a blank line separates them. This next line uses a backslash hard break.&lt;br /&gt;
+This line follows the backslash hard break.&lt;/p&gt;
+&lt;p&gt;Backslash escapes render punctuation literally: *not emphasis*, [not a link], # not a heading, and `not code`.&lt;/p&gt;
+&lt;p&gt;Character references render as characters: &amp;amp; &amp;lt; &amp;gt; &amp;quot; # 🚀.&lt;/p&gt;
+&lt;hr /&gt;
+&lt;hr /&gt;
+&lt;hr /&gt;
+&lt;h2 id=&quot;emphasis-strong-emphasis-and-strikethrough&quot;&gt;Emphasis, strong emphasis, and strikethrough&lt;/h2&gt;
+&lt;p&gt;This paragraph uses &lt;em&gt;asterisk emphasis&lt;/em&gt;, &lt;em&gt;underscore emphasis&lt;/em&gt;, &lt;strong&gt;asterisk strong&lt;/strong&gt;, &lt;strong&gt;underscore strong&lt;/strong&gt;, &lt;strong&gt;&lt;em&gt;combined strong emphasis&lt;/em&gt;&lt;/strong&gt;, &lt;strong&gt;&lt;em&gt;combined underscore strong emphasis&lt;/em&gt;&lt;/strong&gt;, and &lt;del&gt;GFM strikethrough&lt;/del&gt;.&lt;/p&gt;
+&lt;p&gt;Intraword underscores should stay literal in snake_case_identifier, while intraword emphasis can still appear as foo&lt;em&gt;bar&lt;/em&gt;baz.&lt;/p&gt;
+&lt;h2 id=&quot;code-spans&quot;&gt;Code spans&lt;/h2&gt;
+&lt;p&gt;Use &lt;code&gt;inline code&lt;/code&gt;, &lt;code&gt;code with ` one backtick&lt;/code&gt;, and &lt;code&gt;spaced code span&lt;/code&gt; inside normal prose.&lt;/p&gt;
+&lt;h2 id=&quot;indented-and-fenced-code-blocks&quot;&gt;Indented and fenced code blocks&lt;/h2&gt;
+&lt;pre&gt;&lt;code&gt;Four leading spaces create an indented code block.
+Markdown syntax like **strong** stays literal here.&lt;/code&gt;&lt;/pre&gt;
+&lt;pre class=&quot;php&quot;&gt;&lt;code&gt;&amp;lt;?php
+function render_packet(array $items): string
+{
+    return implode(&amp;quot;\n&amp;quot;, array_map(&amp;#039;strtoupper&amp;#039;, $items));
+}&lt;/code&gt;&lt;/pre&gt;
+&lt;pre class=&quot;js&quot;&gt;&lt;code&gt;const rows = [&amp;quot;tables&amp;quot;, &amp;quot;tasks&amp;quot;, &amp;quot;autolinks&amp;quot;];
+console.log(rows.map((row) =&amp;gt; row.toUpperCase()).join(&amp;quot;, &amp;quot;));&lt;/code&gt;&lt;/pre&gt;
+&lt;pre&gt;&lt;code&gt;Fence length can contain shorter fences:
+```
+not the end of this block
+```&lt;/code&gt;&lt;/pre&gt;
+&lt;pre class=&quot;mermaid&quot;&gt;&lt;code&gt;flowchart LR
+  markdown_github --&amp;gt; parser
+  parser --&amp;gt; html
+  parser --&amp;gt; wordpress&lt;/code&gt;&lt;/pre&gt;
+&lt;h2 id=&quot;block-quotes&quot;&gt;Block quotes&lt;/h2&gt;
+&lt;blockquote&gt;
+&lt;p&gt;A block quote can contain a paragraph with &lt;strong&gt;inline formatting&lt;/strong&gt;.&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;A list inside a quote&lt;/li&gt;
+&lt;li&gt;A second item with &lt;code&gt;code&lt;/code&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;blockquote&gt;
+&lt;p&gt;Nested quotes should remain nested.&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;/blockquote&gt;
 &lt;div class=&quot;note&quot;&gt;
 &lt;div class=&quot;title&quot;&gt;
 &lt;p&gt;Note&lt;/p&gt;
 &lt;/div&gt;
-&lt;p&gt;GitHub alert syntax should render as a callout-style block, with &lt;strong&gt;inline formatting&lt;/strong&gt; inside.&lt;/p&gt;
+&lt;p&gt;GitHub alert syntax should render as a callout-style block when supported.&lt;/p&gt;
+&lt;/div&gt;
+&lt;div class=&quot;tip&quot;&gt;
+&lt;div class=&quot;title&quot;&gt;
+&lt;p&gt;Tip&lt;/p&gt;
+&lt;/div&gt;
+&lt;p&gt;Alerts can include &lt;a href=&quot;https://docs.github.com/&quot;&gt;links&lt;/a&gt; and &lt;strong&gt;formatting&lt;/strong&gt;.&lt;/p&gt;
+&lt;/div&gt;
+&lt;div class=&quot;important&quot;&gt;
+&lt;div class=&quot;title&quot;&gt;
+&lt;p&gt;Important&lt;/p&gt;
+&lt;/div&gt;
+&lt;p&gt;Important callouts should survive as quoted content even without native alert blocks.&lt;/p&gt;
 &lt;/div&gt;
 &lt;div class=&quot;warning&quot;&gt;
 &lt;div class=&quot;title&quot;&gt;
 &lt;p&gt;Warning&lt;/p&gt;
 &lt;/div&gt;
-&lt;p&gt;Alert bodies can contain links such as &lt;a href=&quot;https://docs.github.com/&quot;&gt;GitHub Docs&lt;/a&gt;.&lt;/p&gt;
+&lt;p&gt;Warning callouts exercise another alert label.&lt;/p&gt;
 &lt;/div&gt;
-&lt;h2 id=&quot;task-lists&quot;&gt;Task lists&lt;/h2&gt;
+&lt;div class=&quot;caution&quot;&gt;
+&lt;div class=&quot;title&quot;&gt;
+&lt;p&gt;Caution&lt;/p&gt;
+&lt;/div&gt;
+&lt;p&gt;Caution callouts complete the GitHub alert set.&lt;/p&gt;
+&lt;/div&gt;
+&lt;h2 id=&quot;lists&quot;&gt;Lists&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;Tight unordered item one&lt;/li&gt;
+&lt;li&gt;Tight unordered item two
+&lt;ul&gt;
+&lt;li&gt;Nested bullet&lt;/li&gt;
+&lt;li&gt;Nested bullet with &lt;strong&gt;strong text&lt;/strong&gt;&lt;/li&gt;
+&lt;/ul&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;ul&gt;
+&lt;li&gt;Asterisk bullet marker&lt;/li&gt;
+&lt;/ul&gt;
+&lt;ul&gt;
+&lt;li&gt;Plus bullet marker&lt;/li&gt;
+&lt;/ul&gt;
+&lt;ul&gt;
+&lt;li&gt;Hyphen bullet marker&lt;/li&gt;
+&lt;/ul&gt;
+&lt;ol type=&quot;1&quot;&gt;
+&lt;li&gt;&lt;p&gt;Ordered item one&lt;/p&gt;&lt;/li&gt;
+&lt;li&gt;&lt;p&gt;Ordered item two&lt;/p&gt;
+&lt;ol type=&quot;1&quot;&gt;
+&lt;li&gt;Nested ordered item&lt;/li&gt;
+&lt;li&gt;Nested ordered item with &lt;code&gt;code&lt;/code&gt;&lt;/li&gt;
+&lt;/ol&gt;&lt;/li&gt;
+&lt;li&gt;&lt;p&gt;Ordered item three&lt;/p&gt;&lt;/li&gt;
+&lt;li&gt;&lt;p&gt;Ordered lists can start at a non-one number.&lt;/p&gt;&lt;/li&gt;
+&lt;li&gt;&lt;p&gt;The next marker should continue the list.&lt;/p&gt;&lt;/li&gt;
+&lt;/ol&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;p&gt;Loose unordered item with a paragraph.&lt;/p&gt;
+&lt;p&gt;Continuation paragraph in the same list item.&lt;/p&gt;&lt;/li&gt;
+&lt;li&gt;&lt;p&gt;Second loose item with a nested quote.&lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;Quote inside a loose list item.&lt;/p&gt;
+&lt;/blockquote&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;ol type=&quot;1&quot;&gt;
+&lt;li&gt;&lt;p&gt;Loose ordered item with a paragraph.&lt;/p&gt;
+&lt;p&gt;Continuation paragraph in the ordered item.&lt;/p&gt;&lt;/li&gt;
+&lt;li&gt;&lt;p&gt;Second loose ordered item.&lt;/p&gt;&lt;/li&gt;
+&lt;/ol&gt;
+&lt;h2 id=&quot;task-list-items&quot;&gt;Task list items&lt;/h2&gt;
 &lt;ul class=&quot;task-list&quot;&gt;
-&lt;li&gt;&lt;label&gt;&lt;input type=&quot;checkbox&quot; checked=&quot;&quot; /&gt;Parse GFM task list syntax&lt;/label&gt;&lt;/li&gt;
+&lt;li&gt;&lt;label&gt;&lt;input type=&quot;checkbox&quot; checked=&quot;&quot; /&gt;Parse checked task list syntax&lt;/label&gt;&lt;/li&gt;
+&lt;li&gt;&lt;label&gt;&lt;input type=&quot;checkbox&quot; checked=&quot;&quot; /&gt;Parse uppercase checked task markers&lt;/label&gt;&lt;/li&gt;
 &lt;li&gt;&lt;label&gt;&lt;input type=&quot;checkbox&quot; /&gt;Preserve unchecked tasks&lt;/label&gt;&lt;/li&gt;
 &lt;li&gt;&lt;label&gt;&lt;input type=&quot;checkbox&quot; checked=&quot;&quot; /&gt;Render nested formatting with &lt;strong&gt;bold and &lt;em&gt;italic&lt;/em&gt; text&lt;/strong&gt;&lt;/label&gt;
 &lt;ul class=&quot;task-list&quot;&gt;
@@ -112073,7 +112482,7 @@ GitHub allows raw HTML islands such as collapsible details.
 &lt;li&gt;&lt;label&gt;&lt;input type=&quot;checkbox&quot; checked=&quot;&quot; /&gt;Nested completed task with &lt;del&gt;old wording&lt;/del&gt;&lt;/label&gt;&lt;/li&gt;
 &lt;/ul&gt;&lt;/li&gt;
 &lt;/ul&gt;
-&lt;h2 id=&quot;table-syntax&quot;&gt;Table syntax&lt;/h2&gt;
+&lt;h2 id=&quot;tables&quot;&gt;Tables&lt;/h2&gt;
 &lt;table&gt;
 &lt;thead&gt;
 &lt;tr&gt;&lt;th style=&quot;text-align:left&quot;&gt;Feature&lt;/th&gt;&lt;th style=&quot;text-align:center&quot;&gt;Rendered example&lt;/th&gt;&lt;th style=&quot;text-align:right&quot;&gt;Alignment&lt;/th&gt;&lt;/tr&gt;
@@ -112085,36 +112494,83 @@ GitHub allows raw HTML islands such as collapsible details.
 &lt;tr&gt;&lt;td style=&quot;text-align:left&quot;&gt;Inline code&lt;/td&gt;&lt;td style=&quot;text-align:center&quot;&gt;&lt;code&gt;git status --short&lt;/code&gt;&lt;/td&gt;&lt;td style=&quot;text-align:right&quot;&gt;code&lt;/td&gt;&lt;/tr&gt;
 &lt;tr&gt;&lt;td style=&quot;text-align:left&quot;&gt;Link&lt;/td&gt;&lt;td style=&quot;text-align:center&quot;&gt;&lt;a href=&quot;https://openai.com/&quot;&gt;OpenAI&lt;/a&gt;&lt;/td&gt;&lt;td style=&quot;text-align:right&quot;&gt;link&lt;/td&gt;&lt;/tr&gt;
 &lt;tr&gt;&lt;td style=&quot;text-align:left&quot;&gt;Escaped pipe&lt;/td&gt;&lt;td style=&quot;text-align:center&quot;&gt;&lt;code&gt;a \| b&lt;/code&gt;&lt;/td&gt;&lt;td style=&quot;text-align:right&quot;&gt;cell&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td style=&quot;text-align:left&quot;&gt;Entity&lt;/td&gt;&lt;td style=&quot;text-align:center&quot;&gt;© 2026&lt;/td&gt;&lt;td style=&quot;text-align:right&quot;&gt;entity&lt;/td&gt;&lt;/tr&gt;
 &lt;/tbody&gt;
 &lt;/table&gt;
-&lt;h2 id=&quot;code-fences&quot;&gt;Code fences&lt;/h2&gt;
-&lt;pre class=&quot;php&quot;&gt;&lt;code&gt;&amp;lt;?php
-function render_packet(array $items): string
-{
-    return implode(&amp;quot;\n&amp;quot;, array_map(&amp;#039;strtoupper&amp;#039;, $items));
-}&lt;/code&gt;&lt;/pre&gt;
-&lt;pre class=&quot;mermaid&quot;&gt;&lt;code&gt;flowchart LR
-  markdown_github --&amp;gt; parser
-  parser --&amp;gt; html
-  parser --&amp;gt; wordpress&lt;/code&gt;&lt;/pre&gt;
-&lt;h2 id=&quot;images-and-html-blocks&quot;&gt;Images and HTML blocks&lt;/h2&gt;
+&lt;table&gt;
+&lt;thead&gt;
+&lt;tr&gt;&lt;th&gt;Short header&lt;/th&gt;&lt;th&gt;Extra body cell&lt;/th&gt;&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;&lt;td&gt;Missing body cell&lt;/td&gt;&lt;td&gt;&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;Body&lt;/td&gt;&lt;td&gt;cells&lt;/td&gt;&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;h2 id=&quot;links&quot;&gt;Links&lt;/h2&gt;
+&lt;p&gt;Inline link: &lt;a href=&quot;https://openai.com/&quot; title=&quot;OpenAI home&quot;&gt;OpenAI&lt;/a&gt;.&lt;/p&gt;
+&lt;p&gt;Reference link: &lt;a href=&quot;https://github.github.com/gfm/&quot; title=&quot;GFM spec&quot;&gt;GitHub Flavored Markdown spec&lt;/a&gt;.&lt;/p&gt;
+&lt;p&gt;Collapsed reference link: &lt;a href=&quot;https://spec.commonmark.org/&quot;&gt;CommonMark&lt;/a&gt;.&lt;/p&gt;
+&lt;p&gt;Shortcut reference link: &lt;a href=&quot;https://docs.github.com/&quot;&gt;GitHub Docs&lt;/a&gt;.&lt;/p&gt;
+&lt;p&gt;Reference labels can be reused with different casing: &lt;a href=&quot;https://github.github.com/gfm/&quot; title=&quot;GFM spec&quot;&gt;gfm&lt;/a&gt;.&lt;/p&gt;
+&lt;p&gt;Autolink URI: &lt;a href=&quot;https://github.github.com/gfm/&quot; class=&quot;uri&quot;&gt;https://github.github.com/gfm/&lt;/a&gt;.&lt;/p&gt;
+&lt;p&gt;Autolink email: &lt;a href=&quot;mailto:support@github.com&quot; class=&quot;email&quot;&gt;support@github.com&lt;/a&gt;.&lt;/p&gt;
+&lt;p&gt;Bare GFM autolinks: &lt;a href=&quot;https://github.com/openai&quot; class=&quot;uri&quot;&gt;https://github.com/openai&lt;/a&gt;, &lt;a href=&quot;http://example.com/a_(b)&quot; class=&quot;uri&quot;&gt;http://example.com/a_(b)&lt;/a&gt;, &lt;a href=&quot;http://www.github.com&quot; class=&quot;uri&quot;&gt;www.github.com&lt;/a&gt;, and &lt;a href=&quot;mailto:user@example.com&quot; class=&quot;email&quot;&gt;user@example.com&lt;/a&gt;.&lt;/p&gt;
+&lt;p&gt;Issue-like and mention-like tokens should remain visible: #42, GH-123, @octocat, and @github/docs.&lt;/p&gt;
+&lt;h2 id=&quot;images&quot;&gt;Images&lt;/h2&gt;
+&lt;p&gt;Inline image:&lt;/p&gt;
 &lt;p&gt;&lt;img src=&quot;https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png&quot; title=&quot;GitHub mark&quot; alt=&quot;GitHub mark&quot; /&gt;&lt;/p&gt;
+&lt;p&gt;Reference image:&lt;/p&gt;
+&lt;p&gt;&lt;img src=&quot;https://github.githubassets.com/images/icons/emoji/octocat.png&quot; title=&quot;Octocat&quot; alt=&quot;Octocat logo&quot; /&gt;&lt;/p&gt;
+&lt;h2 id=&quot;raw-html-blocks-and-inline-html&quot;&gt;Raw HTML blocks and inline HTML&lt;/h2&gt;
 &lt;details&gt;
 &lt;summary&gt;Rendered details block&lt;/summary&gt;
-
-GitHub allows raw HTML islands such as collapsible details.
-
+&lt;p&gt;GitHub allows raw HTML islands such as collapsible details, and Markdown inside the block should remain inspectable.&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;HTML block list item&lt;/li&gt;
+&lt;li&gt;Another item with &lt;strong&gt;formatting&lt;/strong&gt;&lt;/li&gt;
+&lt;/ul&gt;
 &lt;/details&gt;
-&lt;h2 id=&quot;autolinks-and-references&quot;&gt;Autolinks and references&lt;/h2&gt;
-&lt;p&gt;See &lt;a href=&quot;https://github.github.com/gfm/&quot; class=&quot;uri&quot;&gt;https://github.github.com/gfm/&lt;/a&gt;, &lt;a href=&quot;mailto:support@github.com&quot; class=&quot;email&quot;&gt;support@github.com&lt;/a&gt;, and &lt;a href=&quot;https://spec.commonmark.org/&quot;&gt;the CommonMark spec&lt;/a&gt;.&lt;/p&gt;
+&lt;table&gt;
+&lt;colgroup&gt;&lt;col style=&quot;width: 50%&quot; /&gt;&lt;col style=&quot;width: 50%&quot; /&gt;&lt;/colgroup&gt;
+&lt;thead&gt;
+&lt;tr&gt;&lt;th&gt;HTML table head&lt;/th&gt;&lt;th&gt;Value&lt;/th&gt;&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;&lt;td&gt;Inline HTML &lt;strong&gt;strong&lt;/strong&gt;&lt;/td&gt;&lt;td&gt;42&lt;/td&gt;&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;p&gt;Inline HTML appears in prose: &lt;kbd&gt;Ctrl&lt;/kbd&gt; + &lt;kbd&gt;K&lt;/kbd&gt;, &lt;sub&gt;subscript&lt;/sub&gt;, &lt;sup&gt;superscript&lt;/sup&gt;, and &lt;span data-kind=&quot;sample&quot;&gt;span text&lt;/span&gt;.&lt;/p&gt;
+&lt;p&gt;Disallowed raw HTML tags should be escaped or filtered by a GFM-safe renderer:&lt;/p&gt;
+&lt;script type=&quot;text/plain&quot;&gt;alert(&quot;blocked&quot;)&lt;/script&gt;
+&lt;style media=&quot;not all&quot;&gt;body { color: red; }&lt;/style&gt;
+&lt;iframe src=&quot;about:blank&quot; title=&quot;blocked iframe&quot;&gt;&lt;/iframe&gt;
+&lt;p&gt;&lt;noembed&gt;blocked noembed&lt;/noembed&gt;&lt;/p&gt;
+&lt;noframes&gt;blocked noframes&lt;/noframes&gt;
+&lt;textarea&gt;blocked textarea&lt;/textarea&gt;
+&lt;h2 id=&quot;footnotes-emoji-math-and-diagrams-used-on-github&quot;&gt;Footnotes, emoji, math, and diagrams used on GitHub&lt;/h2&gt;
 &lt;p&gt;Footnotes should stay connected to their references.&lt;a href=&quot;#fn1&quot; class=&quot;footnote-ref&quot; id=&quot;fnref1&quot; role=&quot;doc-noteref&quot;&gt;&lt;sup&gt;1&lt;/sup&gt;&lt;/a&gt;&lt;/p&gt;
-&lt;p&gt;Emoji shortcodes such as &lt;span class=&quot;emoji&quot; data-emoji=&quot;rocket&quot;&gt;🚀&lt;/span&gt; and &lt;span class=&quot;emoji&quot; data-emoji=&quot;heart&quot;&gt;❤️&lt;/span&gt; should remain visible for GitHub-style rendering.&lt;/p&gt;
+&lt;p&gt;Emoji shortcodes such as &lt;span class=&quot;emoji&quot; data-emoji=&quot;rocket&quot;&gt;🚀&lt;/span&gt;, &lt;span class=&quot;emoji&quot; data-emoji=&quot;heart&quot;&gt;❤️&lt;/span&gt;, &lt;span class=&quot;emoji&quot; data-emoji=&quot;+1&quot;&gt;👍&lt;/span&gt;, and :octocat: should remain visible for GitHub-style rendering.&lt;/p&gt;
+&lt;p&gt;Inline math uses dollar delimiters when enabled: &lt;math xmlns=&quot;http://www.w3.org/1998/Math/MathML&quot; display=&quot;inline&quot;&gt;&lt;semantics&gt;&lt;mrow&gt;&lt;mi&gt;E&lt;/mi&gt;&lt;mo&gt;=&lt;/mo&gt;&lt;mi&gt;m&lt;/mi&gt;&lt;msup&gt;&lt;mi&gt;c&lt;/mi&gt;&lt;mn&gt;2&lt;/mn&gt;&lt;/msup&gt;&lt;/mrow&gt;&lt;annotation encoding=&quot;application/x-tex&quot;&gt;E = mc^2&lt;/annotation&gt;&lt;/semantics&gt;&lt;/math&gt;.&lt;/p&gt;
+&lt;p&gt;Block math:&lt;/p&gt;
+&lt;p&gt;&lt;math xmlns=&quot;http://www.w3.org/1998/Math/MathML&quot; display=&quot;block&quot;&gt;&lt;semantics&gt;&lt;mrow&gt;&lt;msubsup&gt;&lt;mo&gt;∫&lt;/mo&gt;&lt;mn&gt;0&lt;/mn&gt;&lt;mn&gt;1&lt;/mn&gt;&lt;/msubsup&gt;&lt;msup&gt;&lt;mi&gt;x&lt;/mi&gt;&lt;mn&gt;2&lt;/mn&gt;&lt;/msup&gt;&lt;mspace width=&quot;0.1667em&quot;&gt;&lt;/mspace&gt;&lt;mi&gt;d&lt;/mi&gt;&lt;mi&gt;x&lt;/mi&gt;&lt;mo&gt;=&lt;/mo&gt;&lt;mfrac&gt;&lt;mn&gt;1&lt;/mn&gt;&lt;mn&gt;3&lt;/mn&gt;&lt;/mfrac&gt;&lt;/mrow&gt;&lt;annotation encoding=&quot;application/x-tex&quot;&gt;\int_0^1 x^2\,dx = \frac{1}{3}&lt;/annotation&gt;&lt;/semantics&gt;&lt;/math&gt;&lt;/p&gt;
+&lt;pre class=&quot;geojson&quot;&gt;&lt;code&gt;{
+  &amp;quot;type&amp;quot;: &amp;quot;Point&amp;quot;,
+  &amp;quot;coordinates&amp;quot;: [-122.4194, 37.7749]
+}&lt;/code&gt;&lt;/pre&gt;
+&lt;pre class=&quot;topojson&quot;&gt;&lt;code&gt;{
+  &amp;quot;type&amp;quot;: &amp;quot;Topology&amp;quot;,
+  &amp;quot;objects&amp;quot;: {},
+  &amp;quot;arcs&amp;quot;: []
+}&lt;/code&gt;&lt;/pre&gt;
+&lt;pre class=&quot;stl&quot;&gt;&lt;code&gt;solid cube
+endsolid cube&lt;/code&gt;&lt;/pre&gt;
 &lt;div class=&quot;footnotes footnotes-end-of-document&quot;&gt;
 &lt;hr /&gt;
 &lt;ol&gt;
-&lt;li id=&quot;fn1&quot;&gt;&lt;p&gt;Footnote bodies can include &lt;strong&gt;formatting&lt;/strong&gt;, links, and &lt;code&gt;code&lt;/code&gt;.&lt;a href=&quot;#fnref1&quot; class=&quot;footnote-back&quot; role=&quot;doc-backlink&quot;&gt;↩︎&lt;/a&gt;&lt;/p&gt;&lt;/li&gt;
+&lt;li id=&quot;fn1&quot;&gt;&lt;p&gt;Footnote bodies can include &lt;strong&gt;formatting&lt;/strong&gt;, links, &lt;code&gt;code&lt;/code&gt;, and lists.&lt;/p&gt;
+&lt;p&gt;This indented line remains part of the footnote.&lt;a href=&quot;#fnref1&quot; class=&quot;footnote-back&quot; role=&quot;doc-backlink&quot;&gt;↩︎&lt;/a&gt;&lt;/p&gt;&lt;/li&gt;
 &lt;/ol&gt;
-&lt;/div&gt;&lt;/body&gt;&lt;/html&gt;</pre></section><section class="conversion-pane" id="markdown-github-rendered-syntax-haskell"><div class="pane-head"><span class="pane-title">Haskell HTML</span><span class="pane-status status-ok">ok</span></div><iframe class="render-frame" data-sync-group="markdown-github-rendered-syntax" title="Rendered GitHub syntax packet Haskell Pandoc HTML" src="outputs/markdown-github-rendered-syntax/haskell.html"></iframe><pre class="source-box" data-sync-group="markdown-github-rendered-syntax">&lt;!DOCTYPE html&gt;
+&lt;/div&gt;&lt;/body&gt;&lt;/html&gt;</pre></section><section class="conversion-pane" id="markdown-github-rendered-syntax-haskell"><div class="pane-head"><span class="pane-title">Haskell HTML</span><span class="pane-status status-ok">ok</span></div><iframe class="render-frame" data-sync-group="markdown-github-rendered-syntax" title="Full GitHub syntax packet Haskell Pandoc HTML" src="outputs/markdown-github-rendered-syntax/haskell.html"></iframe><pre class="source-box" data-sync-group="markdown-github-rendered-syntax">&lt;!DOCTYPE html&gt;
 &lt;html xmlns=&quot;http://www.w3.org/1999/xhtml&quot;&gt;
 &lt;head&gt;
   &lt;meta charset=&quot;utf-8&quot; /&gt;
@@ -112360,32 +112816,145 @@ GitHub allows raw HTML islands such as collapsible details.
 &lt;header id=&quot;title-block-header&quot;&gt;
 &lt;h1 class=&quot;title&quot;&gt;Haskell Pandoc output&lt;/h1&gt;
 &lt;/header&gt;
-&lt;h1 id=&quot;github-flavored-markdown-feature-packet&quot;&gt;GitHub Flavored
-Markdown feature packet&lt;/h1&gt;
-&lt;p&gt;This paragraph uses &lt;strong&gt;bold&lt;/strong&gt;, &lt;em&gt;italic&lt;/em&gt;,
-&lt;strong&gt;&lt;em&gt;bold italic&lt;/em&gt;&lt;/strong&gt;, &lt;del&gt;strikethrough&lt;/del&gt;,
-&lt;code&gt;inline code&lt;/code&gt;, a bare URL &lt;a href=&quot;https://github.com/openai&quot;
-class=&quot;uri&quot;&gt;https://github.com/openai&lt;/a&gt;, an issue-like reference #42,
-and a mention-like token @octocat.&lt;/p&gt;
-&lt;h2 id=&quot;alerts&quot;&gt;Alerts&lt;/h2&gt;
+&lt;h1 id=&quot;github-flavored-markdown-full-syntax-packet&quot;&gt;GitHub Flavored
+Markdown full syntax packet&lt;/h1&gt;
+&lt;p&gt;This document intentionally exercises the rendered syntax surface of
+GitHub Flavored Markdown. It includes CommonMark leaf blocks, container
+blocks, inline syntax, and the GFM extensions for tables, task list
+items, strikethrough, autolinks, and raw HTML filtering.&lt;/p&gt;
+&lt;h1 id=&quot;setext-heading-level-1&quot;&gt;Setext heading level 1&lt;/h1&gt;
+&lt;h2 id=&quot;setext-heading-level-2&quot;&gt;Setext heading level 2&lt;/h2&gt;
+&lt;h2 id=&quot;paragraphs-breaks-and-escapes&quot;&gt;Paragraphs, breaks, and
+escapes&lt;/h2&gt;
+&lt;p&gt;Adjacent lines in one paragraph stay in one rendered paragraph unless
+a blank line separates them. This next line uses a backslash hard
+break.\ This line follows the backslash hard break.&lt;/p&gt;
+&lt;p&gt;Backslash escapes render punctuation literally: *not emphasis*, [not
+a link], # not a heading, and `not code`.&lt;/p&gt;
+&lt;p&gt;Character references render as characters: &amp;amp; &amp;lt; &amp;gt; &quot; #
+🚀.&lt;/p&gt;
+&lt;hr /&gt;
+&lt;hr /&gt;
+&lt;hr /&gt;
+&lt;h2 id=&quot;emphasis-strong-emphasis-and-strikethrough&quot;&gt;Emphasis, strong
+emphasis, and strikethrough&lt;/h2&gt;
+&lt;p&gt;This paragraph uses &lt;em&gt;asterisk emphasis&lt;/em&gt;, &lt;em&gt;underscore
+emphasis&lt;/em&gt;, &lt;strong&gt;asterisk strong&lt;/strong&gt;, &lt;strong&gt;underscore
+strong&lt;/strong&gt;, &lt;strong&gt;&lt;em&gt;combined strong emphasis&lt;/em&gt;&lt;/strong&gt;,
+&lt;strong&gt;&lt;em&gt;combined underscore strong emphasis&lt;/em&gt;&lt;/strong&gt;, and
+&lt;del&gt;GFM strikethrough&lt;/del&gt;.&lt;/p&gt;
+&lt;p&gt;Intraword underscores should stay literal in snake_case_identifier,
+while intraword emphasis can still appear as foo&lt;em&gt;bar&lt;/em&gt;baz.&lt;/p&gt;
+&lt;h2 id=&quot;code-spans&quot;&gt;Code spans&lt;/h2&gt;
+&lt;p&gt;Use &lt;code&gt;inline code&lt;/code&gt;, &lt;code&gt;code with ` one backtick&lt;/code&gt;,
+and &lt;code&gt;spaced code span&lt;/code&gt; inside normal prose.&lt;/p&gt;
+&lt;h2 id=&quot;indented-and-fenced-code-blocks&quot;&gt;Indented and fenced code
+blocks&lt;/h2&gt;
+&lt;pre&gt;&lt;code&gt;Four leading spaces create an indented code block.
+Markdown syntax like **strong** stays literal here.&lt;/code&gt;&lt;/pre&gt;
+&lt;div class=&quot;sourceCode&quot; id=&quot;cb2&quot;&gt;&lt;pre
+class=&quot;sourceCode php&quot;&gt;&lt;code class=&quot;sourceCode php&quot;&gt;&lt;span id=&quot;cb2-1&quot;&gt;&lt;a href=&quot;#cb2-1&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;&lt;span class=&quot;kw&quot;&gt;&amp;lt;?php&lt;/span&gt;&lt;/span&gt;
+&lt;span id=&quot;cb2-2&quot;&gt;&lt;a href=&quot;#cb2-2&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;&lt;span class=&quot;kw&quot;&gt;function&lt;/span&gt; render_packet(&lt;span class=&quot;dt&quot;&gt;array&lt;/span&gt; &lt;span class=&quot;va&quot;&gt;$items&lt;/span&gt;)&lt;span class=&quot;ot&quot;&gt;:&lt;/span&gt; &lt;span class=&quot;dt&quot;&gt;string&lt;/span&gt;&lt;/span&gt;
+&lt;span id=&quot;cb2-3&quot;&gt;&lt;a href=&quot;#cb2-3&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;{&lt;/span&gt;
+&lt;span id=&quot;cb2-4&quot;&gt;&lt;a href=&quot;#cb2-4&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;    &lt;span class=&quot;cf&quot;&gt;return&lt;/span&gt; &lt;span class=&quot;fu&quot;&gt;implode&lt;/span&gt;(&lt;span class=&quot;st&quot;&gt;&amp;quot;&lt;/span&gt;&lt;span class=&quot;sc&quot;&gt;\n&lt;/span&gt;&lt;span class=&quot;st&quot;&gt;&amp;quot;&lt;/span&gt;&lt;span class=&quot;ot&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;fu&quot;&gt;array_map&lt;/span&gt;(&lt;span class=&quot;st&quot;&gt;&amp;#39;strtoupper&amp;#39;&lt;/span&gt;&lt;span class=&quot;ot&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;va&quot;&gt;$items&lt;/span&gt;))&lt;span class=&quot;ot&quot;&gt;;&lt;/span&gt;&lt;/span&gt;
+&lt;span id=&quot;cb2-5&quot;&gt;&lt;a href=&quot;#cb2-5&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;}&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+&lt;div class=&quot;sourceCode&quot; id=&quot;cb3&quot;&gt;&lt;pre class=&quot;sourceCode js&quot;&gt;&lt;code class=&quot;sourceCode javascript&quot;&gt;&lt;span id=&quot;cb3-1&quot;&gt;&lt;a href=&quot;#cb3-1&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;&lt;span class=&quot;kw&quot;&gt;const&lt;/span&gt; rows &lt;span class=&quot;op&quot;&gt;=&lt;/span&gt; [&lt;span class=&quot;st&quot;&gt;&amp;quot;tables&amp;quot;&lt;/span&gt;&lt;span class=&quot;op&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;st&quot;&gt;&amp;quot;tasks&amp;quot;&lt;/span&gt;&lt;span class=&quot;op&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;st&quot;&gt;&amp;quot;autolinks&amp;quot;&lt;/span&gt;]&lt;span class=&quot;op&quot;&gt;;&lt;/span&gt;&lt;/span&gt;
+&lt;span id=&quot;cb3-2&quot;&gt;&lt;a href=&quot;#cb3-2&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;&lt;span class=&quot;bu&quot;&gt;console&lt;/span&gt;&lt;span class=&quot;op&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;fu&quot;&gt;log&lt;/span&gt;(rows&lt;span class=&quot;op&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;fu&quot;&gt;map&lt;/span&gt;((row) &lt;span class=&quot;kw&quot;&gt;=&amp;gt;&lt;/span&gt; row&lt;span class=&quot;op&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;fu&quot;&gt;toUpperCase&lt;/span&gt;())&lt;span class=&quot;op&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;fu&quot;&gt;join&lt;/span&gt;(&lt;span class=&quot;st&quot;&gt;&amp;quot;, &amp;quot;&lt;/span&gt;))&lt;span class=&quot;op&quot;&gt;;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+&lt;pre&gt;&lt;code&gt;Fence length can contain shorter fences:
+```
+not the end of this block
+```&lt;/code&gt;&lt;/pre&gt;
+&lt;pre class=&quot;mermaid&quot;&gt;&lt;code&gt;flowchart LR
+  markdown_github --&amp;gt; parser
+  parser --&amp;gt; html
+  parser --&amp;gt; wordpress&lt;/code&gt;&lt;/pre&gt;
+&lt;h2 id=&quot;block-quotes&quot;&gt;Block quotes&lt;/h2&gt;
+&lt;blockquote&gt;
+&lt;p&gt;A block quote can contain a paragraph with &lt;strong&gt;inline
+formatting&lt;/strong&gt;.&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;A list inside a quote&lt;/li&gt;
+&lt;li&gt;A second item with &lt;code&gt;code&lt;/code&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;blockquote&gt;
+&lt;p&gt;Nested quotes should remain nested.&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;/blockquote&gt;
 &lt;div class=&quot;note&quot;&gt;
 &lt;div class=&quot;title&quot;&gt;
 &lt;p&gt;Note&lt;/p&gt;
 &lt;/div&gt;
-&lt;p&gt;GitHub alert syntax should render as a callout-style block, with
-&lt;strong&gt;inline formatting&lt;/strong&gt; inside.&lt;/p&gt;
+&lt;p&gt;GitHub alert syntax should render as a callout-style block when
+supported.&lt;/p&gt;
+&lt;/div&gt;
+&lt;div class=&quot;tip&quot;&gt;
+&lt;div class=&quot;title&quot;&gt;
+&lt;p&gt;Tip&lt;/p&gt;
+&lt;/div&gt;
+&lt;p&gt;Alerts can include &lt;a href=&quot;https://docs.github.com/&quot;&gt;links&lt;/a&gt; and
+&lt;strong&gt;formatting&lt;/strong&gt;.&lt;/p&gt;
+&lt;/div&gt;
+&lt;div class=&quot;important&quot;&gt;
+&lt;div class=&quot;title&quot;&gt;
+&lt;p&gt;Important&lt;/p&gt;
+&lt;/div&gt;
+&lt;p&gt;Important callouts should survive as quoted content even without
+native alert blocks.&lt;/p&gt;
 &lt;/div&gt;
 &lt;div class=&quot;warning&quot;&gt;
 &lt;div class=&quot;title&quot;&gt;
 &lt;p&gt;Warning&lt;/p&gt;
 &lt;/div&gt;
-&lt;p&gt;Alert bodies can contain links such as &lt;a
-href=&quot;https://docs.github.com/&quot;&gt;GitHub Docs&lt;/a&gt;.&lt;/p&gt;
+&lt;p&gt;Warning callouts exercise another alert label.&lt;/p&gt;
 &lt;/div&gt;
-&lt;h2 id=&quot;task-lists&quot;&gt;Task lists&lt;/h2&gt;
+&lt;div class=&quot;caution&quot;&gt;
+&lt;div class=&quot;title&quot;&gt;
+&lt;p&gt;Caution&lt;/p&gt;
+&lt;/div&gt;
+&lt;p&gt;Caution callouts complete the GitHub alert set.&lt;/p&gt;
+&lt;/div&gt;
+&lt;h2 id=&quot;lists&quot;&gt;Lists&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;Tight unordered item one&lt;/li&gt;
+&lt;li&gt;Tight unordered item two
+&lt;ul&gt;
+&lt;li&gt;Nested bullet&lt;/li&gt;
+&lt;li&gt;Nested bullet with &lt;strong&gt;strong text&lt;/strong&gt;&lt;/li&gt;
+&lt;/ul&gt;&lt;/li&gt;
+&lt;li&gt;Asterisk bullet marker&lt;/li&gt;
+&lt;li&gt;Plus bullet marker&lt;/li&gt;
+&lt;li&gt;Hyphen bullet marker&lt;/li&gt;
+&lt;/ul&gt;
+&lt;ol&gt;
+&lt;li&gt;&lt;p&gt;Ordered item one&lt;/p&gt;&lt;/li&gt;
+&lt;li&gt;&lt;p&gt;Ordered item two&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;Nested ordered item&lt;/li&gt;
+&lt;li&gt;Nested ordered item with &lt;code&gt;code&lt;/code&gt;&lt;/li&gt;
+&lt;/ol&gt;&lt;/li&gt;
+&lt;li&gt;&lt;p&gt;Ordered item three&lt;/p&gt;&lt;/li&gt;
+&lt;li&gt;&lt;p&gt;Ordered lists can start at a non-one number.&lt;/p&gt;&lt;/li&gt;
+&lt;li&gt;&lt;p&gt;The next marker should continue the list.&lt;/p&gt;&lt;/li&gt;
+&lt;/ol&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;p&gt;Loose unordered item with a paragraph.&lt;/p&gt;
+&lt;p&gt;Continuation paragraph in the same list item.&lt;/p&gt;&lt;/li&gt;
+&lt;li&gt;&lt;p&gt;Second loose item with a nested quote.&lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;Quote inside a loose list item.&lt;/p&gt;
+&lt;/blockquote&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;ol&gt;
+&lt;li&gt;&lt;p&gt;Loose ordered item with a paragraph.&lt;/p&gt;
+&lt;p&gt;Continuation paragraph in the ordered item.&lt;/p&gt;&lt;/li&gt;
+&lt;li&gt;&lt;p&gt;Second loose ordered item.&lt;/p&gt;&lt;/li&gt;
+&lt;/ol&gt;
+&lt;h2 id=&quot;task-list-items&quot;&gt;Task list items&lt;/h2&gt;
 &lt;ul class=&quot;task-list&quot;&gt;
-&lt;li&gt;&lt;label&gt;&lt;input type=&quot;checkbox&quot; checked=&quot;&quot; /&gt;Parse GFM task list
+&lt;li&gt;&lt;label&gt;&lt;input type=&quot;checkbox&quot; checked=&quot;&quot; /&gt;Parse checked task list
 syntax&lt;/label&gt;&lt;/li&gt;
+&lt;li&gt;&lt;label&gt;&lt;input type=&quot;checkbox&quot; checked=&quot;&quot; /&gt;Parse uppercase checked
+task markers&lt;/label&gt;&lt;/li&gt;
 &lt;li&gt;&lt;label&gt;&lt;input type=&quot;checkbox&quot; /&gt;Preserve unchecked
 tasks&lt;/label&gt;&lt;/li&gt;
 &lt;li&gt;&lt;label&gt;&lt;input type=&quot;checkbox&quot; checked=&quot;&quot; /&gt;Render nested formatting
@@ -112397,7 +112966,7 @@ with &lt;strong&gt;bold and &lt;em&gt;italic&lt;/em&gt; text&lt;/strong&gt;&lt;/
 with &lt;del&gt;old wording&lt;/del&gt;&lt;/label&gt;&lt;/li&gt;
 &lt;/ul&gt;&lt;/li&gt;
 &lt;/ul&gt;
-&lt;h2 id=&quot;table-syntax&quot;&gt;Table syntax&lt;/h2&gt;
+&lt;h2 id=&quot;tables&quot;&gt;Tables&lt;/h2&gt;
 &lt;table&gt;
 &lt;thead&gt;
 &lt;tr&gt;
@@ -112438,47 +113007,121 @@ href=&quot;https://openai.com/&quot;&gt;OpenAI&lt;/a&gt;&lt;/td&gt;
 &lt;td style=&quot;text-align: center;&quot;&gt;&lt;code&gt;a \| b&lt;/code&gt;&lt;/td&gt;
 &lt;td style=&quot;text-align: right;&quot;&gt;cell&lt;/td&gt;
 &lt;/tr&gt;
+&lt;tr&gt;
+&lt;td style=&quot;text-align: left;&quot;&gt;Entity&lt;/td&gt;
+&lt;td style=&quot;text-align: center;&quot;&gt;© 2026&lt;/td&gt;
+&lt;td style=&quot;text-align: right;&quot;&gt;entity&lt;/td&gt;
+&lt;/tr&gt;
 &lt;/tbody&gt;
 &lt;/table&gt;
-&lt;h2 id=&quot;code-fences&quot;&gt;Code fences&lt;/h2&gt;
-&lt;div class=&quot;sourceCode&quot; id=&quot;cb1&quot;&gt;&lt;pre
-class=&quot;sourceCode php&quot;&gt;&lt;code class=&quot;sourceCode php&quot;&gt;&lt;span id=&quot;cb1-1&quot;&gt;&lt;a href=&quot;#cb1-1&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;&lt;span class=&quot;kw&quot;&gt;&amp;lt;?php&lt;/span&gt;&lt;/span&gt;
-&lt;span id=&quot;cb1-2&quot;&gt;&lt;a href=&quot;#cb1-2&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;&lt;span class=&quot;kw&quot;&gt;function&lt;/span&gt; render_packet(&lt;span class=&quot;dt&quot;&gt;array&lt;/span&gt; &lt;span class=&quot;va&quot;&gt;$items&lt;/span&gt;)&lt;span class=&quot;ot&quot;&gt;:&lt;/span&gt; &lt;span class=&quot;dt&quot;&gt;string&lt;/span&gt;&lt;/span&gt;
-&lt;span id=&quot;cb1-3&quot;&gt;&lt;a href=&quot;#cb1-3&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;{&lt;/span&gt;
-&lt;span id=&quot;cb1-4&quot;&gt;&lt;a href=&quot;#cb1-4&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;    &lt;span class=&quot;cf&quot;&gt;return&lt;/span&gt; &lt;span class=&quot;fu&quot;&gt;implode&lt;/span&gt;(&lt;span class=&quot;st&quot;&gt;&amp;quot;&lt;/span&gt;&lt;span class=&quot;sc&quot;&gt;\n&lt;/span&gt;&lt;span class=&quot;st&quot;&gt;&amp;quot;&lt;/span&gt;&lt;span class=&quot;ot&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;fu&quot;&gt;array_map&lt;/span&gt;(&lt;span class=&quot;st&quot;&gt;&amp;#39;strtoupper&amp;#39;&lt;/span&gt;&lt;span class=&quot;ot&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;va&quot;&gt;$items&lt;/span&gt;))&lt;span class=&quot;ot&quot;&gt;;&lt;/span&gt;&lt;/span&gt;
-&lt;span id=&quot;cb1-5&quot;&gt;&lt;a href=&quot;#cb1-5&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;}&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
-&lt;pre class=&quot;mermaid&quot;&gt;&lt;code&gt;flowchart LR
-  markdown_github --&amp;gt; parser
-  parser --&amp;gt; html
-  parser --&amp;gt; wordpress&lt;/code&gt;&lt;/pre&gt;
-&lt;h2 id=&quot;images-and-html-blocks&quot;&gt;Images and HTML blocks&lt;/h2&gt;
+&lt;table&gt;
+&lt;thead&gt;
+&lt;tr&gt;
+&lt;th&gt;Short header&lt;/th&gt;
+&lt;th&gt;Extra body cell&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td&gt;Missing body cell&lt;/td&gt;
+&lt;td&gt;&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;Body&lt;/td&gt;
+&lt;td&gt;cells&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;h2 id=&quot;links&quot;&gt;Links&lt;/h2&gt;
+&lt;p&gt;Inline link: &lt;a href=&quot;https://openai.com/&quot;
+title=&quot;OpenAI home&quot;&gt;OpenAI&lt;/a&gt;.&lt;/p&gt;
+&lt;p&gt;Reference link: &lt;a href=&quot;https://github.github.com/gfm/&quot;
+title=&quot;GFM spec&quot;&gt;GitHub Flavored Markdown spec&lt;/a&gt;.&lt;/p&gt;
+&lt;p&gt;Collapsed reference link: &lt;a
+href=&quot;https://spec.commonmark.org/&quot;&gt;CommonMark&lt;/a&gt;.&lt;/p&gt;
+&lt;p&gt;Shortcut reference link: &lt;a href=&quot;https://docs.github.com/&quot;&gt;GitHub
+Docs&lt;/a&gt;.&lt;/p&gt;
+&lt;p&gt;Reference labels can be reused with different casing: &lt;a
+href=&quot;https://github.github.com/gfm/&quot; title=&quot;GFM spec&quot;&gt;gfm&lt;/a&gt;.&lt;/p&gt;
+&lt;p&gt;Autolink URI: &lt;a href=&quot;https://github.github.com/gfm/&quot;
+class=&quot;uri&quot;&gt;https://github.github.com/gfm/&lt;/a&gt;.&lt;/p&gt;
+&lt;p&gt;Autolink email: &lt;a href=&quot;mailto:support@github.com&quot;
+class=&quot;email&quot;&gt;support@github.com&lt;/a&gt;.&lt;/p&gt;
+&lt;p&gt;Bare GFM autolinks: &lt;a href=&quot;https://github.com/openai&quot;
+class=&quot;uri&quot;&gt;https://github.com/openai&lt;/a&gt;, &lt;a
+href=&quot;http://example.com/a_(b)&quot;
+class=&quot;uri&quot;&gt;http://example.com/a_(b)&lt;/a&gt;, www.github.com, and &lt;a
+href=&quot;mailto:user@example.com&quot; class=&quot;email&quot;&gt;user@example.com&lt;/a&gt;.&lt;/p&gt;
+&lt;p&gt;Issue-like and mention-like tokens should remain visible: #42,
+GH-123, @octocat, and @github/docs.&lt;/p&gt;
+&lt;h2 id=&quot;images&quot;&gt;Images&lt;/h2&gt;
+&lt;p&gt;Inline image:&lt;/p&gt;
 &lt;p&gt;&lt;img
 src=&quot;https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png&quot;
 title=&quot;GitHub mark&quot; alt=&quot;GitHub mark&quot; /&gt;&lt;/p&gt;
+&lt;p&gt;Reference image:&lt;/p&gt;
+&lt;p&gt;&lt;img
+src=&quot;https://github.githubassets.com/images/icons/emoji/octocat.png&quot;
+title=&quot;Octocat&quot; alt=&quot;Octocat logo&quot; /&gt;&lt;/p&gt;
+&lt;h2 id=&quot;raw-html-blocks-and-inline-html&quot;&gt;Raw HTML blocks and inline
+HTML&lt;/h2&gt;
 &lt;details&gt;
 &lt;summary&gt;Rendered details block&lt;/summary&gt;
 
-GitHub allows raw HTML islands such as collapsible details.
+GitHub allows raw HTML islands such as collapsible details, and Markdown inside the block should remain inspectable.
+
+- HTML block list item
+- Another item with **formatting**
 
 &lt;/details&gt;
-&lt;h2 id=&quot;autolinks-and-references&quot;&gt;Autolinks and references&lt;/h2&gt;
-&lt;p&gt;See &lt;a href=&quot;https://github.github.com/gfm/&quot;
-class=&quot;uri&quot;&gt;https://github.github.com/gfm/&lt;/a&gt;, &lt;a
-href=&quot;mailto:support@github.com&quot; class=&quot;email&quot;&gt;support@github.com&lt;/a&gt;,
-and &lt;a href=&quot;https://spec.commonmark.org/&quot;&gt;the CommonMark spec&lt;/a&gt;.&lt;/p&gt;
+&lt;table&gt;
+&lt;tr&gt;&lt;th&gt;HTML table head&lt;/th&gt;&lt;th&gt;Value&lt;/th&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;Inline HTML &lt;strong&gt;strong&lt;/strong&gt;&lt;/td&gt;&lt;td&gt;42&lt;/td&gt;&lt;/tr&gt;
+&lt;/table&gt;
+&lt;p&gt;Inline HTML appears in prose: &lt;kbd&gt;Ctrl&lt;/kbd&gt; + &lt;kbd&gt;K&lt;/kbd&gt;,
+&lt;sub&gt;subscript&lt;/sub&gt;, &lt;sup&gt;superscript&lt;/sup&gt;, and
+&lt;span data-kind=&quot;sample&quot;&gt;span text&lt;/span&gt;.&lt;/p&gt;
+&lt;p&gt;Disallowed raw HTML tags should be escaped or filtered by a GFM-safe
+renderer:&lt;/p&gt;
+&lt;script type=&quot;text/plain&quot;&gt;alert(&quot;blocked&quot;)&lt;/script&gt;
+&lt;style media=&quot;not all&quot;&gt;body { color: red; }&lt;/style&gt;
+&lt;iframe src=&quot;about:blank&quot; title=&quot;blocked iframe&quot;&gt;
+&lt;/iframe&gt;
+&lt;p&gt;&lt;noembed&gt;blocked noembed&lt;/noembed&gt;&lt;/p&gt;
+&lt;noframes&gt;blocked noframes&lt;/noframes&gt;
+&lt;textarea&gt;blocked textarea&lt;/textarea&gt;
+&lt;h2 id=&quot;footnotes-emoji-math-and-diagrams-used-on-github&quot;&gt;Footnotes,
+emoji, math, and diagrams used on GitHub&lt;/h2&gt;
 &lt;p&gt;Footnotes should stay connected to their references.&lt;a href=&quot;#fn1&quot;
 class=&quot;footnote-ref&quot; id=&quot;fnref1&quot; role=&quot;doc-noteref&quot;&gt;&lt;sup&gt;1&lt;/sup&gt;&lt;/a&gt;&lt;/p&gt;
 &lt;p&gt;Emoji shortcodes such as &lt;span class=&quot;emoji&quot;
-data-emoji=&quot;rocket&quot;&gt;🚀&lt;/span&gt; and &lt;span class=&quot;emoji&quot;
-data-emoji=&quot;heart&quot;&gt;❤️&lt;/span&gt; should remain visible for GitHub-style
-rendering.&lt;/p&gt;
+data-emoji=&quot;rocket&quot;&gt;🚀&lt;/span&gt;, &lt;span class=&quot;emoji&quot;
+data-emoji=&quot;heart&quot;&gt;❤️&lt;/span&gt;, &lt;span class=&quot;emoji&quot;
+data-emoji=&quot;+1&quot;&gt;👍&lt;/span&gt;, and :octocat: should remain visible for
+GitHub-style rendering.&lt;/p&gt;
+&lt;p&gt;Inline math uses dollar delimiters when enabled: $E = mc^2$.&lt;/p&gt;
+&lt;p&gt;Block math:&lt;/p&gt;
+&lt;p&gt;$$ \int_0^1 x^2,dx = \frac{1}{3} $$&lt;/p&gt;
+&lt;div class=&quot;sourceCode&quot; id=&quot;cb6&quot;&gt;&lt;pre
+class=&quot;sourceCode geojson&quot;&gt;&lt;code class=&quot;sourceCode json&quot;&gt;&lt;span id=&quot;cb6-1&quot;&gt;&lt;a href=&quot;#cb6-1&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;&lt;span class=&quot;fu&quot;&gt;{&lt;/span&gt;&lt;/span&gt;
+&lt;span id=&quot;cb6-2&quot;&gt;&lt;a href=&quot;#cb6-2&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;  &lt;span class=&quot;dt&quot;&gt;&amp;quot;type&amp;quot;&lt;/span&gt;&lt;span class=&quot;fu&quot;&gt;:&lt;/span&gt; &lt;span class=&quot;st&quot;&gt;&amp;quot;Point&amp;quot;&lt;/span&gt;&lt;span class=&quot;fu&quot;&gt;,&lt;/span&gt;&lt;/span&gt;
+&lt;span id=&quot;cb6-3&quot;&gt;&lt;a href=&quot;#cb6-3&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;  &lt;span class=&quot;dt&quot;&gt;&amp;quot;coordinates&amp;quot;&lt;/span&gt;&lt;span class=&quot;fu&quot;&gt;:&lt;/span&gt; &lt;span class=&quot;ot&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;fl&quot;&gt;-122.4194&lt;/span&gt;&lt;span class=&quot;ot&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;fl&quot;&gt;37.7749&lt;/span&gt;&lt;span class=&quot;ot&quot;&gt;]&lt;/span&gt;&lt;/span&gt;
+&lt;span id=&quot;cb6-4&quot;&gt;&lt;a href=&quot;#cb6-4&quot; aria-hidden=&quot;true&quot; tabindex=&quot;-1&quot;&gt;&lt;/a&gt;&lt;span class=&quot;fu&quot;&gt;}&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;
+&lt;pre class=&quot;topojson&quot;&gt;&lt;code&gt;{
+  &amp;quot;type&amp;quot;: &amp;quot;Topology&amp;quot;,
+  &amp;quot;objects&amp;quot;: {},
+  &amp;quot;arcs&amp;quot;: []
+}&lt;/code&gt;&lt;/pre&gt;
+&lt;pre class=&quot;stl&quot;&gt;&lt;code&gt;solid cube
+endsolid cube&lt;/code&gt;&lt;/pre&gt;
 &lt;section id=&quot;footnotes&quot; class=&quot;footnotes footnotes-end-of-document&quot;
 role=&quot;doc-endnotes&quot;&gt;
 &lt;hr /&gt;
 &lt;ol&gt;
 &lt;li id=&quot;fn1&quot;&gt;&lt;p&gt;Footnote bodies can include &lt;strong&gt;formatting&lt;/strong&gt;,
-links, and &lt;code&gt;code&lt;/code&gt;.&lt;a href=&quot;#fnref1&quot; class=&quot;footnote-back&quot;
-role=&quot;doc-backlink&quot;&gt;↩︎&lt;/a&gt;&lt;/p&gt;&lt;/li&gt;
+links, &lt;code&gt;code&lt;/code&gt;, and lists.&lt;/p&gt;
+&lt;p&gt;This indented line remains part of the footnote.&lt;a href=&quot;#fnref1&quot;
+class=&quot;footnote-back&quot; role=&quot;doc-backlink&quot;&gt;↩︎&lt;/a&gt;&lt;/p&gt;&lt;/li&gt;
 &lt;/ol&gt;
 &lt;/section&gt;
 &lt;/body&gt;

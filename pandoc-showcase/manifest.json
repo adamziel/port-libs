@@ -1,5 +1,5 @@
 {
-    "generatedAt": "2026-07-07T12:07:55+00:00",
+    "generatedAt": "2026-07-07T14:28:06+00:00",
     "pandocVersion": "pandoc 3.10\nFeatures: +server +lua\nScripting engine: Lua 5.4\nUser data directory: $REPO\nCopyright (C) 2006-2025 John MacFarlane. Web:  https://pandoc.org\nThis is free software; see the source for copying conditions. There is no\nwarranty, not even for merchantability or fitness for a particular purpose.",
     "formats": [
         "biblatex",
@@ -89,16 +89,16 @@
     ],
     "blockUsage": {
         "totals": {
-            "code": 609,
-            "group": 273,
-            "heading": 3914,
-            "html": 52,
-            "image": 103,
-            "list": 1153,
-            "paragraph": 15394,
-            "quote": 65,
-            "separator": 62,
-            "table": 542,
+            "code": 615,
+            "group": 279,
+            "heading": 3922,
+            "html": 59,
+            "image": 104,
+            "list": 1161,
+            "paragraph": 15423,
+            "quote": 66,
+            "separator": 65,
+            "table": 544,
             "verse": 1
         },
         "sampleCount": 77
@@ -1175,13 +1175,13 @@
         {
             "id": "markdown-github-rendered-syntax",
             "format": "markdown_github",
-            "label": "Rendered GitHub syntax packet",
-            "description": "Compact GitHub Flavored Markdown sample that renders the actual syntax for emphasis, task lists, tables, autolinks, references, code, and alert-style blockquotes instead of showing only escaped examples.",
-            "source": "Inline GFM sample with unescaped syntax rendered as document content.",
+            "label": "Full GitHub syntax packet",
+            "description": "Expanded GitHub Flavored Markdown showcase covering CommonMark leaf blocks, container blocks, inline syntax, GFM tables, task lists, strikethrough, autolinks, raw HTML filtering, alerts, footnotes, emoji, math, and diagram fences.",
+            "source": "Inline GFM sample with broad unescaped syntax rendered as document content.",
             "sourceUrl": "",
             "samplePath": "samples/markdown-github-rendered-syntax-github-rendered-syntax.md",
-            "sampleSize": 1961,
-            "preview": "# GitHub Flavored Markdown feature packet\n\nThis paragraph uses **bold**, _italic_, ***bold italic***, ~~strikethrough~~, `inline code`, a bare URL https://github.com/openai, an issue-like reference #42, and a mention-like token @octocat.\n\n## Alerts\n\n> [!NOTE]\n> GitHub alert syntax should render as a callout-style block, with **inline formatting** inside.\n\n> [!WARNING]\n> Alert bodies can contain links such as [GitHub Docs](https://docs.github.com/).\n\n## Task lists\n\n- [x] Parse GFM task list syntax\n- [ ] Preserve unchecked tasks\n- [x] Render nested formatting with **bold and _italic_ text**\n  - [ ] Nested follow-up task with `inline code`\n  - [x] Nested completed task with ~~old wording~~\n\n## Table syntax\n\n| Feature | Rendered example | Alignment |\n| :--- | :---: | ---: |\n| Bold | **This is bold text** | left |\n| Italic | _This text is italicized_ | center |\n| Strikethrough | ~~This was mistaken text~~ | right |\n| Inline code | `git status --short` | code |\n| Link | [OpenAI](https://openai.com/) | link |\n| Escaped pipe | `a \\| b` | cell |\n\n## Code fences\n\n```php\n<?php\nfunction render_packet(array $items): string\n{\n    return implode(\"\\n\", array_map('strtoupper', $items));\n}\n```\n\n```mermaid\nflowchart LR\n  markdown_github --> parser\n  parser --> html\n  parser --> wordpress\n```\n\n## Images and HTML blocks\n\n![GitHub mark](https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png \"GitHub mark\")\n\n<details>\n<summary>Rendered details block</summary>\n\nGitHub allows raw HTML islands such as collapsible details.\n\n</details>\n\n## Autolinks and references\n\nSee https://github.github.com/gfm/, <support@github.com>, and [the CommonMark spec][commonmark].\n\nFootnotes should stay connected to their references.[^gfm-note]\n\nEmoji shortcodes such as :rocket: and :heart: should remain visible for GitHub-style rendering.\n\n[commonmark]: https://spec.commonmark.org/\n\n[^gfm-note]: Footnote bodies can include **formatting**, links, and `code`.",
+            "sampleSize": 6576,
+            "preview": "# GitHub Flavored Markdown full syntax packet\n\nThis document intentionally exercises the rendered syntax surface of GitHub Flavored Markdown. It includes CommonMark leaf blocks, container blocks, inline syntax, and the GFM extensions for tables, task list items, strikethrough, autolinks, and raw HTML filtering.\n\nSetext heading level 1\n======================\n\nSetext heading level 2\n----------------------\n\n## Paragraphs, breaks, and escapes\n\nAdjacent lines in one paragraph\nstay in one rendered paragraph unless a blank line separates them.\nThis next line uses a backslash hard break.\\\nThis line follows the backslash hard break.\n\nBackslash escapes render punctuation literally: \\*not emphasis\\*, \\[not a link\\], \\# not a heading, and \\`not code\\`.\n\nCharacter references render as characters: &amp; &lt; &gt; &quot; &#35; &#x1F680;.\n\n---\n\n***\n\n___\n\n## Emphasis, strong emphasis, and strikethrough\n\nThis paragraph uses *asterisk emphasis*, _underscore emphasis_, **asterisk strong**, __underscore strong__, ***combined strong emphasis***, ___combined underscore strong emphasis___, and ~~GFM strikethrough~~.\n\nIntraword underscores should stay literal in snake_case_identifier, while intraword emphasis can still appear as foo*bar*baz.\n\n## Code spans\n\nUse `inline code`, ``code with ` one backtick``, and `` spaced code span `` inside normal prose.\n\n## Indented and fenced code blocks\n\n    Four leading spaces create an indented code block.\n    Markdown syntax like **strong** stays literal here.\n\n```php\n<?php\nfunction render_packet(array $items): string\n{\n    return implode(\"\\n\", array_map('strtoupper', $items));\n}\n```\n\n~~~js\nconst rows = [\"tables\", \"tasks\", \"autolinks\"];\nconsole.log(rows.map((row) => row.toUpperCase()).join(\", \"));\n~~~\n\n````\nFence length can contain shorter fences:\n```\nnot the end of this block\n```\n````\n\n```mermaid\nflowchart LR\n  markdown_github --> parser\n  parser --> html\n  parser --> wordpress\n```\n\n## Block quotes\n\n> A block quote can contain a paragraph with **inline formatting**.\n>\n> - A list inside a quote\n> - A second item with `code`\n>\n> > Nested quotes should remain nested.\n\n> [!NOTE]\n> GitHub alert syntax should render as a callout-style block when supported.\n...",
             "support": {
                 "status": "reader-equivalent",
                 "implementation": "PortLibs\\Pandoc\\MarkdownReader",
@@ -1200,14 +1200,16 @@
                 "path": "outputs/markdown-github-rendered-syntax/wordpress-blocks.html"
             },
             "wpBlockCounts": {
-                "code": 2,
-                "group": 5,
-                "heading": 7,
-                "html": 1,
-                "image": 1,
-                "list": 2,
-                "paragraph": 8,
-                "table": 1
+                "code": 8,
+                "group": 11,
+                "heading": 15,
+                "html": 8,
+                "image": 2,
+                "list": 10,
+                "paragraph": 37,
+                "quote": 1,
+                "separator": 3,
+                "table": 3
             }
         },
         {
