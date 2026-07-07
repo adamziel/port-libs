@@ -538,7 +538,7 @@ final class PdfTextExtractor
     ];
 
     /**
-     * @param array{password?: string, pdfPassword?: string} $options
+     * @param array{password?: string, pdfPassword?: string, maxPages?: int, pdfMaxPages?: int, max_pages?: int} $options
      */
     public function __construct(private readonly array $options = [])
     {
@@ -555,7 +555,7 @@ final class PdfTextExtractor
     public function extractTextRuns(string $pdfBytes): array
     {
         $runs = [];
-        foreach ($this->streamContexts($pdfBytes) as $context) {
+        foreach ($this->limitedStreamContexts($pdfBytes) as $context) {
             foreach ($this->textRunsFromContentStream($context['stream'], $context['fontToUnicodeMaps'], $context['fontEncodings'], $context['propertyActualTexts'], $context['mcidActualTexts'], $context['propertyMcids']) as $run) {
                 if ($run !== '') {
                     $runs[] = $run;
@@ -573,7 +573,7 @@ final class PdfTextExtractor
     {
         $runs = [];
         $streamNumber = 0;
-        foreach ($this->streamContexts($pdfBytes) as $context) {
+        foreach ($this->limitedStreamContexts($pdfBytes) as $context) {
             $streamNumber++;
             $page = is_int($context['page'] ?? null) ? $context['page'] : $streamNumber;
             foreach ($this->positionedTextRunsFromContentStream($context['stream'], $context['fontToUnicodeMaps'], $context['fontEncodings'], $context['propertyActualTexts'], $context['mcidActualTexts'], $context['propertyMcids']) as $run) {
@@ -603,7 +603,7 @@ final class PdfTextExtractor
     {
         $rectangles = [];
         $streamNumber = 0;
-        foreach ($this->streamContexts($pdfBytes) as $context) {
+        foreach ($this->limitedStreamContexts($pdfBytes) as $context) {
             $streamNumber++;
             $page = is_int($context['page'] ?? null) ? $context['page'] : $streamNumber;
             foreach ($this->filledRectanglesFromContentStream($context['stream']) as $rectangle) {
@@ -4388,7 +4388,7 @@ final class PdfTextExtractor
     public function extractTextLines(string $pdfBytes): array
     {
         $lines = [];
-        foreach ($this->streamContexts($pdfBytes) as $context) {
+        foreach ($this->limitedStreamContexts($pdfBytes) as $context) {
             foreach ($this->textLinesFromContentStream($context['stream'], $context['fontToUnicodeMaps'], $context['fontEncodings'], $context['propertyActualTexts'], $context['mcidActualTexts'], $context['propertyMcids']) as $line) {
                 if ($line !== '') {
                     $lines[] = $line;
@@ -4405,11 +4405,59 @@ final class PdfTextExtractor
     private function extractPageTexts(string $pdfBytes): array
     {
         $pages = [];
-        foreach ($this->streamContexts($pdfBytes) as $context) {
+        foreach ($this->limitedStreamContexts($pdfBytes) as $context) {
             $pages[] = implode("\n", $this->textLinesFromContentStream($context['stream'], $context['fontToUnicodeMaps'], $context['fontEncodings'], $context['propertyActualTexts'], $context['mcidActualTexts'], $context['propertyMcids']));
         }
 
         return $pages;
+    }
+
+    /**
+     * @return list<array{
+     *     stream: string,
+     *     fontToUnicodeMaps: array<string, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}>,
+     *     fontEncodings: array<string, array{base: string, differences: array<int, string>, suppressUnmapped: bool}>,
+     *     propertyActualTexts: array<string, string>,
+     *     mcidActualTexts: array<int, string>,
+     *     propertyMcids: array<string, int>,
+     *     page?: int,
+     *     pageObject?: int
+     * }>
+     */
+    private function limitedStreamContexts(string $pdfBytes): array
+    {
+        $contexts = $this->streamContexts($pdfBytes);
+        $maxPages = $this->maxPages();
+        if ($maxPages === null || $contexts === []) {
+            return $contexts;
+        }
+
+        $limited = [];
+        $seenPages = [];
+        foreach ($contexts as $index => $context) {
+            $page = is_int($context['page'] ?? null) ? $context['page'] : $index + 1;
+            if (!isset($seenPages[$page]) && count($seenPages) >= $maxPages) {
+                continue;
+            }
+            $seenPages[$page] = true;
+            $limited[] = $context;
+        }
+
+        return $limited;
+    }
+
+    private function maxPages(): ?int
+    {
+        foreach (['pdfMaxPages', 'maxPages', 'max_pages'] as $key) {
+            if (!array_key_exists($key, $this->options) || $this->options[$key] === null || $this->options[$key] === '') {
+                continue;
+            }
+            $value = (int) $this->options[$key];
+
+            return $value > 0 ? $value : null;
+        }
+
+        return null;
     }
 
     /**
@@ -13008,7 +13056,7 @@ final class PdfTextExtractor
         if (strlen($normalized) % 4 === 0) {
             $bytes = hex2bin($normalized);
             if ($bytes !== false) {
-                $decoded = iconv('UTF-16BE', 'UTF-8//IGNORE', $bytes);
+                $decoded = @iconv('UTF-16BE', 'UTF-8//IGNORE', $bytes);
                 if ($decoded !== false) {
                     return $decoded;
                 }

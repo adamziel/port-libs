@@ -5098,6 +5098,47 @@ return [
         $t->contains('<td>Widget Alpha stackable storage case</td><td>30</td><td>40x60x80mm</td>', $blocks);
         $t->contains('Payment due in 30 days', $blocks);
     },
+    'does not promote positioned prose word fragments to a table' => static function (TestRunner $t) use ($pdfWithContent): void {
+        $pdf = $pdfWithContent(
+            'BT /F1 12 Tf '
+            . '1 0 0 1 72 720 Tm (healthcare) Tj 1 0 0 1 160 720 Tm (providers) Tj 1 0 0 1 250 720 Tm (should) Tj 1 0 0 1 340 720 Tm (basedhandrub.) Tj '
+            . '1 0 0 1 72 704 Tm (practice) Tj 1 0 0 1 160 704 Tm (hand) Tj 1 0 0 1 250 704 Tm (hygiene.) Tj '
+            . '1 0 0 1 250 688 Tm (•) Tj 1 0 0 1 340 688 Tm (Preventingthespread ofgermsandinfections.) Tj '
+            . 'ET'
+        );
+
+        $document = (new PdfReader(['pdfRepairProseText' => true]))->read($pdf);
+        $blocks = PandocConverter::write($document, 'blocks');
+        $meta = $document->attr('meta');
+
+        $t->same(0, $meta['pdfDetectedTables']);
+        $t->same(0, $meta['pdfGeometryTables']);
+        $t->same('text', $meta['pdfTableReconstruction']);
+        $t->true(!str_contains($blocks, '<!-- wp:table -->'));
+        $t->contains('healthcare', $blocks);
+        $t->contains('basedhandrub.', $blocks);
+        $t->contains('Preventingthespread ofgermsandinfections.', $blocks);
+    },
+    'keeps positioned numeric grids as tables after fragment grid filtering' => static function (TestRunner $t) use ($pdfWithContent): void {
+        $pdf = $pdfWithContent(
+            'BT /F1 12 Tf '
+            . '1 0 0 1 72 720 Tm (Product) Tj 1 0 0 1 180 720 Tm (Qty) Tj 1 0 0 1 260 720 Tm (Rate) Tj 1 0 0 1 340 720 Tm (Total) Tj '
+            . '1 0 0 1 72 704 Tm (Alpha) Tj 1 0 0 1 180 704 Tm (2) Tj 1 0 0 1 260 704 Tm ($3.00) Tj 1 0 0 1 340 704 Tm ($6.00) Tj '
+            . '1 0 0 1 72 688 Tm (Beta) Tj 1 0 0 1 180 688 Tm (1) Tj 1 0 0 1 260 688 Tm ($4.00) Tj 1 0 0 1 340 688 Tm ($4.00) Tj '
+            . 'ET'
+        );
+
+        $document = (new PdfReader(['pdfRepairProseText' => true]))->read($pdf);
+        $blocks = PandocConverter::write($document, 'blocks');
+        $meta = $document->attr('meta');
+
+        $t->same(1, $meta['pdfDetectedTables']);
+        $t->same(1, $meta['pdfGeometryTables']);
+        $t->same('geometry', $meta['pdfTableReconstruction']);
+        $t->contains('<!-- wp:table -->', $blocks);
+        $t->contains('<th>Product</th><th>Qty</th><th>Rate</th><th>Total</th>', $blocks);
+        $t->contains('<td>Alpha</td><td>2</td><td>$3.00</td><td>$6.00</td>', $blocks);
+    },
     'splits positioned pdf tables at section breaks instead of one sparse table' => static function (TestRunner $t) use ($pdfWithContent): void {
         $pdf = $pdfWithContent(
             'BT /F1 12 Tf '

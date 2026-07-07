@@ -1974,10 +1974,20 @@ final class NativeWriter
     private function unicodeCodepoint(string $char): int
     {
         if (function_exists('mb_ord')) {
-            return mb_ord($char, 'UTF-8');
+            $codepoint = mb_ord($char, 'UTF-8');
+            if (is_int($codepoint)) {
+                return $codepoint;
+            }
         }
 
-        $encoded = mb_convert_encoding($char, 'UCS-4BE', 'UTF-8');
+        if (strlen($char) === 1) {
+            return ord($char);
+        }
+
+        $encoded = @mb_convert_encoding($char, 'UCS-4BE', 'UTF-8');
+        if (!is_string($encoded)) {
+            return 0xFFFD;
+        }
         $parts = unpack('N', $encoded);
 
         return (int) ($parts[1] ?? 0);

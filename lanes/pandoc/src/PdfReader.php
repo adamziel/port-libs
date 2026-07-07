@@ -11,7 +11,7 @@ final class PdfReader
     private const DEFAULT_MAX_TEXT_BYTES = 120000;
 
     /**
-     * @param array{maxTextBytes?: int, password?: string, pdfPassword?: string, geometryTables?: bool, pdfGeometryTables?: bool, extractGeometryTables?: bool, pdfRepairProseText?: bool, repairProseText?: bool} $options
+     * @param array{maxTextBytes?: int, maxPages?: int, pdfMaxPages?: int, max_pages?: int, password?: string, pdfPassword?: string, geometryTables?: bool, pdfGeometryTables?: bool, extractGeometryTables?: bool, pdfRepairProseText?: bool, repairProseText?: bool} $options
      */
     public function __construct(private readonly array $options = [])
     {
@@ -80,6 +80,7 @@ final class PdfReader
             'pdfTextBytes' => strlen($plainText),
             'pdfTextInsertedBytes' => strlen($insertedText),
             'pdfTextLimited' => strlen($insertedText) < strlen($plainText),
+            'pdfMaxPages' => $this->pdfMaxPages(),
             'pdfTextRepair' => $repairedLines !== $limitedLines,
             'pdfTextRepairSource' => $repairedLines !== $limitedLines ? $repairSource : null,
             'pdfDetectedTables' => $this->countNodesOfType($blocks, 'table'),
@@ -146,6 +147,20 @@ final class PdfReader
         }
 
         return false;
+    }
+
+    private function pdfMaxPages(): ?int
+    {
+        foreach (['pdfMaxPages', 'maxPages', 'max_pages'] as $key) {
+            if (!array_key_exists($key, $this->options) || $this->options[$key] === null || $this->options[$key] === '') {
+                continue;
+            }
+            $value = (int) $this->options[$key];
+
+            return $value > 0 ? $value : null;
+        }
+
+        return null;
     }
 
     /**
@@ -1115,7 +1130,11 @@ WORDS)) ?: [];
         $physicalRows = $this->positionedRowsWithCells($rows, $columns);
         $logicalRows = $this->trimSparsePositionedRows($this->compactSparsePositionedColumns($this->mergePositionedContinuationRows($physicalRows)));
 
-        return $this->isPositionedTableCandidate($logicalRows, count($logicalRows[0] ?? [])) ? $this->withPositionedCellBackgrounds($logicalRows, $filledRectangles) : [];
+        if (!$this->isPositionedTableCandidate($logicalRows, count($logicalRows[0] ?? [])) || $this->positionedRenderedRowsLookLikeFragmentGrid($logicalRows)) {
+            return [];
+        }
+
+        return $this->withPositionedCellBackgrounds($logicalRows, $filledRectangles);
     }
 
     /**
@@ -1239,7 +1258,11 @@ WORDS)) ?: [];
 
         $logicalRows = $this->compactSparsePositionedColumns($this->mergePositionedContinuationRows($this->positionedRowsWithCells($rows, $columns)));
 
-        return $this->isPositionedTableCandidate($logicalRows, count($logicalRows[0] ?? [])) ? $this->withPositionedCellBackgrounds($logicalRows, $filledRectangles) : [];
+        if (!$this->isPositionedTableCandidate($logicalRows, count($logicalRows[0] ?? [])) || $this->positionedRenderedRowsLookLikeFragmentGrid($logicalRows)) {
+            return [];
+        }
+
+        return $this->withPositionedCellBackgrounds($logicalRows, $filledRectangles);
     }
 
     /**
@@ -1858,6 +1881,9 @@ WORDS)) ?: [];
         if (count($rows) === 2 && !$this->positionedTableHasHorizontalCellText($rows)) {
             return false;
         }
+        if ($this->positionedRowsLookLikeSparseProseGrid($rows, $columnCount)) {
+            return false;
+        }
 
         $multiCellRows = 0;
         $columnOccupancy = array_fill(0, $columnCount, 0);
@@ -1879,6 +1905,116 @@ WORDS)) ?: [];
         }
 
         return $multiCellRows >= 2 && $recurringColumns >= 2;
+    }
+
+    /**
+     * @param list<list<mixed>> $rows
+     */
+    private function positionedRowsLookLikeSparseProseGrid(array $rows, int $columnCount): bool
+    {
+        if ($columnCount < 5 || count($rows) < 2) {
+            return false;
+        }
+
+        $totalCells = 0;
+        $populatedCells = 0;
+        $shortWordCells = 0;
+        $numericCells = 0;
+        $numericRows = 0;
+        foreach ($rows as $row) {
+            $rowNumericCells = 0;
+            for ($index = 0; $index < $columnCount; $index++) {
+                $totalCells++;
+                $text = trim($this->cellTextValue($row[$index] ?? ''));
+                if ($text === '') {
+                    continue;
+                }
+                $populatedCells++;
+                if ($this->positionedCellLooksNumericAnchor($text)) {
+                    $numericCells++;
+                    $rowNumericCells++;
+                }
+                if ($this->positionedCellWordCount($text) <= 2 && !$this->positionedCellLooksNumericAnchor($text)) {
+                    $shortWordCells++;
+                }
+            }
+            if ($rowNumericCells >= 2) {
+                $numericRows++;
+            }
+        }
+
+        if ($populatedCells < 4 || $totalCells === 0) {
+            return true;
+        }
+
+        $emptyRatio = 1.0 - ($populatedCells / $totalCells);
+        $shortWordRatio = $shortWordCells / max(1, $populatedCells);
+        $numericRatio = $numericCells / max(1, $populatedCells);
+
+        if ($emptyRatio >= 0.35 && $shortWordRatio >= 0.45 && $numericRatio < 0.18 && $numericRows < 2) {
+            return true;
+        }
+
+        if ($columnCount >= 5 && $shortWordRatio >= 0.65 && $numericRows < 2) {
+            return true;
+        }
+
+        if ($columnCount >= 4 && $shortWordRatio >= 0.75 && $numericCells === 0) {
+            return true;
+        }
+
+        return $columnCount >= 8
+            && $emptyRatio >= 0.20
+            && $numericRatio < 0.12
+            && $numericRows < 2;
+    }
+
+    private function positionedCellLooksNumericAnchor(string $text): bool
+    {
+        return preg_match('/(?:[$€£¥]\s*\d|\d[\d,]*(?:\.\d+)?\s*(?:%|[$€£¥])?|\b\d{1,2}[\/.-]\d{1,2}(?:[\/.-]\d{2,4})?\b)/u', $text) === 1;
+    }
+
+    private function positionedCellWordCount(string $text): int
+    {
+        preg_match_all('/[\pL\pN]+/u', $text, $matches);
+
+        return count($matches[0] ?? []);
+    }
+
+    /**
+     * @param list<list<mixed>> $rows
+     */
+    private function positionedRenderedRowsLookLikeFragmentGrid(array $rows): bool
+    {
+        $columnCount = 0;
+        foreach ($rows as $row) {
+            $columnCount = max($columnCount, count($row));
+        }
+        if ($columnCount < 4) {
+            return false;
+        }
+
+        $wordCounts = [];
+        foreach ($rows as $row) {
+            foreach ($row as $cell) {
+                $text = trim($this->cellTextValue($cell));
+                if ($text === '') {
+                    continue;
+                }
+                if ($this->positionedCellLooksNumericAnchor($text)) {
+                    return false;
+                }
+                $wordCounts[] = $this->positionedCellWordCount($text);
+            }
+        }
+        if (count($wordCounts) < 4) {
+            return false;
+        }
+
+        sort($wordCounts, SORT_NUMERIC);
+        $median = $wordCounts[intdiv(count($wordCounts), 2)] ?? 0;
+
+        return $median <= 2;
     }
 
     /**
