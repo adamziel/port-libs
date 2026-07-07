@@ -6129,17 +6129,15 @@ final class PdfTextExtractor
         }
 
         $resourceMaps = [];
-        if (preg_match_all('/\/Font\s*<<(.*?)>>/s', $resourceContext, $fontMatches)) {
-            foreach ($fontMatches[1] as $fontResourceDictionary) {
-                if (!preg_match_all('/\/([A-Za-z0-9_.#-]+)\s+(\d+)\s+\d+\s+R\b/', $fontResourceDictionary, $resourceMatches, PREG_SET_ORDER)) {
-                    continue;
-                }
+        foreach ($this->fontResourceDictionariesFromContext($resourceContext, $objects) as $fontResourceDictionary) {
+            if (!preg_match_all('/\/([A-Za-z0-9_.#-]+)\s+(\d+)\s+\d+\s+R\b/', $fontResourceDictionary, $resourceMatches, PREG_SET_ORDER)) {
+                continue;
+            }
 
-                foreach ($resourceMatches as $resourceMatch) {
-                    $fontObjectNumber = (int) $resourceMatch[2];
-                    if (isset($fontObjectMaps[$fontObjectNumber])) {
-                        $resourceMaps[$this->decodePdfName($resourceMatch[1])] = $fontObjectMaps[$fontObjectNumber];
-                    }
+            foreach ($resourceMatches as $resourceMatch) {
+                $fontObjectNumber = (int) $resourceMatch[2];
+                if (isset($fontObjectMaps[$fontObjectNumber])) {
+                    $resourceMaps[$this->decodePdfName($resourceMatch[1])] = $fontObjectMaps[$fontObjectNumber];
                 }
             }
         }
@@ -6154,6 +6152,32 @@ final class PdfTextExtractor
         }
 
         return [];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return list<string>
+     */
+    private function fontResourceDictionariesFromContext(string $resourceContext, array $objects): array
+    {
+        $dictionaries = [];
+        if (preg_match_all('/\/Font\s*<<(.*?)>>/s', $resourceContext, $fontMatches)) {
+            foreach ($fontMatches[1] as $fontResourceDictionary) {
+                $dictionaries[] = $fontResourceDictionary;
+            }
+        }
+
+        if (preg_match_all('/\/Font\s+(\d+)\s+\d+\s+R\b/', $resourceContext, $fontReferenceMatches)) {
+            foreach ($fontReferenceMatches[1] as $objectNumber) {
+                $body = $objects[(int) $objectNumber] ?? null;
+                if (!is_string($body)) {
+                    continue;
+                }
+                $dictionaries[] = $body;
+            }
+        }
+
+        return $dictionaries;
     }
 
     /**

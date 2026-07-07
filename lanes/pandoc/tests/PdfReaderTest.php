@@ -4839,6 +4839,54 @@ return [
         $t->contains('<td>Widget Alpha stackable storage case</td><td>30</td><td>40x60x80mm</td>', $blocks);
         $t->contains('<td>Organizer</td><td>12</td><td>120x200mm</td>', $blocks);
     },
+    'maps positioned pdf tables through indirect font resource ToUnicode maps' => static function (TestRunner $t): void {
+        $content = 'BT /F1 12 Tf '
+            . '1 0 0 1 72 720 Tm <01> Tj 1 0 0 1 160 720 Tm <02> Tj 1 0 0 1 248 720 Tm <03> Tj '
+            . '1 0 0 1 72 704 Tm <04> Tj 1 0 0 1 160 704 Tm <040505> Tj 1 0 0 1 248 704 Tm <060505> Tj '
+            . '1 0 0 1 72 688 Tm <06> Tj 1 0 0 1 160 688 Tm <040504> Tj 1 0 0 1 248 688 Tm <060504> Tj '
+            . 'ET';
+        $cmap = "/CIDInit /ProcSet findresource begin\n"
+            . "12 dict begin\n"
+            . "begincmap\n"
+            . "/CIDSystemInfo << /Registry (Adobe) /Ordering (UCS) /Supplement 0 >> def\n"
+            . "/CMapName /IndirectFontResourceUnicode def\n"
+            . "/CMapType 2 def\n"
+            . "1 begincodespacerange\n"
+            . "<00> <FF>\n"
+            . "endcodespacerange\n"
+            . "6 beginbfchar\n"
+            . "<01> <0041>\n"
+            . "<02> <0042>\n"
+            . "<03> <0043>\n"
+            . "<04> <0031>\n"
+            . "<05> <0030>\n"
+            . "<06> <0032>\n"
+            . "endbfchar\n"
+            . "endcmap\n"
+            . "CMapName currentdict /CMap defineresource pop\n"
+            . "end\n"
+            . "end\n";
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font 6 0 R >> /Contents 5 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Type /Font /Subtype /TrueType /BaseFont /IndirectFontResource /FirstChar 0 /LastChar 6 /Widths [500 500 500 500 500 500 500] /ToUnicode 7 0 R >>\nendobj\n"
+            . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /F1 4 0 R >>\nendobj\n"
+            . "7 0 obj\n<< /Length " . strlen($cmap) . " >>\nstream\n{$cmap}\nendstream\nendobj\n"
+            . "trailer << /Root 1 0 R >>\n%%EOF";
+
+        $document = (new PdfReader())->read($pdf);
+        $blocks = PandocConverter::write($document, 'blocks');
+        $meta = $document->attr('meta');
+
+        $t->same('table', $document->children[0]->type);
+        $t->same(1, $meta['pdfDetectedTables']);
+        $t->same(1, $meta['pdfGeometryTables']);
+        $t->contains('<th>A</th><th>B</th><th>C</th>', $blocks);
+        $t->contains('<td>1</td><td>100</td><td>200</td>', $blocks);
+        $t->contains('<td>2</td><td>101</td><td>201</td>', $blocks);
+    },
     'can bypass positioned pdf geometry tables for bounded text extraction' => static function (TestRunner $t) use ($pdfWithContent): void {
         $pdf = $pdfWithContent(
             'BT /F1 12 Tf '
