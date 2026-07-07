@@ -609,6 +609,7 @@ function showcase_converter_options(string $from, string $to): array
     if (PandocConverter::canonicalInputFormat($from) === 'pdf') {
         $readerOptions['maxTextBytes'] = 80000;
         $readerOptions['pdfGeometryTables'] = false;
+        $readerOptions['pdfRepairProseText'] = true;
     }
     if (in_array(PandocConverter::canonicalOutputFormat($to), ['html', 'wordpress'], true)) {
         $writerOptions['writerHTMLMathMethod'] = 'mathml';
@@ -839,6 +840,31 @@ function sanitize_generated_text(string $text): string
     return $text;
 }
 
+/**
+ * @return array<string, string>
+ */
+function existing_showcase_samples(string $samplesDir): array
+{
+    if (!is_dir($samplesDir)) {
+        return [];
+    }
+
+    $samples = [];
+    foreach (glob($samplesDir . '/*') ?: [] as $path) {
+        if (!is_file($path) || str_ends_with($path, '.download-error.txt')) {
+            continue;
+        }
+        $bytes = file_get_contents($path);
+        if (is_string($bytes)) {
+            $samples[basename($path)] = $bytes;
+        }
+    }
+
+    return $samples;
+}
+
+$existingSamples = existing_showcase_samples($samplesDir);
+
 ensure_clean_dir($siteDir);
 ensure_dir($samplesDir);
 ensure_dir($outputsDir);
@@ -872,8 +898,12 @@ foreach ($samples as $sample) {
         }
     } elseif (isset($sample['url'])) {
         if (!download_file((string) $sample['url'], $target)) {
-            $downloadError = 'Unable to download ' . $sample['url'];
-            file_put_contents($target . '.download-error.txt', $downloadError);
+            if (isset($existingSamples[basename($target)])) {
+                file_put_contents($target, $existingSamples[basename($target)]);
+            } else {
+                $downloadError = 'Unable to download ' . $sample['url'];
+                file_put_contents($target . '.download-error.txt', $downloadError);
+            }
         }
     }
     $sourcePath = is_file($target) ? $target : $target . '.download-error.txt';

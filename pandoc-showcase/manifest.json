@@ -1,5 +1,5 @@
 {
-    "generatedAt": "2026-07-07T00:43:43+00:00",
+    "generatedAt": "2026-07-07T01:22:15+00:00",
     "pandocVersion": "pandoc 3.10\nFeatures: +server +lua\nScripting engine: Lua 5.4\nUser data directory: $REPO\nCopyright (C) 2006-2025 John MacFarlane. Web:  https://pandoc.org\nThis is free software; see the source for copying conditions. There is no\nwarranty, not even for merchantability or fitness for a particular purpose.",
     "formats": [
         "biblatex",
@@ -91,11 +91,11 @@
         "totals": {
             "code": 624,
             "group": 292,
-            "heading": 4133,
+            "heading": 3972,
             "html": 51,
             "image": 121,
             "list": 1155,
-            "paragraph": 16564,
+            "paragraph": 15496,
             "quote": 65,
             "separator": 62,
             "table": 544,
@@ -2607,8 +2607,8 @@
                 "path": "outputs/pdf-tracemonkey/wordpress-blocks.html"
             },
             "wpBlockCounts": {
-                "heading": 226,
-                "paragraph": 1222
+                "heading": 65,
+                "paragraph": 154
             }
         },
         {

@@ -4858,6 +4858,37 @@ return [
         $t->contains('Product', $document->children[0]->attr('text'));
         $t->contains('Widget Alpha', $document->children[1]->attr('text'));
     },
+    'repairs glued prose in bounded technical pdf text extraction' => static function (TestRunner $t) use ($pdfWithContent): void {
+        $pdf = $pdfWithContent(
+            'BT /F1 12 Tf '
+            . '1 0 0 1 72 748 Tm (Trace-basedJust-in-TimeTypeSpecializationforDynamic) Tj '
+            . '1 0 0 1 72 732 Tm (DynamiclanguagessuchasJavaScriptaremoredifficulttocom-) Tj '
+            . '1 0 0 1 72 716 Tm (pilethanstaticallytypedones.Sincenoconcretetypeinformation) Tj '
+            . '1 0 0 1 72 700 Tm (isavailable,traditionalcompilersneedtoemitgenericcode) Tj '
+            . '1 0 0 1 72 684 Tm (thatcanhandleallpossibletypecombinationsatruntime.) Tj '
+            . '1 0 0 1 72 668 Tm (Wepresentanalternativecompilationtechniquefordynamically-typed) Tj '
+            . '1 0 0 1 72 652 Tm (languagesthatidentifiesfrequentlyexecutedlooptracesatrun-timeandthen) Tj '
+            . 'ET'
+        );
+
+        $document = (new PdfReader([
+            'pdfGeometryTables' => false,
+            'pdfRepairProseText' => true,
+        ]))->read($pdf);
+        $html = PandocConverter::write($document, 'html');
+        $text = preg_replace('/\s+/', ' ', html_entity_decode(strip_tags($html), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')) ?? '';
+        $meta = $document->attr('meta');
+
+        $t->same(true, $meta['pdfTextRepair']);
+        $t->contains('Trace-based Just-in-Time Type Specialization for Dynamic', $text);
+        $t->contains('Dynamic languages such as JavaScript are more difficult to compile than statically typed ones.', $text);
+        $t->contains('Since no concrete type information is available, traditional compilers need to emit generic code', $text);
+        $t->contains('handle all possible type combinations at runtime.', $text);
+        $t->contains('We present an alternative compilation technique for dynamically-typed languages', $text);
+        $t->contains('run-time and then', $text);
+        $t->true(!str_contains($text, 'Java Script'), 'JavaScript remains a protected technical term');
+        $t->true(!str_contains($text, 'aremoredifficult'), 'glued prose is segmented');
+    },
     'preserves positioned pdf tables embedded between surrounding text' => static function (TestRunner $t) use ($pdfWithContent): void {
         $pdf = $pdfWithContent(
             'BT /F1 12 Tf '

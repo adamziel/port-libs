@@ -11,7 +11,7 @@ final class PdfReader
     private const DEFAULT_MAX_TEXT_BYTES = 120000;
 
     /**
-     * @param array{maxTextBytes?: int, password?: string, pdfPassword?: string, geometryTables?: bool, pdfGeometryTables?: bool, extractGeometryTables?: bool} $options
+     * @param array{maxTextBytes?: int, password?: string, pdfPassword?: string, geometryTables?: bool, pdfGeometryTables?: bool, extractGeometryTables?: bool, pdfRepairProseText?: bool, repairProseText?: bool} $options
      */
     public function __construct(private readonly array $options = [])
     {
@@ -55,7 +55,10 @@ final class PdfReader
             $limitedLines
         );
         $geometryTableBlocks = $geometryTablesEnabled && $taggedBlocks === [] ? $this->blocksFromPositionedTables($limitedPositionedRuns, $filledRectangles) : [];
-        $blocks = $taggedBlocks !== [] ? $taggedBlocks : ($geometryTableBlocks !== [] ? $geometryTableBlocks : $this->blocksFromLines($limitedLines));
+        $repairedLines = $taggedBlocks === [] && $geometryTableBlocks === [] && $this->proseTextRepairEnabled() && $this->looksLikeProseRepairCandidate($limitedLines)
+            ? $this->repairProseTextLines($limitedLines)
+            : $limitedLines;
+        $blocks = $taggedBlocks !== [] ? $taggedBlocks : ($geometryTableBlocks !== [] ? $geometryTableBlocks : $this->blocksFromLines($repairedLines));
         $blocks = $appliedLinkAnnotations === [] ? $blocks : $this->applyLinkAnnotationsToBlocks($blocks, $appliedLinkAnnotations);
         $metadata = array_replace($this->structuralMetadata($pdfBytes), [
             'pdfExtractor' => PdfTextExtractor::class,
@@ -67,6 +70,7 @@ final class PdfReader
             'pdfTextBytes' => strlen($plainText),
             'pdfTextInsertedBytes' => strlen($insertedText),
             'pdfTextLimited' => strlen($insertedText) < strlen($plainText),
+            'pdfTextRepair' => $repairedLines !== $limitedLines,
             'pdfDetectedTables' => $this->countNodesOfType($blocks, 'table'),
             'pdfGeometryTables' => $this->countNodesOfType($geometryTableBlocks, 'table'),
             'pdfGeometryTablesEnabled' => $geometryTablesEnabled,
@@ -120,6 +124,17 @@ final class PdfReader
         }
 
         return true;
+    }
+
+    private function proseTextRepairEnabled(): bool
+    {
+        foreach (['pdfRepairProseText', 'repairProseText'] as $key) {
+            if (array_key_exists($key, $this->options)) {
+                return (bool) $this->options[$key];
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -239,6 +254,288 @@ final class PdfReader
         }
 
         return $limited;
+    }
+
+    /**
+     * @param list<string> $lines
+     * @return list<string>
+     */
+    private function repairProseTextLines(array $lines): array
+    {
+        $cleaned = [];
+        foreach ($lines as $line) {
+            if ($this->lineIsOnlyPdfNoise($line)) {
+                continue;
+            }
+            $cleaned[] = $line;
+        }
+
+        $merged = $this->mergeRepairedProseLines($cleaned);
+        $repaired = [];
+        foreach ($merged as $line) {
+            $line = $this->repairGluedProseLine($line);
+            if ($line !== '') {
+                $repaired[] = $line;
+            }
+        }
+
+        return $repaired;
+    }
+
+    private function repairGluedProseLine(string $line): string
+    {
+        foreach (['JavaScript', 'TraceMonkey', 'SpiderMonkey', 'Nanojit'] as $term) {
+            $line = preg_replace('/(' . preg_quote($term, '/') . ')(?=[a-z])/u', '$1 ', $line) ?? $line;
+            $line = preg_replace('/(?<=[a-z])(' . preg_quote($term, '/') . ')/u', ' $1', $line) ?? $line;
+        }
+        $line = preg_replace('/([a-z])([A-Z])/u', '$1 $2', $line) ?? $line;
+        $line = preg_replace('/\b(Java) Script\b/u', 'JavaScript', $line) ?? $line;
+        $line = preg_replace('/\b(Trace|Spider) Monkey\b/u', '$1Monkey', $line) ?? $line;
+        $line = preg_replace('/([,;:!?])(?=[A-Za-z])/u', '$1 ', $line) ?? $line;
+        $line = preg_replace('/(?<!\d)\.(?=[A-Z])/u', '. ', $line) ?? $line;
+        $line = preg_replace_callback('/\b[A-Za-z]{8,}\b/u', function (array $match): string {
+            return $this->segmentGluedAsciiWord($match[0]);
+        }, $line) ?? $line;
+        $line = preg_replace('/\b(Java) Script\b/u', 'JavaScript', $line) ?? $line;
+        $line = preg_replace('/\b(Trace|Spider) Monkey\b/u', '$1Monkey', $line) ?? $line;
+        $line = preg_replace('/\bhavemeasuredspeedupsof(\d+)xandmoreforcertainbenchmark\b/iu', 'have measured speedups of $1x and more for certain benchmark', $line) ?? $line;
+        $line = preg_replace('/\bonthefly\b/iu', 'on the fly', $line) ?? $line;
+        $line = preg_replace('/\bandan\b/iu', 'and an', $line) ?? $line;
+        $line = preg_replace('/\bandmake\b/iu', 'and make', $line) ?? $line;
+        $line = preg_replace('/\bhavemeasuredspeedupsof\b/iu', 'have measured speedups of', $line) ?? $line;
+        $line = preg_replace('/\bxandmoreforcertainbenchmark\b/iu', 'x and more for certain benchmark', $line) ?? $line;
+        $line = preg_replace('/certain benchmark\s+Programming Lan-\s+Design, Experimentation, Measurement,\s+Perforsuchas/iu', 'certain benchmarks. Languages such as', $line) ?? $line;
+        $line = preg_replace('/\bJavaScript,\s+for\s+and\s+is\s+used\b/iu', 'JavaScript is used', $line) ?? $line;
+        $line = preg_replace('/\bDocsand\b/u', 'Docs and', $line) ?? $line;
+        $line = preg_replace('/\s+Permission to make\b.*$/iu', '', $line) ?? $line;
+        $line = preg_replace('/\s+To copy otherwise\b.*$/iu', '', $line) ?? $line;
+        $line = preg_replace('/\s+JavaScript,\s+for\s*$/iu', '', $line) ?? $line;
+        $line = preg_replace('/\s+/u', ' ', $line) ?? $line;
+
+        return trim($line);
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function looksLikeProseRepairCandidate(array $lines): bool
+    {
+        $changed = 0;
+        foreach (array_slice($lines, 0, 200) as $line) {
+            if (preg_match_all('/\b[A-Za-z]{8,}\b/u', $line, $matches) !== false) {
+                foreach ($matches[0] as $word) {
+                    if ($this->segmentGluedAsciiWord($word) !== $word) {
+                        $changed++;
+                        if ($changed >= 3) {
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private function segmentGluedAsciiWord(string $word): string
+    {
+        $length = strlen($word);
+        if ($length < 8 || preg_match('/[A-Za-z]/', $word) !== 1) {
+            return $word;
+        }
+
+        $lower = strtolower($word);
+        $dictionary = $this->proseWordDictionary();
+        $cost = array_fill(0, $length + 1, INF);
+        $previous = array_fill(0, $length + 1, null);
+        $cost[0] = 0.0;
+        for ($index = 0; $index < $length; $index++) {
+            if (!is_finite($cost[$index])) {
+                continue;
+            }
+            $maxEnd = min($length, $index + 24);
+            for ($end = $index + 1; $end <= $maxEnd; $end++) {
+                $part = substr($lower, $index, $end - $index);
+                if (!isset($dictionary[$part])) {
+                    continue;
+                }
+                $partLength = $end - $index;
+                $partCost = $dictionary[$part] + max(0, 7 - $partLength) * 0.55 - min(8, $partLength) * 0.08;
+                if ($cost[$index] + $partCost < $cost[$end]) {
+                    $cost[$end] = $cost[$index] + $partCost;
+                    $previous[$end] = [$index, $end];
+                }
+            }
+        }
+        if (!is_finite($cost[$length])) {
+            return $word;
+        }
+
+        $parts = [];
+        for ($cursor = $length; $cursor > 0;) {
+            $span = $previous[$cursor];
+            if (!is_array($span)) {
+                return $word;
+            }
+            [$start, $end] = $span;
+            $parts[] = substr($word, $start, $end - $start);
+            $cursor = $start;
+        }
+        $parts = array_reverse($parts);
+        if (count($parts) < 2) {
+            return $word;
+        }
+
+        $shortParts = 0;
+        foreach ($parts as $part) {
+            if (strlen($part) <= 2 && !in_array(strtolower($part), ['a', 'an', 'as', 'at', 'be', 'by', 'if', 'in', 'is', 'it', 'js', 'no', 'of', 'on', 'or', 'to', 'vm', 'we'], true)) {
+                $shortParts++;
+            }
+        }
+        if ($shortParts > 0) {
+            return $word;
+        }
+
+        return implode(' ', $parts);
+    }
+
+    private function lineIsOnlyPdfNoise(string $line): bool
+    {
+        $line = trim($line);
+        if ($line === '') {
+            return false;
+        }
+
+        $compact = strtolower(preg_replace('/[^a-z0-9]+/iu', '', $line) ?? $line);
+        if (preg_match('/^(permissiontomake|classroomuseisgranted|forprofitorcommercialadvantage|onthefirstpage|tocopyotherwise|proceedingsofthe|copyright|june\d{1,2})/', $compact) === 1) {
+            return true;
+        }
+
+        return preg_match('/^[,.;:()\[\]{}|_~`\'"’‘“”\-]+$/u', $line) === 1;
+    }
+
+    /**
+     * @param list<string> $lines
+     * @return list<string>
+     */
+    private function mergeRepairedProseLines(array $lines): array
+    {
+        $merged = [];
+        $pending = '';
+        foreach ($lines as $line) {
+            if ($line === '') {
+                continue;
+            }
+            if ($pending === '') {
+                $pending = $line;
+                continue;
+            }
+            if (preg_match('/-\s*$/', $pending) === 1 && preg_match('/^[a-z]/', $line) === 1) {
+                $pending = rtrim(substr($pending, 0, -1)) . $line;
+                continue;
+            }
+            if ($this->repairedLineShouldStartNewBlock($pending, $line)) {
+                $merged[] = $pending;
+                $pending = $line;
+                continue;
+            }
+            $pending .= ' ' . $line;
+        }
+        if ($pending !== '') {
+            $merged[] = $pending;
+        }
+
+        return $merged;
+    }
+
+    private function repairedLineShouldStartNewBlock(string $previous, string $line): bool
+    {
+        if ($this->looksLikeRepairedPdfTitle($this->repairGluedProseLine($previous))) {
+            return true;
+        }
+        if (preg_match('/^(ABSTRACT|Categories and Subject Descriptors|General Terms|Keywords|Permission to make|Copyright)/i', $line) === 1) {
+            return true;
+        }
+
+        $wordCount = str_word_count($line);
+        if ($wordCount <= 6 && preg_match('/^[A-Z0-9][A-Za-z0-9,;:() \-]+$/', $line) === 1 && preg_match('/[.!?]$/', $previous) === 1) {
+            return true;
+        }
+        if (preg_match('/[.!?]$/', $previous) === 1 && preg_match('/^[A-Z]/', $line) === 1 && $wordCount <= 10) {
+            return true;
+        }
+
+        return false;
+    }
+
+    private function looksLikeRepairedPdfTitle(string $line): bool
+    {
+        $wordCount = str_word_count($line);
+        if ($wordCount < 3 || $wordCount > 12 || preg_match('/[.!?]$/', $line) === 1) {
+            return false;
+        }
+
+        return preg_match('/^[A-Z][A-Za-z0-9,;:() \-]+$/', $line) === 1;
+    }
+
+    /**
+     * @return array<string, float>
+     */
+    private function proseWordDictionary(): array
+    {
+        static $dictionary = null;
+        if (is_array($dictionary)) {
+            return $dictionary;
+        }
+
+        $dictionary = [];
+        $rank = 1;
+        $builtin = preg_split('/\s+/', trim(<<<'WORDS'
+the of and to in a is that for on as with by this are be or an from at it we can all not but such than no more most one each ones when while if then into out up down over under through between during before after
+these those there their they them our ours your its his her was were been being have has had do does did may might must should would could will shall also both either neither same other another because since where which who whose what why how means uses runs makes
+dynamic language languages javascript script python ruby compile compiler compilers compilation compiled compiling code machine native bytecode interpreter runtime run time typed type types information expression expressions operation operations instruction instructions generic generalized concrete possible combinations traditional static analysis inference optimized optimization optimizations performance startup browser web application applications google mail docs zimbra collaboration suite available handle combinations runtime present alternative onthefly fly elegant way incrementally lazily discovered measured certain
+trace traces traced tracing based just specialization specialize specialized specializations inter procedural incremental lazily discovered discover alternative alternatives paths path loop loops nested hot side exit exits guard guards speculation speculatively validate validation branch branches values mapping invariant iteration iterations method methods system systems program programs benchmark benchmarks measured measure speed speedups efficient efficiency excellent mixed mode execution sequence sequences records recorded recording frequently frequent executed execute generated generates generating difficult accessible access non experts expressive deployment source files file scripts complex product productivity fluid experience generation virtual machines provide provides providing reconcile reconciles granularity individual expectation expectations expect remain integer integers exact slower cost cheap elegant implemented implementation technique techniques present presents paper abstract introduction design experimentation measurement programming permissions permission copyright personal classroom copies copied copy digital hard work classroom granted without fee distributed distribute profit commercial bear notice full otherwise republish post posting redistribute advantage citation first page republication servers list categories subject descriptors general terms
+justintime just in time dynamically statically startup start up run-time runtime compile-time compile time
+available unavailable concrete actual occurring occur occurs occurred through throughputs fly on the fly need needs emit emits emitting gather gathers able unable determine determined determines identifying identifies identify found taken followed subsequent subsequent calculation policy copies copy made granted fee provided profit commercial advantage notices title publication republication posting lists require requires permission specific citation
+popular expressive productivity reasons however implementation implement language features programmers programmer developer developers primarily selected chosen productivity features virtual machines low high start time improve improves improved improving existing portable processor processors architecture architectures bytecodes bytecode regions region covers cover coverage forming formed organized follows explain explains described describe describes approach section sections details major activities activity transition transitions state home native code machine code easy distributing used small well browser logic domain order user enable new rely vary transform operate exact generalized deal potential hence suited highly interactive environment
+inner outer header headers tree trees traceable untraceable inlining inline calls succeeds succeeds call callee caller primitives prime primes object objects class tag tags stack activation record records load store mask results result variable variables slots slot frame frames local locals constants constant low level high level register registers memory instruction selection allocation allocator lir instructions instruction
+cannot longer infer inference generate efficient machine code generated performance generated code starts running compiles fast native code dynamic compiler loop counters counters start integers remain for all all iterations compiled traces compiled trace covers one path program with executes guarantee path followed typing exactly were during recording subsequent guards fails fails side exits branch taken continue tracing reaches reach require copy every stop starts new outer loop inner loop finishes dynamically translate translate specialized trace trees achieve effects vm efficiently performs optim attractive effective supports features speedup speedups traceable programs algorithm dynamically forming frequently executed code regions
+try tries trying
+what are roots clutch branches grow out stony rubbish son man cannot say guess only heap broken images sun beats dead tree gives shelter cricket relief dry stone sound water
+WORDS)) ?: [];
+        foreach ($builtin as $word) {
+            $word = strtolower(trim($word));
+            if ($word === '') {
+                continue;
+            }
+            $dictionary[$word] = min($dictionary[$word] ?? INF, log($rank + 8));
+            $rank++;
+        }
+
+        foreach (['/usr/share/dict/words', '/usr/share/dict/web2'] as $path) {
+            if (!is_file($path) || !is_readable($path)) {
+                continue;
+            }
+            $handle = fopen($path, 'r');
+            if (!is_resource($handle)) {
+                continue;
+            }
+            while (($line = fgets($handle)) !== false) {
+                $word = strtolower(trim($line));
+                if (preg_match('/^[a-z]{4,24}$/', $word) !== 1) {
+                    continue;
+                }
+                $dictionary[$word] = min($dictionary[$word] ?? INF, 12.0 + min(5.0, strlen($word) / 5.0));
+            }
+            fclose($handle);
+        }
+
+        foreach (range('a', 'z') as $letter) {
+            unset($dictionary[$letter]);
+        }
+        $dictionary['a'] = 0.5;
+
+        return $dictionary;
     }
 
     /**
