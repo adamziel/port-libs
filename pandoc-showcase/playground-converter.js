@@ -1,5 +1,7 @@
 import { startPlaygroundWeb } from 'https://playground.wordpress.net/client/index.js';
 
+const pluginBuild = '301c09c440616fbf';
+
 const iframe = document.getElementById('wp-playground');
 const form = document.getElementById('converter-form');
 const fileInput = document.getElementById('file-input');
@@ -14,26 +16,41 @@ const logOutput = document.getElementById('log-output');
 
 const formatByExtension = new Map(Object.entries({
   bib: 'bibtex',
+  biblatex: 'biblatex',
+  bits: 'bits',
+  commonmark: 'commonmark',
+  csljson: 'csljson',
   csv: 'csv',
+  dbk: 'docbook',
   doc: 'doc',
   docbook: 'docbook',
   docx: 'docx',
+  dokuwiki: 'dokuwiki',
+  enl: 'endnotexml',
+  endnote: 'endnotexml',
+  endnotexml: 'endnotexml',
   epub: 'epub',
   fb2: 'fb2',
+  gfm: 'gfm',
   htm: 'html',
   html: 'html',
   ipynb: 'ipynb',
+  jats: 'jats',
   jira: 'jira',
   json: 'json',
   man: 'man',
+  mdoc: 'mdoc',
+  markdown: 'markdown',
   md: 'markdown',
   mediawiki: 'mediawiki',
+  mw: 'mediawiki',
   native: 'native',
   odt: 'odt',
   opml: 'opml',
   pdf: 'pdf',
   pptx: 'pptx',
   ris: 'ris',
+  rst: 'rst',
   rtf: 'rtf',
   tex: 'latex',
   tsv: 'tsv',
@@ -125,7 +142,7 @@ form.addEventListener('submit', async (event) => {
 
 async function bootPlayground() {
   try {
-    const pluginUrl = new URL('playground/port-libs-playground-converter.zip', window.location.href).href;
+    const pluginUrl = new URL(`playground/port-libs-playground-converter.zip?v=${pluginBuild}`, window.location.href).href;
     log('Starting WordPress Playground');
     log(`Installing converter plugin from ${pluginUrl}`);
 

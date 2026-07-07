@@ -3,78 +3,57 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Convert to WordPress in Playground</title>
+  <title>Import any document into WordPress</title>
   <link rel="stylesheet" href="styles.css">
-  <link rel="stylesheet" href="playground-converter.css">
+  <link rel="stylesheet" href="playground-converter.css?v=301c09c440616fbf">
 </head>
 <body>
-  <header class="hero">
-    <div class="hero-inner">
-      <p class="eyebrow">adamziel/port-libs</p>
-      <h1>Convert a document into a real WordPress page</h1>
-      <p class="lede">This is a hands-on migration lab. Upload a source file, let the PHP Pandoc port convert it to WordPress block markup, and inspect the result inside a live WordPress Playground before installing anything or touching a production site.</p>
-      <div class="hero-actions">
-        <a href="index.html">Showcase</a>
-        <a href="block-usage.html">Block usage guide</a>
-      </div>
-      <div class="why-strip" aria-label="Why this converter is useful">
-        <div>
-          <strong>It tests the real import path</strong>
-          <span>The file is parsed, rewritten as block markup, imported into WordPress, and opened as an editable page.</span>
-        </div>
-        <div>
-          <strong>It shows whether content stays editable</strong>
-          <span>You can check blocks, tables, lists, links, headings, math, code, and media in the editor instead of trusting a static preview.</span>
-        </div>
-        <div>
-          <strong>It keeps image imports honest</strong>
-          <span>Extracted images are uploaded to the media library only when the converted page actually renders an <code>&lt;img&gt;</code> tag for them.</span>
-        </div>
-      </div>
-    </div>
-  </header>
-
   <main class="playground-tool">
-    <section class="upload-panel" aria-labelledby="upload-heading">
-      <div>
-        <h2 id="upload-heading">Upload</h2>
-        <p class="meta">Drop a source document here, choose or confirm the input format, and the embedded Playground will create a WordPress page from it.</p>
+    <section class="landing-panel" aria-labelledby="page-heading">
+      <h1 id="page-heading">import any document into WordPress</h1>
+
+      <div class="format-cloud" aria-label="Supported input formats">
+        <span>PDF</span>
+        <span>DOCX</span>
+        <span>DOC</span>
+        <span>ODT</span>
+        <span>EPUB</span>
+        <span>HTML</span>
+        <span>Markdown</span>
+        <span>GFM</span>
+        <span>CommonMark</span>
+        <span>PPTX</span>
+        <span>XLSX</span>
+        <span>CSV</span>
+        <span>TSV</span>
+        <span>MediaWiki</span>
+        <span>man</span>
+        <span>DocBook</span>
+        <span>JATS</span>
+        <span>LaTeX</span>
+        <span>RTF</span>
+        <span>OPML</span>
+        <span>Jira</span>
+        <span>Jupyter Notebook</span>
+        <span>XML</span>
+        <span>JSON</span>
+        <span>native</span>
+        <span>BibTeX</span>
+        <span>BibLaTeX</span>
+        <span>RIS</span>
+        <span>FB2</span>
+        <span>BITS</span>
+        <span>CSL JSON</span>
+        <span>DokuWiki</span>
+        <span>EndNote XML</span>
+        <span>mdoc</span>
+        <span>reStructuredText</span>
+        <span>MultiMarkdown</span>
+        <span>PHP Markdown Extra</span>
+        <span>strict Markdown</span>
       </div>
 
-      <div class="intro-panel" aria-label="What this page is for">
-        <h3>Why this is useful</h3>
-        <p>A static HTML preview can look fine while the WordPress result is hard to edit. This page answers the practical migration question: did the document become structured WordPress content, or did it become a fragile blob?</p>
-        <div class="reason-grid" aria-label="What this page helps you decide">
-          <div>
-            <strong>Can editors keep working?</strong>
-            <span>Open the generated page and decide whether the result is structured enough for normal block editing.</span>
-          </div>
-          <div>
-            <strong>Which documents are migration-ready?</strong>
-            <span>Try policy PDFs, DOCX reports, Markdown specs, spreadsheets, EPUBs, slides, wiki pages, man pages, and archived formats.</span>
-          </div>
-          <div>
-            <strong>Did images become real media?</strong>
-            <span>Check that rendered images were imported and unused extracted files were left out.</span>
-          </div>
-          <div>
-            <strong>Where is the converter weak?</strong>
-            <span>Use the live page and log to catch spacing problems, missing images, flattened tables, broken links, or syntax the converter still needs to learn.</span>
-          </div>
-        </div>
-      </div>
-
-      <div class="action-panel" aria-label="What you can do">
-        <h3>What you can do here</h3>
-        <ul>
-          <li><strong>Smoke-test a migration candidate.</strong> Try one representative PDF, DOCX, Markdown file, spreadsheet, EPUB, slide deck, wiki page, or man page before committing to a batch import.</li>
-          <li><strong>Inspect the generated editor surface.</strong> Open the created page, edit blocks, move content around, and verify that tables, lists, headings, code, math, links, and captions are still recognizable.</li>
-          <li><strong>Audit media handling.</strong> Check the page and media library to confirm that only images used by rendered <code>&lt;img&gt;</code> tags were imported.</li>
-          <li><strong>Turn failures into precise fixes.</strong> Use the live output and conversion log to report concrete gaps such as glued PDF words, flattened tables, missing image references, or unsupported syntax.</li>
-        </ul>
-      </div>
-
-      <form id="converter-form">
+      <form id="converter-form" class="upload-form">
         <label id="dropzone" class="dropzone" for="file-input">
           <span class="dropzone-title">Drop a document here</span>
           <span id="file-name" class="dropzone-meta">or choose a file</span>
@@ -86,33 +65,46 @@
             <span>Input format</span>
             <select id="format-input" name="format">
               <option value="">Detect from filename</option>
-              <option value="markdown">Markdown</option>
-              <option value="gfm">GitHub Flavored Markdown</option>
-              <option value="commonmark">CommonMark</option>
-              <option value="html">HTML</option>
+              <option value="pdf">PDF</option>
               <option value="docx">DOCX</option>
               <option value="doc">DOC</option>
               <option value="odt">ODT</option>
               <option value="epub">EPUB</option>
-              <option value="pdf">PDF</option>
+              <option value="html">HTML</option>
+              <option value="markdown">Markdown</option>
+              <option value="gfm">GitHub Flavored Markdown</option>
+              <option value="markdown_github">GitHub Markdown (legacy)</option>
+              <option value="commonmark">CommonMark</option>
+              <option value="commonmark_x">CommonMark with extensions</option>
+              <option value="markdown_mmd">MultiMarkdown</option>
+              <option value="markdown_phpextra">PHP Markdown Extra</option>
+              <option value="markdown_strict">strict Markdown</option>
               <option value="pptx">PPTX</option>
               <option value="xlsx">XLSX</option>
               <option value="csv">CSV</option>
               <option value="tsv">TSV</option>
               <option value="mediawiki">MediaWiki</option>
+              <option value="dokuwiki">DokuWiki</option>
+              <option value="jira">Jira</option>
               <option value="man">man</option>
+              <option value="mdoc">mdoc</option>
               <option value="docbook">DocBook</option>
               <option value="jats">JATS</option>
+              <option value="bits">BITS</option>
+              <option value="latex">LaTeX</option>
+              <option value="rtf">RTF</option>
+              <option value="opml">OPML</option>
+              <option value="ipynb">Jupyter Notebook</option>
+              <option value="xml">XML</option>
               <option value="json">Pandoc JSON</option>
               <option value="native">Pandoc native</option>
-              <option value="opml">OPML</option>
-              <option value="rtf">RTF</option>
+              <option value="bibtex">BibTeX</option>
+              <option value="biblatex">BibLaTeX</option>
+              <option value="csljson">CSL JSON</option>
+              <option value="endnotexml">EndNote XML</option>
               <option value="ris">RIS</option>
-              <option value="latex">LaTeX</option>
               <option value="fb2">FB2</option>
-              <option value="jira">Jira</option>
-              <option value="ipynb">Notebook</option>
-              <option value="xml">XML</option>
+              <option value="rst">reStructuredText</option>
             </select>
           </label>
           <label>
@@ -131,24 +123,6 @@
         </div>
         <pre id="log-output"></pre>
       </div>
-
-      <div class="value-panel" aria-label="What happens during conversion">
-        <h3>What happens</h3>
-        <ol>
-          <li>The uploaded file is parsed by the port-libs Pandoc readers.</li>
-          <li>The document is rewritten as WordPress block markup, not just displayed as loose HTML.</li>
-          <li>Rendered image references are matched to extracted files and imported into the Playground media library.</li>
-          <li>A new page opens so you can inspect, edit, and publish-test the result in WordPress.</li>
-        </ol>
-      </div>
-
-      <details class="format-details">
-        <summary>Supported input formats</summary>
-        <p>Use auto-detect for common extensions, or choose a reader explicitly when testing a specific flavor such as GitHub Flavored Markdown, MediaWiki, man, DocBook, JATS, or Pandoc native/JSON.</p>
-        <div class="format-chip-list" aria-label="Supported input formats">
-          <span>bibtex</span><span>biblatex</span><span>bits</span><span>commonmark</span><span>commonmark_x</span><span>csljson</span><span>csv</span><span>tsv</span><span>docbook</span><span>docx</span><span>dokuwiki</span><span>endnotexml</span><span>epub</span><span>fb2</span><span>gfm</span><span>markdown_github</span><span>html</span><span>ipynb</span><span>jats</span><span>jira</span><span>json</span><span>latex</span><span>markdown</span><span>markdown_mmd</span><span>markdown_phpextra</span><span>markdown_strict</span><span>mediawiki</span><span>man</span><span>mdoc</span><span>native</span><span>odt</span><span>opml</span><span>pptx</span><span>ris</span><span>rtf</span><span>rst</span><span>xlsx</span><span>xml</span><span>pdf</span><span>doc</span>
-        </div>
-      </details>
     </section>
 
     <section class="playground-panel" aria-label="WordPress Playground">
@@ -156,6 +130,6 @@
     </section>
   </main>
 
-  <script type="module" src="playground-converter.js"></script>
+  <script type="module" src="playground-converter.js?v=301c09c440616fbf"></script>
 </body>
 </html>
