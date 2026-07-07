@@ -77,239 +77,26 @@ function local_sample(string $id, string $format, string $path, string $label, s
 }
 
 /**
+ * @return array<string, mixed>
+ */
+function remote_sample(string $id, string $format, string $url, string $filename, string $label, string $source, string $description = ''): array
+{
+    return [
+        'id' => $id,
+        'format' => $format,
+        'label' => $label,
+        'description' => $description,
+        'url' => $url,
+        'source' => $source,
+        'filename' => $filename,
+    ];
+}
+
+/**
  * @return list<array<string, mixed>>
  */
 function showcase_samples(): array
 {
-    $markdownOne = <<<'MD'
-# WordPress data liberation checklist
-
-This note mirrors the kind of Markdown found in migration docs and issue
-trackers.
-
-- Preserve headings, paragraphs, lists, and inline emphasis.
-- Keep [links](https://wordpress.org/) readable.
-- Convert source content to clean WordPress blocks.
-
-| Source | Expected handoff |
-| --- | --- |
-| Markdown | paragraphs and lists |
-| CSV | table fallback |
-| HTML | native structure |
-MD;
-
-    $markdownTwo = <<<'MD'
----
-title: Release notes excerpt
----
-
-## Highlights
-
-GitHub-flavored Markdown commonly mixes task lists, fenced code, and tables.
-
-- [x] Import document text
-- [ ] Preserve richer layout
-
-```php
-echo "portable conversion";
-```
-MD;
-
-    $markdownPandocFeature = <<<'MD'
----
-title: Pandoc Markdown feature packet
-author:
-  - Migration Team
-keywords: [markdown, pandoc, blocks]
----
-
-# Pandoc Markdown feature packet {#pandoc-feature-packet .review}
-
-Term
-: Definition with *emphasis*, **strong text**, and an inline footnote.^[Inline
-  note with continuation text.]
-
-1. Ordered item with a nested task.
-   - [x] Preserve extension syntax
-   - [ ] Review block output
-
-| Feature | Writer expectation |
-|:--|--:|
-| pipe table | table block |
-| footnote | generated note |
-
-::: warning
-Fenced div content with a [reference link][wp].
-:::
-
-```php
-echo "pandoc markdown";
-```
-
-[wp]: https://wordpress.org/
-MD;
-
-    $commonmarkFeature = <<<'MD'
-# CommonMark feature packet
-
-Paragraph one has *emphasis*, **strong**, `code`, an autolink
-<https://commonmark.org/>, and a reference link to [the spec][spec].
-
-> A quote with lazy continuation
-> and a nested list:
->
-> - one
-> - two
-
-1. Ordered item
-2. Second item with a hard break\
-   next visual line
-
-```json
-{"format":"commonmark","tables":false}
-```
-
----
-
-<section>
-HTML block retained as source HTML.
-</section>
-
-[spec]: https://commonmark.org/
-MD;
-
-    $commonmarkXFeature = <<<'MD'
-# CommonMark X extension packet {#cmx .import}
-
-- [x] task item
-- [ ] unchecked task item
-
-| Extension | Evidence |
-| --- | --- |
-| pipe table | yes |
-| strikeout | ~~removed~~ |
-
-::: note
-Fenced div content with a [bracketed span]{.flag}.
-:::
-
-Term
-: Definition list entry
-
-[^cmx]: Footnote text.
-
-Reference with note.[^cmx]
-MD;
-
-    $gfmFeature = <<<'MD'
-# GFM feature packet
-
-- [x] task list item
-- [ ] open task list item
-
-| GitHub feature | Example |
-| --- | --- |
-| strikethrough | ~~old copy~~ |
-| autolink | https://github.com/ |
-
-```diff
-- old block
-+ new block
-```
-
-> GFM quote with `code` and **strong** text.
-MD;
-
-    $githubMarkdownFeature = <<<'MD'
-# GitHub Markdown alias packet
-
-Issue-style content mixes task lists, tables, mentions, and raw HTML.
-
-- [x] Parse checklist
-- [ ] Preserve pending item
-
-| Field | Value |
-| --- | --- |
-| repository | adamziel/port-libs |
-| status | ~~draft~~ ready |
-
-<details>
-<summary>Review note</summary>
-
-Nested Markdown inside an HTML disclosure.
-
-</details>
-MD;
-
-    $mmdFeature = <<<'MD'
-Title: MultiMarkdown feature packet
-Author: Migration Team
-
-# MultiMarkdown feature packet
-
-This paragraph uses a footnote.[^mmd] It also uses a reference link [WordPress][].
-
-| Left | Right |
-|:-----|------:|
-| alpha | 1 |
-| beta | 2 |
-[Table: Alignment table]
-
-Term
-: Definition text with **strong** emphasis.
-
-[^mmd]: MultiMarkdown-style footnote text.
-
-[WordPress]: https://wordpress.org/
-MD;
-
-    $phpExtraFeature = <<<'MD'
-# PHP Markdown Extra feature packet {#php-extra .profile}
-
-Definition term
-: Definition body with *emphasis* and `code`.
-
-| Column A | Column B |
-| -------- | -------- |
-| alpha | beta |
-
-Paragraph with an attribute block.
-{#paragraph-id .review}
-
-~~~php
-echo "php markdown extra";
-~~~
-
-Footnote reference.[^extra]
-
-[^extra]: Footnote body.
-MD;
-
-    $strictMarkdownFeature = <<<'MD'
-Strict Markdown feature packet
-==============================
-
-This sample avoids extension syntax and sticks to original Markdown constructs:
-inline *emphasis*, **strong text**, `code`, and [reference links][ref].
-
-> Block quote first line
-> second line
-
-* Bullet one
-* Bullet two with nested content
-    * Nested bullet
-
-    Indented code block
-    with two lines
-
-1. Ordered item
-2. Ordered item
-
----
-
-[ref]: https://daringfireball.net/projects/markdown/
-MD;
-
     $mediaWikiFeature = <<<'WIKI'
 = MediaWiki feature packet =
 
@@ -459,12 +246,26 @@ RIS;
             inline_sample('bits-section', 'bits', 'bits-section.xml', 'BITS section fragment', "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<book><book-meta><book-title-group><book-title>Second BITS fragment</book-title></book-title-group></book-meta><book-body><book-part><body><sec><title>Methods</title><p>A second compact BITS sample.</p></sec></body></book-part></book-body></book>\n", 'Inline BITS XML fragment.'),
         ],
         'commonmark' => [
-            inline_sample('commonmark-feature-packet', 'commonmark', 'commonmark-feature-packet.md', 'CommonMark feature packet', $commonmarkFeature, 'Inline CommonMark packet covering reference links, block quotes, lists, fenced code, hard breaks, thematic breaks, and HTML blocks.'),
-            inline_sample('commonmark-notes', 'commonmark', 'commonmark-notes.md', 'CommonMark migration note', $markdownOne, 'Inline documentation-style Markdown sample.'),
+            remote_sample(
+                'commonmark-js-readme',
+                'commonmark',
+                'https://raw.githubusercontent.com/commonmark/commonmark.js/master/README.md',
+                'README.md',
+                'commonmark.js README',
+                'commonmark/commonmark.js project README',
+                'Real CommonMark project README with headings, lists, reference links, raw autolinks, code fences, API examples, and nested blockquote examples.'
+            ),
         ],
         'commonmark_x' => [
-            inline_sample('commonmarkx-feature-packet', 'commonmark_x', 'commonmarkx-feature-packet.md', 'CommonMark X feature packet', $commonmarkXFeature, 'Inline CommonMark X packet covering task lists, pipe tables, strikeout, fenced divs, bracketed spans, definition lists, and footnotes.'),
-            inline_sample('commonmarkx-release', 'commonmark_x', 'commonmarkx-release.md', 'CommonMark extensions sample', $markdownTwo, 'Inline release-note Markdown with extension-oriented constructs.'),
+            remote_sample(
+                'commonmarkx-markdownlint-rules',
+                'commonmark_x',
+                'https://raw.githubusercontent.com/DavidAnson/markdownlint/main/doc/Rules.md',
+                'Rules.md',
+                'markdownlint rules reference',
+                'DavidAnson/markdownlint doc/Rules.md',
+                'Real 71 KB rules reference with extensive Markdown examples, headings, fenced code, lists, links, inline HTML, and extension edge cases.'
+            ),
         ],
         'csljson' => [
             inline_sample('csljson-book', 'csljson', 'csljson-book.json', 'CSL JSON book item', $csl, 'Inline CSL JSON item using a real published book.'),
@@ -530,12 +331,26 @@ RIS;
             upstream_sample('fb2-notes', 'fb2', 'test/fb2/reader/notes.fb2', 'FB2 notes', 'FictionBook notes fixture from upstream Pandoc tests.'),
         ],
         'gfm' => [
-            inline_sample('gfm-feature-packet', 'gfm', 'gfm-feature-packet.md', 'GFM feature packet', $gfmFeature, 'Inline GitHub-flavored Markdown packet covering task lists, pipe tables, strikethrough, autolinks, fenced code, and quotes.'),
-            inline_sample('gfm-release', 'gfm', 'gfm-release.md', 'GFM release notes', $markdownTwo, 'Inline GitHub-flavored Markdown sample.'),
+            remote_sample(
+                'gfm-gitlab-markdown-guide',
+                'gfm',
+                'https://raw.githubusercontent.com/gitlabhq/gitlabhq/master/doc/user/markdown.md',
+                'gitlab-markdown.md',
+                'GitLab Markdown guide',
+                'gitlabhq/gitlabhq doc/user/markdown.md',
+                'Real 81 KB GitLab Flavored Markdown guide with front matter, tables, fenced code, task lists, strikethrough, math, diagrams, references, images, and nested lists.'
+            ),
         ],
         'markdown_github' => [
-            inline_sample('markdown-github-feature-packet', 'markdown_github', 'markdown-github-feature-packet.md', 'GitHub Markdown alias feature packet', $githubMarkdownFeature, 'Inline GitHub Markdown alias packet covering task lists, tables, strikethrough, and details HTML.'),
-            inline_sample('markdown-github-release', 'markdown_github', 'markdown-github-release.md', 'GitHub Markdown alias', $markdownTwo, 'Inline GitHub Markdown alias sample.'),
+            remote_sample(
+                'markdown-github-writing-formatting',
+                'markdown_github',
+                'https://raw.githubusercontent.com/github/docs/main/content/get-started/writing-on-github/getting-started-with-writing-and-formatting-on-github/basic-writing-and-formatting-syntax.md',
+                'basic-writing-and-formatting-syntax.md',
+                'GitHub writing and formatting syntax',
+                'github/docs GitHub writing and formatting syntax',
+                'Real GitHub Docs article with front matter, Liquid tags, pipe tables, strikethrough, task lists, images, emoji, alerts, mentions, and fenced code examples.'
+            ),
         ],
         'html' => [
             upstream_sample('html-reader', 'html', 'test/html-reader.html', 'HTML reader fixture', 'HTML fixture from upstream Pandoc tests.'),
@@ -562,8 +377,6 @@ RIS;
             upstream_sample('latex-bar', 'latex', 'test/command/bar.tex', 'LaTeX included file fixture', 'Small TeX file from upstream Pandoc command tests.'),
         ],
         'markdown' => [
-            inline_sample('markdown-feature-packet', 'markdown', 'markdown-feature-packet.md', 'Pandoc Markdown feature packet', $markdownPandocFeature, 'Inline Pandoc Markdown packet covering metadata, attributes, definition lists, task lists, tables, fenced divs, footnotes, code, and reference links.'),
-            inline_sample('markdown-release', 'markdown', 'markdown-release.md', 'Markdown release note', $markdownTwo, 'Inline release-note Markdown sample.'),
             [
                 'id' => 'markdown-pandoc-manual',
                 'format' => 'markdown',
@@ -575,16 +388,37 @@ RIS;
             ],
         ],
         'markdown_mmd' => [
-            inline_sample('markdown-mmd-feature-packet', 'markdown_mmd', 'markdown-mmd-feature-packet.md', 'MultiMarkdown feature packet', $mmdFeature, 'Inline MultiMarkdown packet covering metadata, footnotes, table captions, alignment, definitions, and reference links.'),
-            inline_sample('markdown-mmd-release', 'markdown_mmd', 'markdown-mmd-release.md', 'MultiMarkdown release note', $markdownTwo, 'Inline Markdown read through the MultiMarkdown profile.'),
+            remote_sample(
+                'markdown-mmd-quickstart',
+                'markdown_mmd',
+                'https://raw.githubusercontent.com/fletcher/MultiMarkdown-6/master/QuickStart/QuickStart.txt',
+                'QuickStart.txt',
+                'MultiMarkdown Quick Start guide',
+                'fletcher/MultiMarkdown-6 QuickStart/QuickStart.txt',
+                'Real MultiMarkdown guide with metadata, citations, CriticMarkup examples, image syntax, fenced code, footnotes, glossary terms, and heading structure.'
+            ),
         ],
         'markdown_phpextra' => [
-            inline_sample('markdown-phpextra-feature-packet', 'markdown_phpextra', 'markdown-phpextra-feature-packet.md', 'PHP Markdown Extra feature packet', $phpExtraFeature, 'Inline PHP Markdown Extra packet covering attributes, definition lists, tables, fenced code, and footnotes.'),
-            inline_sample('markdown-phpextra-release', 'markdown_phpextra', 'markdown-phpextra-release.md', 'PHP Markdown Extra release note', $markdownTwo, 'Inline Markdown read through the PHP Markdown Extra profile.'),
+            remote_sample(
+                'markdown-phpextra-php-markdown-readme',
+                'markdown_phpextra',
+                'https://raw.githubusercontent.com/michelf/php-markdown/lib/Readme.md',
+                'Readme.md',
+                'PHP Markdown README',
+                'michelf/php-markdown Readme.md',
+                'Real PHP Markdown project README covering PHP Markdown Extra usage, code blocks, links, raw HTML block handling, special attributes, and release notes.'
+            ),
         ],
         'markdown_strict' => [
-            inline_sample('markdown-strict-feature-packet', 'markdown_strict', 'markdown-strict-feature-packet.md', 'Strict Markdown feature packet', $strictMarkdownFeature, 'Inline strict Markdown packet covering original Markdown headings, emphasis, links, block quotes, nested lists, indented code, and thematic breaks.'),
-            inline_sample('markdown-strict-release', 'markdown_strict', 'markdown-strict-release.md', 'Strict Markdown release note', $markdownTwo, 'Inline Markdown read through the strict profile.'),
+            remote_sample(
+                'markdown-strict-gruber-syntax',
+                'markdown_strict',
+                'https://daringfireball.net/projects/markdown/syntax.text',
+                'syntax.text',
+                'Original Markdown syntax documentation',
+                'Daring Fireball Markdown syntax source',
+                'Real original Markdown syntax document with setext headings, inline HTML, nested lists, block quotes, indented code, reference links, emphasis, images, and autolinks.'
+            ),
         ],
         'man' => [
             local_sample('man-generated-fixture', 'man', 'lanes/pandoc/fixtures/man-corpus-smoke/generated.5', 'Generated roff manpage fixture', 'Checked-in roff manpage exercising TH/SH, font escapes, tagged paragraphs, indentation, no-fill code, and generated-man requests.'),
@@ -940,7 +774,9 @@ function sample_preview_html(string $path): string
 
 function h(string $value): string
 {
-    return htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    $escaped = htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+
+    return preg_replace_callback('/ +(?=\r?\n|$)/', static fn (array $match): string => str_repeat('&#32;', strlen($match[0])), $escaped) ?? $escaped;
 }
 
 function rel(string $absolute, string $base): string

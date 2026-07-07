@@ -1,0 +1,2952 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc 3.10" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <meta name="description" content="Formatting, inline HTML, GitLab-specific references, diagrams, and flowcharts." />
+  <title>Haskell Pandoc output</title>
+  <style>
+    /* Default styles provided by pandoc.
+    ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+    */
+    html {
+      color: #1a1a1a;
+      background-color: #fdfdfd;
+    }
+    body {
+      margin: 0 auto;
+      max-width: 36em;
+      padding-left: 50px;
+      padding-right: 50px;
+      padding-top: 50px;
+      padding-bottom: 50px;
+      hyphens: auto;
+      overflow-wrap: break-word;
+      text-rendering: optimizeLegibility;
+      font-kerning: normal;
+    }
+    @media (max-width: 600px) {
+      body {
+        font-size: 0.9em;
+        padding: 12px;
+      }
+      h1 {
+        font-size: 1.8em;
+      }
+    }
+    @media print {
+      html {
+        background-color: white;
+      }
+      body {
+        background-color: transparent;
+        color: black;
+        font-size: 12pt;
+      }
+      p, h2, h3 {
+        orphans: 3;
+        widows: 3;
+      }
+      h2, h3, h4 {
+        page-break-after: avoid;
+      }
+    }
+    p {
+      margin: 1em 0;
+    }
+    a {
+      color: #1a1a1a;
+    }
+    a:visited {
+      color: #1a1a1a;
+    }
+    img {
+      max-width: 100%;
+    }
+    svg {
+      height: auto;
+      max-width: 100%;
+    }
+    h1, h2, h3, h4, h5, h6 {
+      margin-top: 1.4em;
+    }
+    h5, h6 {
+      font-size: 1em;
+      font-style: italic;
+    }
+    h6 {
+      font-weight: normal;
+    }
+    ol, ul {
+      padding-left: 1.7em;
+      margin-top: 1em;
+    }
+    li > ol, li > ul {
+      margin-top: 0;
+    }
+    blockquote {
+      margin: 1em 0 1em 1.7em;
+      padding-left: 1em;
+      border-left: 2px solid #e6e6e6;
+      color: #606060;
+    }
+    code {
+      white-space: pre-wrap;
+      font-family: Menlo, Monaco, Consolas, 'Lucida Console', monospace;
+      font-size: 85%;
+      margin: 0;
+      hyphens: manual;
+    }
+    pre {
+      margin: 1em 0;
+      overflow: auto;
+    }
+    pre code {
+      padding: 0;
+      overflow: visible;
+      overflow-wrap: normal;
+    }
+    .sourceCode {
+     background-color: transparent;
+     overflow: visible;
+    }
+    hr {
+      border: none;
+      border-top: 1px solid #1a1a1a;
+      height: 1px;
+      margin: 1em 0;
+    }
+    table {
+      margin: 1em 0;
+      border-collapse: collapse;
+      width: 100%;
+      overflow-x: auto;
+      display: block;
+      font-variant-numeric: lining-nums tabular-nums;
+    }
+    table caption {
+      margin-bottom: 0.75em;
+    }
+    tbody {
+      margin-top: 0.5em;
+      border-top: 1px solid #1a1a1a;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    th {
+      border-top: 1px solid #1a1a1a;
+      padding: 0.25em 0.5em 0.25em 0.5em;
+    }
+    td {
+      padding: 0.125em 0.5em 0.25em 0.5em;
+    }
+    header {
+      margin-bottom: 4em;
+      text-align: center;
+    }
+    #TOC li {
+      list-style: none;
+    }
+    #TOC ul {
+      padding-left: 1.3em;
+    }
+    #TOC > ul {
+      padding-left: 0;
+    }
+    #TOC a:not(:hover) {
+      text-decoration: none;
+    }
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: 1.5em;}
+    div.column{flex: auto;}
+    @media screen {
+    div.columns{gap: min(4vw, 1.5em);}
+    div.column{overflow-x: auto;}
+    }
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+    /* CSS for syntax highlighting */
+    html { -webkit-text-size-adjust: 100%; }
+    pre > code.sourceCode { white-space: pre; position: relative; }
+    pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+    pre > code.sourceCode > span:empty { height: 1.2em; }
+    .sourceCode { overflow: visible; }
+    code.sourceCode > span { color: inherit; text-decoration: inherit; }
+    div.sourceCode { margin: 1em 0; }
+    pre.sourceCode { margin: 0; }
+    @media screen {
+    div.sourceCode { overflow: auto; }
+    }
+    @media print {
+    pre > code.sourceCode { white-space: pre-wrap; }
+    pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+    }
+    pre.numberSource code
+      { counter-reset: source-line 0; }
+    pre.numberSource code > span
+      { position: relative; left: -4em; counter-increment: source-line; }
+    pre.numberSource code > span > a:first-child::before
+      { content: counter(source-line);
+        position: relative; left: -1em; text-align: right; vertical-align: baseline;
+        border: none; display: inline-block;
+        -webkit-touch-callout: none; -webkit-user-select: none;
+        -khtml-user-select: none; -moz-user-select: none;
+        -ms-user-select: none; user-select: none;
+        padding: 0 4px; width: 4em;
+        color: #aaaaaa;
+      }
+    pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa;  padding-left: 4px; }
+    div.sourceCode
+      {   }
+    @media screen {
+    pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+    }
+    code span.al { color: #ff0000; font-weight: bold; } /* Alert */
+    code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } /* Annotation */
+    code span.at { color: #7d9029; } /* Attribute */
+    code span.bn { color: #40a070; } /* BaseN */
+    code span.bu { color: #008000; } /* BuiltIn */
+    code span.cf { color: #007020; font-weight: bold; } /* ControlFlow */
+    code span.ch { color: #4070a0; } /* Char */
+    code span.cn { color: #880000; } /* Constant */
+    code span.co { color: #60a0b0; font-style: italic; } /* Comment */
+    code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } /* CommentVar */
+    code span.do { color: #ba2121; font-style: italic; } /* Documentation */
+    code span.dt { color: #902000; } /* DataType */
+    code span.dv { color: #40a070; } /* DecVal */
+    code span.er { color: #ff0000; font-weight: bold; } /* Error */
+    code span.ex { } /* Extension */
+    code span.fl { color: #40a070; } /* Float */
+    code span.fu { color: #06287e; } /* Function */
+    code span.im { color: #008000; font-weight: bold; } /* Import */
+    code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Information */
+    code span.kw { color: #007020; font-weight: bold; } /* Keyword */
+    code span.op { color: #666666; } /* Operator */
+    code span.ot { color: #007020; } /* Other */
+    code span.pp { color: #bc7a00; } /* Preprocessor */
+    code span.sc { color: #4070a0; } /* SpecialChar */
+    code span.ss { color: #bb6688; } /* SpecialString */
+    code span.st { color: #4070a0; } /* String */
+    code span.va { color: #19177c; } /* Variable */
+    code span.vs { color: #4070a0; } /* VerbatimString */
+    code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warning */
+  </style>
+</head>
+<body>
+<header id="title-block-header">
+<h1 class="title">Haskell Pandoc output</h1>
+</header>
+<p>{{&lt; details &gt;}}</p>
+<ul>
+<li>Tier: Free, Premium, Ultimate</li>
+<li>Offering: GitLab.com, GitLab Self-Managed, GitLab Dedicated</li>
+</ul>
+<p>{{&lt; /details &gt;}}</p>
+<p>GitLab Flavored Markdown (GLFM) is a markup language that formats
+text in the GitLab user interface. GLFM:</p>
+<ul>
+<li>Creates rich content with support for code, diagrams, math
+equations, and multimedia.</li>
+<li>Links issues, merge requests, and other GitLab content with
+cross-references.</li>
+<li>Organizes information with task lists, tables, and collapsible
+sections.</li>
+<li>Supports syntax highlighting for over 100 programming
+languages.</li>
+<li>Ensures accessibility with semantic heading structures and image
+descriptions.</li>
+</ul>
+<p>When you enter text in the GitLab UI, GitLab assumes the text is in
+GitLab Flavored Markdown.</p>
+<p>You can use GitLab Flavored Markdown in:</p>
+<ul>
+<li>Comments</li>
+<li>Issues</li>
+<li>Epics</li>
+<li>Merge requests</li>
+<li>Milestones</li>
+<li>Snippets (the snippet must be named with a <code>.md</code>
+extension)</li>
+<li>Wiki pages</li>
+<li>Markdown documents inside repositories</li>
+<li>Releases</li>
+</ul>
+<p>You can also use other rich text files in GitLab. You might have to
+install a dependency to do so. For more information, see the <a
+href="https://gitlab.com/gitlab-org/gitlab-markup"><code>gitlab-markup</code>
+gem project</a>.</p>
+<div class="note">
+<div class="title">
+<p>Note</p>
+</div>
+<p>This Markdown specification is valid for GitLab only. We do our best
+to render the Markdown faithfully here, however the <a
+href="https://docs.gitlab.com">GitLab documentation website</a> and the
+<a href="https://handbook.gitlab.com">GitLab handbook</a> use a
+different Markdown renderer.</p>
+</div>
+<p>To see exact examples of how GitLab renders any of these
+examples:</p>
+<ol type="1">
+<li>Copy the relevant raw Markdown example (not the rendered version of
+the example).</li>
+<li>Paste the Markdown somewhere in GitLab that supports Markdown
+previews, for example issue or merge request comments or descriptions,
+or a new Markdown file.</li>
+<li>Select <strong>Preview</strong> to view the GitLab-rendered
+Markdown.</li>
+</ol>
+<h2 id="differences-with-standard-markdown">Differences with standard
+Markdown</h2>
+<!--
+Use this topic to list features that are not present in standard Markdown.
+Don't repeat this information in each individual topic, unless there's a specific
+reason, like in "Newlines".
+-->
+
+<p>GitLab Flavored Markdown consists of the following:</p>
+<ul>
+<li>Core Markdown features, based on the <a
+href="https://spec.commonmark.org/current/">CommonMark
+specification</a>.</li>
+<li>Extensions from <a href="https://github.github.com/gfm/">GitHub
+Flavored Markdown</a>.</li>
+<li>Extensions made specifically for GitLab.</li>
+</ul>
+<p>All standard Markdown formatting should work as expected in GitLab.
+Some standard functionality is extended with additional features,
+without affecting the standard usage.</p>
+<p>The following features are not found in standard Markdown:</p>
+<ul>
+<li><a href="#alerts">Alerts</a></li>
+<li><a href="#colors">Color chips written in <code>HEX</code>,
+<code>RGB</code> or <code>HSL</code></a></li>
+<li><a href="#description-lists">Description lists</a></li>
+<li><a href="#diagrams-and-flowcharts">Diagrams and flowcharts</a></li>
+<li><a href="#emoji">Emoji</a></li>
+<li><a href="#footnotes">Footnotes</a></li>
+<li><a href="#front-matter">Front matter</a></li>
+<li><a href="#gitlab-specific-references">GitLab-specific references</a>
+(Not supported in Markdown snippet files.)</li>
+<li><a href="#includes">Includes</a></li>
+<li><a href="#placeholders">Placeholders</a></li>
+<li><a href="#inline-diff">Inline diffs</a></li>
+<li><a href="#math-equations">Math equations and symbols written in
+LaTeX</a></li>
+<li><a href="#emphasis">Strikethrough</a></li>
+<li><a href="#table-of-contents">Table of Contents</a></li>
+<li><a href="#tables">Tables</a></li>
+<li><a href="#task-lists">Task lists</a></li>
+<li><a href="project/wiki/markdown.md">Wiki-specific Markdown</a></li>
+</ul>
+<p>The following features are extended from standard Markdown:</p>
+<table>
+<thead>
+<tr>
+<th>Standard Markdown</th>
+<th>Extended Markdown in GitLab</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="#blockquotes">Blockquotes</a></td>
+<td><a href="#multiline-blockquote">Multiline blockquotes</a></td>
+</tr>
+<tr>
+<td><a href="#code-spans-and-blocks">Code blocks</a></td>
+<td><a href="#syntax-highlighting">Colored code and syntax
+highlighting</a></td>
+</tr>
+<tr>
+<td><a href="#headings">Headings</a></td>
+<td><a href="#heading-ids-and-links">Linkable heading IDs</a></td>
+</tr>
+<tr>
+<td><a href="#images">Images</a></td>
+<td><a href="#videos">Embedded videos</a> and <a
+href="#audio">audio</a></td>
+</tr>
+<tr>
+<td><a href="#links">Links</a></td>
+<td><a href="#url-auto-linking">Automatically linking URLs</a></td>
+</tr>
+</tbody>
+</table>
+<h2 id="markdown-and-accessibility">Markdown and accessibility</h2>
+<p>When you use GitLab Flavored Markdown, you are creating digital
+content. This content should be as accessible as possible to your
+audience. The following list is not exhaustive, but it provides guidance
+for some of the GitLab Flavored Markdown styles to pay particular
+attention to:</p>
+<h3 id="accessible-headings">Accessible headings</h3>
+<p>Use heading formatting to create a logical heading structure. The
+structure of headings on a page should make sense, like a good table of
+contents. Ensure that there is only one <code>h1</code> element on a
+page, that heading levels are not skipped, and that they are nested
+correctly.</p>
+<h3 id="accessible-tables">Accessible tables</h3>
+<p>To keep tables accessible and scannable, tables should not have any
+empty cells. If there is no otherwise meaningful value for a cell,
+consider entering <strong>N/A</strong> for "not applicable" or
+<strong>None</strong>.</p>
+<h3 id="accessible-images-and-videos">Accessible images and videos</h3>
+<p>Describe the image or video in the <code>[alt text]</code>. Make the
+description accurate, succinct, and unique. Don't use
+<code>image of</code> or <code>video of</code> in the description. For
+more information, see <a
+href="https://webaim.org/techniques/alttext/">WebAim Alternative
+Text</a>.</p>
+<h2 id="work-item-and-merge-request-titles">Work item and merge request
+titles</h2>
+<p>{{&lt; history &gt;}}</p>
+<ul>
+<li>Full GitLab Flavored Markdown support <a
+href="https://gitlab.com/gitlab-org/gitlab/-/merge_requests/184070">introduced</a>
+in GitLab 18.0.</li>
+<li>Full GitLab Flavored Markdown support <a
+href="https://gitlab.com/gitlab-org/gitlab/-/merge_requests/224839">removed</a>
+in GitLab 18.11.</li>
+</ul>
+<p>{{&lt; /history &gt;}}</p>
+<p>Titles of issues, merge requests, epics, and other work items do not
+support full GitLab Flavored Markdown. Titles support only:</p>
+<ul>
+<li>Code spans (<code>`code`</code>), without support for <a
+href="#use-additional-backticks">using additional backticks</a> or
+escaping.</li>
+<li>Emoji (<code>:emoji:</code> shortcodes and custom emoji).</li>
+<li>Auto-linked URLs.</li>
+<li><a href="#gitlab-specific-references">GitLab-specific references</a>
+like <code>#123</code>, <code>@user</code>, and <code>!456</code>.</li>
+</ul>
+<p>Standard Markdown syntax like bold, italic, links, headings, lists,
+and other block-level formatting is not processed in titles. For
+example, the title <code>**Merge request title**</code> is not displayed
+in bold and is displayed with the asterisks.</p>
+<h2 id="headings">Headings</h2>
+<p>Create headings from 1 to 6 by using <code>#</code>.</p>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="fu"># H1</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="fu">## H2</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="fu">### H3</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="fu">#### H4</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="fu">##### H5</span></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="fu">###### H6</span></span></code></pre></div>
+<p>Alternatively, for H1 and H2, use an underline style:</p>
+<div class="sourceCode" id="cb2"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>Alt-H1</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="fu">======</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>Alt-H2</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>------</span></code></pre></div>
+<h3 id="heading-ids-and-links">Heading IDs and links</h3>
+<p>{{&lt; history &gt;}}</p>
+<ul>
+<li>Heading link generation <a
+href="https://gitlab.com/gitlab-org/gitlab/-/issues/440733">changed</a>
+in GitLab 17.0.</li>
+</ul>
+<p>{{&lt; /history &gt;}}</p>
+<p>All Markdown-rendered headings automatically get IDs that can be
+linked to, except in comments.</p>
+<p>On hover, a link to those IDs becomes visible to make it easier to
+copy the link to the heading to use it somewhere else.</p>
+<p>The IDs are generated from the content of the heading according to
+the following rules:</p>
+<ol type="1">
+<li>All text is converted to lowercase.</li>
+<li>All non-word text (such as punctuation or HTML) is removed.</li>
+<li>All spaces are converted to hyphens.</li>
+<li>Two or more hyphens in a row are converted to one.</li>
+<li>If a heading with the same ID has already been generated, a unique
+incrementing number is appended, starting at 1.</li>
+</ol>
+<p>Example:</p>
+<!--
+Translation note: DO NOT TRANSLATE this example. The example must stay untranslated
+to stay in sync with the example link IDs.
+-->
+
+<div class="sourceCode" id="cb3"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="fu"># This heading has spaces in it</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="fu">## This heading has a :thumbsup: in it</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="fu"># This heading has Unicode in it: 한글</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="fu">## This heading has spaces in it</span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a><span class="fu">### This heading has spaces in it</span></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a><span class="fu">## This heading has 3.5 in it (and parentheses)</span></span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a><span class="fu">## This heading has  multiple spaces and --- hyphens</span></span></code></pre></div>
+<p>Would generate the following link IDs:</p>
+<ol type="1">
+<li><code>this-heading-has-spaces-in-it</code></li>
+<li><code>this-heading-has-a-thumbsup-in-it</code></li>
+<li><code>this-heading-has-unicode-in-it-한글</code></li>
+<li><code>this-heading-has-spaces-in-it-1</code></li>
+<li><code>this-heading-has-spaces-in-it-2</code></li>
+<li><code>this-heading-has-35-in-it-and-parentheses</code></li>
+<li><code>this-heading-has--multiple-spaces-and-----hyphens</code></li>
+</ol>
+<h2 id="line-breaks">Line breaks</h2>
+<p>A line break is inserted (a new paragraph starts) if the previous
+text is ended with two newlines. For example, when you press
+<kbd>Enter</kbd> twice in a row. If you only use one newline (press
+<kbd>Enter</kbd> once), the next sentence remains part of the same
+paragraph. Use this approach if you want to keep long lines from
+wrapping, and keep them editable:</p>
+<div class="sourceCode" id="cb4"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>Here&#39;s a line for us to start with.</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>This longer line is separated from the one above by two newlines, so it is a *separate paragraph*.</span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>This line is also a separate paragraph, but...</span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>These lines are only separated by single newlines,</span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>so they *do not break* and just follow the previous lines</span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>in the *same paragraph*.</span></code></pre></div>
+<p>When rendered, the example looks similar to:</p>
+<blockquote>
+<p>Here's a line for us to start with.</p>
+<p>This longer line is separated from the one above by two newlines, so
+it is a <em>separate paragraph</em>.</p>
+<p>This line is also a separate paragraph, but... These lines are only
+separated by single newlines, so they <em>do not break</em> and just
+follow the previous lines in the <em>same paragraph</em>.</p>
+</blockquote>
+<h3 id="newlines">Newlines</h3>
+<p>A paragraph is one or more consecutive lines of text, separated by
+one or more blank lines (two newlines at the end of the first
+paragraph), as explained in <a href="#line-breaks">line breaks</a>.</p>
+<p>Need more control over line breaks or soft returns? Add a single line
+break by ending a line with a backslash, or two or more spaces. Two
+newlines in a row create a new paragraph, with a blank line in
+between:</p>
+<div class="sourceCode" id="cb5"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>First paragraph.</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>Another line in the same paragraph.</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>A third line in the same paragraph, but this time ending with two spaces.<span class="dt">&lt;</span><span class="kw">space</span><span class="dt">&gt;&lt;</span><span class="kw">space</span><span class="dt">&gt;</span></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>A new line directly under the first paragraph.</span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>Second paragraph.</span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>Another line, this time ending with a backslash.\</span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>A new line due to the previous backslash.</span></code></pre></div>
+<p>When rendered, the example looks similar to:</p>
+<blockquote>
+<p>First paragraph. Another line in the same paragraph. A third line in
+the same paragraph, but this time ending with two spaces.<br> A new line
+directly under the first paragraph.</p>
+<p>Second paragraph. Another line, this time ending with a
+backslash.<br />
+A new line due to the previous backslash.</p>
+</blockquote>
+<p>This syntax adheres to the Markdown specification for handling <a
+href="https://spec.commonmark.org/current/">paragraphs and line
+breaks</a>.</p>
+<h2 id="emphasis">Emphasis</h2>
+<p>You can emphasize text in multiple ways. Use italics, bold,
+strikethrough, or combine these emphasis styles together.</p>
+<p>Examples:</p>
+<div class="sourceCode" id="cb6"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>Emphasis, or italics, with *asterisks* or _underscores_.</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>Strong emphasis, or bold, with double **asterisks** or __underscores__.</span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>Combined emphasis with **asterisks and _underscores_**.</span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>Strikethrough with double tildes. ~~Scratch this.~~</span></code></pre></div>
+<p>When rendered, the example looks similar to:</p>
+<blockquote>
+<p>Emphasis, or italics, with <em>asterisks</em> or
+<em>underscores</em>.</p>
+<p>Strong emphasis, or bold, with double <strong>asterisks</strong> or
+<strong>underscores</strong>.</p>
+<p>Combined emphasis with <strong>asterisks and
+<em>underscores</em></strong>.</p>
+<p>Strikethrough with double tildes. <del>Scratch this.</del></p>
+</blockquote>
+<h3 id="mid-word-emphasis">Mid-word emphasis</h3>
+<p>Avoid italicizing a portion of a word, especially when you're dealing
+with code and names that often appear with multiple underscores.</p>
+<p>GitLab Flavored Markdown ignores multiple underlines in words, to
+allow better rendering of Markdown documents discussing code:</p>
+<!--
+Translation note: DO NOT TRANSLATE these examples or the rendered versions.
+The mid-word emphasis examples do not work in all languages and must stay in English to render correctly.
+-->
+
+<div class="sourceCode" id="cb7"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>perform_complicated_task</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>do_this_and_do_that_and_another_thing</span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>but_emphasis is_desired _here_</span></code></pre></div>
+<p>When rendered, the example looks similar to:</p>
+<!-- vale gitlab_base.Spelling = NO -->
+
+<blockquote>
+<p>perform_complicated_task</p>
+<p>do_this_and_do_that_and_another_thing</p>
+<p>but_emphasis is_desired <em>here</em></p>
+</blockquote>
+<!-- vale gitlab_base.Spelling = YES -->
+
+<p>If you wish to emphasize only a part of a word, it can still be done
+with asterisks:</p>
+<div class="sourceCode" id="cb8"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>perform*complicated*task</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>do*this*and*do*that*and*another thing</span></code></pre></div>
+<p>When rendered, the example looks similar to:</p>
+<blockquote>
+<p>perform<em>complicated</em>task</p>
+<p>do<em>this</em>and<em>do</em>that<em>and</em>another thing</p>
+</blockquote>
+<h3 id="inline-diff">Inline diff</h3>
+<p>With inline diff tags, you can display <code>{+ additions +}</code>
+or <code>[- deletions -]</code>.</p>
+<p>The wrapping tags can be either curly braces or square brackets:</p>
+<!--
+Translation note: DO NOT TRANSLATE this example. The example must stay untranslated
+to stay in sync with the image.
+-->
+
+<div class="sourceCode" id="cb9"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>{+ addition 1 +}</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="co">[</span><span class="ot">+ addition 2 +</span><span class="co">]</span></span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>{- deletion 3 -}</span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="co">[</span><span class="ot">- deletion 4 -</span><span class="co">]</span></span></code></pre></div>
+<p><img src="img/inline_diff_01_v13_3.png"
+alt="Inline diff as rendered by the GitLab interface" /></p>
+<hr />
+<p>However, you cannot mix the wrapping tags:</p>
+<div class="sourceCode" id="cb10"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>{+ addition +]</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>[+ addition +}</span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>{- deletion -]</span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>[- deletion -}</span></code></pre></div>
+<p>Diff highlighting doesn't work with <code>`inline code`</code>. If
+your text includes backticks (<code>`</code>), <a
+href="#escape-characters">escape</a> each backtick with a backslash
+<code>\</code>:</p>
+<!--
+Translation note: DO NOT TRANSLATE this example. The example must stay untranslated
+to stay in sync with the image.
+-->
+
+<div class="sourceCode" id="cb11"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>{+ Just regular text +}</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>{+ Text with <span class="in">`backticks`</span> inside +}</span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>{+ Text with escaped <span class="sc">\`</span>backticks<span class="sc">\`</span> inside +}</span></code></pre></div>
+<p><img src="img/inline_diff_02_v13_3.png"
+alt="Inline diff with mixed formatting, as rendered by the GitLab interface" /></p>
+<h3 id="horizontal-rule">Horizontal rule</h3>
+<p>Create a horizontal rule by using three or more hyphens, asterisks,
+or underscores:</p>
+<div class="sourceCode" id="cb12"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a><span class="co">***</span></span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a><span class="co">___</span></span></code></pre></div>
+<p>When rendered, all horizontal rules look similar to:</p>
+<hr />
+<h2 id="lists">Lists</h2>
+<p>You can create ordered and unordered lists.</p>
+<p>For an ordered list, add the number you want the list to start with,
+like <code>1.</code>, followed by a space, at the start of each line.
+After the first number, it does not matter what number you use. Ordered
+lists are numbered automatically by vertical order, so repeating
+<code>1.</code> for all items in the same list is common. If you start
+with a number other than <code>1.</code>, it uses that as the first
+number, and counts up from there.</p>
+<p>Examples:</p>
+<div class="sourceCode" id="cb13"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="ss">1. </span>First ordered list item</span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a><span class="ss">2. </span>Another item</span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a><span class="ss">   - </span>Unordered sub-list.</span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a><span class="ss">1. </span>Actual numbers don&#39;t matter, just that it&#39;s a number</span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a><span class="ss">   1. </span>Ordered sub-list</span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a><span class="ss">   1. </span>Next ordered sub-list item</span>
+<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a><span class="ss">4. </span>And another item.</span></code></pre></div>
+<!--
+The "2." and "4." in the previous example are changed to "1." in the following example,
+to match the style standards on <https://docs.gitlab.com>.
+See <https://docs.gitlab.com/development/documentation/styleguide/#lists>.
+-->
+
+<p>When rendered, the example looks similar to:</p>
+<blockquote>
+<ol type="1">
+<li>First ordered list item</li>
+<li>Another item
+<ul>
+<li>Unordered sub-list.</li>
+</ul></li>
+<li>Actual numbers don't matter, just that it's a number
+<ol type="1">
+<li>Ordered sub-list</li>
+<li>Next ordered sub-list item</li>
+</ol></li>
+<li>And another item.</li>
+</ol>
+</blockquote>
+<p>For an unordered list, add a <code>-</code>, <code>*</code> or
+<code>+</code>, followed by a space, at the start of each line. Don't
+mix the characters in the same list.</p>
+<div class="sourceCode" id="cb14"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="an">Unordered lists can:</span></span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>use</span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>minuses</span>
+<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a>They can also:</span>
+<span id="cb14-7"><a href="#cb14-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-8"><a href="#cb14-8" aria-hidden="true" tabindex="-1"></a><span class="ss">* </span>use</span>
+<span id="cb14-9"><a href="#cb14-9" aria-hidden="true" tabindex="-1"></a><span class="ss">* </span>asterisks</span>
+<span id="cb14-10"><a href="#cb14-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-11"><a href="#cb14-11" aria-hidden="true" tabindex="-1"></a>They can even:</span>
+<span id="cb14-12"><a href="#cb14-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-13"><a href="#cb14-13" aria-hidden="true" tabindex="-1"></a><span class="ss">+ </span>use</span>
+<span id="cb14-14"><a href="#cb14-14" aria-hidden="true" tabindex="-1"></a><span class="ss">+ </span>pluses</span></code></pre></div>
+<!--
+The "*" and "+" in the previous example are changed to "-" in the following example,
+to match the style standards on <https://docs.gitlab.com>.
+See <https://docs.gitlab.com/development/documentation/styleguide/#lists>.
+-->
+
+<p>When rendered, the example looks similar to:</p>
+<blockquote>
+<p>Unordered lists can:</p>
+<ul>
+<li>use</li>
+<li>minuses</li>
+</ul>
+<p>They can also:</p>
+<ul>
+<li>use</li>
+<li>asterisks</li>
+</ul>
+<p>They can even:</p>
+<ul>
+<li>use</li>
+<li>pluses</li>
+</ul>
+</blockquote>
+<hr />
+<p>If a list item contains multiple paragraphs, each subsequent
+paragraph should be indented to the same level as the start of the list
+item text.</p>
+<p>Example:</p>
+<div class="sourceCode" id="cb15"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="ss">1. </span>First ordered list item</span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a>   Second paragraph of first item.</span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a><span class="ss">1. </span>Another item</span></code></pre></div>
+<p>When rendered, the example looks similar to:</p>
+<blockquote>
+<ol type="1">
+<li><p>First ordered list item</p>
+<p>Second paragraph of first item.</p></li>
+<li><p>Another item</p></li>
+</ol>
+</blockquote>
+<p>If the first item's paragraph isn't indented with the proper number
+of spaces, the paragraph appears outside the list. Use the correct
+number of spaces to properly indent under the list item. For
+example:</p>
+<div class="sourceCode" id="cb16"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="ss">1. </span>First ordered list item</span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a>  (Misaligned paragraph of first item.)</span>
+<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a><span class="ss">1. </span>Another item</span></code></pre></div>
+<p>When rendered, the example looks similar to:</p>
+<!-- markdownlint-disable MD027 -->
+
+<blockquote>
+<ol type="1">
+<li>First ordered list item</li>
+</ol>
+<p>(Misaligned paragraph of first item.)</p>
+<ol type="1">
+<li>Another item</li>
+</ol>
+</blockquote>
+<!-- markdownlint-enable MD027 -->
+
+<hr />
+<p>Ordered lists that are the first sub-item of an unordered list item
+must have a preceding blank line if they don't start with
+<code>1.</code>.</p>
+<p>For example, with a blank line:</p>
+<div class="sourceCode" id="cb17"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Unordered list item</span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a><span class="ss">  5. </span>First ordered list item</span></code></pre></div>
+<p>When rendered, the example looks similar to:</p>
+<!-- markdownlint-disable MD029 -->
+
+<blockquote>
+<ul>
+<li><p>Unordered list item</p>
+<ol start="5" type="1">
+<li>First ordered list item</li>
+</ol></li>
+</ul>
+</blockquote>
+<!-- markdownlint-disable MD029 -->
+
+<p>If the blank line is missing, the second list item renders as part of
+the first one:</p>
+<div class="sourceCode" id="cb18"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Unordered list item</span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a><span class="ss">  5. </span>First ordered list item</span></code></pre></div>
+<p>When rendered, the example looks similar to:</p>
+<blockquote>
+<ul>
+<li>Unordered list item 5. First ordered list item</li>
+</ul>
+</blockquote>
+<hr />
+<p>CommonMark ignores blank lines between ordered and unordered list
+items, and considers them part of a single list. The items are rendered
+as a <a href="https://spec.commonmark.org/0.30/#loose">loose</a> list.
+Each list item is enclosed in a paragraph tag and therefore has
+paragraph spacing and margins. This makes the list look like there is
+extra spacing between each item.</p>
+<p>For example:</p>
+<div class="sourceCode" id="cb19"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>First list item</span>
+<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Second list item</span>
+<span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-4"><a href="#cb19-4" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>A different list</span></code></pre></div>
+<p>When rendered, the example looks similar to:</p>
+<blockquote>
+<ul>
+<li><p>First list item</p></li>
+<li><p>Second list item</p></li>
+<li><p>A different list</p></li>
+</ul>
+</blockquote>
+<p>CommonMark ignores the blank line and renders this as one list with
+paragraph spacing.</p>
+<h3 id="description-lists">Description lists</h3>
+<p>{{&lt; history &gt;}}</p>
+<ul>
+<li>Description lists <a
+href="https://gitlab.com/gitlab-org/gitlab/-/issues/26314">introduced</a>
+in GitLab 17.7.</li>
+</ul>
+<p>{{&lt; /history &gt;}}</p>
+<p>A description list is a list of terms with corresponding
+descriptions. Each term can have multiple descriptions. In HTML this is
+represented with <code>&lt;dl&gt;</code>, <code>&lt;dt&gt;</code>, and
+<code>&lt;dd&gt;</code> tags.</p>
+<p>To create a description list, place the term on one line, with the
+description on the next line beginning with a colon.</p>
+<div class="sourceCode" id="cb20"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a>Fruits</span>
+<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a>: apple</span>
+<span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a>: orange</span>
+<span id="cb20-4"><a href="#cb20-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-5"><a href="#cb20-5" aria-hidden="true" tabindex="-1"></a>Vegetables</span>
+<span id="cb20-6"><a href="#cb20-6" aria-hidden="true" tabindex="-1"></a>: broccoli</span>
+<span id="cb20-7"><a href="#cb20-7" aria-hidden="true" tabindex="-1"></a>: kale</span>
+<span id="cb20-8"><a href="#cb20-8" aria-hidden="true" tabindex="-1"></a>: spinach</span></code></pre></div>
+<p>You can also have a blank line between the term and description.</p>
+<div class="sourceCode" id="cb21"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a>Fruits</span>
+<span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb21-3"><a href="#cb21-3" aria-hidden="true" tabindex="-1"></a>: apple</span>
+<span id="cb21-4"><a href="#cb21-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb21-5"><a href="#cb21-5" aria-hidden="true" tabindex="-1"></a>: orange</span></code></pre></div>
+<div class="note">
+<div class="title">
+<p>Note</p>
+</div>
+<p>The rich text editor does not support inserting new description
+lists. To insert a new description list, use the plain text editor. For
+more information, see <a
+href="https://gitlab.com/gitlab-org/gitlab/-/issues/535956">issue
+535956</a>.</p>
+</div>
+<h3 id="task-lists">Task lists</h3>
+<p>You can add task lists anywhere Markdown is supported.</p>
+<ul>
+<li>In issues, merge requests, epics, and comments, you can select the
+boxes.</li>
+<li>In all other places, you cannot select the boxes. You must edit the
+Markdown manually by adding or removing an <code>x</code> in the
+brackets.</li>
+</ul>
+<p>Besides complete and incomplete, tasks can also be
+<strong>inapplicable</strong>. Selecting an inapplicable checkbox in an
+issue, merge request, epic, or comment has no effect.</p>
+<p>To create a task list, follow the format of an ordered or unordered
+list:</p>
+<!--
+Translation note: DO NOT TRANSLATE this example. The example must stay untranslated
+to stay in sync with the image.
+-->
+
+<div class="sourceCode" id="cb22"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="va">[x]</span> Completed task</span>
+<span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="co">[</span><span class="ot">~</span><span class="co">]</span> Inapplicable task</span>
+<span id="cb22-3"><a href="#cb22-3" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="va">[ ]</span> Incomplete task</span>
+<span id="cb22-4"><a href="#cb22-4" aria-hidden="true" tabindex="-1"></a><span class="ss">  - </span><span class="va">[x]</span> Sub-task 1</span>
+<span id="cb22-5"><a href="#cb22-5" aria-hidden="true" tabindex="-1"></a><span class="ss">  - </span><span class="co">[</span><span class="ot">~</span><span class="co">]</span> Sub-task 2</span>
+<span id="cb22-6"><a href="#cb22-6" aria-hidden="true" tabindex="-1"></a><span class="ss">  - </span><span class="va">[ ]</span> Sub-task 3</span>
+<span id="cb22-7"><a href="#cb22-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb22-8"><a href="#cb22-8" aria-hidden="true" tabindex="-1"></a><span class="ss">1. </span><span class="co">[</span><span class="ot">x</span><span class="co">]</span> Completed task</span>
+<span id="cb22-9"><a href="#cb22-9" aria-hidden="true" tabindex="-1"></a><span class="ss">1. </span><span class="co">[</span><span class="ot">~</span><span class="co">]</span> Inapplicable task</span>
+<span id="cb22-10"><a href="#cb22-10" aria-hidden="true" tabindex="-1"></a><span class="ss">1. </span><span class="co">[ ]</span> Incomplete task</span>
+<span id="cb22-11"><a href="#cb22-11" aria-hidden="true" tabindex="-1"></a><span class="ss">   1. </span><span class="co">[</span><span class="ot">x</span><span class="co">]</span> Sub-task 1</span>
+<span id="cb22-12"><a href="#cb22-12" aria-hidden="true" tabindex="-1"></a><span class="ss">   1. </span><span class="co">[</span><span class="ot">~</span><span class="co">]</span> Sub-task 2</span>
+<span id="cb22-13"><a href="#cb22-13" aria-hidden="true" tabindex="-1"></a><span class="ss">   1. </span><span class="co">[ ]</span> Sub-task 3</span></code></pre></div>
+<p><img src="img/completed_tasks_v15_3.png"
+alt="Task list as rendered by GitLab" /></p>
+<p>You can also add task lists to <a href="#task-lists-in-tables">table
+cells</a>.</p>
+<h2 id="links">Links</h2>
+<p>You can create links in multiple ways:</p>
+<div class="sourceCode" id="cb23"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>This line shows an <span class="co">[</span><span class="ot">inline-style link</span><span class="co">](https://www.google.com)</span></span>
+<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>This line shows a <span class="co">[</span><span class="ot">link to a repository file in the same directory</span><span class="co">](permissions.md)</span></span>
+<span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>This line shows a <span class="co">[</span><span class="ot">relative link to a file one directory higher</span><span class="co">](../_index.md)</span></span>
+<span id="cb23-4"><a href="#cb23-4" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>This line shows a <span class="co">[</span><span class="ot">link that also has title text</span><span class="co">](https://www.google.com &quot;This link takes you to Google!&quot;)</span></span></code></pre></div>
+<p>When rendered, the examples look similar to:</p>
+<blockquote>
+<ul>
+<li>This line shows an <a href="https://www.google.com">inline-style
+link</a></li>
+<li>This line shows a <a href="permissions.md">link to a repository file
+in the same directory</a></li>
+<li>This line shows a <a href="../_index.md">relative link to a file one
+directory higher</a></li>
+<li>This line shows a <a href="https://www.google.com"
+title="This link takes you to Google!">link that also has title
+text</a></li>
+</ul>
+</blockquote>
+<p>You cannot use relative links to reference project files in a wiki
+page, or a wiki page in a project file. This limitation exists because
+wikis are always in separate Git repositories in GitLab. For example,
+<code>[I'm a reference-style link](style)</code> points to
+<code>wikis/style</code> only when the link is inside a wiki Markdown
+file. For more information, see <a
+href="project/wiki/markdown.md">Wiki-specific Markdown</a>.</p>
+<p>Use heading ID anchors to link to a specific section in a page:</p>
+<div class="sourceCode" id="cb24"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>This line links to <span class="co">[</span><span class="ot">a section on a different Markdown page, using a `#` and the heading ID</span><span class="co">](permissions.md#project-permissions)</span></span>
+<span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>This line links to <span class="co">[</span><span class="ot">a different section on the same page, using a `#` and the heading ID</span><span class="co">](#heading-ids-and-links)</span></span></code></pre></div>
+<p>When rendered, the examples look similar to:</p>
+<blockquote>
+<ul>
+<li>This line links to <a href="permissions.md#project-permissions">a
+section on a different Markdown page, using a <code>#</code> and the
+heading ID</a></li>
+<li>This line links to <a href="#heading-ids-and-links">a different
+section on the same page, using a <code>#</code> and the heading
+ID</a></li>
+</ul>
+</blockquote>
+<p>Using link references:</p>
+<!--
+The following codeblock uses extra spaces to avoid the Vale ReferenceLinks test.
+Do not remove the two-space nesting.
+-->
+
+<div class="sourceCode" id="cb25"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>This line shows a <span class="co">[</span><span class="ot">reference-style link, see below</span><span class="co">][Arbitrary case-insensitive reference text]</span></span>
+<span id="cb25-2"><a href="#cb25-2" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>You can <span class="co">[</span><span class="ot">use numbers for reference-style link definitions, see below</span><span class="co">][1]</span></span>
+<span id="cb25-3"><a href="#cb25-3" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Or leave it empty and use the <span class="co">[</span><span class="ot">link text itself</span><span class="co">][]</span>, see below.</span>
+<span id="cb25-4"><a href="#cb25-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb25-5"><a href="#cb25-5" aria-hidden="true" tabindex="-1"></a>Some text to show that the reference links can follow later.</span>
+<span id="cb25-6"><a href="#cb25-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb25-7"><a href="#cb25-7" aria-hidden="true" tabindex="-1"></a><span class="ot">[arbitrary case-insensitive reference text]: https://www.mozilla.org/en-US/</span></span>
+<span id="cb25-8"><a href="#cb25-8" aria-hidden="true" tabindex="-1"></a><span class="ot">[1]: https://slashdot.org</span></span>
+<span id="cb25-9"><a href="#cb25-9" aria-hidden="true" tabindex="-1"></a><span class="ot">[link text itself]: https://about.gitlab.com/</span></span></code></pre></div>
+<!--
+The example below uses in-line links to pass the Vale ReferenceLinks test.
+Do not change to reference style links.
+-->
+
+<p>When rendered, the example look similar to:</p>
+<blockquote>
+<ul>
+<li>This line is a <a
+href="https://www.mozilla.org/en-US/">reference-style link, see
+below</a></li>
+<li>You can <a href="https://slashdot.org">use numbers for
+reference-style link definitions, see below</a></li>
+<li>Or leave it empty and use the <a
+href="https://about.gitlab.com/">link text itself</a>, see below.</li>
+</ul>
+<p>Some text to show that the reference links can follow later.</p>
+</blockquote>
+<h3 id="url-auto-linking">URL auto-linking</h3>
+<p>Almost any URL you put into your text is auto-linked:</p>
+<div class="sourceCode" id="cb26"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>https://www.google.com</span>
+<span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>https://www.google.com</span>
+<span id="cb26-3"><a href="#cb26-3" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>ftp://ftp.us.debian.org/debian/</span>
+<span id="cb26-4"><a href="#cb26-4" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>smb://foo/bar/baz</span>
+<span id="cb26-5"><a href="#cb26-5" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>irc://irc.freenode.net/</span>
+<span id="cb26-6"><a href="#cb26-6" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>http://localhost:3000</span></code></pre></div>
+<p>When rendered, the example looks similar to:</p>
+<blockquote>
+<ul>
+<li><a href="https://www.google.com">https://www.google.com</a></li>
+<li><a href="https://www.google.com">https://www.google.com</a></li>
+<li><a
+href="ftp://ftp.us.debian.org/debian/">ftp://ftp.us.debian.org/debian/</a></li>
+<li><a href="smb://foo/bar/baz/">smb://foo/bar/baz</a></li>
+<li><a href="irc://irc.freenode.net">irc://irc.freenode.net</a></li>
+<li><a href="http://localhost:3000">http://localhost:3000</a></li>
+</ul>
+</blockquote>
+<h2 id="gitlab-specific-references">GitLab-specific references</h2>
+<p>{{&lt; history &gt;}}</p>
+<ul>
+<li>Autocomplete for wiki pages <a
+href="https://gitlab.com/gitlab-org/gitlab/-/issues/442229">introduced</a>
+in GitLab 16.11.</li>
+<li>Option to reference labels from groups <a
+href="https://gitlab.com/gitlab-org/gitlab/-/issues/455120">introduced</a>
+in GitLab 17.1.</li>
+<li>Option to reference issues, epics, and work items with
+<code>[work_item:123]</code> syntax:
+<ul>
+<li><a
+href="https://gitlab.com/gitlab-org/gitlab/-/issues/352861">Introduced</a>
+in GitLab 18.1 <a href="../administration/feature_flags/_index.md">with
+a flag</a> named <code>extensible_reference_filters</code>. Disabled by
+default.</li>
+<li><a
+href="https://gitlab.com/gitlab-org/gitlab/-/merge_requests/197052">Generally
+available</a> in GitLab 18.2. Feature flag
+<code>extensible_reference_filters</code> removed.</li>
+</ul></li>
+<li>Option to reference epics with <code>[epic:123]</code> syntax <a
+href="https://gitlab.com/gitlab-org/gitlab/-/issues/352864">introduced</a>
+in GitLab 18.4.</li>
+<li>Ability to reference personal snippets:
+<ul>
+<li><a
+href="https://gitlab.com/gitlab-org/gitlab/-/work_items/217306">Introduced</a>
+in GitLab 19.0 <a href="../administration/feature_flags/_index.md">with
+a flag</a> named <code>personal_snippet_reference_filters</code>.
+Disabled by default.</li>
+<li><a
+href="https://gitlab.com/gitlab-org/gitlab/-/merge_requests/241935">Generally
+available</a> in GitLab 19.2. Feature flag
+<code>personal_snippet_reference_filters</code> removed.</li>
+</ul></li>
+</ul>
+<p>{{&lt; /history &gt;}}</p>
+<p>GitLab Flavored Markdown renders GitLab-specific references. For
+example, you can reference an issue, a commit, a team member, or even an
+entire project team. GitLab Flavored Markdown turns that reference into
+a link so you can navigate between them. All references to projects
+should use the <strong>project slug</strong> rather than the project
+name.</p>
+<p>Additionally, GitLab Flavored Markdown recognizes certain
+cross-project references and also has a shorthand version to reference
+other projects from the same namespace.</p>
+<div class="note">
+<div class="title">
+<p>Note</p>
+</div>
+<p>GitLab-specific references are not supported in Markdown snippet
+files.</p>
+</div>
+<p>GitLab Flavored Markdown recognizes the following:</p>
+<table>
+<thead>
+<tr>
+<th>References</th>
+<th>Input</th>
+<th>Cross-project reference</th>
+<th>Shortcut inside the same namespace</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Specific user</td>
+<td><code>@user_name</code></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>Specific group</td>
+<td><code>@group_name</code></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>Entire team</td>
+<td><a
+href="discussions/_index.md#mentioning-all-members"><code>@all</code></a></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>Project</td>
+<td><code>namespace/project&gt;</code></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>Issue</td>
+<td><code>#123</code>, <code>GL-123</code>, or
+<code>[issue:123]</code></td>
+<td><code>namespace/project#123</code> or
+<code>[issue:namespace/project/123]</code></td>
+<td><code>project#123</code> or <code>[issue:project/123]</code></td>
+</tr>
+<tr>
+<td><a href="work_items/_index.md">Work item</a></td>
+<td><code>[work_item:123]</code></td>
+<td><code>[work_item:namespace/project/123]</code></td>
+<td><code>[work_item:project/123]</code></td>
+</tr>
+<tr>
+<td>Merge request</td>
+<td><code>!123</code></td>
+<td><code>namespace/project!123</code></td>
+<td><code>project!123</code></td>
+</tr>
+<tr>
+<td>Snippet <sup>3</sup></td>
+<td><code>$123</code></td>
+<td><code>namespace/project$123</code></td>
+<td><code>project$123</code></td>
+</tr>
+<tr>
+<td>Personal snippet <sup>3</sup></td>
+<td><code>$123</code></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><a href="group/epics/_index.md">Epic</a></td>
+<td><code>#123</code>, <code>&amp;123</code>,
+<code>[work_item:123]</code>, or <code>[epic:123]</code></td>
+<td><code>group1/subgroup#123</code>,
+<code>group1/subgroup&amp;123</code>,
+<code>[work_item:group1/subgroup/123]</code>, or
+<code>[epic:group1/subgroup/123]</code></td>
+<td></td>
+</tr>
+<tr>
+<td><a href="group/iterations/_index.md">Iteration</a></td>
+<td><code>*iteration:"iteration title"</code></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><a href="group/iterations/_index.md">Iteration cadence</a> by
+ID<sup>1</sup></td>
+<td><code>[cadence:123]</code></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><a href="group/iterations/_index.md">Iteration cadence</a> by title
+(one word)<sup>1</sup></td>
+<td><code>[cadence:plan]</code></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><a href="group/iterations/_index.md">Iteration cadence</a> by title
+(multiple words)<sup>1</sup></td>
+<td><code>[cadence:"plan a"]</code></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><a
+href="application_security/vulnerabilities/_index.md">Vulnerability</a></td>
+<td><code>[vulnerability:123]</code></td>
+<td><code>[vulnerability:namespace/project/123]</code></td>
+<td><code>[vulnerability:project/123]</code></td>
+</tr>
+<tr>
+<td>Feature flag</td>
+<td><code>[feature_flag:123]</code></td>
+<td><code>[feature_flag:namespace/project/123]</code></td>
+<td><code>[feature_flag:project/123]</code></td>
+</tr>
+<tr>
+<td>Label by ID <sup>2</sup></td>
+<td><code>~123</code></td>
+<td><code>namespace/project~123</code></td>
+<td><code>project~123</code></td>
+</tr>
+<tr>
+<td>Label by name (one word) <sup>2</sup></td>
+<td><code>~bug</code></td>
+<td><code>namespace/project~bug</code></td>
+<td><code>project~bug</code></td>
+</tr>
+<tr>
+<td>Label by name (multiple words) <sup>2</sup></td>
+<td><code>~"feature request"</code></td>
+<td><code>namespace/project~"feature request"</code></td>
+<td><code>project~"feature request"</code></td>
+</tr>
+<tr>
+<td>Label by name (scoped) <sup>2</sup></td>
+<td><code>~"priority::high"</code></td>
+<td><code>namespace/project~"priority::high"</code></td>
+<td><code>project~"priority::high"</code></td>
+</tr>
+<tr>
+<td>Project milestone by ID <sup>2</sup></td>
+<td><code>%123</code></td>
+<td><code>namespace/project%123</code></td>
+<td><code>project%123</code></td>
+</tr>
+<tr>
+<td>Milestone by name (one word) <sup>2</sup></td>
+<td><code>%v1.23</code></td>
+<td><code>namespace/project%v1.23</code></td>
+<td><code>project%v1.23</code></td>
+</tr>
+<tr>
+<td>Milestone by name (multiple words) <sup>2</sup></td>
+<td><code>%"release candidate"</code></td>
+<td><code>namespace/project%"release candidate"</code></td>
+<td><code>project%"release candidate"</code></td>
+</tr>
+<tr>
+<td>Commit (specific)</td>
+<td><code>9ba12248</code></td>
+<td><code>namespace/project@9ba12248</code></td>
+<td><code>project@9ba12248</code></td>
+</tr>
+<tr>
+<td>Commit range comparison</td>
+<td><code>9ba12248...b19a04f5</code></td>
+<td><code>namespace/project@9ba12248...b19a04f5</code></td>
+<td><code>project@9ba12248...b19a04f5</code></td>
+</tr>
+<tr>
+<td>Repository file reference</td>
+<td><code>[README](doc/README.md)</code></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>Repository file reference (specific line)</td>
+<td><code>[README](doc/README.md#L13)</code></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><a href="../operations/incident_management/alerts.md">Alert</a></td>
+<td><code>^alert#123</code></td>
+<td><code>namespace/project^alert#123</code></td>
+<td><code>project^alert#123</code></td>
+</tr>
+<tr>
+<td><a href="crm/_index.md#contacts">Contact</a></td>
+<td><code>[contact:test@example.com]</code></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><a href="project/wiki/_index.md">Wiki page</a> (if the page slug is
+the same as the title)</td>
+<td><code>[[Home]]</code> or <code>[wiki_page:Home]</code></td>
+<td><code>[wiki_page:namespace/project:Home]</code> or
+<code>[wiki_page:group1/subgroup:Home]</code></td>
+<td></td>
+</tr>
+<tr>
+<td><a href="project/wiki/_index.md">Wiki page</a> (if the page slug is
+different from the title)</td>
+<td><code>[[How to use GitLab|how-to-use-gitlab]]</code></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Footnotes</strong>:</p>
+<ol type="1">
+<li><a
+href="https://gitlab.com/gitlab-org/gitlab/-/issues/384885">Introduced</a>
+in GitLab 16.9. Iteration cadence references are always rendered
+following the format <code>[cadence:&lt;ID&gt;]</code>. For example, the
+text reference <code>[cadence:"plan"]</code> renders as
+<code>[cadence:1]</code> if the referenced iterations cadence's ID is
+<code>1</code>.</li>
+<li>For labels or milestones, prepend a <code>/</code> before
+<code>namespace/project</code> to specify the exact label or milestone,
+removing any possible ambiguity.</li>
+<li>Snippet IDs are unique across personal and project snippets, so a
+given ID always identifies a single snippet.</li>
+</ol>
+<p>For example, referencing an issue by using <code>#123</code> formats
+the output as a link to issue number 123 with text <code>#123</code>.
+Likewise, a link to issue number 123 is recognized and formatted with
+text <code>#123</code>. If you don't want <code>#123</code> to link to
+an issue, add a leading backslash <code>\#123</code>.</p>
+<p>In addition to this, links to some objects are also recognized and
+formatted. For example:</p>
+<ul>
+<li>Comments on issues:
+<code>"https://gitlab.com/gitlab-org/gitlab/-/issues/1234#note_101075757"</code>,
+rendered as <code>#1234 (comment 101075757)</code></li>
+<li>The issues designs tab:
+<code>"https://gitlab.com/gitlab-org/gitlab/-/issues/1234/designs"</code>,
+rendered as <code>#1234 (designs)</code>.</li>
+<li>Links to individual designs:
+<code>"https://gitlab.com/gitlab-org/gitlab/-/issues/1234/designs/layout.png"</code>,
+rendered as <code>#1234[layout.png]</code>.</li>
+</ul>
+<h3 id="show-item-title">Show item title</h3>
+<p>{{&lt; history &gt;}}</p>
+<ul>
+<li>Support for work items (tasks, objectives, and key results) <a
+href="https://gitlab.com/gitlab-org/gitlab/-/issues/390854">introduced</a>
+in GitLab 16.0.</li>
+<li>Support for epics introduced in GitLab 17.7, with the flag named
+<code>work_item_epics</code>, enabled by default.</li>
+<li>Generally available for epics in GitLab 18.1. Feature flag
+<code>work_item_epics</code> removed.</li>
+</ul>
+<p>{{&lt; /history &gt;}}</p>
+<p>To include the title in the rendered link of an issue, task,
+objective, key result, merge request, or epic:</p>
+<ul>
+<li>Add a plus (<code>+</code>) at the end of the reference.</li>
+</ul>
+<p>For example, a reference like <code>#123+</code> is rendered as
+<code>The issue title (#123)</code>.</p>
+<p>URL references like
+<code>https://gitlab.com/gitlab-org/gitlab/-/issues/1234+</code> are
+also expanded.</p>
+<h3 id="show-item-summary">Show item summary</h3>
+<p>{{&lt; history &gt;}}</p>
+<ul>
+<li>Support for work items (tasks, objectives, and key results) <a
+href="https://gitlab.com/gitlab-org/gitlab/-/issues/390854">introduced</a>
+in GitLab 16.0.</li>
+<li>Support for epics introduced in GitLab 17.7, with the flag named
+<code>work_item_epics</code>, enabled by default.</li>
+<li>Generally available for epics in GitLab 18.1. Feature flag
+<code>work_item_epics</code> removed.</li>
+</ul>
+<p>{{&lt; /history &gt;}}</p>
+<p>To include an extended summary in the rendered link of an epic,
+issue, task, objective, key result, or merge request:</p>
+<ul>
+<li>Add a <code>+s</code> at the end of the reference.</li>
+</ul>
+<p>Summary includes information about <strong>assignees</strong>,
+<strong>milestone</strong> and <strong>health status</strong>, as
+applicable by work item type, of referenced item.</p>
+<p>For example, a reference like <code>#123+s</code> is rendered as
+<code>The issue title (#123) • First Assignee, Second Assignee+ • v15.10 • Needs attention</code>.</p>
+<p>URL references like
+<code>https://gitlab.com/gitlab-org/gitlab/-/issues/1234+s</code> are
+also expanded.</p>
+<p>To update the rendered references if the assignee, milestone, or
+health status changed:</p>
+<ul>
+<li>Refresh the page.</li>
+</ul>
+<h3 id="comment-preview-on-hover">Comment preview on hover</h3>
+<p>{{&lt; history &gt;}}</p>
+<ul>
+<li><a
+href="https://gitlab.com/gitlab-org/gitlab/-/issues/29663">Introduced</a>
+in GitLab 17.3 <a href="../administration/feature_flags/_index.md">with
+a flag</a> named <code>comment_tooltips</code>. Disabled by
+default.</li>
+<li>Feature flag removed in GitLab 17.6</li>
+</ul>
+<p>{{&lt; /history &gt;}}</p>
+<p>Hovering over a link to a comment shows the author and first line of
+the comment.</p>
+<h3 id="embed-observability-dashboards">Embed Observability
+dashboards</h3>
+<p>You can embed GitLab Observability UI dashboards descriptions and
+comments, for example in epics, issues, and MRs.</p>
+<p>To embed an Observability dashboard URL:</p>
+<ol type="1">
+<li>In GitLab Observability UI, copy the URL in the address bar.</li>
+<li>Paste your link in a comment or description. GitLab Flavored
+Markdown recognizes the URL and displays the source.</li>
+</ol>
+<h2 id="tables">Tables</h2>
+<p>When creating tables:</p>
+<ul>
+<li>The first line contains the headers, separated by pipe characters
+(<code>|</code>).</li>
+<li>The second line separates the headers from the cells.
+<ul>
+<li>The cells can contain only empty spaces, hyphens, and (optionally)
+colons for horizontal alignment.</li>
+<li>Each cell must contain at least one hyphen, but adding more hyphens
+to a cell does not change the cell's rendering.</li>
+<li>Any content other than hyphens, whitespace, or colons is not
+allowed</li>
+</ul></li>
+<li>The third, and any following lines, contain the cell values.
+<ul>
+<li>You <strong>can't</strong> have cells separated over many lines in
+the Markdown, they must be kept to single lines, but they can be very
+long. You can also include HTML <code>&lt;br&gt;</code> tags to force
+newlines if needed.</li>
+<li>The cell sizes <strong>don't</strong> have to match each other. They
+are flexible, but must be separated by pipes (<code>|</code>).</li>
+<li>You <strong>can</strong> have blank cells.</li>
+</ul></li>
+<li>Column widths are calculated dynamically based on the content of the
+cells.</li>
+<li>To use the pipe character (<code>|</code>) in the text and not as
+table delimiter, you must <a href="#escape-characters">escape</a> it
+with a backslash (<code>\|</code>).</li>
+</ul>
+<p>Example:</p>
+<div class="sourceCode" id="cb27"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> header 1 <span class="pp">|</span> header 2 <span class="pp">|</span> header 3 <span class="pp">|</span></span>
+<span id="cb27-2"><a href="#cb27-2" aria-hidden="true" tabindex="-1"></a><span class="pp">| ---</span>      <span class="pp">| ------</span>   <span class="pp">| --------</span> <span class="pp">|</span></span>
+<span id="cb27-3"><a href="#cb27-3" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> cell 1   <span class="pp">|</span> cell 2   <span class="pp">|</span> cell 3   <span class="pp">|</span></span>
+<span id="cb27-4"><a href="#cb27-4" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> cell 4 <span class="pp">|</span> cell 5 is longer <span class="pp">|</span> cell 6 is much longer than the others, but that&#39;s ok. It eventually wraps the text when the cell is too large for the display size. <span class="pp">|</span></span>
+<span id="cb27-5"><a href="#cb27-5" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> cell 7   <span class="pp">|</span>          <span class="pp">|</span> cell 9   <span class="pp">|</span></span></code></pre></div>
+<p>When rendered, the example looks similar to:</p>
+<blockquote>
+<table>
+<thead>
+<tr>
+<th>header 1</th>
+<th>header 2</th>
+<th>header 3</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>cell 1</td>
+<td>cell 2</td>
+<td>cell 3</td>
+</tr>
+<tr>
+<td>cell 4</td>
+<td>cell 5 is longer</td>
+<td>cell 6 is much longer than the others, but that's ok. It eventually
+wraps the text when the cell is too large for the display size.</td>
+</tr>
+<tr>
+<td>cell 7</td>
+<td></td>
+<td>cell 9</td>
+</tr>
+</tbody>
+</table>
+</blockquote>
+<h3 id="alignment">Alignment</h3>
+<p>Additionally, you can choose the alignment of text in columns by
+adding colons (<code>:</code>) to the sides of the "dash" lines in the
+second row. This affects every cell in the column:</p>
+<div class="sourceCode" id="cb28"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> Left Aligned <span class="pp">|</span> Centered <span class="pp">|</span> Right Aligned <span class="pp">|</span></span>
+<span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a><span class="pp">| :-----------</span> <span class="pp">| :------:</span> <span class="pp">| ------------:</span> <span class="pp">|</span></span>
+<span id="cb28-3"><a href="#cb28-3" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> Cell 1       <span class="pp">|</span> Cell 2   <span class="pp">|</span> Cell 3        <span class="pp">|</span></span>
+<span id="cb28-4"><a href="#cb28-4" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> Cell 4       <span class="pp">|</span> Cell 5   <span class="pp">|</span> Cell 6        <span class="pp">|</span></span></code></pre></div>
+<p>When rendered, the example looks similar to:</p>
+<blockquote>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Left Aligned</th>
+<th style="text-align: center;">Centered</th>
+<th style="text-align: right;">Right Aligned</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">Cell 1</td>
+<td style="text-align: center;">Cell 2</td>
+<td style="text-align: right;">Cell 3</td>
+</tr>
+<tr>
+<td style="text-align: left;">Cell 4</td>
+<td style="text-align: center;">Cell 5</td>
+<td style="text-align: right;">Cell 6</td>
+</tr>
+</tbody>
+</table>
+</blockquote>
+<p>In GitLab, table headers are always left-aligned in Chrome and
+Firefox, and centered in Safari. For more information, see <a
+href="#tables">tables</a>.</p>
+<h3 id="cells-with-multiple-lines">Cells with multiple lines</h3>
+<p>You can use HTML formatting to adjust the rendering of tables. For
+example, you can use <code>&lt;br&gt;</code> tags to force a cell to
+have multiple lines:</p>
+<div class="sourceCode" id="cb29"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> Name  <span class="pp">|</span> Details <span class="pp">|</span></span>
+<span id="cb29-2"><a href="#cb29-2" aria-hidden="true" tabindex="-1"></a><span class="pp">| -----</span> <span class="pp">| -------</span> <span class="pp">|</span></span>
+<span id="cb29-3"><a href="#cb29-3" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> Item1 <span class="pp">|</span> This text is on one line <span class="pp">|</span></span>
+<span id="cb29-4"><a href="#cb29-4" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> Item2 <span class="pp">|</span> This item has:<span class="dt">&lt;</span><span class="kw">br</span><span class="dt">&gt;</span>- Multiple items<span class="dt">&lt;</span><span class="kw">br</span><span class="dt">&gt;</span>- That we want listed separately <span class="pp">|</span></span></code></pre></div>
+<p>When rendered, the example looks similar to:</p>
+<blockquote>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Details</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Item1</td>
+<td>This text is on one line</td>
+</tr>
+<tr>
+<td>Item2</td>
+<td>This item has:<br>- Multiple items<br>- That we want listed
+separately</td>
+</tr>
+</tbody>
+</table>
+</blockquote>
+<h3 id="task-lists-in-tables">Task lists in tables</h3>
+<p>{{&lt; history &gt;}}</p>
+<ul>
+<li>Native Markdown syntax for task items in table cells <a
+href="https://gitlab.com/gitlab-org/gitlab/-/merge_requests/219037">introduced</a>
+in GitLab 18.9.</li>
+</ul>
+<p>{{&lt; /history &gt;}}</p>
+<p>You can add a task item checkbox in a Markdown table cell. The
+checkbox must be the only content in the cell:</p>
+<div class="sourceCode" id="cb30"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> Complete <span class="pp">|</span> Task                    <span class="pp">|</span></span>
+<span id="cb30-2"><a href="#cb30-2" aria-hidden="true" tabindex="-1"></a><span class="pp">| --------</span> <span class="pp">| -----------------------</span> <span class="pp">|</span></span>
+<span id="cb30-3"><a href="#cb30-3" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span>   <span class="co">[</span><span class="ot">x</span><span class="co">]</span>    <span class="pp">|</span> Refactor the backend    <span class="pp">|</span></span>
+<span id="cb30-4"><a href="#cb30-4" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span>   <span class="co">[ ]</span>    <span class="pp">|</span> Refactor the frontend   <span class="pp">|</span></span>
+<span id="cb30-5"><a href="#cb30-5" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span>   <span class="co">[</span><span class="ot">~</span><span class="co">]</span>    <span class="pp">|</span> Inapplicable task       <span class="pp">|</span></span></code></pre></div>
+<p>When rendered, the example looks similar to:</p>
+<p><img src="img/task_list_in_table_v18_9.png"
+alt="Rendered task list in a Markdown table." /></p>
+<p>To add multiple task items in a single cell, or task items with
+additional text, use an HTML table with Markdown in the cells:</p>
+<div class="sourceCode" id="cb31"><pre
+class="sourceCode html"><code class="sourceCode html"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a><span class="dt">&lt;</span><span class="kw">table</span><span class="dt">&gt;</span></span>
+<span id="cb31-2"><a href="#cb31-2" aria-hidden="true" tabindex="-1"></a><span class="dt">&lt;</span><span class="kw">thead</span><span class="dt">&gt;</span></span>
+<span id="cb31-3"><a href="#cb31-3" aria-hidden="true" tabindex="-1"></a><span class="dt">&lt;</span><span class="kw">tr</span><span class="dt">&gt;&lt;</span><span class="kw">th</span><span class="dt">&gt;</span>header 1<span class="dt">&lt;/</span><span class="kw">th</span><span class="dt">&gt;&lt;</span><span class="kw">th</span><span class="dt">&gt;</span>header 2<span class="dt">&lt;/</span><span class="kw">th</span><span class="dt">&gt;&lt;/</span><span class="kw">tr</span><span class="dt">&gt;</span></span>
+<span id="cb31-4"><a href="#cb31-4" aria-hidden="true" tabindex="-1"></a><span class="dt">&lt;/</span><span class="kw">thead</span><span class="dt">&gt;</span></span>
+<span id="cb31-5"><a href="#cb31-5" aria-hidden="true" tabindex="-1"></a><span class="dt">&lt;</span><span class="kw">tbody</span><span class="dt">&gt;</span></span>
+<span id="cb31-6"><a href="#cb31-6" aria-hidden="true" tabindex="-1"></a><span class="dt">&lt;</span><span class="kw">tr</span><span class="dt">&gt;</span></span>
+<span id="cb31-7"><a href="#cb31-7" aria-hidden="true" tabindex="-1"></a><span class="dt">&lt;</span><span class="kw">td</span><span class="dt">&gt;</span>cell 1<span class="dt">&lt;/</span><span class="kw">td</span><span class="dt">&gt;</span></span>
+<span id="cb31-8"><a href="#cb31-8" aria-hidden="true" tabindex="-1"></a><span class="dt">&lt;</span><span class="kw">td</span><span class="dt">&gt;</span>cell 2<span class="dt">&lt;/</span><span class="kw">td</span><span class="dt">&gt;</span></span>
+<span id="cb31-9"><a href="#cb31-9" aria-hidden="true" tabindex="-1"></a><span class="dt">&lt;/</span><span class="kw">tr</span><span class="dt">&gt;</span></span>
+<span id="cb31-10"><a href="#cb31-10" aria-hidden="true" tabindex="-1"></a><span class="dt">&lt;</span><span class="kw">tr</span><span class="dt">&gt;</span></span>
+<span id="cb31-11"><a href="#cb31-11" aria-hidden="true" tabindex="-1"></a><span class="dt">&lt;</span><span class="kw">td</span><span class="dt">&gt;</span>cell 3<span class="dt">&lt;/</span><span class="kw">td</span><span class="dt">&gt;</span></span>
+<span id="cb31-12"><a href="#cb31-12" aria-hidden="true" tabindex="-1"></a><span class="dt">&lt;</span><span class="kw">td</span><span class="dt">&gt;</span></span>
+<span id="cb31-13"><a href="#cb31-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb31-14"><a href="#cb31-14" aria-hidden="true" tabindex="-1"></a>- [ ] Task one</span>
+<span id="cb31-15"><a href="#cb31-15" aria-hidden="true" tabindex="-1"></a>- [ ] Task two</span>
+<span id="cb31-16"><a href="#cb31-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb31-17"><a href="#cb31-17" aria-hidden="true" tabindex="-1"></a><span class="dt">&lt;/</span><span class="kw">td</span><span class="dt">&gt;</span></span>
+<span id="cb31-18"><a href="#cb31-18" aria-hidden="true" tabindex="-1"></a><span class="dt">&lt;/</span><span class="kw">tr</span><span class="dt">&gt;</span></span>
+<span id="cb31-19"><a href="#cb31-19" aria-hidden="true" tabindex="-1"></a><span class="dt">&lt;/</span><span class="kw">tbody</span><span class="dt">&gt;</span></span>
+<span id="cb31-20"><a href="#cb31-20" aria-hidden="true" tabindex="-1"></a><span class="dt">&lt;/</span><span class="kw">table</span><span class="dt">&gt;</span></span></code></pre></div>
+<p>You can also <a href="rich_text_editor.md#tables">create a table in
+the rich text editor</a> and insert a task list then.</p>
+<h3 id="copy-and-paste-from-a-spreadsheet">Copy and paste from a
+spreadsheet</h3>
+<p>If you're working in spreadsheet software (for example, Microsoft
+Excel, Google Sheets, or Apple Numbers), GitLab creates a Markdown table
+when you copy and paste from a spreadsheet. For example, suppose you
+have the following spreadsheet:</p>
+<p><img src="img/markdown_copy_from_spreadsheet_v12_7.png"
+alt="Copy from spreadsheet" /></p>
+<p>Select the cells and copy them to your clipboard. Open a GitLab
+Markdown entry and paste the spreadsheet:</p>
+<p><img src="img/markdown_paste_table_v12_7.png"
+alt="Paste to Markdown table" /></p>
+<h3 id="json-tables">JSON tables</h3>
+<p>{{&lt; history &gt;}}</p>
+<ul>
+<li>Markdown rendering <a
+href="https://gitlab.com/gitlab-org/gitlab/-/issues/375177">introduced</a>
+in GitLab 17.9.</li>
+</ul>
+<p>{{&lt; /history &gt;}}</p>
+<p>To render tables with JSON code blocks, use the following syntax:</p>
+<div class="sourceCode" id="cb32"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a><span class="in">```json:table</span></span>
+<span id="cb32-2"><a href="#cb32-2" aria-hidden="true" tabindex="-1"></a><span class="in">{}</span></span>
+<span id="cb32-3"><a href="#cb32-3" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span></code></pre></div>
+<p>Watch the following video walkthrough of this feature:</p>
+<div class="video-fallback">
+  See the video: <a href="https://www.youtube.com/watch?v=12yWKw1AdKY">Demo: JSON Tables in Markdown</a>.
+</div>
+<figure class="video-container">
+  <iframe src="https://www.youtube-nocookie.com/embed/12yWKw1AdKY" frameborder="0" allowfullscreen> </iframe>
+</figure>
+
+<div class="note">
+<div class="title">
+<p>Note</p>
+</div>
+<p>Administrators can enable rendering of iframes in Markdown and
+configure the allowed iframe <code>src</code> hosts for an instance. You
+can manage these settings with the <a
+href="../api/settings.md#available-settings">application settings
+API</a> using:</p>
+<ul>
+<li><code>iframe_rendering_enabled</code></li>
+<li><code>iframe_rendering_allowlist</code></li>
+<li><code>iframe_rendering_allowlist_raw</code>.</li>
+</ul>
+</div>
+<p>The <code>items</code> attribute is a list of objects representing
+the data points.</p>
+<div class="sourceCode" id="cb33"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a><span class="in">```json:table</span></span>
+<span id="cb33-2"><a href="#cb33-2" aria-hidden="true" tabindex="-1"></a><span class="in">{</span></span>
+<span id="cb33-3"><a href="#cb33-3" aria-hidden="true" tabindex="-1"></a><span class="in">    &quot;items&quot; : [</span></span>
+<span id="cb33-4"><a href="#cb33-4" aria-hidden="true" tabindex="-1"></a><span class="in">      {&quot;a&quot;: &quot;11&quot;, &quot;b&quot;: &quot;22&quot;, &quot;c&quot;: &quot;33&quot;}</span></span>
+<span id="cb33-5"><a href="#cb33-5" aria-hidden="true" tabindex="-1"></a><span class="in">    ]</span></span>
+<span id="cb33-6"><a href="#cb33-6" aria-hidden="true" tabindex="-1"></a><span class="in">}</span></span>
+<span id="cb33-7"><a href="#cb33-7" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span></code></pre></div>
+<p>To specify the table labels, use the <code>fields</code>
+attribute.</p>
+<div class="sourceCode" id="cb34"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb34-1"><a href="#cb34-1" aria-hidden="true" tabindex="-1"></a><span class="in">```json:table</span></span>
+<span id="cb34-2"><a href="#cb34-2" aria-hidden="true" tabindex="-1"></a><span class="in">{</span></span>
+<span id="cb34-3"><a href="#cb34-3" aria-hidden="true" tabindex="-1"></a><span class="in">    &quot;fields&quot; : [&quot;a&quot;, &quot;b&quot;, &quot;c&quot;],</span></span>
+<span id="cb34-4"><a href="#cb34-4" aria-hidden="true" tabindex="-1"></a><span class="in">    &quot;items&quot; : [</span></span>
+<span id="cb34-5"><a href="#cb34-5" aria-hidden="true" tabindex="-1"></a><span class="in">      {&quot;a&quot;: &quot;11&quot;, &quot;b&quot;: &quot;22&quot;, &quot;c&quot;: &quot;33&quot;}</span></span>
+<span id="cb34-6"><a href="#cb34-6" aria-hidden="true" tabindex="-1"></a><span class="in">    ]</span></span>
+<span id="cb34-7"><a href="#cb34-7" aria-hidden="true" tabindex="-1"></a><span class="in">}</span></span>
+<span id="cb34-8"><a href="#cb34-8" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span></code></pre></div>
+<p>Not all elements of <code>items</code> must have corresponding values
+in <code>fields</code>.</p>
+<div class="sourceCode" id="cb35"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb35-1"><a href="#cb35-1" aria-hidden="true" tabindex="-1"></a><span class="in">```json:table</span></span>
+<span id="cb35-2"><a href="#cb35-2" aria-hidden="true" tabindex="-1"></a><span class="in">{</span></span>
+<span id="cb35-3"><a href="#cb35-3" aria-hidden="true" tabindex="-1"></a><span class="in">    &quot;fields&quot; : [&quot;a&quot;, &quot;b&quot;, &quot;c&quot;],</span></span>
+<span id="cb35-4"><a href="#cb35-4" aria-hidden="true" tabindex="-1"></a><span class="in">    &quot;items&quot; : [</span></span>
+<span id="cb35-5"><a href="#cb35-5" aria-hidden="true" tabindex="-1"></a><span class="in">      {&quot;a&quot;: &quot;11&quot;, &quot;b&quot;: &quot;22&quot;, &quot;c&quot;: &quot;33&quot;},</span></span>
+<span id="cb35-6"><a href="#cb35-6" aria-hidden="true" tabindex="-1"></a><span class="in">      {&quot;a&quot;: &quot;211&quot;, &quot;c&quot;: &quot;233&quot;}</span></span>
+<span id="cb35-7"><a href="#cb35-7" aria-hidden="true" tabindex="-1"></a><span class="in">    ]</span></span>
+<span id="cb35-8"><a href="#cb35-8" aria-hidden="true" tabindex="-1"></a><span class="in">}</span></span>
+<span id="cb35-9"><a href="#cb35-9" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span></code></pre></div>
+<p>When <code>fields</code> is not explicitly specified, the labels are
+picked from the first element of <code>items</code>.</p>
+<div class="sourceCode" id="cb36"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb36-1"><a href="#cb36-1" aria-hidden="true" tabindex="-1"></a><span class="in">```json:table</span></span>
+<span id="cb36-2"><a href="#cb36-2" aria-hidden="true" tabindex="-1"></a><span class="in">{</span></span>
+<span id="cb36-3"><a href="#cb36-3" aria-hidden="true" tabindex="-1"></a><span class="in">    &quot;items&quot; : [</span></span>
+<span id="cb36-4"><a href="#cb36-4" aria-hidden="true" tabindex="-1"></a><span class="in">      {&quot;a&quot;: &quot;11&quot;, &quot;b&quot;: &quot;22&quot;, &quot;c&quot;: &quot;33&quot;},</span></span>
+<span id="cb36-5"><a href="#cb36-5" aria-hidden="true" tabindex="-1"></a><span class="in">      {&quot;a&quot;: &quot;211&quot;, &quot;c&quot;: &quot;233&quot;}</span></span>
+<span id="cb36-6"><a href="#cb36-6" aria-hidden="true" tabindex="-1"></a><span class="in">    ]</span></span>
+<span id="cb36-7"><a href="#cb36-7" aria-hidden="true" tabindex="-1"></a><span class="in">}</span></span>
+<span id="cb36-8"><a href="#cb36-8" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span></code></pre></div>
+<p>You can specify custom labels for <code>fields</code>.</p>
+<div class="sourceCode" id="cb37"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb37-1"><a href="#cb37-1" aria-hidden="true" tabindex="-1"></a><span class="in">```json:table</span></span>
+<span id="cb37-2"><a href="#cb37-2" aria-hidden="true" tabindex="-1"></a><span class="in">{</span></span>
+<span id="cb37-3"><a href="#cb37-3" aria-hidden="true" tabindex="-1"></a><span class="in">    &quot;fields&quot; : [</span></span>
+<span id="cb37-4"><a href="#cb37-4" aria-hidden="true" tabindex="-1"></a><span class="in">        {&quot;key&quot;: &quot;a&quot;, &quot;label&quot;: &quot;AA&quot;},</span></span>
+<span id="cb37-5"><a href="#cb37-5" aria-hidden="true" tabindex="-1"></a><span class="in">        {&quot;key&quot;: &quot;b&quot;, &quot;label&quot;: &quot;BB&quot;},</span></span>
+<span id="cb37-6"><a href="#cb37-6" aria-hidden="true" tabindex="-1"></a><span class="in">        {&quot;key&quot;: &quot;c&quot;, &quot;label&quot;: &quot;CC&quot;}</span></span>
+<span id="cb37-7"><a href="#cb37-7" aria-hidden="true" tabindex="-1"></a><span class="in">    ],</span></span>
+<span id="cb37-8"><a href="#cb37-8" aria-hidden="true" tabindex="-1"></a><span class="in">    &quot;items&quot; : [</span></span>
+<span id="cb37-9"><a href="#cb37-9" aria-hidden="true" tabindex="-1"></a><span class="in">      {&quot;a&quot;: &quot;11&quot;, &quot;b&quot;: &quot;22&quot;, &quot;c&quot;: &quot;33&quot;},</span></span>
+<span id="cb37-10"><a href="#cb37-10" aria-hidden="true" tabindex="-1"></a><span class="in">      {&quot;a&quot;: &quot;211&quot;, &quot;b&quot;: &quot;222&quot;, &quot;c&quot;: &quot;233&quot;}</span></span>
+<span id="cb37-11"><a href="#cb37-11" aria-hidden="true" tabindex="-1"></a><span class="in">    ]</span></span>
+<span id="cb37-12"><a href="#cb37-12" aria-hidden="true" tabindex="-1"></a><span class="in">}</span></span>
+<span id="cb37-13"><a href="#cb37-13" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span></code></pre></div>
+<p>You can enable sorting for individual elements of
+<code>fields</code>.</p>
+<div class="sourceCode" id="cb38"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb38-1"><a href="#cb38-1" aria-hidden="true" tabindex="-1"></a><span class="in">```json:table</span></span>
+<span id="cb38-2"><a href="#cb38-2" aria-hidden="true" tabindex="-1"></a><span class="in">{</span></span>
+<span id="cb38-3"><a href="#cb38-3" aria-hidden="true" tabindex="-1"></a><span class="in">    &quot;fields&quot; : [</span></span>
+<span id="cb38-4"><a href="#cb38-4" aria-hidden="true" tabindex="-1"></a><span class="in">        {&quot;key&quot;: &quot;a&quot;, &quot;label&quot;: &quot;AA&quot;, &quot;sortable&quot;: true},</span></span>
+<span id="cb38-5"><a href="#cb38-5" aria-hidden="true" tabindex="-1"></a><span class="in">        {&quot;key&quot;: &quot;b&quot;, &quot;label&quot;: &quot;BB&quot;},</span></span>
+<span id="cb38-6"><a href="#cb38-6" aria-hidden="true" tabindex="-1"></a><span class="in">        {&quot;key&quot;: &quot;c&quot;, &quot;label&quot;: &quot;CC&quot;}</span></span>
+<span id="cb38-7"><a href="#cb38-7" aria-hidden="true" tabindex="-1"></a><span class="in">    ],</span></span>
+<span id="cb38-8"><a href="#cb38-8" aria-hidden="true" tabindex="-1"></a><span class="in">    &quot;items&quot; : [</span></span>
+<span id="cb38-9"><a href="#cb38-9" aria-hidden="true" tabindex="-1"></a><span class="in">      {&quot;a&quot;: &quot;11&quot;, &quot;b&quot;: &quot;22&quot;, &quot;c&quot;: &quot;33&quot;},</span></span>
+<span id="cb38-10"><a href="#cb38-10" aria-hidden="true" tabindex="-1"></a><span class="in">      {&quot;a&quot;: &quot;211&quot;, &quot;b&quot;: &quot;222&quot;, &quot;c&quot;: &quot;233&quot;}</span></span>
+<span id="cb38-11"><a href="#cb38-11" aria-hidden="true" tabindex="-1"></a><span class="in">    ]</span></span>
+<span id="cb38-12"><a href="#cb38-12" aria-hidden="true" tabindex="-1"></a><span class="in">}</span></span>
+<span id="cb38-13"><a href="#cb38-13" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span></code></pre></div>
+<p>You can use the <code>filter</code> attribute to render a table with
+content filtered dynamically by user input.</p>
+<div class="sourceCode" id="cb39"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb39-1"><a href="#cb39-1" aria-hidden="true" tabindex="-1"></a><span class="in">```json:table</span></span>
+<span id="cb39-2"><a href="#cb39-2" aria-hidden="true" tabindex="-1"></a><span class="in">{</span></span>
+<span id="cb39-3"><a href="#cb39-3" aria-hidden="true" tabindex="-1"></a><span class="in">    &quot;fields&quot; : [</span></span>
+<span id="cb39-4"><a href="#cb39-4" aria-hidden="true" tabindex="-1"></a><span class="in">        {&quot;key&quot;: &quot;a&quot;, &quot;label&quot;: &quot;AA&quot;},</span></span>
+<span id="cb39-5"><a href="#cb39-5" aria-hidden="true" tabindex="-1"></a><span class="in">        {&quot;key&quot;: &quot;b&quot;, &quot;label&quot;: &quot;BB&quot;},</span></span>
+<span id="cb39-6"><a href="#cb39-6" aria-hidden="true" tabindex="-1"></a><span class="in">        {&quot;key&quot;: &quot;c&quot;, &quot;label&quot;: &quot;CC&quot;}</span></span>
+<span id="cb39-7"><a href="#cb39-7" aria-hidden="true" tabindex="-1"></a><span class="in">    ],</span></span>
+<span id="cb39-8"><a href="#cb39-8" aria-hidden="true" tabindex="-1"></a><span class="in">    &quot;items&quot; : [</span></span>
+<span id="cb39-9"><a href="#cb39-9" aria-hidden="true" tabindex="-1"></a><span class="in">      {&quot;a&quot;: &quot;11&quot;, &quot;b&quot;: &quot;22&quot;, &quot;c&quot;: &quot;33&quot;},</span></span>
+<span id="cb39-10"><a href="#cb39-10" aria-hidden="true" tabindex="-1"></a><span class="in">      {&quot;a&quot;: &quot;211&quot;, &quot;b&quot;: &quot;222&quot;, &quot;c&quot;: &quot;233&quot;}</span></span>
+<span id="cb39-11"><a href="#cb39-11" aria-hidden="true" tabindex="-1"></a><span class="in">    ],</span></span>
+<span id="cb39-12"><a href="#cb39-12" aria-hidden="true" tabindex="-1"></a><span class="in">    &quot;filter&quot; : true</span></span>
+<span id="cb39-13"><a href="#cb39-13" aria-hidden="true" tabindex="-1"></a><span class="in">}</span></span>
+<span id="cb39-14"><a href="#cb39-14" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span></code></pre></div>
+<p>You can use the <code>markdown</code> attribute to allow for GitLab
+Flavored Markdown in the items and caption, including GitLab references.
+Fields do not support Markdown.</p>
+<div class="sourceCode" id="cb40"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb40-1"><a href="#cb40-1" aria-hidden="true" tabindex="-1"></a><span class="in">```json:table</span></span>
+<span id="cb40-2"><a href="#cb40-2" aria-hidden="true" tabindex="-1"></a><span class="in">{</span></span>
+<span id="cb40-3"><a href="#cb40-3" aria-hidden="true" tabindex="-1"></a><span class="in">    &quot;fields&quot; : [</span></span>
+<span id="cb40-4"><a href="#cb40-4" aria-hidden="true" tabindex="-1"></a><span class="in">        {&quot;key&quot;: &quot;a&quot;, &quot;label&quot;: &quot;AA&quot;},</span></span>
+<span id="cb40-5"><a href="#cb40-5" aria-hidden="true" tabindex="-1"></a><span class="in">        {&quot;key&quot;: &quot;b&quot;, &quot;label&quot;: &quot;BB&quot;},</span></span>
+<span id="cb40-6"><a href="#cb40-6" aria-hidden="true" tabindex="-1"></a><span class="in">        {&quot;key&quot;: &quot;c&quot;, &quot;label&quot;: &quot;CC&quot;}</span></span>
+<span id="cb40-7"><a href="#cb40-7" aria-hidden="true" tabindex="-1"></a><span class="in">    ],</span></span>
+<span id="cb40-8"><a href="#cb40-8" aria-hidden="true" tabindex="-1"></a><span class="in">    &quot;items&quot; : [</span></span>
+<span id="cb40-9"><a href="#cb40-9" aria-hidden="true" tabindex="-1"></a><span class="in">      {&quot;a&quot;: &quot;11&quot;, &quot;b&quot;: &quot;**22**&quot;, &quot;c&quot;: &quot;33&quot;},</span></span>
+<span id="cb40-10"><a href="#cb40-10" aria-hidden="true" tabindex="-1"></a><span class="in">      {&quot;a&quot;: &quot;#1&quot;, &quot;b&quot;: &quot;222&quot;, &quot;c&quot;: &quot;233&quot;}</span></span>
+<span id="cb40-11"><a href="#cb40-11" aria-hidden="true" tabindex="-1"></a><span class="in">    ],</span></span>
+<span id="cb40-12"><a href="#cb40-12" aria-hidden="true" tabindex="-1"></a><span class="in">    &quot;markdown&quot; : true</span></span>
+<span id="cb40-13"><a href="#cb40-13" aria-hidden="true" tabindex="-1"></a><span class="in">}</span></span>
+<span id="cb40-14"><a href="#cb40-14" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span></code></pre></div>
+<p>By default, every JSON table has the caption
+<code>Generated with JSON data</code>. You can override this caption by
+specifying the <code>caption</code> attribute.</p>
+<div class="sourceCode" id="cb41"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb41-1"><a href="#cb41-1" aria-hidden="true" tabindex="-1"></a><span class="in">```json:table</span></span>
+<span id="cb41-2"><a href="#cb41-2" aria-hidden="true" tabindex="-1"></a><span class="in">{</span></span>
+<span id="cb41-3"><a href="#cb41-3" aria-hidden="true" tabindex="-1"></a><span class="in">    &quot;items&quot; : [</span></span>
+<span id="cb41-4"><a href="#cb41-4" aria-hidden="true" tabindex="-1"></a><span class="in">      {&quot;a&quot;: &quot;11&quot;, &quot;b&quot;: &quot;22&quot;, &quot;c&quot;: &quot;33&quot;}</span></span>
+<span id="cb41-5"><a href="#cb41-5" aria-hidden="true" tabindex="-1"></a><span class="in">    ],</span></span>
+<span id="cb41-6"><a href="#cb41-6" aria-hidden="true" tabindex="-1"></a><span class="in">    &quot;caption&quot; : &quot;Custom caption&quot;</span></span>
+<span id="cb41-7"><a href="#cb41-7" aria-hidden="true" tabindex="-1"></a><span class="in">}</span></span>
+<span id="cb41-8"><a href="#cb41-8" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span></code></pre></div>
+<p>If JSON is invalid, an error occurs.</p>
+<div class="sourceCode" id="cb42"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb42-1"><a href="#cb42-1" aria-hidden="true" tabindex="-1"></a><span class="in">```json:table</span></span>
+<span id="cb42-2"><a href="#cb42-2" aria-hidden="true" tabindex="-1"></a><span class="in">{</span></span>
+<span id="cb42-3"><a href="#cb42-3" aria-hidden="true" tabindex="-1"></a><span class="in">    &quot;items&quot; : [</span></span>
+<span id="cb42-4"><a href="#cb42-4" aria-hidden="true" tabindex="-1"></a><span class="in">      {&quot;a&quot;: &quot;11&quot;, &quot;b&quot;: &quot;22&quot;, &quot;c&quot;: &quot;33&quot;}</span></span>
+<span id="cb42-5"><a href="#cb42-5" aria-hidden="true" tabindex="-1"></a><span class="in">    ],</span></span>
+<span id="cb42-6"><a href="#cb42-6" aria-hidden="true" tabindex="-1"></a><span class="in">}</span></span>
+<span id="cb42-7"><a href="#cb42-7" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span></code></pre></div>
+<h2 id="multimedia">Multimedia</h2>
+<p>Embed images, videos, and audio. You can add multimedia using
+Markdown syntax to link files, set dimensions, and display them inline.
+Formatting options let you customize titles, specify width and height,
+and control how media appears in the rendered output.</p>
+<h3 id="images">Images</h3>
+<p>{{&lt; history &gt;}}</p>
+<ul>
+<li>Opening images in an overlay <a
+href="https://gitlab.com/gitlab-org/gitlab/-/issues/377398">introduced</a>
+in GitLab 18.6.</li>
+<li>Transparency checkerboard toggle <a
+href="https://gitlab.com/gitlab-org/gitlab/-/merge_requests/224872">introduced</a>
+in GitLab 18.10.</li>
+</ul>
+<p>{{&lt; /history &gt;}}</p>
+<p>Embed images using inline or reference <a href="#links">links</a>
+prepended with a <code>!</code>. For example:</p>
+<!--
+DO NOT change the name of `markdown_logo_v17_11.png`. This file is used for a test in
+spec/controllers/help_controller_spec.rb.
+-->
+
+<div class="sourceCode" id="cb43"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb43-1"><a href="#cb43-1" aria-hidden="true" tabindex="-1"></a><span class="al">![GitLab logo](img/markdown_logo_v17_11.png &quot;Title Text&quot;)</span></span></code></pre></div>
+<blockquote>
+<p><img src="img/markdown_logo_v17_11.png" title="Title Text"
+alt="GitLab logo" /></p>
+</blockquote>
+<p>In image links:</p>
+<ul>
+<li>Text in the square brackets (<code>[ ]</code>) becomes the image alt
+text.</li>
+<li>Text in double quotes after the image link path becomes the title
+text. To see title text, hover over the image.</li>
+</ul>
+<p>For more information, see <a
+href="#accessible-images-and-videos">accessible images and
+videos</a>.</p>
+<p>When an image is selected, it opens in an overlay.</p>
+<p>If an image has transparent areas, hover over it and select
+<strong>Toggle transparency checkerboard</strong> to show a checkerboard
+background. The checkerboard makes transparent areas visible against any
+theme. <strong>Toggle transparency checkerboard</strong> appears on PNG,
+WebP, and GIF images if at least 5% of their pixels have some degree of
+transparency (are not fully opaque). Images with fewer than 5%
+transparent pixels do not show the toggle.</p>
+<h3 id="videos">Videos</h3>
+<p>Image tags that link to files with a video extension are
+automatically converted to a video player. The valid video extensions
+are <code>.mp4</code>, <code>.m4v</code>, <code>.mov</code>,
+<code>.webm</code>, and <code>.ogv</code>:</p>
+<p>Here's an example video:</p>
+<div class="sourceCode" id="cb44"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb44-1"><a href="#cb44-1" aria-hidden="true" tabindex="-1"></a><span class="al">![Sample Video](img/markdown_video.mp4)</span></span></code></pre></div>
+<p>This example only works when <a
+href="https://gitlab.com/gitlab-org/gitlab/-/blob/master/doc/user/markdown.md#videos">rendered
+in GitLab</a>:</p>
+<blockquote>
+<p><video src="img/markdown_video.mp4" controls=""><a
+href="img/markdown_video.mp4">Sample Video</a></video></p>
+</blockquote>
+<h3 id="change-image-or-video-dimensions">Change image or video
+dimensions</h3>
+<p>You can control the width and height of an image or video by
+following the image with an attribute list. The value must an integer
+with a unit of either <code>px</code> (default) or <code>%</code>.</p>
+<p>For example</p>
+<div class="sourceCode" id="cb45"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb45-1"><a href="#cb45-1" aria-hidden="true" tabindex="-1"></a><span class="al">![GitLab logo](img/markdown_logo_v17_11.png &quot;Title Text&quot;)</span>{width=100 height=100px}</span>
+<span id="cb45-2"><a href="#cb45-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb45-3"><a href="#cb45-3" aria-hidden="true" tabindex="-1"></a><span class="al">![GitLab logo](img/markdown_logo_v17_11.png &quot;Title Text&quot;)</span>{width=75%}</span></code></pre></div>
+<p>This example only works when <a
+href="https://gitlab.com/gitlab-org/gitlab/-/blob/master/doc/user/markdown.md#change-image-or-video-dimensions">rendered
+in GitLab</a>:</p>
+<blockquote>
+<p><img src="img/markdown_logo_v17_11.png" title="Title Text"
+alt="GitLab logo" />{width=100 height=100px}</p>
+</blockquote>
+<p>You can also use the <code>img</code> HTML tag instead of Markdown
+and set its <code>height</code> and <code>width</code> parameters.</p>
+<p>When you paste a higher resolution PNG image into a Markdown text box
+<a href="https://gitlab.com/gitlab-org/gitlab/-/issues/419913">in GitLab
+17.1 and later</a>, dimensions are always appended. The dimensions are
+automatically adjusted to accommodate for retina (and other
+higher-resolution) displays. For instance, a 144ppi image is resized to
+50% of its dimensions, whereas a 96ppi image is resized to 75% of its
+dimensions.</p>
+<p>When selected, images open in an overlay scaled to either 100% or the
+largest size that fits in the window.</p>
+<h3 id="audio">Audio</h3>
+<p>Similar to videos, link tags for files with an audio extension are
+automatically converted to an audio player. The valid audio extensions
+are <code>.mp3</code>, <code>.oga</code>, <code>.ogg</code>,
+<code>.spx</code>, and <code>.wav</code>:</p>
+<p>Here's an example audio clip:</p>
+<div class="sourceCode" id="cb46"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb46-1"><a href="#cb46-1" aria-hidden="true" tabindex="-1"></a><span class="al">![Sample Audio](img/markdown_audio.mp3)</span></span></code></pre></div>
+<p>This example only works when <a
+href="https://gitlab.com/gitlab-org/gitlab/-/blob/master/doc/user/markdown.md#audio">rendered
+in GitLab</a>:</p>
+<blockquote>
+<p><audio src="img/markdown_audio.mp3" controls=""><a
+href="img/markdown_audio.mp3">Sample Audio</a></audio></p>
+</blockquote>
+<h2 id="blockquotes">Blockquotes</h2>
+<p>Use a blockquote to highlight information, such as a side note. It's
+generated by starting the lines of the blockquote with
+<code>&gt;</code>:</p>
+<div class="sourceCode" id="cb47"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb47-1"><a href="#cb47-1" aria-hidden="true" tabindex="-1"></a><span class="at">&gt; Blockquotes help you emulate reply text.</span></span>
+<span id="cb47-2"><a href="#cb47-2" aria-hidden="true" tabindex="-1"></a><span class="at">&gt; This line is part of the same quote.</span></span>
+<span id="cb47-3"><a href="#cb47-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb47-4"><a href="#cb47-4" aria-hidden="true" tabindex="-1"></a>Quote break.</span>
+<span id="cb47-5"><a href="#cb47-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb47-6"><a href="#cb47-6" aria-hidden="true" tabindex="-1"></a><span class="at">&gt; This very long line is still quoted properly when it wraps. Keep writing to make sure this line is long enough to actually wrap for everyone. You can also *use* **Markdown** in a blockquote.</span></span></code></pre></div>
+<p>When rendered, the example looks similar to:</p>
+<blockquote>
+<blockquote>
+<p>Blockquotes help you emulate reply text. This line is part of the
+same quote.</p>
+</blockquote>
+<p>Quote break.</p>
+<blockquote>
+<p>This very long line is still quoted properly when it wraps. Keep
+writing to make sure this line is long enough to actually wrap for
+everyone. You can also <em>use</em> <strong>Markdown</strong> in a
+blockquote.</p>
+</blockquote>
+</blockquote>
+<h3 id="multiline-blockquote">Multiline blockquote</h3>
+<p>Create multi-line blockquotes fenced by
+<code>&gt;&gt;&gt;</code>:</p>
+<div class="sourceCode" id="cb48"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb48-1"><a href="#cb48-1" aria-hidden="true" tabindex="-1"></a><span class="at">&gt;&gt;&gt;</span></span>
+<span id="cb48-2"><a href="#cb48-2" aria-hidden="true" tabindex="-1"></a><span class="at">If you paste a message from somewhere else</span></span>
+<span id="cb48-3"><a href="#cb48-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb48-4"><a href="#cb48-4" aria-hidden="true" tabindex="-1"></a>that spans multiple lines,</span>
+<span id="cb48-5"><a href="#cb48-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb48-6"><a href="#cb48-6" aria-hidden="true" tabindex="-1"></a>you can quote that without having to manually prepend <span class="in">`&gt;`</span> to every line!</span>
+<span id="cb48-7"><a href="#cb48-7" aria-hidden="true" tabindex="-1"></a><span class="at">&gt;&gt;&gt;</span></span></code></pre></div>
+<blockquote>
+<p>If you paste a message from somewhere else</p>
+<p>that spans multiple lines,</p>
+<p>you can quote that without having to manually prepend
+<code>&gt;</code> to every line!</p>
+</blockquote>
+<h2 id="code-spans-and-blocks">Code spans and blocks</h2>
+<p>Highlight anything that should be viewed as code and not standard
+text.</p>
+<p>Inline code is formatted with single backticks <code>`</code>:</p>
+<div class="sourceCode" id="cb49"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb49-1"><a href="#cb49-1" aria-hidden="true" tabindex="-1"></a>Inline <span class="in">`code`</span> has <span class="in">`back-ticks around`</span> it.</span></code></pre></div>
+<p>When rendered, the example looks similar to:</p>
+<blockquote>
+<p>Inline <code>code</code> has <code>back-ticks around</code> it.</p>
+</blockquote>
+<p>For a similar effect with a larger code example, you can use a code
+block. To create a code block:</p>
+<ul>
+<li>Fence an entire block of code with triple backticks
+(<code>```</code>). You can use more than three backticks, as long as
+both the opening and closing set have the same number.</li>
+<li>Fence an entire block of code with triple tildes
+(<code>~~~</code>).</li>
+<li>Indent it four or more spaces.</li>
+</ul>
+<p>For example:</p>
+<div class="sourceCode" id="cb50"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb50-1"><a href="#cb50-1" aria-hidden="true" tabindex="-1"></a><span class="an">Python code block:</span></span>
+<span id="cb50-2"><a href="#cb50-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb50-3"><a href="#cb50-3" aria-hidden="true" tabindex="-1"></a><span class="in">```python</span></span>
+<span id="cb50-4"><a href="#cb50-4" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> function():</span>
+<span id="cb50-5"><a href="#cb50-5" aria-hidden="true" tabindex="-1"></a>    <span class="co">#indenting works just fine in the fenced code block</span></span>
+<span id="cb50-6"><a href="#cb50-6" aria-hidden="true" tabindex="-1"></a>    s <span class="op">=</span> <span class="st">&quot;Python code&quot;</span></span>
+<span id="cb50-7"><a href="#cb50-7" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(s)</span>
+<span id="cb50-8"><a href="#cb50-8" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb50-9"><a href="#cb50-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb50-10"><a href="#cb50-10" aria-hidden="true" tabindex="-1"></a>Markdown code block using 4 spaces:</span>
+<span id="cb50-11"><a href="#cb50-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb50-12"><a href="#cb50-12" aria-hidden="true" tabindex="-1"></a><span class="in">    Using 4 spaces</span></span>
+<span id="cb50-13"><a href="#cb50-13" aria-hidden="true" tabindex="-1"></a><span class="in">    is like using</span></span>
+<span id="cb50-14"><a href="#cb50-14" aria-hidden="true" tabindex="-1"></a><span class="in">    3-backtick fences.</span></span>
+<span id="cb50-15"><a href="#cb50-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb50-16"><a href="#cb50-16" aria-hidden="true" tabindex="-1"></a>JavaScript code block using tildes:</span>
+<span id="cb50-17"><a href="#cb50-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb50-18"><a href="#cb50-18" aria-hidden="true" tabindex="-1"></a><span class="in">~~~javascript</span></span>
+<span id="cb50-19"><a href="#cb50-19" aria-hidden="true" tabindex="-1"></a><span class="kw">const</span> s <span class="op">=</span> <span class="st">&quot;JavaScript syntax highlighting&quot;</span><span class="op">;</span></span>
+<span id="cb50-20"><a href="#cb50-20" aria-hidden="true" tabindex="-1"></a><span class="fu">alert</span>(s)<span class="op">;</span></span>
+<span id="cb50-21"><a href="#cb50-21" aria-hidden="true" tabindex="-1"></a><span class="in">~~~</span></span></code></pre></div>
+<p>The three previous examples render as:</p>
+<blockquote>
+<p>Python code block:</p>
+<div class="sourceCode" id="cb51"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb51-1"><a href="#cb51-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> function():</span>
+<span id="cb51-2"><a href="#cb51-2" aria-hidden="true" tabindex="-1"></a>    <span class="co">#indenting works just fine in the fenced code block</span></span>
+<span id="cb51-3"><a href="#cb51-3" aria-hidden="true" tabindex="-1"></a>    s <span class="op">=</span> <span class="st">&quot;Python code&quot;</span></span>
+<span id="cb51-4"><a href="#cb51-4" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(s)</span></code></pre></div>
+<p>Markdown code block using 4 spaces:</p>
+<pre class="plaintext"><code>Using 4 spaces
+is like using
+3-backtick fences.</code></pre>
+<p>JavaScript code block using tildes:</p>
+<div class="sourceCode" id="cb53"><pre
+class="sourceCode javascript"><code class="sourceCode javascript"><span id="cb53-1"><a href="#cb53-1" aria-hidden="true" tabindex="-1"></a><span class="kw">const</span> s <span class="op">=</span> <span class="st">&quot;JavaScript syntax highlighting&quot;</span><span class="op">;</span></span>
+<span id="cb53-2"><a href="#cb53-2" aria-hidden="true" tabindex="-1"></a><span class="fu">alert</span>(s)<span class="op">;</span></span></code></pre></div>
+</blockquote>
+<h3 id="syntax-highlighting">Syntax highlighting</h3>
+<p>GitLab uses the <a href="https://github.com/rouge-ruby/rouge">Rouge
+Ruby library</a> for more colorful syntax highlighting in code blocks.
+For a list of supported languages visit the <a
+href="https://github.com/rouge-ruby/rouge/wiki/List-of-supported-languages-and-lexers">Rouge
+project wiki</a>. Syntax highlighting is supported only in code blocks,
+so you can't highlight inline code.</p>
+<p>To fence and apply syntax highlighting to a block of code, append the
+code language to the opening code declaration, after the three
+back-ticks (<code>```</code>) or three tildes (<code>~~~</code>).</p>
+<p>Code blocks that use <code>plaintext</code> or have no code language
+specified have no syntax highlighting:</p>
+<pre class="plaintext"><code>```
+No language indicated, so **no** syntax highlighting.
+s = &quot;No highlighting is shown for this line.&quot;
+But let&#39;s throw in a &lt;b&gt;tag&lt;/b&gt;.
+```</code></pre>
+<p>When rendered, the example looks similar to:</p>
+<blockquote>
+<pre class="plaintext"><code>No language indicated, so **no** syntax highlighting.
+s = &quot;No highlighting is shown for this line.&quot;
+But let&#39;s throw in a &lt;b&gt;tag&lt;/b&gt;.</code></pre>
+</blockquote>
+<h2 id="diagrams-and-flowcharts">Diagrams and flowcharts</h2>
+<p>You can generate diagrams from text by using:</p>
+<ul>
+<li><a href="https://mermaidjs.github.io/">Mermaid</a></li>
+<li><a href="https://plantuml.com">PlantUML</a></li>
+<li><a href="https://kroki.io">Kroki</a> to create a wide variety of
+diagrams.</li>
+</ul>
+<p>In wikis, you can also add and edit diagrams created with the <a
+href="project/wiki/markdown.md#diagramsnet-editor">diagrams.net
+editor</a>.</p>
+<h3 id="mermaid">Mermaid</h3>
+<p>{{&lt; history &gt;}}</p>
+<ul>
+<li>Support for Entity Relationship diagrams and mind maps <a
+href="https://gitlab.com/gitlab-org/gitlab/-/issues/384386">introduced</a>
+in GitLab 16.0.</li>
+</ul>
+<p>{{&lt; /history &gt;}}</p>
+<p>Visit the <a href="https://mermaidjs.github.io/">official page</a>
+for more details. The <a
+href="https://mermaid-js.github.io/mermaid-live-editor/">Mermaid Live
+Editor</a> helps you learn Mermaid and debug issues in your Mermaid
+code. Use it to identify and resolve issues in your diagrams.</p>
+<p>GitLab.com supports Mermaid version 10.</p>
+<p>To generate a diagram or flowchart, write your text inside the
+<code>mermaid</code> block:</p>
+<div class="sourceCode" id="cb56"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb56-1"><a href="#cb56-1" aria-hidden="true" tabindex="-1"></a><span class="in">```mermaid</span></span>
+<span id="cb56-2"><a href="#cb56-2" aria-hidden="true" tabindex="-1"></a><span class="in">graph TD</span></span>
+<span id="cb56-3"><a href="#cb56-3" aria-hidden="true" tabindex="-1"></a><span class="in">    accTitle: Basic Mermaid diagram example</span></span>
+<span id="cb56-4"><a href="#cb56-4" aria-hidden="true" tabindex="-1"></a><span class="in">    accDescr: Simple flowchart showing nodes A, B, C, and D with connections between them.</span></span>
+<span id="cb56-5"><a href="#cb56-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb56-6"><a href="#cb56-6" aria-hidden="true" tabindex="-1"></a><span class="in">  A--&gt;B;</span></span>
+<span id="cb56-7"><a href="#cb56-7" aria-hidden="true" tabindex="-1"></a><span class="in">  A--&gt;C;</span></span>
+<span id="cb56-8"><a href="#cb56-8" aria-hidden="true" tabindex="-1"></a><span class="in">  B--&gt;D;</span></span>
+<span id="cb56-9"><a href="#cb56-9" aria-hidden="true" tabindex="-1"></a><span class="in">  C--&gt;D;</span></span>
+<span id="cb56-10"><a href="#cb56-10" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span></code></pre></div>
+<div class="note">
+<div class="title">
+<p>Note</p>
+</div>
+<p>On GitLab Self-Managed, if you configured a
+<code>Cross-Origin-Resource-Policy</code> header with
+<code>same-site</code> or <code>same-origin</code>, Mermaid diagrams
+silently fail to render. To resolve this, use <code>cross-origin</code>
+instead. For more information, see <a
+href="https://docs.gitlab.com/omnibus/settings/nginx/#cross-origin-resource-policy-header-and-mermaid-diagrams"><code>Cross-Origin-Resource-Policy</code>
+header and Mermaid diagrams</a>.</p>
+</div>
+<p>When rendered, the example looks similar to:</p>
+<pre class="mermaid"><code>graph TD
+    accTitle: Basic Mermaid diagram example
+    accDescr: Simple flowchart showing nodes A, B, C, and D with connections between them.
+
+  A--&gt;B;
+  A--&gt;C;
+  B--&gt;D;
+  C--&gt;D;</code></pre>
+<p>You can also include subgraphs:</p>
+<div class="sourceCode" id="cb58"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb58-1"><a href="#cb58-1" aria-hidden="true" tabindex="-1"></a><span class="in">```mermaid</span></span>
+<span id="cb58-2"><a href="#cb58-2" aria-hidden="true" tabindex="-1"></a><span class="in">graph TB</span></span>
+<span id="cb58-3"><a href="#cb58-3" aria-hidden="true" tabindex="-1"></a><span class="in">    accTitle: Mermaid diagram with subgraphs</span></span>
+<span id="cb58-4"><a href="#cb58-4" aria-hidden="true" tabindex="-1"></a><span class="in">    accDescr: Flowchart showing main graph with two subgraphs containing nodes and decision flows.</span></span>
+<span id="cb58-5"><a href="#cb58-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb58-6"><a href="#cb58-6" aria-hidden="true" tabindex="-1"></a><span class="in">  SubGraph1 --&gt; SubGraph1Flow</span></span>
+<span id="cb58-7"><a href="#cb58-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb58-8"><a href="#cb58-8" aria-hidden="true" tabindex="-1"></a><span class="in">  subgraph &quot;SubGraph 1 Flow&quot;</span></span>
+<span id="cb58-9"><a href="#cb58-9" aria-hidden="true" tabindex="-1"></a><span class="in">    SubGraph1Flow(SubNode 1)</span></span>
+<span id="cb58-10"><a href="#cb58-10" aria-hidden="true" tabindex="-1"></a><span class="in">    SubGraph1Flow -- Choice1 --&gt; DoChoice1</span></span>
+<span id="cb58-11"><a href="#cb58-11" aria-hidden="true" tabindex="-1"></a><span class="in">    SubGraph1Flow -- Choice2 --&gt; DoChoice2</span></span>
+<span id="cb58-12"><a href="#cb58-12" aria-hidden="true" tabindex="-1"></a><span class="in">  end</span></span>
+<span id="cb58-13"><a href="#cb58-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb58-14"><a href="#cb58-14" aria-hidden="true" tabindex="-1"></a><span class="in">  subgraph &quot;Main Graph&quot;</span></span>
+<span id="cb58-15"><a href="#cb58-15" aria-hidden="true" tabindex="-1"></a><span class="in">    Node1[Node 1] --&gt; Node2[Node 2]</span></span>
+<span id="cb58-16"><a href="#cb58-16" aria-hidden="true" tabindex="-1"></a><span class="in">    Node2 --&gt; SubGraph1[Jump to SubGraph1]</span></span>
+<span id="cb58-17"><a href="#cb58-17" aria-hidden="true" tabindex="-1"></a><span class="in">    SubGraph1 --&gt; FinalThing[Final Thing]</span></span>
+<span id="cb58-18"><a href="#cb58-18" aria-hidden="true" tabindex="-1"></a><span class="in">  end</span></span>
+<span id="cb58-19"><a href="#cb58-19" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span></code></pre></div>
+<p>When rendered, the example looks similar to:</p>
+<pre class="mermaid"><code>graph TB
+    accTitle: Mermaid diagram with subgraphs rendered
+    accDescr: Flowchart showing main graph with two subgraphs containing nodes and decision flows as rendered.
+
+  SubGraph1 --&gt; SubGraph1Flow
+
+  subgraph &quot;SubGraph 1 Flow&quot;
+    SubGraph1Flow(SubNode 1)
+    SubGraph1Flow -- Choice1 --&gt; DoChoice1
+    SubGraph1Flow -- Choice2 --&gt; DoChoice2
+  end
+
+  subgraph &quot;Main Graph&quot;
+    Node1[Node 1] --&gt; Node2[Node 2]
+    Node2 --&gt; SubGraph1[Jump to SubGraph1]
+    SubGraph1 --&gt; FinalThing[Final Thing]
+  end</code></pre>
+<h3 id="plantuml">PlantUML</h3>
+<p>PlantUML integration is enabled on GitLab.com. To make PlantUML
+available in GitLab Self-Managed installation of GitLab, a GitLab
+administrator <a href="../administration/integration/plantuml.md">must
+enable it</a>.</p>
+<p>After you enable PlantUML, diagram delimiters
+<code>@startuml</code>/<code>@enduml</code> aren't required, as these
+are replaced by the <code>plantuml</code> block. For example:</p>
+<div class="sourceCode" id="cb60"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb60-1"><a href="#cb60-1" aria-hidden="true" tabindex="-1"></a><span class="in">```plantuml</span></span>
+<span id="cb60-2"><a href="#cb60-2" aria-hidden="true" tabindex="-1"></a><span class="in">Bob -&gt; Alice : hello</span></span>
+<span id="cb60-3"><a href="#cb60-3" aria-hidden="true" tabindex="-1"></a><span class="in">Alice -&gt; Bob : hi</span></span>
+<span id="cb60-4"><a href="#cb60-4" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span></code></pre></div>
+<p>You can include or embed a PlantUML diagram from separate files in
+the repository using the <code>::include</code> directive. For more
+information, see <a
+href="../administration/integration/plantuml.md#include-diagram-files">include
+diagram files</a>.</p>
+<h3 id="kroki">Kroki</h3>
+<p>To make Kroki available in GitLab, a GitLab administrator must enable
+it. For more information, see the <a
+href="../administration/integration/kroki.md">Kroki integration</a>
+page.</p>
+<h2 id="math-equations">Math equations</h2>
+<p>Math written in LaTeX syntax is rendered with <a
+href="https://github.com/KaTeX/KaTeX">KaTeX</a>. <em>KaTeX only supports
+a <a href="https://katex.org/docs/supported.html">subset</a> of
+LaTeX.</em> This syntax also works in AsciiDoc wikis and files using
+<code>:stem: latexmath</code>. For details, see the <a
+href="https://asciidoctor.org/docs/user-manual/#activating-stem-support">Asciidoctor
+user manual</a>.</p>
+<p>To prevent malicious activity, GitLab renders only the first 50
+inline math instances. You can disable this limit <a
+href="../api/graphql/reference/_index.md#mutationgroupupdate">for a
+group</a> or for the entire <a
+href="../administration/instance_limits.md#math-rendering-limits">GitLab
+Self-Managed instance</a>.</p>
+<p>The number of math blocks is also limited based on render time. If
+the limit is exceeded, GitLab renders the excess math instances as text.
+Wiki and repository files do not have these limits.</p>
+<p>Math written between dollar signs with backticks
+(<code>$`...`$</code>) or single dollar signs (<code>$...$</code>) is
+rendered inline with the text.</p>
+<p>Math written between double dollar signs (<code>$$...$$</code>) or in
+a <a href="#code-spans-and-blocks">code block</a> with the language
+declared as <code>math</code> is rendered on a separate line:</p>
+<!--
+Translation note: DO NOT TRANSLATE this example. The example must stay untranslated
+to stay in sync with the image.
+-->
+
+<div class="sourceCode" id="cb61"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb61-1"><a href="#cb61-1" aria-hidden="true" tabindex="-1"></a><span class="an">This math is inline:</span><span class="co"> $`a^2+b^2=c^2`$.</span></span>
+<span id="cb61-2"><a href="#cb61-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb61-3"><a href="#cb61-3" aria-hidden="true" tabindex="-1"></a>This math is on a separate line using a ` ``<span class="in">`math `</span> block:</span>
+<span id="cb61-4"><a href="#cb61-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb61-5"><a href="#cb61-5" aria-hidden="true" tabindex="-1"></a><span class="in">```math</span></span>
+<span id="cb61-6"><a href="#cb61-6" aria-hidden="true" tabindex="-1"></a><span class="in">a^2+b^2=c^2</span></span>
+<span id="cb61-7"><a href="#cb61-7" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb61-8"><a href="#cb61-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb61-9"><a href="#cb61-9" aria-hidden="true" tabindex="-1"></a>This math is on a separate line using inline <span class="in">`$$`</span>: $$a^2+b^2=c^2$$</span>
+<span id="cb61-10"><a href="#cb61-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb61-11"><a href="#cb61-11" aria-hidden="true" tabindex="-1"></a>This math is on a separate line using a <span class="in">`$$...$$`</span> block:</span>
+<span id="cb61-12"><a href="#cb61-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb61-13"><a href="#cb61-13" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb61-14"><a href="#cb61-14" aria-hidden="true" tabindex="-1"></a>a^2+b^2=c^2</span>
+<span id="cb61-15"><a href="#cb61-15" aria-hidden="true" tabindex="-1"></a>$$</span></code></pre></div>
+<p>When rendered, the example looks like:</p>
+<p><img src="img/markdown_math_v17_2.png"
+alt="Example of math in GitLab" /></p>
+<div class="note">
+<div class="title">
+<p>Note</p>
+</div>
+<p>The rich text editor does not support inserting new math blocks. To
+insert a new math block, use the plain text editor. For more
+information, see <a
+href="https://gitlab.com/gitlab-org/gitlab/-/issues/366527">issue
+366527</a>.</p>
+</div>
+<h2 id="table-of-contents">Table of contents</h2>
+<p>A table of contents is an unordered list that links to subheadings in
+the document. You can add a table of contents to issues, merge requests,
+and epics, but you can't add one to notes or comments.</p>
+<p>Add one of these tags on their own line to the
+<strong>description</strong> field of any of the supported content
+types:</p>
+<!--
+Tags for the table of contents are presented in a code block to work around a Markdown bug.
+Do not change the code block back to single backticks.
+For more information, see <https://gitlab.com/gitlab-org/gitlab/-/issues/359077>.
+-->
+
+<div class="sourceCode" id="cb62"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb62-1"><a href="#cb62-1" aria-hidden="true" tabindex="-1"></a>[<span class="co">[</span><span class="ot">_TOC_</span><span class="co">]</span>]</span>
+<span id="cb62-2"><a href="#cb62-2" aria-hidden="true" tabindex="-1"></a>or</span>
+<span id="cb62-3"><a href="#cb62-3" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">TOC</span><span class="co">]</span></span></code></pre></div>
+<ul>
+<li>Markdown files.</li>
+<li>Wiki pages.</li>
+<li>Issues.</li>
+<li>Merge requests.</li>
+<li>Epics.</li>
+</ul>
+<div class="note">
+<div class="title">
+<p>Note</p>
+</div>
+<p>A table of contents renders also when you use the TOC code in single
+square brackets, regardless of being on its own line or not. This
+behavior is unintended. For more information, see <a
+href="https://gitlab.com/gitlab-org/gitlab/-/issues/359077">issue
+359077</a>.</p>
+</div>
+<!--
+Translation note: DO NOT TRANSLATE this example. The example must stay untranslated
+to stay in sync with the image.
+-->
+
+<div class="sourceCode" id="cb63"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb63-1"><a href="#cb63-1" aria-hidden="true" tabindex="-1"></a>This is an intro sentence to my wiki page.</span>
+<span id="cb63-2"><a href="#cb63-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb63-3"><a href="#cb63-3" aria-hidden="true" tabindex="-1"></a>[<span class="co">[</span><span class="ot">_TOC_</span><span class="co">]</span>]</span>
+<span id="cb63-4"><a href="#cb63-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb63-5"><a href="#cb63-5" aria-hidden="true" tabindex="-1"></a><span class="fu">## My first heading</span></span>
+<span id="cb63-6"><a href="#cb63-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb63-7"><a href="#cb63-7" aria-hidden="true" tabindex="-1"></a>First section content.</span>
+<span id="cb63-8"><a href="#cb63-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb63-9"><a href="#cb63-9" aria-hidden="true" tabindex="-1"></a><span class="fu">## My second heading</span></span>
+<span id="cb63-10"><a href="#cb63-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb63-11"><a href="#cb63-11" aria-hidden="true" tabindex="-1"></a>Second section content.</span></code></pre></div>
+<p><img src="img/markdown_toc_preview_v12_9.png"
+alt="Preview of an auto-generated table of contents in a Wiki" /></p>
+<h2 id="alerts">Alerts</h2>
+<p>{{&lt; history &gt;}}</p>
+<ul>
+<li><a
+href="https://gitlab.com/gitlab-org/gitlab/-/issues/24482">Introduced</a>
+in GitLab 17.10.</li>
+</ul>
+<p>{{&lt; /history &gt;}}</p>
+<p>Alerts can be used to highlight or call attention to something. The
+alert syntax uses the Markdown blockquote syntax followed by the type of
+alert. You can use alerts in any text box that supports Markdown.</p>
+<p>You can use the following types of alerts:</p>
+<!--
+Translation note: DO NOT TRANSLATE any examples in this section. The examples must stay untranslated
+to stay in sync with the image.
+-->
+
+<ul>
+<li><p>Note: information that users should take into account, even when
+skimming:</p>
+<div class="sourceCode" id="cb64"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb64-1"><a href="#cb64-1" aria-hidden="true" tabindex="-1"></a><span class="at">&gt; </span><span class="co">[</span><span class="ot">!note</span><span class="co">]</span></span>
+<span id="cb64-2"><a href="#cb64-2" aria-hidden="true" tabindex="-1"></a><span class="at">&gt; The following information is useful.</span></span></code></pre></div></li>
+<li><p>Tip: Optional information to help a user be more successful:</p>
+<div class="sourceCode" id="cb65"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb65-1"><a href="#cb65-1" aria-hidden="true" tabindex="-1"></a><span class="at">&gt; </span><span class="co">[</span><span class="ot">!tip</span><span class="co">]</span></span>
+<span id="cb65-2"><a href="#cb65-2" aria-hidden="true" tabindex="-1"></a><span class="at">&gt; Tip of the day.</span></span></code></pre></div></li>
+<li><p>Important: Crucial information necessary for users to
+succeed:</p>
+<div class="sourceCode" id="cb66"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb66-1"><a href="#cb66-1" aria-hidden="true" tabindex="-1"></a><span class="at">&gt; </span><span class="co">[</span><span class="ot">!important</span><span class="co">]</span></span>
+<span id="cb66-2"><a href="#cb66-2" aria-hidden="true" tabindex="-1"></a><span class="at">&gt; This is something important you should know.</span></span></code></pre></div></li>
+<li><p>Caution: Negative potential consequences of an action:</p>
+<div class="sourceCode" id="cb67"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb67-1"><a href="#cb67-1" aria-hidden="true" tabindex="-1"></a><span class="at">&gt; </span><span class="co">[</span><span class="ot">!caution</span><span class="co">]</span></span>
+<span id="cb67-2"><a href="#cb67-2" aria-hidden="true" tabindex="-1"></a><span class="at">&gt; You need to be very careful about the following.</span></span></code></pre></div></li>
+<li><p>Warning: Critical potential risks:</p>
+<div class="sourceCode" id="cb68"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb68-1"><a href="#cb68-1" aria-hidden="true" tabindex="-1"></a><span class="at">&gt; </span><span class="co">[</span><span class="ot">!warning</span><span class="co">]</span></span>
+<span id="cb68-2"><a href="#cb68-2" aria-hidden="true" tabindex="-1"></a><span class="at">&gt; The following would be dangerous.</span></span></code></pre></div></li>
+</ul>
+<p>The title text shown for an alert defaults to the name of the alert.
+For example, <code>&gt; [!warning]</code> alert has the title
+<code>Warning</code>.</p>
+<p>To override an alert block's title, enter any text on the same line.
+For example, to use the warning color but have
+<code>Data deletion</code> as the title:</p>
+<div class="sourceCode" id="cb69"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb69-1"><a href="#cb69-1" aria-hidden="true" tabindex="-1"></a><span class="at">&gt; </span><span class="co">[</span><span class="ot">!warning</span><span class="co">]</span><span class="at"> Data deletion</span></span>
+<span id="cb69-2"><a href="#cb69-2" aria-hidden="true" tabindex="-1"></a><span class="at">&gt; The following instructions will make your data unrecoverable.</span></span></code></pre></div>
+<p><a href="#multiline-blockquote">Multiline blockquotes</a> also
+support the alert syntax. This allows you to wrap large and more complex
+text in an alert.</p>
+<div class="sourceCode" id="cb70"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb70-1"><a href="#cb70-1" aria-hidden="true" tabindex="-1"></a><span class="at">&gt;&gt;&gt; </span><span class="co">[</span><span class="ot">!note</span><span class="co">]</span><span class="at"> Things to consider</span></span>
+<span id="cb70-2"><a href="#cb70-2" aria-hidden="true" tabindex="-1"></a><span class="at">You should consider the following ramifications:</span></span>
+<span id="cb70-3"><a href="#cb70-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb70-4"><a href="#cb70-4" aria-hidden="true" tabindex="-1"></a><span class="ss">1. </span>consideration 1</span>
+<span id="cb70-5"><a href="#cb70-5" aria-hidden="true" tabindex="-1"></a><span class="ss">1. </span>consideration 2</span>
+<span id="cb70-6"><a href="#cb70-6" aria-hidden="true" tabindex="-1"></a><span class="at">&gt;&gt;&gt;</span></span></code></pre></div>
+<p>The alerts render as:</p>
+<p><img src="img/markdown_alerts_v18_3.png"
+alt="How Markdown alerts are rendered in GitLab" /></p>
+<h2 id="colors">Colors</h2>
+<p>Markdown does not support changing text color.</p>
+<p>You can write a color code in the formats: <code>HEX</code>,
+<code>RGB</code>, or <code>HSL</code>.</p>
+<ul>
+<li><code>HEX</code>: <code>`#RGB[A]`</code> or
+<code>`#RRGGBB[AA]`</code></li>
+<li><code>RGB</code>: <code>`RGB[A](R, G, B[, A])`</code></li>
+<li><code>HSL</code>: <code>`HSL[A](H, S, L[, A])`</code></li>
+</ul>
+<p>Named colors are not supported.</p>
+<p>In the GitLab application (but not the GitLab documentation) color
+codes in backticks display a color chip next to the color code. For
+example:</p>
+<div class="sourceCode" id="cb71"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb71-1"><a href="#cb71-1" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="in">`#F00`</span></span>
+<span id="cb71-2"><a href="#cb71-2" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="in">`#F00A`</span></span>
+<span id="cb71-3"><a href="#cb71-3" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="in">`#FF0000`</span></span>
+<span id="cb71-4"><a href="#cb71-4" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="in">`#FF0000AA`</span></span>
+<span id="cb71-5"><a href="#cb71-5" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="in">`RGB(0,255,0)`</span></span>
+<span id="cb71-6"><a href="#cb71-6" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="in">`RGB(0%,100%,0%)`</span></span>
+<span id="cb71-7"><a href="#cb71-7" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="in">`RGBA(0,255,0,0.3)`</span></span>
+<span id="cb71-8"><a href="#cb71-8" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="in">`HSL(540,70%,50%)`</span></span>
+<span id="cb71-9"><a href="#cb71-9" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="in">`HSLA(540,70%,50%,0.3)`</span></span></code></pre></div>
+<p>This example only works when <a
+href="https://gitlab.com/gitlab-org/gitlab/-/blob/master/doc/user/markdown.md#colors">rendered
+in GitLab</a>:</p>
+<ul>
+<li><code>#F00</code></li>
+<li><code>#F00A</code></li>
+<li><code>#FF0000</code></li>
+<li><code>#FF0000AA</code></li>
+<li><code>RGB(0,255,0)</code></li>
+<li><code>RGB(0%,100%,0%)</code></li>
+<li><code>RGBA(0,255,0,0.3)</code></li>
+<li><code>HSL(540,70%,50%)</code></li>
+<li><code>HSLA(540,70%,50%,0.3)</code></li>
+</ul>
+<h3 id="escape-color-codes">Escape color codes</h3>
+<p>{{&lt; history &gt;}}</p>
+<ul>
+<li><a
+href="https://gitlab.com/gitlab-org/gitlab/-/issues/359069">Introduced</a>
+in GitLab 18.3.</li>
+</ul>
+<p>{{&lt; /history &gt;}}</p>
+<p>To display a color code as inline code without generating a color
+chip, prefix it with a backslash (<code>\</code>).</p>
+<p>For example:</p>
+<ul>
+<li><code>\#FF0000</code></li>
+<li><code>\RGB(255,0,0)</code></li>
+<li><code>\HSL(0,100%,50%)</code></li>
+</ul>
+<p>In all cases, the backslash is removed, and no color chip is rendered
+in the output.</p>
+<p>Use when you want to include values like issue numbers in inline code
+without accidentally triggering a color chip.</p>
+<h2 id="emoji">Emoji</h2>
+<p>You can use emoji anywhere GitLab Flavored Markdown is supported. For
+example:</p>
+<div class="sourceCode" id="cb72"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb72-1"><a href="#cb72-1" aria-hidden="true" tabindex="-1"></a>Sometimes you want to <span class="sc">:monkey:</span> around a bit and add some <span class="sc">:star2:</span> to your</span>
+<span id="cb72-2"><a href="#cb72-2" aria-hidden="true" tabindex="-1"></a><span class="sc">:speech_balloon:</span>. Well we have a gift for you: emoji!</span>
+<span id="cb72-3"><a href="#cb72-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb72-4"><a href="#cb72-4" aria-hidden="true" tabindex="-1"></a>You can use it to point out a <span class="sc">:bug:</span> or warn about <span class="sc">:speak_no_evil:</span> patches.</span>
+<span id="cb72-5"><a href="#cb72-5" aria-hidden="true" tabindex="-1"></a>And if someone improves your really <span class="sc">:snail:</span> code, send them some <span class="sc">:birthday:</span>.</span>
+<span id="cb72-6"><a href="#cb72-6" aria-hidden="true" tabindex="-1"></a>People <span class="sc">:heart:</span> you for that.</span>
+<span id="cb72-7"><a href="#cb72-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb72-8"><a href="#cb72-8" aria-hidden="true" tabindex="-1"></a>If you&#39;re new to this, don&#39;t be <span class="sc">:fearful:</span>. You can join the emoji <span class="sc">:family:</span>.</span>
+<span id="cb72-9"><a href="#cb72-9" aria-hidden="true" tabindex="-1"></a>Just look up one of the supported codes.</span></code></pre></div>
+<p>When rendered, the example looks similar to:</p>
+<blockquote>
+<p>Sometimes you want to
+<img src="https://gitlab.com/gitlab-org/gitlab/-/raw/master/public/-/emojis/4/monkey.png" width="20px" height="20px" style="display:inline;margin:0;border:0;padding:0;" title=":monkey:" alt=":monkey:">
+around a bit and add some
+<img src="https://gitlab.com/gitlab-org/gitlab/-/raw/master/public/-/emojis/4/star2.png" width="20px" height="20px" style="display:inline;margin:0;border:0;padding:0;" title=":star2:" alt=":star2:">
+to your
+<img src="https://gitlab.com/gitlab-org/gitlab/-/raw/master/public/-/emojis/4/speech_balloon.png" width="20px" height="20px" style="display:inline;margin:0;border:0;padding:0;" title=":speech_balloon:" alt=":speech_balloon:">.
+Well we have a gift for you: emoji!</p>
+<p>You can use it to point out a
+<img src="https://gitlab.com/gitlab-org/gitlab/-/raw/master/public/-/emojis/4/bug.png" width="20px" height="20px" style="display:inline;margin:0;border:0;padding:0;" title=":bug:" alt=":bug:">
+or warn about
+<img src="https://gitlab.com/gitlab-org/gitlab/-/raw/master/public/-/emojis/4/speak_no_evil.png" width="20px" height="20px" style="display:inline;margin:0;border:0;padding:0;" title=":speak_no_evil:" alt=":speak_no_evil:">
+patches. If someone improves your really
+<img src="https://gitlab.com/gitlab-org/gitlab/-/raw/master/public/-/emojis/4/snail.png" width="20px" height="20px" style="display:inline;margin:0;border:0;padding:0;" title=":snail:" alt=":snail:">
+code, send them some
+<img src="https://gitlab.com/gitlab-org/gitlab/-/raw/master/public/-/emojis/4/birthday.png" width="20px" height="20px" style="display:inline;margin:0;border:0;padding:0;" title=":birthday:" alt=":birthday:">.
+People
+<img src="https://gitlab.com/gitlab-org/gitlab/-/raw/master/public/-/emojis/4/heart.png" width="20px" height="20px" style="display:inline;margin:0;border:0;padding:0;" title=":heart:" alt=":heart:">
+you for that.</p>
+<p>If you're new to this, don't be
+<img src="https://gitlab.com/gitlab-org/gitlab/-/raw/master/public/-/emojis/4/fearful.png" width="20px" height="20px" style="display:inline;margin:0;border:0;padding:0;" title=":fearful:" alt=":fearful:">.
+You can join the emoji
+<img src="https://gitlab.com/gitlab-org/gitlab/-/raw/master/public/-/emojis/4/family.png" width="20px" height="20px" style="display:inline;margin:0;border:0;padding:0;" title=":family:" alt=":family:">.
+Just look up one of the supported codes.</p>
+</blockquote>
+<p>For more information, see the <a
+href="https://www.webfx.com/tools/emoji-cheat-sheet/">emoji cheat
+sheet</a> for a list of all supported emoji codes.</p>
+<h3 id="emoji-and-your-operating-system">Emoji and your operating
+system</h3>
+<p>The previous emoji example uses hard-coded images. Rendered emoji in
+GitLab might look different depending on the OS and browser used.</p>
+<p>Most emoji are natively supported on macOS, Windows, iOS, Android,
+and fall back on image-based emoji where there is no support.</p>
+<!-- vale gitlab_base.Spelling = NO -->
+
+<p>On Linux, you can download <a
+href="https://github.com/googlefonts/noto-emoji">Noto Color Emoji</a> to
+get full native emoji support. Ubuntu 22.04 (like many modern Linux
+distributions) has this font installed by default.</p>
+<!-- vale gitlab_base.Spelling = YES -->
+
+<p>For more information about adding custom emoji, see <a
+href="emoji_reactions.md#custom-emoji">custom emoji</a>.</p>
+<h2 id="front-matter">Front matter</h2>
+<p>Front matter is metadata included at the beginning of a Markdown
+document, preceding the content. This data can be used by static site
+generators like <a
+href="https://jekyllrb.com/docs/front-matter/">Jekyll</a>, <a
+href="https://gohugo.io/content-management/front-matter/">Hugo</a>, and
+many other applications.</p>
+<p>When you view a Markdown file rendered by GitLab, front matter is
+displayed as-is, in a box at the top of the document. The HTML content
+displays after the front matter. To view an example, you can toggle
+between the source and rendered version of a <a
+href="https://gitlab.com/gitlab-org/gitlab/-/blob/master/doc/_index.md">GitLab
+documentation file</a>.</p>
+<p>In GitLab, front matter is used only in Markdown files and wiki
+pages, not the other places where Markdown formatting is supported. It
+must be at the very top of the document and must be between
+delimiters.</p>
+<p>The following delimiters are supported:</p>
+<ul>
+<li><p>YAML (<code>---</code>):</p>
+<div class="sourceCode" id="cb73"><pre
+class="sourceCode yaml"><code class="sourceCode yaml"><span id="cb73-1"><a href="#cb73-1" aria-hidden="true" tabindex="-1"></a><span class="pp">---</span></span>
+<span id="cb73-2"><a href="#cb73-2" aria-hidden="true" tabindex="-1"></a><span class="fu">title</span><span class="kw">:</span><span class="at"> About Front Matter</span></span>
+<span id="cb73-3"><a href="#cb73-3" aria-hidden="true" tabindex="-1"></a><span class="fu">example</span><span class="kw">:</span></span>
+<span id="cb73-4"><a href="#cb73-4" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">language</span><span class="kw">:</span><span class="at"> yaml</span></span>
+<span id="cb73-5"><a href="#cb73-5" aria-hidden="true" tabindex="-1"></a><span class="pp">---</span></span></code></pre></div></li>
+<li><p>TOML (<code>+++</code>):</p>
+<div class="sourceCode" id="cb74"><pre
+class="sourceCode toml"><code class="sourceCode toml"><span id="cb74-1"><a href="#cb74-1" aria-hidden="true" tabindex="-1"></a><span class="er">+++</span></span>
+<span id="cb74-2"><a href="#cb74-2" aria-hidden="true" tabindex="-1"></a><span class="dt">title</span> <span class="op">=</span> <span class="st">&quot;About Front Matter&quot;</span></span>
+<span id="cb74-3"><a href="#cb74-3" aria-hidden="true" tabindex="-1"></a><span class="kw">[example]</span></span>
+<span id="cb74-4"><a href="#cb74-4" aria-hidden="true" tabindex="-1"></a><span class="dt">language</span> <span class="op">=</span> <span class="st">&quot;toml&quot;</span></span>
+<span id="cb74-5"><a href="#cb74-5" aria-hidden="true" tabindex="-1"></a><span class="er">+++</span></span></code></pre></div></li>
+<li><p>JSON (<code>;;;</code>):</p>
+<div class="sourceCode" id="cb75"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb75-1"><a href="#cb75-1" aria-hidden="true" tabindex="-1"></a><span class="er">;;;</span></span>
+<span id="cb75-2"><a href="#cb75-2" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb75-3"><a href="#cb75-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;title&quot;</span><span class="fu">:</span> <span class="st">&quot;About Front Matter&quot;</span><span class="fu">,</span></span>
+<span id="cb75-4"><a href="#cb75-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;example&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb75-5"><a href="#cb75-5" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;language&quot;</span><span class="fu">:</span> <span class="st">&quot;json&quot;</span></span>
+<span id="cb75-6"><a href="#cb75-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">}</span></span>
+<span id="cb75-7"><a href="#cb75-7" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span>
+<span id="cb75-8"><a href="#cb75-8" aria-hidden="true" tabindex="-1"></a><span class="er">;;;</span></span></code></pre></div></li>
+</ul>
+<p>Other languages are supported by adding a specifier to any of the
+existing delimiters. For example:</p>
+<div class="sourceCode" id="cb76"><pre
+class="sourceCode php"><code class="sourceCode php"><span id="cb76-1"><a href="#cb76-1" aria-hidden="true" tabindex="-1"></a><span class="op">---</span>php</span>
+<span id="cb76-2"><a href="#cb76-2" aria-hidden="true" tabindex="-1"></a><span class="va">$title</span> <span class="op">=</span> <span class="st">&quot;About Front Matter&quot;</span><span class="ot">;</span></span>
+<span id="cb76-3"><a href="#cb76-3" aria-hidden="true" tabindex="-1"></a><span class="va">$example</span> <span class="op">=</span> <span class="dt">array</span>(</span>
+<span id="cb76-4"><a href="#cb76-4" aria-hidden="true" tabindex="-1"></a>  <span class="st">&#39;language&#39;</span> =&gt; <span class="st">&quot;php&quot;</span><span class="ot">,</span></span>
+<span id="cb76-5"><a href="#cb76-5" aria-hidden="true" tabindex="-1"></a>)<span class="ot">;</span></span>
+<span id="cb76-6"><a href="#cb76-6" aria-hidden="true" tabindex="-1"></a><span class="op">---</span></span></code></pre></div>
+<h2 id="includes">Includes</h2>
+<p>{{&lt; history &gt;}}</p>
+<ul>
+<li><a
+href="https://gitlab.com/gitlab-org/gitlab/-/issues/195798">Introduced</a>
+in GitLab 17.7.</li>
+</ul>
+<p>{{&lt; /history &gt;}}</p>
+<p>Use includes, or include directives, to add the content of a document
+inside another document.</p>
+<p>For example, a book could be split into multiple chapters, and then
+each chapter could be included in the main book document:</p>
+<div class="sourceCode" id="cb77"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb77-1"><a href="#cb77-1" aria-hidden="true" tabindex="-1"></a>::include{file=chapter1.md}</span>
+<span id="cb77-2"><a href="#cb77-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb77-3"><a href="#cb77-3" aria-hidden="true" tabindex="-1"></a>::include{file=chapter2.md}</span></code></pre></div>
+<p>In GitLab, include directives are used only in Markdown files and
+wiki pages, not the other places where Markdown formatting is
+supported.</p>
+<p>Use an include directive in a Markdown file:</p>
+<div class="sourceCode" id="cb78"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb78-1"><a href="#cb78-1" aria-hidden="true" tabindex="-1"></a>::include{file=example_file.md}</span></code></pre></div>
+<p>Use an include directive in a wiki page:</p>
+<div class="sourceCode" id="cb79"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb79-1"><a href="#cb79-1" aria-hidden="true" tabindex="-1"></a>::include{file=example_page.md}</span></code></pre></div>
+<p>Each <code>::include</code> must start at the beginning of a line,
+and specifies a file or URL for <code>file=</code>. The content of the
+specified file (or URL) is included at the position of the
+<code>::include</code> and processed with the remaining Markdown.</p>
+<p>Include directives inside the included file are ignored. For example,
+if <code>file1</code> includes <code>file2</code>, and
+<code>file2</code> includes <code>file3</code>, when <code>file1</code>
+is processed, it doesn't have the contents of <code>file3</code>.</p>
+<h3 id="include-limits">Include limits</h3>
+<p>To guarantee good system performance and prevent malicious documents
+from causing problems, GitLab enforces a maximum limit on the number of
+include directives processed in a document. By default, a document can
+have up to 32 include directives.</p>
+<p>To customize the number of processed include directives,
+administrators can change the <code>asciidoc_max_includes</code>
+application setting with the <a
+href="../api/settings.md#available-settings">application settings
+API</a>.</p>
+<h3 id="use-includes-from-external-urls">Use includes from external
+URLs</h3>
+<p>To use includes from separate wiki pages or external URLs,
+administrators can enable the
+<code>wiki_asciidoc_allow_uri_includes</code> <a
+href="../administration/wikis/_index.md#allow-uri-includes-for-asciidoc">application
+setting</a>.</p>
+<div class="sourceCode" id="cb80"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb80-1"><a href="#cb80-1" aria-hidden="true" tabindex="-1"></a><span class="co">&lt;!-- define application setting wiki_asciidoc_allow_uri_includes to true to allow content to be read from URI --&gt;</span></span>
+<span id="cb80-2"><a href="#cb80-2" aria-hidden="true" tabindex="-1"></a>::include{file=https://example.org/installation.md}</span></code></pre></div>
+<h3 id="use-includes-in-code-blocks">Use includes in code blocks</h3>
+<p>You can use the <code>::include</code> directive inside code blocks
+to add content from files in your repository. For example, if your
+repository contains a file <code>javascript_code.js</code>:</p>
+<div class="sourceCode" id="cb81"><pre
+class="sourceCode javascript"><code class="sourceCode javascript"><span id="cb81-1"><a href="#cb81-1" aria-hidden="true" tabindex="-1"></a><span class="kw">const</span> s <span class="op">=</span> <span class="st">&quot;JavaScript syntax highlighting&quot;</span><span class="op">;</span></span>
+<span id="cb81-2"><a href="#cb81-2" aria-hidden="true" tabindex="-1"></a><span class="fu">alert</span>(s)<span class="op">;</span></span></code></pre></div>
+<p>You can include it in your Markdown file:</p>
+<div class="sourceCode" id="cb82"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb82-1"><a href="#cb82-1" aria-hidden="true" tabindex="-1"></a><span class="an">Our script contains:</span></span>
+<span id="cb82-2"><a href="#cb82-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb82-3"><a href="#cb82-3" aria-hidden="true" tabindex="-1"></a><span class="in">```javascript</span></span>
+<span id="cb82-4"><a href="#cb82-4" aria-hidden="true" tabindex="-1"></a><span class="op">::</span>include{file<span class="op">=</span>javascript_code<span class="op">.</span><span class="at">js</span>}</span>
+<span id="cb82-5"><a href="#cb82-5" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span></code></pre></div>
+<p>When rendered, the example looks similar to:</p>
+<blockquote>
+<p>Our script contains:</p>
+<div class="sourceCode" id="cb83"><pre
+class="sourceCode javascript"><code class="sourceCode javascript"><span id="cb83-1"><a href="#cb83-1" aria-hidden="true" tabindex="-1"></a><span class="kw">const</span> s <span class="op">=</span> <span class="st">&quot;JavaScript syntax highlighting&quot;</span><span class="op">;</span></span>
+<span id="cb83-2"><a href="#cb83-2" aria-hidden="true" tabindex="-1"></a><span class="fu">alert</span>(s)<span class="op">;</span></span></code></pre></div>
+</blockquote>
+<h2 id="placeholders">Placeholders</h2>
+<p>{{&lt; history &gt;}}</p>
+<ul>
+<li><a
+href="https://gitlab.com/gitlab-org/gitlab/-/issues/14389">Introduced</a>
+in GitLab 18.2 <a href="../administration/feature_flags/_index.md">with
+a flag</a> named <code>markdown_placeholders</code>. Disabled by
+default.</li>
+</ul>
+<p>{{&lt; /history &gt;}}</p>
+<blockquote>
+<p>[!flag] The availability of this feature is controlled by a feature
+flag. For more information, see the history. This feature is available
+for testing, but not ready for production use.</p>
+</blockquote>
+<p>Placeholders can be used to display certain types of changeable data,
+such as a project's title or latest tag. They are filled in each time
+the Markdown is rendered.</p>
+<p>The syntax is <code>%{PLACEHOLDER}</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Placeholder</th>
+<th>Example value</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>%{gitlab_server}</code></td>
+<td><code>gitlab.com</code></td>
+<td>Server of a project</td>
+</tr>
+<tr>
+<td><code>%{gitlab_pages_domain}</code></td>
+<td><code>pages.gitlab.com</code></td>
+<td>Domain hosting GitLab Pages</td>
+</tr>
+<tr>
+<td><code>%{project_path}</code></td>
+<td><code>gitlab-org/gitlab</code></td>
+<td>Path of a project including the parent groups</td>
+</tr>
+<tr>
+<td><code>%{project_name}</code></td>
+<td><code>gitlab</code></td>
+<td>Name of a project</td>
+</tr>
+<tr>
+<td><code>%{project_id}</code></td>
+<td><code>278964</code></td>
+<td>Database ID associated with a project</td>
+</tr>
+<tr>
+<td><code>%{project_namespace}</code></td>
+<td><code>gitlab-org</code></td>
+<td>Project namespace of a project</td>
+</tr>
+<tr>
+<td><code>%{project_title}</code></td>
+<td><code>GitLab</code></td>
+<td>Title of a project</td>
+</tr>
+<tr>
+<td><code>%{group_name}</code></td>
+<td><code>gitlab-org</code></td>
+<td>Group of a project</td>
+</tr>
+<tr>
+<td><code>%{default_branch}</code></td>
+<td><code>main</code></td>
+<td>Default branch name configured for a project's repository</td>
+</tr>
+<tr>
+<td><code>%{current_ref}</code></td>
+<td><code>feature-branch</code></td>
+<td>Current ref (branch, tag, or commit SHA) being viewed</td>
+</tr>
+<tr>
+<td><code>%{commit_sha}</code></td>
+<td><code>ad10e011ce65492322037633ebc054efde37b143</code></td>
+<td>ID of the most recent commit to the default branch of a project's
+repository</td>
+</tr>
+<tr>
+<td><code>%{latest_tag}</code></td>
+<td><code>v17.10.7-ee</code></td>
+<td>Latest tag added to the project's repository</td>
+</tr>
+</tbody>
+</table>
+<h2 id="escape-characters">Escape characters</h2>
+<p>Markdown reserves the following ASCII characters to format the
+page:</p>
+<pre class="plaintext"><code>! &quot; # $ % &amp; &#39; ( ) * + , - . / : ; &lt; = &gt; ? @ [ \ ] ^ _ ` { | } ~</code></pre>
+<p>To use one of these reserved characters in your text, add the
+backslash character (<code>\</code>) immediately before the reserved
+character. When you place the backslash before a reserved character, the
+Markdown parser omits the backslash and treats the reserved character as
+regular text.</p>
+<p>Examples:</p>
+<pre class="plaintext"><code>\# Not a heading
+
+| Food  | Do you like this food? (circle) |
+|-------|---------------------------------|
+| Pizza | Yes \| No                       |
+
+\**Not bold, just italic text placed between some asterisks*\*</code></pre>
+<p>When rendered, the example looks similar to:</p>
+<blockquote>
+<p># Not a heading</p>
+<table>
+<thead>
+<tr>
+<th>Food</th>
+<th>Do you like this food? (circle)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Pizza</td>
+<td>Yes | No</td>
+</tr>
+</tbody>
+</table>
+<p>*<em>Not bold, just italic text placed between some
+asterisks</em>*</p>
+</blockquote>
+<p>A backslash doesn't always escape the character that follows it. The
+backslash appears as regular text in the following cases:</p>
+<ul>
+<li>When the backslash appears before a non-reserved character, such as
+<code>A</code>, <code>3</code>, or a space.</li>
+<li>When the backslash appears inside of these Markdown elements:
+<ul>
+<li>Auto-links</li>
+<li>Inline HTML, such as <code>&lt;kbd&gt;</code></li>
+<li>Code blocks</li>
+<li>Code spans</li>
+</ul></li>
+</ul>
+<p>In these instances you might need to use the equivalent HTML entity,
+such as <code>&amp;#93;</code> for <code>]</code>.</p>
+<h3 id="use-additional-backticks">Use additional backticks</h3>
+<p>The previous advice does not apply to code blocks or code spans,
+where literal contents are always displayed. Instead, use additional
+backticks to nest the code.</p>
+<p>If you need to include three backticks in a code block, use a greater
+number of backticks to create the code block:</p>
+<div class="sourceCode" id="cb86"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb86-1"><a href="#cb86-1" aria-hidden="true" tabindex="-1"></a>To create a code block in Markdown, use three or more matching backticks:</span>
+<span id="cb86-2"><a href="#cb86-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb86-3"><a href="#cb86-3" aria-hidden="true" tabindex="-1"></a><span class="in">````markdown</span></span>
+<span id="cb86-4"><a href="#cb86-4" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb86-5"><a href="#cb86-5" aria-hidden="true" tabindex="-1"></a><span class="in">code</span></span>
+<span id="cb86-6"><a href="#cb86-6" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb86-7"><a href="#cb86-7" aria-hidden="true" tabindex="-1"></a><span class="in">````</span></span></code></pre></div>
+<p>When rendered, the example looks similar to:</p>
+<blockquote>
+<p>To create a code block in Markdown, use three or more matching
+backticks:</p>
+<div class="sourceCode" id="cb87"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb87-1"><a href="#cb87-1" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb87-2"><a href="#cb87-2" aria-hidden="true" tabindex="-1"></a><span class="in">code</span></span>
+<span id="cb87-3"><a href="#cb87-3" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span></code></pre></div>
+</blockquote>
+<p>To include one or more backticks in a code span, use a greater number
+of matching backticks to create the code span. If the content begins and
+ends with a space, those spaces are also trimmed:</p>
+<div class="sourceCode" id="cb88"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb88-1"><a href="#cb88-1" aria-hidden="true" tabindex="-1"></a>To create a code span in Markdown, use matching backticks: `<span class="in">` `</span>hello, world` ``</span></code></pre></div>
+<p>When rendered, the example looks similar to:</p>
+<blockquote>
+<p>To create a code span in Markdown, use matching backticks:
+<code>`hello, world`</code></p>
+</blockquote>
+<h3 id="use-backslash-with-backticks">Use backslash with backticks</h3>
+<p>When the backslash (<code>\</code>) character is at the end of an
+inline code sample, the backslash can escape the last backtick. In this
+case, add extra spaces around the inline code, for example:</p>
+<div class="sourceCode" id="cb89"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb89-1"><a href="#cb89-1" aria-hidden="true" tabindex="-1"></a>Use the backslash <span class="in">` \ `</span> character to escape inline code that ends in a <span class="in">` backslash\ `</span>.</span></code></pre></div>
+<p>When rendered, the example looks similar to:</p>
+<blockquote>
+<p>Use the backslash <code>\</code> character to escape inline code that
+ends in a <code>backslash\</code>.</p>
+</blockquote>
+<h2 id="footnotes">Footnotes</h2>
+<p>Footnotes add a link to a note rendered at the end of a Markdown
+file.</p>
+<p>To make a footnote, you need both a reference tag and a separate line
+(anywhere in the file) with the note content.</p>
+<p>Regardless of the tag names, the relative order of the reference tags
+determines the rendered numbering.</p>
+<p>Regardless where you put the note, it's always shown at the bottom of
+the rendered file.</p>
+<div class="note">
+<div class="title">
+<p>Note</p>
+</div>
+<p>The rich text editor does not support inserting new footnotes. To
+insert a new footnote, use the plain text editor. For more information,
+see <a href="https://gitlab.com/gitlab-org/gitlab/-/issues/365265">issue
+365265</a>.</p>
+</div>
+<p>For example:</p>
+<ul>
+<li><p>Referencing footnotes:</p>
+<div class="sourceCode" id="cb90"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb90-1"><a href="#cb90-1" aria-hidden="true" tabindex="-1"></a>A footnote reference tag looks like this:<span class="ot">[^1]</span></span>
+<span id="cb90-2"><a href="#cb90-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb90-3"><a href="#cb90-3" aria-hidden="true" tabindex="-1"></a>This reference tag is a mix of letters and numbers. <span class="ot">[^footnote-42]</span></span></code></pre></div></li>
+<li><p>Defining footnotes in a different part of the file:</p>
+<div class="sourceCode" id="cb91"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb91-1"><a href="#cb91-1" aria-hidden="true" tabindex="-1"></a><span class="ot">[^1]: </span>This text is inside a footnote.</span>
+<span id="cb91-2"><a href="#cb91-2" aria-hidden="true" tabindex="-1"></a><span class="ot">[^footnote-42]: </span>This text is another footnote.</span></code></pre></div></li>
+</ul>
+<p>When rendered, footnotes look similar to:</p>
+<blockquote>
+<p>A footnote reference tag looks like this:<a href="#fn1"
+class="footnote-ref" id="fnref1" role="doc-noteref"><sup>1</sup></a></p>
+<p>This reference tag is a mix of letters and numbers.<a href="#fn2"
+class="footnote-ref" id="fnref2" role="doc-noteref"><sup>2</sup></a></p>
+</blockquote>
+<h2 id="inline-html">Inline HTML</h2>
+<p>You can also use raw HTML in your Markdown, and it usually works
+pretty well.</p>
+<p>See the documentation for <code>HTML::Pipeline</code>'s <a
+href="https://github.com/gjtorikian/html-pipeline/blob/v2.12.3/lib/html/pipeline/sanitization_filter.rb#L42">SanitizationFilter</a>
+class for the list of allowed HTML tags and attributes. In addition to
+the default <code>SanitizationFilter</code> allowlist, GitLab allows
+<code>span</code>, <code>abbr</code>, <code>details</code> and
+<code>summary</code> elements. <code>rel="license"</code> is allowed on
+links to support the <a
+href="https://microformats.org/wiki/rel-license">Rel-License
+microformat</a> and license attribution.</p>
+<div class="sourceCode" id="cb92"><pre
+class="sourceCode html"><code class="sourceCode html"><span id="cb92-1"><a href="#cb92-1" aria-hidden="true" tabindex="-1"></a><span class="dt">&lt;</span><span class="kw">dl</span><span class="dt">&gt;</span></span>
+<span id="cb92-2"><a href="#cb92-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&lt;</span><span class="kw">dt</span><span class="dt">&gt;</span>Definition list<span class="dt">&lt;/</span><span class="kw">dt</span><span class="dt">&gt;</span></span>
+<span id="cb92-3"><a href="#cb92-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&lt;</span><span class="kw">dd</span><span class="dt">&gt;</span>Is something people use sometimes.<span class="dt">&lt;/</span><span class="kw">dd</span><span class="dt">&gt;</span></span>
+<span id="cb92-4"><a href="#cb92-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb92-5"><a href="#cb92-5" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&lt;</span><span class="kw">dt</span><span class="dt">&gt;</span>Markdown in HTML<span class="dt">&lt;/</span><span class="kw">dt</span><span class="dt">&gt;</span></span>
+<span id="cb92-6"><a href="#cb92-6" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&lt;</span><span class="kw">dd</span><span class="dt">&gt;</span>Does *not* work **very** well. HTML <span class="dt">&lt;</span><span class="kw">em</span><span class="dt">&gt;</span>tags<span class="dt">&lt;/</span><span class="kw">em</span><span class="dt">&gt;</span> do <span class="dt">&lt;</span><span class="kw">b</span><span class="dt">&gt;</span>work<span class="dt">&lt;/</span><span class="kw">b</span><span class="dt">&gt;</span>, in most cases.<span class="dt">&lt;/</span><span class="kw">dd</span><span class="dt">&gt;</span></span>
+<span id="cb92-7"><a href="#cb92-7" aria-hidden="true" tabindex="-1"></a><span class="dt">&lt;/</span><span class="kw">dl</span><span class="dt">&gt;</span></span></code></pre></div>
+<p>When rendered, the example looks similar to:</p>
+<blockquote>
+<dl>
+  <dt>Definition list</dt>
+  <dd>Is something people use sometimes.</dd>
+
+  <dt>Markdown in HTML</dt>
+  <dd>Does *not* work **very** well. HTML <em>tags</em> do <b>work</b>, in most cases.</dd>
+</dl>
+
+</blockquote>
+<p>It's still possible to use Markdown inside HTML tags, but only if the
+lines containing Markdown are separated into their own lines:</p>
+<div class="sourceCode" id="cb93"><pre
+class="sourceCode html"><code class="sourceCode html"><span id="cb93-1"><a href="#cb93-1" aria-hidden="true" tabindex="-1"></a><span class="dt">&lt;</span><span class="kw">dl</span><span class="dt">&gt;</span></span>
+<span id="cb93-2"><a href="#cb93-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&lt;</span><span class="kw">dt</span><span class="dt">&gt;</span>Markdown in HTML<span class="dt">&lt;/</span><span class="kw">dt</span><span class="dt">&gt;</span></span>
+<span id="cb93-3"><a href="#cb93-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&lt;</span><span class="kw">dd</span><span class="dt">&gt;</span></span>
+<span id="cb93-4"><a href="#cb93-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb93-5"><a href="#cb93-5" aria-hidden="true" tabindex="-1"></a>  Does *not* work **very** well. HTML tags work, in most cases.</span>
+<span id="cb93-6"><a href="#cb93-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb93-7"><a href="#cb93-7" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&lt;/</span><span class="kw">dd</span><span class="dt">&gt;</span></span>
+<span id="cb93-8"><a href="#cb93-8" aria-hidden="true" tabindex="-1"></a><span class="dt">&lt;/</span><span class="kw">dl</span><span class="dt">&gt;</span></span></code></pre></div>
+<p>When rendered, the example looks similar to:</p>
+<!--
+The example below uses HTML to force correct rendering on docs.gitlab.com,
+Markdown is fine in GitLab.
+-->
+
+<!-- markdownlint-disable MD027 -->
+
+<blockquote>
+<dl>
+  <dt>Markdown in HTML</dt>
+
+<p>Does <em>not</em> work <b>very</b> well. HTML tags work, in most
+cases.</p>
+  </dd>
+</dl>
+
+</blockquote>
+<!-- markdownlint-enable MD027 -->
+
+<h3 id="collapsible-section">Collapsible section</h3>
+<p>Content can be collapsed using HTML's <a
+href="https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/details"><code>&lt;details&gt;</code></a>
+and <a
+href="https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/summary"><code>&lt;summary&gt;</code></a>
+tags. For example, collapse a long log file so it takes up less screen
+space.</p>
+<div class="sourceCode" id="cb94"><pre
+class="sourceCode html"><code class="sourceCode html"><span id="cb94-1"><a href="#cb94-1" aria-hidden="true" tabindex="-1"></a><span class="dt">&lt;</span><span class="kw">details</span><span class="dt">&gt;</span></span>
+<span id="cb94-2"><a href="#cb94-2" aria-hidden="true" tabindex="-1"></a><span class="dt">&lt;</span><span class="kw">summary</span><span class="dt">&gt;</span>Click to expand<span class="dt">&lt;/</span><span class="kw">summary</span><span class="dt">&gt;</span></span>
+<span id="cb94-3"><a href="#cb94-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb94-4"><a href="#cb94-4" aria-hidden="true" tabindex="-1"></a>These details <span class="dt">&lt;</span><span class="kw">em</span><span class="dt">&gt;</span>remain<span class="dt">&lt;/</span><span class="kw">em</span><span class="dt">&gt;</span> <span class="dt">&lt;</span><span class="kw">strong</span><span class="dt">&gt;</span>hidden<span class="dt">&lt;/</span><span class="kw">strong</span><span class="dt">&gt;</span> until expanded.</span>
+<span id="cb94-5"><a href="#cb94-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb94-6"><a href="#cb94-6" aria-hidden="true" tabindex="-1"></a><span class="dt">&lt;</span><span class="kw">pre</span><span class="dt">&gt;&lt;</span><span class="kw">code</span><span class="dt">&gt;</span>PASTE LOGS HERE<span class="dt">&lt;/</span><span class="kw">code</span><span class="dt">&gt;&lt;/</span><span class="kw">pre</span><span class="dt">&gt;</span></span>
+<span id="cb94-7"><a href="#cb94-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb94-8"><a href="#cb94-8" aria-hidden="true" tabindex="-1"></a><span class="dt">&lt;/</span><span class="kw">details</span><span class="dt">&gt;</span></span></code></pre></div>
+<p>When rendered, the example looks similar to:</p>
+<blockquote>
+<details>
+<summary>Click to expand</summary>
+
+<p>These details <em>remain</em> <strong>hidden</strong> until
+expanded.</p>
+<pre><code>PASTE LOGS HERE</code></pre>
+
+</details>
+
+</blockquote>
+<hr />
+<p>Markdown inside these tags is also supported.</p>
+<p>Remember to leave a blank line before and after any Markdown
+sections, as shown in the example:</p>
+<div class="sourceCode" id="cb95"><pre
+class="sourceCode html"><code class="sourceCode html"><span id="cb95-1"><a href="#cb95-1" aria-hidden="true" tabindex="-1"></a><span class="dt">&lt;</span><span class="kw">details</span><span class="dt">&gt;</span></span>
+<span id="cb95-2"><a href="#cb95-2" aria-hidden="true" tabindex="-1"></a><span class="dt">&lt;</span><span class="kw">summary</span><span class="dt">&gt;</span></span>
+<span id="cb95-3"><a href="#cb95-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb95-4"><a href="#cb95-4" aria-hidden="true" tabindex="-1"></a>Click to _expand._</span>
+<span id="cb95-5"><a href="#cb95-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb95-6"><a href="#cb95-6" aria-hidden="true" tabindex="-1"></a><span class="dt">&lt;/</span><span class="kw">summary</span><span class="dt">&gt;</span></span>
+<span id="cb95-7"><a href="#cb95-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb95-8"><a href="#cb95-8" aria-hidden="true" tabindex="-1"></a>These details _remain_ **hidden** until expanded.</span>
+<span id="cb95-9"><a href="#cb95-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb95-10"><a href="#cb95-10" aria-hidden="true" tabindex="-1"></a>```</span>
+<span id="cb95-11"><a href="#cb95-11" aria-hidden="true" tabindex="-1"></a>PASTE LOGS HERE</span>
+<span id="cb95-12"><a href="#cb95-12" aria-hidden="true" tabindex="-1"></a>```</span>
+<span id="cb95-13"><a href="#cb95-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb95-14"><a href="#cb95-14" aria-hidden="true" tabindex="-1"></a><span class="dt">&lt;/</span><span class="kw">details</span><span class="dt">&gt;</span></span></code></pre></div>
+<!--
+The example below uses HTML to force correct rendering on docs.gitlab.com, Markdown
+works correctly in GitLab.
+-->
+
+<p>When rendered, the example looks similar to:</p>
+<blockquote>
+<details>
+<summary>Click to <em>expand.</em></summary>
+
+<p>These details <em>remain</em> <b>hidden</b> until expanded.</p>
+<pre><code>PASTE LOGS HERE</code></pre>
+
+</details>
+
+</blockquote>
+<h3 id="keyboard-html-tag">Keyboard HTML tag</h3>
+<p>The <code>&lt;kbd&gt;</code> element is used to identify text that
+represents user keyboard input. Text surrounded by
+<code>&lt;kbd&gt;</code> tags is typically displayed in the browser's
+default monospace font.</p>
+<div class="sourceCode" id="cb96"><pre
+class="sourceCode html"><code class="sourceCode html"><span id="cb96-1"><a href="#cb96-1" aria-hidden="true" tabindex="-1"></a>Press <span class="dt">&lt;</span><span class="kw">kbd</span><span class="dt">&gt;</span>Enter<span class="dt">&lt;/</span><span class="kw">kbd</span><span class="dt">&gt;</span> to go to the next page.</span></code></pre></div>
+<p>When rendered, the example looks similar to:</p>
+<blockquote>
+<p>Press <kbd>Enter</kbd> to go to the next page.</p>
+</blockquote>
+<h3 id="superscripts-and-subscripts">Superscripts and subscripts</h3>
+<p>GitLab Flavored Markdown doesn't support the Redcarpet superscript
+syntax ( <code>x^2</code> ). For superscripts and subscripts, use the
+standard HTML syntax:</p>
+<div class="sourceCode" id="cb97"><pre
+class="sourceCode html"><code class="sourceCode html"><span id="cb97-1"><a href="#cb97-1" aria-hidden="true" tabindex="-1"></a>The formula for water is H<span class="dt">&lt;</span><span class="kw">sub</span><span class="dt">&gt;</span>2<span class="dt">&lt;/</span><span class="kw">sub</span><span class="dt">&gt;</span>O</span>
+<span id="cb97-2"><a href="#cb97-2" aria-hidden="true" tabindex="-1"></a>while the equation for the theory of relativity is E = mc<span class="dt">&lt;</span><span class="kw">sup</span><span class="dt">&gt;</span>2<span class="dt">&lt;/</span><span class="kw">sup</span><span class="dt">&gt;</span>.</span></code></pre></div>
+<!-- vale gitlab_base.Spelling = NO -->
+
+<p>When rendered, the example looks similar to:</p>
+<blockquote>
+<p>The formula for water is H<sub>2</sub>O while the equation for the
+theory of relativity is E = mc<sup>2</sup>.</p>
+</blockquote>
+<!-- vale gitlab_base.Spelling = YES -->
+
+<p>GitLab Flavored Markdown doesn't support the Redcarpet superscript
+syntax ( <code>x^2</code> ).</p>
+<h3 id="html-comments">HTML comments</h3>
+<p>You can use HTML comments in GitLab Flavored Markdown to add notes or
+explanations that aren't visible in the rendered output.</p>
+<p>Use HTML comments to:</p>
+<ul>
+<li>Add notes for other contributors.</li>
+<li>Temporarily hide content without deleting it.</li>
+<li>Provide context or explanations that shouldn't appear in the final
+document.</li>
+<li>Add metadata or processing instructions.</li>
+</ul>
+<p>When using HTML comments, you should:</p>
+<ul>
+<li>Use them sparingly to avoid cluttering the source.</li>
+<li>Keep them concise and relevant.</li>
+<li>Use them for temporary notes rather than permanent
+documentation.</li>
+<li>Avoid including sensitive or confidential information. HTML comments
+are visible to anyone who can view the Markdown source.</li>
+</ul>
+<p>HTML comments use the standard HTML syntax
+<code>&lt;!-- comment text --&gt;</code> and can span single or multiple
+lines:</p>
+<div class="sourceCode" id="cb98"><pre
+class="sourceCode html"><code class="sourceCode html"><span id="cb98-1"><a href="#cb98-1" aria-hidden="true" tabindex="-1"></a><span class="co">&lt;!-- This is a single-line comment --&gt;</span></span>
+<span id="cb98-2"><a href="#cb98-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb98-3"><a href="#cb98-3" aria-hidden="true" tabindex="-1"></a><span class="co">&lt;!--</span></span>
+<span id="cb98-4"><a href="#cb98-4" aria-hidden="true" tabindex="-1"></a><span class="co">This is a multi-line comment</span></span>
+<span id="cb98-5"><a href="#cb98-5" aria-hidden="true" tabindex="-1"></a><span class="co">that spans several lines</span></span>
+<span id="cb98-6"><a href="#cb98-6" aria-hidden="true" tabindex="-1"></a><span class="co">and won&#39;t be visible in the rendered output</span></span>
+<span id="cb98-7"><a href="#cb98-7" aria-hidden="true" tabindex="-1"></a><span class="co">--&gt;</span></span>
+<span id="cb98-8"><a href="#cb98-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb98-9"><a href="#cb98-9" aria-hidden="true" tabindex="-1"></a>This text is visible.</span>
+<span id="cb98-10"><a href="#cb98-10" aria-hidden="true" tabindex="-1"></a><span class="co">&lt;!-- This comment between paragraphs is hidden --&gt;</span></span>
+<span id="cb98-11"><a href="#cb98-11" aria-hidden="true" tabindex="-1"></a>This text is also visible.</span></code></pre></div>
+<p>When rendered, only the visible text appears:</p>
+<blockquote>
+<p>This text is visible.</p>
+<p>This text is also visible.</p>
+</blockquote>
+<h4 id="comments-in-code-blocks">Comments in code blocks</h4>
+<p>HTML comments inside code blocks are treated as literal text and are
+displayed:</p>
+<div class="sourceCode" id="cb99"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb99-1"><a href="#cb99-1" aria-hidden="true" tabindex="-1"></a><span class="in">```html</span></span>
+<span id="cb99-2"><a href="#cb99-2" aria-hidden="true" tabindex="-1"></a><span class="co">&lt;!-- This comment will be visible in the code block --&gt;</span></span>
+<span id="cb99-3"><a href="#cb99-3" aria-hidden="true" tabindex="-1"></a><span class="dt">&lt;</span><span class="kw">div</span><span class="dt">&gt;</span>Content<span class="dt">&lt;/</span><span class="kw">div</span><span class="dt">&gt;</span></span>
+<span id="cb99-4"><a href="#cb99-4" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span></code></pre></div>
+<section id="footnotes" class="footnotes footnotes-end-of-document"
+role="doc-endnotes">
+<hr />
+<ol>
+<li id="fn1"><p>This text is inside a footnote.<a href="#fnref1"
+class="footnote-back" role="doc-backlink">↩︎</a></p></li>
+<li id="fn2"><p>This text is another footnote.<a href="#fnref2"
+class="footnote-back" role="doc-backlink">↩︎</a></p></li>
+</ol>
+</section>
+</body>
+</html>

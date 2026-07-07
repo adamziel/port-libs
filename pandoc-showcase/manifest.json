@@ -1,5 +1,5 @@
 {
-    "generatedAt": "2026-07-06T23:58:26+00:00",
+    "generatedAt": "2026-07-07T00:23:16+00:00",
     "pandocVersion": "pandoc 3.10\nFeatures: +server +lua\nScripting engine: Lua 5.4\nUser data directory: $REPO\nCopyright (C) 2006-2025 John MacFarlane. Web:  https://pandoc.org\nThis is free software; see the source for copying conditions. There is no\nwarranty, not even for merchantability or fitness for a particular purpose.",
     "formats": [
         "biblatex",
@@ -89,19 +89,19 @@
     ],
     "blockUsage": {
         "totals": {
-            "code": 260,
-            "group": 255,
-            "heading": 3710,
-            "html": 5,
-            "image": 92,
-            "list": 1051,
-            "paragraph": 14138,
-            "quote": 25,
-            "separator": 57,
-            "table": 543,
+            "code": 624,
+            "group": 292,
+            "heading": 3915,
+            "html": 51,
+            "image": 121,
+            "list": 1155,
+            "paragraph": 15477,
+            "quote": 65,
+            "separator": 62,
+            "table": 563,
             "verse": 1
         },
-        "sampleCount": 80
+        "sampleCount": 72
     },
     "records": [
         {
@@ -301,15 +301,15 @@
             }
         },
         {
-            "id": "commonmark-feature-packet",
+            "id": "commonmark-js-readme",
             "format": "commonmark",
-            "label": "CommonMark feature packet",
-            "description": "",
-            "source": "Inline CommonMark packet covering reference links, block quotes, lists, fenced code, hard breaks, thematic breaks, and HTML blocks.",
-            "sourceUrl": "",
-            "samplePath": "samples/commonmark-feature-packet-commonmark-feature-packet.md",
-            "sampleSize": 451,
-            "preview": "# CommonMark feature packet\n\nParagraph one has *emphasis*, **strong**, `code`, an autolink\n<https://commonmark.org/>, and a reference link to [the spec][spec].\n\n> A quote with lazy continuation\n> and a nested list:\n>\n> - one\n> - two\n\n1. Ordered item\n2. Second item with a hard break\\\n   next visual line\n\n```json\n{\"format\":\"commonmark\",\"tables\":false}\n```\n\n---\n\n<section>\nHTML block retained as source HTML.\n</section>\n\n[spec]: https://commonmark.org/",
+            "label": "commonmark.js README",
+            "description": "Real CommonMark project README with headings, lists, reference links, raw autolinks, code fences, API examples, and nested blockquote examples.",
+            "source": "commonmark/commonmark.js project README",
+            "sourceUrl": "https://raw.githubusercontent.com/commonmark/commonmark.js/master/README.md",
+            "samplePath": "samples/commonmark-js-readme-README.md",
+            "sampleSize": 13783,
+            "preview": "commonmark.js\n=============\n\n[![Build Status](https://github.com/commonmark/commonmark.js/workflows/CI%20tests/badge.svg)](https://github.com/commonmark/commonmark.js/actions)\n[![NPM version](https://img.shields.io/npm/v/commonmark.svg?style=flat)](https://www.npmjs.org/package/commonmark)\n\n\nCommonMark is a rationalized version of Markdown syntax,\nwith a [spec][the spec] and BSD-licensed reference\nimplementations in C and JavaScript.\n\n  [the spec]: http://spec.commonmark.org\n\nFor more information, see <http://commonmark.org>.\n\nThis repository contains the JavaScript reference implementation.\nIt provides a library with functions for parsing CommonMark\ndocuments to an abstract syntax tree (AST), manipulating the AST,\nand rendering the document to HTML or to an XML representation of the\nAST.\n\nTo play with this library without installing it, see\nthe live dingus at <http://try.commonmark.org/>.\n\nInstalling\n----------\n\nYou can install the library using `npm`:\n\n    npm install commonmark\n\nThis package includes the commonmark library and a\ncommand-line executable, `commonmark`.\n\nFor client-side use, you can use one of the single-file\ndistributions provided in the `dist/` subdirectory\nof the node installation (`node_modules/commonmark/dist/`).\nUse either `commonmark.js` (readable source) or\n`commonmark.min.js` (minimized source).\n\nAlternatively, `bower install commonmark` will install\nthe needed distribution files in\n`bower_components/commonmark/dist`.\n\nYou can also use the version hosted by unpkg: for example,\n<https://unpkg.com/commonmark@0.29.3/dist/commonmark.js>\nfor the unminimized version 0.29.3.\n\n\nBuilding\n--------\n\nMake sure to fetch dependencies with:\n\n    npm install\n\nTo run tests for the JavaScript library:\n\n    npm test\n\n(Running the tests will also rebuild distribution files in\n`dist/`.)\n\nTo run benchmarks against some other JavaScript converters:\n\n    make bench\n\nTo start an interactive dingus that you can use to try out\nthe library:\n\n    make dingus\n\nUsage\n-----\n\nInstead of converting Markdown directly to HTML, as most converters\ndo, `commonmark.js` parses Markdown to an AST (abstract syntax tree),\nand then renders this AST as HTML.  This opens up the possibility of\nmanipulating the AST between parsing and rendering.  For example, one\ncould transform emphasis into ALL CAPS.\n...",
             "support": {
                 "status": "reader-equivalent",
                 "implementation": "PortLibs\\Pandoc\\MarkdownReader",
@@ -317,69 +317,33 @@
             },
             "haskell": {
                 "ok": true,
-                "path": "outputs/commonmark-feature-packet/haskell.html"
+                "path": "outputs/commonmark-js-readme/haskell.html"
             },
             "phpHtml": {
                 "ok": true,
-                "path": "outputs/commonmark-feature-packet/php.html"
+                "path": "outputs/commonmark-js-readme/php.html"
             },
             "wpBlocks": {
                 "ok": true,
-                "path": "outputs/commonmark-feature-packet/wordpress-blocks.html"
+                "path": "outputs/commonmark-js-readme/wordpress-blocks.html"
             },
             "wpBlockCounts": {
-                "code": 1,
-                "heading": 1,
-                "html": 1,
-                "list": 1,
-                "paragraph": 1,
-                "quote": 1,
-                "separator": 1
+                "code": 14,
+                "heading": 8,
+                "list": 6,
+                "paragraph": 37
             }
         },
         {
-            "id": "commonmark-notes",
-            "format": "commonmark",
-            "label": "CommonMark migration note",
-            "description": "",
-            "source": "Inline documentation-style Markdown sample.",
-            "sourceUrl": "",
-            "samplePath": "samples/commonmark-notes-commonmark-notes.md",
-            "sampleSize": 418,
-            "preview": "# WordPress data liberation checklist\n\nThis note mirrors the kind of Markdown found in migration docs and issue\ntrackers.\n\n- Preserve headings, paragraphs, lists, and inline emphasis.\n- Keep [links](https://wordpress.org/) readable.\n- Convert source content to clean WordPress blocks.\n\n| Source | Expected handoff |\n| --- | --- |\n| Markdown | paragraphs and lists |\n| CSV | table fallback |\n| HTML | native structure |",
-            "support": {
-                "status": "reader-equivalent",
-                "implementation": "PortLibs\\Pandoc\\MarkdownReader",
-                "notes": "Uses the shared Markdown reader; the Markdown reader implementation-equivalence gate covers 137/137 checked-in Markdown/native pairs including CommonMark-oriented profile fixtures."
-            },
-            "haskell": {
-                "ok": true,
-                "path": "outputs/commonmark-notes/haskell.html"
-            },
-            "phpHtml": {
-                "ok": true,
-                "path": "outputs/commonmark-notes/php.html"
-            },
-            "wpBlocks": {
-                "ok": true,
-                "path": "outputs/commonmark-notes/wordpress-blocks.html"
-            },
-            "wpBlockCounts": {
-                "heading": 1,
-                "list": 1,
-                "paragraph": 2
-            }
-        },
-        {
-            "id": "commonmarkx-feature-packet",
+            "id": "commonmarkx-markdownlint-rules",
             "format": "commonmark_x",
-            "label": "CommonMark X feature packet",
-            "description": "",
-            "source": "Inline CommonMark X packet covering task lists, pipe tables, strikeout, fenced divs, bracketed spans, definition lists, and footnotes.",
-            "sourceUrl": "",
-            "samplePath": "samples/commonmarkx-feature-packet-commonmarkx-feature-packet.md",
-            "sampleSize": 325,
-            "preview": "# CommonMark X extension packet {#cmx .import}\n\n- [x] task item\n- [ ] unchecked task item\n\n| Extension | Evidence |\n| --- | --- |\n| pipe table | yes |\n| strikeout | ~~removed~~ |\n\n::: note\nFenced div content with a [bracketed span]{.flag}.\n:::\n\nTerm\n: Definition list entry\n\n[^cmx]: Footnote text.\n\nReference with note.[^cmx]",
+            "label": "markdownlint rules reference",
+            "description": "Real 71 KB rules reference with extensive Markdown examples, headings, fenced code, lists, links, inline HTML, and extension edge cases.",
+            "source": "DavidAnson/markdownlint doc/Rules.md",
+            "sourceUrl": "https://raw.githubusercontent.com/DavidAnson/markdownlint/main/doc/Rules.md",
+            "samplePath": "samples/commonmarkx-markdownlint-rules-Rules.md",
+            "sampleSize": 73030,
+            "preview": "# Rules\n\nThis document contains a description of all rules, what they are checking for,\nas well as examples of documents that break the rule and corrected\nversions of the examples.\n\n<a name=\"md001\"></a>\n\n## `MD001` - Heading levels should only increment by one level at a time\n\nTags: `headings`\n\nAliases: `heading-increment`\n\nParameters:\n\n- `front_matter_title`: RegExp for matching title in front matter (`string`,\n  default `^\\s*title\\s*[:=]`)\n\nThis rule is triggered when you skip heading levels in a Markdown document, for\nexample:\n\n```markdown\n# Heading 1\n\n### Heading 3\n\nWe skipped out a 2nd level heading in this document\n```\n\nWhen using multiple heading levels, nested headings should increase by only one\nlevel at a time:\n\n```markdown\n# Heading 1\n\n## Heading 2\n\n### Heading 3\n\n#### Heading 4\n\n## Another Heading 2\n\n### Another Heading 3\n```\n\nIf [YAML](https://wikipedia.org/wiki/YAML) front matter is present and\ncontains a `title` property (commonly used with blog posts), this rule treats\nthat as a top level heading and will report a violation if the actual first\nheading is not a level 2 heading. To use a different property name in the\nfront matter, specify the text of a regular expression via the\n`front_matter_title` parameter. To disable the use of front matter by this\nrule, specify `\"\"` for `front_matter_title`. When front matter is not present,\nthe first heading can be any level.\n\nRationale: Headings represent the structure of a document and can be confusing\nwhen skipped - especially for accessibility scenarios. More information:\n<https://www.w3.org/WAI/tutorials/page-structure/headings/>.\n\n<a name=\"md003\"></a>\n\n## `MD003` - Heading style\n\nTags: `headings`\n\nAliases: `heading-style`\n\nParameters:\n\n- `style`: Heading style (`string`, default `consistent`, values `atx` /\n  `atx_closed` / `consistent` / `setext` / `setext_with_atx` /\n  `setext_with_atx_closed`)\n\nThis rule is triggered when different heading styles are used in the same\ndocument:\n\n```markdown\n# ATX style H1\n\n...",
             "support": {
                 "status": "reader-equivalent",
                 "implementation": "PortLibs\\Pandoc\\MarkdownReader",
@@ -387,56 +351,22 @@
             },
             "haskell": {
                 "ok": true,
-                "path": "outputs/commonmarkx-feature-packet/haskell.html"
+                "path": "outputs/commonmarkx-markdownlint-rules/haskell.html"
             },
             "phpHtml": {
                 "ok": true,
-                "path": "outputs/commonmarkx-feature-packet/php.html"
+                "path": "outputs/commonmarkx-markdownlint-rules/php.html"
             },
             "wpBlocks": {
                 "ok": true,
-                "path": "outputs/commonmarkx-feature-packet/wordpress-blocks.html"
+                "path": "outputs/commonmarkx-markdownlint-rules/wordpress-blocks.html"
             },
             "wpBlockCounts": {
-                "group": 2,
-                "heading": 1,
-                "list": 3,
-                "paragraph": 3,
-                "table": 1
-            }
-        },
-        {
-            "id": "commonmarkx-release",
-            "format": "commonmark_x",
-            "label": "CommonMark extensions sample",
-            "description": "",
-            "source": "Inline release-note Markdown with extension-oriented constructs.",
-            "sourceUrl": "",
-            "samplePath": "samples/commonmarkx-release-commonmarkx-release.md",
-            "sampleSize": 226,
-            "preview": "---\ntitle: Release notes excerpt\n---\n\n## Highlights\n\nGitHub-flavored Markdown commonly mixes task lists, fenced code, and tables.\n\n- [x] Import document text\n- [ ] Preserve richer layout\n\n```php\necho \"portable conversion\";\n```",
-            "support": {
-                "status": "reader-equivalent",
-                "implementation": "PortLibs\\Pandoc\\MarkdownReader",
-                "notes": "Uses the shared Markdown reader; the Markdown reader implementation-equivalence gate covers 137/137 checked-in Markdown/native pairs including CommonMark extension profile fixtures."
-            },
-            "haskell": {
-                "ok": true,
-                "path": "outputs/commonmarkx-release/haskell.html"
-            },
-            "phpHtml": {
-                "ok": true,
-                "path": "outputs/commonmarkx-release/php.html"
-            },
-            "wpBlocks": {
-                "ok": true,
-                "path": "outputs/commonmarkx-release/wordpress-blocks.html"
-            },
-            "wpBlockCounts": {
-                "code": 1,
-                "heading": 1,
-                "list": 1,
-                "paragraph": 1
+                "code": 160,
+                "heading": 54,
+                "html": 13,
+                "list": 38,
+                "paragraph": 534
             }
         },
         {
@@ -1203,15 +1133,15 @@
             }
         },
         {
-            "id": "gfm-feature-packet",
+            "id": "gfm-gitlab-markdown-guide",
             "format": "gfm",
-            "label": "GFM feature packet",
-            "description": "",
-            "source": "Inline GitHub-flavored Markdown packet covering task lists, pipe tables, strikethrough, autolinks, fenced code, and quotes.",
-            "sourceUrl": "",
-            "samplePath": "samples/gfm-feature-packet-gfm-feature-packet.md",
-            "sampleSize": 263,
-            "preview": "# GFM feature packet\n\n- [x] task list item\n- [ ] open task list item\n\n| GitHub feature | Example |\n| --- | --- |\n| strikethrough | ~~old copy~~ |\n| autolink | https://github.com/ |\n\n```diff\n- old block\n+ new block\n```\n\n> GFM quote with `code` and **strong** text.",
+            "label": "GitLab Markdown guide",
+            "description": "Real 81 KB GitLab Flavored Markdown guide with front matter, tables, fenced code, task lists, strikethrough, math, diagrams, references, images, and nested lists.",
+            "source": "gitlabhq/gitlabhq doc/user/markdown.md",
+            "sourceUrl": "https://raw.githubusercontent.com/gitlabhq/gitlabhq/master/doc/user/markdown.md",
+            "samplePath": "samples/gfm-gitlab-markdown-guide-gitlab-markdown.md",
+            "sampleSize": 82762,
+            "preview": "---\nstage: Plan\ngroup: Knowledge\ninfo: To determine the technical writer assigned to the Stage/Group associated with this page, see <https://handbook.gitlab.com/handbook/product/ux/technical-writing/#assignments>\ntitle: GitLab Flavored Markdown (GLFM)\ndescription: Formatting, inline HTML, GitLab-specific references, diagrams, and flowcharts.\n---\n\n{{< details >}}\n\n- Tier: Free, Premium, Ultimate\n- Offering: GitLab.com, GitLab Self-Managed, GitLab Dedicated\n\n{{< /details >}}\n\nGitLab Flavored Markdown (GLFM) is a markup language that formats text in the GitLab user interface.\nGLFM:\n\n- Creates rich content with support for code, diagrams, math equations, and multimedia.\n- Links issues, merge requests, and other GitLab content with cross-references.\n- Organizes information with task lists, tables, and collapsible sections.\n- Supports syntax highlighting for over 100 programming languages.\n- Ensures accessibility with semantic heading structures and image descriptions.\n\nWhen you enter text in the GitLab UI, GitLab assumes the text is in GitLab Flavored Markdown.\n\nYou can use GitLab Flavored Markdown in:\n\n- Comments\n- Issues\n- Epics\n- Merge requests\n- Milestones\n- Snippets (the snippet must be named with a `.md` extension)\n- Wiki pages\n- Markdown documents inside repositories\n- Releases\n\nYou can also use other rich text files in GitLab. You might have to install a dependency\nto do so. For more information, see the [`gitlab-markup` gem project](https://gitlab.com/gitlab-org/gitlab-markup).\n\n> [!note]\n> This Markdown specification is valid for GitLab only. We do our best to render the Markdown faithfully here,\n> however the [GitLab documentation website](https://docs.gitlab.com) and the [GitLab handbook](https://handbook.gitlab.com)\n> use a different Markdown renderer.\n\nTo see exact examples of how GitLab renders any of these examples:\n\n1. Copy the relevant raw Markdown example (not the rendered version of the example).\n1. Paste the Markdown somewhere in GitLab that supports Markdown previews, for example\n   issue or merge request comments or descriptions, or a new Markdown file.\n1. Select **Preview** to view the GitLab-rendered Markdown.\n\n## Differences with standard Markdown\n\n<!--\nUse this topic to list features that are not present in standard Markdown.\nDon't repeat this information in each individual topic, unless there's a specific\nreason, like in \"Newlines\".\n-->\n\nGitLab Flavored Markdown consists of the following:\n\n- Core Markdown features, based on the [CommonMark specification](https://spec.commonmark.org/current/).\n- Extensions from [GitHub Flavored Markdown](https://github.github.com/gfm/).\n- Extensions made specifically for GitLab.\n\nAll standard Markdown formatting should work as expected in GitLab. Some standard\nfunctionality is extended with additional features, without affecting the standard usage.\n\nThe following features are not found in standard Markdown:\n\n- [Alerts](#alerts)\n- [Color chips written in `HEX`, `RGB` or `HSL`](#colors)\n- [Description lists](#description-lists)\n- [Diagrams and flowcharts](#diagrams-and-flowcharts)\n- [Emoji](#emoji)\n- [Footnotes](#footnotes)\n- [Front matter](#front-matter)\n- [GitLab-specific references](#gitlab-specific-references) (Not supported in Markdown snippet files.)\n...",
             "support": {
                 "status": "reader-equivalent",
                 "implementation": "PortLibs\\Pandoc\\MarkdownReader",
@@ -1219,68 +1149,39 @@
             },
             "haskell": {
                 "ok": true,
-                "path": "outputs/gfm-feature-packet/haskell.html"
+                "path": "outputs/gfm-gitlab-markdown-guide/haskell.html"
             },
             "phpHtml": {
                 "ok": true,
-                "path": "outputs/gfm-feature-packet/php.html"
+                "path": "outputs/gfm-gitlab-markdown-guide/php.html"
             },
             "wpBlocks": {
                 "ok": true,
-                "path": "outputs/gfm-feature-packet/wordpress-blocks.html"
+                "path": "outputs/gfm-gitlab-markdown-guide/wordpress-blocks.html"
             },
             "wpBlockCounts": {
-                "code": 1,
-                "heading": 1,
-                "list": 1,
-                "quote": 1,
-                "table": 1
+                "code": 85,
+                "group": 20,
+                "heading": 66,
+                "html": 31,
+                "image": 9,
+                "list": 49,
+                "paragraph": 310,
+                "quote": 43,
+                "separator": 6,
+                "table": 3
             }
         },
         {
-            "id": "gfm-release",
-            "format": "gfm",
-            "label": "GFM release notes",
-            "description": "",
-            "source": "Inline GitHub-flavored Markdown sample.",
-            "sourceUrl": "",
-            "samplePath": "samples/gfm-release-gfm-release.md",
-            "sampleSize": 226,
-            "preview": "---\ntitle: Release notes excerpt\n---\n\n## Highlights\n\nGitHub-flavored Markdown commonly mixes task lists, fenced code, and tables.\n\n- [x] Import document text\n- [ ] Preserve richer layout\n\n```php\necho \"portable conversion\";\n```",
-            "support": {
-                "status": "reader-equivalent",
-                "implementation": "PortLibs\\Pandoc\\MarkdownReader",
-                "notes": "Uses the shared Markdown reader; the Markdown reader implementation-equivalence gate covers 137/137 checked-in Markdown/native pairs including GFM profile fixtures."
-            },
-            "haskell": {
-                "ok": true,
-                "path": "outputs/gfm-release/haskell.html"
-            },
-            "phpHtml": {
-                "ok": true,
-                "path": "outputs/gfm-release/php.html"
-            },
-            "wpBlocks": {
-                "ok": true,
-                "path": "outputs/gfm-release/wordpress-blocks.html"
-            },
-            "wpBlockCounts": {
-                "code": 1,
-                "heading": 1,
-                "list": 1,
-                "paragraph": 1
-            }
-        },
-        {
-            "id": "markdown-github-feature-packet",
+            "id": "markdown-github-writing-formatting",
             "format": "markdown_github",
-            "label": "GitHub Markdown alias feature packet",
-            "description": "",
-            "source": "Inline GitHub Markdown alias packet covering task lists, tables, strikethrough, and details HTML.",
-            "sourceUrl": "",
-            "samplePath": "samples/markdown-github-feature-packet-markdown-github-feature-packet.md",
-            "sampleSize": 348,
-            "preview": "# GitHub Markdown alias packet\n\nIssue-style content mixes task lists, tables, mentions, and raw HTML.\n\n- [x] Parse checklist\n- [ ] Preserve pending item\n\n| Field | Value |\n| --- | --- |\n| repository | adamziel/port-libs |\n| status | ~~draft~~ ready |\n\n<details>\n<summary>Review note</summary>\n\nNested Markdown inside an HTML disclosure.\n\n</details>",
+            "label": "GitHub writing and formatting syntax",
+            "description": "Real GitHub Docs article with front matter, Liquid tags, pipe tables, strikethrough, task lists, images, emoji, alerts, mentions, and fenced code examples.",
+            "source": "github/docs GitHub writing and formatting syntax",
+            "sourceUrl": "https://raw.githubusercontent.com/github/docs/main/content/get-started/writing-on-github/getting-started-with-writing-and-formatting-on-github/basic-writing-and-formatting-syntax.md",
+            "samplePath": "samples/markdown-github-writing-formatting-basic-writing-and-formatting-syntax.md",
+            "sampleSize": 24715,
+            "preview": "---\ntitle: Basic writing and formatting syntax\nintro: Create sophisticated formatting for your prose and code on GitHub with simple syntax.\nproduct: '{% data reusables.gated-features.markdown-ui %}'\nredirect_from:\n  - /articles/basic-writing-and-formatting-syntax\n  - /github/writing-on-github/basic-writing-and-formatting-syntax\n  - /github/writing-on-github/getting-started-with-writing-and-formatting-on-github/basic-writing-and-formatting-syntax\nversions:\n  fpt: '*'\n  ghes: '*'\n  ghec: '*'\nshortTitle: Basic formatting syntax\ncategory:\n  - Write and format content\n---\n## Headings\n\nTo create a heading, add one to six <kbd>#</kbd> symbols before your heading text. The number of <kbd>#</kbd> you use will determine the hierarchy level and typeface size of the heading.\n\n```markdown\n# A first-level heading\n## A second-level heading\n### A third-level heading\n```\n\n![Screenshot of rendered GitHub Markdown showing sample h1, h2, and h3 headers, which descend in type size and visual weight to show hierarchy level.](/assets/images/help/writing/headings-rendered.png)\n\nWhen you use two or more headings, GitHub automatically generates a table of contents that you can access by clicking the \"Outline\" menu icon {% octicon \"list-unordered\" aria-label=\"Table of Contents\" %} within the file header. Each heading title is listed in the table of contents and you can click a title to navigate to the selected section.\n\n![Screenshot of a README file with the drop-down menu for the table of contents exposed. The table of contents icon is outlined in dark orange.](/assets/images/help/repository/headings-toc.png)\n\n## Styling text\n\nYou can indicate emphasis with bold, italic, strikethrough, subscript, or superscript text in comment fields and `.md` files.\n\n| Style | Syntax | Keyboard shortcut | Example | Output |\n| --- | --- | --- | --- | --- |\n| Bold | `** **` or `__ __`| <kbd>Command</kbd>+<kbd>B</kbd> (Mac) or <kbd>Ctrl</kbd>+<kbd>B</kbd> (Windows/Linux) | `**This is bold text**` | **This is bold text** |\n| Italic | `* *` or `_ _` \u2003\u2003\u2003\u2003| <kbd>Command</kbd>+<kbd>I</kbd> (Mac) or <kbd>Ctrl</kbd>+<kbd>I</kbd> (Windows/Linux) | `_This text is italicized_` | _This text is italicized_ |\n| Strikethrough | `~~ ~~` or `~ ~` | None | `~~This was mistaken text~~` | ~~This was mistaken text~~ |\n| Bold and nested italic | `** **` and `_ _` | None | `**This text is _extremely_ important**` | **This text is _extremely_ important** |\n| All bold and italic | `*** ***` | None | `***All this text is important***` | ***All this text is important*** | <!-- markdownlint-disable-line emphasis-style -->\n| Subscript | `<sub> </sub>` | None | `This is a <sub>subscript</sub> text` | This is a <sub>subscript</sub> text |\n| Superscript | `<sup> </sup>` | None | `This is a <sup>superscript</sup> text` | This is a <sup>superscript</sup> text |\n| Underline | `<ins> </ins>` | None | `This is an <ins>underlined</ins> text` | This is an <ins>underlined</ins> text |\n\n## Quoting text\n\nYou can quote text with a <kbd>></kbd>.\n\n```markdown\nText that is not a quote\n\n> Text that is a quote\n```\n\nQuoted text is indented with a vertical line on the left and displayed using gray type.\n\n![Screenshot of rendered GitHub Markdown showing the difference between normal and quoted text.](/assets/images/help/writing/quoted-text-rendered.png)\n\n> [!NOTE]\n> When viewing a conversation, you can automatically quote text in a comment by highlighting the text, then typing <kbd>R</kbd>. You can quote an entire comment by clicking {% octicon \"kebab-horizontal\" aria-label=\"The horizontal kebab icon\" %}, then **Quote reply**. For more information about keyboard shortcuts, see [AUTOTITLE](/get-started/accessibility/keyboard-shortcuts).\n\n## Quoting code\n\nYou can call out code or a command within a sentence with single backticks. The text within the backticks will not be formatted. You can also press the <kbd>Command</kbd>+<kbd>E</kbd> (Mac) or <kbd>Ctrl</kbd>+<kbd>E</kbd> (Windows/Linux) keyboard shortcut to insert the backticks for a code block within a line of Markdown.\n\n```markdown\nUse `git status` to list all new or modified files that haven't yet been committed.\n```\n\n![Screenshot of rendered GitHub Markdown showing that characters surrounded by backticks are shown in a fixed-width typeface, highlighted in light gray.](/assets/images/help/writing/inline-code-rendered.png)\n\nTo format code or text into its own distinct block, use triple backticks.\n\n````markdown\nSome basic Git commands are:\n```\ngit status\n...",
             "support": {
                 "status": "reader-equivalent",
                 "implementation": "PortLibs\\Pandoc\\MarkdownReader",
@@ -1288,56 +1189,24 @@
             },
             "haskell": {
                 "ok": true,
-                "path": "outputs/markdown-github-feature-packet/haskell.html"
+                "path": "outputs/markdown-github-writing-formatting/haskell.html"
             },
             "phpHtml": {
                 "ok": true,
-                "path": "outputs/markdown-github-feature-packet/php.html"
+                "path": "outputs/markdown-github-writing-formatting/php.html"
             },
             "wpBlocks": {
                 "ok": true,
-                "path": "outputs/markdown-github-feature-packet/wordpress-blocks.html"
+                "path": "outputs/markdown-github-writing-formatting/wordpress-blocks.html"
             },
             "wpBlockCounts": {
-                "heading": 1,
-                "html": 1,
-                "list": 1,
-                "paragraph": 1,
-                "table": 1
-            }
-        },
-        {
-            "id": "markdown-github-release",
-            "format": "markdown_github",
-            "label": "GitHub Markdown alias",
-            "description": "",
-            "source": "Inline GitHub Markdown alias sample.",
-            "sourceUrl": "",
-            "samplePath": "samples/markdown-github-release-markdown-github-release.md",
-            "sampleSize": 226,
-            "preview": "---\ntitle: Release notes excerpt\n---\n\n## Highlights\n\nGitHub-flavored Markdown commonly mixes task lists, fenced code, and tables.\n\n- [x] Import document text\n- [ ] Preserve richer layout\n\n```php\necho \"portable conversion\";\n```",
-            "support": {
-                "status": "reader-equivalent",
-                "implementation": "PortLibs\\Pandoc\\MarkdownReader",
-                "notes": "Deprecated upstream token handled as a GFM-family Markdown variant by the shared Markdown reader implementation-equivalence gate."
-            },
-            "haskell": {
-                "ok": true,
-                "path": "outputs/markdown-github-release/haskell.html"
-            },
-            "phpHtml": {
-                "ok": true,
-                "path": "outputs/markdown-github-release/php.html"
-            },
-            "wpBlocks": {
-                "ok": true,
-                "path": "outputs/markdown-github-release/wordpress-blocks.html"
-            },
-            "wpBlockCounts": {
-                "code": 1,
-                "heading": 1,
-                "list": 1,
-                "paragraph": 1
+                "code": 17,
+                "group": 24,
+                "heading": 27,
+                "image": 19,
+                "list": 4,
+                "paragraph": 94,
+                "table": 3
             }
         },
         {
@@ -1732,76 +1601,6 @@
             }
         },
         {
-            "id": "markdown-feature-packet",
-            "format": "markdown",
-            "label": "Pandoc Markdown feature packet",
-            "description": "",
-            "source": "Inline Pandoc Markdown packet covering metadata, attributes, definition lists, task lists, tables, fenced divs, footnotes, code, and reference links.",
-            "sourceUrl": "",
-            "samplePath": "samples/markdown-feature-packet-markdown-feature-packet.md",
-            "sampleSize": 628,
-            "preview": "---\ntitle: Pandoc Markdown feature packet\nauthor:\n  - Migration Team\nkeywords: [markdown, pandoc, blocks]\n---\n\n# Pandoc Markdown feature packet {#pandoc-feature-packet .review}\n\nTerm\n: Definition with *emphasis*, **strong text**, and an inline footnote.^[Inline\n  note with continuation text.]\n\n1. Ordered item with a nested task.\n   - [x] Preserve extension syntax\n   - [ ] Review block output\n\n| Feature | Writer expectation |\n|:--|--:|\n| pipe table | table block |\n| footnote | generated note |\n\n::: warning\nFenced div content with a [reference link][wp].\n:::\n\n```php\necho \"pandoc markdown\";\n```\n\n[wp]: https://wordpress.org/",
-            "support": {
-                "status": "reader-equivalent",
-                "implementation": "PortLibs\\Pandoc\\MarkdownReader",
-                "notes": "Primary native PHP reader; the Markdown reader implementation-equivalence gate covers 137/137 checked-in Markdown/native pairs across the selected Pandoc Markdown dialect profiles."
-            },
-            "haskell": {
-                "ok": true,
-                "path": "outputs/markdown-feature-packet/haskell.html"
-            },
-            "phpHtml": {
-                "ok": true,
-                "path": "outputs/markdown-feature-packet/php.html"
-            },
-            "wpBlocks": {
-                "ok": true,
-                "path": "outputs/markdown-feature-packet/wordpress-blocks.html"
-            },
-            "wpBlockCounts": {
-                "code": 1,
-                "group": 2,
-                "heading": 1,
-                "list": 3,
-                "paragraph": 2,
-                "table": 1
-            }
-        },
-        {
-            "id": "markdown-release",
-            "format": "markdown",
-            "label": "Markdown release note",
-            "description": "",
-            "source": "Inline release-note Markdown sample.",
-            "sourceUrl": "",
-            "samplePath": "samples/markdown-release-markdown-release.md",
-            "sampleSize": 226,
-            "preview": "---\ntitle: Release notes excerpt\n---\n\n## Highlights\n\nGitHub-flavored Markdown commonly mixes task lists, fenced code, and tables.\n\n- [x] Import document text\n- [ ] Preserve richer layout\n\n```php\necho \"portable conversion\";\n```",
-            "support": {
-                "status": "reader-equivalent",
-                "implementation": "PortLibs\\Pandoc\\MarkdownReader",
-                "notes": "Primary native PHP reader; the Markdown reader implementation-equivalence gate covers 137/137 checked-in Markdown/native pairs across the selected Pandoc Markdown dialect profiles."
-            },
-            "haskell": {
-                "ok": true,
-                "path": "outputs/markdown-release/haskell.html"
-            },
-            "phpHtml": {
-                "ok": true,
-                "path": "outputs/markdown-release/php.html"
-            },
-            "wpBlocks": {
-                "ok": true,
-                "path": "outputs/markdown-release/wordpress-blocks.html"
-            },
-            "wpBlockCounts": {
-                "code": 1,
-                "heading": 1,
-                "list": 1,
-                "paragraph": 1
-            }
-        },
-        {
             "id": "markdown-pandoc-manual",
             "format": "markdown",
             "label": "Pandoc manual Markdown",
@@ -1840,15 +1639,15 @@
             }
         },
         {
-            "id": "markdown-mmd-feature-packet",
+            "id": "markdown-mmd-quickstart",
             "format": "markdown_mmd",
-            "label": "MultiMarkdown feature packet",
-            "description": "",
-            "source": "Inline MultiMarkdown packet covering metadata, footnotes, table captions, alignment, definitions, and reference links.",
-            "sourceUrl": "",
-            "samplePath": "samples/markdown-mmd-feature-packet-markdown-mmd-feature-packet.md",
-            "sampleSize": 392,
-            "preview": "Title: MultiMarkdown feature packet\nAuthor: Migration Team\n\n# MultiMarkdown feature packet\n\nThis paragraph uses a footnote.[^mmd] It also uses a reference link [WordPress][].\n\n| Left | Right |\n|:-----|------:|\n| alpha | 1 |\n| beta | 2 |\n[Table: Alignment table]\n\nTerm\n: Definition text with **strong** emphasis.\n\n[^mmd]: MultiMarkdown-style footnote text.\n\n[WordPress]: https://wordpress.org/",
+            "label": "MultiMarkdown Quick Start guide",
+            "description": "Real MultiMarkdown guide with metadata, citations, CriticMarkup examples, image syntax, fenced code, footnotes, glossary terms, and heading structure.",
+            "source": "fletcher/MultiMarkdown-6 QuickStart/QuickStart.txt",
+            "sourceUrl": "https://raw.githubusercontent.com/fletcher/MultiMarkdown-6/master/QuickStart/QuickStart.txt",
+            "samplePath": "samples/markdown-mmd-quickstart-QuickStart.txt",
+            "sampleSize": 24452,
+            "preview": "Title:\tMultiMarkdown v6 Quick Start Guide\nAuthor:\tFletcher T. Penney\nVersion:\t6.7.0\nLaTeX Config:\ttufte-handout\nBase Header Level:\t3\nuuid:\t0d6313fa-9135-477e-9c14-7d62c1977833\n\n\n{{TOC}}\n\n\n# Introduction #\n\nVersion: [%version] \n\nThis document serves as a description of MMD v6, as well as a sample document to demonstrate the various features.  Specifically, differences from MMD v5 will be pointed out. \n\n\n# Performance # \n\nA big motivating factor leading to the development of MMD v6 was performance.  When MMD first migrated from Perl to C (based on [peg- markdown](https://github.com/jgm/peg-markdown)), it was among the fastest Markdown parsers available.  That was many years ago, and the \"competition\" has made a great deal of progress since that time. \n\nWhen developing MMD v6, one of my goals was to keep MMD at least in the ballpark of the fastest processors.  Of course, being *the* fastest would be fantastic, but I was more concerned with ensuring that the code was easily understood, and easily updated with new features in the future. \n\nMMD v3 -- v5 used a PEG to handle the parsing.  This made it easy to understand the relationship between the MMD grammar and the parsing code, since they were one and the same.  However, the parsing code generated by the parsers was not particularly fast, and was prone to troublesome edge cases with terrible performance characteristics. \n\nThe first step in MMD v6 parsing is to break the source text into a series of tokens, which may consist of plain text, whitespace, or special characters such as '*', '[', etc.  This chain of tokens is then used to perform the actual parsing. \n\nMMD v6 divides the parsing into two separate phases, which actually fits more with Markdown's design philosophically. \n\n1.\tBlock parsing consists of identifying the \"type\" of each line of the source text, and grouping the lines into blocks (e.g. paragraphs, lists, blockquotes, etc.) Some blocks are a single line (e.g. ATX headers), and others can be many lines long.  The block parsing in MMD v6 is handled by a parser generated by [lemon](http://www.hwaci.com/sw/lemon/).  This parser allows the block structure to be more readily understood by non-programmers, but the generated parser is still fast. \n\n2.\tSpan parsing consists of identifying Markdown/MMD structures that occur inside of blocks, such as links, images, strong, emph, etc.  Most of these structures require matching pairs of tokens to specify where the span starts and where it ends.  Most of these spans allow arbitrary levels of nesting as well.  This made parsing them correctly in the PEG-based code difficult and slow.  MMD v6 uses a different approach that is accurate and has good performance characteristics even with edge cases.  Basically, it keeps a stack of each \"opening\" token as it steps through the token chain.  When a \"closing\" token is found, it is paired with the most recent appropriate opener on the stack.  Any tokens in between the opener and closer are removed, as they are not able to be matched any more.  To avoid unnecessary searches for non- existent openers, the parser keeps track of which opening tokens have been discovered.  This allows the parser to continue moving forwards without having to go backwards and re-parse any previously visited tokens. \n\nThe result of this redesigned MMD parser is that it can parse short documents more quickly than [CommonMark](http://commonmark.org/), and takes only 15% -- 20% longer to parse long documents.  I have not delved too deeply into this, but I presume that CommonMark has a bit more \"set-up\" time that becomes expensive when parsing a short document (e.g. a paragraph or two). But this cost becomes negligible when parsing longer documents (e.g. file sizes of 1 MB).  So depending on your use case, CommonMark may well be faster than MMD, but we're talking about splitting hairs here....  Recent comparisons show MMD v6 taking approximately 4.37 seconds to parse a 108 MB file (approximately 24.8 MB/second), and CommonMark took 3.72 seconds for the same file (29.2 MB/second).  For comparison, MMD v5.4 took approximately 94 second for the same file (1.15 MB/second). \n\nFor a more realistic file of approx 28 kb (the source of the Markdown Syntax web page), both MMD and CommonMark parse it too quickly to accurately measure.  In fact, it requires a file consisting of the original file copied 32 times over (0.85 MB) before `/usr/bin/env time` reports a time over the minimum threshold of 0.01 seconds for either program. \n\nThere is still potentially room for additional optimization in MMD. However, even if I can't close the performance gap with CommonMark on longer files, the additional features of MMD compared with Markdown in addition to the increased legibility of the source code of MMD (in my biased opinion anyway) make this project worthwhile. \n\n\n# Parse Tree #\n\nMMD v6 performs its parsing in the following steps: \n\n1.\tStart with a null-terminated string of source text (C style string) \n\n2.\tLex string into token chain \n\n3.\tParse token chain into blocks \n\n4.\tParse tokens within each block into span level structures (e.g. strong, emph, etc.) \n\n5.\tExport the token tree into the desired output format (e.g. HTML, LaTeX, etc.) and return the resulting C style string \n\n\t**OR** \n\n6.\tUse the resulting token tree for your own purposes. \n\nThe token tree ([?AST]) includes starting offsets and length of each token, allowing you to use MMD as part of a syntax highlighter.  MMD v5 did not have this functionality in the public version, in part because the PEG parsers used did not provide reliable offset positions, requiring a great deal of effort when I adapted MMD for use in [MultiMarkdown Composer](http://multimarkdown.com/). \n\nThese steps are managed using the `mmd_engine` \"object\".  An individual `mmd_engine` cannot be used by multiple threads simultaneously, so if libMultiMarkdown is to be used in a multithreaded program, a separate `mmd_engine` should be created for each thread.  Alternatively, just use the slightly more abstracted `mmd_convert_string()` function that handles creating and destroying the `mmd_engine` automatically. \n\n\n# Features #\n\n## Abbreviations (Or Acronyms) ##\n\nThis file includes the use of MMD as an abbreviation for MultiMarkdown. The abbreviation will be expanded on the first use, and the shortened form will be used on subsequent occurrences. \n\nAbbreviations can be specified using inline or reference syntax.  The inline variant requires that the abbreviation be wrapped in parentheses and immediately follows the `>`. \n\n\t[>MMD] is an abbreviation.  So is [>(MD) Markdown].\n\n\t[>MMD]: MultiMarkdown\n\nThere is also a \"shortcut\" method for abbreviations that is similar to the approach used in prior versions of MMD.  You specify the definition for the abbreviation in the usual manner, but MMD will automatically identify each instance where the abbreviation is used and substitute it automatically.  In this case, the abbreviation is limited to a more basic character set which includes letters, numbers, periods, and hyphens, but not much else.  For more complex abbreviations, you must explicitly mark uses of the abbreviation. \n\n\n## Citations ##\n...",
             "support": {
                 "status": "reader-equivalent",
                 "implementation": "PortLibs\\Pandoc\\MarkdownReader",
@@ -1856,69 +1655,34 @@
             },
             "haskell": {
                 "ok": true,
-                "path": "outputs/markdown-mmd-feature-packet/haskell.html"
+                "path": "outputs/markdown-mmd-quickstart/haskell.html"
             },
             "phpHtml": {
                 "ok": true,
-                "path": "outputs/markdown-mmd-feature-packet/php.html"
+                "path": "outputs/markdown-mmd-quickstart/php.html"
             },
             "wpBlocks": {
                 "ok": true,
-                "path": "outputs/markdown-mmd-feature-packet/wordpress-blocks.html"
+                "path": "outputs/markdown-mmd-quickstart/wordpress-blocks.html"
             },
             "wpBlockCounts": {
-                "group": 2,
-                "heading": 1,
-                "list": 2,
-                "paragraph": 3,
+                "code": 8,
+                "heading": 26,
+                "list": 14,
+                "paragraph": 70,
                 "table": 1
             }
         },
         {
-            "id": "markdown-mmd-release",
-            "format": "markdown_mmd",
-            "label": "MultiMarkdown release note",
-            "description": "",
-            "source": "Inline Markdown read through the MultiMarkdown profile.",
-            "sourceUrl": "",
-            "samplePath": "samples/markdown-mmd-release-markdown-mmd-release.md",
-            "sampleSize": 226,
-            "preview": "---\ntitle: Release notes excerpt\n---\n\n## Highlights\n\nGitHub-flavored Markdown commonly mixes task lists, fenced code, and tables.\n\n- [x] Import document text\n- [ ] Preserve richer layout\n\n```php\necho \"portable conversion\";\n```",
-            "support": {
-                "status": "reader-equivalent",
-                "implementation": "PortLibs\\Pandoc\\MarkdownReader",
-                "notes": "Handled by the shared Markdown reader implementation-equivalence gate, including MultiMarkdown profile fixtures in the 137/137 Markdown/native comparison."
-            },
-            "haskell": {
-                "ok": true,
-                "path": "outputs/markdown-mmd-release/haskell.html"
-            },
-            "phpHtml": {
-                "ok": true,
-                "path": "outputs/markdown-mmd-release/php.html"
-            },
-            "wpBlocks": {
-                "ok": true,
-                "path": "outputs/markdown-mmd-release/wordpress-blocks.html"
-            },
-            "wpBlockCounts": {
-                "code": 1,
-                "heading": 2,
-                "list": 1,
-                "paragraph": 1,
-                "separator": 1
-            }
-        },
-        {
-            "id": "markdown-phpextra-feature-packet",
+            "id": "markdown-phpextra-php-markdown-readme",
             "format": "markdown_phpextra",
-            "label": "PHP Markdown Extra feature packet",
-            "description": "",
-            "source": "Inline PHP Markdown Extra packet covering attributes, definition lists, tables, fenced code, and footnotes.",
-            "sourceUrl": "",
-            "samplePath": "samples/markdown-phpextra-feature-packet-markdown-phpextra-feature-packet.md",
-            "sampleSize": 340,
-            "preview": "# PHP Markdown Extra feature packet {#php-extra .profile}\n\nDefinition term\n: Definition body with *emphasis* and `code`.\n\n| Column A | Column B |\n| -------- | -------- |\n| alpha | beta |\n\nParagraph with an attribute block.\n{#paragraph-id .review}\n\n~~~php\necho \"php markdown extra\";\n~~~\n\nFootnote reference.[^extra]\n\n[^extra]: Footnote body.",
+            "label": "PHP Markdown README",
+            "description": "Real PHP Markdown project README covering PHP Markdown Extra usage, code blocks, links, raw HTML block handling, special attributes, and release notes.",
+            "source": "michelf/php-markdown Readme.md",
+            "sourceUrl": "https://raw.githubusercontent.com/michelf/php-markdown/lib/Readme.md",
+            "samplePath": "samples/markdown-phpextra-php-markdown-readme-Readme.md",
+            "sampleSize": 17867,
+            "preview": "PHP Markdown\n============\n\n![ci.yml](https://github.com/michelf/php-markdown/actions/workflows/ci.yml/badge.svg)\n\nby Michel Fortin  \n<https://michelf.ca/>\n\nbased on Markdown by John Gruber  \n<https://daringfireball.net/>\n\n\nIntroduction\n------------\n\nThis is a library package that includes the PHP Markdown parser and its\nsibling PHP Markdown Extra with additional features.\n\nMarkdown is a text-to-HTML conversion tool for web writers. Markdown\nallows you to write using an easy-to-read, easy-to-write plain text\nformat, then convert it to structurally valid XHTML (or HTML).\n\n\"Markdown\" is actually two things: a plain text markup syntax, and a\nsoftware tool, originally written in Perl, that converts the plain text\nmarkup to HTML. PHP Markdown is a port to PHP of the original Markdown\nprogram by John Gruber.\n\n*\t[Full documentation of the Markdown syntax](<https://daringfireball.net/projects/markdown/>)  \n\t\u2014 Daring Fireball (John Gruber)\n*\t[Markdown Extra syntax additions](<https://michelf.ca/projects/php-markdown/extra/>)  \n\t\u2014 Michel Fortin\n\n\nRequirement\n-----------\n\nThis library package requires PHP 7.4 or later.\n\nNote: The older plugin/library hybrid package for PHP Markdown and\nPHP Markdown Extra is no longer maintained but will work with PHP 4.0.5 and\nlater.\n\nYou might need to set pcre.backtrack_limit higher than 1 000 000 \n(the default), though the default is usually fine.\n\n\nUsage\n-----\n\nTo use this library with Composer, first install it with:\n\n\t$ composer require michelf/php-markdown\n\nThen include Composer's generated vendor/autoload.php to [enable autoloading]:\n\n\trequire 'vendor/autoload.php';\n\nWithout Composer, for autoloading to work, your project needs an autoloader\ncompatible with PSR-4 or PSR-0. See the included Readme.php file for a minimal\nautoloader setup. (If you cannot use autoloading, see below.)\n\nWith class autoloading in place:\n\n\tuse Michelf\\Markdown;\n\t$my_html = Markdown::defaultTransform($my_text);\n\nMarkdown Extra syntax is also available the same way:\n\n\tuse Michelf\\MarkdownExtra;\n\t$my_html = MarkdownExtra::defaultTransform($my_text);\n\nIf you wish to use PHP Markdown with another text filter function\nbuilt to parse HTML, you should filter the text *after* the `transform`\nfunction call. This is an example with [PHP SmartyPants]:\n\n\tuse Michelf\\Markdown, Michelf\\SmartyPants;\n\t$my_html = Markdown::defaultTransform($my_text);\n\t$my_html = SmartyPants::defaultTransform($my_html);\n\nAll these examples are using the static `defaultTransform` static function\n...",
             "support": {
                 "status": "reader-equivalent",
                 "implementation": "PortLibs\\Pandoc\\MarkdownReader",
@@ -1926,70 +1690,34 @@
             },
             "haskell": {
                 "ok": true,
-                "path": "outputs/markdown-phpextra-feature-packet/haskell.html"
+                "path": "outputs/markdown-phpextra-php-markdown-readme/haskell.html"
             },
             "phpHtml": {
                 "ok": true,
-                "path": "outputs/markdown-phpextra-feature-packet/php.html"
+                "path": "outputs/markdown-phpextra-php-markdown-readme/php.html"
             },
             "wpBlocks": {
                 "ok": true,
-                "path": "outputs/markdown-phpextra-feature-packet/wordpress-blocks.html"
+                "path": "outputs/markdown-phpextra-php-markdown-readme/wordpress-blocks.html"
             },
             "wpBlockCounts": {
-                "code": 1,
-                "group": 2,
-                "heading": 1,
-                "list": 2,
-                "paragraph": 3,
-                "table": 1
+                "code": 9,
+                "heading": 11,
+                "image": 1,
+                "list": 12,
+                "paragraph": 46
             }
         },
         {
-            "id": "markdown-phpextra-release",
-            "format": "markdown_phpextra",
-            "label": "PHP Markdown Extra release note",
-            "description": "",
-            "source": "Inline Markdown read through the PHP Markdown Extra profile.",
-            "sourceUrl": "",
-            "samplePath": "samples/markdown-phpextra-release-markdown-phpextra-release.md",
-            "sampleSize": 226,
-            "preview": "---\ntitle: Release notes excerpt\n---\n\n## Highlights\n\nGitHub-flavored Markdown commonly mixes task lists, fenced code, and tables.\n\n- [x] Import document text\n- [ ] Preserve richer layout\n\n```php\necho \"portable conversion\";\n```",
-            "support": {
-                "status": "reader-equivalent",
-                "implementation": "PortLibs\\Pandoc\\MarkdownReader",
-                "notes": "Handled by the shared Markdown reader implementation-equivalence gate, including PHP Markdown Extra profile fixtures in the 137/137 Markdown/native comparison."
-            },
-            "haskell": {
-                "ok": true,
-                "path": "outputs/markdown-phpextra-release/haskell.html"
-            },
-            "phpHtml": {
-                "ok": true,
-                "path": "outputs/markdown-phpextra-release/php.html"
-            },
-            "wpBlocks": {
-                "ok": true,
-                "path": "outputs/markdown-phpextra-release/wordpress-blocks.html"
-            },
-            "wpBlockCounts": {
-                "code": 1,
-                "heading": 2,
-                "list": 1,
-                "paragraph": 1,
-                "separator": 1
-            }
-        },
-        {
-            "id": "markdown-strict-feature-packet",
+            "id": "markdown-strict-gruber-syntax",
             "format": "markdown_strict",
-            "label": "Strict Markdown feature packet",
-            "description": "",
-            "source": "Inline strict Markdown packet covering original Markdown headings, emphasis, links, block quotes, nested lists, indented code, and thematic breaks.",
-            "sourceUrl": "",
-            "samplePath": "samples/markdown-strict-feature-packet-markdown-strict-feature-packet.md",
-            "sampleSize": 457,
-            "preview": "Strict Markdown feature packet\n==============================\n\nThis sample avoids extension syntax and sticks to original Markdown constructs:\ninline *emphasis*, **strong text**, `code`, and [reference links][ref].\n\n> Block quote first line\n> second line\n\n* Bullet one\n* Bullet two with nested content\n    * Nested bullet\n\n    Indented code block\n    with two lines\n\n1. Ordered item\n2. Ordered item\n\n---\n\n[ref]: https://daringfireball.net/projects/markdown/",
+            "label": "Original Markdown syntax documentation",
+            "description": "Real original Markdown syntax document with setext headings, inline HTML, nested lists, block quotes, indented code, reference links, emphasis, images, and autolinks.",
+            "source": "Daring Fireball Markdown syntax source",
+            "sourceUrl": "https://daringfireball.net/projects/markdown/syntax.text",
+            "samplePath": "samples/markdown-strict-gruber-syntax-syntax.text",
+            "sampleSize": 27821,
+            "preview": "Markdown: Syntax\n================\n\n<ul id=\"ProjectSubmenu\">\n    <li><a href=\"/projects/markdown/\" title=\"Markdown Project Page\">Main</a></li>\n    <li><a href=\"/projects/markdown/basics\" title=\"Markdown Basics\">Basics</a></li>\n    <li><a class=\"selected\" title=\"Markdown Syntax Documentation\">Syntax</a></li>\n    <li><a href=\"/projects/markdown/license\" title=\"Pricing and License Information\">License</a></li>\n    <li><a href=\"/projects/markdown/dingus\" title=\"Online Markdown Web Form\">Dingus</a></li>\n</ul>\n\n\n*   [Overview](#overview)\n    *   [Philosophy](#philosophy)\n    *   [Inline HTML](#html)\n    *   [Automatic Escaping for Special Characters](#autoescape)\n*   [Block Elements](#block)\n    *   [Paragraphs and Line Breaks](#p)\n    *   [Headers](#header)\n    *   [Blockquotes](#blockquote)\n    *   [Lists](#list)\n    *   [Code Blocks](#precode)\n    *   [Horizontal Rules](#hr)\n*   [Span Elements](#span)\n    *   [Links](#link)\n    *   [Emphasis](#em)\n    *   [Code](#code)\n    *   [Images](#img)\n*   [Miscellaneous](#misc)\n    *   [Backslash Escapes](#backslash)\n    *   [Automatic Links](#autolink)\n\n\n**Note:** This document is itself written using Markdown; you\ncan [see the source for it by adding '.text' to the URL][src].\n\n  [src]: /projects/markdown/syntax.text\n\n* * *\n\n<h2 id=\"overview\">Overview</h2>\n\n<h3 id=\"philosophy\">Philosophy</h3>\n\nMarkdown is intended to be as easy-to-read and easy-to-write as is feasible.\n\nReadability, however, is emphasized above all else. A Markdown-formatted\ndocument should be publishable as-is, as plain text, without looking\nlike it's been marked up with tags or formatting instructions. While\nMarkdown's syntax has been influenced by several existing text-to-HTML\nfilters -- including [Setext][1], [atx][2], [Textile][3], [reStructuredText][4],\n[Grutatext][5], and [EtText][6] -- the single biggest source of\ninspiration for Markdown's syntax is the format of plain text email.\n\n  [1]: http://docutils.sourceforge.net/mirror/setext.html\n  [2]: http://www.aaronsw.com/2002/atx/\n  [3]: https://web.archive.org/web/20021226035527/http://textism.com/tools/textile/\n  [4]: http://docutils.sourceforge.net/rst.html\n  [5]: http://www.triptico.com/software/grutatxt.html\n  [6]: http://ettext.taint.org/doc/\n\nTo this end, Markdown's syntax is comprised entirely of punctuation\ncharacters, which punctuation characters have been carefully chosen so\nas to look like what they mean. E.g., asterisks around a word actually\nlook like \\*emphasis\\*. Markdown lists look like, well, lists. Even\nblockquotes look like quoted passages of text, assuming you've ever\nused email.\n\n\n\n<h3 id=\"html\">Inline HTML</h3>\n\nMarkdown's syntax is intended for one purpose: to be used as a\nformat for *writing* for the web.\n\nMarkdown is not a replacement for HTML, or even close to it. Its\nsyntax is very small, corresponding only to a very small subset of\nHTML tags. The idea is *not* to create a syntax that makes it easier\nto insert HTML tags. In my opinion, HTML tags are already easy to\ninsert. The idea for Markdown is to make it easy to read, write, and\n...",
             "support": {
                 "status": "reader-equivalent",
                 "implementation": "PortLibs\\Pandoc\\MarkdownReader",
@@ -1997,57 +1725,24 @@
             },
             "haskell": {
                 "ok": true,
-                "path": "outputs/markdown-strict-feature-packet/haskell.html"
+                "path": "outputs/markdown-strict-gruber-syntax/haskell.html"
             },
             "phpHtml": {
                 "ok": true,
-                "path": "outputs/markdown-strict-feature-packet/php.html"
+                "path": "outputs/markdown-strict-gruber-syntax/php.html"
             },
             "wpBlocks": {
                 "ok": true,
-                "path": "outputs/markdown-strict-feature-packet/wordpress-blocks.html"
+                "path": "outputs/markdown-strict-gruber-syntax/wordpress-blocks.html"
             },
             "wpBlockCounts": {
-                "heading": 1,
-                "list": 2,
-                "paragraph": 1,
-                "quote": 1,
-                "separator": 1
-            }
-        },
-        {
-            "id": "markdown-strict-release",
-            "format": "markdown_strict",
-            "label": "Strict Markdown release note",
-            "description": "",
-            "source": "Inline Markdown read through the strict profile.",
-            "sourceUrl": "",
-            "samplePath": "samples/markdown-strict-release-markdown-strict-release.md",
-            "sampleSize": 226,
-            "preview": "---\ntitle: Release notes excerpt\n---\n\n## Highlights\n\nGitHub-flavored Markdown commonly mixes task lists, fenced code, and tables.\n\n- [x] Import document text\n- [ ] Preserve richer layout\n\n```php\necho \"portable conversion\";\n```",
-            "support": {
-                "status": "reader-equivalent",
-                "implementation": "PortLibs\\Pandoc\\MarkdownReader",
-                "notes": "Handled by the shared Markdown reader implementation-equivalence gate, including strict Markdown profile fixtures in the 137/137 Markdown/native comparison."
-            },
-            "haskell": {
-                "ok": true,
-                "path": "outputs/markdown-strict-release/haskell.html"
-            },
-            "phpHtml": {
-                "ok": true,
-                "path": "outputs/markdown-strict-release/php.html"
-            },
-            "wpBlocks": {
-                "ok": true,
-                "path": "outputs/markdown-strict-release/wordpress-blocks.html"
-            },
-            "wpBlockCounts": {
-                "code": 1,
-                "heading": 2,
-                "list": 1,
-                "paragraph": 1,
-                "separator": 1
+                "code": 82,
+                "group": 1,
+                "heading": 20,
+                "html": 4,
+                "list": 4,
+                "paragraph": 129,
+                "separator": 4
             }
         },
         {
@@ -2903,15 +2598,19 @@
                 "path": "outputs/pdf-tracemonkey/haskell.html.error.txt"
             },
             "phpHtml": {
-                "ok": true,
-                "path": "outputs/pdf-tracemonkey/php.html"
-            },
-            "wpBlocks": {
                 "ok": false,
                 "error": "Timed out after 25s.",
-                "path": "outputs/pdf-tracemonkey/wordpress-blocks.html.error.txt"
+                "path": "outputs/pdf-tracemonkey/php.html.error.txt"
             },
-            "wpBlockCounts": []
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/pdf-tracemonkey/wordpress-blocks.html"
+            },
+            "wpBlockCounts": {
+                "heading": 12,
+                "paragraph": 142,
+                "table": 19
+            }
         },
         {
             "id": "doc-poi-47304",

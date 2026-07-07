@@ -1,0 +1,1727 @@
+<p>{{&lt; details &gt;}}</p>
+<ul>
+<li>Tier: Free, Premium, Ultimate</li>
+<li>Offering: GitLab.com, GitLab Self-Managed, GitLab Dedicated</li>
+</ul>
+<p>{{&lt; /details &gt;}}</p>
+<p>GitLab Flavored Markdown (GLFM) is a markup language that formats text in the GitLab user interface. GLFM:</p>
+<ul>
+<li>Creates rich content with support for code, diagrams, math equations, and multimedia.</li>
+<li>Links issues, merge requests, and other GitLab content with cross-references.</li>
+<li>Organizes information with task lists, tables, and collapsible sections.</li>
+<li>Supports syntax highlighting for over 100 programming languages.</li>
+<li>Ensures accessibility with semantic heading structures and image descriptions.</li>
+</ul>
+<p>When you enter text in the GitLab UI, GitLab assumes the text is in GitLab Flavored Markdown.</p>
+<p>You can use GitLab Flavored Markdown in:</p>
+<ul>
+<li>Comments</li>
+<li>Issues</li>
+<li>Epics</li>
+<li>Merge requests</li>
+<li>Milestones</li>
+<li>Snippets (the snippet must be named with a <code>.md</code> extension)</li>
+<li>Wiki pages</li>
+<li>Markdown documents inside repositories</li>
+<li>Releases</li>
+</ul>
+<p>You can also use other rich text files in GitLab. You might have to install a dependency to do so. For more information, see the <a href="https://gitlab.com/gitlab-org/gitlab-markup"><code>gitlab-markup</code> gem project</a>.</p>
+<div class="note">
+<div class="title">
+<p>Note</p>
+</div>
+<p>This Markdown specification is valid for GitLab only. We do our best to render the Markdown faithfully here, however the <a href="https://docs.gitlab.com">GitLab documentation website</a> and the <a href="https://handbook.gitlab.com">GitLab handbook</a> use a different Markdown renderer.</p>
+</div>
+<p>To see exact examples of how GitLab renders any of these examples:</p>
+<ol type="1">
+<li>Copy the relevant raw Markdown example (not the rendered version of the example).</li>
+<li>Paste the Markdown somewhere in GitLab that supports Markdown previews, for example issue or merge request comments or descriptions, or a new Markdown file.</li>
+<li>Select <strong>Preview</strong> to view the GitLab-rendered Markdown.</li>
+</ol>
+<h2 id="differences-with-standard-markdown">Differences with standard Markdown</h2>
+<!--
+Use this topic to list features that are not present in standard Markdown.
+Don't repeat this information in each individual topic, unless there's a specific
+reason, like in "Newlines".
+-->
+<p>GitLab Flavored Markdown consists of the following:</p>
+<ul>
+<li>Core Markdown features, based on the <a href="https://spec.commonmark.org/current/">CommonMark specification</a>.</li>
+<li>Extensions from <a href="https://github.github.com/gfm/">GitHub Flavored Markdown</a>.</li>
+<li>Extensions made specifically for GitLab.</li>
+</ul>
+<p>All standard Markdown formatting should work as expected in GitLab. Some standard functionality is extended with additional features, without affecting the standard usage.</p>
+<p>The following features are not found in standard Markdown:</p>
+<ul>
+<li><a href="#alerts">Alerts</a></li>
+<li><a href="#colors">Color chips written in <code>HEX</code>, <code>RGB</code> or <code>HSL</code></a></li>
+<li><a href="#description-lists">Description lists</a></li>
+<li><a href="#diagrams-and-flowcharts">Diagrams and flowcharts</a></li>
+<li><a href="#emoji">Emoji</a></li>
+<li><a href="#footnotes">Footnotes</a></li>
+<li><a href="#front-matter">Front matter</a></li>
+<li><a href="#gitlab-specific-references">GitLab-specific references</a> (Not supported in Markdown snippet files.)</li>
+<li><a href="#includes">Includes</a></li>
+<li><a href="#placeholders">Placeholders</a></li>
+<li><a href="#inline-diff">Inline diffs</a></li>
+<li><a href="#math-equations">Math equations and symbols written in LaTeX</a></li>
+<li><a href="#emphasis">Strikethrough</a></li>
+<li><a href="#table-of-contents">Table of Contents</a></li>
+<li><a href="#tables">Tables</a></li>
+<li><a href="#task-lists">Task lists</a></li>
+<li><a href="project/wiki/markdown.md">Wiki-specific Markdown</a></li>
+</ul>
+<p>The following features are extended from standard Markdown:</p>
+<table>
+<colgroup><col style="width: 57%" /><col style="width: 42%" /></colgroup>
+<thead>
+<tr><th>Standard Markdown</th><th>Extended Markdown in GitLab</th></tr>
+</thead>
+<tbody>
+<tr><td><a href="#blockquotes">Blockquotes</a></td><td><a href="#multiline-blockquote">Multiline blockquotes</a></td></tr>
+<tr><td><a href="#code-spans-and-blocks">Code blocks</a></td><td><a href="#syntax-highlighting">Colored code and syntax highlighting</a></td></tr>
+<tr><td><a href="#headings">Headings</a></td><td><a href="#heading-ids-and-links">Linkable heading IDs</a></td></tr>
+<tr><td><a href="#images">Images</a></td><td><a href="#videos">Embedded videos</a> and <a href="#audio">audio</a></td></tr>
+<tr><td><a href="#links">Links</a></td><td><a href="#url-auto-linking">Automatically linking URLs</a></td></tr>
+</tbody>
+</table>
+<h2 id="markdown-and-accessibility">Markdown and accessibility</h2>
+<p>When you use GitLab Flavored Markdown, you are creating digital content. This content should be as accessible as possible to your audience. The following list is not exhaustive, but it provides guidance for some of the GitLab Flavored Markdown styles to pay particular attention to:</p>
+<h3 id="accessible-headings">Accessible headings</h3>
+<p>Use heading formatting to create a logical heading structure. The structure of headings on a page should make sense, like a good table of contents. Ensure that there is only one <code>h1</code> element on a page, that heading levels are not skipped, and that they are nested correctly.</p>
+<h3 id="accessible-tables">Accessible tables</h3>
+<p>To keep tables accessible and scannable, tables should not have any empty cells. If there is no otherwise meaningful value for a cell, consider entering <strong>N/A</strong> for &quot;not applicable&quot; or <strong>None</strong>.</p>
+<h3 id="accessible-images-and-videos">Accessible images and videos</h3>
+<p>Describe the image or video in the <code>[alt text]</code>. Make the description accurate, succinct, and unique. Don&#039;t use <code>image of</code> or <code>video of</code> in the description. For more information, see <a href="https://webaim.org/techniques/alttext/">WebAim Alternative Text</a>.</p>
+<h2 id="work-item-and-merge-request-titles">Work item and merge request titles</h2>
+<p>{{&lt; history &gt;}}</p>
+<ul>
+<li>Full GitLab Flavored Markdown support <a href="https://gitlab.com/gitlab-org/gitlab/-/merge_requests/184070">introduced</a> in GitLab 18.0.</li>
+<li>Full GitLab Flavored Markdown support <a href="https://gitlab.com/gitlab-org/gitlab/-/merge_requests/224839">removed</a> in GitLab 18.11.</li>
+</ul>
+<p>{{&lt; /history &gt;}}</p>
+<p>Titles of issues, merge requests, epics, and other work items do not support full GitLab Flavored Markdown. Titles support only:</p>
+<ul>
+<li>Code spans (<code>`code`</code>), without support for <a href="#use-additional-backticks">using additional backticks</a> or escaping.</li>
+<li>Emoji (<code>:emoji:</code> shortcodes and custom emoji).</li>
+<li>Auto-linked URLs.</li>
+<li><a href="#gitlab-specific-references">GitLab-specific references</a> like <code>#123</code>, <code>@user</code>, and <code>!456</code>.</li>
+</ul>
+<p>Standard Markdown syntax like bold, italic, links, headings, lists, and other block-level formatting is not processed in titles. For example, the title <code>**Merge request title**</code> is not displayed in bold and is displayed with the asterisks.</p>
+<h2 id="headings">Headings</h2>
+<p>Create headings from 1 to 6 by using <code>#</code>.</p>
+<pre class="markdown"><code># H1
+## H2
+### H3
+#### H4
+##### H5
+###### H6</code></pre>
+<p>Alternatively, for H1 and H2, use an underline style:</p>
+<pre class="markdown"><code>Alt-H1
+======
+
+Alt-H2
+------</code></pre>
+<h3 id="heading-ids-and-links">Heading IDs and links</h3>
+<p>{{&lt; history &gt;}}</p>
+<ul>
+<li>Heading link generation <a href="https://gitlab.com/gitlab-org/gitlab/-/issues/440733">changed</a> in GitLab 17.0.</li>
+</ul>
+<p>{{&lt; /history &gt;}}</p>
+<p>All Markdown-rendered headings automatically get IDs that can be linked to, except in comments.</p>
+<p>On hover, a link to those IDs becomes visible to make it easier to copy the link to the heading to use it somewhere else.</p>
+<p>The IDs are generated from the content of the heading according to the following rules:</p>
+<ol type="1">
+<li>All text is converted to lowercase.</li>
+<li>All non-word text (such as punctuation or HTML) is removed.</li>
+<li>All spaces are converted to hyphens.</li>
+<li>Two or more hyphens in a row are converted to one.</li>
+<li>If a heading with the same ID has already been generated, a unique incrementing number is appended, starting at 1.</li>
+</ol>
+<p>Example:</p>
+<!--
+Translation note: DO NOT TRANSLATE this example. The example must stay untranslated
+to stay in sync with the example link IDs.
+-->
+<pre class="markdown"><code># This heading has spaces in it
+## This heading has a :thumbsup: in it
+# This heading has Unicode in it: 한글
+## This heading has spaces in it
+### This heading has spaces in it
+## This heading has 3.5 in it (and parentheses)
+## This heading has  multiple spaces and --- hyphens</code></pre>
+<p>Would generate the following link IDs:</p>
+<ol type="1">
+<li><code>this-heading-has-spaces-in-it</code></li>
+<li><code>this-heading-has-a-thumbsup-in-it</code></li>
+<li><code>this-heading-has-unicode-in-it-한글</code></li>
+<li><code>this-heading-has-spaces-in-it-1</code></li>
+<li><code>this-heading-has-spaces-in-it-2</code></li>
+<li><code>this-heading-has-35-in-it-and-parentheses</code></li>
+<li><code>this-heading-has--multiple-spaces-and-----hyphens</code></li>
+</ol>
+<h2 id="line-breaks">Line breaks</h2>
+<p>A line break is inserted (a new paragraph starts) if the previous text is ended with two newlines. For example, when you press <kbd>Enter</kbd> twice in a row. If you only use one newline (press <kbd>Enter</kbd> once), the next sentence remains part of the same paragraph. Use this approach if you want to keep long lines from wrapping, and keep them editable:</p>
+<pre class="markdown"><code>Here&#039;s a line for us to start with.
+
+This longer line is separated from the one above by two newlines, so it is a *separate paragraph*.
+
+This line is also a separate paragraph, but...
+These lines are only separated by single newlines,
+so they *do not break* and just follow the previous lines
+in the *same paragraph*.</code></pre>
+<p>When rendered, the example looks similar to:</p>
+<blockquote>
+<p>Here&#039;s a line for us to start with.</p>
+<p>This longer line is separated from the one above by two newlines, so it is a <em>separate paragraph</em>.</p>
+<p>This line is also a separate paragraph, but... These lines are only separated by single newlines, so they <em>do not break</em> and just follow the previous lines in the <em>same paragraph</em>.</p>
+</blockquote>
+<h3 id="newlines">Newlines</h3>
+<p>A paragraph is one or more consecutive lines of text, separated by one or more blank lines (two newlines at the end of the first paragraph), as explained in <a href="#line-breaks">line breaks</a>.</p>
+<p>Need more control over line breaks or soft returns? Add a single line break by ending a line with a backslash, or two or more spaces. Two newlines in a row create a new paragraph, with a blank line in between:</p>
+<pre class="markdown"><code>First paragraph.
+Another line in the same paragraph.
+A third line in the same paragraph, but this time ending with two spaces.&lt;space&gt;&lt;space&gt;
+A new line directly under the first paragraph.
+
+Second paragraph.
+Another line, this time ending with a backslash.\
+A new line due to the previous backslash.</code></pre>
+<p>When rendered, the example looks similar to:</p>
+<blockquote>
+<p>First paragraph. Another line in the same paragraph. A third line in the same paragraph, but this time ending with two spaces.<br> A new line directly under the first paragraph.</p>
+<p>Second paragraph. Another line, this time ending with a backslash.<br />
+A new line due to the previous backslash.</p>
+</blockquote>
+<p>This syntax adheres to the Markdown specification for handling <a href="https://spec.commonmark.org/current/">paragraphs and line breaks</a>.</p>
+<h2 id="emphasis">Emphasis</h2>
+<p>You can emphasize text in multiple ways. Use italics, bold, strikethrough, or combine these emphasis styles together.</p>
+<p>Examples:</p>
+<pre class="markdown"><code>Emphasis, or italics, with *asterisks* or _underscores_.
+
+Strong emphasis, or bold, with double **asterisks** or __underscores__.
+
+Combined emphasis with **asterisks and _underscores_**.
+
+Strikethrough with double tildes. ~~Scratch this.~~</code></pre>
+<p>When rendered, the example looks similar to:</p>
+<blockquote>
+<p>Emphasis, or italics, with <em>asterisks</em> or <em>underscores</em>.</p>
+<p>Strong emphasis, or bold, with double <strong>asterisks</strong> or <strong>underscores</strong>.</p>
+<p>Combined emphasis with <strong>asterisks and <em>underscores</em></strong>.</p>
+<p>Strikethrough with double tildes. <del>Scratch this.</del></p>
+</blockquote>
+<h3 id="mid-word-emphasis">Mid-word emphasis</h3>
+<p>Avoid italicizing a portion of a word, especially when you&#039;re dealing with code and names that often appear with multiple underscores.</p>
+<p>GitLab Flavored Markdown ignores multiple underlines in words, to allow better rendering of Markdown documents discussing code:</p>
+<!--
+Translation note: DO NOT TRANSLATE these examples or the rendered versions.
+The mid-word emphasis examples do not work in all languages and must stay in English to render correctly.
+-->
+<pre class="markdown"><code>perform_complicated_task
+
+do_this_and_do_that_and_another_thing
+
+but_emphasis is_desired _here_</code></pre>
+<p>When rendered, the example looks similar to:</p>
+<!-- vale gitlab_base.Spelling = NO -->
+<blockquote>
+<p>perform_complicated_task</p>
+<p>do_this_and_do_that_and_another_thing</p>
+<p>but_emphasis is_desired <em>here</em></p>
+</blockquote>
+<!-- vale gitlab_base.Spelling = YES -->
+<p>If you wish to emphasize only a part of a word, it can still be done with asterisks:</p>
+<pre class="markdown"><code>perform*complicated*task
+
+do*this*and*do*that*and*another thing</code></pre>
+<p>When rendered, the example looks similar to:</p>
+<blockquote>
+<p>perform<em>complicated</em>task</p>
+<p>do<em>this</em>and<em>do</em>that<em>and</em>another thing</p>
+</blockquote>
+<h3 id="inline-diff">Inline diff</h3>
+<p>With inline diff tags, you can display <code>{+ additions +}</code> or <code>[- deletions -]</code>.</p>
+<p>The wrapping tags can be either curly braces or square brackets:</p>
+<!--
+Translation note: DO NOT TRANSLATE this example. The example must stay untranslated
+to stay in sync with the image.
+-->
+<pre class="markdown"><code>- {+ addition 1 +}
+- [+ addition 2 +]
+- {- deletion 3 -}
+- [- deletion 4 -]</code></pre>
+<p><img src="img/inline_diff_01_v13_3.png" alt="Inline diff as rendered by the GitLab interface" /></p>
+<hr />
+<p>However, you cannot mix the wrapping tags:</p>
+<pre class="markdown"><code>- {+ addition +]
+- [+ addition +}
+- {- deletion -]
+- [- deletion -}</code></pre>
+<p>Diff highlighting doesn&#039;t work with <code>`inline code`</code>. If your text includes backticks (<code>`</code>), <a href="#escape-characters">escape</a> each backtick with a backslash <code>\</code>:</p>
+<!--
+Translation note: DO NOT TRANSLATE this example. The example must stay untranslated
+to stay in sync with the image.
+-->
+<pre class="markdown"><code>- {+ Just regular text +}
+- {+ Text with `backticks` inside +}
+- {+ Text with escaped \`backticks\` inside +}</code></pre>
+<p><img src="img/inline_diff_02_v13_3.png" alt="Inline diff with mixed formatting, as rendered by the GitLab interface" /></p>
+<h3 id="horizontal-rule">Horizontal rule</h3>
+<p>Create a horizontal rule by using three or more hyphens, asterisks, or underscores:</p>
+<pre class="markdown"><code>---
+
+***
+
+___</code></pre>
+<p>When rendered, all horizontal rules look similar to:</p>
+<hr />
+<h2 id="lists">Lists</h2>
+<p>You can create ordered and unordered lists.</p>
+<p>For an ordered list, add the number you want the list to start with, like <code>1.</code>, followed by a space, at the start of each line. After the first number, it does not matter what number you use. Ordered lists are numbered automatically by vertical order, so repeating <code>1.</code> for all items in the same list is common. If you start with a number other than <code>1.</code>, it uses that as the first number, and counts up from there.</p>
+<p>Examples:</p>
+<pre class="markdown"><code>1. First ordered list item
+2. Another item
+   - Unordered sub-list.
+1. Actual numbers don&#039;t matter, just that it&#039;s a number
+   1. Ordered sub-list
+   1. Next ordered sub-list item
+4. And another item.</code></pre>
+<!--
+The "2." and "4." in the previous example are changed to "1." in the following example,
+to match the style standards on <https://docs.gitlab.com>.
+See <https://docs.gitlab.com/development/documentation/styleguide/#lists>.
+-->
+<p>When rendered, the example looks similar to:</p>
+<blockquote>
+<ol type="1">
+<li>First ordered list item</li>
+<li>Another item
+<ul>
+<li>Unordered sub-list.</li>
+</ul></li>
+<li>Actual numbers don&#039;t matter, just that it&#039;s a number
+<ol type="1">
+<li>Ordered sub-list</li>
+<li>Next ordered sub-list item</li>
+</ol></li>
+<li>And another item.</li>
+</ol>
+</blockquote>
+<p>For an unordered list, add a <code>-</code>, <code>*</code> or <code>+</code>, followed by a space, at the start of each line. Don&#039;t mix the characters in the same list.</p>
+<pre class="markdown"><code>Unordered lists can:
+
+- use
+- minuses
+
+They can also:
+
+* use
+* asterisks
+
+They can even:
+
++ use
++ pluses</code></pre>
+<!--
+The "*" and "+" in the previous example are changed to "-" in the following example,
+to match the style standards on <https://docs.gitlab.com>.
+See <https://docs.gitlab.com/development/documentation/styleguide/#lists>.
+-->
+<p>When rendered, the example looks similar to:</p>
+<blockquote>
+<p>Unordered lists can:</p>
+<ul>
+<li>use</li>
+<li>minuses</li>
+</ul>
+<p>They can also:</p>
+<ul>
+<li>use</li>
+<li>asterisks</li>
+</ul>
+<p>They can even:</p>
+<ul>
+<li>use</li>
+<li>pluses</li>
+</ul>
+</blockquote>
+<hr />
+<p>If a list item contains multiple paragraphs, each subsequent paragraph should be indented to the same level as the start of the list item text.</p>
+<p>Example:</p>
+<pre class="markdown"><code>1. First ordered list item
+
+   Second paragraph of first item.
+
+1. Another item</code></pre>
+<p>When rendered, the example looks similar to:</p>
+<blockquote>
+<ol type="1">
+<li><p>First ordered list item</p>
+<p>Second paragraph of first item.</p></li>
+<li><p>Another item</p></li>
+</ol>
+</blockquote>
+<p>If the first item&#039;s paragraph isn&#039;t indented with the proper number of spaces, the paragraph appears outside the list. Use the correct number of spaces to properly indent under the list item. For example:</p>
+<pre class="markdown"><code>1. First ordered list item
+
+  (Misaligned paragraph of first item.)
+
+1. Another item</code></pre>
+<p>When rendered, the example looks similar to:</p>
+<!-- markdownlint-disable MD027 -->
+<blockquote>
+<ol type="1">
+<li>First ordered list item</li>
+</ol>
+<p>(Misaligned paragraph of first item.)</p>
+<ol type="1">
+<li>Another item</li>
+</ol>
+</blockquote>
+<!-- markdownlint-enable MD027 -->
+<hr />
+<p>Ordered lists that are the first sub-item of an unordered list item must have a preceding blank line if they don&#039;t start with <code>1.</code>.</p>
+<p>For example, with a blank line:</p>
+<pre class="markdown"><code>- Unordered list item
+
+  5. First ordered list item</code></pre>
+<p>When rendered, the example looks similar to:</p>
+<!-- markdownlint-disable MD029 -->
+<blockquote>
+<ul>
+<li><p>Unordered list item</p>
+<ol start="5" type="1">
+<li>First ordered list item</li>
+</ol></li>
+</ul>
+</blockquote>
+<!-- markdownlint-disable MD029 -->
+<p>If the blank line is missing, the second list item renders as part of the first one:</p>
+<pre class="markdown"><code>- Unordered list item
+  5. First ordered list item</code></pre>
+<p>When rendered, the example looks similar to:</p>
+<blockquote>
+<ul>
+<li>Unordered list item
+<ol start="5" type="1">
+<li>First ordered list item</li>
+</ol></li>
+</ul>
+</blockquote>
+<hr />
+<p>CommonMark ignores blank lines between ordered and unordered list items, and considers them part of a single list. The items are rendered as a <a href="https://spec.commonmark.org/0.30/#loose">loose</a> list. Each list item is enclosed in a paragraph tag and therefore has paragraph spacing and margins. This makes the list look like there is extra spacing between each item.</p>
+<p>For example:</p>
+<pre class="markdown"><code>- First list item
+- Second list item
+
+- A different list</code></pre>
+<p>When rendered, the example looks similar to:</p>
+<blockquote>
+<ul>
+<li><p>First list item</p></li>
+<li><p>Second list item</p></li>
+<li><p>A different list</p></li>
+</ul>
+</blockquote>
+<p>CommonMark ignores the blank line and renders this as one list with paragraph spacing.</p>
+<h3 id="description-lists">Description lists</h3>
+<p>{{&lt; history &gt;}}</p>
+<ul>
+<li>Description lists <a href="https://gitlab.com/gitlab-org/gitlab/-/issues/26314">introduced</a> in GitLab 17.7.</li>
+</ul>
+<p>{{&lt; /history &gt;}}</p>
+<p>A description list is a list of terms with corresponding descriptions. Each term can have multiple descriptions.</p>
+<p>In HTML this is represented with `</p>
+<dl>`, `<dt>`, and `<dd>` tags.
+<p>To create a description list, place the term on one line, with the description on the next line beginning with a colon.</p>
+<pre class="markdown"><code>Fruits
+: apple
+: orange
+
+Vegetables
+: broccoli
+: kale
+: spinach</code></pre>
+<p>You can also have a blank line between the term and description.</p>
+<pre class="markdown"><code>Fruits
+
+: apple
+
+: orange</code></pre>
+<div class="note">
+<div class="title">
+<p>Note</p>
+</div>
+<p>The rich text editor does not support inserting new description lists. To insert a new description list, use the plain text editor. For more information, see <a href="https://gitlab.com/gitlab-org/gitlab/-/issues/535956">issue 535956</a>.</p>
+</div>
+<h3 id="task-lists">Task lists</h3>
+<p>You can add task lists anywhere Markdown is supported.</p>
+<ul>
+<li>In issues, merge requests, epics, and comments, you can select the boxes.</li>
+<li>In all other places, you cannot select the boxes. You must edit the Markdown manually by adding or removing an <code>x</code> in the brackets.</li>
+</ul>
+<p>Besides complete and incomplete, tasks can also be <strong>inapplicable</strong>. Selecting an inapplicable checkbox in an issue, merge request, epic, or comment has no effect.</p>
+<p>To create a task list, follow the format of an ordered or unordered list:</p>
+<!--
+Translation note: DO NOT TRANSLATE this example. The example must stay untranslated
+to stay in sync with the image.
+-->
+<pre class="markdown"><code>- [x] Completed task
+- [~] Inapplicable task
+- [ ] Incomplete task
+  - [x] Sub-task 1
+  - [~] Sub-task 2
+  - [ ] Sub-task 3
+
+1. [x] Completed task
+1. [~] Inapplicable task
+1. [ ] Incomplete task
+   1. [x] Sub-task 1
+   1. [~] Sub-task 2
+   1. [ ] Sub-task 3</code></pre>
+<p><img src="img/completed_tasks_v15_3.png" alt="Task list as rendered by GitLab" /></p>
+<p>You can also add task lists to <a href="#task-lists-in-tables">table cells</a>.</p>
+<h2 id="links">Links</h2>
+<p>You can create links in multiple ways:</p>
+<pre class="markdown"><code>- This line shows an [inline-style link](https://www.google.com)
+- This line shows a [link to a repository file in the same directory](permissions.md)
+- This line shows a [relative link to a file one directory higher](../_index.md)
+- This line shows a [link that also has title text](https://www.google.com &quot;This link takes you to Google!&quot;)</code></pre>
+<p>When rendered, the examples look similar to:</p>
+<blockquote>
+<ul>
+<li>This line shows an <a href="https://www.google.com">inline-style link</a></li>
+<li>This line shows a <a href="permissions.md">link to a repository file in the same directory</a></li>
+<li>This line shows a <a href="../_index.md">relative link to a file one directory higher</a></li>
+<li>This line shows a <a href="https://www.google.com" title="This link takes you to Google!">link that also has title text</a></li>
+</ul>
+</blockquote>
+<p>You cannot use relative links to reference project files in a wiki page, or a wiki page in a project file. This limitation exists because wikis are always in separate Git repositories in GitLab. For example, <code>[I&#039;m a reference-style link](style)</code> points to <code>wikis/style</code> only when the link is inside a wiki Markdown file. For more information, see <a href="project/wiki/markdown.md">Wiki-specific Markdown</a>.</p>
+<p>Use heading ID anchors to link to a specific section in a page:</p>
+<pre class="markdown"><code>- This line links to [a section on a different Markdown page, using a `#` and the heading ID](permissions.md#project-permissions)
+- This line links to [a different section on the same page, using a `#` and the heading ID](#heading-ids-and-links)</code></pre>
+<p>When rendered, the examples look similar to:</p>
+<blockquote>
+<ul>
+<li>This line links to <a href="permissions.md#project-permissions">a section on a different Markdown page, using a <code>#</code> and the heading ID</a></li>
+<li>This line links to <a href="#heading-ids-and-links">a different section on the same page, using a <code>#</code> and the heading ID</a></li>
+</ul>
+</blockquote>
+<p>Using link references:</p>
+<!--
+The following codeblock uses extra spaces to avoid the Vale ReferenceLinks test.
+Do not remove the two-space nesting.
+-->
+<pre class="markdown"><code>- This line shows a [reference-style link, see below][Arbitrary case-insensitive reference text]
+- You can [use numbers for reference-style link definitions, see below][1]
+- Or leave it empty and use the [link text itself][], see below.
+
+Some text to show that the reference links can follow later.
+
+[arbitrary case-insensitive reference text]: https://www.mozilla.org/en-US/
+[1]: https://slashdot.org
+[link text itself]: https://about.gitlab.com/</code></pre>
+<!--
+The example below uses in-line links to pass the Vale ReferenceLinks test.
+Do not change to reference style links.
+-->
+<p>When rendered, the example look similar to:</p>
+<blockquote>
+<ul>
+<li>This line is a <a href="https://www.mozilla.org/en-US/">reference-style link, see below</a></li>
+<li>You can <a href="https://slashdot.org">use numbers for reference-style link definitions, see below</a></li>
+<li>Or leave it empty and use the <a href="https://about.gitlab.com/">link text itself</a>, see below.</li>
+</ul>
+<p>Some text to show that the reference links can follow later.</p>
+</blockquote>
+<h3 id="url-auto-linking">URL auto-linking</h3>
+<p>Almost any URL you put into your text is auto-linked:</p>
+<pre class="markdown"><code>- https://www.google.com
+- https://www.google.com
+- ftp://ftp.us.debian.org/debian/
+- smb://foo/bar/baz
+- irc://irc.freenode.net/
+- http://localhost:3000</code></pre>
+<p>When rendered, the example looks similar to:</p>
+<blockquote>
+<ul>
+<li><a href="https://www.google.com" class="uri">https://www.google.com</a></li>
+<li><a href="https://www.google.com" class="uri">https://www.google.com</a></li>
+<li><a href="ftp://ftp.us.debian.org/debian/" class="uri">ftp://ftp.us.debian.org/debian/</a></li>
+<li><a href="smb://foo/bar/baz/">smb://foo/bar/baz</a></li>
+<li><a href="irc://irc.freenode.net">irc://irc.freenode.net</a></li>
+<li><a href="http://localhost:3000" class="uri">http://localhost:3000</a></li>
+</ul>
+</blockquote>
+<h2 id="gitlab-specific-references">GitLab-specific references</h2>
+<p>{{&lt; history &gt;}}</p>
+<ul>
+<li>Autocomplete for wiki pages <a href="https://gitlab.com/gitlab-org/gitlab/-/issues/442229">introduced</a> in GitLab 16.11.</li>
+<li>Option to reference labels from groups <a href="https://gitlab.com/gitlab-org/gitlab/-/issues/455120">introduced</a> in GitLab 17.1.</li>
+<li>Option to reference issues, epics, and work items with <code>[work_item:123]</code> syntax:
+<ul>
+<li><a href="https://gitlab.com/gitlab-org/gitlab/-/issues/352861">Introduced</a> in GitLab 18.1 <a href="../administration/feature_flags/_index.md">with a flag</a> named <code>extensible_reference_filters</code>. Disabled by default.</li>
+<li><a href="https://gitlab.com/gitlab-org/gitlab/-/merge_requests/197052">Generally available</a> in GitLab 18.2. Feature flag <code>extensible_reference_filters</code> removed.</li>
+</ul></li>
+<li>Option to reference epics with <code>[epic:123]</code> syntax <a href="https://gitlab.com/gitlab-org/gitlab/-/issues/352864">introduced</a> in GitLab 18.4.</li>
+<li>Ability to reference personal snippets:
+<ul>
+<li><a href="https://gitlab.com/gitlab-org/gitlab/-/work_items/217306">Introduced</a> in GitLab 19.0 <a href="../administration/feature_flags/_index.md">with a flag</a> named <code>personal_snippet_reference_filters</code>. Disabled by default.</li>
+<li><a href="https://gitlab.com/gitlab-org/gitlab/-/merge_requests/241935">Generally available</a> in GitLab 19.2. Feature flag <code>personal_snippet_reference_filters</code> removed.</li>
+</ul></li>
+</ul>
+<p>{{&lt; /history &gt;}}</p>
+<p>GitLab Flavored Markdown renders GitLab-specific references. For example, you can reference an issue, a commit, a team member, or even an entire project team. GitLab Flavored Markdown turns that reference into a link so you can navigate between them. All references to projects should use the <strong>project slug</strong> rather than the project name.</p>
+<p>Additionally, GitLab Flavored Markdown recognizes certain cross-project references and also has a shorthand version to reference other projects from the same namespace.</p>
+<div class="note">
+<div class="title">
+<p>Note</p>
+</div>
+<p>GitLab-specific references are not supported in Markdown snippet files.</p>
+</div>
+<p>GitLab Flavored Markdown recognizes the following:</p>
+<table>
+<colgroup><col style="width: 38%" /><col style="width: 24%" /><col style="width: 21%" /><col style="width: 16%" /></colgroup>
+<thead>
+<tr><th>References</th><th>Input</th><th>Cross-project reference</th><th>Shortcut inside the same namespace</th></tr>
+</thead>
+<tbody>
+<tr><td>Specific user</td><td><code>@user_name</code></td><td></td><td></td></tr>
+<tr><td>Specific group</td><td><code>@group_name</code></td><td></td><td></td></tr>
+<tr><td>Entire team</td><td><a href="discussions/_index.md#mentioning-all-members"><code>@all</code></a></td><td></td><td></td></tr>
+<tr><td>Project</td><td><code>namespace/project&gt;</code></td><td></td><td></td></tr>
+<tr><td>Issue</td><td><code>#123</code>, <code>GL-123</code>, or <code>[issue:123]</code></td><td><code>namespace/project#123</code> or <code>[issue:namespace/project/123]</code></td><td><code>project#123</code> or <code>[issue:project/123]</code></td></tr>
+<tr><td><a href="work_items/_index.md">Work item</a></td><td><code>[work_item:123]</code></td><td><code>[work_item:namespace/project/123]</code></td><td><code>[work_item:project/123]</code></td></tr>
+<tr><td>Merge request</td><td><code>!123</code></td><td><code>namespace/project!123</code></td><td><code>project!123</code></td></tr>
+<tr><td>Snippet <sup>3</sup></td><td><code>$123</code></td><td><code>namespace/project$123</code></td><td><code>project$123</code></td></tr>
+<tr><td>Personal snippet <sup>3</sup></td><td><code>$123</code></td><td></td><td></td></tr>
+<tr><td><a href="group/epics/_index.md">Epic</a></td><td><code>#123</code>, <code>&amp;123</code>, <code>[work_item:123]</code>, or <code>[epic:123]</code></td><td><code>group1/subgroup#123</code>, <code>group1/subgroup&amp;123</code>, <code>[work_item:group1/subgroup/123]</code>, or <code>[epic:group1/subgroup/123]</code></td><td></td></tr>
+<tr><td><a href="group/iterations/_index.md">Iteration</a></td><td><code>*iteration:&quot;iteration title&quot;</code></td><td></td><td></td></tr>
+<tr><td><a href="group/iterations/_index.md">Iteration cadence</a> by ID<sup>1</sup></td><td><code>[cadence:123]</code></td><td></td><td></td></tr>
+<tr><td><a href="group/iterations/_index.md">Iteration cadence</a> by title (one word)<sup>1</sup></td><td><code>[cadence:plan]</code></td><td></td><td></td></tr>
+<tr><td><a href="group/iterations/_index.md">Iteration cadence</a> by title (multiple words)<sup>1</sup></td><td><code>[cadence:&quot;plan a&quot;]</code></td><td></td><td></td></tr>
+<tr><td><a href="application_security/vulnerabilities/_index.md">Vulnerability</a></td><td><code>[vulnerability:123]</code></td><td><code>[vulnerability:namespace/project/123]</code></td><td><code>[vulnerability:project/123]</code></td></tr>
+<tr><td>Feature flag</td><td><code>[feature_flag:123]</code></td><td><code>[feature_flag:namespace/project/123]</code></td><td><code>[feature_flag:project/123]</code></td></tr>
+<tr><td>Label by ID <sup>2</sup></td><td><code>~123</code></td><td><code>namespace/project~123</code></td><td><code>project~123</code></td></tr>
+<tr><td>Label by name (one word) <sup>2</sup></td><td><code>~bug</code></td><td><code>namespace/project~bug</code></td><td><code>project~bug</code></td></tr>
+<tr><td>Label by name (multiple words) <sup>2</sup></td><td><code>~&quot;feature request&quot;</code></td><td><code>namespace/project~&quot;feature request&quot;</code></td><td><code>project~&quot;feature request&quot;</code></td></tr>
+<tr><td>Label by name (scoped) <sup>2</sup></td><td><code>~&quot;priority::high&quot;</code></td><td><code>namespace/project~&quot;priority::high&quot;</code></td><td><code>project~&quot;priority::high&quot;</code></td></tr>
+<tr><td>Project milestone by ID <sup>2</sup></td><td><code>%123</code></td><td><code>namespace/project%123</code></td><td><code>project%123</code></td></tr>
+<tr><td>Milestone by name (one word) <sup>2</sup></td><td><code>%v1.23</code></td><td><code>namespace/project%v1.23</code></td><td><code>project%v1.23</code></td></tr>
+<tr><td>Milestone by name (multiple words) <sup>2</sup></td><td><code>%&quot;release candidate&quot;</code></td><td><code>namespace/project%&quot;release candidate&quot;</code></td><td><code>project%&quot;release candidate&quot;</code></td></tr>
+<tr><td>Commit (specific)</td><td><code>9ba12248</code></td><td><code>namespace/project@9ba12248</code></td><td><code>project@9ba12248</code></td></tr>
+<tr><td>Commit range comparison</td><td><code>9ba12248...b19a04f5</code></td><td><code>namespace/project@9ba12248...b19a04f5</code></td><td><code>project@9ba12248...b19a04f5</code></td></tr>
+<tr><td>Repository file reference</td><td><code>[README](doc/README.md)</code></td><td></td><td></td></tr>
+<tr><td>Repository file reference (specific line)</td><td><code>[README](doc/README.md#L13)</code></td><td></td><td></td></tr>
+<tr><td><a href="../operations/incident_management/alerts.md">Alert</a></td><td><code>^alert#123</code></td><td><code>namespace/project^alert#123</code></td><td><code>project^alert#123</code></td></tr>
+<tr><td><a href="crm/_index.md#contacts">Contact</a></td><td><code>[contact:test@example.com]</code></td><td></td><td></td></tr>
+<tr><td><a href="project/wiki/_index.md">Wiki page</a> (if the page slug is the same as the title)</td><td><code>[[Home]]</code> or <code>[wiki_page:Home]</code></td><td><code>[wiki_page:namespace/project:Home]</code> or <code>[wiki_page:group1/subgroup:Home]</code></td><td></td></tr>
+<tr><td><a href="project/wiki/_index.md">Wiki page</a> (if the page slug is different from the title)</td><td><code>[[How to use GitLab\|how-to-use-gitlab]]</code></td><td></td><td></td></tr>
+</tbody>
+</table>
+<p><strong>Footnotes</strong>:</p>
+<ol type="1">
+<li><a href="https://gitlab.com/gitlab-org/gitlab/-/issues/384885">Introduced</a> in GitLab 16.9. Iteration cadence references are always rendered following the format <code>[cadence:&lt;ID&gt;]</code>. For example, the text reference <code>[cadence:&quot;plan&quot;]</code> renders as <code>[cadence:1]</code> if the referenced iterations cadence&#039;s ID is <code>1</code>.</li>
+<li>For labels or milestones, prepend a <code>/</code> before <code>namespace/project</code> to specify the exact label or milestone, removing any possible ambiguity.</li>
+<li>Snippet IDs are unique across personal and project snippets, so a given ID always identifies a single snippet.</li>
+</ol>
+<p>For example, referencing an issue by using <code>#123</code> formats the output as a link to issue number 123 with text <code>#123</code>. Likewise, a link to issue number 123 is recognized and formatted with text <code>#123</code>. If you don&#039;t want <code>#123</code> to link to an issue, add a leading backslash <code>\#123</code>.</p>
+<p>In addition to this, links to some objects are also recognized and formatted. For example:</p>
+<ul>
+<li>Comments on issues: <code>&quot;https://gitlab.com/gitlab-org/gitlab/-/issues/1234#note_101075757&quot;</code>, rendered as <code>#1234 (comment 101075757)</code></li>
+<li>The issues designs tab: <code>&quot;https://gitlab.com/gitlab-org/gitlab/-/issues/1234/designs&quot;</code>, rendered as <code>#1234 (designs)</code>.</li>
+<li>Links to individual designs: <code>&quot;https://gitlab.com/gitlab-org/gitlab/-/issues/1234/designs/layout.png&quot;</code>, rendered as <code>#1234[layout.png]</code>.</li>
+</ul>
+<h3 id="show-item-title">Show item title</h3>
+<p>{{&lt; history &gt;}}</p>
+<ul>
+<li>Support for work items (tasks, objectives, and key results) <a href="https://gitlab.com/gitlab-org/gitlab/-/issues/390854">introduced</a> in GitLab 16.0.</li>
+<li>Support for epics introduced in GitLab 17.7, with the flag named <code>work_item_epics</code>, enabled by default.</li>
+<li>Generally available for epics in GitLab 18.1. Feature flag <code>work_item_epics</code> removed.</li>
+</ul>
+<p>{{&lt; /history &gt;}}</p>
+<p>To include the title in the rendered link of an issue, task, objective, key result, merge request, or epic:</p>
+<ul>
+<li>Add a plus (<code>+</code>) at the end of the reference.</li>
+</ul>
+<p>For example, a reference like <code>#123+</code> is rendered as <code>The issue title (#123)</code>.</p>
+<p>URL references like <code>https://gitlab.com/gitlab-org/gitlab/-/issues/1234+</code> are also expanded.</p>
+<h3 id="show-item-summary">Show item summary</h3>
+<p>{{&lt; history &gt;}}</p>
+<ul>
+<li>Support for work items (tasks, objectives, and key results) <a href="https://gitlab.com/gitlab-org/gitlab/-/issues/390854">introduced</a> in GitLab 16.0.</li>
+<li>Support for epics introduced in GitLab 17.7, with the flag named <code>work_item_epics</code>, enabled by default.</li>
+<li>Generally available for epics in GitLab 18.1. Feature flag <code>work_item_epics</code> removed.</li>
+</ul>
+<p>{{&lt; /history &gt;}}</p>
+<p>To include an extended summary in the rendered link of an epic, issue, task, objective, key result, or merge request:</p>
+<ul>
+<li>Add a <code>+s</code> at the end of the reference.</li>
+</ul>
+<p>Summary includes information about <strong>assignees</strong>, <strong>milestone</strong> and <strong>health status</strong>, as applicable by work item type, of referenced item.</p>
+<p>For example, a reference like <code>#123+s</code> is rendered as <code>The issue title (#123) • First Assignee, Second Assignee+ • v15.10 • Needs attention</code>.</p>
+<p>URL references like <code>https://gitlab.com/gitlab-org/gitlab/-/issues/1234+s</code> are also expanded.</p>
+<p>To update the rendered references if the assignee, milestone, or health status changed:</p>
+<ul>
+<li>Refresh the page.</li>
+</ul>
+<h3 id="comment-preview-on-hover">Comment preview on hover</h3>
+<p>{{&lt; history &gt;}}</p>
+<ul>
+<li><a href="https://gitlab.com/gitlab-org/gitlab/-/issues/29663">Introduced</a> in GitLab 17.3 <a href="../administration/feature_flags/_index.md">with a flag</a> named <code>comment_tooltips</code>. Disabled by default.</li>
+<li>Feature flag removed in GitLab 17.6</li>
+</ul>
+<p>{{&lt; /history &gt;}}</p>
+<p>Hovering over a link to a comment shows the author and first line of the comment.</p>
+<h3 id="embed-observability-dashboards">Embed Observability dashboards</h3>
+<p>You can embed GitLab Observability UI dashboards descriptions and comments, for example in epics, issues, and MRs.</p>
+<p>To embed an Observability dashboard URL:</p>
+<ol type="1">
+<li>In GitLab Observability UI, copy the URL in the address bar.</li>
+<li>Paste your link in a comment or description. GitLab Flavored Markdown recognizes the URL and displays the source.</li>
+</ol>
+<h2 id="tables">Tables</h2>
+<p>When creating tables:</p>
+<ul>
+<li>The first line contains the headers, separated by pipe characters (<code>|</code>).</li>
+<li>The second line separates the headers from the cells.
+<ul>
+<li>The cells can contain only empty spaces, hyphens, and (optionally) colons for horizontal alignment.</li>
+<li>Each cell must contain at least one hyphen, but adding more hyphens to a cell does not change the cell&#039;s rendering.</li>
+<li>Any content other than hyphens, whitespace, or colons is not allowed</li>
+</ul></li>
+<li>The third, and any following lines, contain the cell values.
+<ul>
+<li>You <strong>can&#039;t</strong> have cells separated over many lines in the Markdown, they must be kept to single lines, but they can be very long. You can also include HTML <code>&lt;br&gt;</code> tags to force newlines if needed.</li>
+<li>The cell sizes <strong>don&#039;t</strong> have to match each other. They are flexible, but must be separated by pipes (<code>|</code>).</li>
+<li>You <strong>can</strong> have blank cells.</li>
+</ul></li>
+<li>Column widths are calculated dynamically based on the content of the cells.</li>
+<li>To use the pipe character (<code>|</code>) in the text and not as table delimiter, you must <a href="#escape-characters">escape</a> it with a backslash (<code>\|</code>).</li>
+</ul>
+<p>Example:</p>
+<pre class="markdown"><code>| header 1 | header 2 | header 3 |
+| ---      | ------   | -------- |
+| cell 1   | cell 2   | cell 3   |
+| cell 4 | cell 5 is longer | cell 6 is much longer than the others, but that&#039;s ok. It eventually wraps the text when the cell is too large for the display size. |
+| cell 7   |          | cell 9   |</code></pre>
+<p>When rendered, the example looks similar to:</p>
+<blockquote>
+<table>
+<thead>
+<tr><th>header 1</th><th>header 2</th><th>header 3</th></tr>
+</thead>
+<tbody>
+<tr><td>cell 1</td><td>cell 2</td><td>cell 3</td></tr>
+<tr><td>cell 4</td><td>cell 5 is longer</td><td>cell 6 is much longer than the others, but that&#039;s ok. It eventually wraps the text when the cell is too large for the display size.</td></tr>
+<tr><td>cell 7</td><td></td><td>cell 9</td></tr>
+</tbody>
+</table>
+</blockquote>
+<h3 id="alignment">Alignment</h3>
+<p>Additionally, you can choose the alignment of text in columns by adding colons (<code>:</code>) to the sides of the &quot;dash&quot; lines in the second row. This affects every cell in the column:</p>
+<pre class="markdown"><code>| Left Aligned | Centered | Right Aligned |
+| :----------- | :------: | ------------: |
+| Cell 1       | Cell 2   | Cell 3        |
+| Cell 4       | Cell 5   | Cell 6        |</code></pre>
+<p>When rendered, the example looks similar to:</p>
+<blockquote>
+<table>
+<thead>
+<tr><th style="text-align:left">Left Aligned</th><th style="text-align:center">Centered</th><th style="text-align:right">Right Aligned</th></tr>
+</thead>
+<tbody>
+<tr><td style="text-align:left">Cell 1</td><td style="text-align:center">Cell 2</td><td style="text-align:right">Cell 3</td></tr>
+<tr><td style="text-align:left">Cell 4</td><td style="text-align:center">Cell 5</td><td style="text-align:right">Cell 6</td></tr>
+</tbody>
+</table>
+</blockquote>
+<p>In GitLab, table headers are always left-aligned in Chrome and Firefox, and centered in Safari. For more information, see <a href="#tables">tables</a>.</p>
+<h3 id="cells-with-multiple-lines">Cells with multiple lines</h3>
+<p>You can use HTML formatting to adjust the rendering of tables. For example, you can use <code>&lt;br&gt;</code> tags to force a cell to have multiple lines:</p>
+<pre class="markdown"><code>| Name  | Details |
+| ----- | ------- |
+| Item1 | This text is on one line |
+| Item2 | This item has:&lt;br&gt;- Multiple items&lt;br&gt;- That we want listed separately |</code></pre>
+<p>When rendered, the example looks similar to:</p>
+<blockquote>
+<table>
+<thead>
+<tr><th>Name</th><th>Details</th></tr>
+</thead>
+<tbody>
+<tr><td>Item1</td><td>This text is on one line</td></tr>
+<tr><td>Item2</td><td>This item has:<br>- Multiple items<br>- That we want listed separately</td></tr>
+</tbody>
+</table>
+</blockquote>
+<h3 id="task-lists-in-tables">Task lists in tables</h3>
+<p>{{&lt; history &gt;}}</p>
+<ul>
+<li>Native Markdown syntax for task items in table cells <a href="https://gitlab.com/gitlab-org/gitlab/-/merge_requests/219037">introduced</a> in GitLab 18.9.</li>
+</ul>
+<p>{{&lt; /history &gt;}}</p>
+<p>You can add a task item checkbox in a Markdown table cell. The checkbox must be the only content in the cell:</p>
+<pre class="markdown"><code>| Complete | Task                    |
+| -------- | ----------------------- |
+|   [x]    | Refactor the backend    |
+|   [ ]    | Refactor the frontend   |
+|   [~]    | Inapplicable task       |</code></pre>
+<p>When rendered, the example looks similar to:</p>
+<p><img src="img/task_list_in_table_v18_9.png" alt="Rendered task list in a Markdown table." /></p>
+<p>To add multiple task items in a single cell, or task items with additional text, use an HTML table with Markdown in the cells:</p>
+<pre class="html"><code>&lt;table&gt;
+&lt;thead&gt;
+&lt;tr&gt;&lt;th&gt;header 1&lt;/th&gt;&lt;th&gt;header 2&lt;/th&gt;&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td&gt;cell 1&lt;/td&gt;
+&lt;td&gt;cell 2&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;cell 3&lt;/td&gt;
+&lt;td&gt;
+
+- [ ] Task one
+- [ ] Task two
+
+&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;</code></pre>
+<p>You can also <a href="rich_text_editor.md#tables">create a table in the rich text editor</a> and insert a task list then.</p>
+<h3 id="copy-and-paste-from-a-spreadsheet">Copy and paste from a spreadsheet</h3>
+<p>If you&#039;re working in spreadsheet software (for example, Microsoft Excel, Google Sheets, or Apple Numbers), GitLab creates a Markdown table when you copy and paste from a spreadsheet. For example, suppose you have the following spreadsheet:</p>
+<p><img src="img/markdown_copy_from_spreadsheet_v12_7.png" alt="Copy from spreadsheet" /></p>
+<p>Select the cells and copy them to your clipboard. Open a GitLab Markdown entry and paste the spreadsheet:</p>
+<p><img src="img/markdown_paste_table_v12_7.png" alt="Paste to Markdown table" /></p>
+<h3 id="json-tables">JSON tables</h3>
+<p>{{&lt; history &gt;}}</p>
+<ul>
+<li>Markdown rendering <a href="https://gitlab.com/gitlab-org/gitlab/-/issues/375177">introduced</a> in GitLab 17.9.</li>
+</ul>
+<p>{{&lt; /history &gt;}}</p>
+<p>To render tables with JSON code blocks, use the following syntax:</p>
+<pre class="markdown"><code>```json:table
+{}
+```</code></pre>
+<p>Watch the following video walkthrough of this feature:</p>
+<div>
+<p>See the video: <a href="https://www.youtube.com/watch?v=12yWKw1AdKY">Demo: JSON Tables in Markdown</a>.</p>
+</div>
+<figure class="video-container">
+  <iframe src="https://www.youtube-nocookie.com/embed/12yWKw1AdKY" frameborder="0" allowfullscreen> </iframe>
+</figure>
+<div class="note">
+<div class="title">
+<p>Note</p>
+</div>
+<p>Administrators can enable rendering of iframes in Markdown and configure the allowed iframe <code>src</code> hosts for an instance. You can manage these settings with the <a href="../api/settings.md#available-settings">application settings API</a> using:</p>
+<ul>
+<li><code>iframe_rendering_enabled</code></li>
+<li><code>iframe_rendering_allowlist</code></li>
+<li><code>iframe_rendering_allowlist_raw</code>.</li>
+</ul>
+</div>
+<p>The <code>items</code> attribute is a list of objects representing the data points.</p>
+<pre class="markdown"><code>```json:table
+{
+    &quot;items&quot; : [
+      {&quot;a&quot;: &quot;11&quot;, &quot;b&quot;: &quot;22&quot;, &quot;c&quot;: &quot;33&quot;}
+    ]
+}
+```</code></pre>
+<p>To specify the table labels, use the <code>fields</code> attribute.</p>
+<pre class="markdown"><code>```json:table
+{
+    &quot;fields&quot; : [&quot;a&quot;, &quot;b&quot;, &quot;c&quot;],
+    &quot;items&quot; : [
+      {&quot;a&quot;: &quot;11&quot;, &quot;b&quot;: &quot;22&quot;, &quot;c&quot;: &quot;33&quot;}
+    ]
+}
+```</code></pre>
+<p>Not all elements of <code>items</code> must have corresponding values in <code>fields</code>.</p>
+<pre class="markdown"><code>```json:table
+{
+    &quot;fields&quot; : [&quot;a&quot;, &quot;b&quot;, &quot;c&quot;],
+    &quot;items&quot; : [
+      {&quot;a&quot;: &quot;11&quot;, &quot;b&quot;: &quot;22&quot;, &quot;c&quot;: &quot;33&quot;},
+      {&quot;a&quot;: &quot;211&quot;, &quot;c&quot;: &quot;233&quot;}
+    ]
+}
+```</code></pre>
+<p>When <code>fields</code> is not explicitly specified, the labels are picked from the first element of <code>items</code>.</p>
+<pre class="markdown"><code>```json:table
+{
+    &quot;items&quot; : [
+      {&quot;a&quot;: &quot;11&quot;, &quot;b&quot;: &quot;22&quot;, &quot;c&quot;: &quot;33&quot;},
+      {&quot;a&quot;: &quot;211&quot;, &quot;c&quot;: &quot;233&quot;}
+    ]
+}
+```</code></pre>
+<p>You can specify custom labels for <code>fields</code>.</p>
+<pre class="markdown"><code>```json:table
+{
+    &quot;fields&quot; : [
+        {&quot;key&quot;: &quot;a&quot;, &quot;label&quot;: &quot;AA&quot;},
+        {&quot;key&quot;: &quot;b&quot;, &quot;label&quot;: &quot;BB&quot;},
+        {&quot;key&quot;: &quot;c&quot;, &quot;label&quot;: &quot;CC&quot;}
+    ],
+    &quot;items&quot; : [
+      {&quot;a&quot;: &quot;11&quot;, &quot;b&quot;: &quot;22&quot;, &quot;c&quot;: &quot;33&quot;},
+      {&quot;a&quot;: &quot;211&quot;, &quot;b&quot;: &quot;222&quot;, &quot;c&quot;: &quot;233&quot;}
+    ]
+}
+```</code></pre>
+<p>You can enable sorting for individual elements of <code>fields</code>.</p>
+<pre class="markdown"><code>```json:table
+{
+    &quot;fields&quot; : [
+        {&quot;key&quot;: &quot;a&quot;, &quot;label&quot;: &quot;AA&quot;, &quot;sortable&quot;: true},
+        {&quot;key&quot;: &quot;b&quot;, &quot;label&quot;: &quot;BB&quot;},
+        {&quot;key&quot;: &quot;c&quot;, &quot;label&quot;: &quot;CC&quot;}
+    ],
+    &quot;items&quot; : [
+      {&quot;a&quot;: &quot;11&quot;, &quot;b&quot;: &quot;22&quot;, &quot;c&quot;: &quot;33&quot;},
+      {&quot;a&quot;: &quot;211&quot;, &quot;b&quot;: &quot;222&quot;, &quot;c&quot;: &quot;233&quot;}
+    ]
+}
+```</code></pre>
+<p>You can use the <code>filter</code> attribute to render a table with content filtered dynamically by user input.</p>
+<pre class="markdown"><code>```json:table
+{
+    &quot;fields&quot; : [
+        {&quot;key&quot;: &quot;a&quot;, &quot;label&quot;: &quot;AA&quot;},
+        {&quot;key&quot;: &quot;b&quot;, &quot;label&quot;: &quot;BB&quot;},
+        {&quot;key&quot;: &quot;c&quot;, &quot;label&quot;: &quot;CC&quot;}
+    ],
+    &quot;items&quot; : [
+      {&quot;a&quot;: &quot;11&quot;, &quot;b&quot;: &quot;22&quot;, &quot;c&quot;: &quot;33&quot;},
+      {&quot;a&quot;: &quot;211&quot;, &quot;b&quot;: &quot;222&quot;, &quot;c&quot;: &quot;233&quot;}
+    ],
+    &quot;filter&quot; : true
+}
+```</code></pre>
+<p>You can use the <code>markdown</code> attribute to allow for GitLab Flavored Markdown in the items and caption, including GitLab references. Fields do not support Markdown.</p>
+<pre class="markdown"><code>```json:table
+{
+    &quot;fields&quot; : [
+        {&quot;key&quot;: &quot;a&quot;, &quot;label&quot;: &quot;AA&quot;},
+        {&quot;key&quot;: &quot;b&quot;, &quot;label&quot;: &quot;BB&quot;},
+        {&quot;key&quot;: &quot;c&quot;, &quot;label&quot;: &quot;CC&quot;}
+    ],
+    &quot;items&quot; : [
+      {&quot;a&quot;: &quot;11&quot;, &quot;b&quot;: &quot;**22**&quot;, &quot;c&quot;: &quot;33&quot;},
+      {&quot;a&quot;: &quot;#1&quot;, &quot;b&quot;: &quot;222&quot;, &quot;c&quot;: &quot;233&quot;}
+    ],
+    &quot;markdown&quot; : true
+}
+```</code></pre>
+<p>By default, every JSON table has the caption <code>Generated with JSON data</code>. You can override this caption by specifying the <code>caption</code> attribute.</p>
+<pre class="markdown"><code>```json:table
+{
+    &quot;items&quot; : [
+      {&quot;a&quot;: &quot;11&quot;, &quot;b&quot;: &quot;22&quot;, &quot;c&quot;: &quot;33&quot;}
+    ],
+    &quot;caption&quot; : &quot;Custom caption&quot;
+}
+```</code></pre>
+<p>If JSON is invalid, an error occurs.</p>
+<pre class="markdown"><code>```json:table
+{
+    &quot;items&quot; : [
+      {&quot;a&quot;: &quot;11&quot;, &quot;b&quot;: &quot;22&quot;, &quot;c&quot;: &quot;33&quot;}
+    ],
+}
+```</code></pre>
+<h2 id="multimedia">Multimedia</h2>
+<p>Embed images, videos, and audio. You can add multimedia using Markdown syntax to link files, set dimensions, and display them inline. Formatting options let you customize titles, specify width and height, and control how media appears in the rendered output.</p>
+<h3 id="images">Images</h3>
+<p>{{&lt; history &gt;}}</p>
+<ul>
+<li>Opening images in an overlay <a href="https://gitlab.com/gitlab-org/gitlab/-/issues/377398">introduced</a> in GitLab 18.6.</li>
+<li>Transparency checkerboard toggle <a href="https://gitlab.com/gitlab-org/gitlab/-/merge_requests/224872">introduced</a> in GitLab 18.10.</li>
+</ul>
+<p>{{&lt; /history &gt;}}</p>
+<p>Embed images using inline or reference <a href="#links">links</a> prepended with a <code>!</code>. For example:</p>
+<!--
+DO NOT change the name of `markdown_logo_v17_11.png`. This file is used for a test in
+spec/controllers/help_controller_spec.rb.
+-->
+<pre class="markdown"><code>![GitLab logo](img/markdown_logo_v17_11.png &quot;Title Text&quot;)</code></pre>
+<blockquote>
+<p><img src="img/markdown_logo_v17_11.png" title="Title Text" alt="GitLab logo" /></p>
+</blockquote>
+<p>In image links:</p>
+<ul>
+<li>Text in the square brackets (<code>[ ]</code>) becomes the image alt text.</li>
+<li>Text in double quotes after the image link path becomes the title text. To see title text, hover over the image.</li>
+</ul>
+<p>For more information, see <a href="#accessible-images-and-videos">accessible images and videos</a>.</p>
+<p>When an image is selected, it opens in an overlay.</p>
+<p>If an image has transparent areas, hover over it and select <strong>Toggle transparency checkerboard</strong> to show a checkerboard background. The checkerboard makes transparent areas visible against any theme. <strong>Toggle transparency checkerboard</strong> appears on PNG, WebP, and GIF images if at least 5% of their pixels have some degree of transparency (are not fully opaque). Images with fewer than 5% transparent pixels do not show the toggle.</p>
+<h3 id="videos">Videos</h3>
+<p>Image tags that link to files with a video extension are automatically converted to a video player. The valid video extensions are <code>.mp4</code>, <code>.m4v</code>, <code>.mov</code>, <code>.webm</code>, and <code>.ogv</code>:</p>
+<p>Here&#039;s an example video:</p>
+<pre class="markdown"><code>![Sample Video](img/markdown_video.mp4)</code></pre>
+<p>This example only works when <a href="https://gitlab.com/gitlab-org/gitlab/-/blob/master/doc/user/markdown.md#videos">rendered in GitLab</a>:</p>
+<blockquote>
+<p><video src="img/markdown_video.mp4" controls=""><a href="img/markdown_video.mp4">Sample Video</a></video></p>
+</blockquote>
+<h3 id="change-image-or-video-dimensions">Change image or video dimensions</h3>
+<p>You can control the width and height of an image or video by following the image with an attribute list. The value must an integer with a unit of either <code>px</code> (default) or <code>%</code>.</p>
+<p>For example</p>
+<pre class="markdown"><code>![GitLab logo](img/markdown_logo_v17_11.png &quot;Title Text&quot;){width=100 height=100px}
+
+![GitLab logo](img/markdown_logo_v17_11.png &quot;Title Text&quot;){width=75%}</code></pre>
+<p>This example only works when <a href="https://gitlab.com/gitlab-org/gitlab/-/blob/master/doc/user/markdown.md#change-image-or-video-dimensions">rendered in GitLab</a>:</p>
+<blockquote>
+<p><img src="img/markdown_logo_v17_11.png" title="Title Text" alt="GitLab logo" />{width=100 height=100px}</p>
+</blockquote>
+<p>You can also use the <code>img</code> HTML tag instead of Markdown and set its <code>height</code> and <code>width</code> parameters.</p>
+<p>When you paste a higher resolution PNG image into a Markdown text box <a href="https://gitlab.com/gitlab-org/gitlab/-/issues/419913">in GitLab 17.1 and later</a>, dimensions are always appended. The dimensions are automatically adjusted to accommodate for retina (and other higher-resolution) displays. For instance, a 144ppi image is resized to 50% of its dimensions, whereas a 96ppi image is resized to 75% of its dimensions.</p>
+<p>When selected, images open in an overlay scaled to either 100% or the largest size that fits in the window.</p>
+<h3 id="audio">Audio</h3>
+<p>Similar to videos, link tags for files with an audio extension are automatically converted to an audio player. The valid audio extensions are <code>.mp3</code>, <code>.oga</code>, <code>.ogg</code>, <code>.spx</code>, and <code>.wav</code>:</p>
+<p>Here&#039;s an example audio clip:</p>
+<pre class="markdown"><code>![Sample Audio](img/markdown_audio.mp3)</code></pre>
+<p>This example only works when <a href="https://gitlab.com/gitlab-org/gitlab/-/blob/master/doc/user/markdown.md#audio">rendered in GitLab</a>:</p>
+<blockquote>
+<p><audio src="img/markdown_audio.mp3" controls=""><a href="img/markdown_audio.mp3">Sample Audio</a></audio></p>
+</blockquote>
+<h2 id="blockquotes">Blockquotes</h2>
+<p>Use a blockquote to highlight information, such as a side note. It&#039;s generated by starting the lines of the blockquote with <code>&gt;</code>:</p>
+<pre class="markdown"><code>&gt; Blockquotes help you emulate reply text.
+&gt; This line is part of the same quote.
+
+Quote break.
+
+&gt; This very long line is still quoted properly when it wraps. Keep writing to make sure this line is long enough to actually wrap for everyone. You can also *use* **Markdown** in a blockquote.</code></pre>
+<p>When rendered, the example looks similar to:</p>
+<blockquote>
+<blockquote>
+<p>Blockquotes help you emulate reply text. This line is part of the same quote.</p>
+</blockquote>
+<p>Quote break.</p>
+<blockquote>
+<p>This very long line is still quoted properly when it wraps. Keep writing to make sure this line is long enough to actually wrap for everyone. You can also <em>use</em> <strong>Markdown</strong> in a blockquote.</p>
+</blockquote>
+</blockquote>
+<h3 id="multiline-blockquote">Multiline blockquote</h3>
+<p>Create multi-line blockquotes fenced by <code>&gt;&gt;&gt;</code>:</p>
+<pre class="markdown"><code>&gt;&gt;&gt;
+If you paste a message from somewhere else
+
+that spans multiple lines,
+
+you can quote that without having to manually prepend `&gt;` to every line!
+&gt;&gt;&gt;</code></pre>
+<blockquote>
+<p>If you paste a message from somewhere else</p>
+<p>that spans multiple lines,</p>
+<p>you can quote that without having to manually prepend <code>&gt;</code> to every line!</p>
+</blockquote>
+<h2 id="code-spans-and-blocks">Code spans and blocks</h2>
+<p>Highlight anything that should be viewed as code and not standard text.</p>
+<p>Inline code is formatted with single backticks <code>`</code>:</p>
+<pre class="markdown"><code>Inline `code` has `back-ticks around` it.</code></pre>
+<p>When rendered, the example looks similar to:</p>
+<blockquote>
+<p>Inline <code>code</code> has <code>back-ticks around</code> it.</p>
+</blockquote>
+<p>For a similar effect with a larger code example, you can use a code block. To create a code block:</p>
+<ul>
+<li>Fence an entire block of code with triple backticks (<code>```</code>). You can use more than three backticks, as long as both the opening and closing set have the same number.</li>
+<li>Fence an entire block of code with triple tildes (<code>~~~</code>).</li>
+<li>Indent it four or more spaces.</li>
+</ul>
+<p>For example:</p>
+<pre class="markdown"><code>Python code block:
+
+```python
+def function():
+    #indenting works just fine in the fenced code block
+    s = &quot;Python code&quot;
+    print(s)
+```
+
+Markdown code block using 4 spaces:
+
+    Using 4 spaces
+    is like using
+    3-backtick fences.
+
+JavaScript code block using tildes:
+
+~~~javascript
+const s = &quot;JavaScript syntax highlighting&quot;;
+alert(s);
+~~~</code></pre>
+<p>The three previous examples render as:</p>
+<blockquote>
+<p>Python code block:</p>
+<pre class="python"><code>def function():
+    #indenting works just fine in the fenced code block
+    s = &quot;Python code&quot;
+    print(s)</code></pre>
+<p>Markdown code block using 4 spaces:</p>
+<pre class="plaintext"><code>Using 4 spaces
+is like using
+3-backtick fences.</code></pre>
+<p>JavaScript code block using tildes:</p>
+<pre class="javascript"><code>const s = &quot;JavaScript syntax highlighting&quot;;
+alert(s);</code></pre>
+</blockquote>
+<h3 id="syntax-highlighting">Syntax highlighting</h3>
+<p>GitLab uses the <a href="https://github.com/rouge-ruby/rouge">Rouge Ruby library</a> for more colorful syntax highlighting in code blocks. For a list of supported languages visit the <a href="https://github.com/rouge-ruby/rouge/wiki/List-of-supported-languages-and-lexers">Rouge project wiki</a>. Syntax highlighting is supported only in code blocks, so you can&#039;t highlight inline code.</p>
+<p>To fence and apply syntax highlighting to a block of code, append the code language to the opening code declaration, after the three back-ticks (<code>```</code>) or three tildes (<code>~~~</code>).</p>
+<p>Code blocks that use <code>plaintext</code> or have no code language specified have no syntax highlighting:</p>
+<pre class="plaintext"><code>```
+No language indicated, so **no** syntax highlighting.
+s = &quot;No highlighting is shown for this line.&quot;
+But let&#039;s throw in a &lt;b&gt;tag&lt;/b&gt;.
+```</code></pre>
+<p>When rendered, the example looks similar to:</p>
+<blockquote>
+<pre class="plaintext"><code>No language indicated, so **no** syntax highlighting.
+s = &quot;No highlighting is shown for this line.&quot;
+But let&#039;s throw in a &lt;b&gt;tag&lt;/b&gt;.</code></pre>
+</blockquote>
+<h2 id="diagrams-and-flowcharts">Diagrams and flowcharts</h2>
+<p>You can generate diagrams from text by using:</p>
+<ul>
+<li><a href="https://mermaidjs.github.io/">Mermaid</a></li>
+<li><a href="https://plantuml.com">PlantUML</a></li>
+<li><a href="https://kroki.io">Kroki</a> to create a wide variety of diagrams.</li>
+</ul>
+<p>In wikis, you can also add and edit diagrams created with the <a href="project/wiki/markdown.md#diagramsnet-editor">diagrams.net editor</a>.</p>
+<h3 id="mermaid">Mermaid</h3>
+<p>{{&lt; history &gt;}}</p>
+<ul>
+<li>Support for Entity Relationship diagrams and mind maps <a href="https://gitlab.com/gitlab-org/gitlab/-/issues/384386">introduced</a> in GitLab 16.0.</li>
+</ul>
+<p>{{&lt; /history &gt;}}</p>
+<p>Visit the <a href="https://mermaidjs.github.io/">official page</a> for more details. The <a href="https://mermaid-js.github.io/mermaid-live-editor/">Mermaid Live Editor</a> helps you learn Mermaid and debug issues in your Mermaid code. Use it to identify and resolve issues in your diagrams.</p>
+<p>GitLab.com supports Mermaid version 10.</p>
+<p>To generate a diagram or flowchart, write your text inside the <code>mermaid</code> block:</p>
+<pre class="markdown"><code>```mermaid
+graph TD
+    accTitle: Basic Mermaid diagram example
+    accDescr: Simple flowchart showing nodes A, B, C, and D with connections between them.
+
+  A--&gt;B;
+  A--&gt;C;
+  B--&gt;D;
+  C--&gt;D;
+```</code></pre>
+<div class="note">
+<div class="title">
+<p>Note</p>
+</div>
+<p>On GitLab Self-Managed, if you configured a <code>Cross-Origin-Resource-Policy</code> header with <code>same-site</code> or <code>same-origin</code>, Mermaid diagrams silently fail to render. To resolve this, use <code>cross-origin</code> instead. For more information, see <a href="https://docs.gitlab.com/omnibus/settings/nginx/#cross-origin-resource-policy-header-and-mermaid-diagrams"><code>Cross-Origin-Resource-Policy</code> header and Mermaid diagrams</a>.</p>
+</div>
+<p>When rendered, the example looks similar to:</p>
+<pre class="mermaid"><code>graph TD
+    accTitle: Basic Mermaid diagram example
+    accDescr: Simple flowchart showing nodes A, B, C, and D with connections between them.
+
+  A--&gt;B;
+  A--&gt;C;
+  B--&gt;D;
+  C--&gt;D;</code></pre>
+<p>You can also include subgraphs:</p>
+<pre class="markdown"><code>```mermaid
+graph TB
+    accTitle: Mermaid diagram with subgraphs
+    accDescr: Flowchart showing main graph with two subgraphs containing nodes and decision flows.
+
+  SubGraph1 --&gt; SubGraph1Flow
+
+  subgraph &quot;SubGraph 1 Flow&quot;
+    SubGraph1Flow(SubNode 1)
+    SubGraph1Flow -- Choice1 --&gt; DoChoice1
+    SubGraph1Flow -- Choice2 --&gt; DoChoice2
+  end
+
+  subgraph &quot;Main Graph&quot;
+    Node1[Node 1] --&gt; Node2[Node 2]
+    Node2 --&gt; SubGraph1[Jump to SubGraph1]
+    SubGraph1 --&gt; FinalThing[Final Thing]
+  end
+```</code></pre>
+<p>When rendered, the example looks similar to:</p>
+<pre class="mermaid"><code>graph TB
+    accTitle: Mermaid diagram with subgraphs rendered
+    accDescr: Flowchart showing main graph with two subgraphs containing nodes and decision flows as rendered.
+
+  SubGraph1 --&gt; SubGraph1Flow
+
+  subgraph &quot;SubGraph 1 Flow&quot;
+    SubGraph1Flow(SubNode 1)
+    SubGraph1Flow -- Choice1 --&gt; DoChoice1
+    SubGraph1Flow -- Choice2 --&gt; DoChoice2
+  end
+
+  subgraph &quot;Main Graph&quot;
+    Node1[Node 1] --&gt; Node2[Node 2]
+    Node2 --&gt; SubGraph1[Jump to SubGraph1]
+    SubGraph1 --&gt; FinalThing[Final Thing]
+  end</code></pre>
+<h3 id="plantuml">PlantUML</h3>
+<p>PlantUML integration is enabled on GitLab.com. To make PlantUML available in GitLab Self-Managed installation of GitLab, a GitLab administrator <a href="../administration/integration/plantuml.md">must enable it</a>.</p>
+<p>After you enable PlantUML, diagram delimiters <code>@startuml</code>/<code>@enduml</code> aren&#039;t required, as these are replaced by the <code>plantuml</code> block. For example:</p>
+<pre class="markdown"><code>```plantuml
+Bob -&gt; Alice : hello
+Alice -&gt; Bob : hi
+```</code></pre>
+<p>You can include or embed a PlantUML diagram from separate files in the repository using the <code>::include</code> directive. For more information, see <a href="../administration/integration/plantuml.md#include-diagram-files">include diagram files</a>.</p>
+<h3 id="kroki">Kroki</h3>
+<p>To make Kroki available in GitLab, a GitLab administrator must enable it. For more information, see the <a href="../administration/integration/kroki.md">Kroki integration</a> page.</p>
+<h2 id="math-equations">Math equations</h2>
+<p>Math written in LaTeX syntax is rendered with <a href="https://github.com/KaTeX/KaTeX">KaTeX</a>. <em>KaTeX only supports a <a href="https://katex.org/docs/supported.html">subset</a> of LaTeX.</em> This syntax also works in AsciiDoc wikis and files using <code>:stem: latexmath</code>. For details, see the <a href="https://asciidoctor.org/docs/user-manual/#activating-stem-support">Asciidoctor user manual</a>.</p>
+<p>To prevent malicious activity, GitLab renders only the first 50 inline math instances. You can disable this limit <a href="../api/graphql/reference/_index.md#mutationgroupupdate">for a group</a> or for the entire <a href="../administration/instance_limits.md#math-rendering-limits">GitLab Self-Managed instance</a>.</p>
+<p>The number of math blocks is also limited based on render time. If the limit is exceeded, GitLab renders the excess math instances as text. Wiki and repository files do not have these limits.</p>
+<p>Math written between dollar signs with backticks (<code>$`...`$</code>) or single dollar signs (<code>$...$</code>) is rendered inline with the text.</p>
+<p>Math written between double dollar signs (<code>$$...$$</code>) or in a <a href="#code-spans-and-blocks">code block</a> with the language declared as <code>math</code> is rendered on a separate line:</p>
+<!--
+Translation note: DO NOT TRANSLATE this example. The example must stay untranslated
+to stay in sync with the image.
+-->
+<pre class="markdown"><code>This math is inline: $`a^2+b^2=c^2`$.
+
+This math is on a separate line using a ` ```math ` block:
+
+```math
+a^2+b^2=c^2
+```
+
+This math is on a separate line using inline `$$`: $$a^2+b^2=c^2$$
+
+This math is on a separate line using a `$$...$$` block:
+
+$$
+a^2+b^2=c^2
+$$</code></pre>
+<p>When rendered, the example looks like:</p>
+<p><img src="img/markdown_math_v17_2.png" alt="Example of math in GitLab" /></p>
+<div class="note">
+<div class="title">
+<p>Note</p>
+</div>
+<p>The rich text editor does not support inserting new math blocks. To insert a new math block, use the plain text editor. For more information, see <a href="https://gitlab.com/gitlab-org/gitlab/-/issues/366527">issue 366527</a>.</p>
+</div>
+<h2 id="table-of-contents">Table of contents</h2>
+<p>A table of contents is an unordered list that links to subheadings in the document. You can add a table of contents to issues, merge requests, and epics, but you can&#039;t add one to notes or comments.</p>
+<p>Add one of these tags on their own line to the <strong>description</strong> field of any of the supported content types:</p>
+<!--
+Tags for the table of contents are presented in a code block to work around a Markdown bug.
+Do not change the code block back to single backticks.
+For more information, see <https://gitlab.com/gitlab-org/gitlab/-/issues/359077>.
+-->
+<pre class="markdown"><code>[[_TOC_]]
+or
+[TOC]</code></pre>
+<ul>
+<li>Markdown files.</li>
+<li>Wiki pages.</li>
+<li>Issues.</li>
+<li>Merge requests.</li>
+<li>Epics.</li>
+</ul>
+<div class="note">
+<div class="title">
+<p>Note</p>
+</div>
+<p>A table of contents renders also when you use the TOC code in single square brackets, regardless of being on its own line or not. This behavior is unintended. For more information, see <a href="https://gitlab.com/gitlab-org/gitlab/-/issues/359077">issue 359077</a>.</p>
+</div>
+<!--
+Translation note: DO NOT TRANSLATE this example. The example must stay untranslated
+to stay in sync with the image.
+-->
+<pre class="markdown"><code>This is an intro sentence to my wiki page.
+
+[[_TOC_]]
+
+## My first heading
+
+First section content.
+
+## My second heading
+
+Second section content.</code></pre>
+<p><img src="img/markdown_toc_preview_v12_9.png" alt="Preview of an auto-generated table of contents in a Wiki" /></p>
+<h2 id="alerts">Alerts</h2>
+<p>{{&lt; history &gt;}}</p>
+<ul>
+<li><a href="https://gitlab.com/gitlab-org/gitlab/-/issues/24482">Introduced</a> in GitLab 17.10.</li>
+</ul>
+<p>{{&lt; /history &gt;}}</p>
+<p>Alerts can be used to highlight or call attention to something. The alert syntax uses the Markdown blockquote syntax followed by the type of alert. You can use alerts in any text box that supports Markdown.</p>
+<p>You can use the following types of alerts:</p>
+<!--
+Translation note: DO NOT TRANSLATE any examples in this section. The examples must stay untranslated
+to stay in sync with the image.
+-->
+<ul>
+<li><p>Note: information that users should take into account, even when skimming:</p>
+<pre class="markdown"><code>&gt; [!note]
+&gt; The following information is useful.</code></pre></li>
+<li><p>Tip: Optional information to help a user be more successful:</p>
+<pre class="markdown"><code>&gt; [!tip]
+&gt; Tip of the day.</code></pre></li>
+<li><p>Important: Crucial information necessary for users to succeed:</p>
+<pre class="markdown"><code>&gt; [!important]
+&gt; This is something important you should know.</code></pre></li>
+<li><p>Caution: Negative potential consequences of an action:</p>
+<pre class="markdown"><code>&gt; [!caution]
+&gt; You need to be very careful about the following.</code></pre></li>
+<li><p>Warning: Critical potential risks:</p>
+<pre class="markdown"><code>&gt; [!warning]
+&gt; The following would be dangerous.</code></pre></li>
+</ul>
+<p>The title text shown for an alert defaults to the name of the alert. For example, <code>&gt; [!warning]</code> alert has the title <code>Warning</code>.</p>
+<p>To override an alert block&#039;s title, enter any text on the same line. For example, to use the warning color but have <code>Data deletion</code> as the title:</p>
+<pre class="markdown"><code>&gt; [!warning] Data deletion
+&gt; The following instructions will make your data unrecoverable.</code></pre>
+<p><a href="#multiline-blockquote">Multiline blockquotes</a> also support the alert syntax. This allows you to wrap large and more complex text in an alert.</p>
+<pre class="markdown"><code>&gt;&gt;&gt; [!note] Things to consider
+You should consider the following ramifications:
+
+1. consideration 1
+1. consideration 2
+&gt;&gt;&gt;</code></pre>
+<p>The alerts render as:</p>
+<p><img src="img/markdown_alerts_v18_3.png" alt="How Markdown alerts are rendered in GitLab" /></p>
+<h2 id="colors">Colors</h2>
+<p>Markdown does not support changing text color.</p>
+<p>You can write a color code in the formats: <code>HEX</code>, <code>RGB</code>, or <code>HSL</code>.</p>
+<ul>
+<li><code>HEX</code>: <code>`#RGB[A]`</code> or <code>`#RRGGBB[AA]`</code></li>
+<li><code>RGB</code>: <code>`RGB[A](R, G, B[, A])`</code></li>
+<li><code>HSL</code>: <code>`HSL[A](H, S, L[, A])`</code></li>
+</ul>
+<p>Named colors are not supported.</p>
+<p>In the GitLab application (but not the GitLab documentation) color codes in backticks display a color chip next to the color code. For example:</p>
+<pre class="markdown"><code>- `#F00`
+- `#F00A`
+- `#FF0000`
+- `#FF0000AA`
+- `RGB(0,255,0)`
+- `RGB(0%,100%,0%)`
+- `RGBA(0,255,0,0.3)`
+- `HSL(540,70%,50%)`
+- `HSLA(540,70%,50%,0.3)`</code></pre>
+<p>This example only works when <a href="https://gitlab.com/gitlab-org/gitlab/-/blob/master/doc/user/markdown.md#colors">rendered in GitLab</a>:</p>
+<ul>
+<li><code>#F00</code></li>
+<li><code>#F00A</code></li>
+<li><code>#FF0000</code></li>
+<li><code>#FF0000AA</code></li>
+<li><code>RGB(0,255,0)</code></li>
+<li><code>RGB(0%,100%,0%)</code></li>
+<li><code>RGBA(0,255,0,0.3)</code></li>
+<li><code>HSL(540,70%,50%)</code></li>
+<li><code>HSLA(540,70%,50%,0.3)</code></li>
+</ul>
+<h3 id="escape-color-codes">Escape color codes</h3>
+<p>{{&lt; history &gt;}}</p>
+<ul>
+<li><a href="https://gitlab.com/gitlab-org/gitlab/-/issues/359069">Introduced</a> in GitLab 18.3.</li>
+</ul>
+<p>{{&lt; /history &gt;}}</p>
+<p>To display a color code as inline code without generating a color chip, prefix it with a backslash (<code>\</code>).</p>
+<p>For example:</p>
+<ul>
+<li><code>\#FF0000</code></li>
+<li><code>\RGB(255,0,0)</code></li>
+<li><code>\HSL(0,100%,50%)</code></li>
+</ul>
+<p>In all cases, the backslash is removed, and no color chip is rendered in the output.</p>
+<p>Use when you want to include values like issue numbers in inline code without accidentally triggering a color chip.</p>
+<h2 id="emoji">Emoji</h2>
+<p>You can use emoji anywhere GitLab Flavored Markdown is supported. For example:</p>
+<pre class="markdown"><code>Sometimes you want to :monkey: around a bit and add some :star2: to your
+:speech_balloon:. Well we have a gift for you: emoji!
+
+You can use it to point out a :bug: or warn about :speak_no_evil: patches.
+And if someone improves your really :snail: code, send them some :birthday:.
+People :heart: you for that.
+
+If you&#039;re new to this, don&#039;t be :fearful:. You can join the emoji :family:.
+Just look up one of the supported codes.</code></pre>
+<p>When rendered, the example looks similar to:</p>
+<blockquote>
+<p>Sometimes you want to <img src="https://gitlab.com/gitlab-org/gitlab/-/raw/master/public/-/emojis/4/monkey.png" width="20px" height="20px" style="display:inline;margin:0;border:0;padding:0;" title=":monkey:" alt=":monkey:"> around a bit and add some <img src="https://gitlab.com/gitlab-org/gitlab/-/raw/master/public/-/emojis/4/star2.png" width="20px" height="20px" style="display:inline;margin:0;border:0;padding:0;" title=":star2:" alt=":star2:"> to your <img src="https://gitlab.com/gitlab-org/gitlab/-/raw/master/public/-/emojis/4/speech_balloon.png" width="20px" height="20px" style="display:inline;margin:0;border:0;padding:0;" title=":speech_balloon:" alt=":speech_balloon:">. Well we have a gift for you: emoji!</p>
+<p>You can use it to point out a <img src="https://gitlab.com/gitlab-org/gitlab/-/raw/master/public/-/emojis/4/bug.png" width="20px" height="20px" style="display:inline;margin:0;border:0;padding:0;" title=":bug:" alt=":bug:"> or warn about <img src="https://gitlab.com/gitlab-org/gitlab/-/raw/master/public/-/emojis/4/speak_no_evil.png" width="20px" height="20px" style="display:inline;margin:0;border:0;padding:0;" title=":speak_no_evil:" alt=":speak_no_evil:"> patches. If someone improves your really <img src="https://gitlab.com/gitlab-org/gitlab/-/raw/master/public/-/emojis/4/snail.png" width="20px" height="20px" style="display:inline;margin:0;border:0;padding:0;" title=":snail:" alt=":snail:"> code, send them some <img src="https://gitlab.com/gitlab-org/gitlab/-/raw/master/public/-/emojis/4/birthday.png" width="20px" height="20px" style="display:inline;margin:0;border:0;padding:0;" title=":birthday:" alt=":birthday:">. People <img src="https://gitlab.com/gitlab-org/gitlab/-/raw/master/public/-/emojis/4/heart.png" width="20px" height="20px" style="display:inline;margin:0;border:0;padding:0;" title=":heart:" alt=":heart:"> you for that.</p>
+<p>If you&#039;re new to this, don&#039;t be <img src="https://gitlab.com/gitlab-org/gitlab/-/raw/master/public/-/emojis/4/fearful.png" width="20px" height="20px" style="display:inline;margin:0;border:0;padding:0;" title=":fearful:" alt=":fearful:">. You can join the emoji <img src="https://gitlab.com/gitlab-org/gitlab/-/raw/master/public/-/emojis/4/family.png" width="20px" height="20px" style="display:inline;margin:0;border:0;padding:0;" title=":family:" alt=":family:">. Just look up one of the supported codes.</p>
+</blockquote>
+<p>For more information, see the <a href="https://www.webfx.com/tools/emoji-cheat-sheet/">emoji cheat sheet</a> for a list of all supported emoji codes.</p>
+<h3 id="emoji-and-your-operating-system">Emoji and your operating system</h3>
+<p>The previous emoji example uses hard-coded images. Rendered emoji in GitLab might look different depending on the OS and browser used.</p>
+<p>Most emoji are natively supported on macOS, Windows, iOS, Android, and fall back on image-based emoji where there is no support.</p>
+<!-- vale gitlab_base.Spelling = NO -->
+<p>On Linux, you can download <a href="https://github.com/googlefonts/noto-emoji">Noto Color Emoji</a> to get full native emoji support. Ubuntu 22.04 (like many modern Linux distributions) has this font installed by default.</p>
+<!-- vale gitlab_base.Spelling = YES -->
+<p>For more information about adding custom emoji, see <a href="emoji_reactions.md#custom-emoji">custom emoji</a>.</p>
+<h2 id="front-matter">Front matter</h2>
+<p>Front matter is metadata included at the beginning of a Markdown document, preceding the content. This data can be used by static site generators like <a href="https://jekyllrb.com/docs/front-matter/">Jekyll</a>, <a href="https://gohugo.io/content-management/front-matter/">Hugo</a>, and many other applications.</p>
+<p>When you view a Markdown file rendered by GitLab, front matter is displayed as-is, in a box at the top of the document. The HTML content displays after the front matter. To view an example, you can toggle between the source and rendered version of a <a href="https://gitlab.com/gitlab-org/gitlab/-/blob/master/doc/_index.md">GitLab documentation file</a>.</p>
+<p>In GitLab, front matter is used only in Markdown files and wiki pages, not the other places where Markdown formatting is supported. It must be at the very top of the document and must be between delimiters.</p>
+<p>The following delimiters are supported:</p>
+<ul>
+<li><p>YAML (<code>---</code>):</p>
+<pre class="yaml"><code>---
+title: About Front Matter
+example:
+  language: yaml
+---</code></pre></li>
+<li><p>TOML (<code>+++</code>):</p>
+<pre class="toml"><code>+++
+title = &quot;About Front Matter&quot;
+[example]
+language = &quot;toml&quot;
++++</code></pre></li>
+<li><p>JSON (<code>;;;</code>):</p>
+<pre class="json"><code>;;;
+{
+  &quot;title&quot;: &quot;About Front Matter&quot;,
+  &quot;example&quot;: {
+    &quot;language&quot;: &quot;json&quot;
+  }
+}
+;;;</code></pre></li>
+</ul>
+<p>Other languages are supported by adding a specifier to any of the existing delimiters. For example:</p>
+<pre class="php"><code>---php
+$title = &quot;About Front Matter&quot;;
+$example = array(
+  &#039;language&#039; =&gt; &quot;php&quot;,
+);
+---</code></pre>
+<h2 id="includes">Includes</h2>
+<p>{{&lt; history &gt;}}</p>
+<ul>
+<li><a href="https://gitlab.com/gitlab-org/gitlab/-/issues/195798">Introduced</a> in GitLab 17.7.</li>
+</ul>
+<p>{{&lt; /history &gt;}}</p>
+<p>Use includes, or include directives, to add the content of a document inside another document.</p>
+<p>For example, a book could be split into multiple chapters, and then each chapter could be included in the main book document:</p>
+<pre class="markdown"><code>::include{file=chapter1.md}
+
+::include{file=chapter2.md}</code></pre>
+<p>In GitLab, include directives are used only in Markdown files and wiki pages, not the other places where Markdown formatting is supported.</p>
+<p>Use an include directive in a Markdown file:</p>
+<pre class="markdown"><code>::include{file=example_file.md}</code></pre>
+<p>Use an include directive in a wiki page:</p>
+<pre class="markdown"><code>::include{file=example_page.md}</code></pre>
+<p>Each <code>::include</code> must start at the beginning of a line, and specifies a file or URL for <code>file=</code>. The content of the specified file (or URL) is included at the position of the <code>::include</code> and processed with the remaining Markdown.</p>
+<p>Include directives inside the included file are ignored. For example, if <code>file1</code> includes <code>file2</code>, and <code>file2</code> includes <code>file3</code>, when <code>file1</code> is processed, it doesn&#039;t have the contents of <code>file3</code>.</p>
+<h3 id="include-limits">Include limits</h3>
+<p>To guarantee good system performance and prevent malicious documents from causing problems, GitLab enforces a maximum limit on the number of include directives processed in a document. By default, a document can have up to 32 include directives.</p>
+<p>To customize the number of processed include directives, administrators can change the <code>asciidoc_max_includes</code> application setting with the <a href="../api/settings.md#available-settings">application settings API</a>.</p>
+<h3 id="use-includes-from-external-urls">Use includes from external URLs</h3>
+<p>To use includes from separate wiki pages or external URLs, administrators can enable the <code>wiki_asciidoc_allow_uri_includes</code> <a href="../administration/wikis/_index.md#allow-uri-includes-for-asciidoc">application setting</a>.</p>
+<pre class="markdown"><code>&lt;!-- define application setting wiki_asciidoc_allow_uri_includes to true to allow content to be read from URI --&gt;
+::include{file=https://example.org/installation.md}</code></pre>
+<h3 id="use-includes-in-code-blocks">Use includes in code blocks</h3>
+<p>You can use the <code>::include</code> directive inside code blocks to add content from files in your repository. For example, if your repository contains a file <code>javascript_code.js</code>:</p>
+<pre class="javascript"><code>const s = &quot;JavaScript syntax highlighting&quot;;
+alert(s);</code></pre>
+<p>You can include it in your Markdown file:</p>
+<pre class="markdown"><code>Our script contains:
+
+```javascript
+::include{file=javascript_code.js}
+```</code></pre>
+<p>When rendered, the example looks similar to:</p>
+<blockquote>
+<p>Our script contains:</p>
+<pre class="javascript"><code>const s = &quot;JavaScript syntax highlighting&quot;;
+alert(s);</code></pre>
+</blockquote>
+<h2 id="placeholders">Placeholders</h2>
+<p>{{&lt; history &gt;}}</p>
+<ul>
+<li><a href="https://gitlab.com/gitlab-org/gitlab/-/issues/14389">Introduced</a> in GitLab 18.2 <a href="../administration/feature_flags/_index.md">with a flag</a> named <code>markdown_placeholders</code>. Disabled by default.</li>
+</ul>
+<p>{{&lt; /history &gt;}}</p>
+<blockquote>
+<p>[!flag] The availability of this feature is controlled by a feature flag. For more information, see the history. This feature is available for testing, but not ready for production use.</p>
+</blockquote>
+<p>Placeholders can be used to display certain types of changeable data, such as a project&#039;s title or latest tag. They are filled in each time the Markdown is rendered.</p>
+<p>The syntax is <code>%{PLACEHOLDER}</code>.</p>
+<table>
+<colgroup><col style="width: 44%" /><col style="width: 34%" /><col style="width: 21%" /></colgroup>
+<thead>
+<tr><th>Placeholder</th><th>Example value</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>%{gitlab_server}</code></td><td><code>gitlab.com</code></td><td>Server of a project</td></tr>
+<tr><td><code>%{gitlab_pages_domain}</code></td><td><code>pages.gitlab.com</code></td><td>Domain hosting GitLab Pages</td></tr>
+<tr><td><code>%{project_path}</code></td><td><code>gitlab-org/gitlab</code></td><td>Path of a project including the parent groups</td></tr>
+<tr><td><code>%{project_name}</code></td><td><code>gitlab</code></td><td>Name of a project</td></tr>
+<tr><td><code>%{project_id}</code></td><td><code>278964</code></td><td>Database ID associated with a project</td></tr>
+<tr><td><code>%{project_namespace}</code></td><td><code>gitlab-org</code></td><td>Project namespace of a project</td></tr>
+<tr><td><code>%{project_title}</code></td><td><code>GitLab</code></td><td>Title of a project</td></tr>
+<tr><td><code>%{group_name}</code></td><td><code>gitlab-org</code></td><td>Group of a project</td></tr>
+<tr><td><code>%{default_branch}</code></td><td><code>main</code></td><td>Default branch name configured for a project&#039;s repository</td></tr>
+<tr><td><code>%{current_ref}</code></td><td><code>feature-branch</code></td><td>Current ref (branch, tag, or commit SHA) being viewed</td></tr>
+<tr><td><code>%{commit_sha}</code></td><td><code>ad10e011ce65492322037633ebc054efde37b143</code></td><td>ID of the most recent commit to the default branch of a project&#039;s repository</td></tr>
+<tr><td><code>%{latest_tag}</code></td><td><code>v17.10.7-ee</code></td><td>Latest tag added to the project&#039;s repository</td></tr>
+</tbody>
+</table>
+<h2 id="escape-characters">Escape characters</h2>
+<p>Markdown reserves the following ASCII characters to format the page:</p>
+<pre class="plaintext"><code>! &quot; # $ % &amp; &#039; ( ) * + , - . / : ; &lt; = &gt; ? @ [ \ ] ^ _ ` { | } ~</code></pre>
+<p>To use one of these reserved characters in your text, add the backslash character (<code>\</code>) immediately before the reserved character. When you place the backslash before a reserved character, the Markdown parser omits the backslash and treats the reserved character as regular text.</p>
+<p>Examples:</p>
+<pre class="plaintext"><code>\# Not a heading
+
+| Food  | Do you like this food? (circle) |
+|-------|---------------------------------|
+| Pizza | Yes \| No                       |
+
+\**Not bold, just italic text placed between some asterisks*\*</code></pre>
+<p>When rendered, the example looks similar to:</p>
+<blockquote>
+<p># Not a heading</p>
+<table>
+<colgroup><col style="width: 17%" /><col style="width: 82%" /></colgroup>
+<thead>
+<tr><th>Food</th><th>Do you like this food? (circle)</th></tr>
+</thead>
+<tbody>
+<tr><td>Pizza</td><td>Yes | No</td></tr>
+</tbody>
+</table>
+<p>**Not bold, just italic text placed between some asterisks**</p>
+</blockquote>
+<p>A backslash doesn&#039;t always escape the character that follows it. The backslash appears as regular text in the following cases:</p>
+<ul>
+<li>When the backslash appears before a non-reserved character, such as <code>A</code>, <code>3</code>, or a space.</li>
+<li>When the backslash appears inside of these Markdown elements:
+<ul>
+<li>Auto-links</li>
+<li>Inline HTML, such as <code>&lt;kbd&gt;</code></li>
+<li>Code blocks</li>
+<li>Code spans</li>
+</ul></li>
+</ul>
+<p>In these instances you might need to use the equivalent HTML entity, such as <code>&amp;#93;</code> for <code>]</code>.</p>
+<h3 id="use-additional-backticks">Use additional backticks</h3>
+<p>The previous advice does not apply to code blocks or code spans, where literal contents are always displayed. Instead, use additional backticks to nest the code.</p>
+<p>If you need to include three backticks in a code block, use a greater number of backticks to create the code block:</p>
+<pre class="markdown"><code>To create a code block in Markdown, use three or more matching backticks:
+
+````markdown
+```
+code
+```
+````</code></pre>
+<p>When rendered, the example looks similar to:</p>
+<blockquote>
+<p>To create a code block in Markdown, use three or more matching backticks:</p>
+<pre class="markdown"><code>```
+code
+```</code></pre>
+</blockquote>
+<p>To include one or more backticks in a code span, use a greater number of matching backticks to create the code span. If the content begins and ends with a space, those spaces are also trimmed:</p>
+<pre class="markdown"><code>To create a code span in Markdown, use matching backticks: `` `hello, world` ``</code></pre>
+<p>When rendered, the example looks similar to:</p>
+<blockquote>
+<p>To create a code span in Markdown, use matching backticks: <code>`hello, world`</code></p>
+</blockquote>
+<h3 id="use-backslash-with-backticks">Use backslash with backticks</h3>
+<p>When the backslash (<code>\</code>) character is at the end of an inline code sample, the backslash can escape the last backtick. In this case, add extra spaces around the inline code, for example:</p>
+<pre class="markdown"><code>Use the backslash ` \ ` character to escape inline code that ends in a ` backslash\ `.</code></pre>
+<p>When rendered, the example looks similar to:</p>
+<blockquote>
+<p>Use the backslash <code>\</code> character to escape inline code that ends in a <code>backslash\</code>.</p>
+</blockquote>
+<h2 id="footnotes">Footnotes</h2>
+<p>Footnotes add a link to a note rendered at the end of a Markdown file.</p>
+<p>To make a footnote, you need both a reference tag and a separate line (anywhere in the file) with the note content.</p>
+<p>Regardless of the tag names, the relative order of the reference tags determines the rendered numbering.</p>
+<p>Regardless where you put the note, it&#039;s always shown at the bottom of the rendered file.</p>
+<div class="note">
+<div class="title">
+<p>Note</p>
+</div>
+<p>The rich text editor does not support inserting new footnotes. To insert a new footnote, use the plain text editor. For more information, see <a href="https://gitlab.com/gitlab-org/gitlab/-/issues/365265">issue 365265</a>.</p>
+</div>
+<p>For example:</p>
+<ul>
+<li><p>Referencing footnotes:</p>
+<pre class="markdown"><code>A footnote reference tag looks like this:[^1]
+
+This reference tag is a mix of letters and numbers. [^footnote-42]</code></pre></li>
+<li><p>Defining footnotes in a different part of the file:</p>
+<pre class="markdown"><code>[^1]: This text is inside a footnote.
+[^footnote-42]: This text is another footnote.</code></pre></li>
+</ul>
+<p>When rendered, footnotes look similar to:</p>
+<blockquote>
+<p>A footnote reference tag looks like this:<a href="#fn1" class="footnote-ref" id="fnref1" role="doc-noteref"><sup>1</sup></a></p>
+<p>This reference tag is a mix of letters and numbers.<a href="#fn2" class="footnote-ref" id="fnref2" role="doc-noteref"><sup>2</sup></a></p>
+</blockquote>
+<h2 id="inline-html">Inline HTML</h2>
+<p>You can also use raw HTML in your Markdown, and it usually works pretty well.</p>
+<p>See the documentation for <code>HTML::Pipeline</code>&#039;s <a href="https://github.com/gjtorikian/html-pipeline/blob/v2.12.3/lib/html/pipeline/sanitization_filter.rb#L42">SanitizationFilter</a> class for the list of allowed HTML tags and attributes. In addition to the default <code>SanitizationFilter</code> allowlist, GitLab allows <code>span</code>, <code>abbr</code>, <code>details</code> and <code>summary</code> elements. <code>rel=&quot;license&quot;</code> is allowed on links to support the <a href="https://microformats.org/wiki/rel-license">Rel-License microformat</a> and license attribution.</p>
+<pre class="html"><code>&lt;dl&gt;
+  &lt;dt&gt;Definition list&lt;/dt&gt;
+  &lt;dd&gt;Is something people use sometimes.&lt;/dd&gt;
+
+  &lt;dt&gt;Markdown in HTML&lt;/dt&gt;
+  &lt;dd&gt;Does *not* work **very** well. HTML &lt;em&gt;tags&lt;/em&gt; do &lt;b&gt;work&lt;/b&gt;, in most cases.&lt;/dd&gt;
+&lt;/dl&gt;</code></pre>
+<p>When rendered, the example looks similar to:</p>
+<p>&gt;</p>
+<dl>
+<dt>Definition list</dt>
+<dd>
+<p>Is something people use sometimes.</p>
+</dd>
+<dt>Markdown in HTML</dt>
+<dd>
+<p>Does *not* work **very** well. HTML <em>tags</em> do <strong>work</strong>, in most cases.</p>
+</dd>
+</dl>
+<p>It&#039;s still possible to use Markdown inside HTML tags, but only if the lines containing Markdown are separated into their own lines:</p>
+<pre class="html"><code>&lt;dl&gt;
+  &lt;dt&gt;Markdown in HTML&lt;/dt&gt;
+  &lt;dd&gt;
+
+  Does *not* work **very** well. HTML tags work, in most cases.
+
+  &lt;/dd&gt;
+&lt;/dl&gt;</code></pre>
+<p>When rendered, the example looks similar to:</p>
+<!--
+The example below uses HTML to force correct rendering on docs.gitlab.com,
+Markdown is fine in GitLab.
+-->
+<!-- markdownlint-disable MD027 -->
+<p>&gt;</p>
+<dl>
+<dt>Markdown in HTML</dt>
+</dl>
+<!-- markdownlint-enable MD027 -->
+<h3 id="collapsible-section">Collapsible section</h3>
+<p>Content can be collapsed using HTML&#039;s <a href="https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/details"><code>&lt;details&gt;</code></a> and <a href="https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/summary"><code>&lt;summary&gt;</code></a> tags. For example, collapse a long log file so it takes up less screen space.</p>
+<pre class="html"><code>&lt;details&gt;
+&lt;summary&gt;Click to expand&lt;/summary&gt;
+
+These details &lt;em&gt;remain&lt;/em&gt; &lt;strong&gt;hidden&lt;/strong&gt; until expanded.
+
+&lt;pre&gt;&lt;code&gt;PASTE LOGS HERE&lt;/code&gt;&lt;/pre&gt;
+
+&lt;/details&gt;</code></pre>
+<p>When rendered, the example looks similar to:</p>
+<blockquote>
+<details>
+<summary>Click to expand</summary>
+<p>These details <em>remain</em> <strong>hidden</strong> until expanded.</p>
+</blockquote>
+<p>&gt;</p>
+<pre><code>PASTE LOGS HERE</code></pre>
+<blockquote>
+</details>
+</blockquote>
+<hr />
+<p>Markdown inside these tags is also supported.</p>
+<p>Remember to leave a blank line before and after any Markdown sections, as shown in the example:</p>
+<pre class="html"><code>&lt;details&gt;
+&lt;summary&gt;
+
+Click to _expand._
+
+&lt;/summary&gt;
+
+These details _remain_ **hidden** until expanded.
+
+```
+PASTE LOGS HERE
+```
+
+&lt;/details&gt;</code></pre>
+<!--
+The example below uses HTML to force correct rendering on docs.gitlab.com, Markdown
+works correctly in GitLab.
+-->
+<p>When rendered, the example looks similar to:</p>
+<blockquote>
+<details>
+<summary>Click to <em>expand.</em></summary>
+<p>These details <em>remain</em> <b>hidden</b> until expanded.</p>
+</blockquote>
+<p>&gt;</p>
+<pre><code>PASTE LOGS HERE</code></pre>
+<blockquote>
+</details>
+</blockquote>
+<h3 id="keyboard-html-tag">Keyboard HTML tag</h3>
+<p>The <code>&lt;kbd&gt;</code> element is used to identify text that represents user keyboard input. Text surrounded by <code>&lt;kbd&gt;</code> tags is typically displayed in the browser&#039;s default monospace font.</p>
+<pre class="html"><code>Press &lt;kbd&gt;Enter&lt;/kbd&gt; to go to the next page.</code></pre>
+<p>When rendered, the example looks similar to:</p>
+<blockquote>
+<p>Press <kbd>Enter</kbd> to go to the next page.</p>
+</blockquote>
+<h3 id="superscripts-and-subscripts">Superscripts and subscripts</h3>
+<p>GitLab Flavored Markdown doesn&#039;t support the Redcarpet superscript syntax ( <code>x^2</code> ). For superscripts and subscripts, use the standard HTML syntax:</p>
+<pre class="html"><code>The formula for water is H&lt;sub&gt;2&lt;/sub&gt;O
+while the equation for the theory of relativity is E = mc&lt;sup&gt;2&lt;/sup&gt;.</code></pre>
+<!-- vale gitlab_base.Spelling = NO -->
+<p>When rendered, the example looks similar to:</p>
+<blockquote>
+<p>The formula for water is H<sub>2</sub>O while the equation for the theory of relativity is E = mc<sup>2</sup>.</p>
+</blockquote>
+<!-- vale gitlab_base.Spelling = YES -->
+<p>GitLab Flavored Markdown doesn&#039;t support the Redcarpet superscript syntax ( <code>x^2</code> ).</p>
+<h3 id="html-comments">HTML comments</h3>
+<p>You can use HTML comments in GitLab Flavored Markdown to add notes or explanations that aren&#039;t visible in the rendered output.</p>
+<p>Use HTML comments to:</p>
+<ul>
+<li>Add notes for other contributors.</li>
+<li>Temporarily hide content without deleting it.</li>
+<li>Provide context or explanations that shouldn&#039;t appear in the final document.</li>
+<li>Add metadata or processing instructions.</li>
+</ul>
+<p>When using HTML comments, you should:</p>
+<ul>
+<li>Use them sparingly to avoid cluttering the source.</li>
+<li>Keep them concise and relevant.</li>
+<li>Use them for temporary notes rather than permanent documentation.</li>
+<li>Avoid including sensitive or confidential information. HTML comments are visible to anyone who can view the Markdown source.</li>
+</ul>
+<p>HTML comments use the standard HTML syntax <code>&lt;!-- comment text --&gt;</code> and can span single or multiple lines:</p>
+<pre class="html"><code>&lt;!-- This is a single-line comment --&gt;
+
+&lt;!--
+This is a multi-line comment
+that spans several lines
+and won&#039;t be visible in the rendered output
+--&gt;
+
+This text is visible.
+&lt;!-- This comment between paragraphs is hidden --&gt;
+This text is also visible.</code></pre>
+<p>When rendered, only the visible text appears:</p>
+<blockquote>
+<p>This text is visible.</p>
+<p>This text is also visible.</p>
+</blockquote>
+<h4 id="comments-in-code-blocks">Comments in code blocks</h4>
+<p>HTML comments inside code blocks are treated as literal text and are displayed:</p>
+<pre class="markdown"><code>```html
+&lt;!-- This comment will be visible in the code block --&gt;
+&lt;div&gt;Content&lt;/div&gt;
+```</code></pre>
+<div class="footnotes footnotes-end-of-document">
+<hr />
+<ol>
+<li id="fn1"><p>This text is inside a footnote.<a href="#fnref1" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
+<li id="fn2"><p>This text is another footnote.<a href="#fnref2" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
+</ol>
+</div>

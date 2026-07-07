@@ -11,3 +11,5 @@ lanes/pandoc/fixtures/generated-current-tsv-reader/interior-empty-header.tsv -wh
 lanes/pandoc/fixtures/generated-current-tsv-reader/trailing-empty-header.tsv -whitespace
 lanes/pandoc/fixtures/generated-current-tsv-reader/trailing-empty-fields.tsv -whitespace
 lanes/pandoc/fixtures/generated-current-tsv-reader/unquoted-final-formfeed.tsv -whitespace
+pandoc-showcase/samples/** -whitespace
+pandoc-showcase/outputs/** -whitespace
