@@ -13,7 +13,7 @@ const fileName = document.getElementById('file-name');
 const statusText = document.getElementById('status-text');
 const statusDot = document.getElementById('playground-status');
 const logOutput = document.getElementById('log-output');
-const overlayTitle = document.getElementById('overlay-title');
+const conversionProgressText = document.getElementById('conversion-progress-text');
 const pageDropOverlay = document.getElementById('page-drop-overlay');
 
 const formatByExtension = new Map(Object.entries({
@@ -138,10 +138,11 @@ async function convertSelectedFile() {
 
   setBusy(true);
   conversionActive = true;
-  setOverlayTitle('Converting your document');
-  setPlaygroundState('converting');
+  setProgressStatus('Starting WordPress Playground...');
+  setPlaygroundState(playgroundReady ? 'ready' : 'loading');
   try {
     await bootPlayground();
+    setProgressStatus('Reading document...');
     log(`Reading ${selectedFile.name} (${formatBytes(selectedFile.size)})`);
     const payload = {
       filename: selectedFile.name,
@@ -151,8 +152,8 @@ async function convertSelectedFile() {
     };
 
     setStatus('loading', 'Converting in WordPress Playground...');
-    setOverlayTitle('Converting your document');
-    setPlaygroundState('converting');
+    setProgressStatus('Converting document in WordPress...');
+    setPlaygroundState('ready');
     const response = await playgroundClient.request({
       method: 'POST',
       url: '/wp-json/port-libs/v1/convert',
@@ -171,7 +172,7 @@ async function convertSelectedFile() {
       log(diagnostic);
     }
     const pagePath = playgroundPath(data.pageUrl);
-    setOverlayTitle('Opening the page');
+    setProgressStatus('Opening converted page...');
     await playgroundClient.goTo(pagePath);
     conversionActive = false;
     setPlaygroundState('ready');
@@ -202,11 +203,9 @@ async function bootPlayground() {
 async function startPlayground() {
   try {
     const pluginUrl = new URL(`playground/port-libs-playground-converter.zip?v=${pluginBuild}`, window.location.href).href;
-    setPlaygroundState(conversionActive ? 'converting' : 'loading');
+    setPlaygroundState('loading');
     setStatus('loading', 'Starting WordPress Playground...');
-    if (conversionActive) {
-      setOverlayTitle('Starting WordPress');
-    }
+    setProgressStatus('Starting WordPress Playground...');
     log('Starting WordPress Playground');
     if (isLikelyIOS()) {
       log('iOS detected; using on-demand Playground startup to reduce memory pressure.');
@@ -246,7 +245,7 @@ async function startPlayground() {
     });
     await playgroundClient.isReady();
     playgroundReady = true;
-    setPlaygroundState(conversionActive ? 'converting' : 'ready');
+    setPlaygroundState('ready');
     setStatus('ready', 'WordPress Playground is ready.');
     updateConvertAvailability();
   } catch (error) {
@@ -274,6 +273,7 @@ function setSelectedFile(file) {
 }
 
 function setBusy(busy) {
+  form.dataset.busy = busy ? 'true' : 'false';
   convertButton.disabled = busy || !selectedFile;
   fileInput.disabled = busy;
   dropzone.dataset.disabled = busy ? 'true' : 'false';
@@ -300,8 +300,8 @@ function setPlaygroundState(state) {
   playgroundPanel.dataset.state = state;
 }
 
-function setOverlayTitle(text) {
-  overlayTitle.textContent = text;
+function setProgressStatus(text) {
+  conversionProgressText.textContent = text;
 }
 
 function setPageDragActive(active) {

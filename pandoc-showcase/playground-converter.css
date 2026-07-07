@@ -229,6 +229,39 @@ body[data-dragging="true"] {
   cursor: not-allowed;
 }
 
+.conversion-progress {
+  width: min(100%, 440px);
+  min-height: 30px;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: #27303a;
+  font-size: 14px;
+  font-weight: 800;
+  text-align: center;
+}
+
+.upload-form[data-busy="true"] .conversion-progress {
+  display: flex;
+}
+
+.progress-spinner {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  border: 2px solid #d8d2c5;
+  border-top-color: #0f6b4f;
+  border-radius: 999px;
+  animation: progress-spin 800ms linear infinite;
+}
+
+@keyframes progress-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .status-panel {
   margin-top: 12px;
 }
@@ -314,33 +347,6 @@ body[data-dragging="true"] {
   background: #fff;
 }
 
-.playground-overlay {
-  position: absolute;
-  inset: 0;
-  z-index: 2;
-  display: none;
-  place-content: center;
-  gap: 10px;
-  padding: 32px;
-  background: rgba(18, 24, 32, 0.94);
-  color: #fffdf8;
-  text-align: center;
-}
-
-.playground-overlay span {
-  color: #d8a942;
-  font-size: 12px;
-  font-weight: 900;
-  text-transform: uppercase;
-}
-
-.playground-overlay strong {
-  max-width: 12ch;
-  font-size: clamp(42px, 6vw, 84px);
-  line-height: 0.92;
-  letter-spacing: 0;
-}
-
 .page-drop-overlay {
   position: fixed;
   inset: 12px;
@@ -376,10 +382,6 @@ body[data-dragging="true"] .page-drop-overlay {
 .playground-panel[data-state="converting"] iframe,
 .playground-panel[data-state="ready"] iframe {
   display: block;
-}
-
-.playground-panel[data-state="converting"] .playground-overlay {
-  display: grid;
 }
 
 @media (max-width: 1060px) {

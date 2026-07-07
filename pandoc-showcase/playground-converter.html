@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Import any document into WordPress</title>
   <link rel="stylesheet" href="styles.css">
-  <link rel="stylesheet" href="playground-converter.css?v=form-dropzone-20260707">
+  <link rel="stylesheet" href="playground-converter.css?v=form-progress-20260707">
 </head>
 <body>
   <main class="playground-tool">
@@ -73,6 +73,11 @@
         <input id="format-input" name="format" type="hidden">
         <input id="title-input" name="title" type="hidden">
 
+        <div id="conversion-progress" class="conversion-progress" role="status" aria-live="polite">
+          <span class="progress-spinner" aria-hidden="true"></span>
+          <span id="conversion-progress-text">Preparing conversion...</span>
+        </div>
+
         <button id="convert-button" type="submit" disabled>Start WordPress and convert</button>
       </form>
 
@@ -91,16 +96,12 @@
         <strong>Ready when you convert</strong>
       </div>
       <iframe id="wp-playground" title="WordPress Playground"></iframe>
-      <div class="playground-overlay" aria-live="polite">
-        <span id="overlay-kicker">Converting</span>
-        <strong id="overlay-title">Converting your document</strong>
-      </div>
     </section>
   </main>
   <div id="page-drop-overlay" class="page-drop-overlay" aria-hidden="true">
     <strong>Drop to select document</strong>
   </div>
 
-  <script type="module" src="playground-converter.js?v=form-dropzone-20260707"></script>
+  <script type="module" src="playground-converter.js?v=form-progress-20260707"></script>
 </body>
 </html>
