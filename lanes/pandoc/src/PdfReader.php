@@ -26,8 +26,9 @@ final class PdfReader
         $extractor = new PdfTextExtractor($this->options);
         $lines = $this->normalizeLines($extractor->extractTextLines($pdfBytes));
         $geometryTablesEnabled = $this->geometryTablesEnabled();
+        $proseRepairEnabled = $this->proseTextRepairEnabled();
         $runs = $extractor->extractTextRuns($pdfBytes);
-        $positionedRuns = $geometryTablesEnabled ? $extractor->extractPositionedTextRuns($pdfBytes) : [];
+        $positionedRuns = ($geometryTablesEnabled || $proseRepairEnabled) ? $extractor->extractPositionedTextRuns($pdfBytes) : [];
         $filledRectangles = $geometryTablesEnabled ? $extractor->extractFilledRectangles($pdfBytes) : [];
         $diagnostics = $extractor->diagnostics($pdfBytes);
         $plainText = implode("\n", $lines);
@@ -55,8 +56,17 @@ final class PdfReader
             $limitedLines
         );
         $geometryTableBlocks = $geometryTablesEnabled && $taggedBlocks === [] ? $this->blocksFromPositionedTables($limitedPositionedRuns, $filledRectangles) : [];
-        $repairedLines = $taggedBlocks === [] && $geometryTableBlocks === [] && $this->proseTextRepairEnabled() && $this->looksLikeProseRepairCandidate($limitedLines)
-            ? $this->repairProseTextLines($limitedLines)
+        $repairSourceLines = $limitedLines;
+        $repairSource = 'text';
+        if ($taggedBlocks === [] && $geometryTableBlocks === [] && $proseRepairEnabled) {
+            $positionedLines = $this->linesFromPositionedTextRuns($limitedPositionedRuns);
+            if ($this->positionedProseLinesLookUsable($positionedLines, $limitedLines)) {
+                $repairSourceLines = $positionedLines;
+                $repairSource = 'positioned';
+            }
+        }
+        $repairedLines = $taggedBlocks === [] && $geometryTableBlocks === [] && $proseRepairEnabled
+            ? ($this->looksLikeProseRepairCandidate($repairSourceLines) ? $this->repairProseTextLines($repairSourceLines) : $repairSourceLines)
             : $limitedLines;
         $blocks = $taggedBlocks !== [] ? $taggedBlocks : ($geometryTableBlocks !== [] ? $geometryTableBlocks : $this->blocksFromLines($repairedLines));
         $blocks = $appliedLinkAnnotations === [] ? $blocks : $this->applyLinkAnnotationsToBlocks($blocks, $appliedLinkAnnotations);
@@ -71,6 +81,7 @@ final class PdfReader
             'pdfTextInsertedBytes' => strlen($insertedText),
             'pdfTextLimited' => strlen($insertedText) < strlen($plainText),
             'pdfTextRepair' => $repairedLines !== $limitedLines,
+            'pdfTextRepairSource' => $repairedLines !== $limitedLines ? $repairSource : null,
             'pdfDetectedTables' => $this->countNodesOfType($blocks, 'table'),
             'pdfGeometryTables' => $this->countNodesOfType($geometryTableBlocks, 'table'),
             'pdfGeometryTablesEnabled' => $geometryTablesEnabled,
@@ -257,6 +268,332 @@ final class PdfReader
     }
 
     /**
+     * @param list<array<string, mixed>> $runs
+     * @return list<string>
+     */
+    private function linesFromPositionedTextRuns(array $runs): array
+    {
+        $runsByPage = [];
+        foreach ($runs as $run) {
+            $normalized = $this->positionedRun($run);
+            if ($normalized === null) {
+                continue;
+            }
+            $runsByPage[$normalized['page']][] = $normalized;
+        }
+        if ($runsByPage === []) {
+            return [];
+        }
+
+        ksort($runsByPage);
+        $lines = [];
+        foreach ($runsByPage as $pageRuns) {
+            foreach ($this->positionedProseLinesForPage($pageRuns) as $line) {
+                $lines[] = $line;
+            }
+        }
+
+        return $lines;
+    }
+
+    /**
+     * @param list<array{page: int, text: string, x1: float, y1: float, x2: float, y2: float, textX1: float, textY1: float, textX2: float, textY2: float, fontSize: float}> $runs
+     * @return list<string>
+     */
+    private function positionedProseLinesForPage(array $runs): array
+    {
+        if ($runs === []) {
+            return [];
+        }
+
+        $fontSizes = array_map(static fn (array $run): float => $run['fontSize'], $runs);
+        $medianFontSize = max(1.0, $this->median($fontSizes));
+        $rowTolerance = max(3.0, $medianFontSize * 0.55);
+        $rows = $this->clusterPositionedRows($runs, $rowTolerance);
+        $rows = $this->mergePositionedProseRowFragments($rows, $this->positionedRowsBounds($rows));
+        $rows = $this->splitPositionedRowsIntoProseFragments($rows);
+        $rows = $this->orderPositionedProseRows($rows, $medianFontSize);
+
+        $lines = [];
+        foreach ($rows as $row) {
+            $line = $this->positionedRowText($row);
+            if ($line !== '' && !$this->lineIsOnlyPdfNoise($line)) {
+                $lines[] = $line;
+            }
+        }
+
+        return $lines;
+    }
+
+    /**
+     * @param list<array{center: float, runs: list<array{page: int, text: string, x1: float, y1: float, x2: float, y2: float, textX1: float, textY1: float, textX2: float, textY2: float, fontSize: float}>}> $rows
+     * @param array{x1: float, y1: float, x2: float, y2: float} $pageBounds
+     * @return list<array{center: float, runs: list<array{page: int, text: string, x1: float, y1: float, x2: float, y2: float, textX1: float, textY1: float, textX2: float, textY2: float, fontSize: float}>}>
+     */
+    private function mergePositionedProseRowFragments(array $rows, array $pageBounds): array
+    {
+        $pageWidth = max(0.0, $pageBounds['x2'] - $pageBounds['x1']);
+        foreach ($rows as &$row) {
+            $merged = [];
+            foreach ($row['runs'] as $run) {
+                $lastIndex = array_key_last($merged);
+                if ($lastIndex === null) {
+                    $merged[] = $run;
+                    continue;
+                }
+
+                $last = $merged[$lastIndex];
+                $gap = $run['textX1'] - $last['textX2'];
+                $mergeGap = max(4.0, max($run['fontSize'], $last['fontSize']) * 1.25);
+                $combinedWidth = max($last['x2'], $last['textX2'], $run['x2'], $run['textX2']) - min($last['x1'], $last['textX1'], $run['x1'], $run['textX1']);
+                if ($gap <= $mergeGap && ($pageWidth <= 0.0 || $combinedWidth <= $pageWidth * 0.72)) {
+                    $merged[$lastIndex] = [
+                        'page' => $last['page'],
+                        'text' => $this->joinPositionedCellText(
+                            $last['text'],
+                            $run['text'],
+                            $gap,
+                            max($run['fontSize'], $last['fontSize']),
+                            (bool) ($last['endsWithWhitespace'] ?? false),
+                            (bool) ($run['startsWithWhitespace'] ?? false)
+                        ),
+                        'x1' => min($last['x1'], $run['x1']),
+                        'y1' => min($last['y1'], $run['y1']),
+                        'x2' => max($last['x2'], $run['x2']),
+                        'y2' => max($last['y2'], $run['y2']),
+                        'textX1' => min($last['textX1'], $run['textX1']),
+                        'textY1' => min($last['textY1'], $run['textY1']),
+                        'textX2' => max($last['textX2'], $run['textX2']),
+                        'textY2' => max($last['textY2'], $run['textY2']),
+                        'fontSize' => max($run['fontSize'], $last['fontSize']),
+                        'startsWithWhitespace' => (bool) ($last['startsWithWhitespace'] ?? false),
+                        'endsWithWhitespace' => (bool) ($run['endsWithWhitespace'] ?? false),
+                    ];
+                    continue;
+                }
+
+                $merged[] = $run;
+            }
+            $row['runs'] = $merged;
+        }
+        unset($row);
+
+        return $rows;
+    }
+
+    /**
+     * @param list<array{center: float, runs: list<array{page: int, text: string, x1: float, y1: float, x2: float, y2: float, textX1: float, textY1: float, textX2: float, textY2: float, fontSize: float}>}> $rows
+     * @return list<array{center: float, runs: list<array{page: int, text: string, x1: float, y1: float, x2: float, y2: float, textX1: float, textY1: float, textX2: float, textY2: float, fontSize: float}>}>
+     */
+    private function splitPositionedRowsIntoProseFragments(array $rows): array
+    {
+        $fragments = [];
+        foreach ($rows as $row) {
+            if (count($row['runs']) <= 1) {
+                $fragments[] = $row;
+                continue;
+            }
+
+            foreach ($row['runs'] as $run) {
+                $fragments[] = [
+                    'center' => $row['center'],
+                    'runs' => [$run],
+                ];
+            }
+        }
+
+        usort($fragments, static fn (array $left, array $right): int => ($right['center'] <=> $left['center']) ?: ($left['runs'][0]['x1'] <=> $right['runs'][0]['x1']));
+
+        return $fragments;
+    }
+
+    /**
+     * @param list<array{center: float, runs: list<array{page: int, text: string, x1: float, y1: float, x2: float, y2: float, textX1: float, textY1: float, textX2: float, textY2: float, fontSize: float}>}> $rows
+     * @return list<array{center: float, runs: list<array{page: int, text: string, x1: float, y1: float, x2: float, y2: float, textX1: float, textY1: float, textX2: float, textY2: float, fontSize: float}>}>
+     */
+    private function orderPositionedProseRows(array $rows, float $medianFontSize): array
+    {
+        if (count($rows) < 4) {
+            return $rows;
+        }
+
+        $pageBounds = $this->positionedRowsBounds($rows);
+        $pageWidth = max(0.0, $pageBounds['x2'] - $pageBounds['x1']);
+        if ($pageWidth < max(120.0, $medianFontSize * 12.0)) {
+            return $rows;
+        }
+
+        $ordered = [];
+        $band = [];
+        $flushBand = function () use (&$ordered, &$band, $pageBounds, $medianFontSize): void {
+            if ($band === []) {
+                return;
+            }
+            foreach ($this->orderPositionedProseBand($band, $pageBounds, $medianFontSize) as $row) {
+                $ordered[] = $row;
+            }
+            $band = [];
+        };
+
+        foreach ($rows as $row) {
+            if ($this->positionedProseRowIsFullWidth($row, $pageBounds, $medianFontSize)) {
+                $flushBand();
+                $ordered[] = $row;
+                continue;
+            }
+            $band[] = $row;
+        }
+        $flushBand();
+
+        return $ordered;
+    }
+
+    /**
+     * @param list<array{center: float, runs: list<array{page: int, text: string, x1: float, y1: float, x2: float, y2: float, textX1: float, textY1: float, textX2: float, textY2: float, fontSize: float}>}> $rows
+     * @param array{x1: float, y1: float, x2: float, y2: float} $pageBounds
+     * @return list<array{center: float, runs: list<array{page: int, text: string, x1: float, y1: float, x2: float, y2: float, textX1: float, textY1: float, textX2: float, textY2: float, fontSize: float}>}>
+     */
+    private function orderPositionedProseBand(array $rows, array $pageBounds, float $medianFontSize): array
+    {
+        $columns = $this->splitPositionedProseBandIntoColumns($rows, $pageBounds, $medianFontSize);
+        if ($columns === null) {
+            return $rows;
+        }
+
+        return array_merge($columns['left'], $columns['right']);
+    }
+
+    /**
+     * @param list<array{center: float, runs: list<array{page: int, text: string, x1: float, y1: float, x2: float, y2: float, textX1: float, textY1: float, textX2: float, textY2: float, fontSize: float}>}> $rows
+     * @param array{x1: float, y1: float, x2: float, y2: float} $pageBounds
+     * @return array{left: list<array{center: float, runs: list<array{page: int, text: string, x1: float, y1: float, x2: float, y2: float, textX1: float, textY1: float, textX2: float, textY2: float, fontSize: float}>}>, right: list<array{center: float, runs: list<array{page: int, text: string, x1: float, y1: float, x2: float, y2: float, textX1: float, textY1: float, textX2: float, textY2: float, fontSize: float}>}>}|null
+     */
+    private function splitPositionedProseBandIntoColumns(array $rows, array $pageBounds, float $medianFontSize): ?array
+    {
+        if (count($rows) < 4) {
+            return null;
+        }
+
+        $midpoint = ($pageBounds['x1'] + $pageBounds['x2']) / 2.0;
+        $left = [];
+        $right = [];
+        $leftStarts = [];
+        $rightStarts = [];
+        $leftEnds = [];
+        $rightStartsForGap = [];
+        foreach ($rows as $row) {
+            $bounds = $this->positionedProseRowBounds($row);
+            $centerX = ($bounds['x1'] + $bounds['x2']) / 2.0;
+            if ($centerX <= $midpoint) {
+                $left[] = $row;
+                $leftStarts[] = $bounds['x1'];
+                $leftEnds[] = $bounds['x2'];
+                continue;
+            }
+
+            $right[] = $row;
+            $rightStarts[] = $bounds['x1'];
+            $rightStartsForGap[] = $bounds['x1'];
+        }
+
+        if (count($left) < 2 || count($right) < 2) {
+            return null;
+        }
+
+        $startGap = $this->median($rightStarts) - $this->median($leftStarts);
+        if ($startGap < max(80.0, $medianFontSize * 8.0)) {
+            return null;
+        }
+
+        if ($leftEnds !== [] && $rightStartsForGap !== []) {
+            $gutter = $this->median($rightStartsForGap) - $this->median($leftEnds);
+            if ($gutter < -max(24.0, $medianFontSize * 2.0)) {
+                return null;
+            }
+        }
+
+        return ['left' => $left, 'right' => $right];
+    }
+
+    /**
+     * @param array{center: float, runs: list<array{page: int, text: string, x1: float, y1: float, x2: float, y2: float, textX1: float, textY1: float, textX2: float, textY2: float, fontSize: float}>} $row
+     * @param array{x1: float, y1: float, x2: float, y2: float} $pageBounds
+     */
+    private function positionedProseRowIsFullWidth(array $row, array $pageBounds, float $medianFontSize): bool
+    {
+        $bounds = $this->positionedProseRowBounds($row);
+        $pageWidth = max(0.0, $pageBounds['x2'] - $pageBounds['x1']);
+        if ($pageWidth <= 0.0) {
+            return false;
+        }
+
+        $rowWidth = max(0.0, $bounds['x2'] - $bounds['x1']);
+        if ($rowWidth >= $pageWidth * 0.72) {
+            return true;
+        }
+
+        $pageCenter = ($pageBounds['x1'] + $pageBounds['x2']) / 2.0;
+        $rowCenter = ($bounds['x1'] + $bounds['x2']) / 2.0;
+        $text = $this->positionedRowText($row);
+
+        return $this->positionedRowLooksStandaloneHeading($row, $medianFontSize)
+            && abs($rowCenter - $pageCenter) <= max(36.0, $medianFontSize * 4.0)
+            && $this->length($text) <= 100;
+    }
+
+    /**
+     * @param array{center: float, runs: list<array{page: int, text: string, x1: float, y1: float, x2: float, y2: float, textX1: float, textY1: float, textX2: float, textY2: float, fontSize: float}>} $row
+     * @return array{x1: float, y1: float, x2: float, y2: float}
+     */
+    private function positionedProseRowBounds(array $row): array
+    {
+        $bounds = ['x1' => INF, 'y1' => INF, 'x2' => -INF, 'y2' => -INF];
+        foreach ($row['runs'] as $run) {
+            $bounds['x1'] = min($bounds['x1'], $run['x1'], $run['textX1']);
+            $bounds['y1'] = min($bounds['y1'], $run['y1'], $run['textY1']);
+            $bounds['x2'] = max($bounds['x2'], $run['x2'], $run['textX2']);
+            $bounds['y2'] = max($bounds['y2'], $run['y2'], $run['textY2']);
+        }
+
+        return is_finite($bounds['x1']) && is_finite($bounds['x2']) && is_finite($bounds['y1']) && is_finite($bounds['y2'])
+            ? $bounds
+            : ['x1' => 0.0, 'y1' => $row['center'], 'x2' => 0.0, 'y2' => $row['center']];
+    }
+
+    /**
+     * @param list<string> $positionedLines
+     * @param list<string> $textLines
+     */
+    private function positionedProseLinesLookUsable(array $positionedLines, array $textLines): bool
+    {
+        if (count($positionedLines) < 2) {
+            return false;
+        }
+        if ($textLines === []) {
+            return true;
+        }
+
+        $textTokens = $this->significantTextTokens(implode(' ', array_slice($textLines, 0, 500)));
+        if (count($textTokens) < 4) {
+            return true;
+        }
+
+        $positionedTokens = array_flip($this->significantTextTokens(implode(' ', array_slice($positionedLines, 0, 500))));
+        if ($positionedTokens === []) {
+            return false;
+        }
+
+        $matched = 0;
+        foreach ($textTokens as $token) {
+            if (isset($positionedTokens[$token])) {
+                $matched++;
+            }
+        }
+
+        return $matched / count($textTokens) >= 0.55;
+    }
+
+    /**
      * @param list<string> $lines
      * @return list<string>
      */
@@ -284,195 +621,26 @@ final class PdfReader
 
     private function repairGluedProseLine(string $line): string
     {
-        foreach (['JavaScript', 'TraceMonkey', 'SpiderMonkey', 'Nanojit'] as $term) {
-            $line = preg_replace('/(' . preg_quote($term, '/') . ')(?=[a-z])/u', '$1 ', $line) ?? $line;
-            $line = preg_replace('/(?<=[a-z])(' . preg_quote($term, '/') . ')/u', ' $1', $line) ?? $line;
+        $line = trim($line);
+        if ($line === '') {
+            return '';
         }
-        $line = preg_replace('/([a-z])([A-Z])/u', '$1 $2', $line) ?? $line;
-        $line = preg_replace('/\b(Java) Script\b/u', 'JavaScript', $line) ?? $line;
-        $line = preg_replace('/\b(Trace|Spider) Monkey\b/u', '$1Monkey', $line) ?? $line;
-        $line = preg_replace('/([,;:!?])(?=[A-Za-z])/u', '$1 ', $line) ?? $line;
+
+        $line = preg_replace('/([,;:!?])(?=\S)/u', '$1 ', $line) ?? $line;
         $line = preg_replace('/(?<!\d)\.(?=[A-Z])/u', '. ', $line) ?? $line;
+        $line = preg_replace('/([a-z])([A-Z][a-z])/u', '$1 $2', $line) ?? $line;
+        $line = preg_replace('/\b(section|figure|table|chapter|page)(\d+)/iu', '$1 $2 ', $line) ?? $line;
+        $line = preg_replace('/\b(and|or|but)(a|an|the)\b/iu', '$1 $2', $line) ?? $line;
+        $line = preg_replace('/\/\/(?=[A-Za-z])/', '// ', $line) ?? $line;
         $line = preg_replace_callback('/\b[A-Za-z]{6,}\b/u', function (array $match): string {
             return $this->segmentGluedAsciiWord($match[0]);
         }, $line) ?? $line;
-        $line = preg_replace('/\b(Java) Script\b/u', 'JavaScript', $line) ?? $line;
-        $line = preg_replace('/\b(Trace|Spider) Monkey\b/u', '$1Monkey', $line) ?? $line;
-        $line = preg_replace('/\bhavemeasuredspeedupsof(\d+)xandmoreforcertainbenchmark\b/iu', 'have measured speedups of $1x and more for certain benchmark', $line) ?? $line;
-        $line = preg_replace('/\bonthefly\b/iu', 'on the fly', $line) ?? $line;
-        $line = preg_replace('/\bandan\b/iu', 'and an', $line) ?? $line;
-        $line = preg_replace('/\bandmake\b/iu', 'and make', $line) ?? $line;
-        $line = preg_replace('/\bhavemeasuredspeedupsof\b/iu', 'have measured speedups of', $line) ?? $line;
-        $line = preg_replace('/\bxandmoreforcertainbenchmark\b/iu', 'x and more for certain benchmark', $line) ?? $line;
-        $line = preg_replace('/certain benchmark\s+Programming Lan-\s+Design, Experimentation, Measurement,\s+Perforsuchas/iu', 'certain benchmarks. Languages such as', $line) ?? $line;
-        $line = preg_replace('/\bJavaScript,\s+for\s+and\s+is\s+used\b/iu', 'JavaScript is used', $line) ?? $line;
-        $line = preg_replace('/\bJavaScript is used for the application logic\b/iu', 'JavaScript, for example, is the de facto standard for client-side web programming and is used for the application logic', $line) ?? $line;
-        $line = preg_replace('/\bJavaScript\s+ina\b/iu', 'JavaScript in a', $line) ?? $line;
-        $line = preg_replace('/\bcompile roper ates\b/iu', 'compiler operates', $line) ?? $line;
-        $line = preg_replace('/\bandgiveup\b/iu', 'and give up', $line) ?? $line;
-        $line = preg_replace('/\bonthe\b/iu', 'on the', $line) ?? $line;
-        $line = preg_replace('/\bDocsand\b/u', 'Docs and', $line) ?? $line;
-        $line = preg_replace('/\bThe systems tops\b/u', 'The system stops', $line) ?? $line;
-        $line = preg_replace('/\btechnique sallow\b/iu', 'techniques allow', $line) ?? $line;
-        $line = preg_replace('/\bbound aries\b/iu', 'boundaries', $line) ?? $line;
-        $line = preg_replace('/\bin side\b/iu', 'inside', $line) ?? $line;
-        $line = preg_replace('/\ba spart\b/iu', 'as part', $line) ?? $line;
-        $line = preg_replace('/\bana\s+¨\s+ıveimplementation\b/iu', 'a naive implementation', $line) ?? $line;
-        $line = preg_replace('/\bthen a\s+¨\s+ıveversion\b/iu', 'the naive version', $line) ?? $line;
-        $line = preg_replace('/\bJavaScript in-\s+Trace-\s+\.\s+TraceMonkey\b/u', 'JavaScript engine. TraceMonkey', $line) ?? $line;
-        $line = preg_replace('/\bwitha(\d+)x-(\d+)xspeedupfortraceableprograms\b/iu', 'with a $1x-$2x speedup for traceable programs', $line) ?? $line;
-        $line = preg_replace('/\bachieving(\d+)x-(\d+)x\b/u', 'achieving $1x-$2x', $line) ?? $line;
-        $line = preg_replace('/\bEven in dynamically typed languages, we , meaning that the types of values are invariant\.\(12\)For example\b/u', 'Even in dynamically typed languages, we expect hot loops to be mostly type-stable, meaning that the types of values are invariant. (12) For example', $line) ?? $line;
-        $line = preg_replace('/\bSection(\d+)is\b/u', 'Section $1 is', $line) ?? $line;
-        $line = preg_replace('/\bSection(\d+)we\b/u', 'Section $1 we', $line) ?? $line;
-        $line = preg_replace('/\bSection(\d+)\./u', 'Section $1.', $line) ?? $line;
-        $line = preg_replace('/\bIn Section(\d+)\b/u', 'In Section $1', $line) ?? $line;
-        $line = preg_replace('/\bRelatedworkisdiscussedin\b/u', 'Related work is discussed in', $line) ?? $line;
-        $line = preg_replace('/\bWecallsuchase-/u', 'We call such a sequence a trace.', $line) ?? $line;
-        $line = preg_replace('/\bwedescribeourapproachofcoveringnestedloopsusinganumberofindividualtracetrees\b/u', 'we describe our approach of covering nested loops using a number of individual trace trees', $line) ?? $line;
-        $line = preg_replace('/\bSection(\d+)wedescribeourtracecompilationbasedspeculativetypespecializationapproachweuse\b/u', 'Section $1 we describe our trace compilation based speculative type specialization approach we use', $line) ?? $line;
-        $line = preg_replace('/\bwedescribeourtracecompilationbasedspeculativetypespecializationapproachweuse\b/u', 'we describe our trace compilation based speculative type specialization approach we use', $line) ?? $line;
-        $line = preg_replace('/\bspecializingcompilerfor\b/u', 'specializing compiler for', $line) ?? $line;
-        $line = preg_replace('/\bSection 6\.Related\b/u', 'Section 6. Related', $line) ?? $line;
-        $line = preg_replace('/that the path and typing will be exactly as they were during recording for subsequent iterations of the loop\. \(checks\)required/u', 'Hence, recording and compiling a trace speculates that the path and typing will be exactly as they were during recording for subsequent iterations of the loop. Every compiled trace contains all the guards (checks) required', $line) ?? $line;
-        $line = preg_replace('/the branch starting at the exit to cover the new path\. In this way, the VM covering all the hot paths through the loop\./u', 'the trace exits. If an exit becomes hot, the VM can record a branch trace starting at the exit to cover the new path. In this way, the VM records a trace tree covering all the hot paths through the loop.', $line) ?? $line;
-        $line = preg_replace('/\bStatemachinedescribingthemajoractivitiesof\b/u', 'State machine describing the major activities of', $line) ?? $line;
-        $line = preg_replace('/\bMonkeyandtheconditionsthatcausetransitionstoanewactivity\b/u', 'Monkey and the conditions that cause transition to a new activity', $line) ?? $line;
-        $line = preg_replace('/\bTrace-\s*Monkey\b/u', 'TraceMonkey', $line) ?? $line;
-        $line = preg_replace('/\bTMexecutes\b/u', 'TM executes', $line) ?? $line;
-        $line = preg_replace('/\bJSascompiledtraces\b/u', 'JS as compiled traces', $line) ?? $line;
-        $line = preg_replace('/\bJSinthestandardinterpreter\b/u', 'JS in the standard interpreter', $line) ?? $line;
-        $line = preg_replace('/\bcontrol-flowjoins\b/u', 'control-flow joins', $line) ?? $line;
-        $line = preg_replace('/\bFigure(\d+)\b/u', 'Figure $1', $line) ?? $line;
-        $line = preg_replace('/\bInthe\b/u', 'In the', $line) ?? $line;
-        $line = preg_replace('/\bmaximizetimespentinthedarkestboxandminimizetimespentin\b/u', 'maximize time spent in the darkest box and minimize time spent in', $line) ?? $line;
-        $line = preg_replace('/\bTMcanstayinnative\b/u', 'TM can stay in native', $line) ?? $line;
-        $line = preg_replace('/\basetofindustrybenchmarks\b/u', 'a set of industry benchmarks', $line) ?? $line;
-        $line = preg_replace('/\bThe pape rend swith conclusions in\b/u', 'The paper ends with conclusions in', $line) ?? $line;
-        $line = preg_replace('/\bThissectionprovidesanoverviewofoursystembydescribing\b/u', 'This section provides an overview of our system by describing', $line) ?? $line;
-        $line = preg_replace('/\bcomputesthefirst(\d+)primenumbers\b/u', 'computes the first $1 prime numbers', $line) ?? $line;
-        $line = preg_replace('/\bnested trace \. Our system traces\b/u', 'We solve the nested loop problem by recording nested trace trees. Our system traces', $line) ?? $line;
-        $line = preg_replace('/\bcurrentlyafter(\d+)crossings\b/u', 'currently after $1 crossings', $line) ?? $line;
-        $line = preg_replace('/\bsothesecondcrossingoccursimmediatelyafter\b/u', 'so the second crossing occurs immediately after', $line) ?? $line;
-        $line = preg_replace('/\bLIRrecordedforline(\d+)ofthesampleprogramin\b/u', 'LIR recorded for line $1 of the sample program in', $line) ?? $line;
-        $line = preg_replace('/\bFigure (\d+)\.The LIRencodes\b/u', 'Figure $1. The LIR encodes', $line) ?? $line;
-        $line = preg_replace('/\bSSAformusingtemporaryvariables\b/u', 'SSA form using temporary variables', $line) ?? $line;
-        $line = preg_replace('/\bLIRalsoencodesallthestoresthattheinterpreterwoulddotoitsdatastack\b/u', 'LIR also encodes all the stores that the interpreter would do to its data stack', $line) ?? $line;
-        $line = preg_replace('/\bFinally, the LIR records guards (?=mov[a-z])/u', 'Finally, the LIR records guards and side exits to verify the assumptions made in this recording: ', $line) ?? $line;
-        $line = preg_replace('/\bonlaterexecutions\b/u', 'on later executions', $line) ?? $line;
-        $line = preg_replace('/\btracehastherequiredprogramsemantics\b/u', 'trace has the required program semantics', $line) ?? $line;
-        $line = preg_replace('/\bstopsrecordingwhenexecutionreturnstothe\b/u', 'stops recording when execution returns to the', $line) ?? $line;
-        $line = preg_replace('/\bexecutionreturnstothe\b/u', 'execution returns to the', $line) ?? $line;
-        $line = preg_replace('/\bloopheaderonline(\d+)\b/u', 'loop header on line $1', $line) ?? $line;
-        $line = preg_replace('/\bnativecodeusingtherecordedtypeinformationforoptimization\b/u', 'native code using the recorded type information for optimization', $line) ?? $line;
-        $line = preg_replace('/\bPCandthetypesofvaluesmatchthoseobservedwhen\b/u', 'PC and the types of values match those observed when', $line) ?? $line;
-        $line = preg_replace('/\bNowtheloopheaderatline(\d+)hasbecomehot\b/u', 'Now the loop header at line $1 has become hot', $line) ?? $line;
-        $line = preg_replace('/\bWhenrecordingreachesline(\d+)\b/u', 'When recording reaches line $1', $line) ?? $line;
-        $line = preg_replace('/\bMonkeyobservesthatithasreachedaninnerloopheaderthatalreadyhasacompiledtrace\b/u', 'Monkey observes that it has reached an inner loop header that already has a compiled trace', $line) ?? $line;
-        $line = preg_replace('/\battemptstonestthe\b/u', 'attempts to nest the', $line) ?? $line;
-        $line = preg_replace('/\btraceasasubroutine\b/u', 'trace as a subroutine', $line) ?? $line;
-        $line = preg_replace('/\bThisexecutesthelooponline(\d+)tocompletion\b/u', 'This executes the loop on line $1 to completion', $line) ?? $line;
-        $line = preg_replace('/\breturn stot here corder\b/u', 'returns to the recorder', $line) ?? $line;
-        $line = preg_replace('/\bverifiesthatthecall\b/u', 'verifies that the call', $line) ?? $line;
-        $line = preg_replace('/\bRecordingcontinuesuntilexecutionreachesline\b/u', 'Recording continues until execution reaches line', $line) ?? $line;
-        $line = preg_replace('/\bstatementonline(\d+)\b/u', 'statement on line $1', $line) ?? $line;
-        $line = preg_replace('/\bstatementonline(\d+)istaken\b/u', 'statement on line $1 is taken', $line) ?? $line;
-        $line = preg_replace('/\breturnstotheinterpreter\b/u', 'returns to the interpreter', $line) ?? $line;
-        $line = preg_replace('/\bthesideexitonline(\d+)\b/u', 'the side exit on line $1', $line) ?? $line;
-        $line = preg_replace('/\bthesideexitonline(\d+)istakenagain\b/u', 'the side exit on line $1 is taken again', $line) ?? $line;
-        $line = preg_replace('/\bThesideexitispatchedsothat\b/u', 'The side exit is patched so that', $line) ?? $line;
-        $line = preg_replace('/\bsotherestoftheprogramruns\b/u', 'so the rest of the program runs', $line) ?? $line;
-        $line = preg_replace('/\bso the rest of the program runs In this section\b/u', 'so the rest of the program runs entirely as native code. In this section', $line) ?? $line;
-        $line = preg_replace('/\bmatch those observed when Now the loop header\b/u', 'match those observed when trace recording was started. Now the loop header', $line) ?? $line;
-        $line = preg_replace('/\bcompiles a trace statement on line (\d+) is taken\b/u', 'compiles a trace for the outer loop. Because i=4, the if statement on line $1 is taken', $line) ?? $line;
-        $line = preg_replace('/\bThis branch was not taken in the to fail a guard\b/u', 'This branch was not taken in the original trace, causing the guard to fail', $line) ?? $line;
-        $line = preg_replace('/\bThe exit is not yet hot, so TraceMonkey returns to the interpreter, loops back to it sown header, starting the next iteration On this iteration, the side exit on line (\d+) is taken again\. This is recorded that \. The side exit is patched so that At this point\b/u', 'The exit is not yet hot, so TraceMonkey returns to the interpreter. On a later iteration, the side exit on line $1 is taken again. This time, the side exit becomes hot and a trace is recorded. The side exit is patched so that future iterations jump directly to the new trace. At this point', $line) ?? $line;
-        $line = preg_replace('/\bassuming a bytecode is simply a program path\b/u', 'assuming a bytecode interpreter to keep the exposition simple. A trace is simply a program path', $line) ?? $line;
-        $line = preg_replace('/\bfunction call , that originate\b/u', 'function call boundaries. TraceMonkey focuses on loop traces that originate', $line) ?? $line;
-        $line = preg_replace('/\bthetop\b/u', 'the top', $line) ?? $line;
-        $line = preg_replace('/\batracecancontainjoinnodes\b/u', 'a trace can contain join nodes', $line) ?? $line;
-        $line = preg_replace('/\bones ingle\b/u', 'one single', $line) ?? $line;
-        $line = preg_replace('/\bjoin node sare\b/u', 'join nodes are', $line) ?? $line;
-        $line = preg_replace('/\bpredecessornodelikeregularnodes\b/u', 'predecessor node like regular nodes', $line) ?? $line;
-        $line = preg_replace('/\bisatraceannotatedwithatypeforeveryvariable\b/u', 'A typed trace is a trace annotated with a type for every variable', $line) ?? $line;
-        $line = preg_replace('/\bgivingtherequiredtypesforvariablesusedonthetrace\b/u', 'giving the required types for variables used on the trace', $line) ?? $line;
-        $line = preg_replace('/\bA typed trace is a trace annotated with a type for every variable giving the required types for variables used on the trace , meaning\b/u', 'A typed trace is a trace annotated with a type for every variable on the trace. A typed trace also has an entry type map giving the required types for variables used on the trace before they are defined, meaning', $line) ?? $line;
-        $line = preg_replace('/\bTheentrytypemapismuchlikethesignature\b/u', 'The entry type map is much like the signature', $line) ?? $line;
-        $line = preg_replace('/\bof afunction\b/u', 'of a function', $line) ?? $line;
-        $line = preg_replace('/\bThekeypropertyoftypedloop\b/u', 'The key property of typed loop', $line) ?? $line;
-        $line = preg_replace('/\btracesisthattheycanbecompiledtoefficientmachinecodeusing\b/u', 'traces is that they can be compiled to efficient machine code using', $line) ?? $line;
-        $line = preg_replace('/\bphinodesappearonlyattheentrypoint\b/u', 'phi nodes appear only at the entry point', $line) ?? $line;
-        $line = preg_replace('/\bwhichisreached\b/u', 'which is reached', $line) ?? $line;
-        $line = preg_replace('/\bbothonentryandvialoopedges\b/u', 'both on entry and via loop edges', $line) ?? $line;
-        $line = preg_replace('/\bload sand stores\b/u', 'loads and stores', $line) ?? $line;
-        $line = preg_replace('/\bintegeroperators\b/u', 'integer operators', $line) ?? $line;
-        $line = preg_replace('/\bpointoperators\b/u', 'point operators', $line) ?? $line;
-        $line = preg_replace('/\bTypeconversions\b/u', 'Type conversions', $line) ?? $line;
-        $line = preg_replace('/\barerepresentedbyfunctioncalls\b/u', 'are represented by function calls', $line) ?? $line;
-        $line = preg_replace('/\bconversionrulesofthesourcelanguage\b/u', 'conversion rules of the source language', $line) ?? $line;
-        $line = preg_replace('/\bgenericenoughthatthebackendcompilerislanguageindependent\b/u', 'generic enough that the backend compiler is language independent', $line) ?? $line;
-        $line = preg_replace('/\bFigure(\d+)showsanexample\b/u', 'Figure $1 shows an example', $line) ?? $line;
-        $line = preg_replace('/\bcomplexdatastructures\b/u', 'complex data structures', $line) ?? $line;
-        $line = preg_replace('/\bin a various complex data structures\b/u', 'in various complex data structures', $line) ?? $line;
-        $line = preg_replace('/\binaboxedformat\b/u', 'in a boxed format', $line) ?? $line;
-        $line = preg_replace('/\bwithattachedtypetagbits\b/u', 'with attached type tag bits', $line) ?? $line;
-        $line = preg_replace('/\befficientcodethateliminatesallthatcomplexity\b/u', 'efficient code that eliminates all that complexity', $line) ?? $line;
-        $line = preg_replace('/\bourtracesoperateonunboxedvaluesinsimplevariablesandarraysasmuchas\b/u', 'our traces operate on unboxed values in simple variables and arrays as much as', $line) ?? $line;
-        $line = preg_replace('/\bactivation record are a\b/u', 'activation record area', $line) ?? $line;
-        $line = preg_replace('/\bTomakevariableaccessesfastontrace\b/u', 'To make variable accesses fast on trace', $line) ?? $line;
-        $line = preg_replace('/\bimportslocalandglobalvariablesbyunboxingthemandcopying\b/u', 'imports local and global variables by unboxing them and copying', $line) ?? $line;
-        $line = preg_replace('/\bactivation recording\b/u', 'activation record', $line) ?? $line;
-        $line = preg_replace('/\bTheseinstructionsexitfromthetraceifrequiredcontrolflowisdifferentfrom\b/u', 'These instructions exit from the trace if required control flow is different from', $line) ?? $line;
-        $line = preg_replace('/\bensuringthatthetraceinstructions\b/u', 'ensuring that the trace instructions', $line) ?? $line;
-        $line = preg_replace('/\bensuring that the trace instructions instructions\b/u', 'ensuring that the trace instructions are run only if they are supposed to. We call these instructions guard instructions', $line) ?? $line;
-        $line = preg_replace('/\bThisisjustanunconditionalbranchtothetopof\b/u', 'This is just an unconditional branch to the top of', $line) ?? $line;
-        $line = preg_replace('/\bSuchtracesreturnonlyviaguards\b/u', 'Such traces return only via guards', $line) ?? $line;
-        $line = preg_replace('/\bwedescribethekeyoptimizationsthatareperformedas\b/u', 'we describe the key optimizations that are performed as', $line) ?? $line;
-        $line = preg_replace('/\bdynamiclanguageconstructstosimpletypedconstructsbyspecializingforthecurrenttrace\b/u', 'dynamic language constructs to simple typed constructs by specializing for the current trace', $line) ?? $line;
-        $line = preg_replace('/\bEachoptimizationrequiresguardinstructionstoverifytheirassumptionsaboutthestateandexitthe\b/u', 'Each optimization requires guard instructions to verify their assumptions about the state and exit the', $line) ?? $line;
-        $line = preg_replace('/\bexit the All LIRprimitivesapply\b/u', 'exit the trace if necessary. Type specialization. All LIR primitives apply', $line) ?? $line;
-        $line = preg_replace('/\bexit the All LIR primitives\b/u', 'exit the trace if necessary. Type specialization. All LIR primitives', $line) ?? $line;
-        $line = preg_replace('/\bexit the All LIR\b/u', 'exit the trace if necessary. Type specialization. All LIR', $line) ?? $line;
-        $line = preg_replace('/\bLIRprimitivesapplytooperandsofspecifictypes\b/u', 'LIR primitives apply to operands of specific types', $line) ?? $line;
-        $line = preg_replace('/\bexit the All LIR primitives apply\b/u', 'exit the trace if necessary. Type specialization. All LIR primitives apply', $line) ?? $line;
-        $line = preg_replace('/\beasilyproduceatranslationthatrequiresnotypedispatches\b/u', 'easily produce a translation that requires no type dispatches', $line) ?? $line;
-        $line = preg_replace('/\btypicalbytecodeinterpretercarriestagbitsalongwitheachvalue\b/u', 'typical bytecode interpreter carries tag bits along with each value', $line) ?? $line;
-        $line = preg_replace('/\bmustcheckthetagbits\b/u', 'must check the tag bits', $line) ?? $line;
-        $line = preg_replace('/\bmaskoutthetagbitstorecovertheuntaggedvalue\b/u', 'mask out the tag bits to recover the untagged value', $line) ?? $line;
-        $line = preg_replace('/\bLIR omit severy thing\b/u', 'LIR omits everything', $line) ?? $line;
-        $line = preg_replace('/\bthatconditionallyexitiftheoperationyieldsavalueofadifferent\b/u', 'that conditionally exit if the operation yields a value of a different', $line) ?? $line;
-        $line = preg_replace('/\bVMobservesasideexit\b/u', 'VM observes a side exit', $line) ?? $line;
-        $line = preg_replace('/\borigin a ting\b/u', 'originating', $line) ?? $line;
-        $line = preg_replace('/\bcapturingthenewtypeoftheoperationin\b/u', 'capturing the new type of the operation in', $line) ?? $line;
-        $line = preg_replace('/\bcapturing the new type of the operation in In JavaScript\b/u', 'capturing the new type of the operation in a branch trace. In JavaScript', $line) ?? $line;
-        $line = preg_replace('/\binterpreter must and all of its prototypes and parents\b/u', 'interpreter must search the object and all of its prototypes and parents', $line) ?? $line;
-        $line = preg_replace('/\bandallofitsprototypesandparents\b/u', 'and all of its prototypes and parents', $line) ?? $line;
-        $line = preg_replace('/\binterpreter must and all of its prototypes and parents\b/u', 'interpreter must search the object and all of its prototypes and parents', $line) ?? $line;
-        $line = preg_replace('/\bPropertymapscanbeimplementedwithdifferentdatastructures\b/u', 'Property maps can be implemented with different data structures', $line) ?? $line;
-        $line = preg_replace('/\bobjecthashtablesorsharedhashtables\b/u', 'object hash tables or shared hash tables', $line) ?? $line;
-        $line = preg_replace('/\bsothesearch\b/u', 'so the search', $line) ?? $line;
-        $line = preg_replace('/\bsimp lest\b/u', 'simplest', $line) ?? $line;
-        $line = preg_replace('/\buse sash ared hash-tablerepreseninslot(\d+)ofapropertyvector\b/u', 'uses a shared hash-table representation that places the property in slot $1 of a property vector', $line) ?? $line;
-        $line = preg_replace('/\baccess , which uses\b/u', 'access the property value, which uses', $line) ?? $line;
-        $line = preg_replace('/\bThen the recorded with just two or three loads\b/u', 'Then the recorder can generate LIR that reads the property with just two or three loads', $line) ?? $line;
-        $line = preg_replace('/\bwithjusttwoorthreeloads\b/u', 'with just two or three loads', $line) ?? $line;
-        $line = preg_replace('/\boneto gettheprototype\b/u', 'one to get the prototype', $line) ?? $line;
-        $line = preg_replace('/\bpossiblyonetogetthepropertyvaluevector\b/u', 'possibly one to get the property value vector', $line) ?? $line;
-        $line = preg_replace('/\bonemoretogetslot(\d+)fromthevector\b/u', 'one more to get slot $1 from the vector', $line) ?? $line;
-        $line = preg_replace('/\bThen the recorded with just two or three loads\b/u', 'Then the recorder can generate LIR that reads the property with just two or three loads', $line) ?? $line;
-        $line = preg_replace('/\bavast simplification\b/u', 'a vast simplification', $line) ?? $line;
-        $line = preg_replace('/\bandspeedupcomparedtotheoriginalinterpretercode\b/u', 'and speedup compared to the original interpreter code', $line) ?? $line;
-        $line = preg_replace('/\bInheritance relationship sand object representation scan change\b/u', 'Inheritance relationships and object representations can change', $line) ?? $line;
-        $line = preg_replace('/\bsothesimplifiedcoderequiresguardinstructionsthatensure\b/u', 'so the simplified code requires guard instructions that ensure', $line) ?? $line;
-        $line = preg_replace('/\bJavaScript hasno integer type, onlya Numbertypethatisthesetof(?=\d)/u', 'JavaScript has no integer type, only a Number type that is the set of ', $line) ?? $line;
-        $line = preg_replace('/\bJavaScript hasno integer type, onlya Numbertypethatisthesetof\b/u', 'JavaScript has no integer type, only a Number type that is the set of', $line) ?? $line;
-        $line = preg_replace('/\binparticulararrayaccessesandbitwiseoperators\b/u', 'in particular array accesses and bitwise operators', $line) ?? $line;
-        $line = preg_replace('/\bsotheyfirstconvertthenumbertoaninteger\b/u', 'so they first convert the number to an integer', $line) ?? $line;
-        $line = preg_replace('/\bVMthatwantstobefastmustfindawaytooperateon\b/u', 'VM that wants to be fast must find a way to operate on', $line) ?? $line;
-        $line = preg_replace('/\bintegersdirectlyandavoidtheseconversions\b/u', 'integers directly and avoid these conversions', $line) ?? $line;
-        $line = preg_replace('/\s+Permission to make\b.*$/iu', '', $line) ?? $line;
-        $line = preg_replace('/\s+To copy otherwise\b.*$/iu', '', $line) ?? $line;
-        $line = preg_replace('/\s+JavaScript,\s+for\s*$/iu', '', $line) ?? $line;
+
+        foreach (['JavaScript', 'TypeScript', 'ECMAScript', 'OpenDocument', 'Markdown', 'MathML', 'MediaWiki', 'PostScript'] as $term) {
+            $spaced = preg_replace('/(?<!^)([A-Z])/', ' $1', $term) ?? $term;
+            $line = preg_replace('/\b' . preg_quote($spaced, '/') . '\b/u', $term, $line) ?? $line;
+        }
+
         $line = preg_replace('/\s+/u', ' ', $line) ?? $line;
 
         return trim($line);
@@ -674,15 +842,15 @@ final class PdfReader
         $builtin = preg_split('/\s+/', trim(<<<'WORDS'
 the of and to in a is that for on as with by this are be or an from at it we can all any not but such than no more most one each ones when while if then into out up down over under through between during before after yet
 these those there their they them our ours your its his her was were been being have has had do does did may might must should would could will shall also both either neither same other another because since where which who whose what why how means uses use runs makes stops allows give decide decides invokes crosses crossed crossing second immediately currently always begins
-dynamic language languages javascript script python ruby compile compiler compilers compilation compiled compiling code machine native bytecode interpreter runtime run time typed type types information expression expressions operation operations instruction instructions generic generalized concrete possible combinations traditional static analysis inference optimized optimization optimizations performance startup browser web application applications google mail docs zimbra collaboration suite available handle combinations runtime present alternative onthefly fly elegant way incrementally lazily discovered measured certain
+dynamic language languages javascript script python ruby compile compiler compilers compilation compiled compiling code machine native bytecode interpreter runtime run time typed type types information expression expressions operation operations instruction instructions generic generalized concrete possible combinations traditional static analysis inference optimized optimization optimizations performance startup browser web application applications google mail docs zimbra collaboration suite available handle combinations runtime present alternative fly elegant way incrementally lazily discovered measured certain
 trace traces traced tracing based just specialization specialize specialized specializations inter procedural incremental lazily discovered discover alternative alternatives paths path loop loops nested hot side exit exits guard guards speculation speculatively validate validation branch branches values mapping invariant iteration iterations method methods system systems program programs benchmark benchmarks measured measure speed speedups efficient efficiency excellent mixed mode execution sequence sequences records recorded recording frequently frequent executed execute executing generated generates generating difficult accessible access non experts expressive deployment source files file scripts complex product productivity fluid experience generation virtual machines provide provides providing reconcile reconciles granularity individual expectation expectations expect remain integer integers exact slower cost cheap elegant implemented implementation technique techniques present presents paper abstract introduction design experimentation measurement programming permissions permission copyright personal classroom copies copied copy digital hard work classroom granted without fee distributed distribute profit commercial bear notice full otherwise republish post posting redistribute advantage citation first page republication servers list categories subject descriptors general terms overview general capture captures compile regions region related work discussed state dark box boxes gray light white overhead maximize minimize spent industry conclusions conclusion potential point points monitor monitors count counts edge edges native
 justintime just in time dynamically statically startup start up run-time runtime compile-time compile time
 available unavailable concrete actual occurring occur occurs occurred through throughputs fly on the fly need needs emit emits emitting gather gathers able unable determine determined determines identifying identifies identify found taken followed subsequent subsequent calculation policy copies copy made granted fee provided profit commercial advantage notices title publication republication posting lists require requires permission specific citation
 popular expressive productivity reasons however implementation implement language features programmers programmer developer developers primarily selected chosen productivity features virtual machines low high start time improve improves improved improving existing portable processor processors architecture architectures bytecodes bytecode regions region covers cover covering coverage forming formed organized follows explain explains described describe describes approach section sections details major activities activity transition transitions cause causes state home native code machine code easy distributing used small well browser logic domain order user enable new rely vary transform operate exact generalized deal potential hence suited highly interactive environment standard interpreter interpreters
+document documents paragraph paragraphs column columns row rows layout layouts reader readers dictionary dictionaries repair repairs repaired preserve preserves prose text extraction extracted spacing spaces words word missing adjacent source target page pages title heading headings example examples sample samples content line lines visual visually arbitrary technical neutral generic pdf lose lost without special cases case flavor feature features left right sentence sentences continue continues interleave starts third finishes show shows
 inner outer header headers tree trees traceable untraceable inlining inline calls succeeds succeeds call callee caller primitives prime primes object objects class tag tags stack activation record records load store stores mask results result variable variables slots slot frame frames local locals constants constant low level high level register registers memory instruction selection allocation allocator lir instructions instruction temporary semantics data optimized away locations live finally later passed finished fragment entered observed matches
 cannot longer infer inference generate efficient machine code generated performance generated code starts running compiles fast native code dynamic compiler loop counters counters start integers remain for all all iterations compiled traces compiled trace covers one path program with executes guarantee path followed typing exactly were during recording subsequent guards fails fails side exits branch taken continue tracing reaches reach require copy every stop starts new outer loop inner loop finishes dynamically translate translate specialized trace trees achieve effects vm efficiently performs optim attractive effective supports features speedup speedups traceable programs algorithm dynamically forming frequently executed code regions depth causing excessive tail
 try tries trying number numbers events broken sample figure
-what are roots clutch branches grow out stony rubbish son man cannot say guess only heap broken images sun beats dead tree gives shelter cricket relief dry stone sound water
 WORDS)) ?: [];
         foreach ($builtin as $word) {
             $word = strtolower(trim($word));

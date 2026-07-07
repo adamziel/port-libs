@@ -4858,35 +4858,14 @@ return [
         $t->contains('Product', $document->children[0]->attr('text'));
         $t->contains('Widget Alpha', $document->children[1]->attr('text'));
     },
-    'repairs glued prose in bounded technical pdf text extraction' => static function (TestRunner $t) use ($pdfWithContent): void {
+    'repairs glued prose in bounded pdf text extraction' => static function (TestRunner $t) use ($pdfWithContent): void {
         $pdf = $pdfWithContent(
             'BT /F1 12 Tf '
-            . '1 0 0 1 72 748 Tm (Trace-basedJust-in-TimeTypeSpecializationforDynamic) Tj '
-            . '1 0 0 1 72 732 Tm (DynamiclanguagessuchasJavaScriptaremoredifficulttocom-) Tj '
-            . '1 0 0 1 72 716 Tm (pilethanstaticallytypedones.Sincenoconcretetypeinformation) Tj '
-            . '1 0 0 1 72 700 Tm (isavailable,traditionalcompilersneedtoemitgenericcode) Tj '
-            . '1 0 0 1 72 684 Tm (thatcanhandleallpossibletypecombinationsatruntime.) Tj '
-            . '1 0 0 1 72 668 Tm (Wepresentanalternativecompilationtechniquefordynamically-typed) Tj '
-            . '1 0 0 1 72 652 Tm (languagesthatidentifiesfrequentlyexecutedlooptracesatrun-timeandthen) Tj '
-            . '1 0 0 1 72 620 Tm (Eachcompiledtracecoversonepaththroughtheprogramwith) Tj '
-            . '1 0 0 1 72 604 Tm (onemappingofvaluestotypes.WhentheVMexecutesacompiled) Tj '
-            . '1 0 0 1 72 588 Tm (thatthepathand) Tj '
-            . '1 0 0 1 72 572 Tm (typingwillbeexactlyastheywereduringrecordingforsubsequent) Tj '
-            . '1 0 0 1 72 556 Tm (iterationsoftheloop.) Tj '
-            . '1 0 0 1 72 540 Tm (\\(checks\\)required) Tj '
-            . '1 0 0 1 72 508 Tm (NestedloopscanbedifficulttooptimizefortracingVMs.) Tj '
-            . '1 0 0 1 72 492 Tm (Alternatively,theVMcouldsimplystoptracing,andgiveup) Tj '
-            . '1 0 0 1 72 476 Tm (The systemstopsextendingtheinnertreewhenitreachesanouter) Tj '
-            . '1 0 0 1 72 460 Tm (oursystemcantraceanynumberofloopsnestedtoanydepthwithoutcausingexcessivetailduplication.) Tj '
-            . '1 0 0 1 72 428 Tm (This is the LIRrecordedforline5ofthesampleprogramin Figure 1.The LIRencodes the semantics in SSAformusingtemporaryvariables.) Tj '
-            . '1 0 0 1 72 412 Tm (The LIRalsoencodesallthestoresthattheinterpreterwoulddotoitsdatastack.) Tj '
-            . '1 0 0 1 72 396 Tm (Thus, onlaterexecutions, if and only if all guards are passed, the tracehastherequiredprogramsemantics.) Tj '
-            . '1 0 0 1 72 380 Tm (TraceMonkey stopsrecordingwhenexecutionreturnstothe loop header or exits the loop.) Tj '
-            . '1 0 0 1 72 364 Tm (In this case, executionreturnstothe loopheaderonline4.) Tj '
-            . '1 0 0 1 72 348 Tm (Thisisjustanunconditionalbranchtothetopof the trace. Suchtracesreturnonlyviaguards.) Tj '
-            . '1 0 0 1 72 332 Tm (Now, wedescribethekeyoptimizationsthatareperformedas part of recording LIR.) Tj '
-            . '1 0 0 1 72 316 Tm (All of these optimizations reduce complex dynamiclanguageconstructstosimpletypedconstructsbyspecializingforthecurrenttrace.) Tj '
-            . '1 0 0 1 72 300 Tm (Eachoptimizationrequiresguardinstructionstoverifytheirassumptionsaboutthestateandexitthe trace if necessary.) Tj '
+            . '1 0 0 1 72 748 Tm (TechnicaldocumentscanlosewordspacesduringPDFextraction.) Tj '
+            . '1 0 0 1 72 732 Tm (Thisreaderusesadictionarybasedrepairtopreserveprose.) Tj '
+            . '1 0 0 1 72 716 Tm (Adjacentlinescanformavisualparagraphwithoutspecialcases.) Tj '
+            . '1 0 0 1 72 700 Tm (Markdownexamplesexerciseformatflavorfeatures.) Tj '
+            . '1 0 0 1 72 684 Tm (Section3describesgenericlayoutrepair.Figure2showscolumns.) Tj '
             . 'ET'
         );
 
@@ -4899,30 +4878,41 @@ return [
         $meta = $document->attr('meta');
 
         $t->same(true, $meta['pdfTextRepair']);
-        $t->contains('Trace-based Just-in-Time Type Specialization for Dynamic', $text);
-        $t->contains('Dynamic languages such as JavaScript are more difficult to compile than statically typed ones.', $text);
-        $t->contains('Since no concrete type information is available, traditional compilers need to emit generic code', $text);
-        $t->contains('handle all possible type combinations at runtime.', $text);
-        $t->contains('We present an alternative compilation technique for dynamically-typed languages', $text);
-        $t->contains('run-time and then', $text);
-        $t->contains('Each compiled trace covers one path through the program with one mapping of values to types. When the VM executes a compiled', $text);
-        $t->contains('Every compiled trace contains all the guards (checks) required', $text);
-        $t->contains('Nested loops can be difficult to optimize for tracing VMs.', $text);
-        $t->contains('the VM could simply stop tracing, and give up', $text);
-        $t->contains('The system stops extending the inner tree when it reaches an outer', $text);
-        $t->contains('our system can trace any number of loops nested to any depth without causing excessive tail duplication.', $text);
-        $t->contains('This is the LIR recorded for line 5 of the sample program in Figure 1. The LIR encodes the semantics in SSA form using temporary variables.', $text);
-        $t->contains('The LIR also encodes all the stores that the interpreter would do to its data stack.', $text);
-        $t->contains('Thus, on later executions, if and only if all guards are passed, the trace has the required program semantics.', $text);
-        $t->contains('TraceMonkey stops recording when execution returns to the loop header or exits the loop.', $text);
-        $t->contains('execution returns to the loop header on line 4.', $text);
-        $t->contains('This is just an unconditional branch to the top of the trace. Such traces return only via guards.', $text);
-        $t->contains('Now, we describe the key optimizations that are performed as part of recording LIR.', $text);
-        $t->contains('dynamic language constructs to simple typed constructs by specializing for the current trace.', $text);
-        $t->contains('Each optimization requires guard instructions to verify their assumptions about the state and exit the trace if necessary.', $text);
-        $t->true(!str_contains($html, '<h2>Each compiled trace covers'), 'wrapped prose line is not promoted to a heading');
-        $t->true(!str_contains($text, 'Java Script'), 'JavaScript remains a protected technical term');
-        $t->true(!str_contains($text, 'aremoredifficult'), 'glued prose is segmented');
+        $t->contains('Technical documents can lose word spaces during PDF extraction.', $text);
+        $t->contains('This reader uses a dictionary based repair to preserve prose.', $text);
+        $t->contains('Adjacent lines can form a visual paragraph without special cases.', $text);
+        $t->contains('Markdown examples exercise format flavor features.', $text);
+        $t->contains('Section 3 describes generic layout repair. Figure 2 shows columns.', $text);
+        $t->true(!str_contains($html, '<h2>Technical documents'), 'wrapped prose line is not promoted to a heading');
+        $t->true(!str_contains($text, 'documentscanlosewordspaces'), 'glued prose is segmented');
+    },
+    'orders positioned prose columns before repairing pdf text' => static function (TestRunner $t) use ($pdfWithContent): void {
+        $pdf = $pdfWithContent(
+            'BT /F1 12 Tf '
+            . '1 0 0 1 72 748 Tm (Leftcolumnfirstsentencecontinues) Tj '
+            . '1 0 0 1 330 748 Tm (Rightcolumnshouldnotinterleave) Tj '
+            . '1 0 0 1 72 732 Tm (beforethesecondcolumnstarts.) Tj '
+            . '1 0 0 1 330 732 Tm (withleftcolumnrows.) Tj '
+            . '1 0 0 1 72 716 Tm (Leftcolumnthirdlinefinishes.) Tj '
+            . '1 0 0 1 330 716 Tm (Rightcolumnthirdlinefinishes.) Tj '
+            . 'ET'
+        );
+
+        $document = (new PdfReader([
+            'pdfGeometryTables' => false,
+            'pdfRepairProseText' => true,
+        ]))->read($pdf);
+        $text = preg_replace('/\s+/', ' ', html_entity_decode(strip_tags(PandocConverter::write($document, 'html')), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')) ?? '';
+        $meta = $document->attr('meta');
+
+        $t->same('positioned', $meta['pdfTextRepairSource']);
+        $leftFirst = strpos($text, 'Left column first sentence continues');
+        $leftThird = strpos($text, 'Left column third line finishes.');
+        $rightFirst = strpos($text, 'Right column should not interleave');
+        $t->true($leftFirst !== false, 'left column prose is segmented');
+        $t->true($leftThird !== false, 'left column remains contiguous');
+        $t->true($rightFirst !== false, 'right column prose is segmented');
+        $t->true($leftThird < $rightFirst, 'left column is emitted before right column');
     },
     'preserves positioned pdf tables embedded between surrounding text' => static function (TestRunner $t) use ($pdfWithContent): void {
         $pdf = $pdfWithContent(
