@@ -3337,6 +3337,7 @@ WORDS)) ?: [];
 
     private function tableCell(string $text, int $rowspan = 1, int $colspan = 1, array $attrs = []): AstNode
     {
+        $text = $this->repairPdfTableCellText($text);
         $attrs = array_replace($attrs, ['text' => $text]);
         if ($rowspan > 1) {
             $attrs['rowspan'] = $rowspan;
@@ -3348,6 +3349,22 @@ WORDS)) ?: [];
         return new AstNode('table_cell', $attrs, [
             new AstNode('plain', ['text' => $text], $this->inlines($text)),
         ]);
+    }
+
+    private function repairPdfTableCellText(string $text): string
+    {
+        $text = trim($this->removeStandaloneBraceArtifacts($text));
+        if ($text === '') {
+            return '';
+        }
+
+        $text = preg_replace('/(?<=[\p{L}])([:;])(?=[\p{L}\d])/u', '$1 ', $text) ?? $text;
+        $text = preg_replace('/(?<!\d)\.(?=[A-Z][a-z])/u', '. ', $text) ?? $text;
+        $text = preg_replace('/(?<=[\p{Ll}])(\d+)(?=[:;])/u', ' $1', $text) ?? $text;
+        $text = preg_replace('/(?<=\d)(?=[\p{L}]{2,}\s+\d)/u', ' ', $text) ?? $text;
+        $text = preg_replace('/\s+/u', ' ', $text) ?? $text;
+
+        return trim($text);
     }
 
     private function positiveSpan(mixed $value): int

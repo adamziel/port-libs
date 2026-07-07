@@ -4906,6 +4906,26 @@ return [
         $t->contains('Product', $document->children[0]->attr('text'));
         $t->contains('Widget Alpha', $document->children[1]->attr('text'));
     },
+    'repairs conservative pdf spacing joins inside table cells' => static function (TestRunner $t) use ($pdfWithContent): void {
+        $pdf = $pdfWithContent(
+            'BT /F1 12 Tf '
+            . '1 0 0 1 72 720 Tm (Field  Value) Tj '
+            . '1 0 0 1 72 704 Tm (Mayoría:Votos  Página 1de 9) Tj '
+            . 'ET'
+        );
+
+        $document = (new PdfReader([
+            'pdfGeometryTables' => false,
+            'pdfRepairProseText' => false,
+        ]))->read($pdf);
+        $html = PandocConverter::write($document, 'html');
+
+        $t->same('table', $document->children[0]->type);
+        $t->contains('<td>Mayoría: Votos</td>', $html);
+        $t->contains('<td>Página 1 de 9</td>', $html);
+        $t->true(!str_contains($html, 'Mayoría:Votos'));
+        $t->true(!str_contains($html, '1de 9'));
+    },
     'repairs glued prose in bounded pdf text extraction' => static function (TestRunner $t) use ($pdfWithContent): void {
         $pdf = $pdfWithContent(
             'BT /F1 12 Tf '

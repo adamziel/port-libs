@@ -6375,17 +6375,15 @@ final class PdfTextExtractor
         }
 
         $resourceEncodings = [];
-        if (preg_match_all('/\/Font\s*<<(.*?)>>/s', $resourceContext, $fontMatches)) {
-            foreach ($fontMatches[1] as $fontResourceDictionary) {
-                if (!preg_match_all('/\/([A-Za-z0-9_.#-]+)\s+(\d+)\s+\d+\s+R\b/', $fontResourceDictionary, $resourceMatches, PREG_SET_ORDER)) {
-                    continue;
-                }
+        foreach ($this->fontResourceDictionariesFromContext($resourceContext, $objects) as $fontResourceDictionary) {
+            if (!preg_match_all('/\/([A-Za-z0-9_.#-]+)\s+(\d+)\s+\d+\s+R\b/', $fontResourceDictionary, $resourceMatches, PREG_SET_ORDER)) {
+                continue;
+            }
 
-                foreach ($resourceMatches as $resourceMatch) {
-                    $fontObjectNumber = (int) $resourceMatch[2];
-                    if (isset($fontObjectEncodings[$fontObjectNumber])) {
-                        $resourceEncodings[$this->decodePdfName($resourceMatch[1])] = $fontObjectEncodings[$fontObjectNumber];
-                    }
+            foreach ($resourceMatches as $resourceMatch) {
+                $fontObjectNumber = (int) $resourceMatch[2];
+                if (isset($fontObjectEncodings[$fontObjectNumber])) {
+                    $resourceEncodings[$this->decodePdfName($resourceMatch[1])] = $fontObjectEncodings[$fontObjectNumber];
                 }
             }
         }
@@ -8045,6 +8043,13 @@ final class PdfTextExtractor
                     if ($this->isType3FontWithSafeDeclaredEncoding($objectBody, $encoding['base'])) {
                         $encoding['suppressUnmapped'] = false;
                     }
+                    if ($this->isSimpleTrueTypeFontWithSafeDeclaredEncoding(
+                        $objectBody,
+                        $encoding['base'],
+                        $this->fontWidthsFromObject($objectBody, $objects)
+                    )) {
+                        $encoding['suppressUnmapped'] = false;
+                    }
 
                     return $encoding;
                 }
@@ -8094,8 +8099,12 @@ final class PdfTextExtractor
             return null;
         }
 
+        $widths = $this->fontWidthsFromObject($objectBody, $objects);
         $suppressUnmapped = $differences === [] && $this->isUnmappedCustomFont($objectBody);
         if ($suppressUnmapped && $this->isType3FontWithSafeDeclaredEncoding($objectBody, $baseEncoding)) {
+            $suppressUnmapped = false;
+        }
+        if ($suppressUnmapped && $this->isSimpleTrueTypeFontWithSafeDeclaredEncoding($objectBody, $baseEncoding, $widths)) {
             $suppressUnmapped = false;
         }
 
@@ -8103,7 +8112,7 @@ final class PdfTextExtractor
             'base' => $baseEncoding,
             'differences' => $differences,
             'suppressUnmapped' => $suppressUnmapped,
-            'widths' => $this->fontWidthsFromObject($objectBody, $objects),
+            'widths' => $widths,
         ];
     }
 
@@ -8311,6 +8320,30 @@ final class PdfTextExtractor
         }
 
         return in_array($baseEncoding, ['WinAnsiEncoding', 'MacRomanEncoding', 'StandardEncoding', 'SymbolEncoding', 'ZapfDingbatsEncoding'], true);
+    }
+
+    /**
+     * @param array<int, float> $widths
+     */
+    private function isSimpleTrueTypeFontWithSafeDeclaredEncoding(string $objectBody, string $baseEncoding, array $widths): bool
+    {
+        if (preg_match('/\/Subtype\s*\/TrueType\b/', $objectBody) !== 1) {
+            return false;
+        }
+
+        if (!in_array($baseEncoding, ['WinAnsiEncoding', 'MacRomanEncoding', 'StandardEncoding'], true)) {
+            return false;
+        }
+
+        if ($widths === []) {
+            return false;
+        }
+
+        if (preg_match('/\/Differences\b/', $objectBody) === 1) {
+            return false;
+        }
+
+        return preg_match('/\/Encoding\s*(?:\/' . preg_quote($baseEncoding, '/') . '\b|\d+\s+\d+\s+R\b)/', $objectBody) === 1;
     }
 
     private function implicitStandardFontEncoding(string $objectBody): ?string
