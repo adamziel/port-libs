@@ -797,6 +797,12 @@ function organicSeedUrls(): array
         seed('https://www.sandia.gov/app/uploads/sites/177/2022/12/7_27_2022_14_35_rcole-FY22_MLDL_Submission_Abstract.pptx', 'pptx', 'government-web', 'sandia.gov', 'Sandia MLDL submission abstract PPTX'),
         seed('https://treasurer.delaware.gov/wp-content/uploads/sites/55/2021/05/Governance-Review.pptx', 'pptx', 'government-web', 'treasurer.delaware.gov', 'Delaware governance review PPTX'),
         seed('https://mmac.mo.gov/wp-content/uploads/sites/11/2021/04/Update-Meeting-Spring-2021-Provider-Review.pptx', 'pptx', 'government-web', 'mmac.mo.gov', 'Missouri provider review update PPTX'),
+        seed('https://ntrs.nasa.gov/api/citations/20240011703/downloads/Wood_%20Poster%20SPD-41a_BPS-Final.pptx', 'pptx', 'government-web', 'nasa.gov', 'NASA SPD-41a poster PPTX'),
+        seed('https://www.ftc.gov/sites/default/files/documents/public_events/fifth-annual-african-consumer-protection-dialogue-conference-livingstone-zambia/ghanasession5.pptx', 'pptx', 'government-web', 'ftc.gov', 'FTC Ghana session consumer protection PPTX'),
+        seed('https://www.energy.gov/sites/default/files/2023-03/FCIC%20CRADA%20Call%20Pitch%20Slides%20Template.pptx', 'pptx', 'government-web', 'energy.gov', 'DOE FCIC pitch slides template PPTX'),
+        seed('https://www.energy.gov/sites/default/files/2024-09/FCIC%20FY25%20IPC_Pitch%20Slides%20Template.pptx', 'pptx', 'government-web', 'energy.gov', 'DOE FCIC FY25 pitch slides template PPTX'),
+        seed('https://www.energy.gov/sites/default/files/2022-05/RACER%20Webinar.pptx', 'pptx', 'government-web', 'energy.gov', 'DOE RACER webinar PPTX'),
+        seed('https://www.nj.gov/iija/documents/resources/IIJA%20Slides%20for%20Website.pptx', 'pptx', 'government-web', 'nj.gov', 'New Jersey IIJA slides PPTX'),
         seed('https://raw.githubusercontent.com/quantum-journal/quantum-journal/master/quantumarticle.pdf', 'pdf', 'github-raw', 'quantum-journal/quantum-journal', 'Quantum article class documentation PDF'),
         seed('https://raw.githubusercontent.com/quantum-journal/quantum-journal/master/quantum-template.pdf', 'pdf', 'github-raw', 'quantum-journal/quantum-journal', 'Quantum article template PDF'),
         seed('https://raw.githubusercontent.com/quantum-journal/quantum-journal/master/quantum-bibliographystyle-demo.pdf', 'pdf', 'github-raw', 'quantum-journal/quantum-journal', 'Quantum bibliography style demo PDF'),
@@ -828,10 +834,20 @@ function organicSeedUrls(): array
         seed('https://www.nyc.gov/assets/planning/download/office/applicants/applicant-portal/land_use_application_form.doc', 'doc', 'government-web', 'nyc.gov', 'NYC land use application form DOC'),
         seed('https://www.finra.org/sites/default/files/NewAccountApplicationAllSectionsWordTemplate.doc', 'doc', 'organization-web', 'finra.org', 'FINRA new account application template DOC'),
         seed('https://ofm.wa.gov/wp-content/uploads/sites/default/files/public/shr/Rules/Uniformed%20Service%20Shared%20Leave%20Policy.doc', 'doc', 'government-web', 'ofm.wa.gov', 'Washington shared leave policy DOC'),
+        seed('https://vendornet.wi.gov/Download.aspx?Id=420772a3-d140-ec11-8137-0050568c7f0f&filename=SOW+Template.doc&type=contract', 'doc', 'government-web', 'vendornet.wi.gov', 'Wisconsin statement of work template DOC'),
+        seed('https://docs.fcc.gov/public/attachments/FCC-19-22A1.doc', 'doc', 'government-web', 'docs.fcc.gov', 'FCC spectrum leasing rules DOC'),
+        seed('https://wpcdn.web.wsu.edu/wp-daesa/uploads/sites/634/2017/01/Building-a-Syllabus.doc', 'doc', 'education-web', 'wsu.edu', 'Washington State building a syllabus DOC'),
+        seed('https://www.waterboards.ca.gov/water_issues/programs/beaches/cbi_projects/docs/progress.doc', 'doc', 'government-web', 'waterboards.ca.gov', 'California water boards progress report template DOC'),
+        seed('https://haas.berkeley.edu/wp-content/uploads/Course-Design-Handout.doc', 'doc', 'education-web', 'haas.berkeley.edu', 'Berkeley Haas course design handout DOC'),
+        seed('https://courts.ca.gov/system/files?file=solicitation-request-document%2Fphoenix-rfp-appendf.doc', 'doc', 'government-web', 'courts.ca.gov', 'California courts Phoenix RFP appendix F DOC'),
+        seed('https://oklahoma.gov/content/dam/ok/en/omes/documents/Solicitation3400001451AppendixA%20.doc', 'doc', 'government-web', 'oklahoma.gov', 'Oklahoma solicitation appendix A DOC'),
+        seed('https://alamedacountyca.gov/gsaapp/purchasing/bidContent_ftp/rfpDocs/RFP%23901843.doc', 'doc', 'government-web', 'alamedacountyca.gov', 'Alameda County locum tenens RFP DOC'),
         seed('https://raw.githubusercontent.com/docbook/xslt10-stylesheets/master/xsl/docsrc/reference.xml', 'docbook', 'github-raw', 'docbook/xslt10-stylesheets', 'DocBook XSLT reference manual XML'),
         seed('https://raw.githubusercontent.com/docbook/xslt10-stylesheets/master/xsl/docsrc/warranty.xml', 'docbook', 'github-raw', 'docbook/xslt10-stylesheets', 'DocBook XSLT warranty documentation XML'),
         seed('https://raw.githubusercontent.com/docbook/xslt10-stylesheets/master/xsl/params/abstract.notitle.enabled.xml', 'docbook', 'github-raw', 'docbook/xslt10-stylesheets', 'DocBook abstract title parameter XML'),
         seed('https://raw.githubusercontent.com/docbook/xslt10-stylesheets/master/xsl/params/admon.graphics.xml', 'docbook', 'github-raw', 'docbook/xslt10-stylesheets', 'DocBook admon graphics parameter XML'),
+        seed('https://docs.oasis-open.org/docbook/specs/docbook-4.5-spec.xml', 'docbook', 'standards-web', 'docs.oasis-open.org', 'DocBook 4.5 specification XML'),
+        seed('https://dicom.nema.org/medical/Dicom/2024d/source/docbook/part14/part14.xml', 'docbook', 'standards-web', 'dicom.nema.org', 'DICOM PS3.14 DocBook XML'),
         ...docbookParamSeedUrls(['abstract.properties', 'abstract.title.properties', 'activate.external.olinks', 'active.toc', 'admon.graphics.extension', 'admon.graphics.path', 'admon.style', 'admon.textlabel', 'alignment', 'appendix.autolabel']),
         seed('https://dir.texas.gov/sites/default/files/2024-09/Model%20Policy%20for%20Preventing%20Use%20of%20Prohibited%20Technology%20and%20Covered%20Applications.docx', 'docx', 'government-web', 'dir.texas.gov', 'Texas prohibited technology model policy DOCX'),
         seed('https://www.fedramp.gov/resources/templates/FedRAMP-High-Moderate-Low-LI-SaaS-Baseline-System-Security-Plan-%28SSP%29.docx', 'docx', 'government-web', 'fedramp.gov', 'FedRAMP SSP template DOCX'),
@@ -885,6 +901,9 @@ function organicSeedUrls(): array
         seed('https://ndlegis.gov/assembly/69-2025/regular/documents/25-0902-02003m.odt', 'odt', 'government-web', 'ndlegis.gov', 'North Dakota legislative measure 25-0902 ODT'),
         seed('https://ndlegis.gov/assembly/69-2025/regular/documents/25-1011-02001m.odt', 'odt', 'government-web', 'ndlegis.gov', 'North Dakota legislative measure 25-1011 ODT'),
         seed('https://ndlegis.gov/assembly/69-2025/regular/documents/25-1303-01001m.odt', 'odt', 'government-web', 'ndlegis.gov', 'North Dakota legislative measure 25-1303 ODT'),
+        seed('https://eagleriverwi.gov/wp-content/uploads/2024/07/2024.3.25-Affordable-Housing-Committee-Meeting-Minutes.odt', 'odt', 'municipal-web', 'eagleriverwi.gov', 'Eagle River affordable housing minutes ODT'),
+        seed('https://stmaryspa.gov/wp-content/uploads/2025/07/Agenda-August-6-2025.odt', 'odt', 'municipal-web', 'stmaryspa.gov', 'Saint Marys shade tree agenda ODT'),
+        seed('https://lincolncountyne.gov/wp-content/uploads/2025/09/09-22-2025.odt', 'odt', 'municipal-web', 'lincolncountyne.gov', 'Lincoln County board agenda ODT'),
         ...gsjBitsSeedUrls(['0439', '0443', '0445', '0447', '0448', '0449', '0458', '0459', '0478', '0481', '0484', '0488', '0501', '0502', '0506', '0510', '0516', '0521', '0526', '0527']),
         seed('https://www.eia.gov/energyexplained/oil-and-petroleum-products/data/US-tight-oil-production.xlsx', 'xlsx', 'government-web', 'eia.gov', 'EIA tight oil production XLSX'),
         seed('https://edd.ca.gov/siteassets/files/newsroom/facts-and-stats/excel/call-center-data.xlsx', 'xlsx', 'government-web', 'edd.ca.gov', 'California EDD call center data XLSX'),
@@ -897,10 +916,25 @@ function organicSeedUrls(): array
         seed('https://hcup-us.ahrq.gov/doc/HCUP_DatabaseCatalog_NationwideDatabases.xlsx', 'xlsx', 'government-web', 'hcup-us.ahrq.gov', 'AHRQ HCUP database catalog XLSX'),
         seed('https://www.eia.gov/petroleum/drilling/xls/dpr-data.xlsx', 'xlsx', 'government-web', 'eia.gov', 'EIA drilling productivity report data XLSX'),
         seed('https://www2.census.gov/programs-surveys/popest/tables/2020-2025/state/totals/NST-EST2025-POP.xlsx', 'xlsx', 'government-web', 'census.gov', 'Census state population estimates XLSX'),
+        seed('https://www2.census.gov/programs-surveys/popest/tables/2020-2025/counties/totals/co-est2025-pop.xlsx', 'xlsx', 'government-web', 'census.gov', 'Census county population estimates XLSX'),
+        seed('https://www2.census.gov/programs-surveys/popest/tables/2020-2025/state/totals/NST-EST2025-CHG.xlsx', 'xlsx', 'government-web', 'census.gov', 'Census state population change estimates XLSX'),
+        seed('https://www2.census.gov/programs-surveys/popest/tables/2020-2025/state/totals/NST-EST2025-COMP.xlsx', 'xlsx', 'government-web', 'census.gov', 'Census state population components XLSX'),
+        seed('https://www2.census.gov/programs-surveys/popest/tables/2020-2025/national/totals/NA-EST2025-POP.xlsx', 'xlsx', 'government-web', 'census.gov', 'Census national population estimates XLSX'),
+        seed('https://www2.census.gov/programs-surveys/popest/tables/2020-2025/counties/totals/co-est2025-pop-25.xlsx', 'xlsx', 'government-web', 'census.gov', 'Census county population estimates Missouri XLSX'),
+        seed('https://www2.census.gov/programs-surveys/popest/tables/2020-2025/counties/totals/co-est2025-pop-45.xlsx', 'xlsx', 'government-web', 'census.gov', 'Census county population estimates South Carolina XLSX'),
+        seed('https://www2.census.gov/programs-surveys/popest/tables/2020-2025/counties/totals/co-est2025-comp-16.xlsx', 'xlsx', 'government-web', 'census.gov', 'Census county components Idaho XLSX'),
+        seed('https://www2.census.gov/programs-surveys/popest/tables/2020-2025/counties/totals/co-est2025-chg-35.xlsx', 'xlsx', 'government-web', 'census.gov', 'Census county change New Mexico XLSX'),
+        seed('https://www2.census.gov/programs-surveys/popest/tables/2020-2025/counties/totals/co-est2025-pop-48.xlsx', 'xlsx', 'government-web', 'census.gov', 'Census county population estimates Texas XLSX'),
         seed('https://raw.githubusercontent.com/eamena-project/eamena-arches-dev/main/dbs/database.eamena/data/reference_data/rm/hp/mds/mds-template-readonly.tsv', 'tsv', 'github-raw', 'eamena-project/eamena-arches-dev', 'EAMENA MDS template readonly TSV'),
         seed('https://raw.githubusercontent.com/vega/vega-datasets/master/data/unemployment.tsv', 'tsv', 'github-raw', 'vega/vega-datasets', 'Vega unemployment TSV dataset'),
         seed('https://raw.githubusercontent.com/plotly/datasets/master/Dash_Bio/Chromosomal/clustergram_mtcars.tsv', 'tsv', 'github-raw', 'plotly/datasets', 'Plotly Dash Bio mtcars TSV'),
         seed('https://raw.githubusercontent.com/plotly/datasets/master/global_super_store_orders.tsv', 'tsv', 'github-raw', 'plotly/datasets', 'Plotly global super store orders TSV'),
+        seed('https://raw.githubusercontent.com/rstudio/r-community-survey/refs/heads/master/2020/data/2020-english-survey-final.tsv', 'tsv', 'github-raw', 'rstudio/r-community-survey', 'R community survey 2020 TSV'),
+        seed('https://raw.githubusercontent.com/biopragmatics/bioregistry/main/exports/registry/registry.tsv', 'tsv', 'github-raw', 'biopragmatics/bioregistry', 'Bioregistry registry TSV'),
+        seed('https://raw.githubusercontent.com/Oshlack/scRNA-tools/master/database/tools.tsv', 'tsv', 'github-raw', 'Oshlack/scRNA-tools', 'Single-cell RNA tools database TSV'),
+        seed('https://raw.githubusercontent.com/nsgrantham/tidytuesdayrocks/master/data/tweets.tsv', 'tsv', 'github-raw', 'nsgrantham/tidytuesdayrocks', 'Tidy Tuesday tweets TSV'),
+        seed('https://raw.githubusercontent.com/libjohn/openrefine/master/data/bicycle-subset-phm-collection.tsv', 'tsv', 'github-raw', 'libjohn/openrefine', 'Powerhouse museum bicycle collection TSV'),
+        seed('https://raw.githubusercontent.com/NGSchoolEU/ngs22_registration_form/1cc647a3733e2c8a21b47aa497b4ca8c42457aa8/data/single-cell-studies.tsv', 'tsv', 'github-raw', 'NGSchoolEU/ngs22_registration_form', 'Single-cell studies TSV'),
         ...galaxyTsvSeedUrls([
             ['topics/contributing/tutorials/meta-analysis-data/sc-roles.tsv', 'Galaxy training single-cell roles TSV'],
             ['topics/contributing/tutorials/meta-analysis-data/sc.tsv', 'Galaxy training single-cell TSV'],
@@ -1705,6 +1739,25 @@ function validateCandidateBytes(string $format, string $url, string $bytes): voi
     if ($format === 'ipynb' && !str_contains(substr($bytes, 0, 20000), '"cells"')) {
         throw new RuntimeException('ipynb candidate does not look like a notebook');
     }
+    if (in_array($format, ['docx', 'epub', 'odt', 'pptx', 'xlsx'], true) && !isZipLikeBytes($bytes)) {
+        throw new RuntimeException("{$format} candidate is not a ZIP package");
+    }
+    if ($format === 'doc' && !str_starts_with($bytes, "\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1")) {
+        throw new RuntimeException('doc candidate is not an OLE CFB document');
+    }
+    if ($format === 'pdf' && !str_starts_with($bytes, '%PDF-')) {
+        throw new RuntimeException('pdf candidate is not a PDF document');
+    }
+    if ($format === 'rtf' && !str_starts_with(ltrim(substr($bytes, 0, 128)), '{\rtf')) {
+        throw new RuntimeException('rtf candidate is not RTF content');
+    }
+}
+
+function isZipLikeBytes(string $bytes): bool
+{
+    return str_starts_with($bytes, "PK\x03\x04")
+        || str_starts_with($bytes, "PK\x05\x06")
+        || str_starts_with($bytes, "PK\x07\x08");
 }
 
 function xmlLikeFormats(): array
