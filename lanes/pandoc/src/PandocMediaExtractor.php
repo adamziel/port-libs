@@ -36,8 +36,12 @@ final class PandocMediaExtractor
             }
         }
 
+        $pdfImagePlacements = [];
         if ($format === 'pdf') {
-            $this->loadPdfImages($bag, $bytes, $diagnostics);
+            $pdfImagePlacements = $this->loadPdfImages($bag, $bytes, $diagnostics);
+            if ($pdfImagePlacements !== []) {
+                $document = $this->documentWithPdfImageBlocks($document, $pdfImagePlacements);
+            }
         }
 
         $extracted = $bag->extractMedia($document, $destination);
@@ -214,18 +218,23 @@ final class PandocMediaExtractor
     /**
      * @param list<string> $diagnostics
      */
-    private function loadPdfImages(MediaBag $bag, string $bytes, array &$diagnostics): void
+    /**
+     * @param list<string> $diagnostics
+     * @return list<array{source:string, page:int|null, object:string, mimeType:string, byteLength:int}>
+     */
+    private function loadPdfImages(MediaBag $bag, string $bytes, array &$diagnostics): array
     {
         if (strlen($bytes) > self::MAX_PDF_SCAN_BYTES) {
             $diagnostics[] = 'extract-media-pdf-scan-skipped:too-large';
 
-            return;
+            return [];
         }
 
         if (!preg_match_all('/(\d+)\s+(\d+)\s+obj\b(.*?)\bendobj/s', $bytes, $matches, PREG_SET_ORDER)) {
-            return;
+            return [];
         }
 
+        $placements = [];
         $loaded = 0;
         foreach ($matches as $match) {
             if ($loaded >= self::MAX_PDF_IMAGES) {
@@ -254,9 +263,51 @@ final class PandocMediaExtractor
             $extension = $mimeType === 'image/jpeg' ? '.jpg' : '.jp2';
             $source = 'pdf/image-' . $objectNumber . $extension;
             $bag->insertMedia($source, $mimeType, $stream);
+            $placements[] = [
+                'source' => $source,
+                'page' => null,
+                'object' => $objectNumber,
+                'mimeType' => $mimeType,
+                'byteLength' => strlen($stream),
+            ];
             $diagnostics[] = 'extract-media-pdf-image-loaded:' . $objectNumber;
             $loaded++;
         }
+
+        return $placements;
+    }
+
+    /**
+     * @param list<array{source:string, page:int|null, object:string, mimeType:string, byteLength:int}> $placements
+     */
+    private function documentWithPdfImageBlocks(AstNode $document, array $placements): AstNode
+    {
+        $imageBlocks = [];
+        foreach ($placements as $placement) {
+            $attributes = [
+                'data-pandoc-pdf-image-object' => $placement['object'],
+                'data-pandoc-pdf-image-type' => $placement['mimeType'],
+                'data-pandoc-pdf-image-bytes' => (string) $placement['byteLength'],
+            ];
+            if ($placement['page'] !== null) {
+                $attributes['data-pandoc-pdf-page'] = (string) $placement['page'];
+            }
+            $imageBlocks[] = new AstNode('paragraph', ['classes' => ['pandoc-pdf-image-block']], [
+                new AstNode('image', [
+                    'url' => $placement['source'],
+                    'title' => 'PDF image ' . $placement['object'],
+                    'attributes' => $attributes,
+                ], [
+                    new AstNode('text', ['text' => 'PDF image ' . $placement['object']]),
+                ]),
+            ]);
+        }
+
+        if ($imageBlocks === []) {
+            return $document;
+        }
+
+        return new AstNode($document->type, $document->attrs, array_merge($imageBlocks, $document->children));
     }
 
     /**

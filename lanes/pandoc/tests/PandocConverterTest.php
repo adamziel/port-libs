@@ -194,6 +194,11 @@ return [
         $t->same('image/jpeg', $result['entries'][0]['mimeType'] ?? null);
         $t->same($jpeg, $result['entries'][0]['contents'] ?? null);
         $t->true(in_array('extract-media-pdf-image-loaded:1', $result['diagnostics'], true));
+        $t->same('paragraph', $result['document']->children[0]->type ?? null);
+        $t->same('image', $result['document']->children[0]->children[0]->type ?? null);
+        $t->same('media/pdf/image-1.jpg', $result['document']->children[0]->children[0]->attr('url'));
+        $html = PandocConverter::write($result['document'], 'html');
+        $t->contains('<img src="media/pdf/image-1.jpg"', $html);
     },
     'fails explicitly for unsupported registry formats' => static function (TestRunner $t): void {
         $t->throws(\InvalidArgumentException::class, static function (): void {
