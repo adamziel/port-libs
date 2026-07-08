@@ -76,16 +76,19 @@ final class PdfReader
             }
         }
         $repairSourceLines = $limitedLines;
+        $repairSourceLayouts = [];
         $repairSource = 'text';
         if ($taggedBlocks === [] && $geometryTableBlocks === [] && $proseRepairEnabled) {
-            $positionedLines = $this->linesFromPositionedTextRuns($limitedPositionedRuns);
+            $positionedLineItems = $this->positionedProseLineItemsFromTextRuns($limitedPositionedRuns);
+            $positionedLines = $this->positionedLineItemTexts($positionedLineItems);
             if ($this->positionedProseLinesLookUsable($positionedLines, $limitedLines)) {
                 $repairSourceLines = $positionedLines;
+                $repairSourceLayouts = $positionedLineItems;
                 $repairSource = 'positioned';
             }
         }
         $repairedLines = $taggedBlocks === [] && $geometryTableBlocks === [] && $proseRepairEnabled
-            ? $this->repairProseTextLines($repairSourceLines, $this->looksLikeProseRepairCandidate($repairSourceLines))
+            ? $this->repairProseTextLines($repairSourceLines, $this->looksLikeProseRepairCandidate($repairSourceLines), $repairSourceLayouts)
             : $limitedLines;
         $blocks = $taggedBlocks !== [] ? $taggedBlocks : ($geometryTableBlocks !== [] ? $geometryTableBlocks : $this->blocksFromLines($repairedLines));
         $blocks = $appliedLinkAnnotations === [] ? $blocks : $this->applyLinkAnnotationsToBlocks($blocks, $appliedLinkAnnotations);
@@ -372,6 +375,24 @@ final class PdfReader
      */
     private function linesFromPositionedTextRuns(array $runs): array
     {
+        return $this->positionedLineItemTexts($this->positionedProseLineItemsFromTextRuns($runs));
+    }
+
+    /**
+     * @param list<array{text: string}> $items
+     * @return list<string>
+     */
+    private function positionedLineItemTexts(array $items): array
+    {
+        return array_map(static fn (array $item): string => $item['text'], $items);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $runs
+     * @return list<array{text: string, page: int, x1: float, y1: float, x2: float, y2: float, fontSize: float}>
+     */
+    private function positionedProseLineItemsFromTextRuns(array $runs): array
+    {
         $runsByPage = [];
         foreach ($runs as $run) {
             $normalized = $this->positionedRun($run);
@@ -385,14 +406,14 @@ final class PdfReader
         }
 
         ksort($runsByPage);
-        $lines = [];
+        $items = [];
         foreach ($runsByPage as $pageRuns) {
-            foreach ($this->positionedProseLinesForPage($pageRuns) as $line) {
-                $lines[] = $line;
+            foreach ($this->positionedProseLineItemsForPage($pageRuns) as $item) {
+                $items[] = $item;
             }
         }
 
-        return $lines;
+        return $items;
     }
 
     /**
@@ -400,6 +421,15 @@ final class PdfReader
      * @return list<string>
      */
     private function positionedProseLinesForPage(array $runs): array
+    {
+        return $this->positionedLineItemTexts($this->positionedProseLineItemsForPage($runs));
+    }
+
+    /**
+     * @param list<array{page: int, text: string, x1: float, y1: float, x2: float, y2: float, textX1: float, textY1: float, textX2: float, textY2: float, fontSize: float}> $runs
+     * @return list<array{text: string, page: int, x1: float, y1: float, x2: float, y2: float, fontSize: float}>
+     */
+    private function positionedProseLineItemsForPage(array $runs): array
     {
         if ($runs === []) {
             return [];
@@ -413,15 +443,24 @@ final class PdfReader
         $rows = $this->splitPositionedRowsIntoProseFragments($rows);
         $rows = $this->orderPositionedProseRows($rows, $medianFontSize);
 
-        $lines = [];
+        $items = [];
         foreach ($rows as $row) {
             $line = $this->positionedRowText($row);
             if ($line !== '' && !$this->lineIsOnlyPdfNoise($line)) {
-                $lines[] = $line;
+                $bounds = $this->positionedProseRowBounds($row);
+                $items[] = [
+                    'text' => $line,
+                    'page' => (int) $row['runs'][0]['page'],
+                    'x1' => $bounds['x1'],
+                    'y1' => $bounds['y1'],
+                    'x2' => $bounds['x2'],
+                    'y2' => $bounds['y2'],
+                    'fontSize' => $this->positionedRowMaxFontSize($row),
+                ];
             }
         }
 
-        return $lines;
+        return $items;
     }
 
     /**
@@ -759,17 +798,22 @@ final class PdfReader
 
     /**
      * @param list<string> $lines
+     * @param list<array{text: string, page: int, x1: float, y1: float, x2: float, y2: float, fontSize: float}> $lineLayouts
      * @return list<string>
      */
-    private function repairProseTextLines(array $lines, bool $repairGluedText = true): array
+    private function repairProseTextLines(array $lines, bool $repairGluedText = true, array $lineLayouts = []): array
     {
         $cleaned = [];
-        foreach ($lines as $line) {
+        foreach ($lines as $index => $line) {
             if ($this->lineIsOnlyPdfNoise($line)) {
                 continue;
             }
-            $cleaned[] = $line;
+            $cleaned[] = [
+                'text' => $line,
+                'layout' => $lineLayouts[$index] ?? null,
+            ];
         }
+        $cleaned = $this->removeLowCoherencePdfMapRegions($cleaned);
 
         $merged = $this->mergeRepairedProseLines($cleaned);
         $repaired = [];
@@ -781,6 +825,160 @@ final class PdfReader
         }
 
         return $repaired;
+    }
+
+    /**
+     * @param list<array{text: string, layout: array{text: string, page: int, x1: float, y1: float, x2: float, y2: float, fontSize: float}|null}> $records
+     * @return list<array{text: string, layout: array{text: string, page: int, x1: float, y1: float, x2: float, y2: float, fontSize: float}|null}>
+     */
+    private function removeLowCoherencePdfMapRegions(array $records): array
+    {
+        $filtered = [];
+        $candidate = [];
+        $flushCandidate = function () use (&$filtered, &$candidate): void {
+            if ($candidate === []) {
+                return;
+            }
+            if (!$this->pdfMapNoiseClusterShouldBeDropped($candidate)) {
+                foreach ($candidate as $record) {
+                    $filtered[] = $record;
+                }
+            }
+            $candidate = [];
+        };
+
+        foreach ($records as $record) {
+            $line = $record['text'];
+            if ($this->lineLooksLikePdfMapLabelNoise($line, $record['layout'])) {
+                $candidate[] = $record;
+                continue;
+            }
+
+            $flushCandidate();
+            $filtered[] = $record;
+        }
+        $flushCandidate();
+
+        return $filtered;
+    }
+
+    /**
+     * @param list<array{text: string, layout: array{text: string, page: int, x1: float, y1: float, x2: float, y2: float, fontSize: float}|null}> $records
+     */
+    private function pdfMapNoiseClusterShouldBeDropped(array $records): bool
+    {
+        $count = count($records);
+        if ($count < 8) {
+            return false;
+        }
+
+        $shortLabels = 0;
+        $edgeFragments = 0;
+        $hasLayout = false;
+        foreach ($records as $record) {
+            $line = $record['text'];
+            if ($record['layout'] !== null) {
+                $hasLayout = true;
+            }
+            if ($this->lineLooksLikeShortPdfMapLabel($line)) {
+                $shortLabels++;
+            }
+            if ($this->lineLooksLikePdfMapEdgeFragment($line, $record['layout'])) {
+                $edgeFragments++;
+            }
+        }
+        if (!$hasLayout) {
+            return false;
+        }
+
+        if ($shortLabels >= 6 && $edgeFragments > 0) {
+            return true;
+        }
+
+        return $count >= 18 && $shortLabels / $count >= 0.72;
+    }
+
+    /**
+     * @param array{text: string, page: int, x1: float, y1: float, x2: float, y2: float, fontSize: float}|null $layout
+     */
+    private function lineLooksLikePdfMapLabelNoise(string $line, ?array $layout): bool
+    {
+        $line = trim($line);
+        if ($line === '') {
+            return false;
+        }
+        if ($this->lineLooksLikePdfListItem($line) || $this->lineLooksLikeUrlOnly($line)) {
+            return false;
+        }
+
+        return $this->lineLooksLikeShortPdfMapLabel($line)
+            || $this->lineLooksLikePdfMapEdgeFragment($line, $layout);
+    }
+
+    /**
+     * @param array{text: string, page: int, x1: float, y1: float, x2: float, y2: float, fontSize: float}|null $layout
+     */
+    private function lineLooksLikePdfMapEdgeFragment(string $line, ?array $layout): bool
+    {
+        if ($layout === null || $this->lineLooksLikePdfListItem($line) || $this->lineLooksLikeUrlOnly($line)) {
+            return false;
+        }
+
+        $compact = preg_replace('/\s+/u', '', trim($line)) ?? '';
+        if ($this->length($compact) < 80 || count($this->pdfLineWordTokens($line)) < 6) {
+            return false;
+        }
+
+        return $layout['y1'] < 24.0 && $layout['x1'] < 48.0;
+    }
+
+    private function lineLooksLikeShortPdfMapLabel(string $line): bool
+    {
+        $line = trim($line);
+        if ($line === '' || $this->lineLooksLikePdfListItem($line) || $this->lineLooksLikeUrlOnly($line)) {
+            return false;
+        }
+
+        $compact = preg_replace('/[^\p{L}\p{N}]+/u', '', $line) ?? '';
+        $length = $this->length($compact);
+        if ($length <= 3) {
+            return true;
+        }
+        if ($length > 35 || preg_match('/[.!?;:]$/u', $line) === 1) {
+            return false;
+        }
+
+        $words = $this->pdfLineWordTokens($line);
+        if (count($words) > 4) {
+            return false;
+        }
+
+        return preg_match('/^[\p{L}\p{N},&()\/ .-]+$/u', $line) === 1;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function pdfLineWordTokens(string $line): array
+    {
+        if (preg_match_all('/[\p{L}\p{N}][\p{L}\p{N}.-]*/u', $line, $matches) < 1) {
+            return [];
+        }
+
+        return array_values(array_filter(
+            array_map(static fn (string $word): string => trim($word, ".-"), $matches[0]),
+            static fn (string $word): bool => $word !== ''
+        ));
+    }
+
+    private function lineLooksLikePdfListItem(string $line): bool
+    {
+        return $this->listItem($line) !== null;
+    }
+
+    private function lineLooksLikeUrlOnly(string $line): bool
+    {
+        return preg_match('/^(?:https?:\/\/|www\.)\S+$/i', trim($line)) === 1;
     }
 
     private function repairGluedProseLine(string $line): string
@@ -1056,31 +1254,38 @@ final class PdfReader
     }
 
     /**
-     * @param list<string> $lines
+     * @param list<array{text: string, layout: array{text: string, page: int, x1: float, y1: float, x2: float, y2: float, fontSize: float}|null}> $records
      * @return list<string>
      */
-    private function mergeRepairedProseLines(array $lines): array
+    private function mergeRepairedProseLines(array $records): array
     {
         $merged = [];
         $pending = '';
-        foreach ($lines as $line) {
+        $pendingLayout = null;
+        foreach ($records as $record) {
+            $line = $record['text'];
+            $layout = $record['layout'];
             if ($line === '') {
                 continue;
             }
             if ($pending === '') {
                 $pending = $line;
+                $pendingLayout = $layout;
                 continue;
             }
-            if (preg_match('/-\s*$/', $pending) === 1 && preg_match('/^[a-z]/', $line) === 1) {
+            if (preg_match('/-\s*$/', $pending) === 1 && preg_match('/^\p{Ll}/u', $line) === 1) {
                 $pending = rtrim(substr($pending, 0, -1)) . $line;
+                $pendingLayout = $layout;
                 continue;
             }
-            if ($this->repairedLineShouldStartNewBlock($pending, $line)) {
+            if ($this->repairedLineShouldStartNewBlock($pending, $line, $pendingLayout, $layout)) {
                 $merged[] = $pending;
                 $pending = $line;
+                $pendingLayout = $layout;
                 continue;
             }
             $pending .= ' ' . $line;
+            $pendingLayout = $layout;
         }
         if ($pending !== '') {
             $merged[] = $pending;
@@ -1089,7 +1294,11 @@ final class PdfReader
         return $merged;
     }
 
-    private function repairedLineShouldStartNewBlock(string $previous, string $line): bool
+    /**
+     * @param array{text: string, page: int, x1: float, y1: float, x2: float, y2: float, fontSize: float}|null $previousLayout
+     * @param array{text: string, page: int, x1: float, y1: float, x2: float, y2: float, fontSize: float}|null $lineLayout
+     */
+    private function repairedLineShouldStartNewBlock(string $previous, string $line, ?array $previousLayout = null, ?array $lineLayout = null): bool
     {
         if ($this->lineHasPdfListBlockEvidence($line)) {
             return true;
@@ -1097,7 +1306,16 @@ final class PdfReader
         if ($this->repairedLineLooksLikeSectionLabel($previous) || $this->repairedLineLooksLikeSectionLabel($line)) {
             return true;
         }
+        if ($this->repairedPdfLayoutStartsNewBlock($previousLayout, $lineLayout)) {
+            return true;
+        }
+        if ($this->repairedPdfLayoutContinuesWrappedLine($previousLayout, $lineLayout)) {
+            return false;
+        }
         if ($this->looksLikeRepairedPdfTitle($this->repairGluedProseLine($previous))) {
+            return true;
+        }
+        if ($previousLayout === null && $lineLayout === null && $this->lineEndsWithUrl($previous)) {
             return true;
         }
 
@@ -1110,6 +1328,61 @@ final class PdfReader
         }
 
         return false;
+    }
+
+    /**
+     * @param array{text: string, page: int, x1: float, y1: float, x2: float, y2: float, fontSize: float}|null $previousLayout
+     * @param array{text: string, page: int, x1: float, y1: float, x2: float, y2: float, fontSize: float}|null $lineLayout
+     */
+    private function repairedPdfLayoutStartsNewBlock(?array $previousLayout, ?array $lineLayout): bool
+    {
+        if ($previousLayout === null || $lineLayout === null) {
+            return false;
+        }
+        if ($previousLayout['page'] !== $lineLayout['page']) {
+            return true;
+        }
+
+        $previousHeight = max(1.0, $previousLayout['y2'] - $previousLayout['y1']);
+        $lineHeight = max(1.0, $lineLayout['y2'] - $lineLayout['y1']);
+        $referenceHeight = max($previousHeight, $lineHeight, $previousLayout['fontSize'], $lineLayout['fontSize'], 1.0);
+        $verticalGap = $previousLayout['y1'] - $lineLayout['y2'];
+        if ($verticalGap > $referenceHeight * 1.85) {
+            return true;
+        }
+
+        $leftDelta = abs($previousLayout['x1'] - $lineLayout['x1']);
+        if ($leftDelta > max(30.0, $referenceHeight * 3.0) && $verticalGap > $referenceHeight * 0.75) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * @param array{text: string, page: int, x1: float, y1: float, x2: float, y2: float, fontSize: float}|null $previousLayout
+     * @param array{text: string, page: int, x1: float, y1: float, x2: float, y2: float, fontSize: float}|null $lineLayout
+     */
+    private function repairedPdfLayoutContinuesWrappedLine(?array $previousLayout, ?array $lineLayout): bool
+    {
+        if ($previousLayout === null || $lineLayout === null || $previousLayout['page'] !== $lineLayout['page']) {
+            return false;
+        }
+
+        $previousHeight = max(1.0, $previousLayout['y2'] - $previousLayout['y1']);
+        $lineHeight = max(1.0, $lineLayout['y2'] - $lineLayout['y1']);
+        $referenceHeight = max($previousHeight, $lineHeight, $previousLayout['fontSize'], $lineLayout['fontSize'], 1.0);
+        $verticalGap = $previousLayout['y1'] - $lineLayout['y2'];
+        if ($verticalGap < -$referenceHeight * 0.4 || $verticalGap > $referenceHeight * 1.45) {
+            return false;
+        }
+
+        return abs($previousLayout['x1'] - $lineLayout['x1']) <= max(8.0, $referenceHeight * 0.75);
+    }
+
+    private function lineEndsWithUrl(string $line): bool
+    {
+        return preg_match('/(?:https?:\/\/|www\.)\S+$/i', trim($line)) === 1;
     }
 
     private function repairedLineLooksLikeSectionLabel(string $line): bool
@@ -3991,7 +4264,7 @@ WORDS)) ?: [];
         if ($lineCount < 2 || strlen($line) > 96) {
             return false;
         }
-        if (preg_match('/[.!?]\s*$/u', $line)) {
+        if (preg_match('/[.!?,;]\s*$/u', $line)) {
             return false;
         }
         if ($index === 0) {
