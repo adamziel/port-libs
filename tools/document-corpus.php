@@ -589,6 +589,7 @@ function organicSeedUrls(): array
         seed('https://raw.githubusercontent.com/Proximify/publication-fetcher/2b93e1c737fc81827411d03099637e0b3c20d4d1/docs/endnote_library.xml', 'endnotexml', 'github-raw', 'Proximify/publication-fetcher', 'Publication fetcher EndNote library'),
         seed('https://raw.githubusercontent.com/medialab/reference_manager/bea9bac657ba3d1953029081eae928a578ee5528/data/endnotexml/endnote-bib.xml', 'endnotexml', 'github-raw', 'medialab/reference_manager', 'Reference manager EndNote bibliography'),
         seed('https://raw.githubusercontent.com/dveytia/ORO-product-1-mitigation/5d4adec00ac9806b6ec5edbda5930cb9a5d7ada2/data/raw-data/scoping-data-export/CDR_OAE.xml', 'endnotexml', 'github-raw', 'dveytia/ORO-product-1-mitigation', 'CDR OAE scoping EndNote export'),
+        seed('https://raw.githubusercontent.com/flindersuni/DeepThoughtHPC-docs/master/docs/source/flindershpc2021-endnote.xml', 'endnotexml', 'github-raw', 'flindersuni/DeepThoughtHPC-docs', 'Flinders DeepThought HPC EndNote bibliography'),
         seed('https://raw.githubusercontent.com/guppy0130/j2m/master/j2m.jira', 'jira', 'github-raw', 'guppy0130/j2m', 'j2m Jira wiki markup document'),
         seed('https://raw.githubusercontent.com/membase/membase-cli/13195507facba8cb8f85dafb07df1eeff3ea7dcd/docs/cbtransfer-func-spec.jira', 'jira', 'github-raw', 'membase/membase-cli', 'cbtransfer functional spec Jira markup'),
         seed('https://raw.githubusercontent.com/membase/membase-cli/13195507facba8cb8f85dafb07df1eeff3ea7dcd/docs/cbbackup-restore-func-spec.jira', 'jira', 'github-raw', 'membase/membase-cli', 'cbbackup restore functional spec Jira markup'),
@@ -617,6 +618,21 @@ function organicSeedUrls(): array
         seed('https://ixpe.msfc.nasa.gov/for_scientists/templates/IXPE-Presentation-Template.pptx', 'pptx', 'government-web', 'nasa.gov', 'IXPE presentation template PPTX'),
         seed('https://www.columbus.in.gov/columbus-transit/wp-content/uploads/sites/11/2020/02/Call-A-Bus-APPLICATION.doc', 'doc', 'government-web', 'columbus.in.gov', 'ADA paratransit application DOC'),
         seed('https://www.waterboards.ca.gov/rwqcb3/board_decisions/adopted_orders/2010/2010_Oilfield_Reuse_appl_form.doc', 'doc', 'government-web', 'waterboards.ca.gov', 'Water board waste discharge application DOC'),
+        seed('https://dir.texas.gov/sites/default/files/2024-09/Model%20Policy%20for%20Preventing%20Use%20of%20Prohibited%20Technology%20and%20Covered%20Applications.docx', 'docx', 'government-web', 'dir.texas.gov', 'Texas prohibited technology model policy DOCX'),
+        seed('https://www.fedramp.gov/resources/templates/FedRAMP-High-Moderate-Low-LI-SaaS-Baseline-System-Security-Plan-%28SSP%29.docx', 'docx', 'government-web', 'fedramp.gov', 'FedRAMP SSP template DOCX'),
+        seed('https://www.dgs.ca.gov/-/media/Divisions/OFAM/Statewide-Travel-Program/Forms/Miscellaneous/State-Travel-Policy-Rsources-docs/SAM-41171FAQsJune-2024.docx', 'docx', 'government-web', 'dgs.ca.gov', 'California state travel policy FAQ DOCX'),
+        seed('https://opportunity.nebraska.gov/wp-content/uploads/2025/02/Limited-English-Proficiency-Guidance-Template.docx', 'docx', 'government-web', 'opportunity.nebraska.gov', 'Nebraska LEP guidance template DOCX'),
+        seed('https://mnhousing.gov/documents/53210/lirc-2026-initial-app-rtf/view', 'rtf', 'government-web', 'mnhousing.gov', 'Minnesota housing LIRC application RTF'),
+        seed('https://www.dot.ny.gov/divisions/operating/osss/bus-repository/application_passenger.rtf', 'rtf', 'government-web', 'dot.ny.gov', 'New York passenger authority application RTF'),
+        seed('https://www.epa.gov/sites/default/files/2016-06/cl175.rtf', 'rtf', 'government-web', 'epa.gov', 'EPA checklist 175 RTF'),
+        seed('https://dnr.illinois.gov/content/dam/soi/en/web/dnr/conservation/m2p/documents/monthlybudget-m2p.odt', 'odt', 'government-web', 'dnr.illinois.gov', 'Illinois monthly expenditure schedule ODT'),
+        seed('https://townofgalwayny.gov/wp-content/uploads/2023/06/Planning-Board-Meeting-Notes-April-2023-DRAFT.odt', 'odt', 'municipal-web', 'townofgalwayny.gov', 'Galway planning board meeting notes ODT'),
+        seed('https://www.phenix.bnl.gov/~suhanov/ncc/materials/adhesives/adhesives.odt', 'odt', 'research-web', 'bnl.gov', 'BNL conductive adhesives ODT'),
+        seed('https://www.eia.gov/energyexplained/oil-and-petroleum-products/data/US-tight-oil-production.xlsx', 'xlsx', 'government-web', 'eia.gov', 'EIA tight oil production XLSX'),
+        seed('https://edd.ca.gov/siteassets/files/newsroom/facts-and-stats/excel/call-center-data.xlsx', 'xlsx', 'government-web', 'edd.ca.gov', 'California EDD call center data XLSX'),
+        seed('https://www.fdic.gov/quarterly-banking-profile/all-fdic-insured-institutions-charts-and-data.xlsx', 'xlsx', 'government-web', 'fdic.gov', 'FDIC institutions charts and data XLSX'),
+        seed('https://www.dli.mn.gov/sites/default/files/xls/it-data-science.xlsx', 'xlsx', 'government-web', 'dli.mn.gov', 'Minnesota IT data science apprenticeship XLSX'),
+        seed('https://coast.noaa.gov/data/digitalcoast/xls/ccap-changedata.xlsx', 'xlsx', 'government-web', 'coast.noaa.gov', 'NOAA C-CAP change data workbook XLSX'),
         seed('https://raw.githubusercontent.com/eamena-project/eamena-arches-dev/main/dbs/database.eamena/data/reference_data/rm/hp/mds/mds-template-readonly.tsv', 'tsv', 'github-raw', 'eamena-project/eamena-arches-dev', 'EAMENA MDS template readonly TSV'),
     ];
 }
@@ -764,13 +780,86 @@ function formatExists(PDO $db, string $format): bool
 function githubTree(string $repo, string $ref): array
 {
     $url = "https://api.github.com/repos/{$repo}/git/trees/{$ref}?recursive=1";
-    $fetch = fetchUrl($url, ['Accept: application/vnd.github+json']);
-    $json = json_decode($fetch['bytes'], true, 512, JSON_THROW_ON_ERROR);
-    if (!is_array($json) || !is_array($json['tree'] ?? null)) {
-        throw new RuntimeException("GitHub tree response for {$repo}@{$ref} did not contain a tree");
-    }
+    try {
+        $fetch = fetchUrl($url, ['Accept: application/vnd.github+json']);
+        $json = json_decode($fetch['bytes'], true, 512, JSON_THROW_ON_ERROR);
+        if (!is_array($json) || !is_array($json['tree'] ?? null)) {
+            throw new RuntimeException("GitHub tree response for {$repo}@{$ref} did not contain a tree");
+        }
 
-    return $json['tree'];
+        return $json['tree'];
+    } catch (Throwable $apiError) {
+        if (getenv('DOCUMENT_CORPUS_GIT_TREE_FALLBACK') !== '1') {
+            throw $apiError;
+        }
+        try {
+            return githubTreeViaGit($repo, $ref);
+        } catch (Throwable $gitError) {
+            throw new RuntimeException(
+                "Unable to discover GitHub tree for {$repo}@{$ref}: API failed with "
+                . $apiError->getMessage() . '; git fallback failed with ' . $gitError->getMessage(),
+                0,
+                $gitError
+            );
+        }
+    }
+}
+
+function githubTreeViaGit(string $repo, string $ref): array
+{
+    if (!executableExists('git')) {
+        throw new RuntimeException('git executable is not available');
+    }
+    $temp = tempnam(sys_get_temp_dir(), 'document-corpus-git-');
+    if (!is_string($temp)) {
+        throw new RuntimeException('Unable to allocate git temp path');
+    }
+    @unlink($temp);
+    ensureDirectory($temp);
+    try {
+        $remote = "https://github.com/{$repo}.git";
+        foreach ([
+            ['git', '-C', $temp, 'init', '--quiet'],
+            ['git', '-C', $temp, 'remote', 'add', 'origin', $remote],
+            ['git', '-C', $temp, 'fetch', '--quiet', '--depth=1', '--filter=blob:none', 'origin', $ref],
+        ] as $command) {
+            $result = runCommand($command, 60);
+            if ($result['exitCode'] !== 0) {
+                throw new RuntimeException(trim($result['stderr']) ?: 'git command failed');
+            }
+        }
+        $result = runCommand(['git', '-C', $temp, 'ls-tree', '-r', '-l', '--full-tree', 'FETCH_HEAD'], 60);
+        if ($result['exitCode'] !== 0) {
+            throw new RuntimeException(trim($result['stderr']) ?: 'git ls-tree failed');
+        }
+
+        $tree = [];
+        foreach (preg_split('/\r\n|\r|\n/', trim($result['stdout'])) ?: [] as $line) {
+            if ($line === '' || !str_contains($line, "\t")) {
+                continue;
+            }
+            [$meta, $path] = explode("\t", $line, 2);
+            $fields = preg_split('/\s+/', trim($meta));
+            if (!is_array($fields) || count($fields) < 4) {
+                continue;
+            }
+            [$mode, $type, $object, $size] = array_pad($fields, 4, '');
+            if ($type !== 'blob' || $path === '') {
+                continue;
+            }
+            $tree[] = [
+                'path' => $path,
+                'mode' => $mode,
+                'type' => $type,
+                'sha' => $object,
+                'size' => ctype_digit($size) ? (int) $size : 0,
+            ];
+        }
+
+        return $tree;
+    } finally {
+        removeDirectory($temp);
+    }
 }
 
 function pendingCandidates(PDO $db, int $limit, string $format): array
@@ -1299,6 +1388,25 @@ function writeBytes(string $path, string $bytes): void
     if (file_put_contents($path, $bytes) === false) {
         throw new RuntimeException("Unable to write '{$path}'.");
     }
+}
+
+function removeDirectory(string $directory): void
+{
+    if (!is_dir($directory)) {
+        return;
+    }
+    $iterator = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($directory, FilesystemIterator::SKIP_DOTS),
+        RecursiveIteratorIterator::CHILD_FIRST
+    );
+    foreach ($iterator as $entry) {
+        if ($entry->isDir() && !$entry->isLink()) {
+            @rmdir($entry->getPathname());
+        } else {
+            @unlink($entry->getPathname());
+        }
+    }
+    @rmdir($directory);
 }
 
 function runCommand(array $command, int $timeoutSeconds = 60): array
