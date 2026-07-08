@@ -67,6 +67,26 @@ return [
             $t->contains('<!-- wp:table -->', $blocks);
         }
     },
+    'pdf corpus gate warns and preserves low confidence geometry tables as text' => static function (TestRunner $t) use ($pdfWithContent, $plainText): void {
+        $pdf = $pdfWithContent(
+            'BT /F1 12 Tf '
+            . '1 0 0 1 72 720 Tm (Background) Tj 1 0 0 1 300 720 Tm (Outcome) Tj '
+            . '1 0 0 1 72 704 Tm (The intervention was reviewed) Tj 1 0 0 1 300 704 Tm (The final report stayed readable) Tj '
+            . 'ET'
+        );
+
+        $document = (new PdfReader(['pdfGeometryTables' => true, 'pdfRepairProseText' => true]))->read($pdf);
+        $blocks = PandocConverter::write($document, 'blocks');
+        $text = $plainText(PandocConverter::write($document, 'html'));
+        $meta = $document->attr('meta');
+
+        $t->same(0, $meta['pdfDetectedTables']);
+        $t->true(($meta['pdfGeometryTableLowConfidenceCandidates'] ?? 0) > 0);
+        $t->contains('PDF table-like geometry was preserved as text', implode("\n", $meta['pdfWarnings'] ?? []));
+        $t->true(!str_contains($blocks, '<!-- wp:table -->'));
+        $t->contains('Background', $text);
+        $t->contains('final report stayed readable', $text);
+    },
     'pdf corpus gate keeps resume and slide like PDFs readable without false tables' => static function (TestRunner $t) use ($pdfWithContent, $plainText): void {
         $resume = $pdfWithContent(
             'BT /F1 18 Tf 72 740 Td (Ada Example) Tj T* '

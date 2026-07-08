@@ -10,6 +10,7 @@ final class PdfReader
 {
     private const DEFAULT_MAX_TEXT_BYTES = 120000;
     private const DEFAULT_FAST_MODE_BYTES = 5_000_000;
+    private int $lowConfidenceGeometryTableCandidates = 0;
 
     /**
      * @param array{maxTextBytes?: int, maxPages?: int, pdfMaxPages?: int, max_pages?: int, password?: string, pdfPassword?: string, geometryTables?: bool, pdfGeometryTables?: bool, extractGeometryTables?: bool, pdfRepairProseText?: bool, repairProseText?: bool, pdfFastTextOnly?: bool, fastTextOnly?: bool, pdfFastModeBytes?: int} $options
@@ -20,6 +21,8 @@ final class PdfReader
 
     public function read(string $pdfBytes): AstNode
     {
+        $this->lowConfidenceGeometryTableCandidates = 0;
+
         if (!class_exists(PdfTextExtractor::class)) {
             throw new \RuntimeException('PDF reading needs PortLibs\\MarkerPDF\\PdfTextExtractor.');
         }
@@ -92,6 +95,10 @@ final class PdfReader
             : $limitedLines;
         $blocks = $taggedBlocks !== [] ? $taggedBlocks : ($geometryTableBlocks !== [] ? $geometryTableBlocks : $this->blocksFromLines($repairedLines));
         $blocks = $appliedLinkAnnotations === [] ? $blocks : $this->applyLinkAnnotationsToBlocks($blocks, $appliedLinkAnnotations);
+        $pdfWarnings = is_array($diagnostics['warnings'] ?? null) ? array_values(array_map(static fn (mixed $warning): string => (string) $warning, $diagnostics['warnings'])) : [];
+        if ($this->lowConfidenceGeometryTableCandidates > 0 && $geometryTableBlocks === []) {
+            $pdfWarnings[] = 'PDF table-like geometry was preserved as text because native table confidence was low.';
+        }
         $metadata = array_replace($structuralMetadata, [
             'pdfExtractor' => PdfTextExtractor::class,
             'pdfFastTextOnly' => $fastTextOnly,
@@ -109,9 +116,10 @@ final class PdfReader
             'pdfDetectedTables' => $this->countNodesOfType($blocks, 'table'),
             'pdfGeometryTables' => $geometryTableCount,
             'pdfGeometryTablesEnabled' => $geometryTablesEnabled,
+            'pdfGeometryTableLowConfidenceCandidates' => $this->lowConfidenceGeometryTableCandidates,
             'pdfTableReconstruction' => $taggedBlocks !== [] ? 'tagged' : ($geometryTableBlocks !== [] ? ($geometryTableFallback ? 'text-fallback' : 'geometry') : 'text'),
             'pdfDiagnostics' => $diagnostics,
-            'pdfWarnings' => $diagnostics['warnings'],
+            'pdfWarnings' => $pdfWarnings,
             'pdfEncryptionDecrypted' => $diagnostics['encryptionDecrypted'] ?? false,
             'pdfEncryptionHandler' => $diagnostics['encryptionHandler'] ?? null,
             'pdfEncryptionPasswordType' => $diagnostics['encryptionPasswordType'] ?? null,
@@ -2437,7 +2445,77 @@ final class PdfReader
             }
         }
 
-        return $multiCellRows >= 2 && $recurringColumns >= 2;
+        if ($multiCellRows < 2 || $recurringColumns < 2) {
+            return false;
+        }
+
+        $confidence = $this->positionedTableConfidence($rows, $columnCount, $multiCellRows, $recurringColumns);
+        if ($confidence < 0.72) {
+            $this->lowConfidenceGeometryTableCandidates++;
+
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * @param list<list<mixed>> $rows
+     */
+    private function positionedTableConfidence(array $rows, int $columnCount, int $multiCellRows, int $recurringColumns): float
+    {
+        $rowCount = count($rows);
+        if ($rowCount === 0 || $columnCount === 0) {
+            return 0.0;
+        }
+
+        $populatedCells = 0;
+        $numericAnchors = 0;
+        $wideCells = 0;
+        foreach ($rows as $row) {
+            foreach ($row as $cell) {
+                $text = trim($this->cellTextValue($cell));
+                if ($text === '') {
+                    continue;
+                }
+                $populatedCells++;
+                if ($this->positionedCellLooksNumericAnchor($text)) {
+                    $numericAnchors++;
+                }
+                if (is_array($cell)) {
+                    $x1 = $this->numericValue($cell['contentX1'] ?? $cell['x1'] ?? null);
+                    $x2 = $this->numericValue($cell['contentX2'] ?? $cell['x2'] ?? null);
+                    if ($x1 !== null && $x2 !== null && abs($x2 - $x1) > 1.0) {
+                        $wideCells++;
+                    }
+                }
+            }
+        }
+
+        $totalCells = max(1, $rowCount * $columnCount);
+        $fillRatio = $populatedCells / $totalCells;
+        $multiCellRowRatio = $multiCellRows / max(1, $rowCount);
+        $recurringColumnRatio = $recurringColumns / max(1, $columnCount);
+        $numericRatio = $numericAnchors / max(1, $populatedCells);
+        $wideCellRatio = $wideCells / max(1, $populatedCells);
+
+        $score = 0.0;
+        $score += $rowCount >= 3 ? 0.18 : 0.08;
+        $score += $columnCount >= 3 ? 0.18 : 0.08;
+        $score += 0.20 * min(1.0, $multiCellRowRatio);
+        $score += 0.20 * min(1.0, $recurringColumnRatio);
+        $score += $fillRatio >= 0.70 ? 0.16 : ($fillRatio >= 0.50 ? 0.08 : 0.0);
+        $score += $numericRatio >= 0.20 ? 0.14 : ($numericAnchors >= 2 ? 0.10 : 0.0);
+        $score += $wideCellRatio >= 0.75 ? 0.08 : ($wideCellRatio >= 0.50 ? 0.04 : 0.0);
+
+        if ($rowCount <= 2 && $columnCount <= 2 && $numericAnchors < 2) {
+            $score = min($score, 0.55);
+        }
+        if ($columnCount === 2 && $rowCount < 4 && $numericAnchors < 2) {
+            $score = min($score, 0.65);
+        }
+
+        return round(min(1.0, $score), 4);
     }
 
     /**
