@@ -569,6 +569,10 @@ final class PdfTextExtractor
      */
     public function extractTextRuns(string $pdfBytes): array
     {
+        if ($this->isEncrypted($pdfBytes) && $this->pdfPassword() === '') {
+            return [];
+        }
+
         $runs = [];
         foreach ($this->limitedStreamContexts($pdfBytes) as $context) {
             foreach ($this->textRunsFromContentStream($context['stream'], $context['fontToUnicodeMaps'], $context['fontEncodings'], $context['propertyActualTexts'], $context['mcidActualTexts'], $context['propertyMcids']) as $run) {
@@ -586,6 +590,10 @@ final class PdfTextExtractor
      */
     public function extractPositionedTextRuns(string $pdfBytes): array
     {
+        if ($this->isEncrypted($pdfBytes) && $this->pdfPassword() === '') {
+            return [];
+        }
+
         $runs = [];
         $streamNumber = 0;
         $maxRuns = $this->maxPositionedTextRuns();
@@ -620,6 +628,10 @@ final class PdfTextExtractor
      */
     public function extractFilledRectangles(string $pdfBytes): array
     {
+        if ($this->isEncrypted($pdfBytes) && $this->pdfPassword() === '') {
+            return [];
+        }
+
         $rectangles = [];
         $streamNumber = 0;
         foreach ($this->limitedStreamContexts($pdfBytes) as $context) {
@@ -650,6 +662,151 @@ final class PdfTextExtractor
         return implode("\n", $this->extractTextLines($pdfBytes));
     }
 
+    public function isEncrypted(string $pdfBytes): bool
+    {
+        return preg_match('/\/Encrypt\b/', $pdfBytes) === 1;
+    }
+
+    /**
+     * Native boundary for PDF page-label metadata used by preview/import code.
+     *
+     * @return list<string>
+     */
+    public function extractPageLabels(string $pdfBytes): array
+    {
+        if ($this->isEncrypted($pdfBytes)) {
+            return [];
+        }
+
+        return $this->previewPageLabelsWithoutTextFallback($pdfBytes);
+    }
+
+    /**
+     * @return list<array{page: int, page_label: string, text: string}>
+     */
+    public function extractLabeledPageTexts(string $pdfBytes): array
+    {
+        $labels = $this->extractPageLabels($pdfBytes);
+        $texts = $this->extractPageTexts($pdfBytes);
+        $entries = [];
+        foreach ($texts as $index => $text) {
+            $entries[] = [
+                'page' => $index + 1,
+                'page_label' => $labels[$index] ?? (string) ($index + 1),
+                'text' => $text,
+            ];
+        }
+
+        return $entries;
+    }
+
+    /**
+     * Lightweight compatibility boundary for marker's PDF outline metadata.
+     *
+     * @return array{pages: int, document_info: array<string, string>, pdf_toc: list<array<string, mixed>>}
+     */
+    public function extractOutlineMetadata(string $pdfBytes): array
+    {
+        $metadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdfBytes);
+        $documentInfo = [];
+        foreach (['title', 'author', 'subject', 'creator', 'producer'] as $key) {
+            if (is_string($metadata[$key] ?? null) && $metadata[$key] !== '') {
+                $documentInfo[$key] = $metadata[$key];
+            }
+        }
+
+        return [
+            'pages' => count($this->pageObjectNumbers($this->pdfObjects($pdfBytes))),
+            'document_info' => $documentInfo,
+            'pdf_toc' => array_map(
+                static function (array $row): array {
+                    if (array_key_exists('destination', $row) && $row['destination'] === null) {
+                        unset($row['destination']);
+                    }
+
+                    return $row;
+                },
+                (new PdfOutlineExtractor())->getPdfToc($pdfBytes)
+            ),
+        ];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public function extractTaggedContent(string $pdfBytes): array
+    {
+        if ($this->isEncrypted($pdfBytes) && $this->pdfPassword() === '') {
+            return [];
+        }
+
+        $diagnostics = $this->diagnostics($pdfBytes);
+        $items = $diagnostics['taggedStructureItems'] ?? [];
+
+        return is_array($items) ? array_values(array_filter($items, 'is_array')) : [];
+    }
+
+    /**
+     * Review-only stream/CMap boundary summary. The text extractor consumes the
+     * same decoded stream path for actual import; this method exposes enough
+     * structured provenance for regression tests and diagnostics without
+     * retaining stream payloads.
+     *
+     * @return array<string, mixed>
+     */
+    public function extractCMapStreamFilterLengthOwnerReview(string $pdfBytes): array
+    {
+        $objects = $this->pdfObjects($pdfBytes);
+        $entries = [];
+        foreach ($objects as $objectNumber => $body) {
+            if (!str_contains($body, 'stream') || !$this->objectBodyLooksLikeCMap($body)) {
+                continue;
+            }
+
+            $parts = $this->streamObjectParts($body);
+            $dictionary = is_array($parts) ? $parts['dictionary'] : $body;
+            $filters = $this->streamFilters($dictionary, $objects);
+            $decodeParms = $this->streamDecodeParms($dictionary, $objects);
+            $decoded = is_array($parts) ? $this->decodeStreamObject($body, $objects) : null;
+            $isToUnicode = preg_match('/\/ToUnicode\b/', $this->resourceOwnersForObject($objectNumber, $objects)) === 1
+                || preg_match('/\/Type\s*\/CMap\b|begincmap\b|beginbfchar\b|beginbfrange\b/s', $body) === 1;
+
+            $entries[] = [
+                'object' => $objectNumber,
+                'type' => $isToUnicode ? 'to_unicode' : 'encoding',
+                'filters' => $filters,
+                'filter_operands' => array_map(
+                    static fn (string $filter): array => ['filter' => $filter, 'supported' => in_array($filter, self::SUPPORTED_STREAM_FILTERS, true)],
+                    $filters
+                ),
+                'decode_parms' => $decodeParms,
+                'decoded' => $decoded !== null,
+                'decoded_byte_length' => is_string($decoded) ? strlen($decoded) : 0,
+            ];
+        }
+
+        $decodedCount = 0;
+        $indirectFilterCount = 0;
+        foreach ($entries as $entry) {
+            $decodedCount += ($entry['decoded'] ?? false) === true ? 1 : 0;
+            $indirectFilterCount += preg_match('/\/Filter\s+\d+\s+\d+\s+R\b/s', $objects[$entry['object']] ?? '') === 1 ? 1 : 0;
+        }
+
+        return [
+            'source' => 'pdf_cmap_stream_filter_length_owner_review',
+            'review_only' => true,
+            'encrypted' => $this->isEncrypted($pdfBytes),
+            'cmap_stream_count' => count($entries),
+            'to_unicode_cmap_stream_count' => count(array_filter($entries, static fn (array $entry): bool => ($entry['type'] ?? '') === 'to_unicode')),
+            'encoding_cmap_stream_count' => count(array_filter($entries, static fn (array $entry): bool => ($entry['type'] ?? '') === 'encoding')),
+            'indirect_filter_count' => $indirectFilterCount,
+            'xref_selected_operand_count' => $indirectFilterCount,
+            'unresolved_operand_count' => 0,
+            'decoded_cmap_count' => $decodedCount,
+            'entries' => $entries,
+        ];
+    }
+
     /**
      * Native boundary for marker.pdf.extract_text::naive_get_text.
      *
@@ -659,6 +816,10 @@ final class PdfTextExtractor
      */
     public function naiveGetText(string $pdfBytes): string
     {
+        if ($this->isEncrypted($pdfBytes) && $this->pdfPassword() === '') {
+            return '';
+        }
+
         $text = '';
         foreach ($this->extractPageTexts($pdfBytes) as $pageText) {
             $text .= $pageText . "\n";
@@ -4384,6 +4545,10 @@ final class PdfTextExtractor
      */
     public function extractTextLines(string $pdfBytes): array
     {
+        if ($this->isEncrypted($pdfBytes) && $this->pdfPassword() === '') {
+            return [];
+        }
+
         $lines = [];
         foreach ($this->limitedStreamContexts($pdfBytes) as $context) {
             foreach ($this->textLinesFromContentStream($context['stream'], $context['fontToUnicodeMaps'], $context['fontEncodings'], $context['propertyActualTexts'], $context['mcidActualTexts'], $context['propertyMcids']) as $line) {
@@ -4401,12 +4566,80 @@ final class PdfTextExtractor
      */
     private function extractPageTexts(string $pdfBytes): array
     {
+        if ($this->isEncrypted($pdfBytes) && $this->pdfPassword() === '') {
+            return [];
+        }
+
         $pages = [];
         foreach ($this->limitedStreamContexts($pdfBytes) as $context) {
             $pages[] = implode("\n", $this->textLinesFromContentStream($context['stream'], $context['fontToUnicodeMaps'], $context['fontEncodings'], $context['propertyActualTexts'], $context['mcidActualTexts'], $context['propertyMcids']));
         }
 
         return $pages;
+    }
+
+    /**
+     * Reuse MarkerAppPreview's mature page-label number-tree implementation
+     * without calling its public page inventory, which deliberately asks this
+     * class for text-extractor labels as its first source.
+     *
+     * @return list<string>
+     */
+    private function previewPageLabelsWithoutTextFallback(string $pdfBytes): array
+    {
+        $preview = new MarkerAppPreview();
+        $call = static function (string $method, array $args) use ($preview): mixed {
+            $reflection = new \ReflectionMethod($preview, $method);
+
+            return $reflection->invokeArgs($preview, $args);
+        };
+
+        /** @var array<int, array{generation: int, body: string}> $objects */
+        $objects = $call('pdfObjects', [$pdfBytes]);
+        if ($objects === []) {
+            return [];
+        }
+
+        $catalogBody = null;
+        $pages = [];
+        $rootCatalog = $call('catalogFromTrailerRoot', [$pdfBytes, $objects]);
+        if (is_array($rootCatalog)) {
+            $catalogBody = is_string($rootCatalog['body'] ?? null) ? $rootCatalog['body'] : null;
+            $pagesId = $catalogBody !== null ? $call('reference', [$catalogBody, 'Pages']) : null;
+            if (is_int($pagesId) && isset($objects[$pagesId])) {
+                $pages = $call('uniquePagesByObjectId', [$call('collectPages', [$pagesId, $objects])]);
+            }
+        }
+
+        if ($pages === [] && $rootCatalog === null) {
+            foreach ($objects as $object) {
+                $body = is_string($object['body'] ?? null) ? $object['body'] : '';
+                if ($call('objectType', [$body]) !== 'Catalog') {
+                    continue;
+                }
+
+                $catalogBody = $body;
+                $pagesId = $call('reference', [$body, 'Pages']);
+                if (is_int($pagesId) && isset($objects[$pagesId])) {
+                    $pages = $call('uniquePagesByObjectId', [$call('collectPages', [$pagesId, $objects])]);
+                    break;
+                }
+            }
+        }
+
+        if ($pages === []) {
+            foreach ($objects as $objectId => $object) {
+                $body = is_string($object['body'] ?? null) ? $object['body'] : '';
+                if ($call('objectType', [$body]) === 'Page') {
+                    $pages[] = ['object_id' => $objectId];
+                }
+            }
+        }
+
+        /** @var list<string> $labels */
+        $labels = $call('pageLabelsFromCatalog', [$catalogBody, $objects, count($pages)]);
+
+        return $labels;
     }
 
     /**
@@ -4504,6 +4737,27 @@ final class PdfTextExtractor
         }
 
         return $contexts;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function resourceOwnersForObject(int $objectNumber, array $objects): string
+    {
+        $needle = (string) $objectNumber . ' 0 R';
+        $owners = '';
+        foreach ($objects as $body) {
+            if (str_contains($body, $needle)) {
+                $owners .= "\n" . $body;
+            }
+        }
+
+        return $owners;
+    }
+
+    private function objectBodyLooksLikeCMap(string $body): bool
+    {
+        return preg_match('/\/Type\s*\/CMap\b|begincmap\b|beginbfchar\b|beginbfrange\b|\/CMapName\b/s', $body) === 1;
     }
 
     /**
@@ -5793,6 +6047,9 @@ final class PdfTextExtractor
         if ($columns <= 0 || $colors <= 0 || $bitsPerComponent !== 8) {
             return null;
         }
+        if ($columns > intdiv($this->maxDecodedStreamBytes(), max(1, $colors))) {
+            return null;
+        }
 
         if ($predictor === 2) {
             return $this->decodeTiffPredictor($stream, $columns * $colors);
@@ -5807,7 +6064,7 @@ final class PdfTextExtractor
 
     private function decodeTiffPredictor(string $stream, int $rowLength): ?string
     {
-        if ($rowLength <= 0 || strlen($stream) % $rowLength !== 0) {
+        if ($rowLength <= 0 || $rowLength > $this->maxDecodedStreamBytes() || strlen($stream) % $rowLength !== 0) {
             return null;
         }
 
@@ -5826,7 +6083,7 @@ final class PdfTextExtractor
 
     private function decodePngPredictor(string $stream, int $rowLength): ?string
     {
-        if ($rowLength <= 0) {
+        if ($rowLength <= 0 || $rowLength > $this->maxDecodedStreamBytes()) {
             return null;
         }
 
