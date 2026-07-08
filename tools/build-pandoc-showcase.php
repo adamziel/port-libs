@@ -1068,6 +1068,200 @@ function aggregate_wordpress_block_counts(array $records): array
 }
 
 /**
+ * @param list<array<string, mixed>> $records
+ * @return array{
+ *   totalSamples:int,
+ *   totalConversions:int,
+ *   successfulConversions:int,
+ *   failedConversions:int,
+ *   byConverter:array<string, array{label:string, ok:int, failed:int, total:int}>,
+ *   byFormat:array<string, array{samples:int, ok:int, failed:int, total:int}>
+ * }
+ */
+function conversion_summary(array $records): array
+{
+    $converters = [
+        'wpBlocks' => 'PHP WordPress blocks',
+        'phpHtml' => 'PHP HTML',
+        'haskell' => 'Haskell Pandoc HTML',
+    ];
+    $byConverter = [];
+    foreach ($converters as $key => $label) {
+        $byConverter[$key] = [
+            'label' => $label,
+            'ok' => 0,
+            'failed' => 0,
+            'total' => 0,
+        ];
+    }
+
+    $byFormat = [];
+    $successfulConversions = 0;
+    foreach ($records as $record) {
+        $format = (string) ($record['format'] ?? 'unknown');
+        if (!isset($byFormat[$format])) {
+            $byFormat[$format] = [
+                'samples' => 0,
+                'ok' => 0,
+                'failed' => 0,
+                'total' => 0,
+            ];
+        }
+        $byFormat[$format]['samples']++;
+        foreach ($converters as $key => $label) {
+            $ok = (($record[$key]['ok'] ?? false) === true);
+            $byConverter[$key]['total']++;
+            $byFormat[$format]['total']++;
+            if ($ok) {
+                $byConverter[$key]['ok']++;
+                $byFormat[$format]['ok']++;
+                $successfulConversions++;
+            } else {
+                $byConverter[$key]['failed']++;
+                $byFormat[$format]['failed']++;
+            }
+        }
+    }
+    ksort($byFormat);
+    $totalConversions = count($records) * count($converters);
+
+    return [
+        'totalSamples' => count($records),
+        'totalConversions' => $totalConversions,
+        'successfulConversions' => $successfulConversions,
+        'failedConversions' => $totalConversions - $successfulConversions,
+        'byConverter' => $byConverter,
+        'byFormat' => $byFormat,
+    ];
+}
+
+function result_badge(array $result): string
+{
+    $ok = (($result['ok'] ?? false) === true);
+    $class = $ok ? 'status-ok' : 'status-fail';
+    $label = $ok ? 'ok' : 'failed';
+    $path = (string) ($result['path'] ?? '');
+    if ($path === '') {
+        return '<span class="' . $class . '">' . $label . '</span>';
+    }
+
+    return '<a class="' . $class . '" href="' . h($path) . '">' . $label . '</a>';
+}
+
+function human_size(int $bytes): string
+{
+    if ($bytes >= 1048576) {
+        return number_format($bytes / 1048576, 1) . ' MB';
+    }
+    if ($bytes >= 1024) {
+        return number_format($bytes / 1024, 1) . ' KB';
+    }
+
+    return $bytes . ' B';
+}
+
+/**
+ * @param list<array<string, mixed>> $records
+ * @param list<string> $coveredFormats
+ * @param list<string> $missingFormats
+ * @param array<string, mixed> $summary
+ * @param array<string, mixed> $blockUsage
+ */
+function write_conversion_report(
+    string $siteDir,
+    array $records,
+    array $coveredFormats,
+    array $missingFormats,
+    array $summary,
+    array $blockUsage
+): void {
+    $recordsById = [];
+    foreach ($records as $record) {
+        $recordsById[(string) $record['id']] = $record;
+    }
+    $curatedIds = [
+        'pdf-cdc-hand-hygiene-brochure',
+        'pdf-grand-canyon-north-rim-map',
+        'pdf-muir-beach-brochure',
+        'pdf-archive-motograph-book',
+        'pdf-tracemonkey',
+        'epub-gutenberg-alice-illustrated',
+        'epub-picture',
+        'docx-oasis-kmip-spec',
+        'docx-inline-images',
+        'docx-tables',
+        'odt-oasis-opendocument-schema',
+        'odt-table-spans',
+        'pptx-cdc-food-safety-slides',
+        'pptx-who-bfhi-session-1',
+        'xlsx-census-tax-parameter-workbook',
+        'markdown-github-rendered-syntax',
+        'markdown-pandoc-manual',
+        'mediawiki-feature-packet',
+        'man-generated-fixture',
+    ];
+
+    $html = '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">';
+    $html .= '<title>Pandoc PHP Port Conversion Report</title><link rel="stylesheet" href="styles.css"></head><body>';
+    $html .= '<header class="hero"><div class="hero-inner"><p class="eyebrow">conversion report</p><h1>How the pulled test files converted</h1>';
+    $html .= '<p class="lede">Every source file in this showcase is run through three paths: Haskell Pandoc to HTML, the PHP port to HTML, and the PHP port to WordPress block markup. This report shows the current pass/fail shape and links into a curated stress set.</p>';
+    $html .= '<div class="stats">';
+    $html .= '<div class="stat"><strong>' . h((string) $summary['totalSamples']) . '</strong><span>source files</span></div>';
+    $html .= '<div class="stat"><strong>' . h((string) count($coveredFormats)) . '</strong><span>covered input formats</span></div>';
+    $html .= '<div class="stat"><strong>' . h((string) $summary['successfulConversions']) . '/' . h((string) $summary['totalConversions']) . '</strong><span>successful conversions</span></div>';
+    $html .= '<div class="stat"><strong>' . h((string) $summary['failedConversions']) . '</strong><span>known failures</span></div>';
+    $html .= '</div><div class="hero-actions"><a href="index.html">Full showcase</a><a href="playground-converter.html">Convert in WordPress Playground</a><a href="manifest.json">Manifest JSON</a></div></div></header>';
+    $html .= '<main class="content-page report-page">';
+
+    $html .= '<section><h2>Success by conversion path</h2><div class="report-grid">';
+    foreach ($summary['byConverter'] as $converter) {
+        $html .= '<div class="report-card"><h3>' . h((string) $converter['label']) . '</h3>';
+        $html .= '<p class="report-number">' . h((string) $converter['ok']) . '/' . h((string) $converter['total']) . '</p>';
+        $html .= '<p class="meta">' . h((string) $converter['failed']) . ' failed</p></div>';
+    }
+    $html .= '</div></section>';
+
+    $html .= '<section><h2>Curated stress showcase</h2><p>These are representative real-world files from the pulled corpus: leaflets, brochures, a scanned book, image-heavy packages, table-heavy office documents, and rich markup fixtures.</p>';
+    $html .= '<table class="report-table"><thead><tr><th>Sample</th><th>Format</th><th>Size</th><th>PHP WordPress blocks</th><th>PHP HTML</th><th>Haskell HTML</th></tr></thead><tbody>';
+    foreach ($curatedIds as $id) {
+        if (!isset($recordsById[$id])) {
+            continue;
+        }
+        $record = $recordsById[$id];
+        $html .= '<tr><td><a href="index.html#' . h((string) $record['id']) . '">' . h((string) $record['label']) . '</a><br><span class="meta">' . h((string) $record['description']) . '</span></td>';
+        $html .= '<td><code>' . h((string) $record['format']) . '</code></td>';
+        $html .= '<td>' . h(human_size((int) ($record['sampleSize'] ?? 0))) . '</td>';
+        $html .= '<td>' . result_badge(is_array($record['wpBlocks'] ?? null) ? $record['wpBlocks'] : []) . '</td>';
+        $html .= '<td>' . result_badge(is_array($record['phpHtml'] ?? null) ? $record['phpHtml'] : []) . '</td>';
+        $html .= '<td>' . result_badge(is_array($record['haskell'] ?? null) ? $record['haskell'] : []) . '</td></tr>';
+    }
+    $html .= '</tbody></table></section>';
+
+    $html .= '<section><h2>Success by input format</h2><table class="report-table compact-table"><thead><tr><th>Format</th><th>Files</th><th>Successful conversions</th><th>Failures</th></tr></thead><tbody>';
+    foreach ($summary['byFormat'] as $format => $formatSummary) {
+        $html .= '<tr><td><a href="index.html#format-' . h((string) $format) . '"><code>' . h((string) $format) . '</code></a></td>';
+        $html .= '<td>' . h((string) $formatSummary['samples']) . '</td>';
+        $html .= '<td>' . h((string) $formatSummary['ok']) . '/' . h((string) $formatSummary['total']) . '</td>';
+        $html .= '<td>' . h((string) $formatSummary['failed']) . '</td></tr>';
+    }
+    $html .= '</tbody></table></section>';
+
+    $html .= '<section><h2>WordPress block coverage</h2><p>The WordPress output generated blocks for ' . h((string) ($blockUsage['sampleCount'] ?? 0)) . ' samples.</p>';
+    $html .= '<table class="report-table compact-table"><thead><tr><th>Block</th><th>Count</th></tr></thead><tbody>';
+    foreach (($blockUsage['totals'] ?? []) as $block => $count) {
+        $html .= '<tr><td><code>' . h((string) $block) . '</code></td><td>' . h((string) $count) . '</td></tr>';
+    }
+    $html .= '</tbody></table></section>';
+
+    if ($missingFormats !== []) {
+        $html .= '<section><h2>Still missing samples</h2><p class="status-warn">' . h(implode(', ', $missingFormats)) . '</p></section>';
+    }
+
+    $html .= '</main></body></html>';
+    file_put_contents($siteDir . '/conversion-report.html', $html);
+}
+
+/**
  * @return array{ok:bool, path?:string, error?:string}
  */
 function run_haskell_pandoc(string $path, string $format, string $dir): array
@@ -1163,9 +1357,9 @@ function existing_showcase_samples(string $samplesDir): array
 
 $existingSamples = existing_showcase_samples($samplesDir);
 
-ensure_clean_dir($siteDir);
-ensure_dir($samplesDir);
-ensure_dir($outputsDir);
+ensure_dir($siteDir);
+ensure_clean_dir($samplesDir);
+ensure_clean_dir($outputsDir);
 
 $records = [];
 $support = array_replace(PandocFormatRegistry::phpInputSupport(), PandocFormatRegistry::phpLocalInputSupport());
@@ -1238,6 +1432,7 @@ $coveredFormats = array_values(array_unique(array_map(fn (array $record): string
 sort($coveredFormats);
 $missingFormats = array_values(array_diff($formats, $coveredFormats));
 $blockUsage = aggregate_wordpress_block_counts($records);
+$conversionSummary = conversion_summary($records);
 
 file_put_contents($siteDir . '/manifest.json', json_encode([
     'generatedAt' => gmdate('c'),
@@ -1245,6 +1440,7 @@ file_put_contents($siteDir . '/manifest.json', json_encode([
     'formats' => $formats,
     'coveredFormats' => $coveredFormats,
     'missingFormats' => $missingFormats,
+    'conversionSummary' => $conversionSummary,
     'blockUsage' => $blockUsage,
     'records' => $records,
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
@@ -1392,6 +1588,52 @@ h1 {
 .usage-table td:first-child {
   white-space: nowrap;
 }
+.report-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+.report-card,
+.report-table {
+  background: #fff;
+  border: 1px solid var(--line);
+}
+.report-card {
+  padding: 16px;
+  border-radius: 8px;
+}
+.report-card h3 {
+  margin: 0;
+  font-size: 15px;
+}
+.report-number {
+  margin: 10px 0 0;
+  font-size: 32px;
+  line-height: 1.1;
+  font-weight: 750;
+}
+.report-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.report-table th,
+.report-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  vertical-align: top;
+}
+.report-table th {
+  background: #fbfcfd;
+  font-size: 13px;
+}
+.report-table tr:last-child td {
+  border-bottom: 0;
+}
+.compact-table td:first-child {
+  white-space: nowrap;
+}
+.report-page code,
 .content-page code,
 .usage-table code {
   font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
@@ -1588,6 +1830,13 @@ h1 {
   .view-source {
     margin-left: 0;
   }
+  .report-grid {
+    grid-template-columns: 1fr;
+  }
+  .report-table {
+    display: block;
+    overflow-x: auto;
+  }
 }
 CSS;
 
@@ -1713,7 +1962,7 @@ foreach ([
 ] as $id => $label) {
     $html .= '<li><a href="#' . h($id) . '">' . h($label) . '</a></li>';
 }
-$html .= '</ul><div class="hero-actions"><a href="playground-converter.html">Convert in WordPress Playground</a><a href="block-usage.html">WordPress block usage guide</a><a href="manifest.json">Manifest JSON</a></div></div></header><main class="layout">';
+$html .= '</ul><div class="hero-actions"><a href="conversion-report.html">Conversion report</a><a href="playground-converter.html">Convert in WordPress Playground</a><a href="block-usage.html">WordPress block usage guide</a><a href="manifest.json">Manifest JSON</a></div></div></header><main class="layout">';
 $html .= '<nav class="format-nav" aria-label="Formats">';
 foreach (array_keys($byFormat) as $format) {
     $html .= '<a href="#format-' . h($format) . '">' . h($format) . '</a>';
@@ -1779,6 +2028,7 @@ foreach ($byFormat as $format => $formatRecords) {
 $html .= '</main><script src="showcase.js"></script></body></html>';
 
 file_put_contents($siteDir . '/index.html', $html);
+write_conversion_report($siteDir, $records, $coveredFormats, $missingFormats, $conversionSummary, $blockUsage);
 
 $knownBlockRows = [
     'group' => [
