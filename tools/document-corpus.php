@@ -620,9 +620,33 @@ function organicSeedUrls(): array
         seed('https://api.crossref.org/works/10.1126/science.169.3946.635/transform/application/vnd.citationstyles.csl+json', 'csljson', 'crossref-api', 'crossref.org', 'Crossref CSL JSON for Science article'),
         seed('https://api.crossref.org/works/10.1371/journal.pone.0000308/transform/application/vnd.citationstyles.csl+json', 'csljson', 'crossref-api', 'crossref.org', 'Crossref CSL JSON for PLOS ONE article'),
         seed('https://api.crossref.org/works/10.1103/PhysRevLett.116.061102/transform/application/vnd.citationstyles.csl+json', 'csljson', 'crossref-api', 'crossref.org', 'Crossref CSL JSON for PRL article'),
+        ...crossrefBibliographySeedUrls([
+            ['10.1038/nature12373', 'Nature 12373'],
+            ['10.1126/science.1259855', 'Science 1259855'],
+            ['10.1093/nar/gkab1021', 'NAR gkab1021'],
+            ['10.1145/3544548.3580951', 'ACM CHI 2023 paper'],
+            ['10.1109/5.771073', 'IEEE paper'],
+            ['10.1007/s00125-020-05180-x', 'Springer diabetes article'],
+            ['10.1016/j.cell.2020.04.011', 'Cell article'],
+            ['10.1016/j.neuron.2020.01.011', 'Neuron article'],
+            ['10.7554/eLife.67490', 'eLife 67490'],
+            ['10.3389/fpsyg.2019.01234', 'Frontiers psychology'],
+            ['10.1103/PhysRevD.98.030001', 'Physical Review D'],
+            ['10.3390/ijms21103574', 'MDPI IJMS'],
+            ['10.1038/s41586-021-03819-2', 'Nature 2021 article'],
+            ['10.1126/science.abj8754', 'Science abj8754'],
+            ['10.1016/j.cell.2021.02.018', 'Cell 2021 article'],
+        ]),
         seed('https://raw.githubusercontent.com/commonmark/commonmark-spec/master/spec.txt', 'commonmark', 'github-raw', 'commonmark/commonmark-spec', 'CommonMark specification source'),
+        seed('https://raw.githubusercontent.com/commonmark/cmark/master/why-cmark-and-not-x.md', 'commonmark', 'github-raw', 'commonmark/cmark', 'Why cmark CommonMark document'),
         seed('https://raw.githubusercontent.com/commonmark/commonmark-spec/master/alternative-html-blocks.txt', 'commonmark_x', 'github-raw', 'commonmark/commonmark-spec', 'CommonMark alternative HTML blocks discussion'),
         seed('https://raw.githubusercontent.com/github/docs/main/content/pull-requests/collaborating-with-pull-requests/reviewing-changes-in-pull-requests/about-pull-request-reviews.md', 'gfm', 'github-raw', 'github/docs', 'GitHub pull request reviews GFM'),
+        seed('https://raw.githubusercontent.com/github/docs/main/content/account-and-profile/concepts/email-addresses.md', 'gfm', 'github-raw', 'github/docs', 'GitHub email addresses docs GFM'),
+        seed('https://raw.githubusercontent.com/github/docs/main/content/account-and-profile/concepts/organization-membership.md', 'gfm', 'github-raw', 'github/docs', 'GitHub organization membership docs GFM'),
+        seed('https://raw.githubusercontent.com/github/docs/main/content/account-and-profile/concepts/organization-profile.md', 'gfm', 'github-raw', 'github/docs', 'GitHub organization profile docs GFM'),
+        seed('https://raw.githubusercontent.com/WordPress/gutenberg/trunk/docs/contributors/code/coding-guidelines.md', 'gfm', 'github-raw', 'WordPress/gutenberg', 'Gutenberg coding guidelines GFM'),
+        seed('https://raw.githubusercontent.com/WordPress/gutenberg/trunk/docs/contributors/code/deprecations.md', 'gfm', 'github-raw', 'WordPress/gutenberg', 'Gutenberg deprecations docs GFM'),
+        seed('https://fletcherpenney.net/multimarkdown/index.txt', 'markdown_mmd', 'author-web', 'fletcherpenney.net', 'MultiMarkdown website source index'),
         seed('https://raw.githubusercontent.com/php-fig/fig-standards/master/accepted/PSR-1-basic-coding-standard.md', 'markdown_phpextra', 'github-raw', 'php-fig/fig-standards', 'PSR-1 basic coding standard'),
         seed('https://raw.githubusercontent.com/php-fig/fig-standards/master/accepted/PSR-12-extended-coding-style-guide.md', 'markdown_phpextra', 'github-raw', 'php-fig/fig-standards', 'PSR-12 extended coding style guide'),
         seed('https://raw.githubusercontent.com/python/cpython/main/Doc/tutorial/introduction.rst', 'rst', 'github-raw', 'python/cpython', 'Python tutorial introduction RST'),
@@ -658,12 +682,14 @@ function organicSeedUrls(): array
         seed('https://dnr.illinois.gov/content/dam/soi/en/web/dnr/conservation/m2p/documents/monthlybudget-m2p.odt', 'odt', 'government-web', 'dnr.illinois.gov', 'Illinois monthly expenditure schedule ODT'),
         seed('https://townofgalwayny.gov/wp-content/uploads/2023/06/Planning-Board-Meeting-Notes-April-2023-DRAFT.odt', 'odt', 'municipal-web', 'townofgalwayny.gov', 'Galway planning board meeting notes ODT'),
         seed('https://www.phenix.bnl.gov/~suhanov/ncc/materials/adhesives/adhesives.odt', 'odt', 'research-web', 'bnl.gov', 'BNL conductive adhesives ODT'),
+        ...gsjBitsSeedUrls(['0439', '0443', '0445', '0447', '0448', '0449', '0458', '0459', '0478', '0481', '0484', '0488']),
         seed('https://www.eia.gov/energyexplained/oil-and-petroleum-products/data/US-tight-oil-production.xlsx', 'xlsx', 'government-web', 'eia.gov', 'EIA tight oil production XLSX'),
         seed('https://edd.ca.gov/siteassets/files/newsroom/facts-and-stats/excel/call-center-data.xlsx', 'xlsx', 'government-web', 'edd.ca.gov', 'California EDD call center data XLSX'),
         seed('https://www.fdic.gov/quarterly-banking-profile/all-fdic-insured-institutions-charts-and-data.xlsx', 'xlsx', 'government-web', 'fdic.gov', 'FDIC institutions charts and data XLSX'),
         seed('https://www.dli.mn.gov/sites/default/files/xls/it-data-science.xlsx', 'xlsx', 'government-web', 'dli.mn.gov', 'Minnesota IT data science apprenticeship XLSX'),
         seed('https://coast.noaa.gov/data/digitalcoast/xls/ccap-changedata.xlsx', 'xlsx', 'government-web', 'coast.noaa.gov', 'NOAA C-CAP change data workbook XLSX'),
         seed('https://raw.githubusercontent.com/eamena-project/eamena-arches-dev/main/dbs/database.eamena/data/reference_data/rm/hp/mds/mds-template-readonly.tsv', 'tsv', 'github-raw', 'eamena-project/eamena-arches-dev', 'EAMENA MDS template readonly TSV'),
+        seed('https://raw.githubusercontent.com/vega/vega-datasets/master/data/unemployment.tsv', 'tsv', 'github-raw', 'vega/vega-datasets', 'Vega unemployment TSV dataset'),
     ];
 }
 
@@ -675,6 +701,28 @@ function seed(string $url, string $format, string $sourceKind, string $origin, s
         'title' => $title,
         'discovery_meta' => '{}',
     ];
+}
+
+function crossrefBibliographySeedUrls(array $items): array
+{
+    $seeds = [];
+    foreach ($items as [$doi, $label]) {
+        $seeds[] = seed("https://api.crossref.org/works/{$doi}/transform/application/x-bibtex", 'bibtex', 'crossref-api', 'crossref.org', "Crossref BibTeX for {$label}");
+        $seeds[] = seed("https://api.crossref.org/works/{$doi}/transform/application/x-research-info-systems", 'ris', 'crossref-api', 'crossref.org', "Crossref RIS for {$label}");
+        $seeds[] = seed("https://api.crossref.org/works/{$doi}/transform/application/vnd.citationstyles.csl+json", 'csljson', 'crossref-api', 'crossref.org', "Crossref CSL JSON for {$label}");
+    }
+
+    return $seeds;
+}
+
+function gsjBitsSeedUrls(array $ids): array
+{
+    $seeds = [];
+    foreach ($ids as $id) {
+        $seeds[] = seed("https://gbank.gsj.jp/ld/zfk/xmldata/{$id}_BITS.xml", 'bits', 'government-web', 'gbank.gsj.jp', "GSJ geological map BITS XML {$id}");
+    }
+
+    return $seeds;
 }
 
 /**
