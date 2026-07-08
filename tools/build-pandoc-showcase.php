@@ -1167,6 +1167,138 @@ function aggregate_wordpress_block_counts(array $records): array
 }
 
 /**
+ * @return array<string, mixed>
+ */
+function showcase_record_faithfulness(string $siteDir, array $record): array
+{
+    $baselineKey = (($record['haskell']['ok'] ?? false) === true) ? 'haskell' : ((($record['phpHtml']['ok'] ?? false) === true) ? 'phpHtml' : '');
+    if ($baselineKey === '') {
+        return ['baseline' => null, 'comparisons' => []];
+    }
+    $baselineText = showcase_output_text($siteDir, (string) ($record[$baselineKey]['path'] ?? ''));
+    if ($baselineText === '') {
+        return ['baseline' => null, 'comparisons' => []];
+    }
+
+    $comparisons = [];
+    foreach (['wpBlocks' => 'PHP WordPress blocks', 'phpHtml' => 'PHP HTML'] as $key => $label) {
+        if ($key === $baselineKey || (($record[$key]['ok'] ?? false) !== true)) {
+            continue;
+        }
+        $text = showcase_output_text($siteDir, (string) ($record[$key]['path'] ?? ''));
+        if ($text === '') {
+            $comparisons[$key] = [
+                'label' => $label,
+                'status' => 'no_text',
+                'score' => 0.0,
+            ];
+            continue;
+        }
+        $score = showcase_text_similarity($baselineText, $text);
+        $comparisons[$key] = [
+            'label' => $label,
+            'status' => $score >= 0.80 ? 'faithful_enough' : ($score >= 0.55 ? 'review' : 'divergent'),
+            'score' => $score,
+        ];
+    }
+
+    return [
+        'baseline' => $baselineKey,
+        'comparisons' => $comparisons,
+    ];
+}
+
+function showcase_output_text(string $siteDir, string $relativePath): string
+{
+    if ($relativePath === '' || str_contains($relativePath, "\0") || str_contains($relativePath, '..')) {
+        return '';
+    }
+    $path = $siteDir . '/' . ltrim($relativePath, '/');
+    if (!is_file($path)) {
+        return '';
+    }
+    $html = file_get_contents($path);
+    if (!is_string($html) || $html === '') {
+        return '';
+    }
+    $text = html_entity_decode(strip_tags($html), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    $text = preg_replace('/\s+/u', ' ', $text) ?? $text;
+
+    return trim($text);
+}
+
+function showcase_text_similarity(string $expected, string $actual): float
+{
+    $expectedTokens = showcase_text_tokens($expected);
+    $actualTokens = showcase_text_tokens($actual);
+    if ($expectedTokens === [] && $actualTokens === []) {
+        return 1.0;
+    }
+    if ($expectedTokens === [] || $actualTokens === []) {
+        return 0.0;
+    }
+
+    $expectedCounts = array_count_values($expectedTokens);
+    $actualCounts = array_count_values($actualTokens);
+    $overlap = 0;
+    foreach ($expectedCounts as $token => $count) {
+        $overlap += min($count, $actualCounts[$token] ?? 0);
+    }
+
+    return round((2.0 * $overlap) / (count($expectedTokens) + count($actualTokens)), 4);
+}
+
+/**
+ * @return list<string>
+ */
+function showcase_text_tokens(string $text): array
+{
+    $text = mb_strtolower($text, 'UTF-8');
+    $tokens = preg_split('/[^\p{L}\p{N}]+/u', $text) ?: [];
+
+    return array_values(array_filter($tokens, static fn (string $token): bool => $token !== ''));
+}
+
+/**
+ * @param list<array<string, mixed>> $records
+ * @return array{comparisons:int, faithfulEnough:int, review:int, divergent:int, noText:int}
+ */
+function showcase_faithfulness_summary(array $records): array
+{
+    $summary = [
+        'comparisons' => 0,
+        'faithfulEnough' => 0,
+        'review' => 0,
+        'divergent' => 0,
+        'noText' => 0,
+    ];
+    foreach ($records as $record) {
+        $faithfulness = $record['faithfulness'] ?? [];
+        if (!is_array($faithfulness)) {
+            continue;
+        }
+        foreach (($faithfulness['comparisons'] ?? []) as $comparison) {
+            if (!is_array($comparison)) {
+                continue;
+            }
+            $summary['comparisons']++;
+            $status = (string) ($comparison['status'] ?? '');
+            if ($status === 'faithful_enough') {
+                $summary['faithfulEnough']++;
+            } elseif ($status === 'review') {
+                $summary['review']++;
+            } elseif ($status === 'divergent') {
+                $summary['divergent']++;
+            } else {
+                $summary['noText']++;
+            }
+        }
+    }
+
+    return $summary;
+}
+
+/**
  * @param list<array<string, mixed>> $records
  * @return array{
  *   totalSamples:int,
@@ -1373,7 +1505,8 @@ function write_conversion_report(
     array $coveredFormats,
     array $missingFormats,
     array $summary,
-    array $blockUsage
+    array $blockUsage,
+    array $faithfulnessSummary
 ): void {
     $recordsById = [];
     foreach ($records as $record) {
@@ -1410,6 +1543,7 @@ function write_conversion_report(
     $html .= '<div class="stat"><strong>' . h((string) count($coveredFormats)) . '</strong><span>covered input formats</span></div>';
     $html .= '<div class="stat"><strong>' . h((string) $summary['successfulConversions']) . '/' . h((string) $summary['totalConversions']) . '</strong><span>successful conversions</span></div>';
     $html .= '<div class="stat"><strong>' . h((string) $summary['failedConversions']) . '</strong><span>known failures</span></div>';
+    $html .= '<div class="stat"><strong>' . h((string) ($faithfulnessSummary['faithfulEnough'] ?? 0)) . '/' . h((string) ($faithfulnessSummary['comparisons'] ?? 0)) . '</strong><span>text-faithful comparisons</span></div>';
     $html .= '</div><div class="hero-actions"><a href="index.html">Full showcase</a><a href="playground-converter.html">Convert in WordPress Playground</a><a href="manifest.json">Manifest JSON</a></div></div></header>';
     $html .= '<main class="content-page report-page">';
 
@@ -1419,6 +1553,14 @@ function write_conversion_report(
         $html .= '<p class="report-number">' . h((string) $converter['ok']) . '/' . h((string) $converter['total']) . '</p>';
         $html .= '<p class="meta">' . h((string) $converter['failed']) . ' failed</p></div>';
     }
+    $html .= '</div></section>';
+
+    $html .= '<section><h2>Faithful enough text check</h2>';
+    $html .= '<p>This check compares normalized visible text from generated outputs against Haskell Pandoc when available, or PHP HTML as a fallback baseline. It does not prove visual fidelity, but it catches missing or badly divergent text in otherwise successful conversions.</p>';
+    $html .= '<div class="report-grid">';
+    $html .= '<div class="report-card"><h3>Faithful enough</h3><p class="report-number">' . h((string) ($faithfulnessSummary['faithfulEnough'] ?? 0)) . '</p></div>';
+    $html .= '<div class="report-card"><h3>Needs review</h3><p class="report-number">' . h((string) ($faithfulnessSummary['review'] ?? 0)) . '</p></div>';
+    $html .= '<div class="report-card"><h3>Divergent or empty</h3><p class="report-number">' . h((string) (($faithfulnessSummary['divergent'] ?? 0) + ($faithfulnessSummary['noText'] ?? 0))) . '</p></div>';
     $html .= '</div></section>';
 
     $html .= '<section><h2>Curated stress showcase</h2><p>These are representative real-world files from the pulled corpus: leaflets, brochures, a scanned book, image-heavy packages, table-heavy office documents, and rich markup fixtures.</p>';
@@ -1626,7 +1768,7 @@ foreach ($samples as $sample) {
         : [];
     $preview = is_file($target) ? sample_preview_html($target) : '';
 
-    $records[] = [
+    $record = [
         'id' => $id,
         'format' => $format,
         'label' => (string) $sample['label'],
@@ -1642,6 +1784,8 @@ foreach ($samples as $sample) {
         'wpBlocks' => $wpBlocks,
         'wpBlockCounts' => $wpBlockCounts,
     ];
+    $record['faithfulness'] = showcase_record_faithfulness($siteDir, $record);
+    $records[] = $record;
 }
 
 $coveredFormats = array_values(array_unique(array_map(fn (array $record): string => $record['format'], $records)));
@@ -1649,6 +1793,7 @@ sort($coveredFormats);
 $missingFormats = array_values(array_diff($formats, $coveredFormats));
 $blockUsage = aggregate_wordpress_block_counts($records);
 $conversionSummary = conversion_summary($records);
+$faithfulnessSummary = showcase_faithfulness_summary($records);
 
 file_put_contents($siteDir . '/manifest.json', json_encode([
     'generatedAt' => gmdate('c'),
@@ -1658,6 +1803,7 @@ file_put_contents($siteDir . '/manifest.json', json_encode([
     'coveredFormats' => $coveredFormats,
     'missingFormats' => $missingFormats,
     'conversionSummary' => $conversionSummary,
+    'faithfulnessSummary' => $faithfulnessSummary,
     'blockUsage' => $blockUsage,
     'records' => $records,
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
@@ -2281,7 +2427,7 @@ foreach ($byFormat as $format => $formatRecords) {
 $html .= '</main><script src="showcase.js"></script></body></html>';
 
 file_put_contents($siteDir . '/index.html', $html);
-write_conversion_report($siteDir, $records, $coveredFormats, $missingFormats, $conversionSummary, $blockUsage);
+write_conversion_report($siteDir, $records, $coveredFormats, $missingFormats, $conversionSummary, $blockUsage, $faithfulnessSummary);
 
 $knownBlockRows = [
     'group' => [

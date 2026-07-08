@@ -120,6 +120,58 @@ if (!function_exists('wp_insert_post')) {
     }
 }
 
+if (!function_exists('wp_upload_bits')) {
+    function wp_upload_bits(string $filename, mixed $deprecated, string $bits): array
+    {
+        $GLOBALS['plpc_test_uploads'] ??= [];
+        $index = count($GLOBALS['plpc_test_uploads']) + 1;
+        $file = '/tmp/plpc-upload-' . $index . '-' . $filename;
+        $GLOBALS['plpc_test_uploads'][] = [
+            'filename' => $filename,
+            'bits' => $bits,
+            'file' => $file,
+        ];
+
+        return [
+            'file' => $file,
+            'url' => 'https://playground.test/uploads/' . rawurlencode($filename),
+            'error' => '',
+        ];
+    }
+}
+
+if (!function_exists('wp_insert_attachment')) {
+    function wp_insert_attachment(array $attachment, string $file): int
+    {
+        $GLOBALS['plpc_test_attachments'] ??= [];
+        $id = count($GLOBALS['plpc_test_attachments']) + 1;
+        $GLOBALS['plpc_test_attachments'][$id] = $attachment + ['file' => $file];
+
+        return $id;
+    }
+}
+
+if (!function_exists('wp_generate_attachment_metadata')) {
+    function wp_generate_attachment_metadata(int $attachmentId, string $file): array
+    {
+        return ['file' => basename($file), 'id' => $attachmentId];
+    }
+}
+
+if (!function_exists('wp_update_attachment_metadata')) {
+    function wp_update_attachment_metadata(int $attachmentId, array $metadata): void
+    {
+        $GLOBALS['plpc_test_attachment_metadata'][$attachmentId] = $metadata;
+    }
+}
+
+if (!function_exists('wp_get_attachment_url')) {
+    function wp_get_attachment_url(int $attachmentId): string
+    {
+        return 'https://playground.test/uploads/attachment-' . $attachmentId . '.png';
+    }
+}
+
 if (!function_exists('is_wp_error')) {
     function is_wp_error(mixed $value): bool
     {
@@ -284,6 +336,67 @@ return [
         $t->same('all', plpc_normalize_image_mode('all-images'));
         $t->same('all', plpc_normalize_image_mode(true));
     },
+    'playground importer reports conversion quality from diagnostics' => static function (TestRunner $t): void {
+        $quality = plpc_import_quality_report('pdf', [
+            'document-truncated:pdf-text-limit',
+            'image-not-resolved:media/missing.png',
+            'pdf-layout-uncertain:geometry-tables',
+        ], 2, 1);
+
+        $t->same('truncated', $quality['status']);
+        $t->same(['best_effort', 'layout_uncertain', 'media_missing', 'truncated', 'partial'], $quality['flags']);
+        $t->contains('Only part of the document text was imported because the browser importer reached its safety limit.', implode("\n", $quality['warnings']));
+    },
+    'playground importer maps pdf metadata to quality diagnostics' => static function (TestRunner $t): void {
+        $document = new PortLibs\Pandoc\AstNode('document', [
+            'meta' => [
+                'pdfTextLimited' => true,
+                'pdfFastTextOnly' => true,
+                'pdfTextLines' => 0,
+                'pdfEstimatedPages' => 1,
+                'pdfTableReconstruction' => 'geometry',
+            ],
+        ]);
+
+        $diagnostics = plpc_document_diagnostics($document, 'pdf');
+        $quality = plpc_import_quality_report('pdf', $diagnostics);
+
+        $t->same([
+            'document-truncated:pdf-text-limit',
+            'pdf-fast-text-only',
+            'pdf-scanned-or-image-only',
+            'pdf-layout-uncertain:geometry-tables',
+        ], $diagnostics);
+        $t->same('truncated', $quality['status']);
+        $t->contains('Scanned pages may need OCR before import.', implode("\n", $quality['warnings']));
+    },
+    'playground importer treats legacy doc as unsupported in the UI' => static function (TestRunner $t): void {
+        $collection = [
+            'label' => 'Legacy bundle',
+            'files' => [
+                ['path' => 'old.doc', 'bytes' => "DOC"],
+                ['path' => 'modern.docx', 'bytes' => "PK\x03\x04"],
+            ],
+        ];
+
+        $documents = plpc_convertible_collection_files($collection);
+
+        $t->same(['modern.docx'], array_map(static fn (array $file): string => $file['path'], $documents));
+        $t->same(true, plpc_format_is_ui_unsupported('doc'));
+        $t->contains('Save the document as .docx', plpc_unsupported_format_message('doc'));
+    },
+    'playground importer discovers rendered image sources via dom fragments' => static function (TestRunner $t): void {
+        $blocks = <<<'HTML'
+<!-- wp:image -->
+<figure class="wp-block-image"><img alt="One" src="media/photo &amp; one.png"></figure>
+<!-- /wp:image -->
+<!-- wp:html -->
+<picture><source srcset="ignored.webp"><img src='media/second.png' alt='Two'></picture>
+<!-- /wp:html -->
+HTML;
+
+        $t->same(['media/photo & one.png', 'media/second.png'], plpc_rendered_image_sources($blocks));
+    },
     'playground importer marks imported wp image blocks with attachment metadata' => static function (TestRunner $t): void {
         $blocks = <<<'HTML'
 <!-- wp:image -->
@@ -322,6 +435,18 @@ HTML;
         $t->contains('<!-- wp:image {"id":77,"sizeSlug":"large"} -->', $rewritten);
         $t->contains('class="alignnone wp-image-77"', $rewritten);
         $t->true(!str_contains($rewritten, 'wp-image-77 wp-image-77'), 'Attachment class should not be duplicated.');
+    },
+    'playground importer dedupes media uploads by content hash' => static function (TestRunner $t): void {
+        $GLOBALS['plpc_imported_media_by_hash'] = [];
+        $GLOBALS['plpc_test_uploads'] = [];
+        $GLOBALS['plpc_test_attachments'] = [];
+
+        $first = plpc_insert_media_attachment('PNGDATA', 'first.png', 'image/png');
+        $second = plpc_insert_media_attachment('PNGDATA', 'second.png', 'image/png');
+
+        $t->same($first, $second);
+        $t->same(1, count($GLOBALS['plpc_test_uploads']));
+        $t->same(1, count($GLOBALS['plpc_test_attachments']));
     },
     'playground importer turns actionable diagnostics into page warning blocks' => static function (TestRunner $t): void {
         $blocks = '<!-- wp:paragraph -->' . "\n" . '<p>Imported body.</p>' . "\n" . '<!-- /wp:paragraph -->';

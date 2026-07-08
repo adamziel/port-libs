@@ -1,4 +1,4 @@
-const pluginBuild = '8103daff17a76b69';
+const pluginBuild = '7b5586275cbe9a3a';
 const playgroundClientModuleUrl = 'https://playground.wordpress.net/client/index.js';
 
 const iframe = document.getElementById('wp-playground');
@@ -26,7 +26,6 @@ const formatByExtension = new Map(Object.entries({
   csljson: 'csljson',
   csv: 'csv',
   dbk: 'docbook',
-  doc: 'doc',
   docbook: 'docbook',
   docx: 'docx',
   dokuwiki: 'dokuwiki',
@@ -63,6 +62,10 @@ const formatByExtension = new Map(Object.entries({
   xlsx: 'xlsx',
   xml: 'xml',
   zip: 'zip',
+}));
+
+const unsupportedByExtension = new Map(Object.entries({
+  doc: 'Legacy .doc files are not reliable in the browser importer yet. Save the document as .docx and import that file instead.',
 }));
 
 let playgroundClient = null;
@@ -136,6 +139,11 @@ form.addEventListener('submit', async (event) => {
 
 async function convertSelectedFile() {
   if (!selectedUpload) {
+    return;
+  }
+  if (selectedUpload.unsupportedMessage) {
+    setStatus('error', selectedUpload.unsupportedMessage);
+    log(selectedUpload.unsupportedMessage);
     return;
   }
   if (conversionActive) {
@@ -279,12 +287,17 @@ function setSelectedUpload(upload) {
   fileName.textContent = `${upload.displayName} (${formatBytes(upload.totalSize)})`;
   titleInput.value = upload.title;
   formatInput.value = upload.format;
+  if (upload.unsupportedMessage) {
+    setStatus('error', upload.unsupportedMessage);
+  } else {
+    setStatus('idle', `Ready to import ${upload.displayName}.`);
+  }
   updateConvertAvailability();
 }
 
 function setBusy(busy) {
   form.dataset.busy = busy ? 'true' : 'false';
-  convertButton.disabled = busy || !selectedUpload;
+  convertButton.disabled = busy || !selectedUpload || Boolean(selectedUpload?.unsupportedMessage);
   fileInput.disabled = busy;
   directoryInput.disabled = busy;
   for (const input of imageModeInputs) {
@@ -297,7 +310,7 @@ function setBusy(busy) {
 }
 
 function updateConvertAvailability() {
-  convertButton.disabled = !selectedUpload;
+  convertButton.disabled = !selectedUpload || Boolean(selectedUpload.unsupportedMessage);
   convertButton.textContent = convertButtonLabel();
 }
 
@@ -356,6 +369,7 @@ function uploadFromFiles(files, options = {}) {
       displayName: file.name,
       title: titleFromFilename(file.name),
       format: formatByExtension.get(extension) || '',
+      unsupportedMessage: unsupportedByExtension.get(extension) || '',
       totalSize: file.size,
       entries,
     };

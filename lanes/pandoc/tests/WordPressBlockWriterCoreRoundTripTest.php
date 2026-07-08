@@ -208,6 +208,51 @@ return [
             ]);
         },
 
+    'renders wordpress page primitives for anchors media captions tables and mathml' =>
+        static function (TestRunner $t) use ($text, $paragraph, $tableCell, $tableRow): void {
+            $document = new AstNode('document', [], [
+                new AstNode('heading', ['level' => 2, 'id' => 'toc-target'], [$text('Linked section')]),
+                new AstNode('figure', ['caption' => 'Chart caption', 'captionInlines' => [$text('Chart caption')]], [
+                    new AstNode('image', [
+                        'url' => 'media/chart.png',
+                        'alt' => 'Chart alt',
+                        'width' => 640,
+                        'height' => 360,
+                    ]),
+                ]),
+                new AstNode('table', ['caption' => 'Data table'], [
+                    new AstNode('table_body', [], [
+                        $tableRow([$tableCell('Metric', ['header' => true]), $tableCell('Value', ['header' => true])]),
+                        $tableRow([$tableCell('Alpha'), $tableCell('42')]),
+                    ]),
+                ]),
+                new AstNode('paragraph', [], [
+                    $text('Inline math '),
+                    new AstNode('math', [
+                        'text' => 'x',
+                        'mathml' => '<math><mi>x</mi></math>',
+                    ]),
+                    $text('.'),
+                ]),
+            ]);
+
+            $blocks = (new WordPressBlockWriter(['writerHTMLMathMethod' => 'mathml']))->write($document);
+            pandoc_assert_wordpress_round_trip($t, $blocks, [
+                'core/heading',
+                'core/image',
+                'core/table',
+                'core/paragraph',
+            ]);
+
+            $serialized = serialize_blocks(parse_blocks($blocks));
+            $t->contains('<h2 id="toc-target">Linked section</h2>', $serialized);
+            $t->contains('class="wp-block-image"', $serialized);
+            $t->contains('<figcaption>Chart caption</figcaption>', $serialized);
+            $t->contains('<!-- wp:table -->', $serialized);
+            $t->contains('<figcaption class="wp-element-caption">Data table</figcaption>', $serialized);
+            $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML"><mi>x</mi></math>', $serialized);
+        },
+
     'round trips selected showcase wordpress block output through WordPress core parser and serializer' =>
         static function (TestRunner $t): void {
             $root = dirname(__DIR__, 3);

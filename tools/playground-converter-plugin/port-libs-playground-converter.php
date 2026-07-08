@@ -154,6 +154,7 @@ function plpc_convert_uploaded_document(WP_REST_Request $request): WP_REST_Respo
             'imageTagCount' => $result['imageTagCount'],
             'imagesImported' => $result['imagesImported'],
             'diagnostics' => $result['diagnostics'],
+            'quality' => $result['quality'],
         ]);
     } catch (Throwable $error) {
         return new WP_REST_Response([
@@ -367,6 +368,7 @@ function plpc_collection_response(array $collection, string $title, string $imag
             'imageTagCount' => $imageTagCount,
             'imagesImported' => $imagesImported,
             'diagnostics' => $diagnostics,
+            'quality' => plpc_import_quality_report($post['format'], $diagnostics, $imageTagCount, $imagesImported),
         ]);
     }
 
@@ -394,6 +396,7 @@ function plpc_collection_response(array $collection, string $title, string $imag
         'imageTagCount' => $imageTagCount,
         'imagesImported' => $imagesImported,
         'diagnostics' => $diagnostics,
+        'quality' => plpc_import_quality_report('', $diagnostics, $imageTagCount, $imagesImported),
     ]);
 }
 
@@ -411,6 +414,9 @@ function plpc_convertible_collection_files(array $collection): array
         }
         $format = plpc_normalize_format('', $path);
         if ($format === '' || $format === 'zip') {
+            continue;
+        }
+        if (plpc_format_is_ui_unsupported($format)) {
             continue;
         }
         try {
@@ -433,12 +439,15 @@ function plpc_convertible_collection_files(array $collection): array
 /**
  * @param array{path: string, bytes: string, format?: string} $file
  * @param array{label: string, files: list<array{path: string, bytes: string}>}|null $collection
- * @return array{postId: int, pageUrl: string, editUrl: string, format: string, title: string, path: string, imageTagCount: int, imagesImported: int, diagnostics: list<string>}
+ * @return array{postId: int, pageUrl: string, editUrl: string, format: string, title: string, path: string, imageTagCount: int, imagesImported: int, diagnostics: list<string>, quality: array{status:string, flags:list<string>, warnings:list<string>}}
  */
 function plpc_convert_collection_file_to_page(array $file, ?array $collection = null, ?string $title = null, string $imageMode = 'important'): array
 {
     $path = $file['path'];
     $format = (string) ($file['format'] ?? plpc_normalize_format('', $path));
+    if (plpc_format_is_ui_unsupported($format)) {
+        throw new RuntimeException(plpc_unsupported_format_message($format));
+    }
     $postTitle = $title !== null && $title !== '' ? $title : plpc_title_from_filename($path);
     $options = plpc_converter_options($format);
     $document = PandocConverter::read($file['bytes'], $format, $options['readerOptions']);
@@ -456,7 +465,13 @@ function plpc_convert_collection_file_to_page(array $file, ?array $collection = 
     $blocks = $mediaResult['blocks'];
     $blocks = $fallbackMediaResult['blocks'];
 
-    $diagnostics = array_values(array_merge($media['diagnostics'], $mediaResult['diagnostics'], $fallbackMediaResult['diagnostics']));
+    $diagnostics = array_values(array_merge(
+        plpc_document_diagnostics($document, $format),
+        $media['diagnostics'],
+        $mediaResult['diagnostics'],
+        $fallbackMediaResult['diagnostics']
+    ));
+    $quality = plpc_import_quality_report($format, $diagnostics, count($imageSources), $mediaResult['imported'] + $fallbackMediaResult['imported']);
     $blocks = plpc_prepend_conversion_warning_blocks($blocks, $format, $diagnostics);
 
     $postId = wp_insert_post([
@@ -479,6 +494,7 @@ function plpc_convert_collection_file_to_page(array $file, ?array $collection = 
         'imageTagCount' => count($imageSources),
         'imagesImported' => $mediaResult['imported'] + $fallbackMediaResult['imported'],
         'diagnostics' => $diagnostics,
+        'quality' => $quality,
     ];
 }
 
@@ -502,6 +518,113 @@ function plpc_collection_index_blocks(string $title, array $posts, array $diagno
         . "\n" . '<!-- /wp:list -->';
 
     return plpc_prepend_conversion_warning_blocks($blocks, '', $diagnostics);
+}
+
+function plpc_format_is_ui_unsupported(string $format): bool
+{
+    $canonical = strtolower(str_replace('-', '_', trim($format)));
+
+    return $canonical === 'doc';
+}
+
+function plpc_unsupported_format_message(string $format): string
+{
+    if (plpc_format_is_ui_unsupported($format)) {
+        return 'Legacy .doc files are not reliable in the browser importer yet. Save the document as .docx and import that file instead.';
+    }
+
+    return 'This file format is not supported by the browser importer.';
+}
+
+/**
+ * @return list<string>
+ */
+function plpc_document_diagnostics(object $document, string $format): array
+{
+    $diagnostics = [];
+    $canonical = PandocConverter::canonicalInputFormat($format);
+    if ($canonical !== 'pdf' || !method_exists($document, 'attr')) {
+        return $diagnostics;
+    }
+
+    $meta = $document->attr('meta', []);
+    if (!is_array($meta)) {
+        return $diagnostics;
+    }
+
+    if (($meta['pdfTextLimited'] ?? false) === true) {
+        $diagnostics[] = 'document-truncated:pdf-text-limit';
+    }
+    if (($meta['pdfFastTextOnly'] ?? false) === true) {
+        $diagnostics[] = 'pdf-fast-text-only';
+    }
+    if (($meta['pdfTextLines'] ?? 0) === 0 && (($meta['pdfEstimatedPages'] ?? 0) > 0 || ($meta['pdfPageCount'] ?? 0) > 0)) {
+        $diagnostics[] = 'pdf-scanned-or-image-only';
+    }
+    if (($meta['pdfTableReconstruction'] ?? '') === 'geometry') {
+        $diagnostics[] = 'pdf-layout-uncertain:geometry-tables';
+    }
+    if (($meta['pdfTableReconstruction'] ?? '') === 'text') {
+        $diagnostics[] = 'pdf-layout-uncertain:text-reconstruction';
+    }
+
+    return $diagnostics;
+}
+
+/**
+ * @param list<string> $diagnostics
+ * @return array{status:string, flags:list<string>, warnings:list<string>}
+ */
+function plpc_import_quality_report(string $format, array $diagnostics, int $imageTagCount = 0, int $imagesImported = 0): array
+{
+    $flags = [];
+    $warnings = plpc_conversion_warning_messages($format, $diagnostics);
+    $canonical = $format === '' ? '' : PandocConverter::canonicalInputFormat($format);
+
+    if ($canonical === 'pdf') {
+        $flags[] = 'best_effort';
+        $flags[] = 'layout_uncertain';
+    }
+    if ($imageTagCount > $imagesImported) {
+        $flags[] = 'media_missing';
+    }
+    foreach ($diagnostics as $diagnostic) {
+        $diagnostic = trim((string) $diagnostic);
+        $unscoped = plpc_unscoped_diagnostic($diagnostic);
+        if ($unscoped === '') {
+            continue;
+        }
+        if (str_starts_with($unscoped, 'document-truncated:')) {
+            $flags[] = 'truncated';
+            $flags[] = 'partial';
+        } elseif ($unscoped === 'pdf-fast-text-only' || str_starts_with($unscoped, 'pdf-layout-uncertain:')) {
+            $flags[] = 'layout_uncertain';
+            $flags[] = 'best_effort';
+        } elseif ($unscoped === 'pdf-scanned-or-image-only') {
+            $flags[] = 'partial';
+            $flags[] = 'layout_uncertain';
+        } elseif (str_starts_with($unscoped, 'image-not-resolved:') || str_starts_with($unscoped, 'image-upload-failed:')) {
+            $flags[] = 'media_missing';
+        } elseif (str_starts_with($unscoped, 'document-failed:')) {
+            $flags[] = 'partial';
+        }
+    }
+
+    $flags = array_values(array_unique($flags));
+    $rank = ['truncated', 'partial', 'media_missing', 'layout_uncertain', 'best_effort'];
+    $status = 'complete';
+    foreach ($rank as $candidate) {
+        if (in_array($candidate, $flags, true)) {
+            $status = $candidate;
+            break;
+        }
+    }
+
+    return [
+        'status' => $status,
+        'flags' => $flags,
+        'warnings' => $warnings,
+    ];
 }
 
 /**
@@ -545,10 +668,22 @@ function plpc_conversion_warning_messages(string $format, array $diagnostics): a
 
 function plpc_conversion_warning_message(string $diagnostic): string
 {
-    $unscoped = preg_replace('/\A[^:]+:(?=extract-media-|image-|document-failed:)/', '', $diagnostic) ?? $diagnostic;
+    $unscoped = plpc_unscoped_diagnostic($diagnostic);
 
     if (str_starts_with($unscoped, 'document-failed:')) {
         return 'One document in the upload could not be converted: ' . substr($unscoped, strlen('document-failed:'));
+    }
+    if (str_starts_with($unscoped, 'document-truncated:')) {
+        return 'Only part of the document text was imported because the browser importer reached its safety limit.';
+    }
+    if ($unscoped === 'pdf-fast-text-only') {
+        return 'This large PDF was imported in bounded text-only mode, so detailed layout reconstruction was skipped.';
+    }
+    if ($unscoped === 'pdf-scanned-or-image-only') {
+        return 'This PDF appears to contain little or no extractable text. Scanned pages may need OCR before import.';
+    }
+    if (str_starts_with($unscoped, 'pdf-layout-uncertain:')) {
+        return 'Some PDF layout was inferred from geometry and may need review before publishing.';
     }
     if (str_starts_with($unscoped, 'image-not-resolved:')) {
         return 'An image reference could not be found in the uploaded file or folder: ' . substr($unscoped, strlen('image-not-resolved:'));
@@ -576,6 +711,23 @@ function plpc_conversion_warning_message(string $diagnostic): string
     }
 
     return '';
+}
+
+function plpc_unscoped_diagnostic(string $diagnostic): string
+{
+    $diagnostic = trim($diagnostic);
+    foreach ([
+        'extract-media-',
+        'image-',
+        'document-',
+        'pdf-',
+    ] as $prefix) {
+        if (str_starts_with($diagnostic, $prefix)) {
+            return $diagnostic;
+        }
+    }
+
+    return preg_replace('/\A[^:]+:(?=extract-media-|image-|document-|pdf-)/', '', $diagnostic) ?? $diagnostic;
 }
 
 /**
@@ -697,19 +849,75 @@ function plpc_title_from_filename(string $filename): string
  */
 function plpc_rendered_image_sources(string $blocks): array
 {
-    if (preg_match_all('/<img\b[^>]*\bsrc=(["\'])(.*?)\1/i', $blocks, $matches) !== 1) {
-        return [];
-    }
-
     $sources = [];
-    foreach ($matches[2] as $source) {
-        $decoded = html_entity_decode((string) $source, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-        if ($decoded !== '' && !in_array($decoded, $sources, true)) {
-            $sources[] = $decoded;
+    if (function_exists('parse_blocks')) {
+        $parsed = parse_blocks($blocks);
+        if (is_array($parsed)) {
+            plpc_collect_image_sources_from_blocks($parsed, $sources);
+
+            return array_keys($sources);
         }
     }
 
-    return $sources;
+    plpc_collect_image_sources_from_html($blocks, $sources);
+
+    return array_keys($sources);
+}
+
+/**
+ * @param list<array<string, mixed>> $blocks
+ * @param array<string, true> $sources
+ */
+function plpc_collect_image_sources_from_blocks(array $blocks, array &$sources): void
+{
+    foreach ($blocks as $block) {
+        if (!is_array($block)) {
+            continue;
+        }
+        $innerHtml = $block['innerHTML'] ?? '';
+        if (is_string($innerHtml) && $innerHtml !== '') {
+            plpc_collect_image_sources_from_html($innerHtml, $sources);
+        }
+        $innerBlocks = $block['innerBlocks'] ?? [];
+        if (is_array($innerBlocks) && $innerBlocks !== []) {
+            plpc_collect_image_sources_from_blocks($innerBlocks, $sources);
+        }
+    }
+}
+
+/**
+ * @param array<string, true> $sources
+ */
+function plpc_collect_image_sources_from_html(string $html, array &$sources): void
+{
+    if (trim($html) === '' || !class_exists('DOMDocument')) {
+        return;
+    }
+
+    $dom = new DOMDocument();
+    $previous = libxml_use_internal_errors(true);
+    try {
+        $loaded = $dom->loadHTML(
+            '<!doctype html><html><body>' . $html . '</body></html>',
+            LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD | LIBXML_NONET
+        );
+    } finally {
+        libxml_clear_errors();
+        libxml_use_internal_errors($previous);
+    }
+    if (!$loaded) {
+        return;
+    }
+
+    foreach ($dom->getElementsByTagName('img') as $image) {
+        if (!$image instanceof DOMElement) {
+            continue;
+        }
+        $source = html_entity_decode(trim($image->getAttribute('src')), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        if ($source !== '') {
+            $sources[$source] = true;
+        }
+    }
 }
 
 /**
@@ -1157,9 +1365,20 @@ function plpc_insert_media_attachment(string $bytes, string $filename, string $m
     if ($bytes === '') {
         return null;
     }
+    $hash = sha1($bytes);
+    $cacheKey = strtolower($mimeType) . ':' . $hash;
+    if (isset($GLOBALS['plpc_imported_media_by_hash'][$cacheKey]) && is_array($GLOBALS['plpc_imported_media_by_hash'][$cacheKey])) {
+        return $GLOBALS['plpc_imported_media_by_hash'][$cacheKey];
+    }
 
-    require_once ABSPATH . 'wp-admin/includes/file.php';
-    require_once ABSPATH . 'wp-admin/includes/image.php';
+    $fileApi = ABSPATH . 'wp-admin/includes/file.php';
+    if (is_file($fileApi)) {
+        require_once $fileApi;
+    }
+    $imageApi = ABSPATH . 'wp-admin/includes/image.php';
+    if (is_file($imageApi)) {
+        require_once $imageApi;
+    }
 
     $filename = sanitize_file_name($filename);
     if ($filename === '') {
@@ -1188,7 +1407,14 @@ function plpc_insert_media_attachment(string $bytes, string $filename, string $m
 
     $url = wp_get_attachment_url((int) $attachmentId);
 
-    return is_string($url) ? ['id' => (int) $attachmentId, 'url' => $url] : null;
+    if (!is_string($url)) {
+        return null;
+    }
+
+    $attachment = ['id' => (int) $attachmentId, 'url' => $url];
+    $GLOBALS['plpc_imported_media_by_hash'][$cacheKey] = $attachment;
+
+    return $attachment;
 }
 
 function plpc_mime_for_filename(string $filename): string
