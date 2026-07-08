@@ -9,6 +9,24 @@ use PortLibs\Pandoc\CitationCslProcessor;
 use PortLibs\Pandoc\MarkdownReader;
 use PortLibs\Pandoc\WordPressBlockWriter;
 
+if (!function_exists('pandocTestAssertDefinitionEntry')) {
+    function pandocTestAssertDefinitionEntry(TestRunner $t, string $blocks, string $term, string $value): void
+    {
+        pandocTestAssertDefinitionTerm($t, $blocks, $term);
+        pandocTestAssertDefinitionValue($t, $blocks, $value);
+    }
+
+    function pandocTestAssertDefinitionTerm(TestRunner $t, string $blocks, string $term): void
+    {
+        $t->contains('<p class="pandoc-definition-term"><strong>' . $term . '</strong></p>', $blocks);
+    }
+
+    function pandocTestAssertDefinitionValue(TestRunner $t, string $blocks, string $value): void
+    {
+        $t->contains('<ul class="pandoc-definition-values"><li>' . $value . '</li></ul>', $blocks);
+    }
+}
+
 $citation = static function (string $id): AstNode {
     return new AstNode('citation', [
         'id' => $id,
@@ -152,7 +170,7 @@ XML
         $document = (new MarkdownReader())->read('Archive classes [@primaryclass-source; @primary-class-source] stay visible.');
         $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Archive classes [Ng | cs.DL | cs.DL | arXiv:2601.00001 [cs.DL]; Roe | stat.ML | stat.ML | arXiv:2601.00002 [stat.ML]] stay visible.</p>', $blocks);
-        $t->contains('<dt>Ng 2026</dt><dd>Primary Class Archive Packet :: cs.DL :: arXiv:2601.00001 [cs.DL]</dd>', $blocks);
-        $t->contains('<dt>Roe 2025</dt><dd>Hyphen Primary Class Packet :: stat.ML :: arXiv:2601.00002 [stat.ML]</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2026', 'Primary Class Archive Packet :: cs.DL :: arXiv:2601.00001 [cs.DL]');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Roe 2025', 'Hyphen Primary Class Packet :: stat.ML :: arXiv:2601.00002 [stat.ML]');
     },
 ];

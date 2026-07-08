@@ -127,8 +127,8 @@ XML);
         $t->same('fr', $meta['lang']);
         $t->same('fr', $meta['language']);
         $t->same('book-001', $meta['identifier']);
-        $t->contains('<dt data-pandoc-meta-key="identifier">identifier</dt><dd><span>book-001</span></dd>', $blocks);
-        $t->contains('<dt data-pandoc-meta-key="lang">lang</dt><dd><span>fr</span></dd>', $blocks);
+        $t->contains('<strong data-pandoc-meta-key="identifier">identifier</strong>: <span>book-001</span>', $blocks);
+        $t->contains('<strong data-pandoc-meta-key="lang">lang</strong>: <span>fr</span>', $blocks);
     },
     'discovers parameterized opf rootfile after non-opf rootfile' => static function (TestRunner $t): void {
         $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-metadata-rootfile-media-type-');

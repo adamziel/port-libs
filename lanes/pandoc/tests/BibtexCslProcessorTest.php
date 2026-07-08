@@ -9,6 +9,24 @@ use PortLibs\Pandoc\MarkdownReader;
 use PortLibs\Pandoc\MarkdownWriter;
 use PortLibs\Pandoc\WordPressBlockWriter;
 
+if (!function_exists('pandocTestAssertDefinitionEntry')) {
+    function pandocTestAssertDefinitionEntry(TestRunner $t, string $blocks, string $term, string $value): void
+    {
+        pandocTestAssertDefinitionTerm($t, $blocks, $term);
+        pandocTestAssertDefinitionValue($t, $blocks, $value);
+    }
+
+    function pandocTestAssertDefinitionTerm(TestRunner $t, string $blocks, string $term): void
+    {
+        $t->contains('<p class="pandoc-definition-term"><strong>' . $term . '</strong></p>', $blocks);
+    }
+
+    function pandocTestAssertDefinitionValue(TestRunner $t, string $blocks, string $value): void
+    {
+        $t->contains('<ul class="pandoc-definition-values"><li>' . $value . '</li></ul>', $blocks);
+    }
+}
+
 return [
     'parses bibtex entries into csl item metadata' => static function (TestRunner $t): void {
         $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-bibtex-csl-review.bib');
@@ -888,7 +906,7 @@ XML);
         $t->same('Board', $handoff['items'][0]['series-creator'][0]['family'] ?? null);
         $t->same('Hyphen', $handoff['bibliography']->children[1]->attr('cslItem')['series-creator'][0]['family'] ?? null);
         $t->contains('<p>Series creator legacy [Series Creator Legacy Packet | Board, Review and Desk, Curator | Review Series; Hyphen Series Creator Legacy Packet | Hyphen, Harper] remains visible.</p>', $blocks);
-        $t->contains('<dt>Writer 2026</dt><dd>Series Creator Legacy Packet :: Board, Review; Desk, Curator :: Review Series</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Writer 2026', 'Series Creator Legacy Packet :: Board, Review; Desk, Curator :: Review Series');
     },
     'carries biblatex auxiliary editorial roles in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
@@ -1118,7 +1136,7 @@ XML);
         $document = (new MarkdownReader())->read('Date range review [@date-range-packet] remains style-visible.');
         $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Date range review [Date Range Packet | 2026-06-01/2026-06-03 | 2026-06-04/2026-06-05 | 2026-05/2026-06 | 2020/2021 | 2025-11/ | 2026-06-01/2026-06-03] remains style-visible.</p>', $blocks);
-        $t->contains('<dt>Ng 2026</dt><dd>Date Range Packet :: 2026-06-01/2026-06-03 :: 2026-06-04/2026-06-05 :: 2026-05/2026-06 :: 2020/2021 :: 2025-11/</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2026', 'Date Range Packet :: 2026-06-01/2026-06-03 :: 2026-06-04/2026-06-05 :: 2026-05/2026-06 :: 2020/2021 :: 2025-11/');
     },
     'maps split biblatex URL access dates into CSL accessed dates' => static function (TestRunner $t): void {
         $source = <<<'BIB'
@@ -1196,7 +1214,7 @@ XML);
         $document = (new MarkdownReader())->read('Split access dates [@split-url-date; @split-accessed-date; @split-access-date] stay style-visible.');
         $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Split access dates [Split URL Date Packet | 2026-06-17; Split Accessed Date Packet | 2025-11-03; Split Access Date Packet | 2024-04-09] stay style-visible.</p>', $blocks);
-        $t->contains('<dt>Ng 2026</dt><dd>Split URL Date Packet :: 2026-06-17</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2026', 'Split URL Date Packet :: 2026-06-17');
     },
     'maps biblatex speech entry aliases in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
@@ -1308,8 +1326,8 @@ XML);
         $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
 
         $t->contains('<p>Legacy speech aliases [Legacy Talk Packet | Migration Review Summit | 2026; Legacy Lecture Packet | Archive Review School | 2025; Legacy Presentation Packet | Package Handoff Forum | 2024; Evented Draft Packet | Source Review Forum | 2023] stay reviewable.</p>', $blocks);
-        $t->contains('<dt>Ng 2026</dt><dd>Legacy Talk Packet :: Remote Hall :: talk :: 2026-06-15</dd>', $blocks);
-        $t->contains('<dt>Smith 2023</dt><dd>Evented Draft Packet :: Archive Room :: 2023-01-09</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2026', 'Legacy Talk Packet :: Remote Hall :: talk :: 2026-06-15');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Smith 2023', 'Evented Draft Packet :: Archive Room :: 2023-01-09');
     },
     'carries secondary csl contributor names in legacy biblatex handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
@@ -1437,7 +1455,7 @@ XML);
         $document = (new MarkdownReader())->read('Legacy role qualifiers [@legacy-author-type; @legacy-container-type] stay style-visible.');
         $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Legacy role qualifiers [Roe | Imported source names verified by review desk | compiler; Ng | source volume author | source volume author] stay style-visible.</p>', $blocks);
-        $t->contains('<dt>Roe 2026</dt><dd>Legacy Author Type Packet :: Imported source names verified by review desk :: compiler</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Roe 2026', 'Legacy Author Type Packet :: Imported source names verified by review desk :: compiler');
     },
     'carries biblatex media and participant creator roles in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
@@ -1546,7 +1564,7 @@ XML);
         $document = (new MarkdownReader())->read('Legacy media credits [@legacy-production; @legacy-conversation; @legacy-participants] keep creator roles visible.');
         $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Legacy media credits (Producer | Performer and Ensemble | 2026; Host | Guest and Roe | 2025; Committee | Curator | 2024) keep creator roles visible.</p>', $blocks);
-        $t->contains('<dt>Legacy Participant Packet 2024</dt><dd>Legacy Participant Packet :: Committee, Program :: Morton, Mia :: Contributors, Migration :: Curator, Eli</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Legacy Participant Packet 2024', 'Legacy Participant Packet :: Committee, Program :: Morton, Mia :: Contributors, Migration :: Curator, Eli');
     },
     'carries biblatex original publication and release state metadata in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
@@ -1727,8 +1745,8 @@ XML);
         $t->same(['Review Press', 'Archive Desk'], $handoff['items'][0]['publisher-list'] ?? null);
         $t->same(['Portland Convention Center', 'Remote Stream'], $handoff['items'][1]['event-place-list'] ?? null);
         $t->contains('<p>Distributed source [Curator | Review Press; Archive Desk | New York; London | english; french; Program | Migration Board; Source Lab | Remote; Portland | Portland Convention Center; Remote Stream] keep literal lists visible.</p>', $blocks);
-        $t->contains('<dt>Curator 2026</dt><dd>Distributed Source Review :: Review Press; Archive Desk :: New York; London :: english; french :: Archivo Press; Migration Desk :: Madrid; Barcelona :: spanish; catalan</dd>', $blocks);
-        $t->contains('<dt>Program 2025</dt><dd>Distributed Venue Proceedings :: Migration Board; Source Lab :: Remote; Portland :: Portland Convention Center; Remote Stream</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Curator 2026', 'Distributed Source Review :: Review Press; Archive Desk :: New York; London :: english; french :: Archivo Press; Migration Desk :: Madrid; Barcelona :: spanish; catalan');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Program 2025', 'Distributed Venue Proceedings :: Migration Board; Source Lab :: Remote; Portland :: Portland Convention Center; Remote Stream');
     },
     'carries biblatex translated title aliases in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
@@ -1807,7 +1825,7 @@ XML);
         ]));
         $t->same('Migration Manual :: Manual de Migracion: Apendice de Archivo :: Apendice de Archivo', $styled->renderBibliographyEntry('translated-title-source'));
         $t->contains('<p>Translation review (Garcia | Manual de Migracion: Apendice de Archivo | 2026; Roe | Paquete de Capitulo: Anexo | 2025) keeps translated title metadata visible.</p>', $blocks);
-        $t->contains('<dt>Roe 2025</dt><dd>Chapter Packet :: Paquete de Capitulo: Anexo :: Anexo</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Roe 2025', 'Chapter Packet :: Paquete de Capitulo: Anexo :: Anexo');
     },
     'carries biblatex title family aliases in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
@@ -1919,7 +1937,7 @@ XML);
 
         $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Legacy title family [Ng | Migration Source Corpus: Archive Desk | source addendum | RV | Part Ledger: Field Notes | Special Issue: Source Reports | editorial packet; Roe | Compact Main Text | Alpha Compact Part | Compact Issue] keeps imported title metadata visible.</p>', $blocks);
-        $t->contains('<dt>Ng 2026</dt><dd>Source Chapter :: Migration Handbook :: Migration Source Corpus: Archive Desk :: source addendum :: Review Volume: Appendix :: RV :: Part Ledger: Field Notes :: Special Issue: Source Reports :: editorial packet</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2026', 'Source Chapter :: Migration Handbook :: Migration Source Corpus: Archive Desk :: source addendum :: Review Volume: Appendix :: RV :: Part Ledger: Field Notes :: Special Issue: Source Reports :: editorial packet');
     },
     'renders compact biblatex title family variables in csl styles' => static function (TestRunner $t): void {
         $source = <<<'BIB'
@@ -2009,8 +2027,8 @@ XML);
         $document = (new MarkdownReader())->read('Compact title aliases [@compact-title-z; @compact-title-a] remain visible.');
         $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Compact title aliases [Ace | Ace Manual | alpha dossier | AV | AS; Zed | Zed Manual | zeta dossier | ZV | ZS] remain visible.</p>', $blocks);
-        $t->contains('<dt>Ace 2025</dt><dd>Ace Review Packet :: Ace Manual :: alpha dossier :: AV :: AS</dd>', $blocks);
-        $t->contains('<dt>Zed 2026</dt><dd>Zed Review Packet :: Zed Manual :: zeta dossier :: ZV :: ZS</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ace 2025', 'Ace Review Packet :: Ace Manual :: alpha dossier :: AV :: AS');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Zed 2026', 'Zed Review Packet :: Zed Manual :: zeta dossier :: ZV :: ZS');
     },
     'carries direct csl title aliases in legacy biblatex handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
@@ -2098,7 +2116,7 @@ XML);
 
         $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Direct CSL title aliases [Alias | DAP | proof note | Journal of Direct Aliases: Review Edition | container addendum | Paquete Directo: Archivo | J. Direct Alias.] remain visible.</p>', $blocks);
-        $t->contains('<dt>Alias 2026</dt><dd>Direct Alias Packet :: DAP :: proof note :: Journal of Direct Aliases: Review Edition :: container addendum :: Paquete Directo: Archivo :: J. Direct Alias.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Alias 2026', 'Direct Alias Packet :: DAP :: proof note :: Journal of Direct Aliases: Review Edition :: container addendum :: Paquete Directo: Archivo :: J. Direct Alias.');
     },
     'carries biblatex status taxonomy aliases in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
@@ -2150,7 +2168,7 @@ BIB;
         $t->same('accepted', $handoff['items'][0]['status']);
         $t->same(['source audit', 'release queue'], $handoff['items'][0]['keyword']);
         $t->same('in press', $handoff['bibliography']->children[1]->attr('cslItem')['status'] ?? null);
-        $t->contains('<dt>legacy-status-hyphen</dt>', $blocks);
+        pandocTestAssertDefinitionTerm($t, $blocks, 'legacy-status-hyphen');
         $t->contains('Legacy Status Camel Packet', $blocks);
     },
     'carries biblatex rights metadata in legacy csl handoff' => static function (TestRunner $t): void {
@@ -2330,7 +2348,7 @@ XML);
         $document = (new MarkdownReader())->read('Legacy journal identifiers [@legacy-journal-id; @legacy-short-alias] stay visible.');
         $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Legacy journal identifiers Electronic Article Packet | J. Legacy Import. | J. Legacy Import. | e2026-42; Explicit Article Number Packet | Migr. Rev. Q. | Migr. Rev. Q. | A-77 stay visible.</p>', $blocks);
-        $t->contains('<dt>Roe 2026</dt><dd>Electronic Article Packet :: J. Legacy Import. :: e2026-42 :: 10.5555/legacy-eid</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Roe 2026', 'Electronic Article Packet :: J. Legacy Import. :: e2026-42 :: 10.5555/legacy-eid');
     },
     'carries biblatex source locator metadata in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
@@ -2513,8 +2531,8 @@ XML);
         $t->same(['doctoral-review', 'masters-review', 'explicit-thesis'], $handoff['citedKeys']);
         $t->same('Doctoral dissertation', $handoff['bibliography']->children[0]->attr('cslItem')['thesis-type'] ?? null);
         $t->contains('<p>Thesis aliases (Smith | Migration University | Doctoral dissertation; Ng | Source University | mathesis; Roe | Archive Institute | Licentiate thesis) stay visible.</p>', $blocks);
-        $t->contains('<dt>Smith 2026</dt><dd>Doctoral Import Study :: Migration University :: Doctoral dissertation</dd>', $blocks);
-        $t->contains('<dt>Roe 2024</dt><dd>Explicit Thesis Packet :: Archive Institute :: Licentiate thesis</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Smith 2026', 'Doctoral Import Study :: Migration University :: Doctoral dissertation');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Roe 2024', 'Explicit Thesis Packet :: Archive Institute :: Licentiate thesis');
     },
     'carries biblatex review title hierarchy aliases in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
@@ -2613,7 +2631,7 @@ XML);
 
         $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Review hierarchy [Critic | Source Manual: Field Appendix | migration handbook | Collected Review Set: Legacy Volume | archive set | Volume Packet: Review Notes | Vol. Pkt. | Part Source: Chapter Notes | Special Issue: Audit Week | guest-edited dossier] stays visible.</p>', $blocks);
-        $t->contains('<dt>Critic 2026</dt><dd>Legacy Review Packet :: Source Manual: Field Appendix :: migration handbook :: Collected Review Set: Legacy Volume :: archive set :: Volume Packet: Review Notes :: Vol. Pkt. :: Part Source: Chapter Notes :: Special Issue: Audit Week :: guest-edited dossier</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Critic 2026', 'Legacy Review Packet :: Source Manual: Field Appendix :: migration handbook :: Collected Review Set: Legacy Volume :: archive set :: Volume Packet: Review Notes :: Vol. Pkt. :: Part Source: Chapter Notes :: Special Issue: Audit Week :: guest-edited dossier');
     },
     'carries biblatex publication detail aliases in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
@@ -2749,8 +2767,8 @@ XML);
         $t->contains('Pagination: section. Book pagination: chapter. Part: B. Printing number: 3.', $directBlocks);
         $t->contains('References: Legacy Packet A; Legacy Packet B. Dimensions: 21 cm. Division: Part II. Scale: 1:24000.', $directBlocks);
         $t->contains('<p>Legacy publication details [Publication Detail Packet | section | chapter | B | 3 | Legacy Packet A; Legacy Packet B | 21 cm | Part II | 1:24000 | migration appendix; Hyphenated Publication Detail Packet | folio | 7 | 2 | folded map | Appendix] stay visible.</p>', $styledBlocks);
-        $t->contains('<dd>Publication Detail Packet :: section :: chapter :: B :: 3 :: Legacy Packet A; Legacy Packet B :: 21 cm :: Part II :: 1:24000 :: migration appendix</dd>', $styledBlocks);
-        $t->contains('<dd>Hyphenated Publication Detail Packet :: folio :: 7 :: 2 :: folded map :: Appendix</dd>', $styledBlocks);
+        pandocTestAssertDefinitionValue($t, $styledBlocks, 'Publication Detail Packet :: section :: chapter :: B :: 3 :: Legacy Packet A; Legacy Packet B :: 21 cm :: Part II :: 1:24000 :: migration appendix');
+        pandocTestAssertDefinitionValue($t, $styledBlocks, 'Hyphenated Publication Detail Packet :: folio :: 7 :: 2 :: folded map :: Appendix');
     },
     'carries biblatex pagination and printing number metadata in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
@@ -2968,8 +2986,8 @@ BIB;
         $t->same([], $handoff['missingKeys']);
         $t->same('Source Review Proceedings: Package Track', $handoff['items'][0]['container-title']);
         $t->same('Review Press', $handoff['items'][1]['publisher']);
-        $t->contains('<dt>crossref-paper</dt><dd>Nia Ng. Packet Audit Trails. Source Review Proceedings: Package Track. 2026. 12-18. Rights: Internal review only. BibLaTeX crossref parent: Source Review Proceedings: Package Track (2026). BibLaTeX xdata packets: shared-review-source.</dd>', $blocks);
-        $t->contains('<dt>xdata-child</dt><dd>Archive Desk. Inherited Source Packet. Review Press. Rights: Internal review only. BibLaTeX xdata packets: shared-review-source. https://example.test/source-packet.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'crossref-paper', 'Nia Ng. Packet Audit Trails. Source Review Proceedings: Package Track. 2026. 12-18. Rights: Internal review only. BibLaTeX crossref parent: Source Review Proceedings: Package Track (2026). BibLaTeX xdata packets: shared-review-source.');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'xdata-child', 'Archive Desk. Inherited Source Packet. Review Press. Rights: Internal review only. BibLaTeX xdata packets: shared-review-source. https://example.test/source-packet.');
     },
     'carries biblatex xdata and entryset provenance in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
@@ -3076,7 +3094,7 @@ BIB;
         $t->same(['canonical-source'], array_map(static fn (array $item): string => (string) $item['id'], $handoff['items']));
         $t->same(['legacy-source', 'alt-source'], $handoff['bibliography']->children[0]->attr('cslItem')['citation-aliases'] ?? null);
         $t->contains('Citation aliases: legacy-source; alt-source', $markdown);
-        $t->contains('<dt>canonical-source</dt>', $blocks);
+        pandocTestAssertDefinitionTerm($t, $blocks, 'canonical-source');
         $t->contains('Citation aliases: legacy-source; alt-source', $blocks);
 
         $styled = CitationCslProcessor::fromItems(array_values($items));
@@ -3175,7 +3193,7 @@ XML);
 
         $styledBlocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Legacy custom fields [Curator | migration batch 42 | migration batch; review desk | Roe and Ng | Archive] stay visible.</p>', $styledBlocks);
-        $t->contains('<dt>Curator 2026</dt><dd>Legacy Custom Packet :: usera: migration batch 42; userf: reviewer escalation; verba: wp shortcode [gallery] :: lista: migration batch; review desk; listc: archive queue; internal QA :: namea: Roe, Pat; Ng, Nia; namec: Archive, Desk</dd>', $styledBlocks);
+        pandocTestAssertDefinitionEntry($t, $styledBlocks, 'Curator 2026', 'Legacy Custom Packet :: usera: migration batch 42; userf: reviewer escalation; verba: wp shortcode [gallery] :: lista: migration batch; review desk; listc: archive queue; internal QA :: namea: Roe, Pat; Ng, Nia; namec: Archive, Desk');
     },
     'carries biblatex entry options reference context and field annotations in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
@@ -3283,8 +3301,11 @@ XML);
         $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
 
         $t->contains('<p>Legacy context [Smith | skipbib=false, useprefix=true, maxnames=3 | variant=mexican, hyphenation=traditional | 2 | migration-import | title default: title verified; title source: OCR headline normalized; url source: archived before WordPress import | feminine; Desk | skipbib=true, dashed=false | media-audit] keeps review metadata visible.</p>', $blocks);
-        $t->contains('<dt>Smith 2026</dt><dd>Legacy Review Context :: skipbib=false, useprefix=true, maxnames=3 :: variant=mexican; hyphenation=traditional :: refsection 2; refsegment migration-import :: title default: title verified; title source: OCR headline normalized; url source: archived before WordPress import :: feminine</dd>', $blocks);
-        $t->true(!str_contains($blocks, '<dt>Desk 2025</dt>'), 'skipbib=true legacy BibLaTeX entries must stay out of appended bibliographies');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Smith 2026', 'Legacy Review Context :: skipbib=false, useprefix=true, maxnames=3 :: variant=mexican; hyphenation=traditional :: refsection 2; refsegment migration-import :: title default: title verified; title source: OCR headline normalized; url source: archived before WordPress import :: feminine');
+        $t->true(
+            !str_contains($blocks, '<p class="pandoc-definition-term"><strong>Desk 2025</strong></p>'),
+            'skipbib=true legacy BibLaTeX entries must stay out of appended bibliographies'
+        );
     },
     'carries biblatex issue title aliases in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
@@ -3371,8 +3392,8 @@ XML);
 
         $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Special issue Doe (2026) and archive issue [Roe | Hyphen Issue Text: Source Reports | queue note] keep issue metadata visible.</p>', $blocks);
-        $t->contains('<dt>Doe 2026</dt><dd>Source Packet Study :: Migration Special Issue: Import Desk Reports :: Editorial packet supplement</dd>', $blocks);
-        $t->contains('<dt>Roe 2025</dt><dd>Issue Text Packet :: Hyphen Issue Text: Source Reports :: queue note</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Doe 2026', 'Source Packet Study :: Migration Special Issue: Import Desk Reports :: Editorial packet supplement');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Roe 2025', 'Issue Text Packet :: Hyphen Issue Text: Source Reports :: queue note');
     },
     'carries biblatex shorthand sort and label metadata in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
@@ -3841,8 +3862,8 @@ XML);
         $document = (new MarkdownReader())->read('Legacy attachments [@legacy-file-source; @legacy-pdf-source] stay visible.');
         $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Legacy attachments [Legacy File Source | Review PDF: attachments/legacy audit.pdf (application/pdf); PDF Mirror: attachments/legacy-mirror.pdf (application/pdf) | Remote PDF: remote-uri (https://example.test/legacy.pdf); Traversal PDF: path-traversal (../private/legacy.pdf); Missing: missing-path; Legacy PDF Alias Source | PDF Alias: attachments/pdf-alias.pdf (application/pdf)] stay visible.</p>', $blocks);
-        $t->contains('<dt>Ng 2026</dt><dd>Legacy File Source :: Review PDF; PDF Mirror :: attachments/legacy audit.pdf; attachments/legacy-mirror.pdf :: remote-uri; path-traversal; missing-path</dd>', $blocks);
-        $t->contains('<dt>Roe 2025</dt><dd>Legacy PDF Alias Source :: PDF Alias :: attachments/pdf-alias.pdf</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2026', 'Legacy File Source :: Review PDF; PDF Mirror :: attachments/legacy audit.pdf; attachments/legacy-mirror.pdf :: remote-uri; path-traversal; missing-path');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Roe 2025', 'Legacy PDF Alias Source :: PDF Alias :: attachments/pdf-alias.pdf');
 
         $handoff = $processor->citationHandoff($document, $source);
         $t->same(['legacy-file-source', 'legacy-pdf-source'], $handoff['citedKeys']);
@@ -3897,7 +3918,7 @@ XML);
         $t->same('citation_group', $group->type);
         $t->same('[Alpha Cluster Packet | 2026; Beta Cluster Packet | 2025]', $group->attr('rendered'));
         $t->contains('<p>Cluster review [Alpha Cluster Packet | 2026; Beta Cluster Packet | 2025] stays resolved.</p>', $blocks);
-        $t->contains('<dt>Alpha 2026</dt><dd>Alpha Cluster Packet :: 2026</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Alpha 2026', 'Alpha Cluster Packet :: 2026');
     },
     'collects cited keys in document order with missing bibliography diagnostics' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read('Review @fielding2000 before @missing and [@lovelace1843]. Repeat @fielding2000.');
@@ -3923,8 +3944,8 @@ XML);
         $t->contains('lovelace1843', $markdown);
         $t->contains('Ada Lovelace and Luigi Federico Menabrea. Notes on the Analytical Engine.', $markdown);
         $t->contains('fielding2000', $markdown);
-        $t->contains('<dl>', $blocks);
-        $t->contains('<dt>lovelace1843</dt>', $blocks);
+        $t->contains('pandoc-definition-list', $blocks);
+        pandocTestAssertDefinitionTerm($t, $blocks, 'lovelace1843');
         $t->contains('Journal of WordPress Migration Review 3(29). 1843. 691-731.', $blocks);
         $t->contains('University of California Irvine. 2000.', $blocks);
     },
@@ -4090,7 +4111,7 @@ XML);
         $document = (new MarkdownReader())->read('Legacy split date handoff cites [@legacy-split-date-handoff].');
         $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Legacy split date handoff cites [Legacy Split Date Handoff Packet | 2026-06/2027-07 | 2026-06-15/2026-07-01 | 2026-05/2026-06 | 2025/2026].</p>', $blocks);
-        $t->contains('<dt>Smith 2026/2027</dt><dd>Legacy Split Date Handoff Packet :: 2026-06/2027-07 :: 2026-06-15/2026-07-01 :: 2026-05/2026-06 :: 2025/2026</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Smith 2026/2027', 'Legacy Split Date Handoff Packet :: 2026-06/2027-07 :: 2026-06-15/2026-07-01 :: 2026-05/2026-06 :: 2025/2026');
     },
     'preserves legacy biblatex availability submitted and label date ranges in csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'

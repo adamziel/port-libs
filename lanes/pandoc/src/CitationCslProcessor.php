@@ -55,7 +55,74 @@ final class CitationCslProcessor
             $decoded = [$decoded];
         }
 
-        return self::fromItems($decoded);
+        return self::fromItems(self::sanitizeCslJsonInputItems($decoded));
+    }
+
+    /**
+     * @param list<mixed> $items
+     * @return list<mixed>
+     */
+    public static function sanitizeCslJsonInputItems(array $items): array
+    {
+        return array_map(
+            static fn (mixed $item): mixed => is_array($item) ? self::sanitizeCslJsonInputItem($item) : $item,
+            $items
+        );
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @return array<string, mixed>
+     */
+    private static function sanitizeCslJsonInputItem(array $item): array
+    {
+        foreach (self::cslJsonNameFields() as $field) {
+            if (!array_key_exists($field, $item) || !is_array($item[$field]) || !array_is_list($item[$field])) {
+                continue;
+            }
+
+            $names = [];
+            foreach ($item[$field] as $name) {
+                if (is_array($name) && $name === []) {
+                    continue;
+                }
+                $names[] = $name;
+            }
+
+            if ($names === []) {
+                unset($item[$field]);
+            } else {
+                $item[$field] = $names;
+            }
+        }
+
+        return $item;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function cslJsonNameFields(): array
+    {
+        return [
+            'author',
+            'editor',
+            'short-author',
+            'short-editor',
+            'holder',
+            'translator',
+            'chair',
+            'container-author',
+            'collection-editor',
+            'composer',
+            'contributor',
+            'director',
+            'illustrator',
+            'interviewer',
+            'original-author',
+            'recipient',
+            'reviewed-author',
+        ];
     }
 
     public static function fromBibtex(string $bibtex): self
@@ -78,7 +145,7 @@ final class CitationCslProcessor
      */
     public static function bibtexItems(string $bibtex): array
     {
-        return BibtexCslParser::parse($bibtex);
+        return BibtexCslParser::parse($bibtex, allowDuplicateKeys: true);
     }
 
     /**
@@ -4195,7 +4262,7 @@ final class CitationCslProcessor
                 || self::boolField($name, 'etAl', false)
                 || self::boolField($name, 'et-al', false);
             if (!$etAl && $literal === '' && $family === '' && $given === '' && $nonDroppingParticle === '' && $droppingParticle === '') {
-                continue;
+                throw new \InvalidArgumentException('CSL item ' . $id . ' field ' . $field . '[' . $index . '] must include a name value');
             }
 
             $names[] = [

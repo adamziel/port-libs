@@ -9,6 +9,24 @@ use PortLibs\Pandoc\MarkdownWriter;
 use PortLibs\Pandoc\PandocJsonReader;
 use PortLibs\Pandoc\WordPressBlockWriter;
 
+if (!function_exists('pandocTestAssertDefinitionEntry')) {
+    function pandocTestAssertDefinitionEntry(TestRunner $t, string $blocks, string $term, string $value): void
+    {
+        pandocTestAssertDefinitionTerm($t, $blocks, $term);
+        pandocTestAssertDefinitionValue($t, $blocks, $value);
+    }
+
+    function pandocTestAssertDefinitionTerm(TestRunner $t, string $blocks, string $term): void
+    {
+        $t->contains('<p class="pandoc-definition-term"><strong>' . $term . '</strong></p>', $blocks);
+    }
+
+    function pandocTestAssertDefinitionValue(TestRunner $t, string $blocks, string $value): void
+    {
+        $t->contains('<ul class="pandoc-definition-values"><li>' . $value . '</li></ul>', $blocks);
+    }
+}
+
 $cslJson = static fn (): string => json_encode([
     [
         'id' => 'smith1899',
@@ -185,8 +203,8 @@ XML
         ]);
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Affix source [Ng | see also | p. 42 | prefix: see also; suffix: p. 42 | page | 42; Roe] stays reviewable.</p>', $blocks);
-        $t->contains('<dt>Ng 2026</dt><dd>Affix Source Packet :: 2026</dd>', $blocks);
-        $t->contains('<dt>Roe 2025</dt><dd>Plain Source Packet :: 2025</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2026', 'Affix Source Packet :: 2026');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Roe 2025', 'Plain Source Packet :: 2025');
     },
     'normalizes csl date variables and name particles for bibliography handoff' => static function (TestRunner $t) use ($citation): void {
         $processor = CitationCslProcessor::fromItems([
@@ -410,9 +428,9 @@ XML);
         $document = (new MarkdownReader())->read('BibLaTeX status aliases [@biblatex-status-hyphen; @biblatex-status-camel; @biblatex-status-pubstate] keep taxonomy metadata visible.');
         $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>BibLaTeX status aliases [Ng | accepted | source audit; release queue | biblatex; taxonomy; Roe | in press | review queue; compact alias | handoff; csl; Kim | preprint | conference; source packet | legacy; review] keep taxonomy metadata visible.</p>', $blocks);
-        $t->contains('<dt>Ng 2026</dt><dd>BibLaTeX Status Hyphen Packet :: accepted :: source audit, release queue :: biblatex; taxonomy</dd>', $blocks);
-        $t->contains('<dt>Roe 2025</dt><dd>BibLaTeX Status Camel Packet :: in press :: review queue, compact alias :: handoff; csl</dd>', $blocks);
-        $t->contains('<dt>Kim 2024</dt><dd>BibLaTeX Status Pubstate Packet :: preprint :: conference, source packet :: legacy; review</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2026', 'BibLaTeX Status Hyphen Packet :: accepted :: source audit, release queue :: biblatex; taxonomy');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Roe 2025', 'BibLaTeX Status Camel Packet :: in press :: review queue, compact alias :: handoff; csl');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Kim 2024', 'BibLaTeX Status Pubstate Packet :: preprint :: conference, source packet :: legacy; review');
     },
     'maps bibtex strings particles suffixes and literal dates into csl metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -494,7 +512,7 @@ BIB;
         $document = (new MarkdownReader())->read('Standard suffix names [@standard-suffix-review] keep reviewer credit metadata attached.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Standard suffix names (Smith and de la Cruz 2026) keep reviewer credit metadata attached.</p>', $blocks);
-        $t->contains('<dt>Smith and de la Cruz 2026</dt><dd>Smith, Ada, Jr.; de la Cruz, Ana Maria, III. Standard Name Packet. Review Press, 2026.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Smith and de la Cruz 2026', 'Smith, Ada, Jr.; de la Cruz, Ana Maria, III. Standard Name Packet. Review Press, 2026.');
     },
     'decodes common tex accents and special letters in bibtex csl handoff' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -527,7 +545,7 @@ BIB;
         $document = (new MarkdownReader())->read('Review keeps @accented-source in source notes.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Review keeps Müller et al. (2026) in source notes.</p>', $blocks);
-        $t->contains('<dt>Müller et al. 2026</dt><dd>Müller, Mia; García, Gia; Søren Archive Team. Étude of Jalapeño Source Packets. Crème Brûlée Review. Revü Press, 2026. 7-9. https://example.test/accented.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Müller et al. 2026', 'Müller, Mia; García, Gia; Søren Archive Team. Étude of Jalapeño Source Packets. Crème Brûlée Review. Revü Press, 2026. 7-9. https://example.test/accented.');
     },
     'decodes spaced tex em dash punctuation in bibtex csl handoff' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -589,7 +607,7 @@ XML);
         $document = (new MarkdownReader())->read('Dash source @dash-source keeps TeX punctuation readable.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Dash source Smith (2026) keeps TeX punctuation readable.</p>', $blocks);
-        $t->contains('<dt>Smith 2026</dt><dd>Smith, Ada. Migration Review — Source Packet. Import Notes — Archive Desk. 2026. 11-12. Note: Reviewer note — check legacy packet. https://example.test/dash-source.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Smith 2026', 'Smith, Ada. Migration Review — Source Packet. Import Notes — Archive Desk. 2026. 11-12. Note: Reviewer note — check legacy packet. https://example.test/dash-source.');
     },
     'strips bounded latex text wrappers in bibtex csl handoff' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -649,7 +667,7 @@ XML);
         $document = (new MarkdownReader())->read('Macro source @macro-source keeps review text visible.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Macro source Smith (2026) keeps review text visible.</p>', $blocks);
-        $t->contains('<dt>Smith 2026</dt><dd>Smith, Ada. Packet Review Draft v2. Import Desk. Review Press, 2026. Note: macro-wrapper source. https://example.test/macro-source.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Smith 2026', 'Smith, Ada. Packet Review Draft v2. Import Desk. Review Press, 2026. Note: macro-wrapper source. https://example.test/macro-source.');
     },
     'decodes bounded latex punctuation macros in bibtex csl handoff' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -703,7 +721,7 @@ XML);
         $document = (new MarkdownReader())->read('Punctuation source [@punctuation-source] keeps TeX title punctuation readable.');
         $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Punctuation source [“Source Review” — import notes… | Review ‘Desk’ | ‘queued’ — source …] keeps TeX title punctuation readable.</p>', $blocks);
-        $t->contains('<dt>Smith 2026</dt><dd>“Source Review” — import notes… :: Review ‘Desk’ :: ‘queued’ — source …</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Smith 2026', '“Source Review” — import notes… :: Review ‘Desk’ :: ‘queued’ — source …');
     },
     'decodes bounded latex text symbol macros in bibtex csl handoff' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -758,7 +776,7 @@ XML);
         $document = (new MarkdownReader())->read('Text symbol source [@text-symbol-source] keeps BibTeX path and rights symbols readable.');
         $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Text symbol source [Path \ assets &lt;review&gt; | Audit © Team | packet~draft ® ™ №7 °C | phase ^2] keeps BibTeX path and rights symbols readable.</p>', $blocks);
-        $t->contains('<dt>Ng 2026</dt><dd>Path \ assets &lt;review&gt; :: Audit © Team :: packet~draft ® ™ №7 °C | phase ^2</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2026', 'Path \ assets &lt;review&gt; :: Audit © Team :: packet~draft ® ™ №7 °C | phase ^2');
     },
     'decodes bounded latex logo macros in bibtex csl handoff' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -815,7 +833,7 @@ XML);
         $document = (new MarkdownReader())->read('Logo source [@logo-source] keeps bibliography macro names readable.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Logo source (Knuth and Lamport 2026) keeps bibliography macro names readable.</p>', $blocks);
-        $t->contains('<dt>Knuth and Lamport 2026</dt><dd>Knuth, Donald; Lamport, Leslie. Native TeX and LaTeX Source Review. BibTeX and BibLaTeX Archive Desk, 2026. Note: Preserve LaTeX macro names without renderer. https://example.test/logo-source.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Knuth and Lamport 2026', 'Knuth, Donald; Lamport, Leslie. Native TeX and LaTeX Source Review. BibTeX and BibLaTeX Archive Desk, 2026. Note: Preserve LaTeX macro names without renderer. https://example.test/logo-source.');
     },
     'inherits bounded bibtex crossref fields into child csl items' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -976,8 +994,8 @@ XML);
         $document = (new MarkdownReader())->read('Crossref subtitle source @crossref-subtitle-paper and journal packet [@crossref-subtitle-article] keep parent container titles intact.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Crossref subtitle source Ng (2026) and journal packet (Roe 2025) keep parent container titles intact.</p>', $blocks);
-        $t->contains('<dt>Ng 2026</dt><dd>Ng, Nia. Packet Audit Trails. Source Review Proceedings: Reviewer Packet Track. Proceedings supplement. Review Press, 2026. 12-18. Crossref: Source Review Proceedings: Reviewer Packet Track (2026).</dd>', $blocks);
-        $t->contains('<dt>Roe 2025</dt><dd>Roe, Pat. Journal Child Packet. Journal of Import Reviews: Source Desk Notes. Online supplement. 2025. 7-9. Crossref: Journal of Import Reviews: Source Desk Notes (2025).</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2026', 'Ng, Nia. Packet Audit Trails. Source Review Proceedings: Reviewer Packet Track. Proceedings supplement. Review Press, 2026. 12-18. Crossref: Source Review Proceedings: Reviewer Packet Track (2026).');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Roe 2025', 'Roe, Pat. Journal Child Packet. Journal of Import Reviews: Source Desk Notes. Online supplement. 2025. 7-9. Crossref: Journal of Import Reviews: Source Desk Notes (2025).');
     },
     'inherits bounded biblatex reference crossref titles into child containers' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -1063,8 +1081,8 @@ XML);
         $document = (new MarkdownReader())->read('Reference children cite @source-term and [@embedded-source] with inherited container context.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Reference children cite Ng (2026) and (Roe 2026) with inherited container context.</p>', $blocks);
-        $t->contains('<dt>Ng 2026</dt><dd>Ng, Nia. Import Source Term. Migration Reference Desk. Review Press, 2026. 42-43. Crossref: Migration Reference Desk (2026).</dd>', $blocks);
-        $t->contains('<dt>Roe 2026</dt><dd>Roe, Pat. Embedded Audit Leaf. Migration Reference Desk. Review Press, 2026. 9-11. Crossref: Migration Reference Desk (2026).</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2026', 'Ng, Nia. Import Source Term. Migration Reference Desk. Review Press, 2026. 42-43. Crossref: Migration Reference Desk (2026).');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Roe 2026', 'Roe, Pat. Embedded Audit Leaf. Migration Reference Desk. Review Press, 2026. 9-11. Crossref: Migration Reference Desk (2026).');
     },
     'inherits bounded biblatex xdata fields and preserves reviewer metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -1120,7 +1138,7 @@ BIB;
         $document = (new MarkdownReader())->read('Glossary entry @source-glossary keeps inherited source packet metadata.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Glossary entry Ng (2026) keeps inherited source packet metadata.</p>', $blocks);
-        $t->contains('<dt>Ng 2026</dt><dd>Ng, Nia. Import Glossary. Migration Reference. Migration Desk, 2026. Keywords: wordpress; import; reviewer. https://example.test/glossary.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2026', 'Ng, Nia. Import Glossary. Migration Reference. Migration Desk, 2026. Keywords: wordpress; import; reviewer. https://example.test/glossary.');
 
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromBibtex('@xdata{a,xdata={b}} @xdata{b,xdata={a}} @online{site,title={Site},xdata={a}}'));
     },
@@ -1223,7 +1241,7 @@ XML);
         $document = (new MarkdownReader())->read('Xdata provenance @xdata-provenance-source keeps inherited packet sources visible.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Xdata provenance Ng (2026) keeps inherited packet sources visible.</p>', $blocks);
-        $t->contains('<dt>Ng 2026</dt><dd>Ng, Nia. Xdata Provenance Source. Migration Desk, 2026. Xdata packets: Shared Review Packet (2026-06-05); Attachment Review Packet; missing: missing-xdata-packet. https://example.test/xdata-provenance.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2026', 'Ng, Nia. Xdata Provenance Source. Migration Desk, 2026. Xdata packets: Shared Review Packet (2026-06-05); Attachment Review Packet; missing: missing-xdata-packet. https://example.test/xdata-provenance.');
 
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([[
             'id' => 'bad-xdata',
@@ -1280,7 +1298,7 @@ BIB;
         $document = (new MarkdownReader())->read('Attachment source @source-attachment keeps unsafe file paths in review diagnostics.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Attachment source Ng (2026) keeps unsafe file paths in review diagnostics.</p>', $blocks);
-        $t->contains('<dt>Ng 2026</dt><dd>Ng, Nia. Attachment Source. 2026. https://example.test/source-attachment.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2026', 'Ng, Nia. Attachment Source. 2026. https://example.test/source-attachment.');
 
         $manual = CitationCslProcessor::fromItems([[
             'id' => 'manual-source',
@@ -1375,8 +1393,8 @@ XML);
         $document = (new MarkdownReader())->read('Attachment source [@attachment-review; @manual-attachment] keeps source files visible.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Attachment source [Attachment Review Packet | Review PDF: attachments/source-audit.pdf (application/pdf); Reviewer Notes: attachments/reviewer notes.html (text/html) | Remote PDF: remote-uri (https://example.test/source-audit.pdf); Absolute PDF: absolute-path (/var/private/source-audit.pdf); Manual Attachment Packet | attachments/manual.pdf] keeps source files visible.</p>', $blocks);
-        $t->contains('<dt>Ng 2026</dt><dd>Attachment Review Packet :: attachments/source-audit.pdf; attachments/reviewer notes.html :: application/pdf; text/html :: remote-uri; absolute-path</dd>', $blocks);
-        $t->contains('<dt>Manual Attachment Packet 2025</dt><dd>Manual Attachment Packet :: attachments/manual.pdf</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2026', 'Attachment Review Packet :: attachments/source-audit.pdf; attachments/reviewer notes.html :: application/pdf; text/html :: remote-uri; absolute-path');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Manual Attachment Packet 2025', 'Manual Attachment Packet :: attachments/manual.pdf');
     },
     'normalizes bounded direct csl json compact source file aliases' => static function (TestRunner $t) use ($citation): void {
         $json = json_encode([
@@ -1467,9 +1485,9 @@ XML);
         $document = (new MarkdownReader())->read('Direct attachments [@direct-attachment-compact; @direct-pdf-alias; @direct-source-file-list] keep review file policy visible.');
         $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Direct attachments [Direct Attachment Compact Packet | Review PDF: attachments/direct audit.pdf (application/pdf) | Remote PDF: remote-uri (https://example.test/direct-audit.pdf); remote-uri (https://example.test/unlabeled.pdf); Encoded Traversal: path-traversal (attachments/%2e%2e/private.pdf); Direct PDF Alias Packet | Audit PDF: attachments/audit-alias.pdf (application/pdf); Direct Source File List Packet | Source HTML: attachments/source-list.html (text/html) | remote-uri (https://example.test/source-list.html)] keep review file policy visible.</p>', $blocks);
-        $t->contains('<dt>Ng 2026</dt><dd>Direct Attachment Compact Packet :: Review PDF :: attachments/direct audit.pdf :: remote-uri; path-traversal</dd>', $blocks);
-        $t->contains('<dt>Direct PDF Alias Packet 2025</dt><dd>Direct PDF Alias Packet :: Audit PDF :: attachments/audit-alias.pdf</dd>', $blocks);
-        $t->contains('<dt>Direct Source File List Packet 2024</dt><dd>Direct Source File List Packet :: Source HTML :: attachments/source-list.html :: remote-uri</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2026', 'Direct Attachment Compact Packet :: Review PDF :: attachments/direct audit.pdf :: remote-uri; path-traversal');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Direct PDF Alias Packet 2025', 'Direct PDF Alias Packet :: Audit PDF :: attachments/audit-alias.pdf');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Direct Source File List Packet 2024', 'Direct Source File List Packet :: Source HTML :: attachments/source-list.html :: remote-uri');
     },
     'maps bounded biblatex pdf aliases into source file attachment metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -1503,7 +1521,7 @@ BIB;
         $document = (new MarkdownReader())->read('PDF alias source @pdf-alias-source keeps JabRef-style attachment metadata visible.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>PDF alias source Ng (2026) keeps JabRef-style attachment metadata visible.</p>', $blocks);
-        $t->contains('<dt>Ng 2026</dt><dd>Ng, Nia. PDF Alias Source. 2026. https://example.test/pdf-alias-source.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2026', 'Ng, Nia. PDF Alias Source. 2026. https://example.test/pdf-alias-source.');
     },
     'maps bounded biblatex compact source file aliases into attachment metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -1588,8 +1606,8 @@ XML);
         $document = (new MarkdownReader())->read('BibLaTeX source aliases [@source-file-alias-source; @attachments-alias-source] keep attachment policy visible.');
         $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>BibLaTeX source aliases [Source File Alias Packet | Source HTML: attachments/source-alias.html (text/html) | remote-uri; Attachments Alias Packet | Review PDF: attachments/review-alias.pdf (application/pdf) | path-traversal] keep attachment policy visible.</p>', $blocks);
-        $t->contains('<dt>Ng 2026</dt><dd>Source File Alias Packet :: Source HTML :: attachments/source-alias.html :: Remote HTML: remote-uri (https://example.test/source-alias.html)</dd>', $blocks);
-        $t->contains('<dt>Roe 2025</dt><dd>Attachments Alias Packet :: Review PDF :: attachments/review-alias.pdf :: Traversal PDF: path-traversal (../private/review-alias.pdf)</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2026', 'Source File Alias Packet :: Source HTML :: attachments/source-alias.html :: Remote HTML: remote-uri (https://example.test/source-alias.html)');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Roe 2025', 'Attachments Alias Packet :: Review PDF :: attachments/review-alias.pdf :: Traversal PDF: path-traversal (../private/review-alias.pdf)');
     },
     'preserves bounded biblatex entry sets and related entry metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -1675,8 +1693,8 @@ BIB;
         $document = (new MarkdownReader())->read('Review cites @migration-review-set and related manual @related-manual.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Review cites Migration Review Set (2026) and related manual Curator (2024).</p>', $blocks);
-        $t->contains('<dt>Migration Review Set 2026</dt><dd>Migration Review Set. 2026. Entry set: Packet Audit Trails (2026); Archive Site (2026-05-31); missing: missing-source.</dd>', $blocks);
-        $t->contains('<dt>Curator 2024</dt><dd>Curator, Eli. Migration Manual. 2024. Companion review set (companion): Migration Review Set (2026-06-05); missing: missing-related.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Migration Review Set 2026', 'Migration Review Set. 2026. Entry set: Packet Audit Trails (2026); Archive Site (2026-05-31); missing: missing-source.');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Curator 2024', 'Curator, Eli. Migration Manual. 2024. Companion review set (companion): Migration Review Set (2026-06-05); missing: missing-related.');
     },
     'renders bounded biblatex entry set summaries into csl review metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -1754,7 +1772,7 @@ XML);
         $document = (new MarkdownReader())->read('Entry-set source @migration-review-set keeps member provenance visible.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Entry-set source Migration Review Set (2026) keeps member provenance visible.</p>', $blocks);
-        $t->contains('<dt>Migration Review Set 2026</dt><dd>Migration Review Set. 2026. Entry set: Packet Audit Trails (2026); Archive Site (2026-05-31); missing: missing-source.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Migration Review Set 2026', 'Migration Review Set. 2026. Entry set: Packet Audit Trails (2026); Archive Site (2026-05-31); missing: missing-source.');
     },
     'normalizes bounded biblatex related references into csl review metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -1844,7 +1862,7 @@ XML);
         $document = (new MarkdownReader())->read('Related source @related-manual keeps companion review metadata visible.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Related source Curator (2024) keeps companion review metadata visible.</p>', $blocks);
-        $t->contains('<dt>Curator 2024</dt><dd>Curator, Eli. Migration Manual. 2024. Companion review set (companion): Migration Review Set (2026-06-05); missing: missing-related.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Curator 2024', 'Curator, Eli. Migration Manual. 2024. Companion review set (companion): Migration Review Set (2026-06-05); missing: missing-related.');
 
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([[
             'id' => 'bad-related',
@@ -2071,7 +2089,7 @@ XML);
         $document = (new MarkdownReader())->read('Related options source @related-options-manual keeps related-entry switches visible.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Related options source Curator (2024) keeps related-entry switches visible.</p>', $blocks);
-        $t->contains('<dt>Curator 2024</dt><dd>Curator, Eli. Related Options Manual. 2024. Related source (companion): Migration Review Set (2026-06-05). Related options: skipbib=false; dataonly=false; useeditor=true.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Curator 2024', 'Curator, Eli. Related Options Manual. 2024. Related source (companion): Migration Review Set (2026-06-05). Related options: skipbib=false; dataonly=false; useeditor=true.');
     },
     'maps bounded biblatex entry options into csl review metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -2160,7 +2178,7 @@ XML);
         $document = (new MarkdownReader())->read('Entry options @entry-options-manual and [@entry-options-snapshot] keep bounded BibLaTeX switches visible.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Entry options Smith (2026) and (Desk 2025) keep bounded BibLaTeX switches visible.</p>', $blocks);
-        $t->contains('<dt>Smith 2026</dt><dd>Smith, Ada. Options Review Manual. Review Press, 2026. BibLaTeX options: skipbib=false; useprefix=true; maxnames=3.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Smith 2026', 'Smith, Ada. Options Review Manual. Review Press, 2026. BibLaTeX options: skipbib=false; useprefix=true; maxnames=3.');
 
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([[
             'id' => 'bad-biblatex-options',
@@ -2226,9 +2244,9 @@ BIB;
         $document = (new MarkdownReader())->read('Skipbib source @visible-manual cites suppressed packets [@suppressed-snapshot; @bare-skip-source] without listing them.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Skipbib source Smith (2026) cites suppressed packets (Desk 2025; Ng 2024) without listing them.</p>', $blocks);
-        $t->contains('<dt>Smith 2026</dt><dd>Smith, Ada. Visible Review Manual. Review Press, 2026. BibLaTeX options: skipbib=false; useprefix=true.</dd>', $blocks);
-        $t->true(!str_contains($blocks, '<dt>Desk 2025</dt>'), 'skipbib=true entry must not be appended to the bibliography');
-        $t->true(!str_contains($blocks, '<dt>Ng 2024</dt>'), 'bare skipbib entry must not be appended to the bibliography');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Smith 2026', 'Smith, Ada. Visible Review Manual. Review Press, 2026. BibLaTeX options: skipbib=false; useprefix=true.');
+        $t->true(!str_contains($blocks, '<p class="pandoc-definition-term"><strong>Desk 2025</strong></p>'), 'skipbib=true entry must not be appended to the bibliography');
+        $t->true(!str_contains($blocks, '<p class="pandoc-definition-term"><strong>Ng 2024</strong></p>'), 'bare skipbib entry must not be appended to the bibliography');
 
         $skipOnly = (new WordPressBlockWriter())->write($processor->appendBibliography(
             (new MarkdownReader())->read('Only skipped packet [@suppressed-snapshot].'),
@@ -2236,7 +2254,7 @@ BIB;
         ));
         $t->contains('<p>Only skipped packet (Desk 2025).</p>', $skipOnly);
         $t->true(!str_contains($skipOnly, '<h2'), 'skipbib-only documents must not append an empty bibliography heading');
-        $t->true(!str_contains($skipOnly, '<dt>Desk 2025</dt>'), 'skipbib-only documents must not append hidden bibliography entries');
+        $t->true(!str_contains($skipOnly, '<p class="pandoc-definition-term"><strong>Desk 2025</strong></p>'), 'skipbib-only documents must not append hidden bibliography entries');
     },
     'preserves bounded biblatex xref metadata without crossref inheritance' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -2328,7 +2346,7 @@ XML);
         $document = (new MarkdownReader())->read('Xref source @xref-chapter keeps see-also parent metadata visible without inheriting it.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Xref source Ng (2025) keeps see-also parent metadata visible without inheriting it.</p>', $blocks);
-        $t->contains('<dt>Ng 2025</dt><dd>Ng, Nia. Xref Chapter Review. 2025. 7-9. Xref: Migration Source Dossier (2026); missing: missing-dossier.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2025', 'Ng, Nia. Xref Chapter Review. 2025. 7-9. Xref: Migration Source Dossier (2026); missing: missing-dossier.');
 
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([[
             'id' => 'bad-xref',
@@ -2445,8 +2463,8 @@ XML);
         $document = (new MarkdownReader())->read('Crossref source @crossref-chapter and @missing-crossref-chapter keep parent provenance visible.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Crossref source Ng (2025) and Roe (2024) keep parent provenance visible.</p>', $blocks);
-        $t->contains('<dt>Ng 2025</dt><dd>Ng, Nia. Crossref Chapter Review. Migration Source Dossier. Review Press, 2025. 7-9. Crossref: Migration Source Dossier (2026).</dd>', $blocks);
-        $t->contains('<dt>Roe 2024</dt><dd>Roe, Pat. Missing Crossref Chapter. 2024. Crossref: missing: missing-dossier.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2025', 'Ng, Nia. Crossref Chapter Review. Migration Source Dossier. Review Press, 2025. 7-9. Crossref: Migration Source Dossier (2026).');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Roe 2024', 'Roe, Pat. Missing Crossref Chapter. 2024. Crossref: missing: missing-dossier.');
 
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([[
             'id' => 'bad-crossref',
@@ -2536,7 +2554,7 @@ XML);
         $document = (new MarkdownReader())->read('Licensed source @licensed-dataset keeps related license metadata visible.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Licensed source Ng (2026) keeps related license metadata visible.</p>', $blocks);
-        $t->contains('<dt>Ng 2026</dt><dd>Ng, Nia. Licensed Source Dataset. 2026. License: Creative Commons Attribution 4.0 International (2013); missing: missing-license. DOI 10.5555/license-data.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2026', 'Ng, Nia. Licensed Source Dataset. 2026. License: Creative Commons Attribution 4.0 International (2013); missing: missing-license. DOI 10.5555/license-data.');
     },
     'maps bounded biblatex item rights metadata into csl review handoff' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -2629,8 +2647,8 @@ XML);
         $document = (new MarkdownReader())->read('Rights source @rights-dataset and copyright snapshot [@copyright-snapshot] keep item-level rights visible.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Rights source Ng (2026) and copyright snapshot (Archive Desk 2025) keep item-level rights visible.</p>', $blocks);
-        $t->contains('<dt>Ng 2026</dt><dd>Ng, Nia. Rights Review Dataset. 2026. Rights: CC BY-SA 4.0 review required. DOI 10.5555/rights-data.</dd>', $blocks);
-        $t->contains('<dt>Archive Desk 2025</dt><dd>Archive Desk. Copyright Snapshot. 2025. Rights: Copyright 2025 Source Archive. https://example.test/copyright-snapshot.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2026', 'Ng, Nia. Rights Review Dataset. 2026. Rights: CC BY-SA 4.0 review required. DOI 10.5555/rights-data.');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Archive Desk 2025', 'Archive Desk. Copyright Snapshot. 2025. Rights: Copyright 2025 Source Archive. https://example.test/copyright-snapshot.');
     },
     'maps bounded biblatex translation and original publication metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -2718,7 +2736,7 @@ XML);
         $document = (new MarkdownReader())->read('Review cites translated source @translated-manual for original publication audit.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Review cites translated source García (2026) for original publication audit.</p>', $blocks);
-        $t->contains('<dt>García 2026</dt><dd>García, Gia. Migration Manual. Review Press, 2026. Translated by Curator, Eli; de la Cruz, Ana Maria. Original title: Manual de Migración. Original genre: source manual. Original work published 2020-05. Original publisher: Archivo Press, Madrid. Original language: spanish.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'García 2026', 'García, Gia. Migration Manual. Review Press, 2026. Translated by Curator, Eli; de la Cruz, Ana Maria. Original title: Manual de Migración. Original genre: source manual. Original work published 2020-05. Original publisher: Archivo Press, Madrid. Original language: spanish.');
     },
     'exposes bounded biblatex original publisher variables to csl styles' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -2786,7 +2804,7 @@ XML);
         $document = (new MarkdownReader())->read('Original publisher handoff [@translated-archive] keeps source imprint metadata visible.');
         $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Original publisher handoff [García | Archivo Press; Migration Desk | Madrid; Barcelona] keeps source imprint metadata visible.</p>', $blocks);
-        $t->contains('<dt>García 2026</dt><dd>Migration Manual :: Archivo Press; Migration Desk :: Madrid; Barcelona :: Archivo Press; Migration Desk :: Madrid; Barcelona</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'García 2026', 'Migration Manual :: Archivo Press; Migration Desk :: Madrid; Barcelona :: Archivo Press; Migration Desk :: Madrid; Barcelona');
     },
     'labels bounded original publisher place only imprints in csl bibliography' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -2852,7 +2870,7 @@ XML);
         $document = (new MarkdownReader())->read('Original place source @place-only-original-imprint keeps original imprint place metadata visible.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Original place source Roe (2026) keeps original imprint place metadata visible.</p>', $blocks);
-        $t->contains('<dt>Roe 2026</dt><dd>Roe, Pat. Place Only Original Imprint. Review Press, 2026. Original work published 1988. Original publisher places: Paris; Lyon.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Roe 2026', 'Roe, Pat. Place Only Original Imprint. Review Press, 2026. Original work published 1988. Original publisher places: Paris; Lyon.');
     },
     'maps bounded biblatex translated title metadata into csl review handoff' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -2941,8 +2959,8 @@ XML);
         $document = (new MarkdownReader())->read('Translated-title source @translated-title-source and alias [@translated-title-alias] keep reviewer translations visible.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Translated Title Sources'));
         $t->contains('<p>Translated-title source García (2026) and alias (Ng 2025) keep reviewer translations visible.</p>', $blocks);
-        $t->contains('<dt>García 2026</dt><dd>García, Gia. Manual de Migración: Archivo de fuentes. Archivo Press, 2026. Translated title: Migration Manual. Translated by Curator, Eli. https://example.test/translated-title.</dd>', $blocks);
-        $t->contains('<dt>Ng 2025</dt><dd>Ng, Nia. Revue des sources. Journal des Imports. 2025. 12-14. Translated title: Source Review.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'García 2026', 'García, Gia. Manual de Migración: Archivo de fuentes. Archivo Press, 2026. Translated title: Migration Manual. Translated by Curator, Eli. https://example.test/translated-title.');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2025', 'Ng, Nia. Revue des sources. Journal des Imports. 2025. 12-14. Translated title: Source Review.');
     },
     'normalizes bounded direct csl json translated title subtitle aliases' => static function (TestRunner $t) use ($citation): void {
         $json = json_encode([
@@ -3021,8 +3039,8 @@ XML);
         $document = (new MarkdownReader())->read('Translated subtitle aliases [@direct-translated-subtitle-camel; @direct-title-translation-subtitle] stay composed.');
         $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Translated subtitle aliases [Ng | Migration Manual: Source Annex; Roe | Source Report: Review Appendix] stay composed.</p>', $blocks);
-        $t->contains('<dt>Ng 2026</dt><dd>Manual fuente :: Migration Manual: Source Annex :: Migration Manual: Source Annex</dd>', $blocks);
-        $t->contains('<dt>Roe 2025</dt><dd>Rapport source :: Source Report: Review Appendix :: Source Report: Review Appendix</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2026', 'Manual fuente :: Migration Manual: Source Annex :: Migration Manual: Source Annex');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Roe 2025', 'Rapport source :: Source Report: Review Appendix :: Source Report: Review Appendix');
     },
     'maps bounded biblatex translated subtitle aliases into csl metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -3130,9 +3148,9 @@ XML);
         $document = (new MarkdownReader())->read('Translated subtitles [@translated-subtitle-hyphen; @translated-subtitle-title-field; @translated-subtitle-compact] stay sortable.');
         $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Translated Subtitle Sources'));
         $t->contains('<p>Translated subtitles [Ames | Migration Manual: Archive Annex | Archive Annex; Chen | Field Guide: Checklist | Checklist; Bell | Source Review: Issue Appendix | Issue Appendix] stay sortable.</p>', $blocks);
-        $compactPosition = strpos($blocks, '<dt>Ames 2026</dt><dd>Manual fuente :: Migration Manual: Archive Annex :: Archive Annex</dd>');
-        $titleFieldPosition = strpos($blocks, '<dt>Chen 2024</dt><dd>Guia de campo :: Field Guide: Checklist :: Checklist</dd>');
-        $hyphenPosition = strpos($blocks, '<dt>Bell 2025</dt><dd>Revue source :: Source Review: Issue Appendix :: Issue Appendix</dd>');
+        $compactPosition = strpos($blocks, '<ul class="pandoc-definition-values"><li>Manual fuente :: Migration Manual: Archive Annex :: Archive Annex</li></ul>');
+        $titleFieldPosition = strpos($blocks, '<ul class="pandoc-definition-values"><li>Guia de campo :: Field Guide: Checklist :: Checklist</li></ul>');
+        $hyphenPosition = strpos($blocks, '<ul class="pandoc-definition-values"><li>Revue source :: Source Review: Issue Appendix :: Issue Appendix</li></ul>');
         $t->true($compactPosition !== false && $titleFieldPosition !== false && $hyphenPosition !== false);
         $t->true($compactPosition < $titleFieldPosition && $titleFieldPosition < $hyphenPosition, 'Translated-subtitle sort order is not reflected in WordPress bibliography output');
     },
@@ -3198,8 +3216,8 @@ XML);
         $document = (new MarkdownReader())->read('Original date text [@reprint-source; @literal-original] remains visible in review output.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Original date text (Smith | orig 1910-05-01; Ng | orig undated manuscript) remains visible in review output.</p>', $blocks);
-        $t->contains('<dt>Smith 2026</dt><dd>Reprinted Packet :: original 1910-05-01</dd>', $blocks);
-        $t->contains('<dt>Ng 2025</dt><dd>Literal Original Packet :: original undated manuscript</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Smith 2026', 'Reprinted Packet :: original 1910-05-01');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2025', 'Literal Original Packet :: original undated manuscript');
     },
     'maps bounded biblatex original subtitle and title addendum metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -3318,7 +3336,7 @@ XML);
         $document = (new MarkdownReader())->read('Original subtitle source @original-subtitle-manual keeps original-title review metadata.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Original subtitle source García (2026) keeps original-title review metadata.</p>', $blocks);
-        $t->contains('<dt>García 2026</dt><dd>García, Gia. Migration Manual. Review Press, 2026. Translated by Curator, Eli. Original title: Manual de Migración: Archivo de Fuentes. Original title addendum: Edición revisada. Original work published 2020-05. Original publisher: Archivo Press, Madrid. Original language: spanish.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'García 2026', 'García, Gia. Migration Manual. Review Press, 2026. Translated by Curator, Eli. Original title: Manual de Migración: Archivo de Fuentes. Original title addendum: Edición revisada. Original work published 2020-05. Original publisher: Archivo Press, Madrid. Original language: spanish.');
     },
     'maps bounded biblatex original language lists into csl review metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -3389,7 +3407,7 @@ XML);
         $document = (new MarkdownReader())->read('Original-language source @original-language-list-manual preserves source-language lists for review.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Original-language source Smith (2026) preserves source-language lists for review.</p>', $blocks);
-        $t->contains('<dt>Smith 2026</dt><dd>Smith, Ada. Multilingual Source Manual. Review Press, 2026. Translated by Curator, Eli. Original title: Manual fuente. Original work published 2020. Original publisher: Archivo Press, Madrid. Original language: spanish; basque; catalan.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Smith 2026', 'Smith, Ada. Multilingual Source Manual. Review Press, 2026. Translated by Curator, Eli. Original title: Manual fuente. Original work published 2020. Original publisher: Archivo Press, Madrid. Original language: spanish; basque; catalan.');
     },
     'maps bounded biblatex primary language lists into csl review metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -3466,7 +3484,7 @@ XML);
         $document = (new MarkdownReader())->read('Language source [@language-list-manual] keeps primary language metadata visible.');
         $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Language Sources'));
         $t->contains('<p>Language source [Smith | english; french; spanish | english; french; spanish] keeps primary language metadata visible.</p>', $blocks);
-        $t->contains('<dt>Smith 2026</dt><dd>Multilingual Imported Source :: english; french; spanish</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Smith 2026', 'Multilingual Imported Source :: english; french; spanish');
     },
     'normalizes bounded direct csl json compact language list aliases' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
@@ -3538,8 +3556,8 @@ XML);
         $document = (new MarkdownReader())->read('Language aliases [@direct-language-list-camel; @direct-language-list-compact] stay visible.');
         $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Language Alias Sources'));
         $t->contains('<p>Language aliases (Review Desk | italian; latin; Source Lab | greek; german) stay visible.</p>', $blocks);
-        $t->contains('<dt>Review Desk 2026</dt><dd>Camel Language List Packet :: italian; latin :: italian; latin</dd>', $blocks);
-        $t->contains('<dt>Source Lab 2025</dt><dd>Compact Language List Packet :: greek; german :: greek; german</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Review Desk 2026', 'Camel Language List Packet :: italian; latin :: italian; latin');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Source Lab 2025', 'Compact Language List Packet :: greek; german :: greek; german');
     },
     'maps bounded biblatex patent legislation and jurisdiction metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -3643,9 +3661,9 @@ XML);
         $document = (new MarkdownReader())->read('Review cites @import-patent, @review-act, and @queue-case for legal source audit.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Review cites Müller (2026), WordPress Import Review Act (2025), and Import Queue v. Source Packet (2024) for legal source audit.</p>', $blocks);
-        $t->contains('<dt>Müller 2026</dt><dd>Müller, Mia. Block Import Review Patent. 2026. Patent US-123456. Jurisdiction: US. Holder: WordPress Foundation. Event date 2024-01-15. Status: granted. https://example.test/patents/us-123456.</dd>', $blocks);
-        $t->contains('<dt>WordPress Import Review Act 2025</dt><dd>WordPress Import Review Act. Oregon Legislature, 2025. Statute HB 42. Authority: Oregon Legislature. Jurisdiction: Oregon. Event date 2025-06-01.</dd>', $blocks);
-        $t->contains('<dt>Import Queue v. Source Packet 2024</dt><dd>Import Queue v. Source Packet. 2024. Decision No. 24-100. Authority: Migration Review Court. Jurisdiction: 9th Cir. Event date 2025-01-02.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Müller 2026', 'Müller, Mia. Block Import Review Patent. 2026. Patent US-123456. Jurisdiction: US. Holder: WordPress Foundation. Event date 2024-01-15. Status: granted. https://example.test/patents/us-123456.');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'WordPress Import Review Act 2025', 'WordPress Import Review Act. Oregon Legislature, 2025. Statute HB 42. Authority: Oregon Legislature. Jurisdiction: Oregon. Event date 2025-06-01.');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Import Queue v. Source Packet 2024', 'Import Queue v. Source Packet. 2024. Decision No. 24-100. Authority: Migration Review Court. Jurisdiction: 9th Cir. Event date 2025-01-02.');
     },
     'maps bounded biblatex patent type strings into csl review labels' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -3759,8 +3777,8 @@ XML);
         $document = (new MarkdownReader())->read('Patent review [@eu-patent-request; @us-import-patent; @custom-patent-type] keeps localized patent type metadata visible.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Patent Sources'));
         $t->contains('<p>Patent review (Ng 2026; Smith 2025; Roe 2024) keeps localized patent type metadata visible.</p>', $blocks);
-        $t->contains('<dt>Ng 2026</dt><dd>Ng, Nia. Block Pattern Patent Request. 2026. European patent request EP-2026-42. Holder: Review Lab. Event date 2026-05-01. https://example.test/patents/ep-2026-42.</dd>', $blocks);
-        $t->contains('<dt>Smith 2025</dt><dd>Smith, Ada. Import Matcher Patent. 2025. U.S. patent US-777. Jurisdiction: US. Status: granted.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2026', 'Ng, Nia. Block Pattern Patent Request. 2026. European patent request EP-2026-42. Holder: Review Lab. Event date 2026-05-01. https://example.test/patents/ep-2026-42.');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Smith 2025', 'Smith, Ada. Import Matcher Patent. 2025. U.S. patent US-777. Jurisdiction: US. Status: granted.');
     },
     'maps bounded biblatex date ranges into csl date metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -3840,7 +3858,7 @@ XML);
         $document = (new MarkdownReader())->read('Review cites @range-manual and [@range-rule] for source date range audit.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Review cites de la Cruz (2020/2021) and (Import Review Rule 2024/2025) for source date range audit.</p>', $blocks);
-        $t->contains('<dt>de la Cruz 2020/2021</dt><dd>de la Cruz, Ana Maria. Migration Release Window. Review Press, 2020/2021. Original work published 2018/2019. https://example.test/range-manual. Accessed 2026-06-04/2026-06-05.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'de la Cruz 2020/2021', 'de la Cruz, Ana Maria. Migration Release Window. Review Press, 2020/2021. Original work published 2018/2019. https://example.test/range-manual. Accessed 2026-06-04/2026-06-05.');
     },
     'maps bounded biblatex split end date fields into csl date ranges' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -3957,7 +3975,7 @@ XML);
         $document = (new MarkdownReader())->read('Split date fields [@split-date-packet; @split-event-proceedings] keep review windows visible.');
         $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Split date fields [Split Date Packet | 2020-05-09/2021-06-11 | 2025-04-03/2025-04-05 | 2024-03/2024-04; Split Event Proceedings | 2026 | 2026-06-04/2026-06-05] keep review windows visible.</p>', $blocks);
-        $t->contains('<dt>Roe 2020/2021</dt><dd>Split Date Packet :: 2020-05-09/2021-06-11 :: 2018/2019 :: 2026-06-01/2026-06-02 :: 2025-04-03/2025-04-05 :: 2024-03/2024-04</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Roe 2020/2021', 'Split Date Packet :: 2020-05-09/2021-06-11 :: 2018/2019 :: 2026-06-01/2026-06-02 :: 2025-04-03/2025-04-05 :: 2024-03/2024-04');
     },
     'maps bounded biblatex season dates into csl date metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -4046,8 +4064,8 @@ XML);
         $document = (new MarkdownReader())->read('Season-coded source @seasonal-source and event source [@spring-event-review] preserve season dates.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Season-coded source Season Desk (2026) and event source (Ng 2025) preserve season dates.</p>', $blocks);
-        $t->contains('<dt>Season Desk 2026</dt><dd>Season Desk. Seasonal Source Packet. Review Press, 2026. Date seasons: issued Summer; accessed Winter; original-date Autumn. Original work published Autumn 1999. https://example.test/seasonal-source. Accessed Winter 2026.</dd>', $blocks);
-        $t->contains('<dt>Ng 2025</dt><dd>Ng, Nia. Spring Event Packet. Migration Conference. Event date Spring 2025. 2025. 7-9. Date seasons: event-date Spring.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Season Desk 2026', 'Season Desk. Seasonal Source Packet. Review Press, 2026. Date seasons: issued Summer; accessed Winter; original-date Autumn. Original work published Autumn 1999. https://example.test/seasonal-source. Accessed Winter 2026.');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2025', 'Ng, Nia. Spring Event Packet. Migration Conference. Event date Spring 2025. 2025. 7-9. Date seasons: event-date Spring.');
 
         $t->throws(InvalidArgumentException::class, static fn (): array => CitationCslProcessor::bibtexItems(<<<'BIB'
 @book{bad-season,
@@ -4150,7 +4168,7 @@ XML);
         $document = (new MarkdownReader())->read('Split season fields @split-season-source and [@split-season-event] keep CSL season labels.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Split season fields Split Season Desk (2026) and (Ng 2025) keep CSL season labels.</p>', $blocks);
-        $t->contains('<dt>Split Season Desk 2026</dt><dd>Split Season Desk. Split Season Packet. Review Press, 2026. Date seasons: issued Spring; accessed Winter; original-date Autumn. Original work published Autumn 1999. https://example.test/split-season-source. Accessed Winter 2026.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Split Season Desk 2026', 'Split Season Desk. Split Season Packet. Review Press, 2026. Date seasons: issued Spring; accessed Winter; original-date Autumn. Original work published Autumn 1999. https://example.test/split-season-source. Accessed Winter 2026.');
 
         $t->throws(InvalidArgumentException::class, static fn (): array => CitationCslProcessor::bibtexItems(<<<'BIB'
 @book{bad-split-season-day,
@@ -4261,7 +4279,7 @@ XML);
         $document = (new MarkdownReader())->read('Review cites @open-ended-manual and [@open-start-rule] for open interval source audit.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Review cites Smith (2020/) and (Legacy Import Rule /2024) for open interval source audit.</p>', $blocks);
-        $t->contains('<dt>Smith 2020/</dt><dd>Smith, Ada. Open Source Review Window. Review Press, 2020/. Original work published /2018. https://example.test/open-ended-manual. Accessed 2026-06-01/.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Smith 2020/', 'Smith, Ada. Open Source Review Window. Review Press, 2020/. Original work published /2018. https://example.test/open-ended-manual. Accessed 2026-06-01/.');
     },
     'maps bounded biblatex date time parts into csl review metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -4365,7 +4383,7 @@ XML);
         $document = (new MarkdownReader())->read('Timestamped source @timestamped-source and event [@timed-event] keep imported time metadata visible.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Timestamped source Ng (2026) and event (Curator 2026) keep imported time metadata visible.</p>', $blocks);
-        $t->contains('<dt>Ng 2026</dt><dd>Ng, Nia. Timestamped Source Capture. Review Press, 2026. Date times: issued 09:15:30+02:00; accessed 14:05Z; original-date 08:00. Original work published 2020. https://example.test/timestamped-source. Accessed 2026-06-06.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2026', 'Ng, Nia. Timestamped Source Capture. Review Press, 2026. Date times: issued 09:15:30+02:00; accessed 14:05Z; original-date 08:00. Original work published 2020. https://example.test/timestamped-source. Accessed 2026-06-06.');
 
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromBibtex('@online{bad,date={2026},hour={24},title={Bad Time}}'));
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([['id' => 'bad-direct-time', 'issued' => ['date-parts' => [[2026]], 'time' => '9:00']]]));
@@ -4464,8 +4482,8 @@ XML);
         $document = (new MarkdownReader())->read('Date addendum source @date-addon-source and event [@event-date-addon-source] keep imported date qualifiers visible.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Date addendum source Ng (2026) and event (Curator 2025) keep imported date qualifiers visible.</p>', $blocks);
-        $t->contains('<dt>Ng 2026</dt><dd>Ng, Nia. Date Addendum Source Packet. Review Press, 2026. Date addendum: first source capture. Original date addendum: legacy packet date. Accessed date addendum: reviewer accessed archive. Original work published 2020. https://example.test/date-addon-source. Accessed 2026-06-06.</dd>', $blocks);
-        $t->contains('<dt>Curator 2025</dt><dd>Curator, Eli. Event Addendum Proceedings. Event: Hybrid Review Clinic. Event date 2025-05-01/2025-05-02. Migration Desk, 2025. Event date addendum: hybrid review window.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2026', 'Ng, Nia. Date Addendum Source Packet. Review Press, 2026. Date addendum: first source capture. Original date addendum: legacy packet date. Accessed date addendum: reviewer accessed archive. Original work published 2020. https://example.test/date-addon-source. Accessed 2026-06-06.');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Curator 2025', 'Curator, Eli. Event Addendum Proceedings. Event: Hybrid Review Clinic. Event date 2025-05-01/2025-05-02. Migration Desk, 2025. Event date addendum: hybrid review window.');
     },
     'preserves bounded biblatex uncertain and approximate date markers in csl metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -4647,8 +4665,8 @@ XML);
         $document = (new MarkdownReader())->read('Label date sources [@label-date-source; @label-season-source] keep imported label-date metadata visible.');
         $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Label date sources [Ng | Spring 2025 | Spring; Smith | 2026-04 | uncertain] keep imported label-date metadata visible.</p>', $blocks);
-        $t->contains('<dt>Ng 2025</dt><dd>Label Season Packet :: Spring 2025 :: Spring :: Date seasons: label-date Spring</dd>', $blocks);
-        $t->contains('<dt>Smith 2026</dt><dd>Label Date Packet :: April 2026 :: uncertain :: Date markers: label-date uncertain (2026-04?)</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2025', 'Label Season Packet :: Spring 2025 :: Spring :: Date seasons: label-date Spring');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Smith 2026', 'Label Date Packet :: April 2026 :: uncertain :: Date markers: label-date uncertain (2026-04?)');
     },
     'maps bounded biblatex date era metadata into csl review handoff' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -4915,9 +4933,9 @@ XML);
         $document = (new MarkdownReader())->read('BibTeX review [@available-bibtex; @submitted-bibtex; @literal-available-bibtex] keeps CSL availability dates.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Availability Sources'));
         $t->contains('<p>BibTeX review (Smith | available? | June 2026 | 2026-05-28; Raman | submitted circa | March 2025 | 2024; Doe | dated | early access queue | 2024-02) keeps CSL availability dates.</p>', $blocks);
-        $t->contains('<dt>Raman 2025</dt><dd>Submitted Split BibTeX Packet :: 2025-03-11 :: 2024 :: circa :: Date markers: submitted circa (2024~)</dd>', $blocks);
-        $t->contains('<dt>Doe 2024</dt><dd>Literal Available BibTeX Packet :: early access queue :: 2024-02</dd>', $blocks);
-        $t->contains('<dt>Smith 2026</dt><dd>Available BibTeX Packet :: 2026-06 :: uncertain :: 2026-05-28 :: Date markers: available-date uncertain (2026-06?) :: Date times: submitted 09:30Z</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Raman 2025', 'Submitted Split BibTeX Packet :: 2025-03-11 :: 2024 :: circa :: Date markers: submitted circa (2024~)');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Doe 2024', 'Literal Available BibTeX Packet :: early access queue :: 2024-02');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Smith 2026', 'Available BibTeX Packet :: 2026-06 :: uncertain :: 2026-05-28 :: Date markers: available-date uncertain (2026-06?) :: Date times: submitted 09:30Z');
         $t->true(strpos($blocks, 'Submitted Split BibTeX Packet') < strpos($blocks, 'Literal Available BibTeX Packet'), 'submitteddate sort key orders circa year before submitted month');
         $t->true(strpos($blocks, 'Literal Available BibTeX Packet') < strpos($blocks, 'Available BibTeX Packet'), 'submitted split date sort key orders newer source last');
     },
@@ -4978,7 +4996,7 @@ XML);
         $document = (new MarkdownReader())->read('Availability alias [@hyphen-availability] remains visible.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Availability Sources'));
         $t->contains('<p>Availability alias (Alias | 2026-08-09 | uncertain | 2026-07-01/2026-07-03) remains visible.</p>', $blocks);
-        $t->contains('<dt>Alias 2026</dt><dd>Hyphen Availability Packet :: 2026-08-09 :: uncertain :: 2026-07-01/2026-07-03 :: Date markers: available-date uncertain (2026-08-09?)</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Alias 2026', 'Hyphen Availability Packet :: 2026-08-09 :: uncertain :: 2026-07-01/2026-07-03 :: Date markers: available-date uncertain (2026-08-09?)');
     },
     'maps bounded biblatex split url date fields into accessed csl metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -5073,8 +5091,8 @@ XML);
         $document = (new MarkdownReader())->read('Split URL date @split-url-date and numeric source [@numeric-url-date] preserve access-date parts.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Split URL date Ng (2026) and numeric source (Review Desk 2025) preserve access-date parts.</p>', $blocks);
-        $t->contains('<dt>Ng 2026</dt><dd>Ng, Nia. Split URL Date Source. 2026. https://example.test/split-url-date. Accessed 2026-06-05.</dd>', $blocks);
-        $t->contains('<dt>Review Desk 2025</dt><dd>Review Desk. Numeric URL Date Source. 2025. https://example.test/numeric-url-date. Accessed 2026-07-09.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2026', 'Ng, Nia. Split URL Date Source. 2026. https://example.test/split-url-date. Accessed 2026-06-05.');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Review Desk 2025', 'Review Desk. Numeric URL Date Source. 2025. https://example.test/numeric-url-date. Accessed 2026-07-09.');
     },
     'maps legacy bibtex access date aliases into accessed csl metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -5134,9 +5152,9 @@ BIB;
         $document = (new MarkdownReader())->read('Legacy access dates [@lastchecked-source; @lastaccessed-source; @visited-source] stay reviewable.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Legacy access dates (Ng 2026; Review Desk 2025; Curator 2024) stay reviewable.</p>', $blocks);
-        $t->contains('<dt>Ng 2026</dt><dd>Ng, Nia. Last Checked Source. 2026. https://example.test/lastchecked-source. Accessed 2026-06-07.</dd>', $blocks);
-        $t->contains('<dt>Review Desk 2025</dt><dd>Review Desk. Last Accessed Source. 2025. Date markers: accessed uncertain (2026-06?). https://example.test/lastaccessed-source. Accessed 2026-06.</dd>', $blocks);
-        $t->contains('<dt>Curator 2024</dt><dd>Curator, Eli. Visited Source. 2024. https://example.test/visited-source. Accessed review queue.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2026', 'Ng, Nia. Last Checked Source. 2026. https://example.test/lastchecked-source. Accessed 2026-06-07.');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Review Desk 2025', 'Review Desk. Last Accessed Source. 2025. Date markers: accessed uncertain (2026-06?). https://example.test/lastaccessed-source. Accessed 2026-06.');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Curator 2024', 'Curator, Eli. Visited Source. 2024. https://example.test/visited-source. Accessed review queue.');
     },
     'maps direct csl json access date aliases into accessed metadata' => static function (TestRunner $t) use ($citation): void {
         $json = json_encode([
@@ -5228,8 +5246,8 @@ XML);
         $document = (new MarkdownReader())->read('Direct access aliases [@direct-access-camel; @direct-url-date; @direct-visited] keep access metadata visible.');
         $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Direct access aliases [Ames | 2026-06-08 | 2026-06-08 | 2026-06-08; Bell | 2025-07-09 | 2025-07-09 | 2025-07-09; Chen | review queue | review queue | review queue] keep access metadata visible.</p>', $blocks);
-        $t->contains('<dt>Ames 2026</dt><dd>Direct Access Camel Packet :: 2026-06-08 :: 2026-06-08 :: 2026-06-08</dd>', $blocks);
-        $t->contains('<dt>Chen 2024</dt><dd>Direct Visited Packet :: review queue :: review queue :: review queue</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ames 2026', 'Direct Access Camel Packet :: 2026-06-08 :: 2026-06-08 :: 2026-06-08');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Chen 2024', 'Direct Visited Packet :: review queue :: review queue :: review queue');
     },
     'normalizes direct csl json uppercase url access date aliases' => static function (TestRunner $t) use ($citation): void {
         $json = json_encode([
@@ -5309,8 +5327,8 @@ XML);
         $document = (new MarkdownReader())->read('Uppercase URL date aliases [@direct-uppercase-url-date; @direct-uppercase-url-date-hyphen] keep access provenance visible.');
         $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Uppercase URL date aliases [Dale | 2026-06-12 | captured from uppercase CSL export; Eliot | publisher review queue | hyphenated uppercase export] keep access provenance visible.</p>', $blocks);
-        $t->contains('<dt>Dale 2026</dt><dd>Uppercase URL Date Packet :: 2026-06-12 :: captured from uppercase CSL export</dd>', $blocks);
-        $t->contains('<dt>Eliot 2025</dt><dd>Uppercase Hyphen URL Date Packet :: publisher review queue :: hyphenated uppercase export</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Dale 2026', 'Uppercase URL Date Packet :: 2026-06-12 :: captured from uppercase CSL export');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Eliot 2025', 'Uppercase Hyphen URL Date Packet :: publisher review queue :: hyphenated uppercase export');
     },
     'maps bounded biblatex url description labels into csl review metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -5390,7 +5408,7 @@ XML);
         $document = (new MarkdownReader())->read('URL description source @url-description-source keeps reviewer link labels visible.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>URL description source Ng (2026) keeps reviewer link labels visible.</p>', $blocks);
-        $t->contains('<dt>Ng 2026</dt><dd>Ng, Nia. URL Description Source. 2026. URL label: Reviewer mirror copy. https://example.test/url-description-source. Accessed 2026-06-05.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2026', 'Ng, Nia. URL Description Source. 2026. URL label: Reviewer mirror copy. https://example.test/url-description-source. Accessed 2026-06-05.');
     },
     'applies bounded csl date-part forms affixes and range delimiters' => static function (TestRunner $t) use ($citation): void {
         $processor = CitationCslProcessor::fromItems([
@@ -5491,8 +5509,8 @@ XML);
 
         $blocks = (new WordPressBlockWriter())->write($processed);
         $t->contains("<p>Date part source (Date Desk Jun 5th &#039;26) and range (Ng May &#039;20/Jun &#039;21) stay reviewable.</p>", $blocks);
-        $t->contains("<dt>Date Desk 2026</dt><dd>JUNE | day 05 | 2026 :: 6 06 &#039;26 to 6 07 &#039;26 :: 24/01/15</dd>", $blocks);
-        $t->contains('<dt>Ng 2020/2021</dt><dd>MAY | 2020/JUNE | 2021</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Date Desk 2026', "JUNE | day 05 | 2026 :: 6 06 &#039;26 to 6 07 &#039;26 :: 24/01/15");
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2020/2021', 'MAY | 2020/JUNE | 2021');
 
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslStyle(<<<'XML'
 <?xml version="1.0" encoding="UTF-8"?>
@@ -5576,7 +5594,7 @@ XML);
 
         $blocks = (new WordPressBlockWriter())->write($processed);
         $t->contains('<p>Date-form source (Date Form Desk March 9, 2027) and range (Ng May 2020/June 2021) stay reviewable.</p>', $blocks);
-        $t->contains('<dt>Date Form Desk 2027</dt><dd>Date Form Packet :: March 9, 2027 :: 3/10/2027/3/11/2027 :: event December 2026</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Date Form Desk 2027', 'Date Form Packet :: March 9, 2027 :: 3/10/2027/3/11/2027 :: event December 2026');
 
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslStyle(<<<'XML'
 <?xml version="1.0" encoding="UTF-8"?>
@@ -5682,8 +5700,8 @@ XML);
 
         $blocks = (new WordPressBlockWriter())->write($processed);
         $t->contains('<p>Localized date override (Date Override Desk Jun 5th, 2026) and range (Ng May 9th, 2020/Jun 11th, 2020) stay reviewable.</p>', $blocks);
-        $t->contains('<dt>Date Override Desk 2026</dt><dd>Localized Date Packet :: Jun 2026 :: 06/06/2026 through 06/07/2026</dd>', $blocks);
-        $t->contains('<dt>Ng 2020</dt><dd>Localized Range Packet :: May 2020 to Jun 2020</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Date Override Desk 2026', 'Localized Date Packet :: Jun 2026 :: 06/06/2026 through 06/07/2026');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2020', 'Localized Range Packet :: May 2020 to Jun 2020');
     },
     'applies bounded csl date form date-parts precision limits' => static function (TestRunner $t) use ($citation): void {
         $processor = CitationCslProcessor::fromItems([
@@ -5757,8 +5775,8 @@ XML);
 
         $blocks = (new WordPressBlockWriter())->write($processed);
         $t->contains('<p>Date precision (Date Parts Desk March 2027) and range precision (Ng May 2020/June 2021) stay reviewable.</p>', $blocks);
-        $t->contains('<dt>Date Parts Desk 2027</dt><dd>Month Precision Packet :: 2027 :: checked 3/2027 :: event December 15, 2026</dd>', $blocks);
-        $t->contains('<dt>Ng 2020/2021</dt><dd>Range Precision Packet :: 2020/2021 :: checked 1/2025</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Date Parts Desk 2027', 'Month Precision Packet :: 2027 :: checked 3/2027 :: event December 15, 2026');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2020/2021', 'Range Precision Packet :: 2020/2021 :: checked 1/2025');
 
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslStyle(<<<'XML'
 <?xml version="1.0" encoding="UTF-8"?>
@@ -5853,7 +5871,7 @@ XML);
 
         $blocks = (new WordPressBlockWriter())->write($processed);
         $t->contains('<p>Seasonal source (Season Desk Summer Field 2026) and winter source (Ng Winter Field 2024) keep CSL season dates.</p>', $blocks);
-        $t->contains('<dt>Season Desk 2026</dt><dd>Seasonal Packet :: Summer Field 2026 :: season Summer :: Date seasons: issued Summer; accessed Winter; original-date Autumn; event-date Spring :: checked Winter Field 2026 :: original Autumn Field 1999 :: event Spring Field 2025</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Season Desk 2026', 'Seasonal Packet :: Summer Field 2026 :: season Summer :: Date seasons: issued Summer; accessed Winter; original-date Autumn; event-date Spring :: checked Winter Field 2026 :: original Autumn Field 1999 :: event Spring Field 2025');
 
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([
             [
@@ -5944,8 +5962,8 @@ XML);
         $processed = $processor->appendBibliography($document, 'Works Cited');
         $blocks = (new WordPressBlockWriter())->write($processed);
         $t->contains('<p>Ordinal date source (Date Desk June 1st 2026) and numeric-limited source (Ng June 2 2026) keep localized day ordinals.</p>', $blocks);
-        $t->contains('<dt>Date Desk 2026</dt><dd>First Day Packet :: Jun. 1st 2026</dd>', $blocks);
-        $t->contains('<dt>Ng 2026</dt><dd>Second Day Packet :: Jun. 2 2026</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Date Desk 2026', 'First Day Packet :: Jun. 1st 2026');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2026', 'Second Day Packet :: Jun. 2 2026');
 
         $unlimited = CitationCslProcessor::fromItems([[
             'id' => 'unlimited-day-source',
@@ -6056,8 +6074,8 @@ XML);
         $document = (new MarkdownReader())->read('Title metadata @title-review and [@chapter-title-review] stays visible.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Title metadata Curator (2026) and (Ng 2025) stays visible.</p>', $blocks);
-        $t->contains('<dt>Curator 2026</dt><dd>Curator, Eli. Migration Manual: Reviewer Packet Guide. Draft source notes. Review Press, 2026.</dd>', $blocks);
-        $t->contains('<dt>Ng 2025</dt><dd>Ng, Nia. Checklist: Attachment Review. Migration Handbook: Import Desk Edition. Internal packet supplement. 2025. 7-12.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Curator 2026', 'Curator, Eli. Migration Manual: Reviewer Packet Guide. Draft source notes. Review Press, 2026.');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2025', 'Ng, Nia. Checklist: Attachment Review. Migration Handbook: Import Desk Edition. Internal packet supplement. 2025. 7-12.');
     },
     'applies bounded csl short form text variables for titles and containers' => static function (TestRunner $t) use ($citation): void {
         $processor = CitationCslProcessor::fromItems([
@@ -6123,8 +6141,8 @@ XML);
         $document = (new MarkdownReader())->read('Short-form cite [@reviewer-guide] and fallback [@fallback-title] stay readable.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Short-form cite [Reviewer Guide | J. Import. Sources | Reviewer Guide] and fallback [Full Report Packet | Migration Proceedings] stay readable.</p>', $blocks);
-        $t->contains('<dt>Curator 2026</dt><dd>Reviewer Guide :: J. Import. Sources :: Migration Manual: Reviewer Packet Guide :: Journal of Imported Sources</dd>', $blocks);
-        $t->contains('<dt>Ng 2025</dt><dd>Full Report Packet :: Migration Proceedings :: Full Report Packet :: Migration Proceedings</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Curator 2026', 'Reviewer Guide :: J. Import. Sources :: Migration Manual: Reviewer Packet Guide :: Journal of Imported Sources');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2025', 'Full Report Packet :: Migration Proceedings :: Full Report Packet :: Migration Proceedings');
     },
     'applies bounded csl abbreviation list lookup for short text variables' => static function (TestRunner $t) use ($citation): void {
         $processor = CitationCslProcessor::fromItems([
@@ -6232,8 +6250,8 @@ XML)->withCslAbbreviations([
         $document = (new MarkdownReader())->read('Abbreviation review cites [@abbrev-source; @direct-short-source] for source packets.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Abbreviation review cites [Migr. Rev. Source | J. Imported Source Packets | Migr. Rev. Ser. | WP Migr. Press | N.Y. | tech. rep.; Direct Packet | Direct JISP | Direct MRS | WP Migr. Press | N.Y. | tech. rep.] for source packets.</p>', $blocks);
-        $t->contains('<dt>Vale 2026</dt><dd>Migr. Rev. Source :: J. Imported Source Packets :: Migr. Rev. Ser. :: WP Migr. Press :: N.Y. :: tech. rep.</dd>', $blocks);
-        $t->contains('<dt>Ng 2025</dt><dd>Direct Packet :: Direct JISP :: Direct MRS :: WP Migr. Press :: N.Y. :: tech. rep.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Vale 2026', 'Migr. Rev. Source :: J. Imported Source Packets :: Migr. Rev. Ser. :: WP Migr. Press :: N.Y. :: tech. rep.');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2025', 'Direct Packet :: Direct JISP :: Direct MRS :: WP Migr. Press :: N.Y. :: tech. rep.');
 
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslAbbreviations([
             'default' => [
@@ -6340,7 +6358,7 @@ XML;
         $document = (new MarkdownReader())->read('Abbreviation JSON source @abbrev-bib-source keeps supplied compact labels visible.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Abbreviation JSON source Vale (2026) keeps supplied compact labels visible.</p>', $blocks);
-        $t->contains('<dt>Vale 2026</dt><dd>Migr. Rev. Source :: J. Imported Source Packets :: Migr. Rev. Ser. :: WP Migr. Press :: N.Y. :: tech. rep.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Vale 2026', 'Migr. Rev. Source :: J. Imported Source Packets :: Migr. Rev. Ser. :: WP Migr. Press :: N.Y. :: tech. rep.');
 
         $t->throws(InvalidArgumentException::class, static fn (): array => CitationCslProcessor::cslAbbreviationsFromJson('[["bad"]]'));
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromBibtex($bibtex)->withCslAbbreviationsJson('{not json'));
@@ -6457,8 +6475,8 @@ XML);
         $document = (new MarkdownReader())->read('Detailed sources @journal-detail and [@book-detail] keep identifiers for review.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Detailed sources Doe (2026) and (Curator 2025) keep identifiers for review.</p>', $blocks);
-        $t->contains('<dt>Doe 2026</dt><dd>Doe, Jane. Detailed Field Notes. Journal of Imports. Vol. 12, no. 3. 2026. 20-30. DOI 10.5555/detail. ISSN 1234-5678. Archive: arXiv cs.DL 2401.01234.</dd>', $blocks);
-        $t->contains('<dt>Curator 2025</dt><dd>Curator, Eli. Review Handbook. 2nd ed. Source Review Series, no. 7. Review Press, 2025. ISBN 978-1-2345-6789-0.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Doe 2026', 'Doe, Jane. Detailed Field Notes. Journal of Imports. Vol. 12, no. 3. 2026. 20-30. DOI 10.5555/detail. ISSN 1234-5678. Archive: arXiv cs.DL 2401.01234.');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Curator 2025', 'Curator, Eli. Review Handbook. 2nd ed. Source Review Series, no. 7. Review Press, 2025. ISBN 978-1-2345-6789-0.');
     },
     'maps bounded direct csl ISBN and ISSN compact aliases into review metadata' => static function (TestRunner $t) use ($citation): void {
         $processor = CitationCslProcessor::fromItems([
@@ -6548,8 +6566,8 @@ XML);
         $document = (new MarkdownReader())->read('Direct identifier aliases @direct-isbn13, ebook [@direct-eisbn], print journal @direct-print-issn, and online journal [@direct-eissn] stay visible.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Direct identifier aliases Ng (2026), ebook (Roe 2025), print journal Doe (2024), and online journal (Repository Desk 2023) stay visible.</p>', $blocks);
-        $t->contains('<dt>Ng 2026</dt><dd>Ng, Nia. Direct ISBN13 Manual. 2026. ISBN 978-1-4028-9462-6.</dd>', $blocks);
-        $t->contains('<dt>Repository Desk 2023</dt><dd>Repository Desk. Electronic ISSN Packet. Online Import Review. 2023. ISSN 2468-1357.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2026', 'Ng, Nia. Direct ISBN13 Manual. 2026. ISBN 978-1-4028-9462-6.');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Repository Desk 2023', 'Repository Desk. Electronic ISSN Packet. Online Import Review. 2023. ISSN 2468-1357.');
     },
     'maps bounded biblatex ISBN and ISSN compact aliases into csl review metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -6641,8 +6659,8 @@ XML);
         $document = (new MarkdownReader())->read('BibLaTeX identifier aliases @biblatex-isbn13, ebook [@biblatex-eisbn], print journal @biblatex-print-issn, and online journal [@biblatex-eissn] stay visible.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>BibLaTeX identifier aliases Ng (2026), ebook (Roe 2025), print journal Doe (2024), and online journal (Repository Desk 2023) stay visible.</p>', $blocks);
-        $t->contains('<dt>Ng 2026</dt><dd>Ng, Nia. BibLaTeX ISBN13 Manual. 2026. ISBN 978-1-4028-9462-6.</dd>', $blocks);
-        $t->contains('<dt>Repository Desk 2023</dt><dd>Repository Desk. BibLaTeX Electronic ISSN Packet. Online Import Review. 2023. ISSN 2468-1357.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2026', 'Ng, Nia. BibLaTeX ISBN13 Manual. 2026. ISBN 978-1-4028-9462-6.');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Repository Desk 2023', 'Repository Desk. BibLaTeX Electronic ISSN Packet. Online Import Review. 2023. ISSN 2468-1357.');
     },
     'maps bounded biblatex eprint archive summaries into csl review metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -6721,7 +6739,7 @@ XML);
         $document = (new MarkdownReader())->read('Eprint source [@eprint-source] and archive [@archive-only-source] keep repository IDs visible.');
         $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Eprint source [Doe | arXiv:2401.01234 [cs.DL]] and archive [Repository Desk | HAL:hal-041234] keep repository IDs visible.</p>', $blocks);
-        $t->contains('<dt>Doe 2026</dt><dd>Eprint Archive Packet :: arXiv:2401.01234 [cs.DL]</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Doe 2026', 'Eprint Archive Packet :: arXiv:2401.01234 [cs.DL]');
     },
     'maps bounded direct csl compact archive aliases into review metadata' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
@@ -6842,8 +6860,8 @@ XML);
         $document = (new MarkdownReader())->read('Compact archives [@compact-eprint; @camel-eprint; @compact-archive] keep direct aliases visible.');
         $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Compact archives [Ng | arXiv | cs.AI | 2601.00001 | arXiv:2601.00001 [cs.AI]; Ames | Zenodo | dataset | 10.5281/zenodo.2601 | Zenodo:10.5281/zenodo.2601 [dataset]; Repository Desk | City Archive | Migration Papers | Portland | Box 9 | City Archive:Migration Papers:Box 9 [Portland]] keep direct aliases visible.</p>', $blocks);
-        $t->contains('<dt>Ng 2026</dt><dd>Compact Direct Eprint Packet :: arXiv:2601.00001 [cs.AI]</dd>', $blocks);
-        $t->contains('<dt>Repository Desk 2025</dt><dd>Compact Direct Archive Packet :: City Archive:Migration Papers:Box 9 [Portland]</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2026', 'Compact Direct Eprint Packet :: arXiv:2601.00001 [cs.AI]');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Repository Desk 2025', 'Compact Direct Archive Packet :: City Archive:Migration Papers:Box 9 [Portland]');
     },
     'maps bounded biblatex pubmed identifiers into csl metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -6926,8 +6944,8 @@ XML);
         $document = (new MarkdownReader())->read('PubMed source @pubmed-article and clinical note [@clinical-note] preserve medical identifiers.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>PubMed source Ng (2026) and clinical note (Migration Clinic 2025) preserve medical identifiers.</p>', $blocks);
-        $t->contains('<dt>Ng 2026</dt><dd>Ng, Nia. Source Review Trial. Journal of Import Medicine. 2026. DOI 10.5555/pubmed. PMID 12345678. PMCID PMC1234567.</dd>', $blocks);
-        $t->contains('<dt>Migration Clinic 2025</dt><dd>Migration Clinic. Clinical Import Note. 2025. https://example.test/clinical-note. PMCID PMC7654321.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2026', 'Ng, Nia. Source Review Trial. Journal of Import Medicine. 2026. DOI 10.5555/pubmed. PMID 12345678. PMCID PMC1234567.');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Migration Clinic 2025', 'Migration Clinic. Clinical Import Note. 2025. https://example.test/clinical-note. PMCID PMC7654321.');
     },
     'maps compact pubmed and registry identifier aliases into csl metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -7046,8 +7064,8 @@ XML);
         $document = (new MarkdownReader())->read('Compact registry aliases [@compact-medical-registry; @compact-library-registry] stay visible.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Compact registry aliases (Curie 2026; Catalog Desk 2025) stay visible.</p>', $blocks);
-        $t->contains('<dt>Curie 2026</dt><dd>Curie, Ada. Compact Registry Trial. Medical Registry Review. 2026. PMID 34567890. PMCID PMC3456789. JSTOR 10.2307/compact.</dd>', $blocks);
-        $t->contains('<dt>Catalog Desk 2025</dt><dd>Catalog Desk. Compact Library Registry. 2025. HDL 20.500/compact. LCCN 2026123987. OCLC 99887766.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Curie 2026', 'Curie, Ada. Compact Registry Trial. Medical Registry Review. 2026. PMID 34567890. PMCID PMC3456789. JSTOR 10.2307/compact.');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Catalog Desk 2025', 'Catalog Desk. Compact Library Registry. 2025. HDL 20.500/compact. LCCN 2026123987. OCLC 99887766.');
     },
     'maps bounded biblatex media and report identifiers into csl metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -7149,9 +7167,9 @@ XML);
         $document = (new MarkdownReader())->read('Media source @film-source, score [@score-source], and report @technical-review preserve source identifiers.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Media source Migration Film Desk (2026), score (Curator 2025), and report Ng (2024) preserve source identifiers.</p>', $blocks);
-        $t->contains('<dt>Migration Film Desk 2026</dt><dd>Migration Film Desk. Source Capture Reel. 2026. ISAN 0000-0000-D07A-0090-Q-0000-0000-X.</dd>', $blocks);
-        $t->contains('<dt>Curator 2025</dt><dd>Curator, Eli. Migration Review Score. 2025. ISMN 979-0-060-11561-5. ISWC T-034.524.680-1.</dd>', $blocks);
-        $t->contains('<dt>Ng 2024</dt><dd>Ng, Nia. Source Import Technical Report. Migration Desk, 2024. ISRN NISTIR 8202.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Migration Film Desk 2026', 'Migration Film Desk. Source Capture Reel. 2026. ISAN 0000-0000-D07A-0090-Q-0000-0000-X.');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Curator 2025', 'Curator, Eli. Migration Review Score. 2025. ISMN 979-0-060-11561-5. ISWC T-034.524.680-1.');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2024', 'Ng, Nia. Source Import Technical Report. Migration Desk, 2024. ISRN NISTIR 8202.');
     },
     'maps bounded authority identifiers into csl review metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -7256,8 +7274,8 @@ XML);
         $document = (new MarkdownReader())->read('Authority identifiers [@person-identifier-source; @organization-identifier-source] stay visible for source review.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Authority identifiers (Smith 2026; Migration Review Institute 2025) stay visible for source review.</p>', $blocks);
-        $t->contains('<dt>Smith 2026</dt><dd>Smith, Ada. Identifier Review Packet. 2026. ORCID 0000-0002-1825-0097. ISNI 0000000121032683. VIAF 12345678. Wikidata Q42.</dd>', $blocks);
-        $t->contains('<dt>Migration Review Institute 2025</dt><dd>Migration Review Institute. Organization Identifier Packet. Migration Desk, 2025. ROR https://ror.org/01abcde23.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Smith 2026', 'Smith, Ada. Identifier Review Packet. 2026. ORCID 0000-0002-1825-0097. ISNI 0000000121032683. VIAF 12345678. Wikidata Q42.');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Migration Review Institute 2025', 'Migration Review Institute. Organization Identifier Packet. Migration Desk, 2025. ROR https://ror.org/01abcde23.');
     },
     'maps bounded biblatex media entry types into csl type conditionals' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -7354,8 +7372,8 @@ XML);
         $document = (new MarkdownReader())->read('Media type review cites [@film-source; @clip-source; @score-source; @still-source].');
         $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Media type review cites [moving image | Source Capture Reel; moving image | Field Cut Clip; music | Migration Review Score; graphic | Archive Still].</p>', $blocks);
-        $t->contains('<dt>Migration Film Desk 2026</dt><dd>motion_picture :: Source Capture Reel</dd>', $blocks);
-        $t->contains('<dt>Archive Image Desk 2024</dt><dd>graphic :: Archive Still</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Migration Film Desk 2026', 'motion_picture :: Source Capture Reel');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Archive Image Desk 2024', 'graphic :: Archive Still');
     },
     'maps bounded biblatex audio and artwork aliases into csl media types' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -7431,8 +7449,8 @@ XML);
         $document = (new MarkdownReader())->read('Audio and artwork imports cite [@audio-source; @artwork-source].');
         $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Audio and artwork imports cite [audio | Migration Audio Review; artwork | Migration Artwork].</p>', $blocks);
-        $t->contains('<dt>Migration Audio Desk 2026</dt><dd>song :: Migration Audio Review</dd>', $blocks);
-        $t->contains('<dt>Archive Artwork Desk 2025</dt><dd>graphic :: Migration Artwork</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Migration Audio Desk 2026', 'song :: Migration Audio Review');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Archive Artwork Desk 2025', 'graphic :: Migration Artwork');
     },
     'maps bounded biblatex director creators into csl media metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -7508,7 +7526,7 @@ XML);
         $document = (new MarkdownReader())->read('Director credit review cites [@film-credit-source].');
         $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Director credit review cites [Doe and Migration Film Unit | Restored Import Film | motion_picture | Restored film packet].</p>', $blocks);
-        $t->contains('<dt>Restored Import Film 2026</dt><dd>Restored Import Film :: directed by Doe, J.; Migration Film Unit :: Director 1 credit: restored credit; Director 2: literal credit verified :: Restored film packet</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Restored Import Film 2026', 'Restored Import Film :: directed by Doe, J.; Migration Film Unit :: Director 1 credit: restored credit; Director 2: literal credit verified :: Restored film packet');
     },
     'maps bounded biblatex unpublished eventtitle entries into csl speech type' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -7604,8 +7622,8 @@ XML);
         $document = (new MarkdownReader())->read('Presentation source @migration-talk and field note [@field-note] keep unpublished entry intent.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Presentation source Curator (2026) and field note (Ng 2025) keep unpublished entry intent.</p>', $blocks);
-        $t->contains('<dt>Curator 2026</dt><dd>Curator, Eli. Migration Review Talk. Event: WordPress Import Summit. Event place: Portland. Event date 2026-06-04. 2026.</dd>', $blocks);
-        $t->contains('<dt>Ng 2025</dt><dd>Ng, Nia. Unpublished Field Notes. 2025.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Curator 2026', 'Curator, Eli. Migration Review Talk. Event: WordPress Import Summit. Event place: Portland. Event date 2026-06-04. 2026.');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2025', 'Ng, Nia. Unpublished Field Notes. 2025.');
     },
     'maps bounded biblatex presentation aliases into csl speech conditionals' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -7726,9 +7744,9 @@ XML);
         $document = (new MarkdownReader())->read('Presentation aliases cite [@review-talk; @archive-lecture; @poster-presentation] with speech semantics.');
         $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Presentation aliases cite [speech | Review Talk Packet | Migration Review Forum | lightning talk | event Portland | 2026-06-15 | state forthcoming; speech | Archive Lecture Packet | Source Audit Seminar | seminar lecture | event Seattle | 2025-05-02; speech | Poster Presentation Packet | WordPress Import Session | poster | event Remote | 2024-04-03] with speech semantics.</p>', $blocks);
-        $t->contains('<dt>Speaker 2026</dt><dd>speech :: Review Talk Packet :: Migration Review Forum :: lightning talk :: event Portland :: 2026-06-15 :: state forthcoming</dd>', $blocks);
-        $t->contains('<dt>Curator 2025</dt><dd>speech :: Archive Lecture Packet :: Source Audit Seminar :: seminar lecture :: event Seattle :: 2025-05-02</dd>', $blocks);
-        $t->contains('<dt>Ng 2024</dt><dd>speech :: Poster Presentation Packet :: WordPress Import Session :: poster :: event Remote :: 2024-04-03</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Speaker 2026', 'speech :: Review Talk Packet :: Migration Review Forum :: lightning talk :: event Portland :: 2026-06-15 :: state forthcoming');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Curator 2025', 'speech :: Archive Lecture Packet :: Source Audit Seminar :: seminar lecture :: event Seattle :: 2025-05-02');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2024', 'speech :: Poster Presentation Packet :: WordPress Import Session :: poster :: event Remote :: 2024-04-03');
     },
     'keeps bounded biblatex unpublished conference venue separate from publisher place' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -7817,7 +7835,7 @@ XML);
         $document = (new MarkdownReader())->read('Conference imports cite @forthcoming-poster and [@published-paper] while keeping unpublished venue semantics visible.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Conference imports cite Roe (2026) and (Ng 2025) while keeping unpublished venue semantics visible.</p>', $blocks);
-        $t->contains('<dt>Roe 2026</dt><dd>Roe, Pat. Forthcoming Poster Packet. Event: WordPress Import Summit. Event place: Portland. Event date 2026-06-06. 2026. Status: forthcoming.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Roe 2026', 'Roe, Pat. Forthcoming Poster Packet. Event: WordPress Import Summit. Event place: Portland. Event date 2026-06-06. 2026. Status: forthcoming.');
     },
     'maps bounded biblatex publisher and location literal lists into csl metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -7914,8 +7932,8 @@ XML);
         $document = (new MarkdownReader())->read('Publisher list source @distributed-review and institutional packet [@institutional-packet] keep multi-place metadata.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Publisher list source Curator (2026) and institutional packet (Ng 2025) keep multi-place metadata.</p>', $blocks);
-        $t->contains('<dt>Curator 2026</dt><dd>Curator, Eli. Distributed Source Review. Review Press; Archive Desk, 2026. Publisher places: New York; London. Original publisher: Archivo Press; Migration Desk, Madrid; Barcelona. https://example.test/distributed-review.</dd>', $blocks);
-        $t->contains('<dt>Ng 2025</dt><dd>Ng, Nia. Institutional Review Packet. Migration Board; Source Lab, 2025. Publisher places: Remote; Portland.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Curator 2026', 'Curator, Eli. Distributed Source Review. Review Press; Archive Desk, 2026. Publisher places: New York; London. Original publisher: Archivo Press; Migration Desk, Madrid; Barcelona. https://example.test/distributed-review.');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2025', 'Ng, Nia. Institutional Review Packet. Migration Board; Source Lab, 2025. Publisher places: Remote; Portland.');
     },
     'uses bounded biblatex institutional authority as report creator fallback' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -7997,8 +8015,8 @@ XML);
         $document = (new MarkdownReader())->read('Institutional source @institutional-report keeps report authority while legal rule [@title-led-rule] stays title-led.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Institutional source Migration Review Institute (2026) keeps report authority while legal rule (Title Led Import Rule 2025) stays title-led.</p>', $blocks);
-        $t->contains('<dt>Migration Review Institute 2026</dt><dd>Migration Review Institute. Institutional Source Report. Migration Review Institute, 2026. https://example.test/institutional-report.</dd>', $blocks);
-        $t->contains('<dt>Title Led Import Rule 2025</dt><dd>Title Led Import Rule. Oregon Legislature, 2025. Authority: Oregon Legislature.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Migration Review Institute 2026', 'Migration Review Institute. Institutional Source Report. Migration Review Institute, 2026. https://example.test/institutional-report.');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Title Led Import Rule 2025', 'Title Led Import Rule. Oregon Legislature, 2025. Authority: Oregon Legislature.');
     },
     'normalizes bounded biblatex institutional authority lists for csl names' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -8073,7 +8091,7 @@ XML);
         $document = (new MarkdownReader())->read('Authority list source [@joint-authority-report; @multi-authority-rule] keeps separate institutional names.');
         $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Authority list source [Health Board and Safety Office | Health Board; Safety Office | Health Board; Safety Office; Rules Council and Public Comment Office | Rules Council; Public Comment Office | Rules Council; Public Comment Office] keeps separate institutional names.</p>', $blocks);
-        $t->contains('<dt>Health Board and Safety Office 2026</dt><dd>Joint Authority Report :: Health Board; Safety Office :: Health Board; Safety Office</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Health Board and Safety Office 2026', 'Joint Authority Report :: Health Board; Safety Office :: Health Board; Safety Office');
     },
     'maps bounded biblatex journal abbreviations into csl review metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -8159,7 +8177,7 @@ XML);
         $document = (new MarkdownReader())->read('Short journal source @short-journal-detail keeps abbreviation metadata for review.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Short journal source Doe (2026) keeps abbreviation metadata for review.</p>', $blocks);
-        $t->contains('<dt>Doe 2026</dt><dd>Doe, Jane. Abbreviated Field Notes. Journal of Imported Sources. Journal abbreviation: J. Import. Sources. 2026. 12-18. https://example.test/short-journal. ISSN 2468-1357.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Doe 2026', 'Doe, Jane. Abbreviated Field Notes. Journal of Imported Sources. Journal abbreviation: J. Import. Sources. 2026. 12-18. https://example.test/short-journal. ISSN 2468-1357.');
     },
     'normalizes bounded direct csl json compact journal abbreviation aliases' => static function (TestRunner $t) use ($citation): void {
         $json = json_encode([
@@ -8246,8 +8264,8 @@ XML);
         $document = (new MarkdownReader())->read('Direct journal abbreviations @direct-containertitleshort, short source [@direct-shortjournal], and lowercase alias [@direct-journalabbreviation] remain visible.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Direct journal abbreviations Ng (2026), short source (Roe 2025), and lowercase alias (Repository Desk 2024) remain visible.</p>', $blocks);
-        $t->contains('<dt>Ng 2026</dt><dd>Ng, Nia. Compact Journal Alias Packet. Journal of Direct Handoff. Journal abbreviation: J. Direct Handoff. 2026.</dd>', $blocks);
-        $t->contains('<dt>Repository Desk 2024</dt><dd>Repository Desk. Lowercase Journal Abbreviation Packet. Repository Review Notes. Journal abbreviation: Review Notes. 2024.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2026', 'Ng, Nia. Compact Journal Alias Packet. Journal of Direct Handoff. Journal abbreviation: J. Direct Handoff. 2026.');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Repository Desk 2024', 'Repository Desk. Lowercase Journal Abbreviation Packet. Repository Review Notes. Journal abbreviation: Review Notes. 2024.');
     },
     'maps bounded biblatex short series into csl collection title short metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -8334,7 +8352,7 @@ XML);
         $document = (new MarkdownReader())->read('Series source @series-short-detail and packet [@series-short-alias] keep collection abbreviations.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Series source Curator (2026) and packet (Ng 2025) keep collection abbreviations.</p>', $blocks);
-        $t->contains('<dt>Curator 2026</dt><dd>Curator, Eli. Source Series Handbook. Migration Review Studies, no. 5. Series abbreviation: Migr. Rev. Stud. Review Press, 2026.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Curator 2026', 'Curator, Eli. Source Series Handbook. Migration Review Studies, no. 5. Series abbreviation: Migr. Rev. Stud. Review Press, 2026.');
     },
     'maps bounded biblatex collection title field aliases into csl metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -8423,7 +8441,7 @@ XML);
         $document = (new MarkdownReader())->read('Collection aliases @hyphen-collection-alias and [@compact-collection-alias] keep source series visible.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Collection aliases Curator (2026) and (Ng 2025) keep source series visible.</p>', $blocks);
-        $t->contains('<dt>Curator 2026</dt><dd>Curator, Eli. Alias Series Manual. Package Review Studies, no. 14. Series abbreviation: Pkg. Rev. Stud. Review Press, 2026.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Curator 2026', 'Curator, Eli. Alias Series Manual. Package Review Studies, no. 14. Series abbreviation: Pkg. Rev. Stud. Review Press, 2026.');
     },
     'maps bounded biblatex original series aliases into csl metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -8527,8 +8545,8 @@ XML);
         $document = (new MarkdownReader())->read('Original series aliases [@hyphen-original-series; @direct-original-collection] stay visible.');
         $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Original series aliases [Curator | Source Facsimile Library | iii; Ng | Archive Reprint Series | xiv] stay visible.</p>', $blocks);
-        $t->contains('<dt>Curator 2026</dt><dd>Original Series Manual :: Source Facsimile Library :: no. :: 3rd</dd>', $blocks);
-        $t->contains('<dt>Ng 2025</dt><dd>Direct Original Collection Manual :: Archive Reprint Series :: no. :: 14th</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Curator 2026', 'Original Series Manual :: Source Facsimile Library :: no. :: 3rd');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2025', 'Direct Original Collection Manual :: Archive Reprint Series :: no. :: 14th');
     },
     'maps bounded biblatex series title aliases into csl collection metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -8623,8 +8641,8 @@ XML);
         $document = (new MarkdownReader())->read('Series title aliases [@hyphen-series-title; @compact-series-title] keep BibLaTeX source series visible.');
         $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Series title aliases [Curator | Source Review Dossiers | SRD | 9th; Ng | Archive Source Library | ASL | 4th] keep BibLaTeX source series visible.</p>', $blocks);
-        $t->contains('<dt>Curator 2026</dt><dd>Hyphen Series Title Packet :: Source Review Dossiers :: SRD :: ix</dd>', $blocks);
-        $t->contains('<dt>Ng 2025</dt><dd>Compact Series Title Packet :: Archive Source Library :: ASL :: iv</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Curator 2026', 'Hyphen Series Title Packet :: Source Review Dossiers :: SRD :: ix');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2025', 'Compact Series Title Packet :: Archive Source Library :: ASL :: iv');
     },
     'normalizes bounded direct csl json biblatex series aliases into collection metadata' => static function (TestRunner $t) use ($citation): void {
         $json = json_encode([
@@ -8710,8 +8728,8 @@ XML);
         $document = (new MarkdownReader())->read('Direct series aliases [@direct-series-alias; @direct-series-title-alias] keep collection metadata visible.');
         $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Direct series aliases [Curator | Migration Review Studies | MRS | 7th; Ng | Source Notes Series | SNS | 12th] keep collection metadata visible.</p>', $blocks);
-        $t->contains('<dt>Curator 2026</dt><dd>Direct Series Alias Packet :: Migration Review Studies :: MRS :: vii</dd>', $blocks);
-        $t->contains('<dt>Ng 2025</dt><dd>Direct Series Title Alias Packet :: Source Notes Series :: SNS :: xii</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Curator 2026', 'Direct Series Alias Packet :: Migration Review Studies :: MRS :: vii');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2025', 'Direct Series Title Alias Packet :: Source Notes Series :: SNS :: xii');
     },
     'maps bounded biblatex page first metadata for page ranges' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -8806,8 +8824,8 @@ XML);
         $document = (new MarkdownReader())->read('Page range source @range-detail and single page [@single-page-detail] keep first-page metadata.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Page range source Doe (2026) and single page (Ng 2025) keep first-page metadata.</p>', $blocks);
-        $t->contains('<dt>Doe 2026</dt><dd>Doe, Jane. Paged Field Notes. Journal of Imports. 2026. A12-A18.</dd>', $blocks);
-        $t->contains('<dt>Ng 2025</dt><dd>Ng, Nia. Single Page Checklist. Migration Handbook. 2025. 77.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Doe 2026', 'Doe, Jane. Paged Field Notes. Journal of Imports. 2026. A12-A18.');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2025', 'Ng, Nia. Single Page Checklist. Migration Handbook. 2025. 77.');
     },
     'maps bounded biblatex main title and multi volume metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -8927,8 +8945,8 @@ XML);
         $document = (new MarkdownReader())->read('Multi-volume source @volume-chapter and dossier [@dossier-set] remain reviewable.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Multi-volume source Smith (2026) and dossier (Curator 2025) remain reviewable.</p>', $blocks);
-        $t->contains('<dt>Smith 2026</dt><dd>Smith, Ada. Review Checklist. Import Handbook: Volume Desk Edition. Main title: Migration Source Dossier: Multi-volume Reviewer Set. Main title addendum: Internal archive packet. Vol. 2 of 4. Part 1. Chap. 7. 320 pp. 2026. 33-39.</dd>', $blocks);
-        $t->contains('<dt>Curator 2025</dt><dd>Curator, Eli. Migration Source Dossier: Multi-volume Reviewer Set. 4 vols. Review Press, 2025.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Smith 2026', 'Smith, Ada. Review Checklist. Import Handbook: Volume Desk Edition. Main title: Migration Source Dossier: Multi-volume Reviewer Set. Main title addendum: Internal archive packet. Vol. 2 of 4. Part 1. Chap. 7. 320 pp. 2026. 33-39.');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Curator 2025', 'Curator, Eli. Migration Source Dossier: Multi-volume Reviewer Set. 4 vols. Review Press, 2025.');
     },
     'maps bounded biblatex note addendum and howpublished review metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -8990,7 +9008,7 @@ XML);
         $document = (new MarkdownReader())->read('Review note source @review-note-source keeps import audit notes attached.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Review note source Ng (2026) keeps import audit notes attached.</p>', $blocks);
-        $t->contains('<dt>Ng 2026</dt><dd>Ng, Nia. Review Packet Snapshot. 2026. Medium: Archived web packet. Note: Needs source-check before migration. Addendum: Queue imported by handoff. https://example.test/review-packet.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2026', 'Ng, Nia. Review Packet Snapshot. 2026. Medium: Archived web packet. Note: Needs source-check before migration. Addendum: Queue imported by handoff. https://example.test/review-packet.');
 
         $manual = CitationCslProcessor::fromItems([[
             'id' => 'manual-note',
@@ -9089,7 +9107,7 @@ XML);
         $document = (new MarkdownReader())->read('Annotated source @annotated-source keeps private reviewer notes distinct from public abstracts.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Annotated source Roe (2026) keeps private reviewer notes distinct from public abstracts.</p>', $blocks);
-        $t->contains('<dt>Roe 2026</dt><dd>Roe, Pat. Annotated Source Packet. 2026. Annotation: Internal migration reviewer note. https://example.test/annotated-source.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Roe 2026', 'Roe, Pat. Annotated Source Packet. 2026. Annotation: Internal migration reviewer note. https://example.test/annotated-source.');
     },
     'maps bounded biblatex gender metadata into csl review handoff' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -9170,7 +9188,7 @@ XML);
         $document = (new MarkdownReader())->read('Gendered source @gendered-manual and packet [@gendered-packet] keep driver grammar metadata.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Gendered source Smith (2026) and packet (Review Desk 2025) keep driver grammar metadata.</p>', $blocks);
-        $t->contains('<dt>Smith 2026</dt><dd>Smith, Ada. Gendered Driver Manual. Review Press, 2026. BibLaTeX gender: feminine.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Smith 2026', 'Smith, Ada. Gendered Driver Manual. Review Press, 2026. BibLaTeX gender: feminine.');
     },
     'maps bounded biblatex entry subtype review metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -9261,8 +9279,8 @@ XML);
         $document = (new MarkdownReader())->read('Subtype source @review-subtype and snapshot [@snapshot-subtype] preserve source-kind review metadata.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Subtype source Ng (2026) and snapshot (Review Desk 2025) preserve source-kind review metadata.</p>', $blocks);
-        $t->contains('<dt>Ng 2026</dt><dd>Ng, Nia. Source Audit Report. Migration Desk, 2026. Entry subtype: migration source audit. https://example.test/subtype-report.</dd>', $blocks);
-        $t->contains('<dt>Review Desk 2025</dt><dd>Review Desk. Import Queue Snapshot. 2025. Medium: Archived source packet. Entry subtype: review snapshot.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2026', 'Ng, Nia. Source Audit Report. Migration Desk, 2026. Entry subtype: migration source audit. https://example.test/subtype-report.');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Review Desk 2025', 'Review Desk. Import Queue Snapshot. 2025. Medium: Archived source packet. Entry subtype: review snapshot.');
     },
     'maps bounded biblatex bookauthor into csl container author metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -9356,8 +9374,8 @@ XML);
         $document = (new MarkdownReader())->read('Container-author source @container-author-review and literal container [@literal-container-author] preserve source volume authors.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Container-author source Ng (2026) and literal container (Roe 2025) preserve source volume authors.</p>', $blocks);
-        $t->contains('<dt>Ng 2026</dt><dd>Ng, Nia. Chapter Review. Migration Sourcebook. 2026. 44-49. Name annotations: Container author 1: source volume author; Container author 2 family: container family verified. Container author: Smith, Ada; Curator, Eli.</dd>', $blocks);
-        $t->contains('<dt>Roe 2025</dt><dd>Roe, Pat. Literal Container Author. Review Desk Handbook. 2025. Container author: Migration Desk.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2026', 'Ng, Nia. Chapter Review. Migration Sourcebook. 2026. 44-49. Name annotations: Container author 1: source volume author; Container author 2 family: container family verified. Container author: Smith, Ada; Curator, Eli.');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Roe 2025', 'Roe, Pat. Literal Container Author. Review Desk Handbook. 2025. Container author: Migration Desk.');
     },
     'normalizes direct csl biblatex bookauthor aliases into container author metadata' => static function (TestRunner $t) use ($citation): void {
         $processor = CitationCslProcessor::fromItems([
@@ -9437,9 +9455,9 @@ XML);
         $document = (new MarkdownReader())->read('Direct aliases @direct-bookauthor and [@hyphen-book-author; @camel-book-author] preserve source volume authors.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Direct aliases Ng (2026) and [Curator | Hyphen Book Author Packet; Review Desk | Camel Book Author Packet] preserve source volume authors.</p>', $blocks);
-        $t->contains('<dt>Ng 2026</dt><dd>Direct Bookauthor Chapter :: Smith, Ada; Source Volume Desk</dd>', $blocks);
-        $t->contains('<dt>Roe 2025</dt><dd>Hyphen Book Author Packet :: Curator, Eli</dd>', $blocks);
-        $t->contains('<dt>Archive Team 2024</dt><dd>Camel Book Author Packet :: Review Desk</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2026', 'Direct Bookauthor Chapter :: Smith, Ada; Source Volume Desk');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Roe 2025', 'Hyphen Book Author Packet :: Curator, Eli');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Archive Team 2024', 'Camel Book Author Packet :: Review Desk');
     },
     'maps bounded biblatex author type qualifiers into csl review metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -9530,8 +9548,8 @@ XML);
         $document = (new MarkdownReader())->read('Author-type source @compiled-source-manual and chapter [@container-type-chapter] preserve imported role qualifiers.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Author-type source Roe and Migration Desk (2026) and chapter (Ng 2025) preserve imported role qualifiers.</p>', $blocks);
-        $t->contains('<dt>Roe and Migration Desk 2026</dt><dd>Roe, Pat; Migration Desk. Compiled Source Manual. Review Press, 2026. Author type: compiler.</dd>', $blocks);
-        $t->contains('<dt>Ng 2025</dt><dd>Ng, Nia. Container Type Chapter. Migration Sourcebook. 2025. 44-49. Container author type: source volume author. Container author: Smith, Ada; Curator, Eli.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Roe and Migration Desk 2026', 'Roe, Pat; Migration Desk. Compiled Source Manual. Review Press, 2026. Author type: compiler.');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2025', 'Ng, Nia. Container Type Chapter. Migration Sourcebook. 2025. 44-49. Container author type: source volume author. Container author: Smith, Ada; Curator, Eli.');
     },
     'maps bounded biblatex editorial role name lists into csl metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -9624,7 +9642,7 @@ XML);
         $document = (new MarkdownReader())->read('Role-rich source @role-review keeps editorial review names attached.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Role-rich source Smith (2026) keeps editorial review names attached.</p>', $blocks);
-        $t->contains('<dt>Smith 2026</dt><dd>Smith, Ada. Annotated Migration Manual. Review Press, 2026. Commentary by Roe, Pat; Migration Desk. Annotated by Ng, Nia. Introduction by de la Cruz, Ana Maria. Foreword by Müller, Mia. Afterword by Curator, Eli. Original author: García, Gia.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Smith 2026', 'Smith, Ada. Annotated Migration Manual. Review Press, 2026. Commentary by Roe, Pat; Migration Desk. Annotated by Ng, Nia. Introduction by de la Cruz, Ana Maria. Foreword by Müller, Mia. Afterword by Curator, Eli. Original author: García, Gia.');
 
         $manual = CitationCslProcessor::fromItems([[
             'id' => 'manual-role',
@@ -9723,8 +9741,8 @@ XML);
         $document = (new MarkdownReader())->read('Participant sources [@participant-source; @recipient-source] keep CSL role names visible.');
         $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Participant sources (Program Committee | Curator | Morton | Migration Contributors | Garcia | Reader; Editorial Desk) keep CSL role names visible.</p>', $blocks);
-        $t->contains('<dt>Participant Source Packet 2026</dt><dd>Participant Source Packet :: Program Committee :: Curator, Eli :: Morton, Mia :: Migration Contributors :: Garcia, Gia :: Reader, Rhea :: Chair 1: agenda verified; Recipient 1 family: recipient family verified</dd>', $blocks);
-        $t->contains('<dt>Recipient Source Packet 2025</dt><dd>Recipient Source Packet :: Editorial Desk</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Participant Source Packet 2026', 'Participant Source Packet :: Program Committee :: Curator, Eli :: Morton, Mia :: Migration Contributors :: Garcia, Gia :: Reader, Rhea :: Chair 1: agenda verified; Recipient 1 family: recipient family verified');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Recipient Source Packet 2025', 'Recipient Source Packet :: Editorial Desk');
 
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([[
             'id' => 'bad-recipient',
@@ -9849,8 +9867,8 @@ XML);
         $document = (new MarkdownReader())->read('Imported bibliography [@participant-fields-source; @editorial-fields-source] keeps direct CSL participant roles visible.');
         $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Imported bibliography (Program Committee | Curator | Morton | Migration Contributors | Garcia | Reader; Roe and Migration Desk | Curator | Editorial | Illustrator | Interviewer | Reviewed) keeps direct CSL participant roles visible.</p>', $blocks);
-        $t->contains('<dt>Participant Fields Packet 2026</dt><dd>Participant Fields Packet :: Program Committee :: Curator, Eli :: Morton, Mia :: Migration Contributors :: Garcia, Gia :: Reader, Rhea :: Chair 1: agenda verified; Recipient 1 family: recipient family verified</dd>', $blocks);
-        $t->contains('<dt>Editorial Fields Packet 2025</dt><dd>Editorial Fields Packet :: Roe, Pat; Migration Desk :: Curator, Eli :: Editorial, Eden :: Illustrator, Iris :: Interviewer, Inez :: Reviewed, Riley :: Reviewed author 1: review context verified</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Participant Fields Packet 2026', 'Participant Fields Packet :: Program Committee :: Curator, Eli :: Morton, Mia :: Migration Contributors :: Garcia, Gia :: Reader, Rhea :: Chair 1: agenda verified; Recipient 1 family: recipient family verified');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Editorial Fields Packet 2025', 'Editorial Fields Packet :: Roe, Pat; Migration Desk :: Curator, Eli :: Editorial, Eden :: Illustrator, Iris :: Interviewer, Inez :: Reviewed, Riley :: Reviewed author 1: review context verified');
     },
     'maps bounded biblatex series editor aliases into collection editor metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -9923,8 +9941,8 @@ XML);
         $document = (new MarkdownReader())->read('Series editors [@series-editor-compact; @series-editor-hyphen] stay attached to collection metadata.');
         $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Series editors (Series and Series Desk; Hyphen) stay attached to collection metadata.</p>', $blocks);
-        $t->contains('<dt>Series Editor Packet 2026</dt><dd>Series Editor Packet :: Series, Selma; Series Desk :: Collection editor 1: series editor alias verified; Collection editor 2: literal series editor verified</dd>', $blocks);
-        $t->contains('<dt>Hyphen Series Editor Packet 2025</dt><dd>Hyphen Series Editor Packet :: Hyphen, Hera :: Collection editor 1 family: hyphen alias verified</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Series Editor Packet 2026', 'Series Editor Packet :: Series, Selma; Series Desk :: Collection editor 1: series editor alias verified; Collection editor 2: literal series editor verified');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Hyphen Series Editor Packet 2025', 'Hyphen Series Editor Packet :: Hyphen, Hera :: Collection editor 1 family: hyphen alias verified');
     },
     'maps bounded biblatex hyphenated original author aliases into csl metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -9984,7 +10002,7 @@ XML);
         $document = (new MarkdownReader())->read('Original author alias [@original-author-hyphen] keeps source creator provenance attached.');
         $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Original author alias (Curator | Legacy and Archive Desk) keeps source creator provenance attached.</p>', $blocks);
-        $t->contains('<dt>Curator 2026</dt><dd>Original Author Alias Packet :: Legacy, Lina; Archive Desk :: Original author 1: hyphen original author verified; Original author 2: literal original author verified</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Curator 2026', 'Original Author Alias Packet :: Legacy, Lina; Archive Desk :: Original author 1: hyphen original author verified; Original author 2: literal original author verified');
     },
     'maps bounded biblatex direct extended creator fields into csl metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -10076,7 +10094,12 @@ XML);
         $document = (new MarkdownReader())->read('Direct extended source @direct-extended-roles preserves revision creator fields.');
         $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Direct extended source Smith (2026) preserves revision creator fields.</p>', $blocks);
-        $t->contains('<dt>Smith 2026</dt><dd>Direct Extended Role Packet :: Roe, Pat; Migration Desk :: Founding Review Board :: Ng, Nia :: Curator, Eli :: Source Review Desk :: ' . $annotationSummary . '</dd>', $blocks);
+        pandocTestAssertDefinitionEntry(
+            $t,
+            $blocks,
+            'Smith 2026',
+            'Direct Extended Role Packet :: Roe, Pat; Migration Desk :: Founding Review Board :: Ng, Nia :: Curator, Eli :: Source Review Desk :: ' . $annotationSummary
+        );
     },
     'maps bounded biblatex primary editor type roles into csl metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -10161,8 +10184,8 @@ XML);
         $document = (new MarkdownReader())->read('Primary editor type source @primary-compiler-review and redactor [@primary-redactor-review] preserve qualified editor roles.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Primary editor type source Smith (2026) and redactor (Ng 2025) preserve qualified editor roles.</p>', $blocks);
-        $t->contains('<dt>Smith 2026</dt><dd>Smith, Ada. Primary Compiler Source. Review Press, 2026. Compiled by Roe, Pat; Migration Desk.</dd>', $blocks);
-        $t->contains('<dt>Ng 2025</dt><dd>Ng, Nia. Primary Redactor Source. 2025. Redacted by de la Cruz, Ana Maria.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Smith 2026', 'Smith, Ada. Primary Compiler Source. Review Press, 2026. Compiled by Roe, Pat; Migration Desk.');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2025', 'Ng, Nia. Primary Redactor Source. 2025. Redacted by de la Cruz, Ana Maria.');
     },
     'maps bounded biblatex secondary editor roles into csl metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -10327,8 +10350,8 @@ XML);
         $document = (new MarkdownReader())->read('Secondary review source @secondary-review-roles and intro packet [@secondary-introduction-role] preserve review role aliases.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Secondary review source Smith (2026) and intro packet (Curator 2025) preserve review role aliases.</p>', $blocks);
-        $t->contains('<dt>Smith 2026</dt><dd>Smith, Ada. Secondary Review Role Dossier. Review Press, 2026. Commentary by Roe, Pat; Migration Desk. Annotated by Ng, Nia. Foreword by de la Cruz, Ana Maria.</dd>', $blocks);
-        $t->contains('<dt>Curator 2025</dt><dd>Curator, Eli. Secondary Introduction Packet. 2025. Introduction by Müller, Mia. Afterword by García, Gia.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Smith 2026', 'Smith, Ada. Secondary Review Role Dossier. Review Press, 2026. Commentary by Roe, Pat; Migration Desk. Annotated by Ng, Nia. Foreword by de la Cruz, Ana Maria.');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Curator 2025', 'Curator, Eli. Secondary Introduction Packet. 2025. Introduction by Müller, Mia. Afterword by García, Gia.');
     },
     'maps bounded biblatex redactor secondary editor role into csl metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -10404,7 +10427,7 @@ XML);
         $document = (new MarkdownReader())->read('Redactor source @secondary-redactor-review preserves redactor role aliases.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Redactor source Smith (2026) preserves redactor role aliases.</p>', $blocks);
-        $t->contains('<dt>Smith 2026</dt><dd>Smith, Ada. Redacted Source Dossier. Review Press, 2026. Name annotations: Redactor 1: redacted source notes. Redacted by Roe, Pat; Migration Desk.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Smith 2026', 'Smith, Ada. Redacted Source Dossier. Review Press, 2026. Name annotations: Redactor 1: redacted source notes. Redacted by Roe, Pat; Migration Desk.');
     },
     'renders bounded csl redactor text variable from creator names' => static function (TestRunner $t) use ($citation): void {
         $processor = CitationCslProcessor::fromItems([
@@ -10465,10 +10488,7 @@ XML);
             '<p>Redactor source [redactor-text | Roe and Migration Desk | Roe and Migration Desk] keeps text variables visible.</p>',
             $blocks
         );
-        $t->contains(
-            '<dt>Smith 2026</dt><dd>Redacted Source Dossier :: Roe, Pat; Migration Desk :: Roe, Pat; Migration Desk</dd>',
-            $blocks
-        );
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Smith 2026', 'Redacted Source Dossier :: Roe, Pat; Migration Desk :: Roe, Pat; Migration Desk');
     },
     'maps bounded biblatex extended editor type roles into csl metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -10589,8 +10609,8 @@ XML);
         $document = (new MarkdownReader())->read('Extended editor roles @extended-editor-roles and organizer [@organizer-editor-role] preserve BibLaTeX role labels.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Extended editor roles Smith (2026) and organizer (Müller 2025) preserve BibLaTeX role labels.</p>', $blocks);
-        $t->contains('<dt>Smith 2026</dt><dd>Smith, Ada. Extended Editor Role Packet. Review Press, 2026. Founded by Roe, Pat. Continued by Ng, Nia. Revised by Curator, Eli. Collaboration by Source Review Desk.</dd>', $blocks);
-        $t->contains('<dt>Müller 2025</dt><dd>Müller, Mia. Organizer Editor Role Packet. 2025. Organized by de la Cruz, Ana Maria.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Smith 2026', 'Smith, Ada. Extended Editor Role Packet. Review Press, 2026. Founded by Roe, Pat. Continued by Ng, Nia. Revised by Curator, Eli. Collaboration by Source Review Desk.');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Müller 2025', 'Müller, Mia. Organizer Editor Role Packet. 2025. Organized by de la Cruz, Ana Maria.');
     },
     'maps bounded biblatex name annotations and name addendum metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -10654,7 +10674,7 @@ XML);
         $document = (new MarkdownReader())->read('Annotated name source @name-annotation-review keeps review metadata.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Annotated name source Smith and Ng (2026) keeps review metadata.</p>', $blocks);
-        $t->contains('<dt>Smith and Ng 2026</dt><dd>Smith, Ada; Ng, Nia. Annotated Source Names. Review Press, 2026. Name addendum: Imported source names verified by review desk. Name annotations: Author 1: primary source author; Author 2 family: family name verified; Editor 1: review editor.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Smith and Ng 2026', 'Smith, Ada; Ng, Nia. Annotated Source Names. Review Press, 2026. Name addendum: Imported source names verified by review desk. Name annotations: Author 1: primary source author; Author 2 family: family name verified; Editor 1: review editor.');
 
         $manual = CitationCslProcessor::fromItems([[
             'id' => 'manual-name-annotation',
@@ -10739,7 +10759,7 @@ XML);
         $document = (new MarkdownReader())->read('Named annotation source @name-annotation-suffix-review keeps scoped name review notes.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Named annotation source Smith and Ng (2026) keeps scoped name review notes.</p>', $blocks);
-        $t->contains('<dt>Smith and Ng 2026</dt><dd>Smith, Ada; Ng, Nia. Named Annotation Source. Review Press, 2026. Name annotations: Author 1 source: OCR family verified; Author 2 given: review desk confirmed; Editor 1 role: import reviewer.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Smith and Ng 2026', 'Smith, Ada; Ng, Nia. Named Annotation Source. Review Press, 2026. Name annotations: Author 1 source: OCR family verified; Author 2 given: review desk confirmed; Editor 1 role: import reviewer.');
     },
     'maps bounded biblatex field annotations into csl review metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -10805,7 +10825,7 @@ XML);
         $document = (new MarkdownReader())->read('Annotated field source @field-annotation-review keeps import review metadata.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Annotated field source Smith (2026) keeps import review metadata.</p>', $blocks);
-        $t->contains('<dt>Smith 2026</dt><dd>Smith, Ada. Annotated Field Packet. Review Press, 2026. BibLaTeX field annotations: title default: title verified; title source: OCR headline normalized; url source: archived before WordPress import. https://example.test/source.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Smith 2026', 'Smith, Ada. Annotated Field Packet. Review Press, 2026. BibLaTeX field annotations: title default: title verified; title source: OCR headline normalized; url source: archived before WordPress import. https://example.test/source.');
 
         $manualProcessor = CitationCslProcessor::fromItems([[
             'id' => 'manual-field-annotation',
@@ -10925,8 +10945,8 @@ XML);
         $document = (new MarkdownReader())->read('Shorthand source @shorthand-review and editor source [@short-editor-review] keep compact review labels.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Shorthand source WIR and editor source (Review Editors 2025) keep compact review labels.</p>', $blocks);
-        $t->contains('<dt>WIR</dt><dd>Smith, Ada; Curator, Eli. WordPress Import Review Manual. Review Press, 2026.</dd>', $blocks);
-        $t->contains('<dt>Review Editors 2025</dt><dd>Roe, Pat; Ng, Nia. Editor Label Source. Review Press, 2025.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'WIR', 'Smith, Ada; Curator, Eli. WordPress Import Review Manual. Review Press, 2026.');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Review Editors 2025', 'Roe, Pat; Ng, Nia. Editor Label Source. Review Press, 2025.');
 
         $manual = CitationCslProcessor::fromItems([[
             'id' => 'manual-label',
@@ -11034,8 +11054,8 @@ XML);
         $document = (new MarkdownReader())->read('List shorthand source @zeta-shorthand and [@alpha-shorthand] keep list sort keys visible.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>List shorthand source Z-10 and (A-2) keep list sort keys visible.</p>', $blocks);
-        $t->contains('<dt>Z-10</dt><dd>Zed, Zoe. Zeta Source Manual. Review Press, 2026. Sort shorthand: 010 zeta source.</dd>', $blocks);
-        $t->contains('<dt>A-2</dt><dd>Adams, Ada. Alpha Source Manual. Review Press, 2025. Sort shorthand: 002 alpha source.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Z-10', 'Zed, Zoe. Zeta Source Manual. Review Press, 2026. Sort shorthand: 010 zeta source.');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'A-2', 'Adams, Ada. Alpha Source Manual. Review Press, 2025. Sort shorthand: 002 alpha source.');
 
         $manual = CitationCslProcessor::fromItems([[
             'id' => 'manual-sort-shorthand',
@@ -11112,9 +11132,9 @@ BIB;
         $processed = $processor->appendShorthandList($processor->appendBibliography($document, 'Works Cited'), 'List of Shorthands');
         $blocksHtml = (new WordPressBlockWriter())->write($processed);
         $t->contains('<h2 id="list-of-shorthands">List of Shorthands</h2>', $blocksHtml);
-        $t->contains('<dt>A-2</dt><dd>Alpha Source Manual.</dd>', $blocksHtml);
-        $t->contains('<dt>Z-10</dt><dd>listed as Zeta Source. Zeta Source Manual.</dd>', $blocksHtml);
-        $t->contains('<dt>B-3</dt><dd>Fallback Shorthand Packet.</dd>', $blocksHtml);
+        pandocTestAssertDefinitionEntry($t, $blocksHtml, 'A-2', 'Alpha Source Manual.');
+        pandocTestAssertDefinitionEntry($t, $blocksHtml, 'Z-10', 'listed as Zeta Source. Zeta Source Manual.');
+        pandocTestAssertDefinitionEntry($t, $blocksHtml, 'B-3', 'Fallback Shorthand Packet.');
         $t->true(!str_contains($blocksHtml, 'Ordinary Source.</dd>'));
         $t->throws(InvalidArgumentException::class, static fn (): AstNode => $processor->appendShorthandList(new AstNode('paragraph')));
     },
@@ -11227,7 +11247,7 @@ XML);
         $document = (new MarkdownReader())->read('Label fields @label-field-source and [@label-alias-source] keep imported label disambiguation metadata visible.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Label fields Smith (2026) and (Ng 2025) keep imported label disambiguation metadata visible.</p>', $blocks);
-        $t->contains('<dt>Smith 2026</dt><dd>Smith, Ada. Migration Label Packet. Review Press, 2026. Label alpha: Smi26. Label title: migration label packet. Extra date: 2. Extra title: a.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Smith 2026', 'Smith, Ada. Migration Label Packet. Review Press, 2026. Label alpha: Smi26. Label title: migration label packet. Extra date: 2. Extra title: a.');
     },
     'maps bounded biblatex others name sentinel into csl et al metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -11323,8 +11343,8 @@ XML);
         $document = (new MarkdownReader())->read('Truncated source @truncated-review and literal source [@literal-others-review] keep reviewer name-list intent.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Truncated source Smith, Ng, et al. (2026) and literal source (others 2024) keep reviewer name-list intent.</p>', $blocks);
-        $t->contains('<dt>Smith, Ng, et al. 2026</dt><dd>Smith, Ada; Ng, Nia; et al. Truncated Source Review. Journal of Imports. 2026. 10-12. https://example.test/truncated-review.</dd>', $blocks);
-        $t->contains('<dt>others 2024</dt><dd>others. Literal Others Packet. 2024. https://example.test/literal-others.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Smith, Ng, et al. 2026', 'Smith, Ada; Ng, Nia; et al. Truncated Source Review. Journal of Imports. 2026. 10-12. https://example.test/truncated-review.');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'others 2024', 'others. Literal Others Packet. 2024. https://example.test/literal-others.');
     },
     'maps bounded biblatex software dataset version and pubstate metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -11404,8 +11424,8 @@ XML);
         $document = (new MarkdownReader())->read('Software @import-tool and dataset [@source-dataset] preserve release state.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Software Migration Desk (2026) and dataset (Ng 2025) preserve release state.</p>', $blocks);
-        $t->contains('<dt>Migration Desk 2026</dt><dd>Migration Desk. Block Import Verifier. 2026. Version: 2.1.0-beta. Status: preprint. https://example.test/import-verifier.</dd>', $blocks);
-        $t->contains('<dt>Ng 2025</dt><dd>Ng, Nia. Source Packet Dataset. 2025. Version: 2025.4. Status: revised. DOI 10.5555/dataset.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Migration Desk 2026', 'Migration Desk. Block Import Verifier. 2026. Version: 2.1.0-beta. Status: preprint. https://example.test/import-verifier.');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2025', 'Ng, Nia. Source Packet Dataset. 2025. Version: 2025.4. Status: revised. DOI 10.5555/dataset.');
 
         $manual = CitationCslProcessor::fromItems([[
             'id' => 'manual-version',
@@ -11513,7 +11533,7 @@ XML);
         $document = (new MarkdownReader())->read('Event paper @event-paper and proceedings [@event-proceedings] preserve conference metadata.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Event paper Ng (2026) and proceedings (Curator 2026) preserve conference metadata.</p>', $blocks);
-        $t->contains('<dt>Ng 2026</dt><dd>Ng, Nia. Source Packet Event Review. WordPress Import Conference Proceedings. Event: WordCamp Migration Summit. Event addendum: Reviewer track. Event type: conference. Event place: Portland. Event date 2026-06-04/2026-06-05. Migration Desk, 2026. 44-48. Crossref: WordPress Import Conference Proceedings (2026).</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2026', 'Ng, Nia. Source Packet Event Review. WordPress Import Conference Proceedings. Event: WordCamp Migration Summit. Event addendum: Reviewer track. Event type: conference. Event place: Portland. Event date 2026-06-04/2026-06-05. Migration Desk, 2026. 44-48. Crossref: WordPress Import Conference Proceedings (2026).');
 
         $manual = CitationCslProcessor::fromItems([[
             'id' => 'manual-event',
@@ -11607,7 +11627,7 @@ XML);
         $document = (new MarkdownReader())->read('Venue source @multi-venue-paper and proceedings [@multi-venue-proceedings] keep distributed event places visible.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Venue source Ng (2026) and proceedings (Curator 2026) keep distributed event places visible.</p>', $blocks);
-        $t->contains('<dt>Ng 2026</dt><dd>Ng, Nia. Distributed Venue Review. Multi Venue Proceedings. Event: WordCamp Review Summit. Event places: Portland Convention Center; Remote Stream. Event date 2026-06-04/2026-06-05. Migration Desk, 2026. 60-64. Crossref: Multi Venue Proceedings (2026).</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2026', 'Ng, Nia. Distributed Venue Review. Multi Venue Proceedings. Event: WordCamp Review Summit. Event places: Portland Convention Center; Remote Stream. Event date 2026-06-04/2026-06-05. Migration Desk, 2026. 60-64. Crossref: Multi Venue Proceedings (2026).');
     },
     'maps bounded biblatex event organizer metadata into csl handoff' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -11701,8 +11721,8 @@ XML);
         $document = (new MarkdownReader())->read('Organizer paper @organized-paper and webinar [@organizer-webinar] keep event review owners.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Organizer paper Ng (2026) and webinar (Smith 2025) keep event review owners.</p>', $blocks);
-        $t->contains('<dt>Ng 2026</dt><dd>Ng, Nia. Source Packet Organizer Review. WordPress Import Conference Proceedings. Event: WordCamp Migration Summit. Event organizer: WordCamp Foundation; Migration Desk. Event place: Portland. Event date 2026-06-04/2026-06-05. Migration Desk Publications, 2026. 44-48. Crossref: WordPress Import Conference Proceedings (2026).</dd>', $blocks);
-        $t->contains('<dt>Smith 2025</dt><dd>Smith, Ada. Remote Review Webinar. Event: Remote Import Clinic. Event organizer: Review Team; Curator, Eli. 2025. https://example.test/organizer-webinar.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2026', 'Ng, Nia. Source Packet Organizer Review. WordPress Import Conference Proceedings. Event: WordCamp Migration Summit. Event organizer: WordCamp Foundation; Migration Desk. Event place: Portland. Event date 2026-06-04/2026-06-05. Migration Desk Publications, 2026. 44-48. Crossref: WordPress Import Conference Proceedings (2026).');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Smith 2025', 'Smith, Ada. Remote Review Webinar. Event: Remote Import Clinic. Event organizer: Review Team; Curator, Eli. 2025. https://example.test/organizer-webinar.');
 
         $manual = CitationCslProcessor::fromItems([[
             'id' => 'manual-organizer',
@@ -11793,7 +11813,7 @@ XML);
         $document = (new MarkdownReader())->read('Localized event source @localized-event-paper keeps custom event labels visible.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Localized event source Ng (2026) keeps custom event labels visible.</p>', $blocks);
-        $t->contains("<dt>Ng 2026</dt><dd>Ng, Nia. Localized Event Paper. Localized Proceedings. Événement: Source Review Summit. Supplément d&#039;événement: Import track. Type d&#039;événement: atelier. Organisateur: Bureau de revue; Curator, Eli. Lieu: Montréal. Dates 2026-06-04/2026-06-05. Migration Desk, 2026. 50-54. Crossref: Localized Proceedings (2026).</dd>", $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2026', "Ng, Nia. Localized Event Paper. Localized Proceedings. Événement: Source Review Summit. Supplément d&#039;événement: Import track. Type d&#039;événement: atelier. Organisateur: Bureau de revue; Curator, Eli. Lieu: Montréal. Dates 2026-06-04/2026-06-05. Migration Desk, 2026. 50-54. Crossref: Localized Proceedings (2026).");
     },
     'maps bounded biblatex ids aliases into canonical csl citations' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -11840,7 +11860,7 @@ BIB;
 
         $blocks = (new WordPressBlockWriter())->write($processed);
         $t->contains('<p>Alias source Smith (2026) and primary (Smith 2026) stay one bibliography item. Missing [@missing-source] remains visible.</p>', $blocks);
-        $t->same(1, substr_count($blocks, '<dt>Smith 2026</dt><dd>Smith, Ada. Alias Import Manual. Review Press, 2026. Citation aliases: legacy-manual; source-packet-manual.</dd>'));
+        $t->same(1, substr_count($blocks, '<ul class="pandoc-definition-values"><li>Smith, Ada. Alias Import Manual. Review Press, 2026. Citation aliases: legacy-manual; source-packet-manual.</li></ul>'));
 
         $styled = $processor->withCslStyle(<<<'XML'
 <?xml version="1.0" encoding="UTF-8"?>
@@ -11925,7 +11945,7 @@ XML);
         $document = (new MarkdownReader())->read('Alias review @legacy-alias preserves source-era citation IDs.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Alias review Alias Review Desk (2026) preserves source-era citation IDs.</p>', $blocks);
-        $t->contains('<dt>Alias Review Desk 2026</dt><dd>Alias Review Desk. Canonical Alias Packet. 2026. Citation aliases: legacy-alias; migrated-source-alias. https://example.test/canonical-alias.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Alias Review Desk 2026', 'Alias Review Desk. Canonical Alias Packet. 2026. Citation aliases: legacy-alias; migrated-source-alias. https://example.test/canonical-alias.');
     },
     'parses pandoc bracketed citation clusters with prefixes locators suppression and url keys' => static function (TestRunner $t) use ($cslJson): void {
         $processor = CitationCslProcessor::fromJson($cslJson());
@@ -11981,7 +12001,7 @@ XML);
         $t->contains('<p>Archive says (see Smith 1899, pp. 33-35; also Doe and Roe 2020, chap. 1; 2024, sec. 2).</p>', $blocks);
         $t->contains('<p>URL key (URL Key Source 2000, p. 33).</p>', $blocks);
         $t->contains('<p>Review keeps (see @missing-source; Smith 1899, p. 7) visible.</p>', $blocks);
-        $t->contains('<dt>URL Key Source 2000</dt><dd>URL Key Source. 2000. https://example.com/bib?name=foobar&amp;date=2000.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'URL Key Source 2000', 'URL Key Source. 2000. https://example.com/bib?name=foobar&amp;date=2000.');
     },
     'appends deterministic csl bibliography blocks for markdown and wordpress output' => static function (TestRunner $t) use ($cslJson): void {
         $processor = CitationCslProcessor::fromJson($cslJson());
@@ -12021,9 +12041,9 @@ XML);
         $t->contains('<p>The migration team wrote WordPress Migration Team (2024).</p>', $blocks);
         $t->contains('<p>Missing source [@missing] stays reviewable.</p>', $blocks);
         $t->contains('<h2 id="works-cited">Works Cited</h2>', $blocks);
-        $t->contains('<dt>Smith 1899</dt><dd>Smith, Ada. Migration Patterns. Archive Press, 1899. DOI 10.1234/source.</dd>', $blocks);
-        $t->contains('<dt>Doe and Roe 2020</dt><dd>Doe, Jane; Roe, Pat. Field Notes. Journal of Imports. 2020. 55-60. https://example.test/field-notes.</dd>', $blocks);
-        $t->contains('<dt>WordPress Migration Team 2024</dt><dd>WordPress Migration Team. Reviewer Log. 2024. https://example.test/reviewer-log.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Smith 1899', 'Smith, Ada. Migration Patterns. Archive Press, 1899. DOI 10.1234/source.');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Doe and Roe 2020', 'Doe, Jane; Roe, Pat. Field Notes. Journal of Imports. 2020. 55-60. https://example.test/field-notes.');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'WordPress Migration Team 2024', 'WordPress Migration Team. Reviewer Log. 2024. https://example.test/reviewer-log.');
     },
     'applies bounded csl style xml citation layout and locale terms' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
@@ -12116,7 +12136,7 @@ XML,
 
         $blocks = (new WordPressBlockWriter())->write($processed);
         $t->contains('<p>Review [Mueller und Schmidt 2024 | Garcia u. a. 2025 | Undated Packet o. J.]. Missing [@missing] stays visible.</p>', $blocks);
-        $t->contains('<dt>Undated Packet o. J.</dt><dd>Undated Packet.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Undated Packet o. J.', 'Undated Packet.');
 
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslStyle('<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text"><info/></style>'));
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslStyle('<locale xmlns="http://purl.org/net/xbiblio/csl" version="1.0"/>'));
@@ -12187,8 +12207,8 @@ XML);
         $document = (new MarkdownReader())->read('Review cites [@locale-source; @undated-locale-source] for localized bibliography handoff.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Review cites (Smith and exact Ng 2026; Undated Locale Packet exact n.d.) for localized bibliography handoff.</p>', $blocks);
-        $t->contains('<dt>Smith and exact Ng 2026</dt><dd>Smith, Ada; Ng, Nia. Locale Source Packet. 2026. https://example.test/locale-source. Inspected 2026-06-06.</dd>', $blocks);
-        $t->contains('<dt>Undated Locale Packet exact n.d.</dt><dd>Undated Locale Packet.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Smith and exact Ng 2026', 'Smith, Ada; Ng, Nia. Locale Source Packet. 2026. https://example.test/locale-source. Inspected 2026-06-06.');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Undated Locale Packet exact n.d.', 'Undated Locale Packet.');
     },
     'applies bounded csl text term forms and locale fallbacks' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
@@ -12286,7 +12306,7 @@ XML);
 
         $blocks = (new WordPressBlockWriter())->write($processed);
         $t->contains('<p>Term form review (Smith | eds. Ng and Roe | review of Archive Desk | §§ 4-5) keeps CSL locale forms visible.</p>', $blocks);
-        $t->contains('<dt>Smith 2026</dt><dd>Term Form Packet :: acc. 2026-06-09 :: § review appendix</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Smith 2026', 'Term Form Packet :: acc. 2026-06-09 :: § review appendix');
 
         try {
             CitationCslProcessor::fromItems([])->withCslStyle(<<<'XML'
@@ -12392,8 +12412,8 @@ XML
         $t->contains('Adams and colleagues no source date' . "\n" . ':   \[Adams, Ari; Baker, Bea; Clark, Cy. Undated Packet.\]', $markdown);
 
         $blocks = (new WordPressBlockWriter())->write($processed);
-        $t->contains('<dt>de la Cruz 2026</dt><dd>[de la Cruz, Ana Maria. Source Packet. 2026. https://example.test/source-packet. Retrieved 2026-06-05.]</dd>', $blocks);
-        $t->contains('<dt>Adams and colleagues no source date</dt><dd>[Adams, Ari; Baker, Bea; Clark, Cy. Undated Packet.]</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'de la Cruz 2026', '[de la Cruz, Ana Maria. Source Packet. 2026. https://example.test/source-packet. Retrieved 2026-06-05.]');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Adams and colleagues no source date', '[Adams, Ari; Baker, Bea; Clark, Cy. Undated Packet.]');
     },
     'applies bounded csl bibliography options to wordpress definition list handoff' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
@@ -12462,9 +12482,10 @@ XML
         $t->same('margin', $bibliography->attr('secondFieldAlign'));
 
         $blocks = (new WordPressBlockWriter())->write($processed);
-        $t->contains('<dl class="pandoc-csl-bibliography" data-csl-hanging-indent="true" data-csl-entry-spacing="0" data-csl-line-spacing="2" data-csl-second-field-align="margin">', $blocks);
-        $t->contains('<dt>Smith 2026</dt><dd>Options Source Packet :: 2026</dd>', $blocks);
-        $t->contains('<dt>Ng 2025</dt><dd>Options Followup Packet :: 2025</dd>', $blocks);
+        $t->contains('pandoc-definition-list', $blocks);
+        $t->contains('pandoc-csl-bibliography', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Smith 2026', 'Options Source Packet :: 2026');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2025', 'Options Followup Packet :: 2025');
 
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslStyle(
             <<<'XML'
@@ -12573,9 +12594,9 @@ XML
 
         $blocks = (new WordPressBlockWriter())->write($processed);
         $t->contains('<p>Review cites (Adams 2024; Zed 2023; Adams 2020).</p>', $blocks);
-        $blocksAdamsOldPosition = strpos($blocks, '<dt>Adams 2020</dt><dd>Adams, Ari. Older Adams Packet. 2020.</dd>');
-        $blocksAdamsNewPosition = strpos($blocks, '<dt>Adams 2024</dt><dd>Adams, Ari. Newer Adams Packet. 2024. https://example.test/adams-new.</dd>');
-        $blocksZedPosition = strpos($blocks, '<dt>Zed 2023</dt><dd>Zed, Zoe. Zed Packet. 2023. https://example.test/zed.</dd>');
+        $blocksAdamsOldPosition = strpos($blocks, '<ul class="pandoc-definition-values"><li>Adams, Ari. Older Adams Packet. 2020.</li></ul>');
+        $blocksAdamsNewPosition = strpos($blocks, '<ul class="pandoc-definition-values"><li>Adams, Ari. Newer Adams Packet. 2024. https://example.test/adams-new.</li></ul>');
+        $blocksZedPosition = strpos($blocks, '<ul class="pandoc-definition-values"><li>Zed, Zoe. Zed Packet. 2023. https://example.test/zed.</li></ul>');
         $t->true(is_int($blocksAdamsOldPosition) && is_int($blocksAdamsNewPosition) && is_int($blocksZedPosition), 'Sorted WordPress bibliography entries were not rendered');
         $t->true($blocksAdamsOldPosition < $blocksAdamsNewPosition && $blocksAdamsNewPosition < $blocksZedPosition, 'WordPress bibliography entries should follow CSL sort order');
 
@@ -12718,9 +12739,9 @@ XML);
         $macroProcessed = $macroProcessor->appendBibliography($document, 'Works Cited');
         $blocks = (new WordPressBlockWriter())->write($macroProcessed);
         $t->contains('<p>Sort override review (First Cited Name Sort Packet; Second Cited Name Sort Packet; Leading Ng Name Sort Packet) stays stable.</p>', $blocks);
-        $macroNgPosition = strpos($blocks, '<dt>Ng et al. 2024</dt><dd>Leading Ng Name Sort Packet ::');
-        $macroFirstSmithPosition = strpos($blocks, '<dt>Smith et al. 2026</dt><dd>First Cited Name Sort Packet ::');
-        $macroSecondSmithPosition = strpos($blocks, '<dt>Smith et al. 2025</dt><dd>Second Cited Name Sort Packet ::');
+        $macroNgPosition = strpos($blocks, '<ul class="pandoc-definition-values"><li>Leading Ng Name Sort Packet ::');
+        $macroFirstSmithPosition = strpos($blocks, '<ul class="pandoc-definition-values"><li>First Cited Name Sort Packet ::');
+        $macroSecondSmithPosition = strpos($blocks, '<ul class="pandoc-definition-values"><li>Second Cited Name Sort Packet ::');
         $t->true(is_int($macroNgPosition) && is_int($macroFirstSmithPosition) && is_int($macroSecondSmithPosition), 'CSL macro names sort override entries were not rendered');
         $t->true($macroNgPosition < $macroFirstSmithPosition && $macroFirstSmithPosition < $macroSecondSmithPosition, 'Macro sort key should apply names-min and names-use-first overrides before comparing author names');
     },
@@ -12831,9 +12852,9 @@ XML
 
         $blocks = (new WordPressBlockWriter())->write($processed);
         $t->contains('<p>Macro sorted review [Zed | 2026 | Visible Zed Packet; Ng | 2024 | Visible Ng Packet; Adams | 2020 | Visible Adams Packet] keeps visible citations unchanged.</p>', $blocks);
-        $blocksAdamsPosition = strpos($blocks, '<dt>Adams 2020</dt><dd>Adams | 2020 | Visible Adams Packet :: 900-Adams</dd>');
-        $blocksNgPosition = strpos($blocks, '<dt>Ng 2024</dt><dd>Ng | 2024 | Visible Ng Packet :: 050-Ng</dd>');
-        $blocksZedPosition = strpos($blocks, '<dt>Zed 2026</dt><dd>Zed | 2026 | Visible Zed Packet :: 001-Zed</dd>');
+        $blocksAdamsPosition = strpos($blocks, '<ul class="pandoc-definition-values"><li>Adams | 2020 | Visible Adams Packet :: 900-Adams</li></ul>');
+        $blocksNgPosition = strpos($blocks, '<ul class="pandoc-definition-values"><li>Ng | 2024 | Visible Ng Packet :: 050-Ng</li></ul>');
+        $blocksZedPosition = strpos($blocks, '<ul class="pandoc-definition-values"><li>Zed | 2026 | Visible Zed Packet :: 001-Zed</li></ul>');
         $t->true(is_int($blocksAdamsPosition) && is_int($blocksNgPosition) && is_int($blocksZedPosition), 'Macro-sorted WordPress bibliography entries were not rendered');
         $t->true($blocksAdamsPosition < $blocksNgPosition && $blocksNgPosition < $blocksZedPosition, 'WordPress bibliography entries should follow rendered macro sort order descending');
     },
@@ -12939,9 +12960,9 @@ XML
         $processed = $processor->appendBibliography($document, 'Works Cited');
         $blocks = (new WordPressBlockWriter())->write($processed);
         $t->contains('<p>Name part source DE LA CRUZ (2026), given-only ([S N] 2025), and literal Review Desk Inc. (2024).</p>', $blocks);
-        $t->contains('<dt>DE LA CRUZ 2026</dt><dd>DE LA CRUZ, given A M, Jr. Name Part Source. Review Press.</dd>', $blocks);
-        $t->contains('<dt>[S N] 2025</dt><dd>given S N. Given Only Source.</dd>', $blocks);
-        $t->contains('<dt>Review Desk Inc. 2024</dt><dd>Review Desk Inc. Literal Source.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'DE LA CRUZ 2026', 'DE LA CRUZ, given A M, Jr. Name Part Source. Review Press.');
+        pandocTestAssertDefinitionEntry($t, $blocks, '[S N] 2025', 'given S N. Given Only Source.');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Review Desk Inc. 2024', 'Review Desk Inc. Literal Source.');
 
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslStyle(
             <<<'XML'
@@ -13050,8 +13071,8 @@ XML
         $processed = $processor->appendBibliography($document, 'Works Cited');
         $blocks = (new WordPressBlockWriter())->write($processed);
         $t->contains('<p>Institution source (org WP MIGRATION DESK 2026; Cruz 2025) keeps organization authors readable.</p>', $blocks);
-        $t->contains('<dt>org WP MIGRATION DESK 2026</dt><dd>Institution: WP Migration Desk :: Institutional Reviewer Packet :: https://example.test/institution-source</dd>', $blocks);
-        $t->contains('<dt>Cruz 2025</dt><dd>Cruz, A. :: Personal Reviewer Packet :: https://example.test/person-source</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'org WP MIGRATION DESK 2026', 'Institution: WP Migration Desk :: Institutional Reviewer Packet :: https://example.test/institution-source');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Cruz 2025', 'Cruz, A. :: Personal Reviewer Packet :: https://example.test/person-source');
 
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslStyle(
             <<<'XML'
@@ -13169,8 +13190,8 @@ XML
         $processed = $processor->appendBibliography($document, 'Works Cited');
         $blocks = (new WordPressBlockWriter())->write($processed);
         $t->contains('<p>Institution short (org WPMD 2026; org ARCHIVE REVIEW COUNCIL 2025; Cruz 2024) keeps abbreviations readable.</p>', $blocks);
-        $t->contains('<dt>org WPMD 2026</dt><dd>Institution: WP Migration Desk / abbr WPMD :: Institutional Short Reviewer Packet :: https://example.test/institution-short-source</dd>', $blocks);
-        $t->contains('<dt>org ARCHIVE REVIEW COUNCIL 2025</dt><dd>Institution: Archive Review Council :: Institutional Fallback Reviewer Packet :: https://example.test/institution-fallback-source</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'org WPMD 2026', 'Institution: WP Migration Desk / abbr WPMD :: Institutional Short Reviewer Packet :: https://example.test/institution-short-source');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'org ARCHIVE REVIEW COUNCIL 2025', 'Institution: Archive Review Council :: Institutional Fallback Reviewer Packet :: https://example.test/institution-fallback-source');
     },
     'applies bounded csl institution abbreviations for literal name short parts' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
@@ -13268,9 +13289,9 @@ XML
         $processed = $processor->appendBibliography($document, 'Works Cited');
         $blocks = (new WordPressBlockWriter())->write($processed);
         $t->contains('<p>Institution abbreviation (org WHO 2026; org WPMD 2025; org ARCHIVE REVIEW COUNCIL 2024) keeps compact organization labels readable.</p>', $blocks);
-        $t->contains('<dt>org WHO 2026</dt><dd>Institution: World Health Organization / abbr WHO :: Institutional Abbreviation Reviewer Packet :: https://example.test/institution-abbrev-source</dd>', $blocks);
-        $t->contains('<dt>org WPMD 2025</dt><dd>Institution: WP Migration Desk / abbr WPMD :: Institutional Direct Short Packet :: https://example.test/institution-direct-short-source</dd>', $blocks);
-        $t->contains('<dt>org ARCHIVE REVIEW COUNCIL 2024</dt><dd>Institution: Archive Review Council :: Institutional Fallback Reviewer Packet :: https://example.test/institution-fallback-source</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'org WHO 2026', 'Institution: World Health Organization / abbr WHO :: Institutional Abbreviation Reviewer Packet :: https://example.test/institution-abbrev-source');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'org WPMD 2025', 'Institution: WP Migration Desk / abbr WPMD :: Institutional Direct Short Packet :: https://example.test/institution-direct-short-source');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'org ARCHIVE REVIEW COUNCIL 2024', 'Institution: Archive Review Council :: Institutional Fallback Reviewer Packet :: https://example.test/institution-fallback-source');
     },
     'applies bounded csl names substitutes for missing primary creators' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
@@ -13389,9 +13410,9 @@ XML
 
         $blocks = (new WordPressBlockWriter())->write($processed);
         $t->contains('<p>Review cites (Curator 2025; Translator 2024; Orphan Packet 2023) for incomplete source packets.</p>', $blocks);
-        $t->contains('<dt>Curator 2025</dt><dd>Curator, E. Edited Packet.</dd>', $blocks);
-        $t->contains('<dt>Translator 2024</dt><dd>Translator, T. Translated Packet.</dd>', $blocks);
-        $t->contains('<dt>Orphan Packet 2023</dt><dd>Orphan Packet. title-only source packet.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Curator 2025', 'Curator, E. Edited Packet.');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Translator 2024', 'Translator, T. Translated Packet.');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Orphan Packet 2023', 'Orphan Packet. title-only source packet.');
     },
     'applies bounded csl names child label rendering for creator roles' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
@@ -13486,8 +13507,8 @@ XML
         $processed = $processor->appendBibliography($document, 'Works Cited');
         $blocks = (new WordPressBlockWriter())->write($processed);
         $t->contains('<p>Review cites (edited by Curator and Ng 2026; translated by Translator 2025) for role-sensitive source packets.</p>', $blocks);
-        $t->contains('<dt>Curator and Ng 2026</dt><dd>Curator, E.; Ng, N., eds. | Edited Review Packet</dd>', $blocks);
-        $t->contains('<dt>Translator 2025</dt><dd>trans. Translator, T. | Translated Review Packet</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Curator and Ng 2026', 'Curator, E.; Ng, N., eds. | Edited Review Packet');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Translator 2025', 'trans. Translator, T. | Translated Review Packet');
 
         $invalidVariable = <<<'XML'
 <?xml version="1.0" encoding="UTF-8"?>
@@ -13592,7 +13613,7 @@ XML
         $processed = $processor->appendBibliography($document, 'Works Cited');
         $blocks = (new WordPressBlockWriter())->write($processed);
         $t->contains('<p>Quoted role labels cite (&quot;eds.&quot; Curator and Ng 2026) before review.</p>', $blocks);
-        $t->contains('<dt>Curator and Ng 2026</dt><dd>Curator, E.; Ng, N., &quot;eds.&quot; | Quoted Label Packet</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Curator and Ng 2026', 'Curator, E.; Ng, N., &quot;eds.&quot; | Quoted Label Packet');
 
         $invalidQuotes = <<<'XML'
 <?xml version="1.0" encoding="UTF-8"?>
@@ -13688,7 +13709,7 @@ XML
         $processed = $processor->appendBibliography($document, 'Works Cited');
         $blocks = (new WordPressBlockWriter())->write($processed);
         $t->contains('<p>Review cites (edited by Curator and Ng; translated by Translator 2026) for role-complete source metadata.</p>', $blocks);
-        $t->contains('<dt>Curator and Ng 2026</dt><dd>Curator, E.; Ng, N., eds.; Translator, T., trans. | Edited Translation Packet</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Curator and Ng 2026', 'Curator, E.; Ng, N., eds.; Translator, T., trans. | Edited Translation Packet');
     },
     'applies bounded csl editortranslator term for identical editor translator names' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
@@ -13772,7 +13793,7 @@ XML
         $processed = $processor->appendBibliography($document, 'Works Cited');
         $blocks = (new WordPressBlockWriter())->write($processed);
         $t->contains('<p>Review cites (edited and translated by Curator and Ng 2026) for combined role source metadata.</p>', $blocks);
-        $t->contains('<dt>Curator and Ng 2026</dt><dd>Curator, E.; Ng, N., eds. &amp; trans. | Edited and Translated Packet</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Curator and Ng 2026', 'Curator, E.; Ng, N., eds. &amp; trans. | Edited and Translated Packet');
     },
     'applies bounded csl name rendering options for initials and et al thresholds' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
@@ -13849,7 +13870,7 @@ XML
 
         $blocks = (new WordPressBlockWriter())->write($processed);
         $t->contains('<p>Review cites de la Cruz, Ng, et al. (2026) and (Curator 2025).</p>', $blocks);
-        $t->contains('<dt>de la Cruz, Ng, et al. 2026</dt><dd>de la Cruz, A. M.; Ng, N.; et al. Source Packet. 2026. https://example.test/source-packet.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'de la Cruz, Ng, et al. 2026', 'de la Cruz, A. M.; Ng, N.; et al. Source Packet. 2026. https://example.test/source-packet.');
 
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslStyle(
             <<<'XML'
@@ -13962,8 +13983,8 @@ XML
         $document = (new MarkdownReader())->read('Hyphenated source @hyphen-given-source and family source [@hyphen-family-source] keep initials reviewable.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Hyphenated source J.-L. (2026) and family source (Source 2025) keep initials reviewable.</p>', $blocks);
-        $t->contains('<dt>J.-L. 2026</dt><dd>J. L. Hyphen Given Packet.</dd>', $blocks);
-        $t->contains('<dt>Source 2025</dt><dd>Source, J. L. Hyphen Family Packet.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'J.-L. 2026', 'J. L. Hyphen Given Packet.');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Source 2025', 'Source, J. L. Hyphen Family Packet.');
 
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslStyle(
             <<<'XML'
@@ -14110,8 +14131,8 @@ XML
         $document = (new MarkdownReader())->read('Initialize false keeps @given-only-source and [@family-given-source] names reviewable.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Initialize false keeps James T. (2026) and (Kirk 2025) names reviewable.</p>', $blocks);
-        $t->contains('<dt>James T. 2026</dt><dd>James T. Full Given Packet.</dd>', $blocks);
-        $t->contains('<dt>Kirk 2025</dt><dd>Kirk, James T. Family Given Packet.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'James T. 2026', 'James T. Full Given Packet.');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Kirk 2025', 'Kirk, James T. Family Given Packet.');
 
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslStyle(
             <<<'XML'
@@ -14211,7 +14232,7 @@ XML
         $document = (new MarkdownReader())->read('Sort separator source @sort-separator-source keeps reviewer names readable.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Sort separator source Source and Reviewer (2026) keeps reviewer names readable.</p>', $blocks);
-        $t->contains('<dt>Source and Reviewer 2026</dt><dd>Source | A. M.; Reviewer | N. Sort Separator Packet.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Source and Reviewer 2026', 'Source | A. M.; Reviewer | N. Sort Separator Packet.');
     },
     'applies bounded csl family given script order under name as sort order' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
@@ -14282,9 +14303,9 @@ XML
         $document = (new MarkdownReader())->read('Family-order source @mao-source and review cluster [@latin-source; @yamada-source] keep reviewer names readable.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Family-order source 毛 (2026) and review cluster (Smith 2024; 山田 2025) keep reviewer names readable.</p>', $blocks);
-        $t->contains('<dt>毛 2026</dt><dd>毛泽东. Chinese Review Packet. 2026.</dd>', $blocks);
-        $t->contains('<dt>Smith 2024</dt><dd>Smith, Ada. Latin Review Packet. 2024.</dd>', $blocks);
-        $t->contains('<dt>山田 2025</dt><dd>山田太郎. Japanese Review Packet. 2025.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, '毛 2026', '毛泽东. Chinese Review Packet. 2026.');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Smith 2024', 'Smith, Ada. Latin Review Packet. 2024.');
+        pandocTestAssertDefinitionEntry($t, $blocks, '山田 2025', '山田太郎. Japanese Review Packet. 2025.');
     },
     'applies bounded csl citation name sort order rendering' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
@@ -14355,8 +14376,8 @@ XML
         $document = (new MarkdownReader())->read('Citation names [@sort-citation-source; @single-source] keep CSL sort-order initials visible.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Citation names (Smith, A., and Roe, P. 2026; Ng, N. 2025) keep CSL sort-order initials visible.</p>', $blocks);
-        $t->contains('<dt>Smith, A., and Roe, P. 2026</dt><dd>Smith, A., and Roe, P. Citation Sort Name Packet. https://example.test/citation-sort-name.</dd>', $blocks);
-        $t->contains('<dt>Ng, N. 2025</dt><dd>Ng, N. Single Citation Packet.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Smith, A., and Roe, P. 2026', 'Smith, A., and Roe, P. Citation Sort Name Packet. https://example.test/citation-sort-name.');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng, N. 2025', 'Ng, N. Single Citation Packet.');
     },
     'applies bounded csl demote non dropping particle display and sort behavior' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
@@ -14499,8 +14520,8 @@ XML
         $document = (new MarkdownReader())->read('Particle source @van-gogh-source and local source [@never-demote-source] keep reviewer sort keys visible.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Particle source van Gogh (2026) and local source [van der Wal 2025] keep reviewer sort keys visible.</p>', $blocks);
-        $goghPosition = strpos($blocks, '<dt>van Gogh 2026</dt><dd>Gogh, V. van, III. Van Gogh Packet. https://example.test/van-gogh.</dd>');
-        $walPosition = strpos($blocks, '<dt>van der Wal 2025</dt><dd>Wal, W. van der. Never Demote Packet.</dd>');
+        $goghPosition = strpos($blocks, '<ul class="pandoc-definition-values"><li>Gogh, V. van, III. Van Gogh Packet. https://example.test/van-gogh.</li></ul>');
+        $walPosition = strpos($blocks, '<ul class="pandoc-definition-values"><li>Wal, W. van der. Never Demote Packet.</li></ul>');
         $t->true(is_int($goghPosition) && is_int($walPosition) && $goghPosition < $walPosition, 'Demoted particles should sort bibliography entries by family name');
 
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslStyle(
@@ -14606,8 +14627,8 @@ XML
         $document = (new MarkdownReader())->read('Localized symbol source [@symbol-source; @default-symbol-source] keeps source names joined.');
         $blocks = (new WordPressBlockWriter())->write($localized->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Localized symbol source (Smith + Ng 2026; Roe + Patel 2025) keeps source names joined.</p>', $blocks);
-        $t->contains('<dt>Smith + Ng 2026</dt><dd>Smith, A., + Ng, N. :: Symbol Join Source Packet</dd>', $blocks);
-        $t->contains('<dt>Roe + Patel 2025</dt><dd>Roe, P., + Patel, I. :: Default Symbol Join Packet</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Smith + Ng 2026', 'Smith, A., + Ng, N. :: Symbol Join Source Packet');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Roe + Patel 2025', 'Roe, P., + Patel, I. :: Default Symbol Join Packet');
     },
     'applies bounded csl et al element term formatting and delimiter policy' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
@@ -14716,8 +14737,8 @@ XML
         $processed = $processor->appendBibliography($document, 'Works Cited');
         $blocks = (new WordPressBlockWriter())->write($processed);
         $t->contains('<p>Review cites de la Cruz, [AND OTHERS] (2026) and (Curator, [AND OTHERS] 2025) for et-al handoff.</p>', $blocks);
-        $t->contains('<dt>de la Cruz, [AND OTHERS] 2026</dt><dd>de la Cruz, A. M.; N. Ng more: And others. Et Al Source Packet.</dd>', $blocks);
-        $t->contains('<dt>Curator, [AND OTHERS] 2025</dt><dd>Curator, E., III; R. Reviewer more: And others. Editor Et Al Packet.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'de la Cruz, [AND OTHERS] 2026', 'de la Cruz, A. M.; N. Ng more: And others. Et Al Source Packet.');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Curator, [AND OTHERS] 2025', 'Curator, E., III; R. Reviewer more: And others. Editor Et Al Packet.');
 
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslStyle(
             <<<'XML'
@@ -14850,7 +14871,7 @@ XML
         $document = (new MarkdownReader())->read('Delimiter source [@three-name-source] and paired source @two-name-source keep CSL name-list punctuation visible.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Delimiter source [de la Cruz, Ng and Smith 2026] and paired source Roe and Patel (2025) keep CSL name-list punctuation visible.</p>', $blocks);
-        $t->contains('<dt>de la Cruz, Ng and Smith 2026</dt><dd>de la Cruz, A. M., Ng, N., &amp; Smith, S. :: Three Name Source Packet</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'de la Cruz, Ng and Smith 2026', 'de la Cruz, A. M., Ng, N., &amp; Smith, S. :: Three Name Source Packet');
 
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslStyle(
             <<<'XML'
@@ -14952,7 +14973,12 @@ XML
 
         $blocks = (new WordPressBlockWriter())->write($processed);
         $t->contains('<p>Review cites de la Cruz, Ng, ' . $ellipsis . ', Smith (2026) before bibliography handoff.</p>', $blocks);
-        $t->contains('<dt>de la Cruz, Ng, ' . $ellipsis . ', Smith 2026</dt><dd>de la Cruz, A. M.; Ng, N.; ' . $ellipsis . '; Smith, S. Et Al Last Source Packet. https://example.test/et-al-last-source.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry(
+            $t,
+            $blocks,
+            'de la Cruz, Ng, ' . $ellipsis . ', Smith 2026',
+            'de la Cruz, A. M.; Ng, N.; ' . $ellipsis . '; Smith, S. Et Al Last Source Packet. https://example.test/et-al-last-source.'
+        );
 
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslStyle(
             <<<'XML'
@@ -15042,7 +15068,7 @@ XML
 
         $blocks = (new WordPressBlockWriter())->write($processed);
         $t->contains('<p>Repeated source de la Cruz, Ng, and Okafor (2026) returns as (de la Cruz et al. 2026) for reviewer follow-up.</p>', $blocks);
-        $t->contains('<dt>de la Cruz, Ng, and Okafor 2026</dt><dd>de la Cruz, A. M.; N. Ng; O. Okafor. Repeated Team Source Packet. https://example.test/repeated-team-source.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'de la Cruz, Ng, and Okafor 2026', 'de la Cruz, A. M.; N. Ng; O. Okafor. Repeated Team Source Packet. https://example.test/repeated-team-source.');
 
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslStyle(
             <<<'XML'
@@ -15149,8 +15175,8 @@ XML
 
         $blocks = (new WordPressBlockWriter())->write($processed);
         $t->contains('<p>Compact source [de la Cruz and Ng | 2 contributors] and literal source [Migration Desk | 1 contributors] preserve reviewer name forms.</p>', $blocks);
-        $t->contains('<dt>de la Cruz and Ng 2026</dt><dd>DE LA CRUZ; NG :: 2 :: Compact Reviewer Packet :: https://example.test/compact-source</dd>', $blocks);
-        $t->contains('<dt>Migration Desk 2025</dt><dd>Migration Desk :: 1 :: Literal Reviewer Packet :: https://example.test/literal-source</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'de la Cruz and Ng 2026', 'DE LA CRUZ; NG :: 2 :: Compact Reviewer Packet :: https://example.test/compact-source');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Migration Desk 2025', 'Migration Desk :: 1 :: Literal Reviewer Packet :: https://example.test/literal-source');
 
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslStyle(
             <<<'XML'
@@ -15317,10 +15343,10 @@ XML
         $document = (new MarkdownReader())->read('Role terms [@counted-author-packet; @composer-packet; @container-author-packet; @original-author-packet] stay reviewable.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Role terms [2 | Counted Author Packet; composed by Morton | Composer Review Score; by Container | Container Author Chapter; by Original | Original Author Translation] stay reviewable.</p>', $blocks);
-        $t->contains('<dt>2 2026</dt><dd>2 :: Counted Author Packet</dd>', $blocks);
-        $t->contains('<dt>Composer Review Score 2025</dt><dd>composed by Morton, M. :: Composer Review Score</dd>', $blocks);
-        $t->contains('<dt>Container Author Chapter 2024</dt><dd>by Container, C. :: Container Author Chapter</dd>', $blocks);
-        $t->contains('<dt>Original Author Translation 2023</dt><dd>by Original, O. :: Original Author Translation</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, '2 2026', '2 :: Counted Author Packet');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Composer Review Score 2025', 'composed by Morton, M. :: Composer Review Score');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Container Author Chapter 2024', 'by Container, C. :: Container Author Chapter');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Original Author Translation 2023', 'by Original, O. :: Original Author Translation');
     },
     'applies bounded csl event organizer default label forms' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
@@ -15400,8 +15426,8 @@ XML
         $document = (new MarkdownReader())->read('Organizer credits [@community-review; @solo-review] stay visible for import review.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Organizer credits [organized by Migration Desk and Curator | 2026 | Community Review Clinic; organized by Organizer | 2025 | Solo Review Session] stay visible for import review.</p>', $blocks);
-        $t->contains('<dt>Community Review Clinic 2026</dt><dd>Migration Desk; Curator, E., orgs. :: org. by Migration Desk; Curator, E. :: Community Review Clinic</dd>', $blocks);
-        $t->contains('<dt>Solo Review Session 2025</dt><dd>Organizer, O., org. :: org. by Organizer, O. :: Solo Review Session</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Community Review Clinic 2026', 'Migration Desk; Curator, E., orgs. :: org. by Migration Desk; Curator, E. :: Community Review Clinic');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Solo Review Session 2025', 'Organizer, O., org. :: org. by Organizer, O. :: Solo Review Session');
     },
     'applies bounded csl layout text date group and names rendering elements' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
@@ -15511,8 +15537,8 @@ XML
 
         $blocks = (new WordPressBlockWriter())->write($processed);
         $t->contains('<p>Review cites [see de la Cruz and Ng 2026, pp. 12-18; Archive Team undated].</p>', $blocks);
-        $t->contains('<dt>de la Cruz and Ng 2026</dt><dd>{de la Cruz, A. M.; Ng, N. Styled Source Packet. Import Review. 2026. pp. 12-18. doi:10.5555/review. Available at https://example.test/styled-source. Visited 2026-06-06.}</dd>', $blocks);
-        $t->contains('<dt>Archive Team undated</dt><dd>{Archive Team. Undated Styled Packet.}</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'de la Cruz and Ng 2026', '{de la Cruz, A. M.; Ng, N. Styled Source Packet. Import Review. 2026. pp. 12-18. doi:10.5555/review. Available at https://example.test/styled-source. Visited 2026-06-06.}');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Archive Team undated', '{Archive Team. Undated Styled Packet.}');
 
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslStyle(
             <<<'XML'
@@ -15634,8 +15660,8 @@ XML
 
         $blocks = (new WordPressBlockWriter())->write($processed);
         $t->contains('<p>Review cites (Migration Review: Source Import and API | SOURCE GUIDE | Review note | accessed) and (manual de migración y datos | GUÍA DE DATOS | Review note | accessed) for title casing.</p>', $blocks);
-        $t->contains('<dt>de la Cruz 2026</dt><dd>Migration review: source import and API. Journal Of Imported Sources. mixed case abstract. WORKING PAPER. Review Status: Import Queue Follow-Up.</dd>', $blocks);
-        $t->contains('<dt>García 2025</dt><dd>Manual de migración y datos.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'de la Cruz 2026', 'Migration review: source import and API. Journal Of Imported Sources. mixed case abstract. WORKING PAPER. Review Status: Import Queue Follow-Up.');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'García 2025', 'Manual de migración y datos.');
 
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslStyle(
             <<<'XML'
@@ -15740,8 +15766,8 @@ XML
 
         $blocks = (new WordPressBlockWriter())->write($processed);
         $t->contains('<p>Review cites (see “Source Packet” pp 12-18; “Issue Packet” no 3) for quoted source titles.</p>', $blocks);
-        $t->contains('<dt>Review Desk 2026</dt><dd>title “Source Packet”. | pp 12-18 | “Journal of Review.”</dd>', $blocks);
-        $t->contains('<dt>Issue Desk 2025</dt><dd>title “Issue Packet”. | no 3</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Review Desk 2026', 'title “Source Packet”. | pp 12-18 | “Journal of Review.”');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Issue Desk 2025', 'title “Issue Packet”. | no 3');
 
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslStyle(
             <<<'XML'
@@ -15837,7 +15863,7 @@ XML
 
         $blocks = (new WordPressBlockWriter())->write($processed);
         $t->contains('<p>Quoted source Quote Desk (2026) and suffix (“Suffix Packet”) keep localized punctuation.</p>', $blocks);
-        $t->contains('<dt>Quote Desk 2026</dt><dd>“Source Packet.” “Review Journal.” “reviewed.”</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Quote Desk 2026', '“Source Packet.” “Review Journal.” “reviewed.”');
 
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslStyle(
             <<<'XML'
@@ -15951,8 +15977,8 @@ XML
 
         $blocks = (new WordPressBlockWriter())->write($processed);
         $t->contains('<p>Review cites (see de la Cruz and Ng 2026, pp. 12-18) and Title Only Packet (undated).</p>', $blocks);
-        $t->contains('<dt>de la Cruz and Ng 2026</dt><dd>de la Cruz, Ana Maria; Ng, Nia. Macro Source Packet. Import Review. https://example.test/macro-source. Retrieved 2026-06-06.</dd>', $blocks);
-        $t->contains('<dt>Title Only Packet undated</dt><dd>Title Only Packet. https://example.test/title-only.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'de la Cruz and Ng 2026', 'de la Cruz, Ana Maria; Ng, Nia. Macro Source Packet. Import Review. https://example.test/macro-source. Retrieved 2026-06-06.');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Title Only Packet undated', 'Title Only Packet. https://example.test/title-only.');
 
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslStyle(
             <<<'XML'
@@ -16096,7 +16122,7 @@ XML
 
         $blocks = (new WordPressBlockWriter())->write($processed);
         $t->contains('<p>Review cites (de la Cruz: article 2026; Archive Team: 2024; Migration Committee: undated).</p>', $blocks);
-        $t->contains('<dt>Migration Committee undated</dt><dd>Migration Committee. Local Report Packet. no stable source locator.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Migration Committee undated', 'Migration Committee. Local Report Packet. no stable source locator.');
 
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslStyle(
             <<<'XML'
@@ -16204,9 +16230,9 @@ XML);
         $document = (new MarkdownReader())->read('Review cites [@smith-post; @smith-media; @ng-2026] before publishing imported source notes.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Review cites (Smith [Post] 2026; Smith [Media] 2026; Ng 2026) before publishing imported source notes.</p>', $blocks);
-        $t->contains('<dt>Smith 2026</dt><dd>Smith, A. 2026. Post Import Packet.</dd>', $blocks);
-        $t->contains('<dt>Smith 2026</dt><dd>Smith, A. 2026. Media Import Packet.</dd>', $blocks);
-        $t->contains('<dt>Ng 2026</dt><dd>Ng, N. 2026. Ng Import Packet.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Smith 2026', 'Smith, A. 2026. Post Import Packet.');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Smith 2026', 'Smith, A. 2026. Media Import Packet.');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2026', 'Ng, N. 2026. Ng Import Packet.');
 
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslStyle(<<<'XML'
 <?xml version="1.0" encoding="UTF-8"?>
@@ -16345,8 +16371,8 @@ XML);
 
         $blocks = (new WordPressBlockWriter())->write($processed);
         $t->contains('<p>Review cites (H. Simpson 2005; B. Simpson 2005; John Doe 1950; Jane Doe 1950) before bibliography review.</p>', $blocks);
-        $t->contains('<dt>Simpson 2005</dt><dd>Simpson, H. 2005. Homer Source. https://example.test/homer.</dd>', $blocks);
-        $t->contains('<dt>Doe 1950</dt><dd>Doe, J. 1950. Jane Source. https://example.test/jane.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Simpson 2005', 'Simpson, H. 2005. Homer Source. https://example.test/homer.');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Doe 1950', 'Doe, J. 1950. Jane Source. https://example.test/jane.');
 
         $primaryName = $processor->withCslStyle(<<<'XML'
 <?xml version="1.0" encoding="UTF-8"?>
@@ -16470,9 +16496,9 @@ XML);
 
         $blocks = (new WordPressBlockWriter())->write($processed);
         $t->contains('<p>Review cites (Smith, Doe, et al. 2026; Smith, Ng, et al. 2026; Garcia et al. 2026) before publishing imported source notes.</p>', $blocks);
-        $t->contains('<dt>Smith et al. 2026</dt><dd>Smith, A.; Doe, J.; Roe, P. 2026. Smith Doe Import Packet. https://example.test/smith-doe.</dd>', $blocks);
-        $t->contains('<dt>Smith et al. 2026</dt><dd>Smith, A.; Ng, N.; Rao, R. 2026. Smith Ng Import Packet. https://example.test/smith-ng.</dd>', $blocks);
-        $t->contains('<dt>Garcia et al. 2026</dt><dd>Garcia, G.; Cruz, A.; Iyer, I. 2026. Garcia Import Packet. https://example.test/garcia.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Smith et al. 2026', 'Smith, A.; Doe, J.; Roe, P. 2026. Smith Doe Import Packet. https://example.test/smith-doe.');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Smith et al. 2026', 'Smith, A.; Ng, N.; Rao, R. 2026. Smith Ng Import Packet. https://example.test/smith-ng.');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Garcia et al. 2026', 'Garcia, G.; Cruz, A.; Iyer, I. 2026. Garcia Import Packet. https://example.test/garcia.');
 
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslStyle(<<<'XML'
 <?xml version="1.0" encoding="UTF-8"?>
@@ -16597,9 +16623,9 @@ XML);
 
         $blocks = (new WordPressBlockWriter())->write($processed);
         $t->contains('<p>Review cites (Smith, Doe, et al. 2026a,b; Smith, Ng, et al. 2026) before publishing imported source notes.</p>', $blocks);
-        $t->contains('<dt>Smith et al. 2026a</dt><dd>Smith, A.; Doe, J.; Roe, P. 2026a. Smith Doe First Packet. https://example.test/smith-doe-a.</dd>', $blocks);
-        $t->contains('<dt>Smith et al. 2026b</dt><dd>Smith, A.; Doe, J.; Roe, P. 2026b. Smith Doe Second Packet. https://example.test/smith-doe-b.</dd>', $blocks);
-        $t->contains('<dt>Smith et al. 2026</dt><dd>Smith, A.; Ng, N.; Rao, R. 2026. Smith Ng Packet. https://example.test/smith-ng.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Smith et al. 2026a', 'Smith, A.; Doe, J.; Roe, P. 2026a. Smith Doe First Packet. https://example.test/smith-doe-a.');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Smith et al. 2026b', 'Smith, A.; Doe, J.; Roe, P. 2026b. Smith Doe Second Packet. https://example.test/smith-doe-b.');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Smith et al. 2026', 'Smith, A.; Ng, N.; Rao, R. 2026. Smith Ng Packet. https://example.test/smith-ng.');
     },
     'applies bounded csl given names before add names and year suffix disambiguation' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
@@ -16731,10 +16757,10 @@ XML);
 
         $blocks = (new WordPressBlockWriter())->write($processed);
         $t->contains('<p>Review cites (Ada Smith, Doe, et al. 2026a,b; Alan Smith et al. 2026; Ada Smith, Ng, et al. 2026) before publishing imported source notes.</p>', $blocks);
-        $t->contains('<dt>Smith et al. 2026a</dt><dd>Smith, A.; Doe, J.; Roe, P. 2026a. Ada Doe First Packet. https://example.test/ada-doe-a.</dd>', $blocks);
-        $t->contains('<dt>Smith et al. 2026b</dt><dd>Smith, A.; Doe, J.; Roe, P. 2026b. Ada Doe Second Packet. https://example.test/ada-doe-b.</dd>', $blocks);
-        $t->contains('<dt>Smith et al. 2026</dt><dd>Smith, A.; Doe, J.; Roe, P. 2026. Alan Doe Packet. https://example.test/alan-doe.</dd>', $blocks);
-        $t->contains('<dt>Smith et al. 2026</dt><dd>Smith, A.; Ng, N.; Rao, R. 2026. Ada Ng Packet. https://example.test/ada-ng.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Smith et al. 2026a', 'Smith, A.; Doe, J.; Roe, P. 2026a. Ada Doe First Packet. https://example.test/ada-doe-a.');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Smith et al. 2026b', 'Smith, A.; Doe, J.; Roe, P. 2026b. Ada Doe Second Packet. https://example.test/ada-doe-b.');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Smith et al. 2026', 'Smith, A.; Doe, J.; Roe, P. 2026. Alan Doe Packet. https://example.test/alan-doe.');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Smith et al. 2026', 'Smith, A.; Ng, N.; Rao, R. 2026. Ada Ng Packet. https://example.test/ada-ng.');
     },
     'applies bounded csl locator conditionals for page chapter and section locators' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
@@ -16835,8 +16861,8 @@ XML
 
         $blocks = (new WordPressBlockWriter())->write($processed);
         $t->contains('<p>Review cites (de la Cruz, page-route p. 7; Archive Team, chapter-route chap. 2; de la Cruz, section-route §§ 4–5; de la Cruz, other-locator 3).</p>', $blocks);
-        $t->contains('<dt>de la Cruz 2026</dt><dd>de la Cruz, Ana Maria. Locator Condition Packet.</dd>', $blocks);
-        $t->contains('<dt>Archive Team 2025</dt><dd>Archive Team. Chapter Locator Packet.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'de la Cruz 2026', 'de la Cruz, Ana Maria. Locator Condition Packet.');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Archive Team 2025', 'Archive Team. Chapter Locator Packet.');
 
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslStyle(
             <<<'XML'
@@ -16925,7 +16951,7 @@ XML
 
         $blocks = (new WordPressBlockWriter())->write($processed);
         $t->contains('<p>Locator diagnostics (Vale, p. 7; Vale, p. plate A; Vale, secs. 4–5).</p>', $blocks);
-        $t->contains('<dt>Vale 2026</dt><dd>Vale, Rae. Locator Diagnostics Packet.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Vale 2026', 'Vale, Rae. Locator Diagnostics Packet.');
     },
     'exposes bounded citation locator diagnostic summaries for wordpress review handoff' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
@@ -16987,7 +17013,7 @@ XML);
 
         $blocks = (new WordPressBlockWriter())->write($processed);
         $t->contains('<p>Locator summaries (Vale | page | plate A | explicit | page plate A [citation-locator-unlabeled-page-fallback/info] | citation-locator-unlabeled-page-fallback; Vale | page | plate B | explicit | page plate B [citation-locator-unlabeled-page-fallback/info] | citation-locator-unlabeled-page-fallback) remain visible.</p>', $blocks);
-        $t->contains('<dt>Vale 2026</dt><dd>Locator Summary Packet</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Vale 2026', 'Locator Summary Packet');
     },
     'infers pandoc json citation suffix locators for diagnostics' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
@@ -17108,7 +17134,7 @@ XML
 
         $blocks = (new WordPressBlockWriter())->write($processed);
         $t->contains('<p>Suffix locators (Smith, p. 7; Smith, p. plate A).</p>', $blocks);
-        $t->contains('<dt>Smith 2026</dt><dd>Smith, Ada. Suffix Locator Packet.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Smith 2026', 'Smith, Ada. Suffix Locator Packet.');
     },
     'applies bounded citation locator diagnostics when explicit values default to pages' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
@@ -17177,7 +17203,7 @@ XML
         ]), 'Works Cited');
         $blocks = (new WordPressBlockWriter())->write($processed);
         $t->contains('<p>Explicit locator default (Vale, p. appendix A).</p>', $blocks);
-        $t->contains('<dt>Vale 2026</dt><dd>Vale, Rae. Explicit Locator Value Packet.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Vale 2026', 'Vale, Rae. Explicit Locator Value Packet.');
     },
     'applies bounded citation locator diagnostics when explicit labels omit values' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
@@ -17386,7 +17412,7 @@ XML
         $processed = $processor->appendBibliography($document, 'Works Cited');
         $blocks = (new WordPressBlockWriter())->write($processed);
         $t->contains('<p>Unsupported raw locator (Vale, p. intro) remains readable.</p>', $blocks);
-        $t->contains('<dt>Vale 2026</dt><dd>Vale, Rae. Unsupported Raw Locator Packet.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Vale 2026', 'Vale, Rae. Unsupported Raw Locator Packet.');
     },
     'applies bounded csl is numeric conditionals for locators and number variables' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
@@ -17486,8 +17512,8 @@ XML
         $document = (new MarkdownReader())->read('Review cites [@numeric-source, p. 12-14; @alpha-source, appendix A] while preserving numeric source checks.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Review cites (de la Cruz, pp. 12–14; Archive Team, loc A) while preserving numeric source checks.</p>', $blocks);
-        $t->contains('<dt>de la Cruz 2026</dt><dd>Numeric Packet. nos. 2nd-4th.</dd>', $blocks);
-        $t->contains('<dt>Archive Team 2025</dt><dd>Alpha Packet. p. A7.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'de la Cruz 2026', 'Numeric Packet. nos. 2nd-4th.');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Archive Team 2025', 'Alpha Packet. p. A7.');
     },
     'applies csl is numeric to affixed number tokens without stripping number output' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
@@ -17592,9 +17618,9 @@ XML
         $document = (new MarkdownReader())->read('Affixed numeric review [@prefixed-number, L2d; @suffix-page, 2nd; @word-number, second] remains source faithful.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Affixed numeric review (Ng, numeric-loc L2d; Roe, numeric-loc 2nd; Archive Team, plain-loc second) remains source faithful.</p>', $blocks);
-        $t->contains('<dt>Ng 2026</dt><dd>Prefixed Number Packet. both-numeric D2 page A7.</dd>', $blocks);
-        $t->contains('<dt>Roe 2025</dt><dd>Suffix Page Packet. numeric-page 2b.</dd>', $blocks);
-        $t->contains('<dt>Archive Team 2024</dt><dd>Word Number Packet. plain-number 2nd edition.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2026', 'Prefixed Number Packet. both-numeric D2 page A7.');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Roe 2025', 'Suffix Page Packet. numeric-page 2b.');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Archive Team 2024', 'Word Number Packet. plain-number 2nd edition.');
     },
     'applies bounded csl is uncertain date conditionals for date variables' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
@@ -17714,10 +17740,10 @@ XML
         $document = (new MarkdownReader())->read('Review cites [@uncertain-issued; @uncertain-accessed; @uncertain-event; @stable-source] before WordPress review.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Review cites (de la Cruz uncertain 2026; Ng accessed? 2026-06-04; Archive Team uncertain 2024; Review Desk 2023) before WordPress review.</p>', $blocks);
-        $t->contains('<dt>de la Cruz 2026</dt><dd>Uncertain Issued Packet :: Date markers: issued uncertain (2026?)</dd>', $blocks);
-        $t->contains('<dt>Ng 2025</dt><dd>Uncertain Access Packet :: access date uncertain</dd>', $blocks);
-        $t->contains('<dt>Archive Team 2024</dt><dd>Event Date Packet :: Date markers: issued circa (2024~); event-date uncertain (2024-10-03?)</dd>', $blocks);
-        $t->contains('<dt>Review Desk 2023</dt><dd>Stable Date Packet :: stable access date</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'de la Cruz 2026', 'Uncertain Issued Packet :: Date markers: issued uncertain (2026?)');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2025', 'Uncertain Access Packet :: access date uncertain');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Archive Team 2024', 'Event Date Packet :: Date markers: issued circa (2024~); event-date uncertain (2024-10-03?)');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Review Desk 2023', 'Stable Date Packet :: stable access date');
     },
     'treats bounded csl approximate dates as uncertain date conditionals' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
@@ -17829,8 +17855,8 @@ XML);
         $document = (new MarkdownReader())->read('Review cites [@circa-issued; @circa-accessed; @stable-source] before WordPress review.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Review cites (Smith c. 2026; Ng accessed c. 2026-06-06; Review Desk 2024) before WordPress review.</p>', $blocks);
-        $t->contains('<dt>Smith 2026</dt><dd>Approximate Issued Packet :: c. 2026</dd>', $blocks);
-        $t->contains('<dt>Ng 2025</dt><dd>Approximate Access Packet :: Date markers: accessed circa (2026-06-06~)</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Smith 2026', 'Approximate Issued Packet :: c. 2026');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2025', 'Approximate Access Packet :: Date markers: accessed circa (2026-06-06~)');
     },
     'applies bounded csl is circa date conditionals for date variables' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
@@ -17962,10 +17988,10 @@ XML);
         $document = (new MarkdownReader())->read('Circa source [@circa-issued; @uncertain-issued; @circa-accessed; @stable-source] keeps date markers distinct.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Circa source (Smith circa-issued 2026; de la Cruz uncertain-only 2025; Ng circa-accessed 2026-06-06; Review Desk 2023) keeps date markers distinct.</p>', $blocks);
-        $t->contains('<dt>Smith 2026</dt><dd>Approximate Issued Packet :: Date markers: issued circa (2026~)</dd>', $blocks);
-        $t->contains('<dt>de la Cruz 2025</dt><dd>Uncertain Issued Packet :: no circa markers</dd>', $blocks);
-        $t->contains('<dt>Ng 2024</dt><dd>Approximate Access Packet :: access circa</dd>', $blocks);
-        $t->contains('<dt>Review Desk 2023</dt><dd>Stable Source Packet :: no circa markers</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Smith 2026', 'Approximate Issued Packet :: Date markers: issued circa (2026~)');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'de la Cruz 2025', 'Uncertain Issued Packet :: no circa markers');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2024', 'Approximate Access Packet :: access circa');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Review Desk 2023', 'Stable Source Packet :: no circa markers');
     },
     'applies bounded csl is date conditionals for date variables' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
@@ -18067,10 +18093,10 @@ XML);
         $document = (new MarkdownReader())->read('Date routes [@full-date-packet; @issued-packet; @original-packet; @undated-packet] remain visible.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Date routes [Full Date Packet | both-dates; Issued Packet | source-date; Original Packet | source-date; Undated Packet | no-date] remain visible.</p>', $blocks);
-        $t->contains('<dt>Smith 2026</dt><dd>Full Date Packet :: both-dates</dd>', $blocks);
-        $t->contains('<dt>Ng 2025</dt><dd>Issued Packet :: source-date</dd>', $blocks);
-        $t->contains('<dt>Archive Desk n.d.</dt><dd>Original Packet :: source-date :: undated source letter</dd>', $blocks);
-        $t->contains('<dt>Review Desk n.d.</dt><dd>Undated Packet :: no-date</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Smith 2026', 'Full Date Packet :: both-dates');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2025', 'Issued Packet :: source-date');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Archive Desk n.d.', 'Original Packet :: source-date :: undated source letter');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Review Desk n.d.', 'Undated Packet :: no-date');
     },
     'applies bounded csl locator and page label rendering' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
@@ -18195,7 +18221,7 @@ XML
 
         $blocks = (new WordPressBlockWriter())->write($processed);
         $t->contains('<p>Review cites (see de la Cruz 2026, p. 7; Manual Chapter 2024, chap. 2; de la Cruz 2026, secs. 4–5; de la Cruz 2026, p. ii, A–D).</p>', $blocks);
-        $t->contains('<dt>de la Cruz 2026</dt><dd>de la Cruz, Ana Maria. Locator Source Packet. pp. 12-18.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'de la Cruz 2026', 'de la Cruz, Ana Maria. Locator Source Packet. pp. 12-18.');
 
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslStyle(
             <<<'XML'
@@ -18305,7 +18331,7 @@ XML
 
         $blocks = (new WordPressBlockWriter())->write($processed);
         $t->contains('<p>Extended locators (Smith, extended fig. 2; Smith, extended tbls. 4–5; Smith, extended app. A; Smith, extended n. 7; Smith, extended ll. 10–12).</p>', $blocks);
-        $t->contains('<dt>Smith 2026</dt><dd>Smith, Ada. Extended Locator Packet.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Smith 2026', 'Smith, Ada. Extended Locator Packet.');
     },
     'applies bounded csl uncommon locator vocabulary and markdown inference' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
@@ -18424,7 +18450,7 @@ XML
 
         $blocks = (new WordPressBlockWriter())->write($processed);
         $t->contains('<p>Uncommon locators (Smith, extended bks. 2–3; Smith, extended cc. 4–5; Smith, extended fol. 12r; Smith, extended op. 9; Smith, extended rr. 5–6; Smith, extended s.v. migration; Smith, extended supp. A; Smith, extended ts. 01:02:03; Smith, extended ttl. 7; Smith, extended arts. 3–4; Smith, extended e-loc. 55; Smith, extended pt. II).</p>', $blocks);
-        $t->contains('<dt>Smith 2026</dt><dd>Smith, Ada. Uncommon Locator Packet.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Smith 2026', 'Smith, Ada. Uncommon Locator Packet.');
     },
     'applies bounded csl locator range delimiter rendering' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
@@ -18489,7 +18515,7 @@ XML
         $document = (new MarkdownReader())->read('Locator ranges [@range-locator-source, pp. 12-14; @range-locator-source, {ii-iv}] stay reviewable.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Locator ranges (Smith | pp. 12–14 | ordinal 12th–14th; Smith | p. ii–iv | ordinal ii–iv) stay reviewable.</p>', $blocks);
-        $t->contains('<dt>Smith 2026</dt><dd>Smith, Ada. Locator Range Source. pp. 12-18.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Smith 2026', 'Smith, Ada. Locator Range Source. pp. 12-18.');
     },
     'applies bounded csl page range format options to page variables' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
@@ -18602,7 +18628,7 @@ XML
         $document = (new MarkdownReader())->read('Page range packet [@page-range-source, pp. 321-328] keeps CSL collapsing reviewable.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Page range packet (Smith | pp. 321–28 | pp. 321–28, 415–532, 100–104, 107–8, 1496–1504, A-D) keeps CSL collapsing reviewable.</p>', $blocks);
-        $t->contains('<dt>Smith 2026</dt><dd>Page Range Source. pp. 321–28, 415–532, 100–104, 107–8, 1496–1504, A-D.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Smith 2026', 'Page Range Source. pp. 321–28, 415–532, 100–104, 107–8, 1496–1504, A-D.');
 
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslStyle(
             <<<'XML'
@@ -18668,7 +18694,7 @@ XML
         $document = (new MarkdownReader())->read('Locator review cites [@page-locator-source, pp. 321-328; @page-locator-source, sec. 321-328].');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Locator review cites (Diaz | pp. 321–28; Diaz | secs. 321–328).</p>', $blocks);
-        $t->contains('<dt>Diaz 2026</dt><dd>Diaz, Mara. Locator Page Range Source.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Diaz 2026', 'Diaz, Mara. Locator Page Range Source.');
     },
     'applies bounded csl number rendering forms for page issue and edition variables' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
@@ -18787,8 +18813,8 @@ XML
         $processed = $processor->appendBibliography($document, 'Works Cited');
         $blocks = (new WordPressBlockWriter())->write($processed);
         $t->contains('<p>Review cites (de la Cruz [nos. ii-iv] edition third; Archive Team [no. Appendix 2E] edition Eleventh) for numbered source packets.</p>', $blocks);
-        $t->contains('<dt>de la Cruz 2026</dt><dd>Numbered Review Packet. pp. 12, 18 &amp; 20. edition third. ordinal 2nd-4th.</dd>', $blocks);
-        $t->contains('<dt>Archive Team 2025</dt><dd>Special Number Packet. p. A2. edition Eleventh. ordinal Appendix 2E.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'de la Cruz 2026', 'Numbered Review Packet. pp. 12, 18 &amp; 20. edition third. ordinal 2nd-4th.');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Archive Team 2025', 'Special Number Packet. p. A2. edition Eleventh. ordinal Appendix 2E.');
 
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslStyle(
             <<<'XML'
@@ -18905,7 +18931,7 @@ XML
         $document = (new MarkdownReader())->read('Gendered ordinal review [@edition-one; @edition-three] keeps localized importer labels visible.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Gendered ordinal review (Smith | 1re | premier | 1er janvier 2026; Ng | 3e | premier | 1re avril 2026) keeps localized importer labels visible.</p>', $blocks);
-        $t->contains('<dt>Smith 2026</dt><dd>First Edition Packet :: éd. 1re :: chapitre premier :: 1er janvier 2026</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Smith 2026', 'First Edition Packet :: éd. 1re :: chapitre premier :: 1er janvier 2026');
 
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslStyle(
             <<<'XML'
@@ -19046,8 +19072,8 @@ XML
         $document = (new MarkdownReader())->read('Ordinal term review [@edition-one; @edition-twenty-one; @edition-one-oh-two; @edition-one-eleven] stays visible.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Ordinal term review (Smith | 1er | 1er janvier 2026; Ng | 21e | 21e janvier 2026; Roe | 102d | 2d janvier 2026; Doe | 111eme | 11eme janvier 2026) stays visible.</p>', $blocks);
-        $t->contains('<dt>Roe 2026</dt><dd>One Hundred Second Edition Packet :: 102d :: 2d janv 2026</dd>', $blocks);
-        $t->contains('<dt>Doe 2026</dt><dd>One Hundred Eleventh Edition Packet :: 111eme :: 11eme janv 2026</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Roe 2026', 'One Hundred Second Edition Packet :: 102d :: 2d janv 2026');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Doe 2026', 'One Hundred Eleventh Edition Packet :: 111eme :: 11eme janv 2026');
 
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslStyle(
             <<<'XML'
@@ -19135,9 +19161,9 @@ XML
         $processed = $processor->appendBibliography($document, 'Numbered Sources');
         $blocks = (new WordPressBlockWriter())->write($processed);
         $t->contains('<p>Review cites [3, 1, p. 9, 2] for source numbering.</p>', $blocks);
-        $t->contains('<dt>Alpha 2024</dt><dd><div class="csl-entry"><div class="csl-left-margin">[1]</div><div class="csl-right-inline">Alpha, A. Alpha Packet. 2024.</div></div></dd>', $blocks);
-        $t->contains('<dt>Middle 2025</dt><dd><div class="csl-entry"><div class="csl-left-margin">[2]</div><div class="csl-right-inline">Middle, M. Middle Packet. 2025.</div></div></dd>', $blocks);
-        $t->contains('<dt>Zeta 2026</dt><dd><div class="csl-entry"><div class="csl-left-margin">[3]</div><div class="csl-right-inline">Zeta, Z. Zeta Packet. 2026.</div></div></dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Alpha 2024', '<div class="csl-entry"><div class="csl-left-margin">[1]</div><div class="csl-right-inline">Alpha, A. Alpha Packet. 2024.</div></div>');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Middle 2025', '<div class="csl-entry"><div class="csl-left-margin">[2]</div><div class="csl-right-inline">Middle, M. Middle Packet. 2025.</div></div>');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Zeta 2026', '<div class="csl-entry"><div class="csl-left-margin">[3]</div><div class="csl-right-inline">Zeta, Z. Zeta Packet. 2026.</div></div>');
 
         $numbered = $processor->apply($document);
         $group = $numbered->children[0]->children[1] ?? null;
@@ -19225,9 +19251,9 @@ XML
         $document = (new MarkdownReader())->read('Text citation numbers [@zeta; @alpha; @middle] keep CSL text forms.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Numbered Sources'));
         $t->contains('<p>Text citation numbers (3rd; 1st; 2nd) keep CSL text forms.</p>', $blocks);
-        $t->contains('<dt>Alpha 2024</dt><dd><div class="csl-entry"><div class="csl-left-margin">[i]</div><div class="csl-right-inline">Alpha, A. Alpha Packet. 2024.</div></div></dd>', $blocks);
-        $t->contains('<dt>Middle 2025</dt><dd><div class="csl-entry"><div class="csl-left-margin">[ii]</div><div class="csl-right-inline">Middle, M. Middle Packet. 2025.</div></div></dd>', $blocks);
-        $t->contains('<dt>Zeta 2026</dt><dd><div class="csl-entry"><div class="csl-left-margin">[iii]</div><div class="csl-right-inline">Zeta, Z. Zeta Packet. 2026.</div></div></dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Alpha 2024', '<div class="csl-entry"><div class="csl-left-margin">[i]</div><div class="csl-right-inline">Alpha, A. Alpha Packet. 2024.</div></div>');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Middle 2025', '<div class="csl-entry"><div class="csl-left-margin">[ii]</div><div class="csl-right-inline">Middle, M. Middle Packet. 2025.</div></div>');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Zeta 2026', '<div class="csl-entry"><div class="csl-left-margin">[iii]</div><div class="csl-right-inline">Zeta, Z. Zeta Packet. 2026.</div></div>');
     },
     'formats bounded csl numeric text variables with number forms' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
@@ -19331,8 +19357,8 @@ XML);
 
         $t->contains('<li id="fn-a" data-pandoc-note-label="a"><p>Initial footnote cites Smith 2026.</p>', $blocks);
         $t->contains('<li id="fn-c" data-pandoc-note-label="c"><p>Repeated footnote cites first-note first locator 9th edition iii.</p>', $blocks);
-        $t->contains('<dt>Smith 2026</dt><dd>Numeric Text Source A. pages xii, xviii &amp; xx. edition third. number 2nd-4th.</dd>', $blocks);
-        $t->contains('<dt>Ng 2025</dt><dd>Numeric Text Source B. pages A7. edition Second. number Review 8.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Smith 2026', 'Numeric Text Source A. pages xii, xviii &amp; xx. edition third. number 2nd-4th.');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2025', 'Numeric Text Source B. pages A7. edition Second. number Review 8.');
     },
     'collapses bounded csl citation-number ranges for numeric styles' => static function (TestRunner $t): void {
         $items = [
@@ -19465,8 +19491,8 @@ XML
         $t->contains("<p>Collapsed range cites [1{$dash}5].</p>", $blocks);
         $t->contains('<p>Descending review order keeps source order [5, 4, 3].</p>', $blocks);
         $t->contains("<p>Locator boundary cites [1{$dash}3, 4, p. 9, 5].</p>", $blocks);
-        $t->contains('<dt>Alpha 2024</dt><dd><div class="csl-entry"><div class="csl-left-margin">[1]</div><div class="csl-right-inline">Alpha, A. Alpha Packet.</div></div></dd>', $blocks);
-        $t->contains('<dt>Epsilon 2028</dt><dd><div class="csl-entry"><div class="csl-left-margin">[5]</div><div class="csl-right-inline">Epsilon, E. Epsilon Packet.</div></div></dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Alpha 2024', '<div class="csl-entry"><div class="csl-left-margin">[1]</div><div class="csl-right-inline">Alpha, A. Alpha Packet.</div></div>');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Epsilon 2028', '<div class="csl-entry"><div class="csl-left-margin">[5]</div><div class="csl-right-inline">Epsilon, E. Epsilon Packet.</div></div>');
     },
     'applies bounded csl citation position conditionals for repeated cites' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
@@ -19616,7 +19642,7 @@ XML
         $t->contains('<p>Different locator (ibid, p. 2).</p>', $blocks);
         $t->contains('<p>Within cluster (Ng 2025; ibid, p. 5).</p>', $blocks);
         $t->contains('<p>After multi (subsequent, Ng 2025).</p>', $blocks);
-        $t->contains('<dt>de la Cruz 2026</dt><dd>de la Cruz, Ana Maria. Position Source A.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'de la Cruz 2026', 'de la Cruz, Ana Maria. Position Source A.');
 
         $t->same('(de la Cruz 2026, p. 1; ibid, p. 2)', $processor->renderCitationCluster([
             new AstNode('citation', ['id' => 'source-a', 'text' => '[@source-a]', 'locator' => 'p. 1']),
@@ -19763,7 +19789,7 @@ XML
         $t->contains('<li id="fn-c" data-pandoc-note-label="c"><p>Nearby footnote cites (near-note de la Cruz 2026).</p>', $blocks);
         $t->contains('<li id="fn-d" data-pandoc-note-label="d"><p>Nearby bridge footnote cites (near-note Ng 2025).</p>', $blocks);
         $t->contains('<li id="fn-f" data-pandoc-note-label="f"><p>Far footnote cites (subsequent de la Cruz 2026).</p>', $blocks);
-        $t->contains('<dt>de la Cruz 2026</dt><dd>de la Cruz, Ana Maria. Near Note Source A.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'de la Cruz 2026', 'de la Cruz, Ana Maria. Near Note Source A.');
 
         $explicit = new AstNode('document', [], [
             new AstNode('paragraph', [], [
@@ -19876,7 +19902,7 @@ XML
 
         $blocks = (new WordPressBlockWriter())->write($processed);
         $t->contains('<p>Review cites de la Cruz (2026) for second-field bibliography output.</p>', $blocks);
-        $t->contains('<dt>de la Cruz 2026</dt><dd><div class="csl-entry"><div class="csl-left-margin csl-font-weight-bold" style="font-weight:bold">[source-packet]</div><div class="csl-right-inline csl-font-style-italic csl-font-variant-small-caps" style="font-style:italic;font-variant:small-caps">de la Cruz, A. M. Source Packet. 2026.</div><div class="csl-indent csl-text-decoration-underline" style="text-decoration:underline">Review note: Attachment needs review.</div><div class="csl-block csl-font-weight-light csl-vertical-align-sup" style="font-weight:300;vertical-align:super">Source: https://example.test/source-packet</div></div></dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'de la Cruz 2026', '<div class="csl-entry"><div class="csl-left-margin csl-font-weight-bold" style="font-weight:bold">[source-packet]</div><div class="csl-right-inline csl-font-style-italic csl-font-variant-small-caps" style="font-style:italic;font-variant:small-caps">de la Cruz, A. M. Source Packet. 2026.</div><div class="csl-indent csl-text-decoration-underline" style="text-decoration:underline">Review note: Attachment needs review.</div><div class="csl-block csl-font-weight-light csl-vertical-align-sup" style="font-weight:300;vertical-align:super">Source: https://example.test/source-packet</div></div>');
 
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslStyle(
             <<<'XML'
@@ -19968,7 +19994,7 @@ XML
         $t->contains('Vale 2026' . "\n" . ':   \[format-source\] Format Packet. 2026. Source: https://example.test/format-source', $markdown);
 
         $blocks = (new WordPressBlockWriter())->write($processed);
-        $t->contains('<dt>Vale 2026</dt><dd><div class="csl-entry"><div class="csl-left-margin csl-font-weight-bold" style="font-weight:bold">[format-source]</div><div class="csl-right-inline csl-font-style-italic csl-font-variant-small-caps" style="font-style:italic;font-variant:small-caps">Format Packet. 2026.</div><div class="csl-block csl-text-decoration-underline csl-vertical-align-sub" style="text-decoration:underline;vertical-align:sub">Source: https://example.test/format-source</div></div></dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Vale 2026', '<div class="csl-entry"><div class="csl-left-margin csl-font-weight-bold" style="font-weight:bold">[format-source]</div><div class="csl-right-inline csl-font-style-italic csl-font-variant-small-caps" style="font-style:italic;font-variant:small-caps">Format Packet. 2026.</div><div class="csl-block csl-text-decoration-underline csl-vertical-align-sub" style="text-decoration:underline;vertical-align:sub">Source: https://example.test/format-source</div></div>');
 
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslStyle(
             <<<'XML'
@@ -20058,7 +20084,7 @@ XML
 
         $blocks = (new WordPressBlockWriter())->write($processed);
         $t->contains('<p>Review cites (<span class="csl-font-style-italic" style="font-style:italic">Vale 2026</span>; <span class="csl-font-style-italic" style="font-style:italic">Ng &amp; Sons 2025</span>) before import.</p>', $blocks);
-        $t->contains('<dt>Ng &amp; Sons 2025</dt><dd>Ng &amp; Sons, Nia. Escaped Source Packet. 2025.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng &amp; Sons 2025', 'Ng &amp; Sons, Nia. Escaped Source Packet. 2025.');
     },
     'surfaces nested csl bibliography display parts from macros and choose branches' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
@@ -20150,8 +20176,8 @@ XML
         ], $secondItem->attr('cslDisplayParts'));
 
         $blocks = (new WordPressBlockWriter())->write($processed);
-        $t->contains('<dt>Ng 2026</dt><dd><div class="csl-entry"><div class="csl-left-margin">Ng, N.</div><div class="csl-right-inline">Nested Display Packet. 2026.</div><div class="csl-block">Source: https://example.test/nested-display</div></div></dd>', $blocks);
-        $t->contains('<dt>Olsen 2025</dt><dd><div class="csl-entry"><div class="csl-left-margin">Olsen, I.</div><div class="csl-right-inline">Offline Display Packet. 2025.</div><div class="csl-indent">No source URL</div></div></dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2026', '<div class="csl-entry"><div class="csl-left-margin">Ng, N.</div><div class="csl-right-inline">Nested Display Packet. 2026.</div><div class="csl-block">Source: https://example.test/nested-display</div></div>');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Olsen 2025', '<div class="csl-entry"><div class="csl-left-margin">Olsen, I.</div><div class="csl-right-inline">Offline Display Packet. 2025.</div><div class="csl-indent">No source URL</div></div>');
     },
     'surfaces csl bibliography display parts from names substitutes' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
@@ -20239,8 +20265,8 @@ XML
 
         $blocks = (new WordPressBlockWriter())->write($processed);
         $t->contains('<p>Review cites Diaz (2026) and Title Only Packet (2025) for substitute display output.</p>', $blocks);
-        $t->contains('<dt>Diaz 2026</dt><dd><div class="csl-entry"><div class="csl-right-inline">Named Source Packet. 2026.</div></div></dd>', $blocks);
-        $t->contains('<dt>Title Only Packet 2025</dt><dd><div class="csl-entry"><div class="csl-left-margin csl-font-weight-bold" style="font-weight:bold">Title Only Packet</div><div class="csl-right-inline">2025.</div></div></dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Diaz 2026', '<div class="csl-entry"><div class="csl-right-inline">Named Source Packet. 2026.</div></div>');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Title Only Packet 2025', '<div class="csl-entry"><div class="csl-left-margin csl-font-weight-bold" style="font-weight:bold">Title Only Packet</div><div class="csl-right-inline">2025.</div></div>');
     },
     'suppresses bounded csl variables rendered through names substitutes' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
@@ -20311,8 +20337,8 @@ XML);
         $document = (new MarkdownReader())->read('Substitute suppression cites [@named-source; @title-source] before review.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Substitute suppression cites (Diaz | Named Source Packet | 2026; Title Only Packet | 2025) before review.</p>', $blocks);
-        $t->contains('<dt>Diaz 2026</dt><dd>Diaz, R. :: Named Source Packet :: 2026</dd>', $blocks);
-        $t->contains('<dt>Title Only Packet 2025</dt><dd>Title Only Packet :: 2025</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Diaz 2026', 'Diaz, R. :: Named Source Packet :: 2026');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Title Only Packet 2025', 'Title Only Packet :: 2025');
     },
     'suppresses only rendered bounded csl multi variable names substitutes' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
@@ -20397,8 +20423,8 @@ XML);
         $document = (new MarkdownReader())->read('Multi-variable substitute cites [@edited-translation; @translated-only] before review.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Multi-variable substitute cites (Curator | translated by Tran | Translated Review Packet | 2026; Ivers | Translated Only Packet | 2025) before review.</p>', $blocks);
-        $t->contains('<dt>Curator 2026</dt><dd>Curator, E. :: translated by Tran, M. :: Translated Review Packet :: 2026</dd>', $blocks);
-        $t->contains('<dt>Ivers 2025</dt><dd>Ivers, N. :: Translated Only Packet :: 2025</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Curator 2026', 'Curator, E. :: translated by Tran, M. :: Translated Review Packet :: 2026');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ivers 2025', 'Ivers, N. :: Translated Only Packet :: 2025');
     },
     'suppresses only rendered bounded csl choose substitute variables' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
@@ -20513,8 +20539,8 @@ XML);
 
         $blocks = (new WordPressBlockWriter())->write($processed);
         $t->contains('<p>Choose substitute cites (Diaz | https://example.test/named-source | Named Source Packet | 2026; Title Only Packet | https://example.test/title-source | 2025; https://example.test/url-source | 2024) before review.</p>', $blocks);
-        $t->contains('<dt>Title Only Packet 2025</dt><dd><div class="csl-entry"><div class="csl-left-margin csl-font-weight-bold" style="font-weight:bold">Title Only Packet</div><div class="csl-right-inline">URL https://example.test/title-source</div><div class="csl-block">Year 2025</div></div></dd>', $blocks);
-        $t->contains('<dt>url-source 2024</dt><dd><div class="csl-entry"><div class="csl-left-margin">Source: https://example.test/url-source</div><div class="csl-block">Year 2024</div></div></dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Title Only Packet 2025', '<div class="csl-entry"><div class="csl-left-margin csl-font-weight-bold" style="font-weight:bold">Title Only Packet</div><div class="csl-right-inline">URL https://example.test/title-source</div><div class="csl-block">Year 2025</div></div>');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'url-source 2024', '<div class="csl-entry"><div class="csl-left-margin">Source: https://example.test/url-source</div><div class="csl-block">Year 2024</div></div>');
     },
     'applies bounded csl year suffix disambiguation for ambiguous author dates' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
@@ -20643,9 +20669,9 @@ XML
 
         $blocks = (new WordPressBlockWriter())->write($processed);
         $t->contains('<p>Review cites Smith (2026a), Ng (2026), and (Smith 2026b; Smith 2025) before the bibliography.</p>', $blocks);
-        $t->contains('<dt>Smith 2026a</dt><dd>Smith, A. 2026a. Post Import Packet. https://example.test/post-import.</dd>', $blocks);
-        $t->contains('<dt>Smith 2026b</dt><dd>Smith, A. 2026b. Media Import Packet. https://example.test/media-import.</dd>', $blocks);
-        $t->contains('<dt>Ng 2026</dt><dd>Ng, N. 2026. Ng Import Packet. https://example.test/ng-import.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Smith 2026a', 'Smith, A. 2026a. Post Import Packet. https://example.test/post-import.');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Smith 2026b', 'Smith, A. 2026b. Media Import Packet. https://example.test/media-import.');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2026', 'Ng, N. 2026. Ng Import Packet. https://example.test/ng-import.');
 
         $withoutOption = CitationCslProcessor::fromItems([[
             'id' => 'plain-a',
@@ -20777,8 +20803,8 @@ XML
 
         $blocks = (new WordPressBlockWriter())->write($processed);
         $t->contains('<p>Labelled review packets [WP-POST; WP-MEDIA] keep source labels stable.</p>', $blocks);
-        $t->contains('<dt>WP-POST</dt><dd>WP-POST :: Post Import Packet :: https://example.test/post-import</dd>', $blocks);
-        $t->contains('<dt>WP-MEDIA</dt><dd>WP-MEDIA :: Media Import Packet :: https://example.test/media-import</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'WP-POST', 'WP-POST :: Post Import Packet :: https://example.test/post-import');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'WP-MEDIA', 'WP-MEDIA :: Media Import Packet :: https://example.test/media-import');
     },
     'applies bounded csl citation collapse for author date clusters' => static function (TestRunner $t): void {
         $items = [
@@ -21062,9 +21088,9 @@ XML
         $processed = $suffixProcessor->appendBibliography($document, 'Works Cited');
         $blocks = (new WordPressBlockWriter())->write($processed);
         $t->contains('<p>Review cites (Smith 2026a/b | Ng 2026) before the bibliography.</p>', $blocks);
-        $t->contains('<dt>Smith 2026a</dt><dd>Smith, A. 2026a. Post Import Packet. https://example.test/post-import.</dd>', $blocks);
-        $t->contains('<dt>Smith 2026b</dt><dd>Smith, A. 2026b. Media Import Packet. https://example.test/media-import.</dd>', $blocks);
-        $t->contains('<dt>Ng 2026</dt><dd>Ng, N. 2026. Ng Import Packet. https://example.test/ng-import.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Smith 2026a', 'Smith, A. 2026a. Post Import Packet. https://example.test/post-import.');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Smith 2026b', 'Smith, A. 2026b. Media Import Packet. https://example.test/media-import.');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2026', 'Ng, N. 2026. Ng Import Packet. https://example.test/ng-import.');
     },
     'applies bounded csl subsequent author substitute in bibliography handoff' => static function (TestRunner $t) use ($citation): void {
         $processor = CitationCslProcessor::fromItems([
@@ -21147,9 +21173,9 @@ XML);
         $document = (new MarkdownReader())->read('Review cites @smith-post and @smith-media before @ng-2026.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Review cites Smith (2024) and Smith (2025) before Ng (2026).</p>', $blocks);
-        $t->contains('<dt>Smith 2024</dt><dd>Smith, A. 2024. Post Import Packet. https://example.test/post-import.</dd>', $blocks);
-        $t->contains('<dt>Smith 2025</dt><dd>---. 2025. Media Import Packet. https://example.test/media-import.</dd>', $blocks);
-        $t->contains('<dt>Ng 2026</dt><dd>Ng, N. 2026. Ng Import Packet. https://example.test/ng-import.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Smith 2024', 'Smith, A. 2024. Post Import Packet. https://example.test/post-import.');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Smith 2025', '---. 2025. Media Import Packet. https://example.test/media-import.');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2026', 'Ng, N. 2026. Ng Import Packet. https://example.test/ng-import.');
 
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslStyle(<<<'XML'
 <?xml version="1.0" encoding="UTF-8"?>
@@ -21266,9 +21292,9 @@ XML;
 
         $document = (new MarkdownReader())->read('Review cites @partial-a, @partial-b, and @partial-c.');
         $blocks = (new WordPressBlockWriter())->write($partialEach->appendBibliography($document, 'Works Cited'));
-        $t->contains('<dt>Doe et al. 2004</dt><dd>Doe; Stevens; Miller. Partial A.</dd>', $blocks);
-        $t->contains('<dt>Doe et al. 2005</dt><dd>---; ---; Clark. Partial B.</dd>', $blocks);
-        $t->contains('<dt>Doe and Clark 2006</dt><dd>---; Clark. Partial C.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Doe et al. 2004', 'Doe; Stevens; Miller. Partial A.');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Doe et al. 2005', '---; ---; Clark. Partial B.');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Doe and Clark 2006', '---; Clark. Partial C.');
         $t->same('(Doe et al. 2001; Doe et al. 2002)', $completeEach->renderCitationCluster([
             $citation('complete-a', '[@complete-a]'),
             $citation('complete-b', '[@complete-b]'),
@@ -21343,8 +21369,8 @@ XML);
         $document = (new MarkdownReader())->read('Archive source @archive-manual and catalog [@card-catalog] keep shelf locations visible.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Archive source Smith (2026) and catalog (Archive Desk 2025) keep shelf locations visible.</p>', $blocks);
-        $t->contains('<dt>Smith 2026</dt><dd>Smith, Ada. Archive Manual. Review Press, 2026. Call number: NYPL Manuscripts Division, MS 42 Box 7 Folder 3. https://example.test/archive-manual.</dd>', $blocks);
-        $t->contains('<dt>Archive Desk 2025</dt><dd>Archive Desk. Legacy Source Card. 2025. Call number: CARD-17.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Smith 2026', 'Smith, Ada. Archive Manual. Review Press, 2026. Call number: NYPL Manuscripts Division, MS 42 Box 7 Folder 3. https://example.test/archive-manual.');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Archive Desk 2025', 'Archive Desk. Legacy Source Card. 2025. Call number: CARD-17.');
     },
     'maps bounded bibtex shelfmark and archivelocation aliases into csl metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -21428,8 +21454,8 @@ XML);
         $document = (new MarkdownReader())->read('BibTeX shelfmarks [@compact-archive-shelfmark; @hyphen-shelfmark] keep compact archive locations visible.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>BibTeX shelfmarks [Archive Catalog Desk | City Archive | Migration Papers | Box 4 Folder 2 | MS 42 Box 4; Ng | Field Notes Library | Folio A-9] keep compact archive locations visible.</p>', $blocks);
-        $t->contains('<dt>Archive Catalog Desk 2026</dt><dd>Compact Archive Shelfmark Packet :: City Archive:Migration Papers:Box 4 Folder 2 :: MS 42 Box 4</dd>', $blocks);
-        $t->contains('<dt>Ng 2025</dt><dd>Hyphen Shelfmark Packet :: Field Notes Library :: Folio A-9</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Archive Catalog Desk 2026', 'Compact Archive Shelfmark Packet :: City Archive:Migration Papers:Box 4 Folder 2 :: MS 42 Box 4');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2025', 'Hyphen Shelfmark Packet :: Field Notes Library :: Folio A-9');
     },
     'maps bounded direct csl shelfmark aliases into call-number metadata' => static function (TestRunner $t) use ($citation): void {
         $items = [
@@ -21526,9 +21552,9 @@ XML);
         $document = (new MarkdownReader())->read('Shelfmark source [@shelfmark-card; @shelf-mark-card; @camel-shelfmark-card] keeps shelfmarks visible.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Shelfmark source [Repository Desk | City Archive | MS 42 Box 7; Ng | Field Notes Library | Folio A-9; Lee | Vault Archive | Vault B/12] keeps shelfmarks visible.</p>', $blocks);
-        $t->contains('<dt>Repository Desk 2026</dt><dd>Shelfmark Review Card :: MS 42 Box 7</dd>', $blocks);
-        $t->contains('<dt>Ng 2025</dt><dd>Shelf Mark Packet :: Folio A-9</dd>', $blocks);
-        $t->contains('<dt>Lee 2024</dt><dd>Camel Shelfmark Packet :: Vault B/12</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Repository Desk 2026', 'Shelfmark Review Card :: MS 42 Box 7');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2025', 'Shelf Mark Packet :: Folio A-9');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Lee 2024', 'Camel Shelfmark Packet :: Vault B/12');
     },
     'maps bounded biblatex sort override fields into csl ordering metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -21673,8 +21699,8 @@ XML);
         $processed = $styled->appendBibliography($document, 'Works Cited');
         $blocks = (new WordPressBlockWriter())->write($processed);
         $t->contains('<p>Sorted source [Zed | 2026 | Visible Zed Manual; Curator | 2024 | Zebra Visible Source; Curator | 2024 | Alpha Visible Source; Smith | 2026 | Later Visible Source; Smith | 2020 | Earlier Visible Source; Adams | 2020 | Visible Adams Manual] keeps visible metadata unchanged.</p>', $blocks);
-        $zebraPosition = strpos($blocks, '<dt>Curator 2024</dt><dd>Zebra Visible Source :: Alpha Sort Source :: 200-title-zebra</dd>');
-        $alphaPosition = strpos($blocks, '<dt>Curator 2024</dt><dd>Alpha Visible Source :: Zebra Sort Source :: 300-title-alpha</dd>');
+        $zebraPosition = strpos($blocks, '<ul class="pandoc-definition-values"><li>Zebra Visible Source :: Alpha Sort Source :: 200-title-zebra</li></ul>');
+        $alphaPosition = strpos($blocks, '<ul class="pandoc-definition-values"><li>Alpha Visible Source :: Zebra Sort Source :: 300-title-alpha</li></ul>');
         $t->true(is_int($zebraPosition) && is_int($alphaPosition) && $zebraPosition < $alphaPosition, 'Sort-title override should order Curator entries without changing visible titles');
 
         $manual = CitationCslProcessor::fromItems([[
@@ -21763,8 +21789,8 @@ XML);
         $document = (new MarkdownReader())->read('Presort source [@priority-adams; @priority-zed] keeps import queue buckets visible.');
         $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Presort source [Priority Zed Source | aa | 900-priority-zed; Priority Adams Source | zz | 001-priority-adams] keeps import queue buckets visible.</p>', $blocks);
-        $zedPosition = strpos($blocks, '<dt>Zed 2026</dt><dd>Priority Zed Source :: aa :: 900-priority-zed</dd>');
-        $adamsPosition = strpos($blocks, '<dt>Adams 2026</dt><dd>Priority Adams Source :: zz :: 001-priority-adams</dd>');
+        $zedPosition = strpos($blocks, '<ul class="pandoc-definition-values"><li>Priority Zed Source :: aa :: 900-priority-zed</li></ul>');
+        $adamsPosition = strpos($blocks, '<ul class="pandoc-definition-values"><li>Priority Adams Source :: zz :: 001-priority-adams</li></ul>');
         $t->true(is_int($zedPosition) && is_int($adamsPosition) && $zedPosition < $adamsPosition, 'Presort should order bibliography entries before ordinary sort-key values');
 
         $direct = CitationCslProcessor::fromItems([[
@@ -21886,8 +21912,8 @@ XML);
         $document = (new MarkdownReader())->read('Label-prefix source [@label-prefix-zed; @label-prefix-adams] keeps generated bibliography grouping visible.');
         $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Label-prefix source [Adams | Media | a | A | hash-adams; Zed | WP | c | Z | hash-zed] keeps generated bibliography grouping visible.</p>', $blocks);
-        $adamsPosition = strpos($blocks, '<dt>Adams 2025</dt><dd>Adams Prefix Source :: Media :: a :: A :: hash-adams</dd>');
-        $zedPosition = strpos($blocks, '<dt>Zed 2026</dt><dd>Zed Prefix Source :: WP :: c :: Z :: hash-zed</dd>');
+        $adamsPosition = strpos($blocks, '<ul class="pandoc-definition-values"><li>Adams Prefix Source :: Media :: a :: A :: hash-adams</li></ul>');
+        $zedPosition = strpos($blocks, '<ul class="pandoc-definition-values"><li>Zed Prefix Source :: WP :: c :: Z :: hash-zed</li></ul>');
         $t->true(is_int($adamsPosition) && is_int($zedPosition) && $adamsPosition < $zedPosition, 'Label-prefix sort should order WordPress bibliography review entries');
     },
     'maps bounded biblatex index title fields into csl review metadata' => static function (TestRunner $t) use ($citation): void {
@@ -21991,8 +22017,8 @@ XML);
         $document = (new MarkdownReader())->read('Index-title source @index-title-manual and chapter [@inherited-index-chapter] keep generated source indexes reviewable.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Index-title source Smith (2026) and chapter (Ng 2026) keep generated source indexes reviewable.</p>', $blocks);
-        $t->contains('<dt>Smith 2026</dt><dd>Smith, Ada. The Source Audit Companion. Review Press, 2026. Index title: Source Audit Companion, The. Index sort title: Source Audit Companion.</dd>', $blocks);
-        $t->contains('<dt>Ng 2026</dt><dd>Ng, Nia. Checklist Chapter. The Source Audit Companion. Review Press, 2026. 12-18. Index title: Source Audit Companion, The. Index sort title: Source Audit Companion. Crossref: The Source Audit Companion (2026).</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Smith 2026', 'Smith, Ada. The Source Audit Companion. Review Press, 2026. Index title: Source Audit Companion, The. Index sort title: Source Audit Companion.');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2026', 'Ng, Nia. Checklist Chapter. The Source Audit Companion. Review Press, 2026. 12-18. Index title: Source Audit Companion, The. Index sort title: Source Audit Companion. Crossref: The Source Audit Companion (2026).');
     },
     'maps bounded biblatex pagination fields into csl page labels' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -22077,8 +22103,8 @@ XML);
         $document = (new MarkdownReader())->read('Column source @column-source and verse source [@verse-source] keep source page units visible.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Column source Ng (2026) and verse source (Smith 2025) keep source page units visible.</p>', $blocks);
-        $t->contains('<dt>Ng 2026</dt><dd>Ng, Nia. Column Source. Review Ledger. 2026. 12-14. Pagination: column. Book pagination: section.</dd>', $blocks);
-        $t->contains('<dt>Smith 2025</dt><dd>Smith, Ada. Verse Source. Migration Sourcebook. 2025. 4-6. Pagination: verse. Book pagination: page.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2026', 'Ng, Nia. Column Source. Review Ledger. 2026. 12-14. Pagination: column. Book pagination: section.');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Smith 2025', 'Smith, Ada. Verse Source. Migration Sourcebook. 2025. 4-6. Pagination: verse. Book pagination: page.');
     },
     'maps bounded biblatex thesis aliases and thesis type metadata into csl handoff' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -22182,9 +22208,9 @@ XML);
         $document = (new MarkdownReader())->read('Thesis sources @doctoral-import, @masters-import, and [@explicit-thesis] keep degree metadata visible.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Thesis sources Smith (2026), Ng (2025), and (Roe 2024) keep degree metadata visible.</p>', $blocks);
-        $t->contains('<dt>Smith 2026</dt><dd>Smith, Ada. Doctoral Import Study. Migration University, 2026. Thesis type: Doctoral dissertation. https://example.test/doctoral-import.</dd>', $blocks);
-        $t->contains('<dt>Ng 2025</dt><dd>Ng, Nia. Masters Import Study. Source University, 2025. Thesis type: mathesis.</dd>', $blocks);
-        $t->contains('<dt>Roe 2024</dt><dd>Roe, Pat. Explicit Thesis Packet. Archive Institute, 2024. Thesis type: Licentiate thesis.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Smith 2026', 'Smith, Ada. Doctoral Import Study. Migration University, 2026. Thesis type: Doctoral dissertation. https://example.test/doctoral-import.');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2025', 'Ng, Nia. Masters Import Study. Source University, 2025. Thesis type: mathesis.');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Roe 2024', 'Roe, Pat. Explicit Thesis Packet. Archive Institute, 2024. Thesis type: Licentiate thesis.');
     },
     'maps bounded biblatex issue title fields into csl review metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -22264,8 +22290,8 @@ XML);
         $document = (new MarkdownReader())->read('Special issue @special-issue-source and archive issue [@plain-issue-source] keep imported issue titles visible.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Special issue Doe (2026) and archive issue (Roe 2025) keep imported issue titles visible.</p>', $blocks);
-        $t->contains('<dt>Doe 2026</dt><dd>Doe, Jane. Source Packet Study. Journal of Imports. Issue title: Migration Special Issue: Import Desk Reports. Issue title addendum: Editorial packet supplement. 2026. 30-35.</dd>', $blocks);
-        $t->contains('<dt>Roe 2025</dt><dd>Roe, Pat. Plain Issue Source. Migration Notes. Issue title: Archive Review Number. 2025. 7-9.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Doe 2026', 'Doe, Jane. Source Packet Study. Journal of Imports. Issue title: Migration Special Issue: Import Desk Reports. Issue title addendum: Editorial packet supplement. 2026. 30-35.');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Roe 2025', 'Roe, Pat. Plain Issue Source. Migration Notes. Issue title: Archive Review Number. 2025. 7-9.');
     },
     'maps bounded biblatex article number fields into csl review metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -22419,8 +22445,8 @@ XML);
         $document = (new MarkdownReader())->read('Article-number source @article-number-source and explicit source [@explicit-article-number-source] keep imported article IDs visible.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Article-number source Doe (2026) and explicit source (Ng 2025) keep imported article IDs visible.</p>', $blocks);
-        $t->contains('<dt>Doe 2026</dt><dd>Doe, Jane. Numbered Source Packet. Journal of Import Articles. 2026. Article number: e2026-42. DOI 10.5555/article-number.</dd>', $blocks);
-        $t->contains('<dt>Ng 2025</dt><dd>Ng, Nia. Explicit Article Number Packet. Migration Notes. 2025. Article number: A-77.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Doe 2026', 'Doe, Jane. Numbered Source Packet. Journal of Import Articles. 2026. Article number: e2026-42. DOI 10.5555/article-number.');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2025', 'Ng, Nia. Explicit Article Number Packet. Migration Notes. 2025. Article number: A-77.');
     },
     'maps bounded biblatex reviewed title references dimensions and scale metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -22552,8 +22578,8 @@ XML);
         $document = (new MarkdownReader())->read('Reviewed work source @reviewed-work-review and direct packet [@direct-review-source] preserve physical review metadata.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Reviewed work source Roe (2026) and direct packet (Ng 2025) preserve physical review metadata.</p>', $blocks);
-        $t->contains('<dt>Roe 2026</dt><dd>Roe, Pat. Review of Imported Block Patterns. Journal of Source Imports. Vol. 7, no. 3. 2026. 70-72. Reviewed title: Block Patterns in the Wild: A Migration Source Atlas. References: Smith 2024, pp. 12-18. Dimensions: 24 x 32 cm. Scale: 1:50000.</dd>', $blocks);
-        $t->contains('<dt>Ng 2025</dt><dd>Ng, Nia. Direct Review Packet. 2025. Reviewed title: Source Atlas. References: Archive ref 42. Dimensions: A4. Scale: 1:2500.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Roe 2026', 'Roe, Pat. Review of Imported Block Patterns. Journal of Source Imports. Vol. 7, no. 3. 2026. 70-72. Reviewed title: Block Patterns in the Wild: A Migration Source Atlas. References: Smith 2024, pp. 12-18. Dimensions: 24 x 32 cm. Scale: 1:50000.');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2025', 'Ng, Nia. Direct Review Packet. 2025. Reviewed title: Source Atlas. References: Archive ref 42. Dimensions: A4. Scale: 1:2500.');
     },
     'maps direct csl reviewed work compact aliases into bibliography metadata' => static function (TestRunner $t) use ($citation): void {
         $processor = CitationCslProcessor::fromItems([
@@ -22629,8 +22655,8 @@ XML);
         $document = (new MarkdownReader())->read('Reviewed compact source @compact-review-source and legacy alias [@compact-reviewedtitle-source] preserve reviewed-work metadata.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Reviewed compact source Roe (2026) and legacy alias (Ng 2025) preserve reviewed-work metadata.</p>', $blocks);
-        $t->contains('<dt>Roe 2026</dt><dd>Roe, Pat. Review of Block Pattern Archives. Journal of Source Imports. 2026. Reviewed title: Block Patterns in the Wild: A Migration Source Atlas. Reviewed genre: source atlas. References: Smith 2024, pp. 12-18. Dimensions: 24 x 32 cm. Scale: 1:50000.</dd>', $blocks);
-        $t->contains('<dt>Ng 2025</dt><dd>Ng, Nia. Direct Reviewed Title Alias. 2025. Reviewed title: Legacy Source Atlas: Foldout Plates. Reviewed genre: facsimile map.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Roe 2026', 'Roe, Pat. Review of Block Pattern Archives. Journal of Source Imports. 2026. Reviewed title: Block Patterns in the Wild: A Migration Source Atlas. Reviewed genre: source atlas. References: Smith 2024, pp. 12-18. Dimensions: 24 x 32 cm. Scale: 1:50000.');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2025', 'Ng, Nia. Direct Reviewed Title Alias. 2025. Reviewed title: Legacy Source Atlas: Foldout Plates. Reviewed genre: facsimile map.');
     },
     'maps bounded biblatex reprint title metadata into csl review packets' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -22713,7 +22739,7 @@ XML);
         $document = (new MarkdownReader())->read('Reprint source @reprint-manual preserves facsimile title metadata.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Reprint source Smith (2026) preserves facsimile title metadata.</p>', $blocks);
-        $t->contains('<dt>Smith 2026</dt><dd>Smith, Ada. Migration Manual. Review Press, 2026. Reprint title: Facsimile Source Packet. Reprint date addendum: photostat source release. Reprint date: 2001-04-05. Original title: Manual de Migración. Original work published 1998. Original publisher: Archive Desk, London.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Smith 2026', 'Smith, Ada. Migration Manual. Review Press, 2026. Reprint title: Facsimile Source Packet. Reprint date addendum: photostat source release. Reprint date: 2001-04-05. Original title: Manual de Migración. Original work published 1998. Original publisher: Archive Desk, London.');
     },
     'maps bounded biblatex custom user and verb fields into csl review metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -22789,7 +22815,7 @@ XML);
         $document = (new MarkdownReader())->read('Custom field source @custom-field-review preserves reviewer data fields.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Custom field source Curator (2026) preserves reviewer data fields.</p>', $blocks);
-        $t->contains('<dt>Curator 2026</dt><dd>Curator, Eli. Custom Field Packet. 2026. BibLaTeX custom fields: usera: Migration batch 42; userb: Needs media review; userf: Reviewer escalation; verba: wp:shortcode [gallery ids=&quot;1,2&quot;]; verbc: source checksum sha256:abc123.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Curator 2026', 'Curator, Eli. Custom Field Packet. 2026. BibLaTeX custom fields: usera: Migration batch 42; userb: Needs media review; userf: Reviewer escalation; verba: wp:shortcode [gallery ids=&quot;1,2&quot;]; verbc: source checksum sha256:abc123.');
 
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([[
             'id' => 'bad-custom',
@@ -22869,7 +22895,7 @@ XML);
         $document = (new MarkdownReader())->read('Custom list source @custom-list-review preserves reviewer list fields.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Custom list source Ng (2026) preserves reviewer list fields.</p>', $blocks);
-        $t->contains('<dt>Ng 2026</dt><dd>Ng, Nia. Custom List Packet. 2026. BibLaTeX custom lists: lista: migration batch; review desk; WordPress import; listc: archive queue; internal QA; listf: source preserved.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2026', 'Ng, Nia. Custom List Packet. 2026. BibLaTeX custom lists: lista: migration batch; review desk; WordPress import; listc: archive queue; internal QA; listf: source preserved.');
 
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([[
             'id' => 'bad-custom-list',
@@ -22976,7 +23002,7 @@ XML);
         $document = (new MarkdownReader())->read('Custom name source @custom-name-review preserves reviewer name fields.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Custom name source Curator (2026) preserves reviewer name fields.</p>', $blocks);
-        $t->contains('<dt>Curator 2026</dt><dd>Curator, Eli. Custom Name Packet. 2026. BibLaTeX custom names: namea: Roe, Pat; Source Review Desk; namec: Ng, Nia.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Curator 2026', 'Curator, Eli. Custom Name Packet. 2026. BibLaTeX custom names: namea: Roe, Pat; Source Review Desk; namec: Ng, Nia.');
 
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([[
             'id' => 'bad-custom-name',
@@ -23047,7 +23073,7 @@ XML);
         $document = (new MarkdownReader())->read('Language option source @language-options-manual keeps BibLaTeX locale switches visible.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Language option source Garcia (2026) keeps BibLaTeX locale switches visible.</p>', $blocks);
-        $t->contains('<dt>Garcia 2026</dt><dd>Garcia, Nia. Language Option Review Manual. Review Press, 2026. BibLaTeX language options: variant=mexican; hyphenation=traditional; sentencecase=false.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Garcia 2026', 'Garcia, Nia. Language Option Review Manual. Review Press, 2026. BibLaTeX language options: variant=mexican; hyphenation=traditional; sentencecase=false.');
     },
     'maps bounded biblatex refsection and refsegment provenance into csl review metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -23142,8 +23168,8 @@ XML);
         $document = (new MarkdownReader())->read('Reference-context source @sectioned-manual and segment [@segment-snapshot] keep review partitions visible.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Reference-context source Smith (2026) and segment (Archive Desk 2025) keep review partitions visible.</p>', $blocks);
-        $t->contains('<dt>Smith 2026</dt><dd>Smith, Ada. Sectioned Review Manual. Review Press, 2026. BibLaTeX reference context: refsection 2; refsegment migration-import.</dd>', $blocks);
-        $t->contains('<dt>Archive Desk 2025</dt><dd>Archive Desk. Segment Snapshot. 2025. BibLaTeX reference context: refsegment media-audit. https://example.test/segment-snapshot.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Smith 2026', 'Smith, Ada. Sectioned Review Manual. Review Press, 2026. BibLaTeX reference context: refsection 2; refsegment migration-import.');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Archive Desk 2025', 'Archive Desk. Segment Snapshot. 2025. BibLaTeX reference context: refsegment media-audit. https://example.test/segment-snapshot.');
     },
     'maps bounded biblatex keyword lists into csl review metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -23231,8 +23257,8 @@ XML);
         $document = (new MarkdownReader())->read('Keyword source @keyword-manual and snapshot [@keyword-snapshot] keep review tags visible.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Keyword source Smith (2026) and snapshot (Archive Desk 2025) keep review tags visible.</p>', $blocks);
-        $t->contains('<dt>Smith 2026</dt><dd>Smith, Ada. Keyword Review Manual. Review Press, 2026. Keywords: wordpress; data liberation; source audit.</dd>', $blocks);
-        $t->contains('<dt>Archive Desk 2025</dt><dd>Archive Desk. Keyword Snapshot. 2025. Keywords: media audit; block imports; needs review. https://example.test/keyword-snapshot.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Smith 2026', 'Smith, Ada. Keyword Review Manual. Review Press, 2026. Keywords: wordpress; data liberation; source audit.');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Archive Desk 2025', 'Archive Desk. Keyword Snapshot. 2025. Keywords: media audit; block imports; needs review. https://example.test/keyword-snapshot.');
     },
     'maps bounded biblatex category lists into csl review metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -23312,8 +23338,8 @@ XML);
         $document = (new MarkdownReader())->read('Category source @category-manual and snapshot [@category-snapshot] keep review buckets visible.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Category source Smith (2026) and snapshot (Archive Desk 2025) keep review buckets visible.</p>', $blocks);
-        $t->contains('<dt>Smith 2026</dt><dd>Smith, Ada. Category Review Manual. Review Press, 2026. Categories: migration review; source audit.</dd>', $blocks);
-        $t->contains('<dt>Archive Desk 2025</dt><dd>Archive Desk. Category Snapshot. 2025. Categories: media audit; block imports; needs review. https://example.test/category-snapshot.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Smith 2026', 'Smith, Ada. Category Review Manual. Review Press, 2026. Categories: migration review; source audit.');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Archive Desk 2025', 'Archive Desk. Category Snapshot. 2025. Categories: media audit; block imports; needs review. https://example.test/category-snapshot.');
     },
     'maps bounded biblatex division fields into csl review metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -23389,8 +23415,8 @@ XML);
         $document = (new MarkdownReader())->read('Division metadata @division-manual and snapshot [@subdivision-snapshot] stays reviewable.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Division metadata Smith (2026) and snapshot (Archive Desk 2025) stays reviewable.</p>', $blocks);
-        $t->contains('<dt>Smith 2026</dt><dd>Smith, Ada. Division Review Manual. Review Press, 2026. Division: Archive Division.</dd>', $blocks);
-        $t->contains('<dt>Archive Desk 2025</dt><dd>Archive Desk. Subdivision Snapshot. 2025. Division: Media Migration Unit. https://example.test/subdivision-snapshot.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Smith 2026', 'Smith, Ada. Division Review Manual. Review Press, 2026. Division: Archive Division.');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Archive Desk 2025', 'Archive Desk. Subdivision Snapshot. 2025. Division: Media Migration Unit. https://example.test/subdivision-snapshot.');
     },
     'applies bounded csl choose match semantics across multiple condition values' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
@@ -23503,8 +23529,8 @@ XML);
         $document = (new MarkdownReader())->read('Choose conditions [@book-packet, p. 7; @article-packet, sec. 2; @web-packet, vol. 1] keep all/any/none branch semantics.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Choose conditions (type-any | locator-any 7 | Smith; type-any | locator-any 2 | Doe; type-none | locator-none 1 | Archive Desk) keep all/any/none branch semantics.</p>', $blocks);
-        $t->contains('<dt>Smith 2026</dt><dd>type-any | Book Source Packet</dd>', $blocks);
-        $t->contains('<dt>Archive Desk 2024</dt><dd>type-none | Web Source Packet</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Smith 2026', 'type-any | Book Source Packet');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Archive Desk 2024', 'type-none | Web Source Packet');
     },
     'applies bounded csl is creator conditionals for name variables' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
@@ -23624,9 +23650,9 @@ XML);
         $document = (new MarkdownReader())->read('Creator routes [@author-editor-packet; @title-only-packet; @translator-packet] stay visible.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Creator routes (author-editor | Smith | 2026; creator-none | Untitled Packet | 2022; translator-creator | Translator Team | 2023) stay visible.</p>', $blocks);
-        $t->contains('<dt>Smith 2026</dt><dd>Author and Editor Packet :: author-editor</dd>', $blocks);
-        $t->contains('<dt>Untitled Packet 2022</dt><dd>Untitled Packet :: creator-none</dd>', $blocks);
-        $t->contains('<dt>Translator Team 2023</dt><dd>Translator Packet :: translator-creator</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Smith 2026', 'Author and Editor Packet :: author-editor');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Untitled Packet 2022', 'Untitled Packet :: creator-none');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Translator Team 2023', 'Translator Packet :: translator-creator');
 
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslStyle(<<<'XML'
 <?xml version="1.0" encoding="UTF-8"?>
@@ -23743,8 +23769,8 @@ XML);
         $document = (new MarkdownReader())->read('Custom name routes [@custom-name-packet; @plain-name-packet] remain visible.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Custom name routes (custom-both | Review Desk | Custom Name Packet | 2026; custom-none | Plain Desk | Plain Packet | 2024) remain visible.</p>', $blocks);
-        $t->contains('<dd>Custom Name Packet :: custom-both :: Review Desk</dd>', $blocks);
-        $t->contains('<dd>Plain Packet :: custom-none :: Plain Desk</dd>', $blocks);
+        pandocTestAssertDefinitionValue($t, $blocks, 'Custom Name Packet :: custom-both :: Review Desk');
+        pandocTestAssertDefinitionValue($t, $blocks, 'Plain Packet :: custom-none :: Plain Desk');
     },
     'applies bounded csl is creator conditionals for extended creator roles' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
@@ -23854,10 +23880,10 @@ XML);
         $document = (new MarkdownReader())->read('Extended creator routes [@founder-source; @continuator-reviser-source; @collaborator-source; @plain-source] stay visible.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Extended creator routes (founded | Roe; continued-and-revised | Ng; collaborated | Source Review Desk; no-extended-creator | Plain Packet) stay visible.</p>', $blocks);
-        $t->contains('<dt>Founder Packet 2026</dt><dd>Founder Packet :: founded</dd>', $blocks);
-        $t->contains('<dt>Continuator Reviser Packet 2025</dt><dd>Continuator Reviser Packet :: continued-and-revised</dd>', $blocks);
-        $t->contains('<dt>Collaborator Packet 2024</dt><dd>Collaborator Packet :: collaborated</dd>', $blocks);
-        $t->contains('<dt>Plain Packet 2023</dt><dd>Plain Packet :: no-extended-creator</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Founder Packet 2026', 'Founder Packet :: founded');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Continuator Reviser Packet 2025', 'Continuator Reviser Packet :: continued-and-revised');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Collaborator Packet 2024', 'Collaborator Packet :: collaborated');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Plain Packet 2023', 'Plain Packet :: no-extended-creator');
     },
     'rejects bounded csl choose else branches without rendering elements' => static function (TestRunner $t): void {
         $valid = CitationCslProcessor::fromItems([
@@ -24010,7 +24036,7 @@ XML);
         $blocks = (new WordPressBlockWriter())->write($processed);
         $t->contains('<li id="fn-1"><p>Footnote cites Smith, 2026.</p>', $blocks);
         $t->contains('<li id="fn-2"><p>Endnote cites Ng, 2025.</p>', $blocks);
-        $t->contains('<dt>Smith 2026</dt><dd>Smith, Ada. Footnote Source Packet.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Smith 2026', 'Smith, Ada. Footnote Source Packet.');
     },
     'renders bounded csl first reference note number for note-style citations' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
@@ -24108,7 +24134,7 @@ XML);
         $blocks = (new WordPressBlockWriter())->write($processed);
         $t->contains('<li id="fn-a" data-pandoc-note-label="a"><p>Initial footnote cites Smith 2026.</p>', $blocks);
         $t->contains('<li id="fn-c" data-pandoc-note-label="c"><p>Repeated footnote cites first-note 1st raw 1 Smith 2026.</p>', $blocks);
-        $t->contains('<dt>Smith 2026</dt><dd>Smith, Ada. First Note Source A.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Smith 2026', 'Smith, Ada. First Note Source A.');
     },
     'renders bounded csl first reference note numbers in note bibliography handoff' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
@@ -24225,9 +24251,9 @@ XML);
 
         $blocks = (new WordPressBlockWriter())->write($processed);
         $t->contains('<li id="fn-c" data-pandoc-note-label="c"><p>Repeated footnote cites first-note 1st raw 1 Smith 2026, p. 9; Roe 2024.</p>', $blocks);
-        $t->contains('<dt>Ng 2025</dt><dd>first-note 2nd raw 2. Ng, Nia. First Note Source B.</dd>', $blocks);
-        $t->contains('<dt>Roe 2024</dt><dd>first-note 3rd raw 3. Roe, Pat. Later Note Source C.</dd>', $blocks);
-        $t->contains('<dt>Smith 2026</dt><dd>first-note 1st raw 1. Smith, Ada. First Note Source A.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2025', 'first-note 2nd raw 2. Ng, Nia. First Note Source B.');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Roe 2024', 'first-note 3rd raw 3. Roe, Pat. Later Note Source C.');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Smith 2026', 'first-note 1st raw 1. Smith, Ada. First Note Source A.');
     },
     'sorts bounded csl note bibliography by first reference note number' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
@@ -24312,9 +24338,9 @@ XML);
         $t->contains('<li id="fn-m" data-pandoc-note-label="m"><p>Middle second #2 Middle 2025.</p>', $blocks);
         $t->contains('<li id="fn-a" data-pandoc-note-label="a"><p>Alpha late #3 Alpha 2024.</p>', $blocks);
 
-        $zetaPosition = strpos($blocks, '<dt>Zeta 2026</dt><dd>1 :: #1 :: Zeta, Zoe :: Zeta First Packet</dd>');
-        $middlePosition = strpos($blocks, '<dt>Middle 2025</dt><dd>2 :: #2 :: Middle, Mia :: Middle Second Packet</dd>');
-        $alphaPosition = strpos($blocks, '<dt>Alpha 2024</dt><dd>3 :: #3 :: Alpha, Ada :: Alpha Late Packet</dd>');
+        $zetaPosition = strpos($blocks, '<ul class="pandoc-definition-values"><li>1 :: #1 :: Zeta, Zoe :: Zeta First Packet</li></ul>');
+        $middlePosition = strpos($blocks, '<ul class="pandoc-definition-values"><li>2 :: #2 :: Middle, Mia :: Middle Second Packet</li></ul>');
+        $alphaPosition = strpos($blocks, '<ul class="pandoc-definition-values"><li>3 :: #3 :: Alpha, Ada :: Alpha Late Packet</li></ul>');
 
         $t->true(is_int($zetaPosition), 'Zeta bibliography entry is present');
         $t->true(is_int($middlePosition), 'Middle bibliography entry is present');
@@ -24394,8 +24420,8 @@ XML);
         $document = (new MarkdownReader())->read('Part source [@part-source; @part-range] keeps part numbering.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Part source (pt. ii (2nd) Smith; pts. iii-iv (3rd-4th) Doe) keeps part numbering.</p>', $blocks);
-        $t->contains('<dt>Smith 2026</dt><dd>Smith, Ada. Migration Part Packet. part 2nd.</dd>', $blocks);
-        $t->contains('<dt>Doe 2025</dt><dd>Doe, Jane. Range Part Packet. parts 3rd-4th.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Smith 2026', 'Smith, Ada. Migration Part Packet. part 2nd.');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Doe 2025', 'Doe, Jane. Range Part Packet. parts 3rd-4th.');
     },
     'normalizes bounded csl part-number field aliases into part metadata' => static function (TestRunner $t): void {
         $bibtex = <<<'BIB'
@@ -24510,9 +24536,9 @@ XML);
         $document = (new MarkdownReader())->read('Part aliases [@direct-part-hyphen; @direct-part-camel; @direct-part-compact] keep CSL part numbering visible.');
         $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Part aliases [Ames | iv | 4th; Bell | v | 5th; Chen | vi | 6th] keep CSL part numbering visible.</p>', $blocks);
-        $t->contains('<dt>Ames 2026</dt><dd>Direct Part Hyphen Packet :: 4 :: iv</dd>', $blocks);
-        $t->contains('<dt>Bell 2025</dt><dd>Direct Part Camel Packet :: 5 :: v</dd>', $blocks);
-        $t->contains('<dt>Chen 2024</dt><dd>Direct Part Compact Packet :: 6 :: vi</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ames 2026', 'Direct Part Hyphen Packet :: 4 :: iv');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Bell 2025', 'Direct Part Camel Packet :: 5 :: v');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Chen 2024', 'Direct Part Compact Packet :: 6 :: vi');
     },
     'renders bounded csl audiovisual creator variables for bibliography handoff' => static function (TestRunner $t): void {
         $bibtex = <<<'BIB'
@@ -24646,8 +24672,8 @@ XML);
         $document = (new MarkdownReader())->read('Audiovisual source [@migration-film; @migration-podcast] keeps production credits visible.');
         $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Audiovisual source (audiovisual | Producer | Performer and Archive Ensemble | Narrator | Host | Guest | Executive | Writer | 2026; conversation | Ng | Roe | 2025) keeps production credits visible.</p>', $blocks);
-        $t->contains('<dt>Migration Review Film 2026</dt><dd>Migration Review Film :: Producer, Pia :: Performer, Pat; Archive Ensemble :: Narrator, Nia :: Host, Hugo :: Guest, Gia :: Executive, Eli :: Writer, Sam :: Producer 1: source credit verified; Script writer 1 family: script credit verified</dd>', $blocks);
-        $t->contains('<dt>Migration Review Podcast 2025</dt><dd>Migration Review Podcast :: Ng, Nia :: Roe, Pat</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Migration Review Film 2026', 'Migration Review Film :: Producer, Pia :: Performer, Pat; Archive Ensemble :: Narrator, Nia :: Host, Hugo :: Guest, Gia :: Executive, Eli :: Writer, Sam :: Producer 1: source credit verified; Script writer 1 family: script credit verified');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Migration Review Podcast 2025', 'Migration Review Podcast :: Ng, Nia :: Roe, Pat');
     },
     'applies bounded csl audiovisual creator role labels' => static function (TestRunner $t): void {
         $bibtex = <<<'BIB'
@@ -24725,8 +24751,8 @@ XML);
         $document = (new MarkdownReader())->read('Production credits [@production-credit-packet; @conversation-credit-packet] keep CSL role labels visible.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Production credits (produced by Producer | perf. by Performer and Archive Ensemble | 2026; hosted by Host | feat. Guest and Roe | 2025) keep CSL role labels visible.</p>', $blocks);
-        $t->contains('<dt>Production Credit Packet 2026</dt><dd>Production Credit Packet :: Producer, P., prod. :: performers: Performer, P.; Archive Ensemble :: narrated by Narrator, N. :: Executive, E., exec. prod. :: written by Writer, S.</dd>', $blocks);
-        $t->contains('<dt>Conversation Credit Packet 2025</dt><dd>Conversation Credit Packet :: hosted by Host, H. :: Guest, G.; Roe, P., guests</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Production Credit Packet 2026', 'Production Credit Packet :: Producer, P., prod. :: performers: Performer, P.; Archive Ensemble :: narrated by Narrator, N. :: Executive, E., exec. prod. :: written by Writer, S.');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Conversation Credit Packet 2025', 'Conversation Credit Packet :: hosted by Host, H. :: Guest, G.; Roe, P., guests');
     },
     'applies bounded csl editorial creator role labels' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
@@ -24839,8 +24865,8 @@ XML);
         $document = (new MarkdownReader())->read('Editorial credits [@editorial-credit-packet; @review-credit-packet] keep CSL role labels visible.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Editorial credits (compiled by Roe and Migration Desk | cur. by Curator | dir. Director | 2026; interview by Interviewer | by Reviewed | to Reader | 2025) keep CSL role labels visible.</p>', $blocks);
-        $t->contains('<dt>Editorial Credit Packet 2026</dt><dd>Editorial Credit Packet :: Roe, P.; Migration Desk, comps. :: curator: Curator, E. :: directed by Director, D. :: ill. by Illustrator, I.</dd>', $blocks);
-        $t->contains('<dt>Review Credit Packet 2025</dt><dd>Review Credit Packet :: chaired by Review Chair :: Collection, C., ed. :: Editorial, E., ed. :: with Open Review Desk :: interview by Interviewer, I. :: by Reviewed, R. :: to Reader, R.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Editorial Credit Packet 2026', 'Editorial Credit Packet :: Roe, P.; Migration Desk, comps. :: curator: Curator, E. :: directed by Director, D. :: ill. by Illustrator, I.');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Review Credit Packet 2025', 'Review Credit Packet :: chaired by Review Chair :: Collection, C., ed. :: Editorial, E., ed. :: with Open Review Desk :: interview by Interviewer, I. :: by Reviewed, R. :: to Reader, R.');
     },
     'applies bounded csl secondary creator role plural labels' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
@@ -24941,7 +24967,7 @@ XML);
         $document = (new MarkdownReader())->read('Secondary credits [@secondary-credit-packet] keep plural CSL role labels visible.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Secondary credits (Roe and Ng, commentators | Lee and Kim, annotators | Diaz, redactors | Review Desk and Iqbal, collaborators | 2026) keep plural CSL role labels visible.</p>', $blocks);
-        $t->contains('<dt>Secondary Credit Packet 2026</dt><dd>Secondary Credit Packet :: Archive Founders Guild, founders :: Singh, T.; Park, E., continuators :: Cruz, C.; Lopez, L., revisers :: Khan, N.; Stone, S., introductions :: Mills, M.; Nash, N., forewords :: Young, Y.; Zed, Z., afterwords</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Secondary Credit Packet 2026', 'Secondary Credit Packet :: Archive Founders Guild, founders :: Singh, T.; Park, E., continuators :: Cruz, C.; Lopez, L., revisers :: Khan, N.; Stone, S., introductions :: Mills, M.; Nash, N., forewords :: Young, Y.; Zed, Z., afterwords');
     },
     'renders bounded csl multi variable names with labels for extended creator roles' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
@@ -25024,7 +25050,7 @@ XML);
         $document = (new MarkdownReader())->read('Extended creator credits [@extended-credit-packet] keep grouped CSL role labels visible.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Extended creator credits (founded by Roe; continued by Ng and Park; revised by Revision Desk; with Source Review Desk and Iqbal | 2026) keep grouped CSL role labels visible.</p>', $blocks);
-        $t->contains('<dt>Extended Credit Packet 2026</dt><dd>Extended Credit Packet :: Roe, P., founder; Ng, N.; Park, E., continuators; Revision Desk, reviser; Source Review Desk; Iqbal, I., collaborators</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Extended Credit Packet 2026', 'Extended Credit Packet :: Roe, P., founder; Ng, N.; Park, E., continuators; Revision Desk, reviser; Source Review Desk; Iqbal, I., collaborators');
     },
     'applies bounded csl version number labels and text forms' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
@@ -25120,9 +25146,9 @@ XML);
         $document = (new MarkdownReader())->read('Versioned imports [@versioned-manual; @version-range; @named-version] keep release numbers visible.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Versioned imports (Smith ver. 2nd; Ng vers. 2nd-4th; Roe version release candidate) keep release numbers visible.</p>', $blocks);
-        $t->contains('<dt>Smith 2026</dt><dd>Versioned Import Manual :: version ii</dd>', $blocks);
-        $t->contains('<dt>Ng 2025</dt><dd>Versioned Export Data :: versions ii-iv</dd>', $blocks);
-        $t->contains('<dt>Roe 2024</dt><dd>Named Channel Build :: version release candidate</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Smith 2026', 'Versioned Import Manual :: version ii');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2025', 'Versioned Export Data :: versions ii-iv');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Roe 2024', 'Named Channel Build :: version release candidate');
     },
     'applies bounded csl section number labels and text forms' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
@@ -25219,9 +25245,9 @@ XML);
         $document = (new MarkdownReader())->read('Sectioned sources [@sectioned-rule; @section-range; @named-section] keep legal and newspaper sections visible.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Sectioned sources (Smith § 2nd roman ii; Ng §§ 3rd-5th roman iii-v; Roe section metro review) keep legal and newspaper sections visible.</p>', $blocks);
-        $t->contains('<dt>Smith 2026</dt><dd>Sectioned Import Rule :: sec. second</dd>', $blocks);
-        $t->contains('<dt>Ng 2025</dt><dd>Section Range Review :: secs. third-fifth</dd>', $blocks);
-        $t->contains('<dt>Roe 2024</dt><dd>Named Section Notice :: sec. metro review</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Smith 2026', 'Sectioned Import Rule :: sec. second');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2025', 'Section Range Review :: secs. third-fifth');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Roe 2024', 'Named Section Notice :: sec. metro review');
     },
     'pluralizes bounded csl contextual labels for semicolon locator lists' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
@@ -25306,8 +25332,8 @@ XML);
         $document = (new MarkdownReader())->read('Section labels [@multi-section; @single-section] stay contextual.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Section labels (Ng 2026; Roe 2025) stay contextual.</p>', $blocks);
-        $t->contains('<dt>Ng 2026</dt><dd>Multi Section Packet :: secs. front matter; migration notes</dd>', $blocks);
-        $t->contains('<dt>Roe 2025</dt><dd>Single Section Notice :: sec. metro review</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2026', 'Multi Section Packet :: secs. front matter; migration notes');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Roe 2025', 'Single Section Notice :: sec. metro review');
     },
     'pluralizes bounded csl contextual labels for count number variables' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
@@ -25416,9 +25442,9 @@ XML);
         $document = (new MarkdownReader())->read('Count labels [@page-count-one; @page-count-many; @page-count-range] stay contextual.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Count labels (Smith p. 1 vol. 1; Ng pp. 20 vols. 4; Roe pp. 11-12 vols. 2-3) stay contextual.</p>', $blocks);
-        $t->contains('<dt>Smith 2026</dt><dd>Single Page Packet :: p. 1 :: vol. 1 :: vol. 2 :: chap. 7</dd>', $blocks);
-        $t->contains('<dt>Ng 2025</dt><dd>Long Review Packet :: pp. 20 :: vols. 4</dd>', $blocks);
-        $t->contains('<dt>Roe 2024</dt><dd>Range Review Packet :: pp. 11-12 :: vols. 2-3</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Smith 2026', 'Single Page Packet :: p. 1 :: vol. 1 :: vol. 2 :: chap. 7');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2025', 'Long Review Packet :: pp. 20 :: vols. 4');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Roe 2024', 'Range Review Packet :: pp. 11-12 :: vols. 2-3');
     },
     'applies bounded csl supplement number labels and text forms' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
@@ -25521,9 +25547,9 @@ XML);
         $document = (new MarkdownReader())->read('Supplemented imports [@supplement-source; @supplement-range; @named-supplement] keep source supplement numbers visible.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Supplemented imports (Smith supp. 2nd roman ii; Ng supps. 3rd-4th roman iii-iv; Roe supplement appendix packet) keep source supplement numbers visible.</p>', $blocks);
-        $t->contains('<dt>Smith 2026</dt><dd>Migration Supplement Packet :: supplement second</dd>', $blocks);
-        $t->contains('<dt>Ng 2025</dt><dd>Range Supplement Packet :: supplements third-fourth</dd>', $blocks);
-        $t->contains('<dt>Roe 2024</dt><dd>Named Supplement Packet :: supplement appendix packet</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Smith 2026', 'Migration Supplement Packet :: supplement second');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2025', 'Range Supplement Packet :: supplements third-fourth');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Roe 2024', 'Named Supplement Packet :: supplement appendix packet');
     },
     'maps bounded bibtex csl source section and supplement fields into rendered variables' => static function (TestRunner $t): void {
         $bibtex = <<<'BIB'
@@ -25625,8 +25651,8 @@ XML);
         $document = (new MarkdownReader())->read('BibTeX source fields [@source-section-rule; @supplement-review] keep imported provenance and locator metadata visible.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>BibTeX source fields (Smith | Legacy Drupal export batch 42 | § 2nd; Ng | MediaWiki export queue | supps. 3rd-4th) keep imported provenance and locator metadata visible.</p>', $blocks);
-        $t->contains('<dt>Smith 2026</dt><dd>Sectioned Import Rule :: Legacy Drupal export batch 42 :: sec. second</dd>', $blocks);
-        $t->contains('<dt>Ng 2025</dt><dd>Supplement Review Packet :: MediaWiki export queue :: supplements third-fourth</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Smith 2026', 'Sectioned Import Rule :: Legacy Drupal export batch 42 :: sec. second');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2025', 'Supplement Review Packet :: MediaWiki export queue :: supplements third-fourth');
     },
     'renders bounded csl source variables for bibliography provenance' => static function (TestRunner $t): void {
         $items = [
@@ -25699,8 +25725,8 @@ XML);
         $document = (new MarkdownReader())->read('Source provenance [@source-provenance; @source-journal] stays visible.');
         $blocks = (new WordPressBlockWriter())->write($defaultProcessor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Source provenance (Smith 2026; Ng 2025) stays visible.</p>', $blocks);
-        $t->contains('<dt>Smith 2026</dt><dd>Smith, Ada. Source Provenance Review. 2026. Source: Legacy Drupal export batch 42.</dd>', $blocks);
-        $t->contains('<dt>Ng 2025</dt><dd>Ng, Nia. Imported Extract. Migration Review. 2025. Source: Internet Archive snapshot.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Smith 2026', 'Smith, Ada. Source Provenance Review. 2026. Source: Legacy Drupal export batch 42.');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2025', 'Ng, Nia. Imported Extract. Migration Review. 2025. Source: Internet Archive snapshot.');
     },
     'applies bounded csl source sort keys to citation and bibliography order' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
@@ -25792,12 +25818,12 @@ XML);
 
         $blocks = (new WordPressBlockWriter())->write($processed);
         $t->contains('<p>Source sorted review [1 | Adams | alpha import queue; 2 | Ng | middle import queue; 3 | Zed | zeta import queue] keeps import queues stable.</p>', $blocks);
-        $t->contains('<dt>Adams 2025</dt><dd>1 :: Early Imported Packet :: alpha import queue</dd>', $blocks);
-        $t->contains('<dt>Ng 2024</dt><dd>2 :: Middle Imported Packet :: middle import queue</dd>', $blocks);
-        $t->contains('<dt>Zed 2026</dt><dd>3 :: Late Imported Packet :: zeta import queue</dd>', $blocks);
-        $earlyPos = strpos($blocks, '<dt>Adams 2025</dt>');
-        $middlePos = strpos($blocks, '<dt>Ng 2024</dt>');
-        $latePos = strpos($blocks, '<dt>Zed 2026</dt>');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Adams 2025', '1 :: Early Imported Packet :: alpha import queue');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2024', '2 :: Middle Imported Packet :: middle import queue');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Zed 2026', '3 :: Late Imported Packet :: zeta import queue');
+        $earlyPos = strpos($blocks, '<p class="pandoc-definition-term"><strong>Adams 2025</strong></p>');
+        $middlePos = strpos($blocks, '<p class="pandoc-definition-term"><strong>Ng 2024</strong></p>');
+        $latePos = strpos($blocks, '<p class="pandoc-definition-term"><strong>Zed 2026</strong></p>');
         $t->true(is_int($earlyPos) && is_int($middlePos) && is_int($latePos) && $earlyPos < $middlePos && $middlePos < $latePos, 'WordPress bibliography entries should follow CSL source sort order');
     },
     'renders bounded csl source title aliases for direct csl json' => static function (TestRunner $t): void {
@@ -25877,10 +25903,10 @@ XML);
         $document = (new MarkdownReader())->read('Source-title aliases [@alpha-source-title; @zeta-source-title] keep import queues sortable.');
         $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Source-title aliases [1 | Zed | Alpha Import Queue; 2 | Adams | Zeta Import Queue] keep import queues sortable.</p>', $blocks);
-        $t->contains('<dt>Zed 2026</dt><dd>1 :: Zeta Source Title Packet :: Alpha Import Queue</dd>', $blocks);
-        $t->contains('<dt>Adams 2025</dt><dd>2 :: Alpha Source Title Packet :: Zeta Import Queue</dd>', $blocks);
-        $zetaPosition = strpos($blocks, '<dt>Zed 2026</dt>');
-        $alphaPosition = strpos($blocks, '<dt>Adams 2025</dt>');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Zed 2026', '1 :: Zeta Source Title Packet :: Alpha Import Queue');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Adams 2025', '2 :: Alpha Source Title Packet :: Zeta Import Queue');
+        $zetaPosition = strpos($blocks, '<p class="pandoc-definition-term"><strong>Zed 2026</strong></p>');
+        $alphaPosition = strpos($blocks, '<p class="pandoc-definition-term"><strong>Adams 2025</strong></p>');
         $t->true(is_int($zetaPosition) && is_int($alphaPosition) && $zetaPosition < $alphaPosition, 'Source-title aliases should sort bibliography entries by normalized source metadata');
     },
     'normalizes bounded direct csl json compact sourcetitle alias' => static function (TestRunner $t): void {
@@ -25959,8 +25985,8 @@ XML);
         $document = (new MarkdownReader())->read('Compact source title aliases [@regular-source-title; @compact-source-title] stay sortable.');
         $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Compact source title aliases [1 | Curator | Compact Import Queue; 2 | Adams | Regular Import Queue] stay sortable.</p>', $blocks);
-        $t->contains('<dt>Curator 2026</dt><dd>1 :: Compact Source Title Packet :: Compact Import Queue</dd>', $blocks);
-        $t->contains('<dt>Adams 2025</dt><dd>2 :: Regular Source Title Packet :: Regular Import Queue</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Curator 2026', '1 :: Compact Source Title Packet :: Compact Import Queue');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Adams 2025', '2 :: Regular Source Title Packet :: Regular Import Queue');
     },
     'applies bounded csl date variable sort keys to citation and bibliography order' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
@@ -26064,12 +26090,12 @@ XML);
 
         $blocks = (new WordPressBlockWriter())->write($processed);
         $t->contains('<p>Date sorted review [1 | Late Event Packet | 2026-06-01 | 2026-06-09 | 2021; 2 | Early Event Packet | 2026-06-01 | 2026-06-03 | 2018; 3 | Late Access Packet | 2026-06-10 | 2026-06-02 | 2019] keeps audit timestamps stable.</p>', $blocks);
-        $t->contains('<dt>Adams 2025</dt><dd>1 :: Late Event Packet :: 2026-06-01 :: 2026-06-09 :: 2021</dd>', $blocks);
-        $t->contains('<dt>Ng 2024</dt><dd>2 :: Early Event Packet :: 2026-06-01 :: 2026-06-03 :: 2018</dd>', $blocks);
-        $t->contains('<dt>Zed 2026</dt><dd>3 :: Late Access Packet :: 2026-06-10 :: 2026-06-02 :: 2019</dd>', $blocks);
-        $lateEventPos = strpos($blocks, '<dt>Adams 2025</dt>');
-        $earlyEventPos = strpos($blocks, '<dt>Ng 2024</dt>');
-        $lateAccessPos = strpos($blocks, '<dt>Zed 2026</dt>');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Adams 2025', '1 :: Late Event Packet :: 2026-06-01 :: 2026-06-09 :: 2021');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2024', '2 :: Early Event Packet :: 2026-06-01 :: 2026-06-03 :: 2018');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Zed 2026', '3 :: Late Access Packet :: 2026-06-10 :: 2026-06-02 :: 2019');
+        $lateEventPos = strpos($blocks, '<p class="pandoc-definition-term"><strong>Adams 2025</strong></p>');
+        $earlyEventPos = strpos($blocks, '<p class="pandoc-definition-term"><strong>Ng 2024</strong></p>');
+        $lateAccessPos = strpos($blocks, '<p class="pandoc-definition-term"><strong>Zed 2026</strong></p>');
         $t->true(is_int($lateEventPos) && is_int($earlyEventPos) && is_int($lateAccessPos) && $lateEventPos < $earlyEventPos && $earlyEventPos < $lateAccessPos, 'WordPress bibliography entries should follow CSL date sort order');
     },
     'renders bounded csl authority as creator names for legal citation handoff' => static function (TestRunner $t): void {
@@ -26156,9 +26182,9 @@ XML);
         $document = (new MarkdownReader())->read('Legal review cites [@scalar-authority; @name-authority; @plain-source] for authority routing.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Legal review cites (authority-creator | Oregon Legislature; authority-creator | Migration Review Court and Appeals Board; no-authority | Plain Source) for authority routing.</p>', $blocks);
-        $t->contains('<dt>Migration Review Act 2026</dt><dd>Migration Review Act :: Oregon Legislature :: Oregon Legislature</dd>', $blocks);
-        $t->contains('<dt>Review Board v. Archive Desk 2025</dt><dd>Review Board v. Archive Desk :: Migration Review Court; Appeals Board :: Migration Review Court; Appeals Board</dd>', $blocks);
-        $t->contains('<dt>Plain Source 2024</dt><dd>Plain Source</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Migration Review Act 2026', 'Migration Review Act :: Oregon Legislature :: Oregon Legislature');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Review Board v. Archive Desk 2025', 'Review Board v. Archive Desk :: Migration Review Court; Appeals Board :: Migration Review Court; Appeals Board');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Plain Source 2024', 'Plain Source');
     },
     'renders bounded csl static ordered authority names in scalar handoff' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
@@ -26226,8 +26252,8 @@ XML);
         $document = (new MarkdownReader())->read('Legal static-order review [@static-authority; @compact-authority] keeps source-order authority names visible.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Legal static-order review (Static Authority Packet | Yamada Taro; Sato Mei, Reporter; Compact Authority Packet | 山田太郎) keeps source-order authority names visible.</p>', $blocks);
-        $t->contains('<dt>Static Authority Packet 2026</dt><dd>Static Authority Packet :: authority: Yamada Taro; Sato Mei, Reporter :: names: Yamada Taro; Sato Mei, Reporter</dd>', $blocks);
-        $t->contains('<dt>Compact Authority Packet 2025</dt><dd>Compact Authority Packet :: authority: 山田太郎 :: names: 山田太郎</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Static Authority Packet 2026', 'Static Authority Packet :: authority: Yamada Taro; Sato Mei, Reporter :: names: Yamada Taro; Sato Mei, Reporter');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Compact Authority Packet 2025', 'Compact Authority Packet :: authority: 山田太郎 :: names: 山田太郎');
     },
     'renders bounded csl printing and supplement number variables' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
@@ -26348,9 +26374,9 @@ XML);
         $document = (new MarkdownReader())->read('Printing metadata [@printing-source; @range-source; @named-source] stays reviewable.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Printing metadata (Smith printing no. 2nd supp. no. i; Ng printing nos. 3rd-4th supp. nos. ii-iii; Roe printing advance press supplement legacy appendix) stays reviewable.</p>', $blocks);
-        $t->contains('<dt>Smith 2026</dt><dd>Second Printing Packet :: printing number second :: supplement number i</dd>', $blocks);
-        $t->contains('<dt>Ng 2025</dt><dd>Range Supplement Packet :: printing numbers third-fourth :: supplement numbers ii-iii</dd>', $blocks);
-        $t->contains('<dt>Roe 2024</dt><dd>Named Supplement Packet :: printing number advance press :: supplement number legacy appendix</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Smith 2026', 'Second Printing Packet :: printing number second :: supplement number i');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2025', 'Range Supplement Packet :: printing numbers third-fourth :: supplement numbers ii-iii');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Roe 2024', 'Named Supplement Packet :: printing number advance press :: supplement number legacy appendix');
     },
     'maps bounded bibtex printing and supplement number fields into csl variables' => static function (TestRunner $t): void {
         $bibtex = <<<'BIB'
@@ -26449,8 +26475,8 @@ XML);
         $document = (new MarkdownReader())->read('BibTeX printing metadata [@printed-manual; @range-manual] stays visible.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>BibTeX printing metadata [Smith printing no. 2nd supp. no. i; Ng printing nos. 3rd-4th supp. nos. ii-iii] stays visible.</p>', $blocks);
-        $t->contains('<dt>Smith 2026</dt><dd>Second Printing Manual :: printing number second :: supplement number i</dd>', $blocks);
-        $t->contains('<dt>Ng 2025</dt><dd>Range Printing Manual :: printing numbers third-fourth :: supplement numbers ii-iii</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Smith 2026', 'Second Printing Manual :: printing number second :: supplement number i');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2025', 'Range Printing Manual :: printing numbers third-fourth :: supplement numbers ii-iii');
     },
     'maps bounded biblatex printing and supplement number fields into csl variables' => static function (TestRunner $t): void {
         $bibtex = <<<'BIB'
@@ -26549,8 +26575,8 @@ XML);
         $document = (new MarkdownReader())->read('BibLaTeX printing metadata [@printing-bibtex; @printing-range-bibtex] stays reviewable.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>BibLaTeX printing metadata (Smith printing no. 2nd supp. no. i; Ng printing nos. 3rd-4th supp. nos. ii-iii) stays reviewable.</p>', $blocks);
-        $t->contains('<dt>Smith 2026</dt><dd>Printed Source Packet :: printing number second :: supplement number i</dd>', $blocks);
-        $t->contains('<dt>Ng 2025</dt><dd>Range Supplement Packet :: printing numbers third-fourth :: supplement numbers ii-iii</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Smith 2026', 'Printed Source Packet :: printing number second :: supplement number i');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2025', 'Range Supplement Packet :: printing numbers third-fourth :: supplement numbers ii-iii');
     },
     'maps bounded bibtex volume and part titles into csl output' => static function (TestRunner $t): void {
         $bibtex = <<<'BIB'
@@ -26644,7 +26670,7 @@ XML;
         $document = (new MarkdownReader())->read('Volume-part source [@volume-part-source] keeps source divisions visible.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Volume-part source [Smith | Review Volume | Archive Part | 2 | 1] keeps source divisions visible.</p>', $blocks);
-        $t->contains('<dt>Smith 2026</dt><dd>Migration Packet Leaf :: Review Volume :: Archive Part :: 2 :: 1</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Smith 2026', 'Migration Packet Leaf :: Review Volume :: Archive Part :: 2 :: 1');
     },
     'maps bounded bibtex csl style title family aliases into csl output' => static function (TestRunner $t): void {
         $bibtex = <<<'BIB'
@@ -26742,7 +26768,7 @@ XML);
         $document = (new MarkdownReader())->read('CSL style title aliases [@hyphen-title-family-source] keep source divisions visible.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>CSL style title aliases [Diaz | Migration Source Set: Reviewer Annex | Alias packet | Review Volume: Packet Appendix | Archive Part | 2 | 1] keep source divisions visible.</p>', $blocks);
-        $t->contains('<dt>Diaz 2026</dt><dd>Migration Packet Leaf :: Migration Source Set: Reviewer Annex :: Alias packet :: Review Volume: Packet Appendix :: Archive Part :: 2 :: 1</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Diaz 2026', 'Migration Packet Leaf :: Migration Source Set: Reviewer Annex :: Alias packet :: Review Volume: Packet Appendix :: Archive Part :: 2 :: 1');
     },
     'composes bounded biblatex part subtitle aliases into csl part titles' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -26822,7 +26848,7 @@ XML);
         $document = (new MarkdownReader())->read('Part subtitle aliases [@compact-part-subtitle; @hyphen-part-subtitle] stay composed for review.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Part subtitle aliases [Smith | Archive Part: Field Notes | 1; Roe | Hyphen Part: Review Leaf | 2] stay composed for review.</p>', $blocks);
-        $t->contains('<dt>Smith 2026</dt><dd>Compact Part Subtitle Packet :: Archive Part: Field Notes :: 1</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Smith 2026', 'Compact Part Subtitle Packet :: Archive Part: Field Notes :: 1');
     },
     'sorts bounded csl numeric variables as integers for citation and bibliography keys' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
@@ -26923,10 +26949,10 @@ XML);
 
         $blocks = (new WordPressBlockWriter())->write($processed);
         $t->contains('<p>Volume review cites (vol. 2 Second Volume Packet; vols. 2-3 Range Volume Packet; vol. 10 Tenth Volume Packet; vol. Special edition Special Volume Packet) before import.</p>', $blocks);
-        $twoBlock = strpos($blocks, '<dt>Ng 2025</dt><dd>Second Volume Packet :: vol. 2</dd>');
-        $rangeBlock = strpos($blocks, '<dt>Diaz 2024</dt><dd>Range Volume Packet :: vols. 2-3</dd>');
-        $tenBlock = strpos($blocks, '<dt>Zed 2026</dt><dd>Tenth Volume Packet :: vol. 10</dd>');
-        $specialBlock = strpos($blocks, '<dt>Vale 2023</dt><dd>Special Volume Packet :: vol. Special edition</dd>');
+        $twoBlock = strpos($blocks, '<ul class="pandoc-definition-values"><li>Second Volume Packet :: vol. 2</li></ul>');
+        $rangeBlock = strpos($blocks, '<ul class="pandoc-definition-values"><li>Range Volume Packet :: vols. 2-3</li></ul>');
+        $tenBlock = strpos($blocks, '<ul class="pandoc-definition-values"><li>Tenth Volume Packet :: vol. 10</li></ul>');
+        $specialBlock = strpos($blocks, '<ul class="pandoc-definition-values"><li>Special Volume Packet :: vol. Special edition</li></ul>');
         $t->true(is_int($twoBlock) && is_int($rangeBlock) && is_int($tenBlock) && is_int($specialBlock), 'WordPress numeric sort bibliography entries should be present');
         $t->true($twoBlock < $rangeBlock && $rangeBlock < $tenBlock && $tenBlock < $specialBlock, 'WordPress bibliography handoff should preserve CSL numeric sort order');
     },
@@ -27038,8 +27064,8 @@ XML);
         $document = (new MarkdownReader())->read('Manual and booklet imports [@migration-manual; @review-booklet] keep type conditionals stable.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Manual and booklet imports [manual | Migration Import Manual | Migration Review Desk; booklet | Reviewer Booklet | Stapled migration handout] keep type conditionals stable.</p>', $blocks);
-        $t->contains('<dt>Migration Review Desk 2026</dt><dd>manual :: Migration Import Manual :: Migration Review Desk :: Portland :: 2nd</dd>', $blocks);
-        $t->contains('<dt>Ng 2025</dt><dd>booklet :: Reviewer Booklet :: Remote review packet :: Stapled migration handout :: Includes legacy captions</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Migration Review Desk 2026', 'manual :: Migration Import Manual :: Migration Review Desk :: Portland :: 2nd');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2025', 'booklet :: Reviewer Booklet :: Remote review packet :: Stapled migration handout :: Includes legacy captions');
     },
     'maps biblatex letter entries to csl personal communication conditionals' => static function (TestRunner $t): void {
         $bibtex = <<<'BIB'
@@ -27122,7 +27148,7 @@ XML);
         $document = (new MarkdownReader())->read('Letter source [@source-letter] keeps personal-communication routing stable.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Letter source [letter | Legacy Source Letter | Review Desk | Preserved from migration mailbox] keeps personal-communication routing stable.</p>', $blocks);
-        $t->contains('<dt>Smith 2026</dt><dd>letter :: Legacy Source Letter :: Smith, Ada :: Review Desk :: Preserved from migration mailbox</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Smith 2026', 'letter :: Legacy Source Letter :: Smith, Ada :: Review Desk :: Preserved from migration mailbox');
     },
     'maps biblatex supplemental periodical entries to csl article journal conditionals' => static function (TestRunner $t): void {
         $bibtex = <<<'BIB'
@@ -27208,7 +27234,7 @@ XML);
         $document = (new MarkdownReader())->read('Supplemental periodical source [@journal-supplement] keeps journal-article routing stable.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Supplemental periodical source [journal supplement | Supplemental Import Notes | Journal of Migration Review | S1 | S3-S9 | Published as online supplement] keeps journal-article routing stable.</p>', $blocks);
-        $t->contains('<dt>Roe 2026</dt><dd>journal supplement :: Supplemental Import Notes :: Journal of Migration Review :: S1 :: S3-S9 :: Published as online supplement</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Roe 2026', 'journal supplement :: Supplemental Import Notes :: Journal of Migration Review :: S1 :: S3-S9 :: Published as online supplement');
     },
     'maps biblatex periodical issue entries to csl article journal conditionals' => static function (TestRunner $t): void {
         $bibtex = <<<'BIB'
@@ -27294,7 +27320,7 @@ XML);
         $document = (new MarkdownReader())->read('Periodical issue source [@review-issue] keeps journal-article routing stable.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Periodical issue source [periodical issue | Migration Review Issue | Journal of Migration Review | 42 | 1-96 | Complete issue queued for import] keeps journal-article routing stable.</p>', $blocks);
-        $t->contains('<dt>Curator 2026</dt><dd>periodical issue :: Migration Review Issue :: Journal of Migration Review :: 42 :: 1-96 :: Complete issue queued for import</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Curator 2026', 'periodical issue :: Migration Review Issue :: Journal of Migration Review :: 42 :: 1-96 :: Complete issue queued for import');
     },
     'maps bibtex misc entries to csl document conditionals' => static function (TestRunner $t): void {
         $bibtex = <<<'BIB'
@@ -27378,7 +27404,7 @@ XML);
         $document = (new MarkdownReader())->read('Misc source [@legacy-misc-packet] keeps generic document routing stable.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Misc source [document | Legacy Misc Source Packet | Exported CMS packet | Queued for reviewer import] keeps generic document routing stable.</p>', $blocks);
-        $t->contains('<dt>Smith 2026</dt><dd>document :: Legacy Misc Source Packet :: Exported CMS packet :: Queued for reviewer import :: https://example.test/legacy-misc</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Smith 2026', 'document :: Legacy Misc Source Packet :: Exported CMS packet :: Queued for reviewer import :: https://example.test/legacy-misc');
     },
     'renders bounded csl camelcase title and publication aliases from direct items' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
@@ -27471,8 +27497,8 @@ XML);
         $document = (new MarkdownReader())->read('Camel alias sources [@camel-chapter; @camel-article] preserve direct publication metadata.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Camel alias sources (Smith | review copy | Migration Handbook | editor packet | Portland; Ng | metadata appendix | Review Journal | online packet | Remote) preserve direct publication metadata.</p>', $blocks);
-        $t->contains('<dt>Smith 2026</dt><dd>Direct Alias Chapter :: review copy :: Migration Handbook :: editor packet :: Portland</dd>', $blocks);
-        $t->contains('<dt>Ng 2025</dt><dd>Direct Alias Article :: metadata appendix :: Review Journal :: online packet :: Remote</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Smith 2026', 'Direct Alias Chapter :: review copy :: Migration Handbook :: editor packet :: Portland');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2025', 'Direct Alias Article :: metadata appendix :: Review Journal :: online packet :: Remote');
     },
     'renders bounded csl camelcase extended creator aliases from direct items' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
@@ -27553,7 +27579,7 @@ XML);
         $document = (new MarkdownReader())->read('Camel creator source [@camel-creator-packet] preserves direct CSL creator aliases.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Camel creator source [Smith | Source Review Forum | Legacy | Director | Reviewer] preserves direct CSL creator aliases.</p>', $blocks);
-        $t->contains('<dt>Smith 2026</dt><dd>Camel Creator Alias Packet :: Source Review Forum :: Legacy, Lina :: Director, Drew :: Reviewer, Rae</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Smith 2026', 'Camel Creator Alias Packet :: Source Review Forum :: Legacy, Lina :: Director, Drew :: Reviewer, Rae');
     },
     'renders bounded csl plural creator aliases from direct items' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
@@ -27642,7 +27668,7 @@ XML);
         $document = (new MarkdownReader())->read('Plural creator source [@plural-creator-packet] preserves direct CSL aliases.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Plural creator source [Smith | Editor | Translator | Plural Review Forum | Director | Reviewer] preserves direct CSL aliases.</p>', $blocks);
-        $t->contains('<dt>Smith 2026</dt><dd>Plural Creator Alias Packet :: Smith, Ada :: Editor, Eli :: Translator, Tess :: Plural Review Forum :: Director, Drew :: Reviewer, Rae</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Smith 2026', 'Plural Creator Alias Packet :: Smith, Ada :: Editor, Eli :: Translator, Tess :: Plural Review Forum :: Director, Drew :: Reviewer, Rae');
     },
     'renders bounded csl archive collection aliases from direct items' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
@@ -27765,9 +27791,9 @@ XML);
         $document = (new MarkdownReader())->read('Archive collections [@archive-city; @archive-field; @archive-legacy] keep reviewer locations visible.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Archive collections (Ng | Field Notes Library | Audit Series | Folder 2; Repository Desk | Legacy Ledgers | Shelf 8; Smith | City Archive | Migration Papers | Portland | Box 4) keep reviewer locations visible.</p>', $blocks);
-        $t->contains('<dt>Ng 2025</dt><dd>Field Notes Packet :: Audit Series :: Field Notes Library:Audit Series:Folder 2</dd>', $blocks);
-        $t->contains('<dt>Repository Desk 2024</dt><dd>Legacy Ledger Packet :: Legacy Ledgers :: Legacy Ledgers:Shelf 8</dd>', $blocks);
-        $t->contains('<dt>Smith 2026</dt><dd>City Archive Packet :: Migration Papers :: City Archive:Migration Papers:Box 4 [Portland]</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2025', 'Field Notes Packet :: Audit Series :: Field Notes Library:Audit Series:Folder 2');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Repository Desk 2024', 'Legacy Ledger Packet :: Legacy Ledgers :: Legacy Ledgers:Shelf 8');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Smith 2026', 'City Archive Packet :: Migration Papers :: City Archive:Migration Papers:Box 4 [Portland]');
     },
     'maps bounded bibtex archive collection fields into csl review metadata' => static function (TestRunner $t): void {
         $bibtex = <<<'BIB'
@@ -27863,8 +27889,8 @@ XML);
         $document = (new MarkdownReader())->read('BibTeX archives [@archive-city; @archive-field] preserve collection folders.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>BibTeX archives (Ng | Field Notes Library | Audit Series | Folder 2; Smith | City Archive | Migration Papers | Portland | Box 4) preserve collection folders.</p>', $blocks);
-        $t->contains('<dt>Ng 2025</dt><dd>Field Notes Packet :: Audit Series :: Field Notes Library:Audit Series:Folder 2</dd>', $blocks);
-        $t->contains('<dt>Smith 2026</dt><dd>City Archive Packet :: Migration Papers :: City Archive:Migration Papers:Box 4 [Portland]</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2025', 'Field Notes Packet :: Audit Series :: Field Notes Library:Audit Series:Folder 2');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Smith 2026', 'City Archive Packet :: Migration Papers :: City Archive:Migration Papers:Box 4 [Portland]');
     },
     'maps bounded biblatex registry identifiers into csl metadata' => static function (TestRunner $t): void {
         $bibtex = <<<'BIB'
@@ -27972,8 +27998,8 @@ XML);
         $document = (new MarkdownReader())->read('Registry identifiers [@math-review; @library-review] stay visible for review.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Registry identifiers (Noether 2026; Archive Library Desk 2025) stay visible for review.</p>', $blocks);
-        $t->contains('<dt>Noether 2026</dt><dd>Noether, Emmy. Invariant Review Packet. Migration Mathematics Review. 2026. MR MR1234567. MR class 13A50. Zbl 1234.56789. JSTOR 10.2307/9999999.</dd>', $blocks);
-        $t->contains('<dt>Archive Library Desk 2025</dt><dd>Archive Library Desk. Catalog Review Manual. Review Press, 2025. HDL 20.500.12345/source-review. LCCN 2026123456. OCLC 987654321.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Noether 2026', 'Noether, Emmy. Invariant Review Packet. Migration Mathematics Review. 2026. MR MR1234567. MR class 13A50. Zbl 1234.56789. JSTOR 10.2307/9999999.');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Archive Library Desk 2025', 'Archive Library Desk. Catalog Review Manual. Review Press, 2025. HDL 20.500.12345/source-review. LCCN 2026123456. OCLC 987654321.');
     },
     'normalizes mathscinet aliases into csl registry metadata' => static function (TestRunner $t): void {
         $bibtex = <<<'BIB'
@@ -28036,7 +28062,7 @@ XML);
         $document = (new MarkdownReader())->read('MathSciNet handoff [@mathscinet-review] stays visible.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>MathSciNet handoff (Tao 2026) stays visible.</p>', $blocks);
-        $t->contains('<dt>Tao 2026</dt><dd>Tao, Terence. Alias Review Lemma. Notices Review. 2026. MR MR246810.</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Tao 2026', 'Tao, Terence. Alias Review Lemma. Notices Review. 2026. MR MR246810.');
     },
     'maps bounded biblatex original publication aliases into csl metadata' => static function (TestRunner $t): void {
         $bibtex = <<<'BIB'
@@ -28159,8 +28185,8 @@ XML);
         $document = (new MarkdownReader())->read('Original alias sources [@hyphen-original; @compact-original] keep source publication metadata visible.');
         $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Original alias sources [Diaz | Manual Fuente: Archivo Appendix | 1999-03 | Archivo Press; Migration Desk | Madrid; Barcelona | spanish; catalan; Ng | Manual Original: Compact Appendix | 2001-04-05 | Legacy Press | Lyon | french] keep source publication metadata visible.</p>', $blocks);
-        $t->contains('<dt>Diaz 2026</dt><dd>Alias Review Manual :: Manual Fuente: Archivo Appendix :: 1999-03 :: Archivo Press; Migration Desk :: Madrid; Barcelona :: spanish; catalan</dd>', $blocks);
-        $t->contains('<dt>Ng 2025</dt><dd>Compact Alias Manual :: Manual Original: Compact Appendix :: 2001-04-05 :: Legacy Press :: Lyon :: french</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Diaz 2026', 'Alias Review Manual :: Manual Fuente: Archivo Appendix :: 1999-03 :: Archivo Press; Migration Desk :: Madrid; Barcelona :: spanish; catalan');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2025', 'Compact Alias Manual :: Manual Original: Compact Appendix :: 2001-04-05 :: Legacy Press :: Lyon :: french');
     },
     'maps bounded biblatex series creator names into csl rendering' => static function (TestRunner $t): void {
         $bibtex = <<<'BIB'
@@ -28237,8 +28263,8 @@ XML);
         $document = (new MarkdownReader())->read('Series creator handoff [@series-creator-packet; @hyphen-series-creator] keeps source series credits visible.');
         $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Series creator handoff [Writer | Series Review Board and Series Curator | Review Series; Alias | Hyphen Series Board] keeps source series credits visible.</p>', $blocks);
-        $t->contains('<dt>Writer 2026</dt><dd>Series Creator Packet :: Series Review Board; Series Curator :: Review Series</dd>', $blocks);
-        $t->contains('<dt>Alias 2025</dt><dd>Hyphen Series Creator Packet :: Hyphen Series Board</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Writer 2026', 'Series Creator Packet :: Series Review Board; Series Curator :: Review Series');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Alias 2025', 'Hyphen Series Creator Packet :: Hyphen Series Board');
     },
     'normalizes bounded direct csl json schema citation variables' => static function (TestRunner $t): void {
         $json = json_encode([
@@ -28396,7 +28422,7 @@ XML);
         $document = (new MarkdownReader())->read('Direct subdivision metadata [@direct-subdivision-alias] remains visible.');
         $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Direct subdivision metadata [Archive Desk | Media Migration Unit] remains visible.</p>', $blocks);
-        $t->contains('<dt>Archive Desk 2026</dt><dd>Direct Subdivision Alias Packet :: Media Migration Unit</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Archive Desk 2026', 'Direct Subdivision Alias Packet :: Media Migration Unit');
     },
     'renders bounded direct csl volume title text aliases with short forms' => static function (TestRunner $t) use ($citation): void {
         $processor = CitationCslProcessor::fromItems([
@@ -28584,9 +28610,9 @@ XML);
         $document = (new MarkdownReader())->read('Direct container aliases [@direct-container-compact; @direct-container-text; @direct-container-flat] keep imported source families visible.');
         $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Direct container aliases [Bell | Source Container Journal | SCJ | Archive Collection | AC; Chen | Compact Container Ledger | CCL | Compact Collection Ledger | C-Series; Ames | Migration Container Review | MCR | Reviewer Series | RS] keep imported source families visible.</p>', $blocks);
-        $t->contains('<dt>Ames 2026</dt><dd>Direct Container Alias Packet :: Migration Container Review :: Reviewer Series :: RS</dd>', $blocks);
-        $t->contains('<dt>Bell 2025</dt><dd>Direct Container Text Alias Packet :: Source Container Journal :: Archive Collection :: AC</dd>', $blocks);
-        $t->contains('<dt>Chen 2024</dt><dd>Direct Container Flat Alias Packet :: Compact Container Ledger :: Compact Collection Ledger :: C-Series</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ames 2026', 'Direct Container Alias Packet :: Migration Container Review :: Reviewer Series :: RS');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Bell 2025', 'Direct Container Text Alias Packet :: Source Container Journal :: Archive Collection :: AC');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Chen 2024', 'Direct Container Flat Alias Packet :: Compact Container Ledger :: Compact Collection Ledger :: C-Series');
     },
     'renders bounded direct csl json collection title short variable aliases' => static function (TestRunner $t) use ($citation): void {
         $json = json_encode([
@@ -28672,8 +28698,8 @@ XML);
         $document = (new MarkdownReader())->read('Collection abbreviations [@direct-collection-short-camel; @direct-collection-short-compact] stay addressable.');
         $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Collection abbreviations [Bell | ASL | ASL | ASL; Ames | MRS | MRS | MRS] stay addressable.</p>', $blocks);
-        $t->contains('<dt>Bell 2025</dt><dd>Compact Collection Short Packet :: ASL :: ASL</dd>', $blocks);
-        $t->contains('<dt>Ames 2026</dt><dd>Camel Collection Short Packet :: MRS :: MRS</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Bell 2025', 'Compact Collection Short Packet :: ASL :: ASL');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ames 2026', 'Camel Collection Short Packet :: MRS :: MRS');
     },
     'normalizes bounded direct csl json compact citation metadata aliases' => static function (TestRunner $t): void {
         $json = json_encode([
@@ -28894,9 +28920,9 @@ XML);
         $document = (new MarkdownReader())->read('Singular alias keys [@direct-singular-alias; @direct-hyphen-backup; @direct-flat-alias] remain canonical.');
         $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Singular alias keys [Single | direct-singular-alias | direct-singular-alias | Direct Singular Alias Packet; Hyphen | direct-hyphen-alias, direct-hyphen-backup | direct-hyphen-alias; direct-hyphen-backup | Direct Hyphen Alias Packet; Flat | direct-flat-alias | direct-flat-alias | Direct Flat Alias Packet] remain canonical.</p>', $blocks);
-        $t->contains('<dt>Single 2026</dt><dd>Direct Singular Alias Packet :: direct-singular-alias :: direct-singular-alias</dd>', $blocks);
-        $t->contains('<dt>Hyphen 2025</dt><dd>Direct Hyphen Alias Packet :: direct-hyphen-alias, direct-hyphen-backup :: direct-hyphen-alias; direct-hyphen-backup</dd>', $blocks);
-        $t->contains('<dt>Flat 2024</dt><dd>Direct Flat Alias Packet :: direct-flat-alias :: direct-flat-alias</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Single 2026', 'Direct Singular Alias Packet :: direct-singular-alias :: direct-singular-alias');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Hyphen 2025', 'Direct Hyphen Alias Packet :: direct-hyphen-alias, direct-hyphen-backup :: direct-hyphen-alias; direct-hyphen-backup');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Flat 2024', 'Direct Flat Alias Packet :: direct-flat-alias :: direct-flat-alias');
     },
     'normalizes bounded direct csl json publisher place aliases' => static function (TestRunner $t): void {
         $json = json_encode([
@@ -29006,10 +29032,10 @@ XML);
         $document = (new MarkdownReader())->read('Publisher place aliases [@direct-pubplace-compact; @direct-publication-place; @direct-address-place; @direct-location-list] remain visible.');
         $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Publisher place aliases [Lane | Review Press | Portland | Portland | Portland || Mora | Archive Press | Berlin | Berlin | Berlin || Rios | Field Press | Madrid | Madrid | Madrid || Nolan | Location Press | Paris; Lyon | Paris; Lyon | Paris; Lyon] remain visible.</p>', $blocks);
-        $t->contains('<dt>Lane 2026</dt><dd>Compact Publisher Place Packet :: Portland :: Portland :: Review Press</dd>', $blocks);
-        $t->contains('<dt>Mora 2025</dt><dd>Publication Place Alias Packet :: Berlin :: Berlin :: Archive Press</dd>', $blocks);
-        $t->contains('<dt>Rios 2024</dt><dd>Address Publisher Place Packet :: Madrid :: Madrid :: Field Press</dd>', $blocks);
-        $t->contains('<dt>Nolan 2023</dt><dd>Location List Publisher Place Packet :: Paris; Lyon :: Paris; Lyon :: Location Press</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Lane 2026', 'Compact Publisher Place Packet :: Portland :: Portland :: Review Press');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Mora 2025', 'Publication Place Alias Packet :: Berlin :: Berlin :: Archive Press');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Rios 2024', 'Address Publisher Place Packet :: Madrid :: Madrid :: Field Press');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Nolan 2023', 'Location List Publisher Place Packet :: Paris; Lyon :: Paris; Lyon :: Location Press');
     },
     'normalizes bounded direct csl json publisher list compact aliases' => static function (TestRunner $t): void {
         $json = json_encode([
@@ -29083,8 +29109,8 @@ XML);
         $document = (new MarkdownReader())->read('Publisher list aliases [@direct-publisher-list-camel; @direct-publisher-list-compact] stay visible.');
         $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Publisher list aliases [Ng | Review Press; Archive Desk | Review Press; Archive Desk; Roe | Field Press; Mirror Desk | Field Press; Mirror Desk] stay visible.</p>', $blocks);
-        $t->contains('<dt>Ng 2026</dt><dd>Camel Publisher List Packet :: Review Press; Archive Desk :: Review Press; Archive Desk</dd>', $blocks);
-        $t->contains('<dt>Roe 2025</dt><dd>Compact Publisher List Packet :: Field Press; Mirror Desk :: Field Press; Mirror Desk</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2026', 'Camel Publisher List Packet :: Review Press; Archive Desk :: Review Press; Archive Desk');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Roe 2025', 'Compact Publisher List Packet :: Field Press; Mirror Desk :: Field Press; Mirror Desk');
     },
     'normalizes bounded direct csl json institution organization and school publisher aliases' => static function (TestRunner $t): void {
         $json = json_encode([
@@ -29179,8 +29205,8 @@ XML);
         $document = (new MarkdownReader())->read('Direct publisher authority aliases [@direct-institution-publisher; @direct-organization-publisher; @direct-school-publisher] stay visible.');
         $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Direct publisher authority aliases [Ng | Archive Institute; Roe | Migration Review Desk; Kim | Source University] stay visible.</p>', $blocks);
-        $t->contains('<dt>Ng 2026</dt><dd>Institution Publisher Packet :: Archive Institute :: Archive Institute</dd>', $blocks);
-        $t->contains('<dt>Kim 2024</dt><dd>School Publisher Packet :: Source University :: Source University</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2026', 'Institution Publisher Packet :: Archive Institute :: Archive Institute');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Kim 2024', 'School Publisher Packet :: Source University :: Source University');
     },
     'normalizes bounded direct csl json institution list publisher aliases' => static function (TestRunner $t): void {
         $json = json_encode([
@@ -29242,7 +29268,7 @@ XML);
         $document = (new MarkdownReader())->read('Institution list aliases [@direct-institution-list] stay visible.');
         $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Institution list aliases [Ives | Archive Institute; Review Bureau | Archive Institute; Review Bureau | Archive Institute; Review Bureau] stay visible.</p>', $blocks);
-        $t->contains('<dt>Ives 2026</dt><dd>Institution List Publisher Packet :: Archive Institute; Review Bureau :: Archive Institute; Review Bureau</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ives 2026', 'Institution List Publisher Packet :: Archive Institute; Review Bureau :: Archive Institute; Review Bureau');
     },
     'normalizes bounded direct csl json organization list publisher aliases' => static function (TestRunner $t): void {
         $json = json_encode([
@@ -29304,7 +29330,7 @@ XML);
         $document = (new MarkdownReader())->read('Organization list aliases [@direct-organization-list] stay visible.');
         $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Organization list aliases [Orr | Migration Review Desk; Audit Office | Migration Review Desk; Audit Office | Migration Review Desk; Audit Office] stay visible.</p>', $blocks);
-        $t->contains('<dt>Orr 2025</dt><dd>Organization List Publisher Packet :: Migration Review Desk; Audit Office :: Migration Review Desk; Audit Office</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Orr 2025', 'Organization List Publisher Packet :: Migration Review Desk; Audit Office :: Migration Review Desk; Audit Office');
     },
     'normalizes bounded direct csl json school list publisher aliases' => static function (TestRunner $t): void {
         $json = json_encode([
@@ -29366,7 +29392,7 @@ XML);
         $document = (new MarkdownReader())->read('School list aliases [@direct-school-list] stay visible.');
         $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>School list aliases [Skye | Source University; Field Lab | Source University; Field Lab | Source University; Field Lab] stay visible.</p>', $blocks);
-        $t->contains('<dt>Skye 2024</dt><dd>School List Publisher Packet :: Source University; Field Lab :: Source University; Field Lab</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Skye 2024', 'School List Publisher Packet :: Source University; Field Lab :: Source University; Field Lab');
     },
     'normalizes bounded direct csl json authority list aliases' => static function (TestRunner $t): void {
         $json = json_encode([
@@ -29434,7 +29460,7 @@ XML);
         $document = (new MarkdownReader())->read('Authority list aliases [@direct-authority-list] stay visible.');
         $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Authority list aliases [Park | Patent Office; Appeals Board | Patent Office; Appeals Board] stay visible.</p>', $blocks);
-        $t->contains('<dt>Park 2023</dt><dd>Authority List Packet :: Patent Office; Appeals Board :: Patent Office; Appeals Board</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Park 2023', 'Authority List Packet :: Patent Office; Appeals Board :: Patent Office; Appeals Board');
     },
     'normalizes bounded direct csl json issuing authority aliases' => static function (TestRunner $t): void {
         $json = json_encode([
@@ -29519,8 +29545,8 @@ XML);
         $document = (new MarkdownReader())->read('Issuing authority aliases [@direct-issuing-authority-camel; @direct-issuing-authority-list] stay visible.');
         $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Issuing authority aliases [Vale | Standards Council | Standards Council; Wong | Health Board; Safety Office | Health Board; Safety Office] stay visible.</p>', $blocks);
-        $t->contains('<dt>Vale 2022</dt><dd>Issuing Authority Camel Packet :: Standards Council :: Standards Council</dd>', $blocks);
-        $t->contains('<dt>Wong 2021</dt><dd>Issuing Authority List Packet :: Health Board; Safety Office :: Health Board; Safety Office</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Vale 2022', 'Issuing Authority Camel Packet :: Standards Council :: Standards Council');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Wong 2021', 'Issuing Authority List Packet :: Health Board; Safety Office :: Health Board; Safety Office');
     },
     'normalizes bounded direct csl json status and taxonomy aliases' => static function (TestRunner $t): void {
         $json = json_encode([
@@ -29630,9 +29656,9 @@ XML);
         $document = (new MarkdownReader())->read('Direct status aliases [@direct-status-camel; @direct-status-hyphen; @direct-status-pubstate] keep taxonomy metadata visible.');
         $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Direct status aliases [Ng | forthcoming | review queue; source audit | csl; taxonomy; handoff; Roe | in press | dataset; audit | direct; json; Kim | preprint | conference; source packet | handoff; review] keep taxonomy metadata visible.</p>', $blocks);
-        $t->contains('<dt>Ng 2026</dt><dd>Direct Status Camel Packet :: forthcoming :: review queue, source audit :: csl; taxonomy; handoff</dd>', $blocks);
-        $t->contains('<dt>Roe 2025</dt><dd>Direct Status Hyphen Packet :: in press :: dataset, audit :: direct; json</dd>', $blocks);
-        $t->contains('<dt>Kim 2024</dt><dd>Direct Status Pubstate Packet :: preprint :: conference, source packet :: handoff; review</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2026', 'Direct Status Camel Packet :: forthcoming :: review queue, source audit :: csl; taxonomy; handoff');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Roe 2025', 'Direct Status Hyphen Packet :: in press :: dataset, audit :: direct; json');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Kim 2024', 'Direct Status Pubstate Packet :: preprint :: conference, source packet :: handoff; review');
     },
     'renders bounded direct csl json import aliases as csl variables' => static function (TestRunner $t): void {
         $json = json_encode([
@@ -29767,8 +29793,8 @@ XML);
         $document = (new MarkdownReader())->read('Import alias variables [@direct-alias-variable-flat-alt; @direct-alias-variable-hyphen-alt; @direct-alias-variable-camel-alt] stay sortable.');
         $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Import alias variables [Ames | accepted | accepted | accepted | review queue; source audit | review queue; source audit | review queue; source audit | direct; csl | direct; csl | direct; csl | direct-alias-variable-camel-alt, direct-alias-variable-camel-legacy | direct-alias-variable-camel-alt, direct-alias-variable-camel-legacy | direct-alias-variable-camel-alt; direct-alias-variable-camel-legacy; Bell | in press | in press | in press | dataset; audit | dataset; audit | dataset; audit | handoff; review | handoff; review | handoff; review | direct-alias-variable-hyphen-alt | direct-alias-variable-hyphen-alt | direct-alias-variable-hyphen-alt; Chen | preprint | preprint | preprint | conference; source packet | conference; source packet | conference; source packet | legacy; compact | legacy; compact | legacy; compact | direct-alias-variable-flat-alt | direct-alias-variable-flat-alt | direct-alias-variable-flat-alt] stay sortable.</p>', $blocks);
-        $t->contains('<dt>Ames 2026</dt><dd>Direct Alias Variable Camel Packet :: accepted :: review queue; source audit :: direct; csl :: direct-alias-variable-camel-alt; direct-alias-variable-camel-legacy</dd>', $blocks);
-        $t->contains('<dt>Chen 2024</dt><dd>Direct Alias Variable Flat Packet :: preprint :: conference; source packet :: legacy; compact :: direct-alias-variable-flat-alt</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ames 2026', 'Direct Alias Variable Camel Packet :: accepted :: review queue; source audit :: direct; csl :: direct-alias-variable-camel-alt; direct-alias-variable-camel-legacy');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Chen 2024', 'Direct Alias Variable Flat Packet :: preprint :: conference; source packet :: legacy; compact :: direct-alias-variable-flat-alt');
     },
     'normalizes bounded direct csl json abstract note aliases' => static function (TestRunner $t): void {
         $json = json_encode([
@@ -29871,9 +29897,9 @@ XML);
         $document = (new MarkdownReader())->read('Direct abstract aliases [@direct-abstract-camel; @direct-abstract-hyphen; @direct-abstract-flat] keep note metadata visible.');
         $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Direct abstract aliases [Ames | Camel abstract packet | Camel annotation packet | Camel note packet; Bell | Hyphen abstract packet | Hyphen annotation packet | Hyphen note packet; Chen | Flat abstract packet | Flat annotation packet | Flat note packet] keep note metadata visible.</p>', $blocks);
-        $t->contains('<dt>Ames 2026</dt><dd>Direct Abstract Camel Packet :: Camel abstract packet :: Camel annotation packet :: Camel note packet</dd>', $blocks);
-        $t->contains('<dt>Bell 2025</dt><dd>Direct Abstract Hyphen Packet :: Hyphen abstract packet :: Hyphen annotation packet :: Hyphen note packet</dd>', $blocks);
-        $t->contains('<dt>Chen 2024</dt><dd>Direct Abstract Flat Packet :: Flat abstract packet :: Flat annotation packet :: Flat note packet</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ames 2026', 'Direct Abstract Camel Packet :: Camel abstract packet :: Camel annotation packet :: Camel note packet');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Bell 2025', 'Direct Abstract Hyphen Packet :: Hyphen abstract packet :: Hyphen annotation packet :: Hyphen note packet');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Chen 2024', 'Direct Abstract Flat Packet :: Flat abstract packet :: Flat annotation packet :: Flat note packet');
     },
     'normalizes bounded direct csl json page extent aliases' => static function (TestRunner $t): void {
         $json = json_encode([
@@ -29986,9 +30012,9 @@ XML);
         $document = (new MarkdownReader())->read('Direct page extent aliases [@direct-pages-alias; @direct-numpages-alias; @direct-page-total-alias] keep page counts visible.');
         $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Direct page extent aliases [Ames | A12-A18 | A12 | 14 | 2; Bell | ii-iv | ii | 3 | 1; Chen | 77 | 77 | 22 | 4] keep page counts visible.</p>', $blocks);
-        $t->contains('<dt>Ames 2026</dt><dd>Direct Pages Alias Packet :: A12-A18 :: A12 :: 14 :: 2</dd>', $blocks);
-        $t->contains('<dt>Bell 2025</dt><dd>Direct NumPages Alias Packet :: ii-iv :: ii :: 3 :: 1</dd>', $blocks);
-        $t->contains('<dt>Chen 2024</dt><dd>Direct Page Total Alias Packet :: 77 :: 77 :: 22 :: 4</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ames 2026', 'Direct Pages Alias Packet :: A12-A18 :: A12 :: 14 :: 2');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Bell 2025', 'Direct NumPages Alias Packet :: ii-iv :: ii :: 3 :: 1');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Chen 2024', 'Direct Page Total Alias Packet :: 77 :: 77 :: 22 :: 4');
     },
     'renders bounded direct csl page extent variable aliases' => static function (TestRunner $t) use ($citation): void {
         $processor = CitationCslProcessor::fromItems([
@@ -30091,9 +30117,9 @@ XML);
         $document = (new MarkdownReader())->read('Direct page extent variable aliases [@direct-style-page-total; @direct-style-numpages; @direct-style-volumes] stay style-visible.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Direct page extent variable aliases [Ames | pp. | 22 | xxii | vols. | 4 | 4; Chen | pp. | 14 | xiv | vols. | 2 | 2; Bell | p. | 1 | i | vol. | 1 | 1] stay style-visible.</p>', $blocks);
-        $amesPosition = strpos($blocks, '<dt>Ames 2026</dt><dd>Direct Style Page Total Packet :: pp. :: 22 :: vols. :: 4</dd>');
-        $chenPosition = strpos($blocks, '<dt>Chen 2024</dt><dd>Direct Style Volumes Packet :: pp. :: 14 :: vols. :: 2</dd>');
-        $bellPosition = strpos($blocks, '<dt>Bell 2025</dt><dd>Direct Style NumPages Packet :: p. :: 1 :: vol. :: 1</dd>');
+        $amesPosition = strpos($blocks, '<ul class="pandoc-definition-values"><li>Direct Style Page Total Packet :: pp. :: 22 :: vols. :: 4</li></ul>');
+        $chenPosition = strpos($blocks, '<ul class="pandoc-definition-values"><li>Direct Style Volumes Packet :: pp. :: 14 :: vols. :: 2</li></ul>');
+        $bellPosition = strpos($blocks, '<ul class="pandoc-definition-values"><li>Direct Style NumPages Packet :: p. :: 1 :: vol. :: 1</li></ul>');
         $t->true($amesPosition !== false && $chenPosition !== false && $bellPosition !== false);
         $t->true($amesPosition < $chenPosition && $chenPosition < $bellPosition, 'Page extent alias sort order is not reflected in WordPress bibliography output');
     },
@@ -30406,8 +30432,8 @@ XML);
         $document = (new MarkdownReader())->read('Hyphen title aliases [@hyphen-title-alias; @hyphen-issue-alias] keep CSL title metadata visible.');
         $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Hyphen title aliases [Alias | Manual Alias | source addendum; Ng | Issue Alias Packet | J. Alias Import. | review annex | Special Alias Issue: Source Reports | editorial packet] keep CSL title metadata visible.</p>', $blocks);
-        $t->contains('<dt>Alias 2026</dt><dd>Migration Manual :: Manual Alias :: source addendum</dd>', $blocks);
-        $t->contains('<dt>Ng 2025</dt><dd>Issue Alias Packet :: J. Alias Import. :: review annex :: Special Alias Issue: Source Reports :: editorial packet</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Alias 2026', 'Migration Manual :: Manual Alias :: source addendum');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2025', 'Issue Alias Packet :: J. Alias Import. :: review annex :: Special Alias Issue: Source Reports :: editorial packet');
     },
     'maps bounded biblatex title text aliases into csl metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -30539,8 +30565,8 @@ XML);
         $document = (new MarkdownReader())->read('BibLaTeX title-text aliases [@biblatex-title-text-hyphen; @biblatex-title-text-compact] remain sortable.');
         $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>BibLaTeX title-text aliases [Roe | Compact Container Journal | Compact Main Corpus | Compact Volume Review | Alpha Compact Part | Compact Collection | 3 | Compact Issue; Ng | Migration Handbook | Main Hyphen Corpus: Source Desk | Volume Hyphen Review: Appendix | Part Hyphen Ledger: Field Notes | Collection Hyphen Series | 7 | Issue Hyphen Packet] remain sortable.</p>', $blocks);
-        $compactPosition = strpos($blocks, '<dt>Roe 2025</dt><dd>Compact Title Text Packet :: Compact Container Journal :: Compact Main Corpus :: Compact Volume Review :: Alpha Compact Part :: Compact Collection :: 3 :: Compact Issue</dd>');
-        $hyphenPosition = strpos($blocks, '<dt>Ng 2026</dt><dd>Source Chapter :: Migration Handbook :: Main Hyphen Corpus: Source Desk :: Volume Hyphen Review: Appendix :: Part Hyphen Ledger: Field Notes :: Collection Hyphen Series :: 7 :: Issue Hyphen Packet :: queue note</dd>');
+        $compactPosition = strpos($blocks, '<ul class="pandoc-definition-values"><li>Compact Title Text Packet :: Compact Container Journal :: Compact Main Corpus :: Compact Volume Review :: Alpha Compact Part :: Compact Collection :: 3 :: Compact Issue</li></ul>');
+        $hyphenPosition = strpos($blocks, '<ul class="pandoc-definition-values"><li>Source Chapter :: Migration Handbook :: Main Hyphen Corpus: Source Desk :: Volume Hyphen Review: Appendix :: Part Hyphen Ledger: Field Notes :: Collection Hyphen Series :: 7 :: Issue Hyphen Packet :: queue note</li></ul>');
         $t->true($compactPosition !== false && $hyphenPosition !== false);
         $t->true($compactPosition < $hyphenPosition, 'Part-title text sort order is not reflected in WordPress bibliography output');
     },
@@ -30630,7 +30656,7 @@ XML);
         $document = (new MarkdownReader())->read('Compact title family aliases [@direct-compact-title-family] remain visible.');
         $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Compact title family aliases [Lopez | Migration Source Compendium | review packet | ARS | 12 | 4 | 320 | 7] remain visible.</p>', $blocks);
-        $t->contains('<dt>Lopez 2026</dt><dd>Compact Title Family Packet :: Migration Source Compendium :: review packet :: Archive Review Series :: ARS :: 12 :: 4 :: 320 :: 7</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Lopez 2026', 'Compact Title Family Packet :: Migration Source Compendium :: review packet :: Archive Review Series :: ARS :: 12 :: 4 :: 320 :: 7');
     },
     'normalizes bounded direct csl json title text family alias precedence' => static function (TestRunner $t) use ($citation): void {
         $json = json_encode([
@@ -30754,9 +30780,9 @@ XML);
         $document = (new MarkdownReader())->read('Title text aliases [@direct-title-text-precedence; @direct-title-text-camel; @direct-title-text-compact] remain sorted.');
         $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Title text aliases [Roe | Compact Only Main Text | Compact Only Volume Text | Alpha Compact Part Text; Lopez | Camel Only Main Text | Camel Only Volume Text | Camel Only Part Text; Ng | Hyphen Main Text | Hyphen Volume Text | Hyphen Part Text] remain sorted.</p>', $blocks);
-        $compactPosition = strpos($blocks, '<dt>Roe 2024</dt><dd>Direct Title Text Compact Packet :: Compact Only Main Text :: Compact Only Volume Text :: Alpha Compact Part Text</dd>');
-        $camelPosition = strpos($blocks, '<dt>Lopez 2025</dt><dd>Direct Title Text Camel Packet :: Camel Only Main Text :: Camel Only Volume Text :: Camel Only Part Text</dd>');
-        $precedencePosition = strpos($blocks, '<dt>Ng 2026</dt><dd>Direct Title Text Alias Precedence Packet :: Hyphen Main Text :: Hyphen Volume Text :: Hyphen Part Text</dd>');
+        $compactPosition = strpos($blocks, '<ul class="pandoc-definition-values"><li>Direct Title Text Compact Packet :: Compact Only Main Text :: Compact Only Volume Text :: Alpha Compact Part Text</li></ul>');
+        $camelPosition = strpos($blocks, '<ul class="pandoc-definition-values"><li>Direct Title Text Camel Packet :: Camel Only Main Text :: Camel Only Volume Text :: Camel Only Part Text</li></ul>');
+        $precedencePosition = strpos($blocks, '<ul class="pandoc-definition-values"><li>Direct Title Text Alias Precedence Packet :: Hyphen Main Text :: Hyphen Volume Text :: Hyphen Part Text</li></ul>');
         $t->true($compactPosition !== false && $camelPosition !== false && $precedencePosition !== false);
         $t->true($compactPosition < $camelPosition && $camelPosition < $precedencePosition, 'Part-title sort order is not reflected in WordPress bibliography output');
     },
@@ -30871,9 +30897,9 @@ XML);
         $document = (new MarkdownReader())->read('Issue title text aliases [@direct-issue-title-text-precedence; @direct-issue-title-text-camel; @direct-issue-title-text-compact] remain sorted.');
         $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Issue title text aliases [Roe | Alpha Compact Issue Text | compact addendum; Lopez | Camel Only Issue Text | camel-only addendum; Ng | Hyphen Issue Text | camel issue addendum] remain sorted.</p>', $blocks);
-        $compactPosition = strpos($blocks, '<dt>Roe 2024</dt><dd>Direct Issue Title Text Compact Packet :: Alpha Compact Issue Text :: Alpha Compact Issue Text :: compact addendum</dd>');
-        $camelPosition = strpos($blocks, '<dt>Lopez 2025</dt><dd>Direct Issue Title Text Camel Packet :: Camel Only Issue Text :: Camel Only Issue Text :: camel-only addendum</dd>');
-        $precedencePosition = strpos($blocks, '<dt>Ng 2026</dt><dd>Direct Issue Title Text Precedence Packet :: Hyphen Issue Text :: Hyphen Issue Text :: camel issue addendum</dd>');
+        $compactPosition = strpos($blocks, '<ul class="pandoc-definition-values"><li>Direct Issue Title Text Compact Packet :: Alpha Compact Issue Text :: Alpha Compact Issue Text :: compact addendum</li></ul>');
+        $camelPosition = strpos($blocks, '<ul class="pandoc-definition-values"><li>Direct Issue Title Text Camel Packet :: Camel Only Issue Text :: Camel Only Issue Text :: camel-only addendum</li></ul>');
+        $precedencePosition = strpos($blocks, '<ul class="pandoc-definition-values"><li>Direct Issue Title Text Precedence Packet :: Hyphen Issue Text :: Hyphen Issue Text :: camel issue addendum</li></ul>');
         $t->true($compactPosition !== false && $camelPosition !== false && $precedencePosition !== false);
         $t->true($compactPosition < $camelPosition && $camelPosition < $precedencePosition, 'Issue-title-text sort order is not reflected in WordPress bibliography output');
     },
@@ -30981,8 +31007,8 @@ XML);
         $document = (new MarkdownReader())->read('Container aliases [@direct-booktitle-alias; @direct-journaltitle-alias; @direct-publication-title-alias] stay visible.');
         $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Container aliases [Ng | Migration Handbook: Reviewer Appendix | Mig. Hdbk. | chapter packet; Ames | Journal of Source Imports: Audit Notes | J. Source Import. | online supplement; Roe | Migration Monthly: Review Channel | Migr. Mon. | field note] stay visible.</p>', $blocks);
-        $t->contains('<dt>Ng 2026</dt><dd>Direct Booktitle Alias Packet :: Migration Handbook: Reviewer Appendix :: Mig. Hdbk. :: chapter packet</dd>', $blocks);
-        $t->contains('<dt>Roe 2024</dt><dd>Direct Publication Alias Packet :: Migration Monthly: Review Channel :: Migr. Mon. :: field note</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2026', 'Direct Booktitle Alias Packet :: Migration Handbook: Reviewer Appendix :: Mig. Hdbk. :: chapter packet');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Roe 2024', 'Direct Publication Alias Packet :: Migration Monthly: Review Channel :: Migr. Mon. :: field note');
     },
     'normalizes bounded direct csl json howpublished medium aliases' => static function (TestRunner $t) use ($citation): void {
         $json = json_encode([
@@ -31072,8 +31098,8 @@ XML);
         $document = (new MarkdownReader())->read('Howpublished aliases [@direct-howpublished-camel; @direct-howpublished-hyphen; @direct-howpublished-flat] stay visible.');
         $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Howpublished aliases [Ames | reviewer archive packet | reviewer archive packet | reviewer archive packet; Bell | institutional handout | institutional handout | institutional handout; Chen | field notebook scan | field notebook scan | field notebook scan] stay visible.</p>', $blocks);
-        $t->contains('<dt>Ames 2026</dt><dd>Direct HowPublished Camel Packet :: reviewer archive packet :: reviewer archive packet</dd>', $blocks);
-        $t->contains('<dt>Chen 2024</dt><dd>Direct Howpublished Flat Packet :: field notebook scan :: field notebook scan</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ames 2026', 'Direct HowPublished Camel Packet :: reviewer archive packet :: reviewer archive packet');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Chen 2024', 'Direct Howpublished Flat Packet :: field notebook scan :: field notebook scan');
     },
     'normalizes bounded direct csl json issue number aliases' => static function (TestRunner $t) use ($citation): void {
         $json = json_encode([
@@ -31186,9 +31212,9 @@ XML);
         $document = (new MarkdownReader())->read('Issue aliases [@direct-issue-number-flat; @direct-issue-number-hyphen; @direct-issue-number-camel] remain canonical.');
         $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Issue aliases [Ames | no. | 2nd | ii | 2; Bell | nos. | 3rd-5th | iii-v | 3-5; Chen | special 7 | Direct Issue Number Flat Packet] remain canonical.</p>', $blocks);
-        $t->contains('<dt>Ames 2026</dt><dd>Direct Issue Number Camel Packet :: no. :: 2nd :: 2</dd>', $blocks);
-        $t->contains('<dt>Bell 2025</dt><dd>Direct Issue Number Hyphen Packet :: nos. :: 3rd-5th :: 3-5</dd>', $blocks);
-        $t->contains('<dt>Chen 2024</dt><dd>Direct Issue Number Flat Packet :: no. :: special 7 :: special 7</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ames 2026', 'Direct Issue Number Camel Packet :: no. :: 2nd :: 2');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Bell 2025', 'Direct Issue Number Hyphen Packet :: nos. :: 3rd-5th :: 3-5');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Chen 2024', 'Direct Issue Number Flat Packet :: no. :: special 7 :: special 7');
     },
     'preserves significant whitespace in csl text value literals' => static function (TestRunner $t) use ($citation): void {
         $processor = CitationCslProcessor::fromItems([[
@@ -31246,7 +31272,7 @@ XML);
         $document = (new MarkdownReader())->read('Literal spacing source [@literal-spacing] keeps CSL separators visible.');
         $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Literal spacing source [Ng  --  2026] keeps CSL separators visible.</p>', $blocks);
-        $t->contains('<dt>Ng 2026</dt><dd>Spacing Packet  /  Ng, Nia  2026</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2026', 'Spacing Packet  /  Ng, Nia  2026');
     },
     'preserves explicit empty csl text value literals without macro fallback' => static function (TestRunner $t) use ($citation): void {
         $processor = CitationCslProcessor::fromItems([[
@@ -31302,7 +31328,7 @@ XML);
         $document = (new MarkdownReader())->read('Empty literal source [@empty-literal] should not resolve a blank macro.');
         $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Empty literal source [Ishikawa 2026] should not resolve a blank macro.</p>', $blocks);
-        $t->contains('<dt>Ishikawa 2026</dt><dd>Empty Literal Packet Ishikawa, Ira</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ishikawa 2026', 'Empty Literal Packet Ishikawa, Ira');
     },
     'normalizes bounded direct csl json camel orig aliases' => static function (TestRunner $t) use ($citation): void {
         $json = json_encode([
@@ -31417,8 +31443,8 @@ XML);
         $document = (new MarkdownReader())->read('Camel orig aliases [@direct-orig-camel; @direct-orig-list-camel] keep original publication metadata visible.');
         $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Camel orig aliases [Ng | Manual Fuente | 1999-03-05 | source date note | Legacy Press | Madrid | spanish | facsimile | Legacy Press | Madrid | spanish; Roe | french; latin | Archive Press; Migration Desk | Paris; Lyon | french; latin] keep original publication metadata visible.</p>', $blocks);
-        $t->contains('<dt>Ng 2026</dt><dd>Direct Orig Camel Packet :: Manual Fuente :: 1999-03-05 :: source date note :: Legacy Press :: Madrid :: spanish :: facsimile</dd>', $blocks);
-        $t->contains('<dt>Roe 2025</dt><dd>Direct Orig List Camel Packet :: Archive Press; Migration Desk :: Paris; Lyon :: french; latin</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2026', 'Direct Orig Camel Packet :: Manual Fuente :: 1999-03-05 :: source date note :: Legacy Press :: Madrid :: spanish :: facsimile');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Roe 2025', 'Direct Orig List Camel Packet :: Archive Press; Migration Desk :: Paris; Lyon :: french; latin');
     },
     'normalizes bounded direct csl json original title subtitle aliases' => static function (TestRunner $t) use ($citation): void {
         $json = json_encode([
@@ -31510,8 +31536,8 @@ XML);
         $document = (new MarkdownReader())->read('Original subtitle aliases [@direct-original-subtitle-compact; @direct-original-subtitle-camel] stay composed.');
         $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Original Subtitle Sources'));
         $t->contains('<p>Original subtitle aliases [Ng | Manual Fuente: Archive Appendix | Archive Appendix; Roe | Review Log: Source Annex | Source Annex] stay composed.</p>', $blocks);
-        $t->contains('<dt>Ng 2026</dt><dd>Direct Original Subtitle Camel Packet :: Manual Fuente: Archive Appendix :: Archive Appendix</dd>', $blocks);
-        $t->contains('<dt>Roe 2025</dt><dd>Direct Original Subtitle Compact Packet :: Review Log: Source Annex :: Source Annex</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2026', 'Direct Original Subtitle Camel Packet :: Manual Fuente: Archive Appendix :: Archive Appendix');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Roe 2025', 'Direct Original Subtitle Compact Packet :: Review Log: Source Annex :: Source Annex');
     },
     'preserves bounded direct csl original and reviewed title raw provenance across alias collisions' => static function (TestRunner $t) use ($citation): void {
         $json = json_encode([
@@ -31631,7 +31657,7 @@ XML);
         $document = (new MarkdownReader())->read('Original and reviewed raw aliases [@direct-original-reviewed-title-collision] stay inspectable.');
         $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Original and reviewed raw aliases [Canonical Original Manual: Canonical Original Appendix | Camel Original Manual | Camel Compact Original Manual | Canonical Original Appendix | Camel Compact Original Appendix | Canonical Reviewed Work | Camel Reviewed Work | Compact Reviewed Work | Camel Compact Reviewed Work] stay inspectable.</p>', $blocks);
-        $t->contains('<dt>Ng 2026</dt><dd>Direct Original Reviewed Collision Packet :: Canonical Original Manual :: Camel Original Manual :: Camel Compact Original Manual :: Canonical Original Appendix :: Camel Compact Original Appendix :: Canonical Reviewed Work :: Camel Reviewed Work :: Compact Reviewed Work :: Camel Compact Reviewed Work</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2026', 'Direct Original Reviewed Collision Packet :: Canonical Original Manual :: Camel Original Manual :: Camel Compact Original Manual :: Canonical Original Appendix :: Camel Compact Original Appendix :: Canonical Reviewed Work :: Camel Reviewed Work :: Compact Reviewed Work :: Camel Compact Reviewed Work');
     },
     'normalizes bounded direct csl json title subtitle family aliases' => static function (TestRunner $t) use ($citation): void {
         $json = json_encode([
@@ -31728,8 +31754,8 @@ XML);
         $document = (new MarkdownReader())->read('Title subtitle aliases [@direct-title-subtitle-camel; @direct-title-subtitle-compact] remain composed.');
         $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Title subtitle aliases [Ng | Migration Source Set: Reviewer Annex | Review Volume: Packet Appendix | Archive Part: Field Notes; Roe | Compact Source Set: Annex Notes | Camel Volume: Source Supplement | Hyphen Part: Archive Leaf] remain composed.</p>', $blocks);
-        $t->contains('<dt>Ng 2026</dt><dd>Direct Title Subtitle Camel Packet :: Migration Source Set: Reviewer Annex :: Review Volume: Packet Appendix :: Archive Part: Field Notes</dd>', $blocks);
-        $t->contains('<dt>Roe 2025</dt><dd>Direct Title Subtitle Compact Packet :: Compact Source Set: Annex Notes :: Camel Volume: Source Supplement :: Hyphen Part: Archive Leaf</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2026', 'Direct Title Subtitle Camel Packet :: Migration Source Set: Reviewer Annex :: Review Volume: Packet Appendix :: Archive Part: Field Notes');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Roe 2025', 'Direct Title Subtitle Compact Packet :: Compact Source Set: Annex Notes :: Camel Volume: Source Supplement :: Hyphen Part: Archive Leaf');
     },
     'preserves bounded direct csl translated title raw provenance across alias collisions' => static function (TestRunner $t) use ($citation): void {
         $json = json_encode([
@@ -31844,7 +31870,7 @@ XML);
         $document = (new MarkdownReader())->read('Translated collision [@direct-translated-title-collision] keeps raw alias provenance visible.');
         $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Translated collision [Canonical Title Translation: Canonical Subtitle Translation | Canonical Title Translation: Canonical Subtitle Translation | Canonical Title Translation: Canonical Subtitle Translation | Canonical Title Translation: Canonical Subtitle Translation | Canonical Title Translation: Canonical Subtitle Translation | Canonical Title Translation: Canonical Subtitle Translation | Canonical Subtitle Translation | Canonical Subtitle Translation | Canonical Subtitle Translation | Canonical Subtitle Translation | Canonical Subtitle Translation | Canonical Subtitle Translation] keeps raw alias provenance visible.</p>', $blocks);
-        $t->contains('<dt>Ng 2026</dt><dd>Direct Translated Collision Packet :: Canonical Title Translation :: Camel Title Translation :: Flat Title Translation :: Hyphen Title Translation :: Camel Title-Translation :: Flat Title-Translation :: Canonical Subtitle Translation :: Camel Subtitle Translation :: Flat Subtitle Translation :: Hyphen Subtitle Translation :: Camel Subtitle-Translation :: Flat Subtitle-Translation</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2026', 'Direct Translated Collision Packet :: Canonical Title Translation :: Camel Title Translation :: Flat Title Translation :: Hyphen Title Translation :: Camel Title-Translation :: Flat Title-Translation :: Canonical Subtitle Translation :: Camel Subtitle Translation :: Flat Subtitle Translation :: Hyphen Subtitle Translation :: Camel Subtitle-Translation :: Flat Subtitle-Translation');
     },
     'honors bounded direct csl translated title alias precedence across title translation variants' => static function (TestRunner $t) use ($citation): void {
         $json = json_encode([
@@ -31943,8 +31969,8 @@ XML);
         $document = (new MarkdownReader())->read('Translated title precedence [@direct-translated-title-camel-precedence; @direct-title-translation-camel-precedence] remains stable.');
         $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Translated title precedence [Ng | Camel Migration Manual: Camel Source Annex | Camel Source Annex | Title Translation Source Annex; Roe | Camel Source Report: Camel Review Appendix | Camel Review Appendix | Camel Review Appendix] remains stable.</p>', $blocks);
-        $t->contains('<dt>Ng 2026</dt><dd>Manual fuente :: Camel Migration Manual: Camel Source Annex :: Camel Source Annex :: Title Translation Source Annex</dd>', $blocks);
-        $t->contains('<dt>Roe 2025</dt><dd>Rapport source :: Camel Source Report: Camel Review Appendix :: Camel Review Appendix :: Camel Review Appendix</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2026', 'Manual fuente :: Camel Migration Manual: Camel Source Annex :: Camel Source Annex :: Title Translation Source Annex');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Roe 2025', 'Rapport source :: Camel Source Report: Camel Review Appendix :: Camel Review Appendix :: Camel Review Appendix');
     },
     'normalizes bounded direct csl json langid aliases into language metadata' => static function (TestRunner $t) use ($citation): void {
         $json = json_encode([
@@ -32034,8 +32060,8 @@ XML);
         $document = (new MarkdownReader())->read('Direct language aliases [@direct-langid-source; @direct-hyphenation-source] remain reviewable.');
         $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Direct language aliases [Roe | french | french | french; Ng | ngerman | ngerman | ngerman] remain reviewable.</p>', $blocks);
-        $t->contains('<dt>Roe 2025</dt><dd>Direct Hyphenation Packet :: french :: french :: french</dd>', $blocks);
-        $t->contains('<dt>Ng 2026</dt><dd>Direct Langid Packet :: ngerman :: ngerman :: ngerman</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Roe 2025', 'Direct Hyphenation Packet :: french :: french :: french');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2026', 'Direct Langid Packet :: ngerman :: ngerman :: ngerman');
     },
     'parses bounded endnote xml records with locator and import diagnostics' => static function (TestRunner $t) use ($citation): void {
         $xml = <<<'XML'
@@ -32119,7 +32145,7 @@ XML;
         $document = (new MarkdownReader())->read('EndNote XML imports cite [see @endnote-xml-article, sec. 4-5].');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>EndNote XML imports cite (see Ng and Roe 2026, sec. 4-5).</p>', $blocks);
-        $t->contains('<dt>Ng and Roe 2026</dt><dd>' . $bibliographyEntry . '</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng and Roe 2026', $bibliographyEntry);
     },
     'parses bounded endnote xml name groups with raw diagnostics' => static function (TestRunner $t) use ($citation): void {
         $xml = <<<'XML'
@@ -32284,7 +32310,7 @@ XML);
         $document = (new MarkdownReader())->read('EndNote XML name import [see @endnote-name-groups, sec. 4-5].');
         $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>EndNote XML name import [see Ng, Migration Review Desk, and Roe | Editor, Curator, and GivenOnly | endnote-attachment-not-imported].</p>', $blocks);
-        $t->contains('<dt>Ng, Migration Review Desk, and Roe 2026</dt><dd>EndNote XML Name Diagnostics Packet :: Ng, Nia, Migration Review Desk, Roe :: Editor, Eli, Curator, Cory, GivenOnly :: endnote-attachment-not-imported :: endnote; names</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng, Migration Review Desk, and Roe 2026', 'EndNote XML Name Diagnostics Packet :: Ng, Nia, Migration Review Desk, Roe :: Editor, Eli, Curator, Cory, GivenOnly :: endnote-attachment-not-imported :: endnote; names');
     },
     'parses bounded endnote xml title date and publication diagnostics' => static function (TestRunner $t) use ($citation): void {
         $xml = <<<'XML'
@@ -32425,7 +32451,7 @@ XML);
         $document = (new MarkdownReader())->read('EndNote XML title dates cite [see @endnote-title-dates, sec. 2-3].');
         $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>EndNote XML title dates cite [see EndNote XML Title Date Packet | Title Diag. Packet | 2026-06-12 | endnote-date-empty-field: 1; endnote-date-malformed-field: 1 | ref-type: Journal Article -&gt; article-journal; work-type: peer reviewed article; publication-type: online ahead of print | endnote-attachment-not-imported].</p>', $blocks);
-        $t->contains('<dt>Ng 2026</dt><dd>EndNote XML Title Date Packet :: Journal of Title Diagnostics :: Title Diag. Packet :: title: EndNote XML Title Date Packet; secondary-title: Journal of Title Diagnostics; tertiary-title: Proceedings of Review Metadata; alternate-title: Title Diag. Packet :: custom3: Unsupported title/date note; remote-database-name: Legacy EndNote Library; research-notes: Keep raw date warning</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2026', 'EndNote XML Title Date Packet :: Journal of Title Diagnostics :: Title Diag. Packet :: title: EndNote XML Title Date Packet; secondary-title: Journal of Title Diagnostics; tertiary-title: Proceedings of Review Metadata; alternate-title: Title Diag. Packet :: custom3: Unsupported title/date note; remote-database-name: Legacy EndNote Library; research-notes: Keep raw date warning');
     },
     'parses bounded ris records into csl bibliography items' => static function (TestRunner $t) use ($citation): void {
         $ris = <<<'RIS'
@@ -32588,9 +32614,9 @@ XML);
         $document = (new MarkdownReader())->read('RIS imports cite [@ris-journal; @ris-report; @ris-review-book].');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>RIS imports cite (Ng and Roe 2026; WordPress Migration Team 2025; Curator 2024).</p>', $blocks);
-        $t->contains('<dt>Ng and Roe 2026</dt><dd>Ng, Nia; Roe, Pat. RIS Packet Handoff. Journal of Import Review. Vol. 12, no. 3. 2026. 101-120. Keywords: wordpress; pandoc. DOI 10.5555/ris. https://example.test/ris.</dd>', $blocks);
-        $t->contains('<dt>WordPress Migration Team 2025</dt><dd>WordPress Migration Team. RIS Report Packet. Review Press, 2025. Note: bounded review.</dd>', $blocks);
-        $t->contains('<dt>Curator 2024</dt><dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng and Roe 2026', 'Ng, Nia; Roe, Pat. RIS Packet Handoff. Journal of Import Review. Vol. 12, no. 3. 2026. 101-120. Keywords: wordpress; pandoc. DOI 10.5555/ris. https://example.test/ris.');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'WordPress Migration Team 2025', 'WordPress Migration Team. RIS Report Packet. Review Press, 2025. Note: bounded review.');
+        pandocTestAssertDefinitionTerm($t, $blocks, 'Curator 2024');
         $t->contains('RIS field provenance: title&lt;=TI[TI+T1]; translated-title&lt;=TT; reviewed-title&lt;=RI[RIx2]; original-title&lt;=OP; number-of-volumes&lt;=NV; call-number&lt;=CN.', $blocks);
         $t->contains('RIS conflicting fields: title: RIS Review Packet | Alternate RIS Review Packet; reviewed-title: Source Manual | Conflicting Source Manual.', $blocks);
     },
@@ -32745,8 +32771,8 @@ XML);
         $document = (new MarkdownReader())->read('RIS extended metadata cites [@ris-standard; @ris-letter; @ris-map].');
         $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>RIS extended metadata cites [standard | STD-9000 | approved | en | Collaborator | Review Standards Series; personal_communication | Archive | Translator; map | fr | Archive Database].</p>', $blocks);
-        $t->contains('<dt>Standards Desk 2026</dt><dd>RIS Standard Packet :: standard :: STD-9000 :: approved :: Collaborator, Casey :: Review Standards Series</dd>', $blocks);
-        $t->contains('<dt>Cartographer 2022</dt><dd>RIS Map Packet :: map :: Archive Database</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Standards Desk 2026', 'RIS Standard Packet :: standard :: STD-9000 :: approved :: Collaborator, Casey :: Review Standards Series');
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Cartographer 2022', 'RIS Map Packet :: map :: Archive Database');
     },
     'preserves bounded ris attachment tags as source file metadata' => static function (TestRunner $t) use ($citation): void {
         $ris = <<<'RIS'
@@ -32821,7 +32847,7 @@ XML);
         $document = (new MarkdownReader())->read('RIS attachments [@ris-attachments] remain reviewable.');
         $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>RIS attachments [RIS Attachment Packet | RIS L1: attachments/report.pdf; RIS L4: images/chart.png | remote-uri; path-traversal] remain reviewable.</p>', $blocks);
-        $t->contains('<dt>Ng 2026</dt><dd>RIS Attachment Packet :: RIS L1; RIS L4 :: attachments/report.pdf; images/chart.png :: RIS L2: remote-uri (https://example.test/report.pdf); RIS L3: path-traversal (../private/report.pdf)</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2026', 'RIS Attachment Packet :: RIS L1; RIS L4 :: attachments/report.pdf; images/chart.png :: RIS L2: remote-uri (https://example.test/report.pdf); RIS L3: path-traversal (../private/report.pdf)');
     },
     'maps bounded ris user and custom fields into csl custom variables' => static function (TestRunner $t) use ($citation): void {
         $ris = <<<'RIS'
@@ -32911,7 +32937,12 @@ XML);
         $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
         $expectedProvenanceHtml = 'usera&lt;=U1; userb&lt;=U2; userc&lt;=U3; userd&lt;=U4; usere&lt;=U5; verba&lt;=C1; verbb&lt;=C2; verbc&lt;=C3';
         $t->contains('<p>RIS user fields [review channel | source lane | migration priority | editorial note | export trace | verbatim brace {review} | raw separator :: | preserved code `@source` | ' . $expectedCustomSummary . ' | ' . $expectedProvenanceHtml . '] remain style-visible.</p>', $blocks);
-        $t->contains('<dt>Migration Review Desk 2026</dt><dd>RIS User Field Packet :: review channel :: preserved code `@source` :: ' . $expectedCustomSummary . ' :: ' . $expectedProvenanceHtml . '</dd>', $blocks);
+        pandocTestAssertDefinitionEntry(
+            $t,
+            $blocks,
+            'Migration Review Desk 2026',
+            'RIS User Field Packet :: review channel :: preserved code `@source` :: ' . $expectedCustomSummary . ' :: ' . $expectedProvenanceHtml
+        );
     },
     'parses strict bibtex accepted and revised dates into csl handoff' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -33016,7 +33047,7 @@ XML);
         $document = (new MarkdownReader())->read('Strict BibTeX state dates [@strict-date-state; @strict-date-state-alias] stay style-visible.');
         $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Strict BibTeX state dates [Strict Date State Packet | 2026-04-02 | 2026-06-01/2026-06-03 | 09:30Z | 14:05+02:00 | 16:45+02:30 | Date eras: revised-date common-era; Strict Date State Alias Packet | 2025-05 | 2025-08/ | Date markers: accepted-date circa (2025-05~)] stay style-visible.</p>', $blocks);
-        $t->contains('<dt>Ng 2026</dt><dd>Strict Date State Packet :: 2026-04-02 :: 2026-06-01/2026-06-03 :: 09:30Z :: 14:05+02:00 :: 16:45+02:30 :: Date eras: revised-date common-era</dd>', $blocks);
+        pandocTestAssertDefinitionEntry($t, $blocks, 'Ng 2026', 'Strict Date State Packet :: 2026-04-02 :: 2026-06-01/2026-06-03 :: 09:30Z :: 14:05+02:00 :: 16:45+02:30 :: Date eras: revised-date common-era');
     },
     'rejects malformed csl json and invalid citation records without external citeproc' => static function (TestRunner $t): void {
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{not json'));

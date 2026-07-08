@@ -10,6 +10,24 @@ $definitionText = static function (AstNode $item): string {
     return (string) ($item->children[1]->children[0]->children[0]->attr('text') ?? '');
 };
 
+if (!function_exists('pandocTestAssertDefinitionEntry')) {
+    function pandocTestAssertDefinitionEntry(TestRunner $t, string $blocks, string $term, string $value): void
+    {
+        pandocTestAssertDefinitionTerm($t, $blocks, $term);
+        pandocTestAssertDefinitionValue($t, $blocks, $value);
+    }
+
+    function pandocTestAssertDefinitionTerm(TestRunner $t, string $blocks, string $term): void
+    {
+        $t->contains('<p class="pandoc-definition-term"><strong>' . $term . '</strong></p>', $blocks);
+    }
+
+    function pandocTestAssertDefinitionValue(TestRunner $t, string $blocks, string $value): void
+    {
+        $t->contains('<ul class="pandoc-definition-values"><li>' . $value . '</li></ul>', $blocks);
+    }
+}
+
 return [
     'reads bibtex entries into a csl bibliography ast' => static function (TestRunner $t) use ($definitionText): void {
         $bibtex = <<<'BIB'
@@ -70,7 +88,7 @@ BIB;
         $t->same(['preprint'], $document->attr('cslItemIds'));
         $t->same('preprint', $document->attr('cslItems')[0]['id'] ?? null);
         $t->same('Obscure Archive Packet: Source Review Appendix', $document->attr('cslItems')[0]['title'] ?? null);
-        $t->contains('<dt>Ng 2026</dt><dd>', $blocks);
+        pandocTestAssertDefinitionTerm($t, $blocks, 'Ng 2026');
         $t->contains('Obscure Archive Packet: Source Review Appendix', $blocks);
         $t->contains('https://example.test/preprint', $blocks);
     },
@@ -175,15 +193,15 @@ XML;
 
         $t->same('csljson', $jsonDocument->attr('sourceFormat'));
         $t->same(['json-source'], $jsonDocument->attr('cslItemIds'));
-        $t->contains('<dt>Ng 2026</dt><dd>Ng, Nia. CSL JSON Packet. 2026.</dd>', $jsonBlocks);
+        pandocTestAssertDefinitionEntry($t, $jsonBlocks, 'Ng 2026', 'Ng, Nia. CSL JSON Packet. 2026.');
 
         $t->same('ris', $risDocument->attr('sourceFormat'));
         $t->same(['ris-source'], $risDocument->attr('cslItemIds'));
-        $t->contains('<dt>Roe 2025</dt><dd>Roe, Pat. RIS Packet. 2025.</dd>', $risBlocks);
+        pandocTestAssertDefinitionEntry($t, $risBlocks, 'Roe 2025', 'Roe, Pat. RIS Packet. 2025.');
 
         $t->same('endnotexml', $endnoteDocument->attr('sourceFormat'));
         $t->same(['endnote-source'], $endnoteDocument->attr('cslItemIds'));
-        $t->contains('<dt>Curator 2024</dt><dd>Curator, Eli. EndNote Packet. 2024.</dd>', $endnoteBlocks);
+        pandocTestAssertDefinitionEntry($t, $endnoteBlocks, 'Curator 2024', 'Curator, Eli. EndNote Packet. 2024.');
     },
     'records metadata only endnote xml reader review provenance' => static function (TestRunner $t): void {
         $endnoteXml = <<<'XML'

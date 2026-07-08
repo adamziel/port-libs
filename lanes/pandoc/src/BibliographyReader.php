@@ -17,9 +17,11 @@ final class BibliographyReader
 
     public function read(string $bytes): AstNode
     {
-        $items = CitationCslProcessor::normalizeItems($this->items($bytes));
+        $sourceItems = $this->items($bytes);
+        $items = CitationCslProcessor::normalizeItems($sourceItems);
         $ids = $this->itemIds($items);
-        $processor = CitationCslProcessor::fromItems($items);
+        $publicItems = $this->publicCslItems($items);
+        $processor = CitationCslProcessor::fromItems($sourceItems);
         $bibliography = $processor->bibliographyDefinitionList($ids);
         $attrs = [
             'sourceFormat' => $this->format,
@@ -35,35 +37,193 @@ final class BibliographyReader
             ],
             'cslItemCount' => count($items),
             'cslItemIds' => $ids,
-            'cslItems' => $items,
+            'cslItems' => $publicItems,
         ];
 
         if ($this->format === 'csljson') {
-            $review = $this->cslJsonReview($items, $ids);
+            $review = $this->cslJsonReview($sourceItems, $ids);
             $attrs['bibliography']['cslJsonReview'] = $review;
             $attrs['cslJsonReview'] = $review;
             $attrs['cslJsonItemReviews'] = $review['items'];
         }
         if ($this->format === 'ris') {
-            $review = $this->risReview($items, $ids);
+            $review = $this->risReview($sourceItems, $ids);
             $attrs['bibliography']['risReview'] = $review;
             $attrs['risReview'] = $review;
             $attrs['risItemReviews'] = $review['items'];
         }
         if ($this->format === 'endnotexml') {
-            $review = $this->endnoteXmlReview($items, $ids);
+            $review = $this->endnoteXmlReview($sourceItems, $ids);
             $attrs['bibliography']['endnoteXmlReview'] = $review;
             $attrs['endnoteXmlReview'] = $review;
             $attrs['endnoteXmlItemReviews'] = $review['items'];
         }
         if ($this->format === 'bibtex' || $this->format === 'biblatex') {
-            $review = $this->bibtexReview($items, $ids);
+            $review = $this->bibtexReview($sourceItems, $ids);
             $attrs['bibliography']['bibtexReview'] = $review;
             $attrs['bibtexReview'] = $review;
             $attrs['bibtexItemReviews'] = $review['items'];
         }
 
         return new AstNode('document', $attrs, $bibliography->children === [] ? [] : [$bibliography]);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $items
+     * @return list<array<string, mixed>>
+     */
+    private function publicCslItems(array $items): array
+    {
+        return array_map(fn (array $item): array => $this->publicCslItem($item), $items);
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @return array<string, mixed>
+     */
+    private function publicCslItem(array $item): array
+    {
+        $public = $item;
+        $raw = is_array($item['raw'] ?? null) ? $item['raw'] : [];
+        foreach ($raw as $key => $value) {
+            if (!array_key_exists($key, $public) || !$this->fieldHasValue($public[$key])) {
+                $public[$key] = $value;
+            }
+        }
+
+        foreach ($this->publicDateAliases() as $publicKey => $internalKey) {
+            if (array_key_exists($publicKey, $public) && $this->fieldHasValue($public[$publicKey])) {
+                continue;
+            }
+            $date = $this->publicCslDate($item[$internalKey] ?? null);
+            if ($date !== null) {
+                $public[$publicKey] = $date;
+            }
+        }
+
+        foreach ($this->publicNameAliases() as $publicKey => $internalKey) {
+            if (array_key_exists($publicKey, $public) && $this->fieldHasValue($public[$publicKey])) {
+                continue;
+            }
+            $names = $this->publicCslNames($item[$internalKey] ?? null);
+            if ($names !== []) {
+                $public[$publicKey] = $names;
+            }
+        }
+
+        return $public;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function publicDateAliases(): array
+    {
+        return [
+            'issued' => 'issuedDate',
+            'accessed' => 'accessedDate',
+            'original-date' => 'originalDate',
+            'available-date' => 'availableDate',
+            'accepted-date' => 'acceptedDate',
+            'revised-date' => 'revisedDate',
+            'reprint-date' => 'reprintDate',
+            'submitted' => 'submittedDate',
+            'event-date' => 'eventDate',
+            'label-date' => 'labelDate',
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function publicNameAliases(): array
+    {
+        return [
+            'author' => 'authors',
+            'editor' => 'editors',
+            'translator' => 'translators',
+            'recipient' => 'recipients',
+            'container-author' => 'containerAuthors',
+            'collection-editor' => 'collectionEditors',
+            'composer' => 'composers',
+            'director' => 'directors',
+            'illustrator' => 'illustrators',
+            'interviewer' => 'interviewers',
+            'reviewed-author' => 'reviewedAuthors',
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function publicCslDate(mixed $date): ?array
+    {
+        if (!is_array($date)) {
+            return null;
+        }
+
+        $parts = is_array($date['parts'] ?? null) ? array_values(array_filter(
+            $date['parts'],
+            static fn (mixed $part): bool => is_int($part) || is_float($part) || (is_string($part) && trim($part) !== ''),
+        )) : [];
+        $rangeParts = is_array($date['rangeParts'] ?? null) ? $date['rangeParts'] : null;
+        $public = [];
+        if ($rangeParts !== null && $rangeParts !== []) {
+            $public['date-parts'] = $rangeParts;
+        } elseif ($parts !== []) {
+            $public['date-parts'] = [$parts];
+        }
+
+        $literal = trim((string) ($date['literal'] ?? ''));
+        if ($literal !== '') {
+            $public['literal'] = $literal;
+        }
+
+        $openEnded = trim((string) ($date['openEnded'] ?? ''));
+        if ($openEnded !== '') {
+            $public['open-ended'] = $openEnded;
+        }
+
+        return $public === [] ? null : $public;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function publicCslNames(mixed $names): array
+    {
+        if (!is_array($names)) {
+            return [];
+        }
+
+        $public = [];
+        foreach ($names as $name) {
+            if (!is_array($name)) {
+                continue;
+            }
+            $entry = [];
+            foreach ([
+                'family' => 'family',
+                'given' => 'given',
+                'literal' => 'literal',
+                'suffix' => 'suffix',
+                'dropping-particle' => 'droppingParticle',
+                'non-dropping-particle' => 'nonDroppingParticle',
+                'comma-suffix' => 'commaSuffix',
+                'static-ordering' => 'staticOrdering',
+                'parse-names' => 'parseNames',
+            ] as $publicKey => $internalKey) {
+                if (!array_key_exists($internalKey, $name) || !$this->fieldHasValue($name[$internalKey])) {
+                    continue;
+                }
+                $entry[$publicKey] = $name[$internalKey];
+            }
+            if ($entry !== []) {
+                $public[] = $entry;
+            }
+        }
+
+        return $public;
     }
 
     /**
@@ -107,6 +267,7 @@ final class BibliographyReader
         }
 
         /** @var list<array<string, mixed>> $decoded */
+        $decoded = CitationCslProcessor::sanitizeCslJsonInputItems($decoded);
         CitationCslProcessor::fromItems($decoded);
 
         return $decoded;
@@ -786,6 +947,7 @@ final class BibliographyReader
             'Zbl', 'zbl', 'JSTOR', 'jstor', 'HDL', 'hdl', 'LCCN', 'lccn', 'OCLC', 'oclc',
             'ORCID', 'orcid', 'ISNI', 'isni', 'VIAF', 'viaf', 'ROR', 'ror', 'Wikidata', 'wikidata',
         ]);
+        $identifierFields = $this->deduplicateIdentifierFieldNames($identifierFields);
         $linkFields = $this->presentFieldNames($item, [
             'URL', 'url', 'DOI', 'doi',
             'sourceFiles', 'source-files', 'sourceFile', 'source-file',
@@ -1191,36 +1353,18 @@ final class BibliographyReader
     private function cslJsonDatePartCounts(array $item): array
     {
         $counts = [];
-        foreach ([
-            'issued',
-            'issuedDate',
-            'issued-date',
-            'date',
-            'accessed',
-            'accessedDate',
-            'accessed-date',
-            'URLDate',
-            'URL-date',
-            'urlDate',
-            'url-date',
-            'original-date',
-            'originalDate',
-            'available-date',
-            'availableDate',
-            'reprint-date',
-            'reprintDate',
-            'submitted',
-            'submitted-date',
-            'event-date',
-            'eventDate',
-            'label-date',
-            'labelDate',
-        ] as $variable) {
-            if (!array_key_exists($variable, $item) || !$this->fieldHasValue($item[$variable])) {
+        foreach ($this->dateVariableFields() as $variable => $fieldNames) {
+            $value = $this->firstPresentValue($item, $fieldNames);
+            if (!$this->fieldHasValue($value)) {
                 continue;
             }
 
-            $counts[$variable] = $this->cslJsonDatePartCount($item[$variable]);
+            $count = $this->cslJsonDatePartCount($value);
+            if ($count === 0 && !$this->dateValueHasLiteral($value)) {
+                continue;
+            }
+
+            $counts[$variable] = $count;
         }
 
         ksort($counts);
@@ -1241,7 +1385,7 @@ final class BibliographyReader
             'accepted-date' => ['accepted-date', 'acceptedDate'],
             'revised-date' => ['revised-date', 'revisedDate'],
             'reprint-date' => ['reprint-date', 'reprintDate'],
-            'submitted' => ['submitted', 'submitted-date'],
+            'submitted' => ['submitted', 'submittedDate', 'submitted-date'],
             'event-date' => ['event-date', 'eventDate'],
             'label-date' => ['label-date', 'labelDate'],
         ];
@@ -1269,16 +1413,48 @@ final class BibliographyReader
         }
 
         $dateParts = $value['date-parts'] ?? null;
-        if (!is_array($dateParts) || $dateParts === []) {
+        if (is_array($dateParts) && $dateParts !== []) {
+            $first = $dateParts[0] ?? null;
+            return is_array($first) ? count($first) : 0;
+        }
+
+        $rangeParts = $value['rangeParts'] ?? null;
+        if (is_array($rangeParts) && $rangeParts !== []) {
+            $first = $rangeParts[0] ?? null;
+            return is_array($first) ? count($first) : 0;
+        }
+
+        $parts = $value['parts'] ?? null;
+        if (!is_array($parts) || $parts === []) {
             return 0;
         }
 
-        $first = $dateParts[0] ?? null;
-        if (!is_array($first)) {
-            return 0;
+        return count($parts);
+    }
+
+    private function dateValueHasLiteral(mixed $value): bool
+    {
+        return is_array($value) && trim((string) ($value['literal'] ?? '')) !== '';
+    }
+
+    /**
+     * @param list<string> $fields
+     * @return list<string>
+     */
+    private function deduplicateIdentifierFieldNames(array $fields): array
+    {
+        $seen = [];
+        $deduplicated = [];
+        foreach ($fields as $field) {
+            $key = strtolower($field);
+            if (isset($seen[$key])) {
+                continue;
+            }
+            $seen[$key] = true;
+            $deduplicated[] = $field;
         }
 
-        return count($first);
+        return $deduplicated;
     }
 
     private function cslJsonListValueCount(mixed $value): int

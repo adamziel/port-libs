@@ -77,7 +77,10 @@ final class BibtexCslParser
     /** @var array<string, string> */
     private array $strings;
 
-    private function __construct(private readonly string $input)
+    private function __construct(
+        private readonly string $input,
+        private readonly bool $allowDuplicateKeys = false,
+    )
     {
         $this->length = strlen($input);
         $this->strings = self::standardStrings();
@@ -86,9 +89,9 @@ final class BibtexCslParser
     /**
      * @return list<array<string, mixed>>
      */
-    public static function parse(string $bibtex): array
+    public static function parse(string $bibtex, bool $allowDuplicateKeys = false): array
     {
-        return (new self($bibtex))->parseEntries();
+        return (new self($bibtex, $allowDuplicateKeys))->parseEntries();
     }
 
     /**
@@ -156,7 +159,7 @@ final class BibtexCslParser
             ];
         }
 
-        return self::entriesToCslItems($entries);
+        return self::entriesToCslItems($entries, $this->allowDuplicateKeys);
     }
 
     /**
@@ -456,12 +459,16 @@ final class BibtexCslParser
      * @param list<array{type:string, key:string, fields:array<string, string>}> $entries
      * @return list<array<string, mixed>>
      */
-    private static function entriesToCslItems(array $entries): array
+    private static function entriesToCslItems(array $entries, bool $allowDuplicateKeys = false): array
     {
         $entriesByKey = [];
         foreach ($entries as $entry) {
             if (isset($entriesByKey[$entry['key']])) {
-                throw new \InvalidArgumentException('Duplicate BibTeX entry key: ' . $entry['key']);
+                if (!$allowDuplicateKeys) {
+                    throw new \InvalidArgumentException('Duplicate BibTeX entry key: ' . $entry['key']);
+                }
+
+                continue;
             }
 
             $entriesByKey[$entry['key']] = $entry;

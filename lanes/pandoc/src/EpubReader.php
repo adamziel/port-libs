@@ -3559,10 +3559,20 @@ final class EpubReader
             throw new \RuntimeException($label . ' needs DOMDocument, which is unavailable in this runtime.');
         }
         try {
-            return Html5Dom::parseXmlDocument($xml, $label);
+            return Html5Dom::parseXmlDocument($this->xmlWithoutSafeHtmlDoctype($xml), $label);
         } catch (\RuntimeException) {
             throw new \InvalidArgumentException($label . ' is not valid XML.');
         }
+    }
+
+    private function xmlWithoutSafeHtmlDoctype(string $xml): string
+    {
+        return preg_replace(
+            '/^(\s*(?:<\?xml[^?]*\?>\s*)?)<!DOCTYPE\s+html(?:\s+(?:PUBLIC\s+"[^"]*"\s+"[^"]*"|SYSTEM\s+"[^"]*"))?\s*>\s*/i',
+            '$1',
+            $xml,
+            1,
+        ) ?? $xml;
     }
 
     private function attributeByLocalName(\DOMElement $element, string $name): string
