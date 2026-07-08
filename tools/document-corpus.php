@@ -585,6 +585,26 @@ function organicSeedUrls(): array
         seed('https://raw.githubusercontent.com/citation-style-language/styles/master/acta-amazonica.csl', 'xml', 'github-raw', 'citation-style-language/styles', 'Acta Amazonica CSL XML'),
         seed('https://raw.githubusercontent.com/gwoodwa1/network_rag_pipeline/7f9de75055c9801b3fa188f9cc7075bb47ca104d/processed/evpn_design.ast.json', 'json', 'github-raw', 'gwoodwa1/network_rag_pipeline', 'Processed EVPN design Pandoc AST JSON'),
         seed('https://raw.githubusercontent.com/playboypaul/legaldocconverter/4a714e13095cf916d6d43bcfa794c787990fca5a/backend/storage/conversions/dda53d87-b909-4676-8b0a-9f28f56f65aa_converted.json', 'json', 'github-raw', 'playboypaul/legaldocconverter', 'Converted legal document Pandoc JSON'),
+        ...seedUrlList('json', 'github-raw', [
+            ['https://raw.githubusercontent.com/BroadbandForum/usp/0a170872c0b8162131f3758b63e46bd3c8c64139/docs/index.json', 'BroadbandForum/usp', 'Broadband Forum USP docs Pandoc JSON index'],
+            ['https://raw.githubusercontent.com/BroadbandForum/usp/0a170872c0b8162131f3758b63e46bd3c8c64139/docs/faq/index.json', 'BroadbandForum/usp', 'Broadband Forum USP FAQ Pandoc JSON'],
+            ['https://raw.githubusercontent.com/BroadbandForum/usp/0a170872c0b8162131f3758b63e46bd3c8c64139/docs/resources/index.json', 'BroadbandForum/usp', 'Broadband Forum USP resources Pandoc JSON'],
+            ['https://raw.githubusercontent.com/bmschmidt/bare-bones-blog/6d68376e70ea2fa56c41b00e09be003b497d08dc/build/posts/post1/__data.json', 'bmschmidt/bare-bones-blog', 'Bare bones blog post Pandoc JSON data'],
+            ['https://raw.githubusercontent.com/bmschmidt/bare-bones-blog/6d68376e70ea2fa56c41b00e09be003b497d08dc/build/posts/nested_posts/demo/__data.json', 'bmschmidt/bare-bones-blog', 'Bare bones blog nested post Pandoc JSON data'],
+            ['https://raw.githubusercontent.com/bmschmidt/bare-bones-blog/6d68376e70ea2fa56c41b00e09be003b497d08dc/build/posts/ipython-notebooks.ip/__data.json', 'bmschmidt/bare-bones-blog', 'Bare bones blog notebook post Pandoc JSON data'],
+            ['https://raw.githubusercontent.com/EcrituresNumeriques/markdown-ast-experiments/ad97e95839483845459844b7e2593e5c02b5cc36/pandoc-ast.json', 'EcrituresNumeriques/markdown-ast-experiments', 'Markdown AST experiments Pandoc JSON'],
+            ['https://raw.githubusercontent.com/hapejot/pjl.rs/600386073cb97ab5fbb1f941b0e6079b923359cf/docs/unleash_glossar.json', 'hapejot/pjl.rs', 'Hapejot PJL unleash glossary Pandoc JSON'],
+            ['https://raw.githubusercontent.com/hapejot/pjl.rs/600386073cb97ab5fbb1f941b0e6079b923359cf/pjl-pandoc/doc.json', 'hapejot/pjl.rs', 'Hapejot PJL Pandoc document JSON'],
+            ['https://raw.githubusercontent.com/bmschmidt/bare-bones-blog/6d68376e70ea2fa56c41b00e09be003b497d08dc/build/posts/Have%20you%20always%20wanted%20to%20blog%20in%20Microsoft%20Word.d/__data.json', 'bmschmidt/bare-bones-blog', 'Bare bones blog Word post Pandoc JSON data'],
+            ['https://raw.githubusercontent.com/leonl42/DataLit/4dce6e9efa35cae127438bd235ecbcb471fd8fec/arXiv_src_fetcher/ICLR_2023_first100/-iADdfa4GKH/%20parsed.json', 'leonl42/DataLit', 'DataLit ICLR parsed Pandoc JSON -iADdfa4GKH'],
+            ['https://raw.githubusercontent.com/leonl42/DataLit/4dce6e9efa35cae127438bd235ecbcb471fd8fec/arXiv_src_fetcher/ICLR_2023_first100/-HHJZlRpGb/%20parsed.json', 'leonl42/DataLit', 'DataLit ICLR parsed Pandoc JSON -HHJZlRpGb'],
+            ['https://raw.githubusercontent.com/leonl42/DataLit/4dce6e9efa35cae127438bd235ecbcb471fd8fec/arXiv_src_fetcher/ICLR_2023_first100/-Ov808Vm7dw/%20parsed.json', 'leonl42/DataLit', 'DataLit ICLR parsed Pandoc JSON -Ov808Vm7dw'],
+            ['https://raw.githubusercontent.com/go-xoxo/meta-prompt/3c14f30efb2f8b27345388787e64d82361ecd523/cv/david_cv_roundtrip.json', 'go-xoxo/meta-prompt', 'Meta prompt CV Pandoc JSON'],
+            ['https://raw.githubusercontent.com/go-xoxo/meta-prompt/3c14f30efb2f8b27345388787e64d82361ecd523/cv/david_cv_roundtrip_fixed.json', 'go-xoxo/meta-prompt', 'Meta prompt CV fixed Pandoc JSON'],
+            ['https://raw.githubusercontent.com/go-xoxo/meta-prompt/3c14f30efb2f8b27345388787e64d82361ecd523/cv/david_cv_roundtrip_tables_fixed_final.json', 'go-xoxo/meta-prompt', 'Meta prompt CV final Pandoc JSON'],
+            ['https://raw.githubusercontent.com/Soliprem/statistics-project/3962428658e48d7a55da0bd4293e899574090f77/data/index.json', 'Soliprem/statistics-project', 'Statistics project index Pandoc JSON'],
+            ['https://raw.githubusercontent.com/paoloceravolo/Editoria-Digitale-Esercizi/4fbc5cfccb31fd71abdcd3f4c124a18bd7e3bda6/Markdown/ast.json', 'paoloceravolo/Editoria-Digitale-Esercizi', 'Editoria Digitale esercizi Markdown AST JSON'],
+        ]),
         seed('https://raw.githubusercontent.com/HL7/fhir/master/build.xml', 'xml', 'github-raw', 'HL7/fhir', 'FHIR build XML'),
         seed('https://raw.githubusercontent.com/torvalds/linux/master/Documentation/filesystems/proc.rst', 'rst', 'github-raw', 'torvalds/linux', 'Linux proc filesystem RST'),
         seed('https://raw.githubusercontent.com/rust-lang/rust/master/RELEASES.md', 'markdown', 'github-raw', 'rust-lang/rust', 'Rust releases Markdown'),
@@ -597,10 +617,53 @@ function organicSeedUrls(): array
         seed('https://raw.githubusercontent.com/medialab/reference_manager/bea9bac657ba3d1953029081eae928a578ee5528/data/endnotexml/endnote-bib.xml', 'endnotexml', 'github-raw', 'medialab/reference_manager', 'Reference manager EndNote bibliography'),
         seed('https://raw.githubusercontent.com/dveytia/ORO-product-1-mitigation/5d4adec00ac9806b6ec5edbda5930cb9a5d7ada2/data/raw-data/scoping-data-export/CDR_OAE.xml', 'endnotexml', 'github-raw', 'dveytia/ORO-product-1-mitigation', 'CDR OAE scoping EndNote export'),
         seed('https://raw.githubusercontent.com/flindersuni/DeepThoughtHPC-docs/master/docs/source/flindershpc2021-endnote.xml', 'endnotexml', 'github-raw', 'flindersuni/DeepThoughtHPC-docs', 'Flinders DeepThought HPC EndNote bibliography'),
+        ...seedUrlList('endnotexml', 'github-raw', [
+            ['https://raw.githubusercontent.com/medialab/reference_manager/master/data/endnotexml/endnote-aime-old.xml', 'medialab/reference_manager', 'Reference manager old AIME EndNote XML'],
+            ['https://raw.githubusercontent.com/medialab/reference_manager/master/data/endnotexml/endnote-aime.xml', 'medialab/reference_manager', 'Reference manager AIME EndNote XML'],
+            ['https://raw.githubusercontent.com/prototype-59/livereference/becc84463373ea7444565d1ba248b0d54f912540/endnote.xml', 'prototype-59/livereference', 'LiveReference EndNote XML library'],
+            ['https://raw.githubusercontent.com/NCIP/cananolab/eb8efa3d812dee2d5cebed9aff65a6efedb2146a/software/common/resources/security/cananolabEndNote/Round_2_publications_ex5.xml', 'NCIP/cananolab', 'CanaNano Round 2 publications EndNote XML'],
+            ['https://raw.githubusercontent.com/HughP/MLKA/11fd28e78804a9a5ba6661cbdf6cf2d1608f9d2b/Publications/2015%20-%20Thesis/XML%20and%20Paterson%20Thesis%20Source%20Files/HughsBiblographyFromEndnote.xml', 'HughP/MLKA', 'Hugh Paterson thesis bibliography EndNote XML'],
+            ['https://raw.githubusercontent.com/CobbDouglas/Casual-Inf-Main-paper/afaed7442511db8b0bc4c0819e635b6d55e4878b/References%20for%20main%20paper.xml', 'CobbDouglas/Casual-Inf-Main-paper', 'Casual inference main paper references EndNote XML'],
+            ['https://raw.githubusercontent.com/Doadaodao/VR-Surgery-Paper/27e57a62b98c0e3ab961da8e92449868e13c617a/VR%20Surgery%20Library.Data/VR%20Surgery%20Library.xml', 'Doadaodao/VR-Surgery-Paper', 'VR surgery paper library EndNote XML'],
+            ['https://raw.githubusercontent.com/hui2109/ScreenRefsViaEndnote/817d06199db9e61671ea32ea759bf7970f55c9f3/sources/source.xml', 'hui2109/ScreenRefsViaEndnote', 'ScreenRefs source EndNote XML'],
+            ['https://raw.githubusercontent.com/mogranjm/gwascat_analysis/12ec3cf5194964887ec0f86f91a6713b32361bc8/reporting/Defining%20PRS%20%2B%20SNP%20Validity%20Assessment%20Criteria/resources/Endnote.xml', 'mogranjm/gwascat_analysis', 'GWAS criteria EndNote XML resources'],
+            ['https://raw.githubusercontent.com/dveytia/ORO-product-1-mitigation/5d4adec00ac9806b6ec5edbda5930cb9a5d7ada2/data/raw-data/scoping-data-export/CCS.xml', 'dveytia/ORO-product-1-mitigation', 'CDR OAE CCS EndNote export'],
+            ['https://raw.githubusercontent.com/GaoBin88/urban-shrinkage-supplement/50383f19ce4b4947be84ff6b46133e5dc2bff012/%E6%96%87%E7%8C%AE.Data/%E6%96%87%E7%8C%AE.xml', 'GaoBin88/urban-shrinkage-supplement', 'Urban shrinkage literature EndNote XML'],
+            ['https://raw.githubusercontent.com/Richard6195/tawe_smolt_telemetry/b90a85072967c0f03f999f3a5c12d018b24de419/references/exports/Fisheries%20.XML%20references.xml', 'Richard6195/tawe_smolt_telemetry', 'Tawe smolt telemetry fisheries references EndNote XML'],
+            ['https://raw.githubusercontent.com/cwrc/GenreInALinkedDataWorld/194ad00f4fc442901aff4cbc67dd54f20f38d9ff/citations/bibliography.xml', 'cwrc/GenreInALinkedDataWorld', 'CWRC bibliography EndNote XML'],
+            ['https://raw.githubusercontent.com/PLBMR/mentalHealthDataAnalysis/eef1d32462721fc537efb7855d02a4c965c86696/mentalHealthFacilities/docs/2010/N-MHSS-2010-info-bibliography.xml', 'PLBMR/mentalHealthDataAnalysis', 'Mental health 2010 bibliography EndNote XML'],
+            ['https://raw.githubusercontent.com/PLBMR/mentalHealthDataAnalysis/eef1d32462721fc537efb7855d02a4c965c86696/mentalHealthFacilities/docs/2012/N-MHSS-2012-info-bibliography.xml', 'PLBMR/mentalHealthDataAnalysis', 'Mental health 2012 bibliography EndNote XML'],
+            ['https://raw.githubusercontent.com/ying-hua/refill/9af60d56bb28c62a438427fbc3e02ea6849e2a3e/fixed.xml', 'ying-hua/refill', 'Refill fixed EndNote XML'],
+            ['https://raw.githubusercontent.com/ying-hua/refill/9af60d56bb28c62a438427fbc3e02ea6849e2a3e/my_lib9.xml', 'ying-hua/refill', 'Refill library 9 EndNote XML'],
+            ['https://raw.githubusercontent.com/dveytia/ORO-product-1-mitigation/5d4adec00ac9806b6ec5edbda5930cb9a5d7ada2/data/raw-data/scoping-data-export/CDR_OIF.xml', 'dveytia/ORO-product-1-mitigation', 'CDR OIF EndNote export'],
+            ['https://raw.githubusercontent.com/haslamdb/asp_ai_agent/686c034d6aa1443b3f7318183f3f98b2cbc6f983/asp_literature/manual_download_endnote.xml', 'haslamdb/asp_ai_agent', 'ASP literature manual EndNote XML'],
+        ]),
         seed('https://raw.githubusercontent.com/guppy0130/j2m/master/j2m.jira', 'jira', 'github-raw', 'guppy0130/j2m', 'j2m Jira wiki markup document'),
         seed('https://raw.githubusercontent.com/membase/membase-cli/13195507facba8cb8f85dafb07df1eeff3ea7dcd/docs/cbtransfer-func-spec.jira', 'jira', 'github-raw', 'membase/membase-cli', 'cbtransfer functional spec Jira markup'),
         seed('https://raw.githubusercontent.com/membase/membase-cli/13195507facba8cb8f85dafb07df1eeff3ea7dcd/docs/cbbackup-restore-func-spec.jira', 'jira', 'github-raw', 'membase/membase-cli', 'cbbackup restore functional spec Jira markup'),
         seed('https://raw.githubusercontent.com/couchbase/couchbase-cli/a63b7323be21848f9449e61085052cdc028eb27c/docs/design/cbtransfer-func-spec.jira', 'jira', 'github-raw', 'couchbase/couchbase-cli', 'Couchbase cbtransfer design spec Jira markup'),
+        ...seedUrlList('jira', 'github-raw', [
+            ['https://raw.githubusercontent.com/jgm/pandoc/7b1021eb3ec2fcb0fdb78478a9eeffbcc890737b/data/templates/default.jira', 'jgm/pandoc', 'Pandoc default Jira template'],
+            ['https://raw.githubusercontent.com/jgm/pandoc-templates/6d3b0e89f62a345022ebe14b21cf8fd1c9cc5baa/default.jira', 'jgm/pandoc-templates', 'Pandoc templates default Jira template'],
+            ['https://raw.githubusercontent.com/solita/solita-geekout/b3322f171b176be3d897b017496fa76f7e9cf3a4/pointless-ticket.jira', 'solita/solita-geekout', 'Solita Geekout Jira ticket'],
+            ['https://raw.githubusercontent.com/karlredgate/automation/4d1b8a7f734140f0d40178145a31c0ddb8065005/jira/issues.jira', 'karlredgate/automation', 'Karl Redgate automation Jira issues'],
+            ['https://raw.githubusercontent.com/fedora-ci/eln-periodic/ba0a06d121e386143966e1d41e91a8fbac621498/status.html.jira', 'fedora-ci/eln-periodic', 'Fedora ELN periodic status Jira markup'],
+            ['https://raw.githubusercontent.com/fedora-ci/eln-periodic/ba0a06d121e386143966e1d41e91a8fbac621498/successrate.html.jira', 'fedora-ci/eln-periodic', 'Fedora ELN periodic success rate Jira markup'],
+            ['https://raw.githubusercontent.com/go-xoxo/meta-prompt/3c14f30efb2f8b27345388787e64d82361ecd523/cv/cv.jira', 'go-xoxo/meta-prompt', 'Meta prompt CV Jira output'],
+            ['https://raw.githubusercontent.com/shegerbootcamp/docs/51589b07901716498b95ca013747de3a7a9d616c/confluence.jira', 'shegerbootcamp/docs', 'Sheger Bootcamp Confluence Jira export'],
+            ['https://raw.githubusercontent.com/shegerbootcamp/docs/51589b07901716498b95ca013747de3a7a9d616c/conflu.jira', 'shegerbootcamp/docs', 'Sheger Bootcamp Conflu Jira export'],
+            ['https://raw.githubusercontent.com/vicamo/kteam-tools/d70bdfca8f4594d1fe5bfbe2373729e6220cd902/stable/README.JIRA', 'vicamo/kteam-tools', 'KTeam tools stable README Jira markup'],
+            ['https://raw.githubusercontent.com/karlredgate/automation/4d1b8a7f734140f0d40178145a31c0ddb8065005/jira/issue.jira', 'karlredgate/automation', 'Karl Redgate automation Jira issue'],
+            ['https://raw.githubusercontent.com/karlredgate/automation/4d1b8a7f734140f0d40178145a31c0ddb8065005/jira/activity.jira', 'karlredgate/automation', 'Karl Redgate automation Jira activity'],
+            ['https://raw.githubusercontent.com/StevenACoffman/toolbox/e0c721d9ee0aa37a0d0f35900e5ffa71bd0eb49e/cmd/j2m/j2m.jira', 'StevenACoffman/toolbox', 'Steven Coffman toolbox j2m Jira document'],
+            ['https://raw.githubusercontent.com/avsej/couchbase.deb/f9137835f626ce2e7e23f0576301398e23e4b91b/membase-cli/docs/cbbackup-restore-func-spec.jira', 'avsej/couchbase.deb', 'Avsej Couchbase cbbackup Jira spec'],
+            ['https://raw.githubusercontent.com/avsej/couchbase.deb/f9137835f626ce2e7e23f0576301398e23e4b91b/membase-cli/docs/cbtransfer-func-spec.jira', 'avsej/couchbase.deb', 'Avsej Couchbase cbtransfer Jira spec'],
+            ['https://raw.githubusercontent.com/UW-Madison-DoIT/jiraRemoteUserAuth/b93d68f1fe1354f64730a34f1cf9ff2bf98084c0/conf/remoteUserAuthenticator.properties.jira', 'UW-Madison-DoIT/jiraRemoteUserAuth', 'UW Madison remote user authenticator Jira properties'],
+            ['https://raw.githubusercontent.com/con2/infrastructure/0437ef2ab956f316ca1d73148007322b6cdede3f/roles/atlassian/files/Dockerfile.jira', 'con2/infrastructure', 'Con2 infrastructure Atlassian Jira Dockerfile'],
+            ['https://raw.githubusercontent.com/rtyler/presentations/3f400d7753cf4c66d5b9d2bc690a834a76bff6de/continuous-delivery-infra/content/Dockerfile.jira', 'rtyler/presentations', 'Rtyler continuous delivery Jira Dockerfile'],
+            ['https://raw.githubusercontent.com/openpkg/packages/2e43ee5397a7a813ac126e51b30bd9972bdeb343/jira/rc.jira', 'openpkg/packages', 'OpenPKG Jira rc script'],
+            ['https://raw.githubusercontent.com/scarnecchia/qa-package-rs/84c644db17773bba56094c9d37bdd845c5550e1d/qa_package.jira', 'scarnecchia/qa-package-rs', 'Scarnecchia QA package Jira document'],
+        ]),
         seed('https://raw.githubusercontent.com/github/docs/main/content/account-and-profile/concepts/account-management.md', 'markdown_github', 'github-raw', 'github/docs', 'GitHub account management docs'),
         seed('https://raw.githubusercontent.com/github/docs/main/content/account-and-profile/concepts/contributions-on-your-profile.md', 'markdown_github', 'github-raw', 'github/docs', 'GitHub profile contributions docs'),
         seed('https://raw.githubusercontent.com/github/docs/main/content/account-and-profile/how-tos/account-settings/managing-accessibility-settings.md', 'markdown_github', 'github-raw', 'github/docs', 'GitHub accessibility settings docs'),
@@ -647,7 +710,33 @@ function organicSeedUrls(): array
         seed('https://raw.githubusercontent.com/composer/composer/main/doc/06-config.md', 'markdown_phpextra', 'github-raw', 'composer/composer', 'Composer config docs'),
         seed('https://raw.githubusercontent.com/composer/composer/main/doc/07-runtime.md', 'markdown_phpextra', 'github-raw', 'composer/composer', 'Composer runtime docs'),
         seed('https://raw.githubusercontent.com/b0mbix/markupit/e110aa5b95cf3263796adffe85a7fbf5eae4ad50/misc/ast_analysis/gfm.json', 'native', 'github-raw', 'b0mbix/markupit', 'Markupit generated Pandoc native JSON AST'),
+        ...seedUrlList('native', 'github-raw', [
+            ['https://raw.githubusercontent.com/stfnbssl/wizzi.cli/6e0355a6c758166a6910e6b3a5b082227b99a6c3/packages/wizzi.scripts/pandoc/_posts_temp/preview.md.native', 'stfnbssl/wizzi.cli', 'Wizzi preview post native Pandoc output'],
+            ['https://raw.githubusercontent.com/stfnbssl/wizzi.cli/6e0355a6c758166a6910e6b3a5b082227b99a6c3/packages/wizzi.scripts/pandoc/_posts_temp/hello-world.md.native', 'stfnbssl/wizzi.cli', 'Wizzi hello world post native Pandoc output'],
+            ['https://raw.githubusercontent.com/stfnbssl/wizzi.cli/6e0355a6c758166a6910e6b3a5b082227b99a6c3/packages/wizzi.scripts/pandoc/_posts_temp/dynamic-routing.md.native', 'stfnbssl/wizzi.cli', 'Wizzi dynamic routing post native Pandoc output'],
+            ['https://raw.githubusercontent.com/edenian-prince/translatemd/8b85973dd33de5b9d5b40e699b085953aab1f8f1/single-doc/single-doc.native', 'edenian-prince/translatemd', 'Translatemd single document native output'],
+            ['https://raw.githubusercontent.com/anubav/exercises/3f8a4529a0c67e5bdb0702b2d4eea2501c6f3159/example.native', 'anubav/exercises', 'Exercises example native document'],
+            ['https://raw.githubusercontent.com/kai-prince-sfhea/Additional-Citation-Options/201cb67c05a755412224827a0a02cf9c79ac53bf/_site/template.native', 'kai-prince-sfhea/Additional-Citation-Options', 'Additional citation options template native output'],
+            ['https://raw.githubusercontent.com/kai-prince-sfhea/Schema/106252e3bca82dd507086687162aaf588ca8f7b3/_site/template.native', 'kai-prince-sfhea/Schema', 'Schema site template native output'],
+            ['https://raw.githubusercontent.com/kai-prince-sfhea/Schema/106252e3bca82dd507086687162aaf588ca8f7b3/_site/template-folder/template-no-terms.native', 'kai-prince-sfhea/Schema', 'Schema template no terms native output'],
+            ['https://raw.githubusercontent.com/DO3SE/pyDO3SE-open/e871e1f3d2e89c97a464e5ceedbdebf68c0460e6/src/pyDO3SE/docs/experiment/demo_link_rawword.native', 'DO3SE/pyDO3SE-open', 'DO3SE experiment native documentation'],
+            ['https://raw.githubusercontent.com/rbdixon/pandoc-yaml-block-issue/1ccbe6e105241fb5ffe8869da982bcb830c81779/1_18_plus/report.native', 'rbdixon/pandoc-yaml-block-issue', 'YAML block issue 1.18 report native output'],
+            ['https://raw.githubusercontent.com/tittoassini/www/bc2868446cd60ffe8697c14c448d8626ce001a43/site/quid2.org/web/docs/Sample.native', 'tittoassini/www', 'Quid2 sample native documentation'],
+            ['https://raw.githubusercontent.com/tittoassini/www/bc2868446cd60ffe8697c14c448d8626ce001a43/site/quid2.org/web/docs/ZhengMing.native', 'tittoassini/www', 'Quid2 ZhengMing native documentation'],
+            ['https://raw.githubusercontent.com/tittoassini/www/bc2868446cd60ffe8697c14c448d8626ce001a43/site/quid2.org/web/docs/manual.native', 'tittoassini/www', 'Quid2 manual native documentation'],
+            ['https://raw.githubusercontent.com/tittoassini/www/bc2868446cd60ffe8697c14c448d8626ce001a43/site/quid2.org/web/docs/Quid2Model.native', 'tittoassini/www', 'Quid2 model native documentation'],
+            ['https://raw.githubusercontent.com/tittoassini/www/bc2868446cd60ffe8697c14c448d8626ce001a43/site/quid2.org/web/docs/Quid2Binary.native', 'tittoassini/www', 'Quid2 binary native documentation'],
+            ['https://raw.githubusercontent.com/tittoassini/www/bc2868446cd60ffe8697c14c448d8626ce001a43/site/quid2.org/web/docs/Top.native', 'tittoassini/www', 'Quid2 top native documentation'],
+            ['https://raw.githubusercontent.com/tittoassini/www/bc2868446cd60ffe8697c14c448d8626ce001a43/site/quid2.org/web/docs/Flat.native', 'tittoassini/www', 'Quid2 flat native documentation'],
+            ['https://raw.githubusercontent.com/kai-prince-sfhea/Schema/106252e3bca82dd507086687162aaf588ca8f7b3/_site/template-folder/template-group.native', 'kai-prince-sfhea/Schema', 'Schema template group native output'],
+            ['https://raw.githubusercontent.com/kai-prince-sfhea/Schema/106252e3bca82dd507086687162aaf588ca8f7b3/_site/template-folder/template-folner.native', 'kai-prince-sfhea/Schema', 'Schema template folner native output'],
+            ['https://raw.githubusercontent.com/jandermoreira/algxpar-quarto/1cdf7b165857a5e35739b013b517bce3ef9b0ac7/examples/simple/example.native', 'jandermoreira/algxpar-quarto', 'Algxpar quarto simple native example'],
+            ['https://raw.githubusercontent.com/rbdixon/pandoc-yaml-block-issue/1ccbe6e105241fb5ffe8869da982bcb830c81779/2_0_1_minus/report.native', 'rbdixon/pandoc-yaml-block-issue', 'YAML block issue 2.0.1 minus report native output'],
+            ['https://raw.githubusercontent.com/rbdixon/pandoc-yaml-block-issue/1ccbe6e105241fb5ffe8869da982bcb830c81779/1_17_2_none/report.native', 'rbdixon/pandoc-yaml-block-issue', 'YAML block issue 1.17.2 none report native output'],
+        ]),
         seed('https://raw.githubusercontent.com/geometer/FBReaderJ/e83aec9f94084aa59d39e33876bdb6fdc275c95e/obsolete/help/MiniHelp.fr.fb2', 'fb2', 'github-raw', 'geometer/FBReaderJ', 'FBReaderJ French mini help FB2'),
+        seed('https://raw.githubusercontent.com/geometer/FBReaderJ/e83aec9f94084aa59d39e33876bdb6fdc275c95e/obsolete/help/MiniHelp.de.fb2', 'fb2', 'github-raw', 'geometer/FBReaderJ', 'FBReaderJ German mini help FB2'),
+        seed('https://raw.githubusercontent.com/geometer/FBReaderJ/e83aec9f94084aa59d39e33876bdb6fdc275c95e/obsolete/help/MiniHelp.vi.fb2', 'fb2', 'github-raw', 'geometer/FBReaderJ', 'FBReaderJ Vietnamese mini help FB2'),
         seed('https://raw.githubusercontent.com/bitcoin/bips/master/bip-0039.mediawiki', 'mediawiki', 'github-raw', 'bitcoin/bips', 'BIP 39 MediaWiki'),
         seed('https://raw.githubusercontent.com/scripting/Scripting-News/master/blog/opml/2026/04.opml', 'opml', 'github-raw', 'scripting/Scripting-News', 'Scripting News April 2026 OPML'),
         seed('https://raw.githubusercontent.com/proycon/homepage/master/proycon.ris', 'ris', 'github-raw', 'proycon/homepage', 'Proycon publications RIS'),
@@ -1016,6 +1105,16 @@ function seed(string $url, string $format, string $sourceKind, string $origin, s
         'title' => $title,
         'discovery_meta' => '{}',
     ];
+}
+
+function seedUrlList(string $format, string $sourceKind, array $items): array
+{
+    $seeds = [];
+    foreach ($items as [$url, $origin, $title]) {
+        $seeds[] = seed($url, $format, $sourceKind, $origin, $title);
+    }
+
+    return $seeds;
 }
 
 function crossrefBibliographySeedUrls(array $items): array
@@ -1807,7 +1906,7 @@ function validateCandidateBytes(string $format, string $url, string $bytes): voi
         throw new RuntimeException('organic path exclusion matched after download');
     }
 
-    $trimmed = ltrim(substr($bytes, 0, 4096));
+    $trimmed = ltrim(stripUtf8Bom(substr($bytes, 0, 4096)));
     if (in_array($format, xmlLikeFormats(), true) && !str_starts_with($trimmed, '<')) {
         throw new RuntimeException("{$format} candidate is not XML-like content");
     }
@@ -1842,6 +1941,11 @@ function isZipLikeBytes(string $bytes): bool
     return str_starts_with($bytes, "PK\x03\x04")
         || str_starts_with($bytes, "PK\x05\x06")
         || str_starts_with($bytes, "PK\x07\x08");
+}
+
+function stripUtf8Bom(string $bytes): string
+{
+    return str_starts_with($bytes, "\xEF\xBB\xBF") ? substr($bytes, 3) : $bytes;
 }
 
 function xmlLikeFormats(): array
