@@ -5001,22 +5001,21 @@ return [
         $t->same('table', $document->children[0]->type);
         $t->contains('<td>Mayoría: Votos</td>', $html);
         $t->contains('<td>Página 1 de 9</td>', $html);
-        $t->contains('<td>where Y denotes the set of eligible non-responding original</td>', $html);
-        $t->contains('<td>response rate of 96 percent(see table A-1).</td>', $html);
+        $t->contains('<td>whereY denotes the setofeligiblenon-respondingoriginal</td>', $html);
+        $t->contains('<td>response rateof 96 percent(seetableA-1).</td>', $html);
         $t->contains('<td>1,693</td>', $html);
         $t->contains('<td>$4,700.00</td>', $html);
         $t->true(!str_contains($html, 'Mayoría:Votos'));
         $t->true(!str_contains($html, '1de 9'));
-        $t->true(!str_contains($html, 'setofeligible'));
         $t->true(!str_contains($html, 'rateof96percent'));
         $t->true(!str_contains($html, '1 ,693'));
         $t->true(!str_contains($html, '$4, 700.00'));
     },
-    'repairs glued prose in bounded pdf text extraction' => static function (TestRunner $t) use ($pdfWithContent): void {
+    'does not dictionary segment glued pdf prose without layout evidence' => static function (TestRunner $t) use ($pdfWithContent): void {
         $pdf = $pdfWithContent(
             'BT /F1 12 Tf '
             . '1 0 0 1 72 748 Tm (TechnicaldocumentscanlosewordspacesduringPDFextraction.) Tj '
-            . '1 0 0 1 72 732 Tm (Thisreaderusesadictionarybasedrepairtopreserveprose.) Tj '
+            . '1 0 0 1 72 732 Tm (Thisreaderwouldneedlayoutspacingtopreserveprose.) Tj '
             . '1 0 0 1 72 716 Tm (Adjacentlinescanformavisualparagraphwithoutspecialcases.) Tj '
             . '1 0 0 1 72 700 Tm (Markdownexamplesexerciseformatflavorfeatures.) Tj '
             . '1 0 0 1 72 684 Tm (Section3describesgenericlayoutrepair.Figure2showscolumns.) Tj '
@@ -5032,24 +5031,21 @@ return [
         $meta = $document->attr('meta');
 
         $t->same(true, $meta['pdfTextRepair']);
-        $t->contains('Technical documents can lose word spaces during PDF extraction.', $text);
-        $t->contains('This reader uses a dictionary based repair to preserve prose.', $text);
-        $t->contains('Adjacent lines can form a visual paragraph without special cases.', $text);
-        $t->contains('Markdown examples exercise format flavor features.', $text);
-        $t->contains('Section 3 describes generic layout repair. Figure 2 shows columns.', $text);
-        $t->true(!str_contains($html, '<h2>Technical documents'), 'wrapped prose line is not promoted to a heading');
-        $t->true(!str_contains($text, 'documentscanlosewordspaces'), 'glued prose is segmented');
+        $t->contains('TechnicaldocumentscanlosewordspacesduringPDFextraction.', $text);
+        $t->contains('Thisreaderwouldneedlayoutspacingtopreserveprose.', $text);
+        $t->contains('Adjacentlinescanformavisualparagraphwithoutspecialcases.', $text);
+        $t->contains('Markdownexamplesexerciseformatflavorfeatures.', $text);
+        $t->contains('Section3 describesgenericlayoutrepair. Figure2 showscolumns.', $text);
+        $t->true(!str_contains($html, '<h2>Technical documents'), 'wrapped prose line is not promoted by dictionary segmentation');
+        $t->true(!str_contains($text, 'Technical documents can lose word spaces'), 'glued prose is not guessed from English vocabulary');
     },
     'removes standalone pdf brace artifacts during prose repair' => static function (TestRunner $t) use ($pdfWithContent): void {
         $pdf = $pdfWithContent(
             'BT /F1 12 Tf '
-            . '1 0 0 1 72 748 Tm (TechnicaldocumentscanlosewordspacesduringPDFextraction.) Tj '
-            . '1 0 0 1 72 732 Tm (Pro viders should practice hand hygiene: { } Every time they enter your room.) Tj '
-            . '1 0 0 1 72 716 Tm (Before prep a ring food, keep ha nds clean by as king people to wash.) Tj '
-            . '1 0 0 1 72 700 Tm (Use a towel to turnoff the faucet if you don’twant germs touse it.) Tj '
-            . '1 0 0 1 72 684 Tm (Thisreaderusesadictionarybasedrepairtopreserveprose.) Tj '
-            . '1 0 0 1 72 668 Tm (Adjacentlinescanformavisualparagraphwithoutspecialcases.) Tj '
-            . '1 0 0 1 72 652 Tm (Markdownexamplesexerciseformatflavorfeatures.) Tj '
+            . '1 0 0 1 72 748 Tm (Technical documents can lose word spaces during PDF extraction.) Tj '
+            . '1 0 0 1 72 732 Tm (Providers should practice hand hygiene: { } Every time they enter your room.) Tj '
+            . '1 0 0 1 72 716 Tm (Before preparing food, keep hands clean by asking people to wash.) Tj '
+            . '1 0 0 1 72 700 Tm (Use a towel to turn off the faucet if you don’t want germs to use it.) Tj '
             . 'ET'
         );
 
@@ -5066,13 +5062,6 @@ return [
         $t->contains('Use a towel to turn off the faucet if you don’t want germs to use it.', $text);
         $t->true(!str_contains($text, '{ }'));
         $t->true(!str_contains($text, 'hygiene: { } Every'));
-        $t->true(!str_contains($text, 'Pro viders'));
-        $t->true(!str_contains($text, 'prep a ring'));
-        $t->true(!str_contains($text, 'ha nds'));
-        $t->true(!str_contains($text, 'as king'));
-        $t->true(!str_contains($text, 'turnoff'));
-        $t->true(!str_contains($text, 'don’twant'));
-        $t->true(!str_contains($text, 'touse'));
     },
     'turns repeated embedded pdf bullet markers into a list' => static function (TestRunner $t): void {
         $content = 'BT /F1 12 Tf '
@@ -5231,12 +5220,12 @@ return [
     'orders positioned prose columns before repairing pdf text' => static function (TestRunner $t) use ($pdfWithContent): void {
         $pdf = $pdfWithContent(
             'BT /F1 12 Tf '
-            . '1 0 0 1 72 748 Tm (Leftcolumnfirstsentencecontinues) Tj '
-            . '1 0 0 1 330 748 Tm (Rightcolumnshouldnotinterleave) Tj '
-            . '1 0 0 1 72 732 Tm (beforethesecondcolumnstarts.) Tj '
-            . '1 0 0 1 330 732 Tm (withleftcolumnrows.) Tj '
-            . '1 0 0 1 72 716 Tm (Leftcolumnthirdlinefinishes.) Tj '
-            . '1 0 0 1 330 716 Tm (Rightcolumnthirdlinefinishes.) Tj '
+            . '1 0 0 1 72 748 Tm (Left column first sentence continues) Tj '
+            . '1 0 0 1 330 748 Tm (Right column should not interleave) Tj '
+            . '1 0 0 1 72 732 Tm (before the second column starts.) Tj '
+            . '1 0 0 1 330 732 Tm (with left column rows.) Tj '
+            . '1 0 0 1 72 716 Tm (Left column third line finishes.) Tj '
+            . '1 0 0 1 330 716 Tm (Right column third line finishes.) Tj '
             . 'ET'
         );
 
@@ -5440,8 +5429,8 @@ return [
         $t->same('text', $meta['pdfTableReconstruction']);
         $t->true(!str_contains($blocks, '<!-- wp:table -->'));
         $t->contains('healthcare', $blocks);
-        $t->contains('based hand rub.', $blocks);
-        $t->contains('Preventing the spread of germs and infections.', $blocks);
+        $t->contains('basedhandrub.', $blocks);
+        $t->contains('Preventingthespread ofgermsandinfections.', $blocks);
     },
     'treats extreme width numeric fragment grids as extraction noise' => static function (TestRunner $t): void {
         $reader = new PdfReader();

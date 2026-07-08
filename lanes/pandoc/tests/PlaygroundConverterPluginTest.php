@@ -158,6 +158,45 @@ return [
         $t->same('all', plpc_normalize_image_mode('all-images'));
         $t->same('all', plpc_normalize_image_mode(true));
     },
+    'playground importer marks imported wp image blocks with attachment metadata' => static function (TestRunner $t): void {
+        $blocks = <<<'HTML'
+<!-- wp:image -->
+<figure class="wp-block-image"><img src="media/photo &amp; one.png" alt="First"/></figure>
+<!-- /wp:image -->
+
+<!-- wp:image -->
+<figure class="wp-block-image"><img src="media/other.png" alt="Other"/></figure>
+<!-- /wp:image -->
+
+<!-- wp:html -->
+<div><img src="media/photo &amp; one.png" alt="Raw"></div>
+<!-- /wp:html -->
+HTML;
+
+        $rewritten = plpc_replace_image_source(
+            $blocks,
+            'media/photo & one.png',
+            'https://playground.test/uploads/photo.png?x=1&y=2',
+            42
+        );
+
+        $t->contains('<!-- wp:image {"id":42} -->', $rewritten);
+        $t->contains('<img src="https://playground.test/uploads/photo.png?x=1&amp;y=2" alt="First" class="wp-image-42"/>', $rewritten);
+        $t->contains('<!-- wp:image -->' . "\n" . '<figure class="wp-block-image"><img src="media/other.png" alt="Other"/></figure>', $rewritten);
+        $t->contains('<div><img src="https://playground.test/uploads/photo.png?x=1&amp;y=2" alt="Raw"></div>', $rewritten);
+        $t->true(!str_contains($rewritten, 'alt="Raw" class="wp-image-42"'), 'Raw HTML images should not be marked as native wp:image attachments.');
+    },
+    'playground importer preserves existing image block attrs and classes when marking attachments' => static function (TestRunner $t): void {
+        $blocks = '<!-- wp:image {"sizeSlug":"large","id":9} -->'
+            . "\n" . '<figure class="wp-block-image"><img src="media/logo.png" alt="Logo" class="alignnone"/></figure>'
+            . "\n" . '<!-- /wp:image -->';
+
+        $rewritten = plpc_replace_image_source($blocks, 'media/logo.png', 'https://playground.test/uploads/logo.png', 77);
+
+        $t->contains('<!-- wp:image {"id":77,"sizeSlug":"large"} -->', $rewritten);
+        $t->contains('class="alignnone wp-image-77"', $rewritten);
+        $t->true(!str_contains($rewritten, 'wp-image-77 wp-image-77'), 'Attachment class should not be duplicated.');
+    },
     'playground importer expands zip files into safe collection entries' => static function (TestRunner $t): void {
         $zip = PortLibs\Pandoc\ZipPackage::build([
             ['name' => 'bundle/intro.md', 'data' => "# Intro\n\n![Logo](images/logo.png)\n"],

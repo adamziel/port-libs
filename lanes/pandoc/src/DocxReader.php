@@ -2323,14 +2323,76 @@ final class DocxReader
         }
 
         $attributes = $this->contentControlAttributes($control, 'block');
-        if ($this->shouldUnwrapContentControl($attributes) || $this->isGeneratedTocContentControl($control, $attributes)) {
-            return $blocks;
+        $isGeneratedToc = $this->isGeneratedTocContentControl($control, $attributes);
+        if ($this->shouldUnwrapContentControl($attributes) || $isGeneratedToc) {
+            return $isGeneratedToc ? $this->generatedTocContentControlBlocks($blocks) : $blocks;
         }
 
         return [new AstNode('div', [
             'classes' => ['docx-content-control', 'docx-content-control-block'],
             'attributes' => $attributes,
         ], $blocks)];
+    }
+
+    /**
+     * @param list<AstNode> $blocks
+     * @return list<AstNode>
+     */
+    private function generatedTocContentControlBlocks(array $blocks): array
+    {
+        $rebuilt = [];
+        foreach ($blocks as $block) {
+            if ($block->type !== 'paragraph' || $this->paragraphContainsGeneratedTocSpan($block)) {
+                $rebuilt[] = $block;
+                continue;
+            }
+
+            $target = $this->firstInternalLinkTarget($block->children);
+            if ($target === null) {
+                $rebuilt[] = $block;
+                continue;
+            }
+
+            $rebuilt[] = new AstNode('paragraph', $block->attrs, [
+                new AstNode('span', [
+                    'classes' => [
+                        'docx-field',
+                        'docx-field-toc',
+                        'docx-generated-field',
+                        'docx-generated-field-toc',
+                        'docx-field-hyperlink',
+                    ],
+                    'attributes' => [
+                        'data-docx-field' => 'toc',
+                        'data-docx-generated-field-type' => 'table-of-contents',
+                        'data-docx-field-hyperlink' => 'true',
+                        'data-docx-field-target' => $target,
+                    ],
+                ], [
+                    new AstNode('link', [
+                        'url' => $target,
+                        'title' => '',
+                    ], $this->stripLinkWrappers($block->children)),
+                ]),
+            ]);
+        }
+
+        return $rebuilt;
+    }
+
+    private function paragraphContainsGeneratedTocSpan(AstNode $paragraph): bool
+    {
+        foreach ($paragraph->children as $child) {
+            if ($child->type !== 'span') {
+                continue;
+            }
+            $classes = $child->attr('classes', []);
+            if (is_array($classes) && in_array('docx-field-toc', $classes, true)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -2894,10 +2956,67 @@ final class DocxReader
             $attrs['data-docx-field-page-number-separator'] = $switches['p'];
         }
 
+        if (isset($switches['h'])) {
+            $tocTarget = $this->firstInternalLinkTarget($inlines);
+            if ($tocTarget !== null) {
+                $attrs['data-docx-field-target'] = $tocTarget;
+                $inlines = [
+                    new AstNode('link', [
+                        'url' => $tocTarget,
+                        'title' => '',
+                    ], $this->stripLinkWrappers($inlines)),
+                ];
+            }
+        }
+
         return new AstNode('span', [
             'classes' => array_values(array_unique($classes)),
             'attributes' => $attrs,
         ], $inlines);
+    }
+
+    /**
+     * @param list<AstNode> $inlines
+     */
+    private function firstInternalLinkTarget(array $inlines): ?string
+    {
+        foreach ($inlines as $inline) {
+            if ($inline->type === 'link') {
+                $url = (string) $inline->attr('url', '');
+                if (str_starts_with($url, '#') && strlen($url) > 1) {
+                    return $url;
+                }
+            }
+
+            if ($inline->children !== []) {
+                $target = $this->firstInternalLinkTarget($inline->children);
+                if ($target !== null) {
+                    return $target;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<AstNode> $inlines
+     * @return list<AstNode>
+     */
+    private function stripLinkWrappers(array $inlines): array
+    {
+        $stripped = [];
+        foreach ($inlines as $inline) {
+            $children = $inline->children === [] ? [] : $this->stripLinkWrappers($inline->children);
+            if ($inline->type === 'link') {
+                array_push($stripped, ...$children);
+                continue;
+            }
+
+            $stripped[] = new AstNode($inline->type, $inline->attrs, $children);
+        }
+
+        return $stripped;
     }
 
     /**
@@ -3464,6 +3583,17 @@ final class DocxReader
                     $fragment = substr($url, 1);
                     if (isset($bookmarkTargets[$fragment])) {
                         $attrs['url'] = '#' . $bookmarkTargets[$fragment];
+                    }
+                }
+            }
+            $attributes = $attrs['attributes'] ?? null;
+            if (is_array($attributes)) {
+                $fieldTarget = (string) ($attributes['data-docx-field-target'] ?? '');
+                if (str_starts_with($fieldTarget, '#')) {
+                    $fragment = substr($fieldTarget, 1);
+                    if (isset($bookmarkTargets[$fragment])) {
+                        $attributes['data-docx-field-target'] = '#' . $bookmarkTargets[$fragment];
+                        $attrs['attributes'] = $attributes;
                     }
                 }
             }

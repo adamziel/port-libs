@@ -551,12 +551,18 @@ final class PdfReader
 
         $leftLength = $this->length($leftWord);
         $rightLength = $this->length($rightWord);
-        $joined = strtolower($leftWord . $rightWord);
-        if ($leftLength <= 2 || $rightLength > 4) {
-            return isset($this->proseWordDictionary()[$joined]);
+        if ($leftLength < 2 || $rightLength < 1) {
+            return false;
         }
 
-        return $leftLength >= 3 && $rightLength >= 1;
+        if ($rightLength > 4 && preg_match('/-\s*$/u', $left['text']) !== 1) {
+            return false;
+        }
+
+        $fontSize = max($left['fontSize'], $right['fontSize'], 1.0);
+        $maxContinuationGap = max($fontSize * 3.0, $pageWidth > 0.0 ? $pageWidth * 0.45 : 24.0);
+
+        return $gap <= $maxContinuationGap;
     }
 
     /**
@@ -756,9 +762,9 @@ final class PdfReader
             return true;
         }
 
-        $textSpacingDamage = $this->spacingDamageScore($textLines);
-        $positionedSpacingDamage = $this->spacingDamageScore($positionedLines);
-        if ($positionedSpacingDamage > $textSpacingDamage) {
+        $textSpacingDamage = $this->genericSpacingDamageScore($textLines);
+        $positionedSpacingDamage = $this->genericSpacingDamageScore($positionedLines);
+        if ($positionedSpacingDamage > $textSpacingDamage + 2) {
             return false;
         }
 
@@ -780,17 +786,15 @@ final class PdfReader
     /**
      * @param list<string> $lines
      */
-    private function spacingDamageScore(array $lines): int
+    private function genericSpacingDamageScore(array $lines): int
     {
         $score = 0;
         foreach (array_slice($lines, 0, 500) as $line) {
-            if (preg_match_all('/\b[A-Za-z]{16,}\b/u', $line, $matches) !== false) {
-                foreach ($matches[0] as $word) {
-                    $segmented = $this->segmentGluedAsciiWord($word);
-                    if ($segmented !== $word) {
-                        $score += max(1, substr_count($segmented, ' '));
-                    }
-                }
+            if (preg_match_all('/\p{Ll}\p{Lu}|\p{L}\d|\d\p{L}|[,:;!?]\S|(?<!\d)\.[\p{Lu}]/u', $line, $matches) !== false) {
+                $score += count($matches[0]);
+            }
+            if (preg_match_all('/\b[\p{L}]{28,}\b/u', $line, $matches) !== false) {
+                $score += count($matches[0]);
             }
         }
 
@@ -991,25 +995,12 @@ final class PdfReader
 
         $line = $this->removeStandaloneBraceArtifacts($line);
         $line = preg_replace('/([,;:!?])(?=\S)/u', '$1 ', $line) ?? $line;
-        $line = preg_replace('/(?<!\d)\.(?=[A-Z])/u', '. ', $line) ?? $line;
-        $line = preg_replace('/([a-z])([A-Z]{1,4})(?=\s|[.,;:)])/u', '$1 $2', $line) ?? $line;
-        $line = preg_replace('/([a-z])([A-Z][a-z])/u', '$1 $2', $line) ?? $line;
-        $line = preg_replace('/\b(section|figure|table|chapter|page)(\d+)/iu', '$1 $2 ', $line) ?? $line;
-        $line = preg_replace('/\b(and|or|but)(a|an|the)\b/iu', '$1 $2', $line) ?? $line;
+        $line = preg_replace('/(?<!\d)\.(?=\p{Lu})/u', '. ', $line) ?? $line;
+        $line = preg_replace('/([\p{Ll}])([\p{Lu}][\p{Ll}])/u', '$1 $2', $line) ?? $line;
+        $line = preg_replace('/([\p{L}])(\d{2,})/u', '$1 $2', $line) ?? $line;
+        $line = preg_replace('/(\d)([\p{L}]{2,})/u', '$1 $2', $line) ?? $line;
         $line = preg_replace('/\/\/(?=[A-Za-z])/', '// ', $line) ?? $line;
-        $line = preg_replace('/((?:do|does|can|should|would|could|wo|is|are|was|were|did|have|has|had)n[\x{2019}\']t)(?=[A-Za-z])/iu', '$1 ', $line) ?? $line;
         $line = preg_replace('/([\x{2019}\']t)(?=[A-Za-z])/u', '$1 ', $line) ?? $line;
-        $line = preg_replace('/(^|[^A-Za-z])turnoff(?=\s+(?:a|an|the|this|that|these|those|your|my|our|their)(?:\s|$|[^A-Za-z]))/iu', '$1turn off', $line) ?? $line;
-        $line = preg_replace('/(^|[^A-Za-z])touse(?=\s|$|[^A-Za-z])/iu', '$1to use', $line) ?? $line;
-        $line = $this->repairSplitWordFragments($line);
-        $line = preg_replace_callback('/\b[A-Za-z]{5,}\b/u', function (array $match): string {
-            return $this->segmentGluedAsciiWord($match[0]);
-        }, $line) ?? $line;
-
-        foreach (['JavaScript', 'TypeScript', 'ECMAScript', 'OpenDocument', 'Markdown', 'MathML', 'MediaWiki', 'PostScript'] as $term) {
-            $spaced = preg_replace('/(?<!^)([A-Z])/', ' $1', $term) ?? $term;
-            $line = preg_replace('/\b' . preg_quote($spaced, '/') . '\b/u', $term, $line) ?? $line;
-        }
 
         $line = preg_replace('/\s+/u', ' ', $line) ?? $line;
 
@@ -1023,220 +1014,21 @@ final class PdfReader
         return preg_replace('/\s+/u', ' ', $line) ?? $line;
     }
 
-    private function repairSplitWordFragments(string $line): string
-    {
-        for ($pass = 0; $pass < 4; $pass++) {
-            $previous = $line;
-            $line = $this->repairSplitWordFragmentPass($line);
-            if ($line === $previous) {
-                break;
-            }
-        }
-
-        return $line;
-    }
-
-    private function repairSplitWordFragmentPass(string $line): string
-    {
-        $tokens = preg_split('/([A-Za-z]+)/u', $line, -1, PREG_SPLIT_DELIM_CAPTURE | PREG_SPLIT_NO_EMPTY);
-        if (!is_array($tokens) || count($tokens) < 3) {
-            return $line;
-        }
-
-        $repaired = [];
-        $count = count($tokens);
-        for ($index = 0; $index < $count; $index++) {
-            if (!$this->isAsciiWordToken($tokens[$index])) {
-                $repaired[] = $tokens[$index];
-                continue;
-            }
-
-            $joined = null;
-            $lastTokenIndex = $index;
-            foreach ([3, 2] as $wordCount) {
-                $wordIndexes = $this->splitWordFragmentWindow($tokens, $index, $wordCount);
-                if ($wordIndexes === null) {
-                    continue;
-                }
-                $parts = array_map(static fn (int $wordIndex): string => $tokens[$wordIndex], $wordIndexes);
-                $candidate = $this->joinedSplitWordFragment(...$parts);
-                if ($candidate === null) {
-                    continue;
-                }
-                $joined = $candidate;
-                $lastTokenIndex = $wordIndexes[count($wordIndexes) - 1];
-                break;
-            }
-
-            if ($joined === null) {
-                $repaired[] = $tokens[$index];
-                continue;
-            }
-
-            $repaired[] = $joined;
-            $index = $lastTokenIndex;
-        }
-
-        return implode('', $repaired);
-    }
-
-    /**
-     * @param list<string> $tokens
-     * @return list<int>|null
-     */
-    private function splitWordFragmentWindow(array $tokens, int $startIndex, int $wordCount): ?array
-    {
-        $wordIndexes = [];
-        $index = $startIndex;
-        for ($word = 0; $word < $wordCount; $word++) {
-            if (!isset($tokens[$index]) || !$this->isAsciiWordToken($tokens[$index])) {
-                return null;
-            }
-
-            $wordIndexes[] = $index;
-            if ($word === $wordCount - 1) {
-                return $wordIndexes;
-            }
-
-            $index++;
-            if (!isset($tokens[$index]) || preg_match('/^\s+$/u', $tokens[$index]) !== 1) {
-                return null;
-            }
-            $index++;
-        }
-
-        return null;
-    }
-
-    private function isAsciiWordToken(string $token): bool
-    {
-        return preg_match('/^[A-Za-z]+$/u', $token) === 1;
-    }
-
-    private function joinedSplitWordFragment(string ...$parts): ?string
-    {
-        $lengths = array_map('strlen', $parts);
-        if (min($lengths) > 3) {
-            return null;
-        }
-
-        $joined = implode('', $parts);
-        $lower = strtolower($joined);
-        if (!isset($this->splitWordJoinDictionary()[$lower])) {
-            return null;
-        }
-
-        if (preg_match('/^[A-Z]+$/', implode('', $parts)) === 1) {
-            return strtoupper($joined);
-        }
-        if (preg_match('/^[A-Z]/', $parts[0]) === 1) {
-            return ucfirst($lower);
-        }
-
-        return $lower;
-    }
-
-    /**
-     * @return array<string, true>
-     */
-    private function splitWordJoinDictionary(): array
-    {
-        return array_fill_keys([
-            'action',
-            'asking',
-            'hands',
-            'preparing',
-            'providers',
-            'risk',
-            'them',
-            'water',
-            'with',
-            'your',
-        ], true);
-    }
-
     /**
      * @param list<string> $lines
      */
     private function looksLikeProseRepairCandidate(array $lines): bool
     {
-        $changed = 0;
         foreach (array_slice($lines, 0, 200) as $line) {
-            if (preg_match_all('/\b[A-Za-z]{6,}\b/u', $line, $matches) !== false) {
-                foreach ($matches[0] as $word) {
-                    if ($this->segmentGluedAsciiWord($word) !== $word) {
-                        $changed++;
-                        if ($changed >= 3) {
-                            return true;
-                        }
-                    }
-                }
+            if ($this->genericSpacingDamageScore([$line]) > 0) {
+                return true;
+            }
+            if (preg_match('/(^|\s)\{\s*\}(?=\s|$)/u', $line) === 1) {
+                return true;
             }
         }
 
         return false;
-    }
-
-    private function segmentGluedAsciiWord(string $word): string
-    {
-        $length = strlen($word);
-        if ($length < 5 || preg_match('/[A-Za-z]/', $word) !== 1) {
-            return $word;
-        }
-
-        $lower = strtolower($word);
-        $dictionary = $this->proseWordDictionary();
-        $cost = array_fill(0, $length + 1, INF);
-        $previous = array_fill(0, $length + 1, null);
-        $cost[0] = 0.0;
-        for ($index = 0; $index < $length; $index++) {
-            if (!is_finite($cost[$index])) {
-                continue;
-            }
-            $maxEnd = min($length, $index + 24);
-            for ($end = $index + 1; $end <= $maxEnd; $end++) {
-                $part = substr($lower, $index, $end - $index);
-                if (!isset($dictionary[$part])) {
-                    continue;
-                }
-                $partLength = $end - $index;
-                $partCost = $dictionary[$part] + max(0, 7 - $partLength) * 0.55 - min(8, $partLength) * 0.08;
-                if ($cost[$index] + $partCost < $cost[$end]) {
-                    $cost[$end] = $cost[$index] + $partCost;
-                    $previous[$end] = [$index, $end];
-                }
-            }
-        }
-        if (!is_finite($cost[$length])) {
-            return $word;
-        }
-
-        $parts = [];
-        for ($cursor = $length; $cursor > 0;) {
-            $span = $previous[$cursor];
-            if (!is_array($span)) {
-                return $word;
-            }
-            [$start, $end] = $span;
-            $parts[] = substr($word, $start, $end - $start);
-            $cursor = $start;
-        }
-        $parts = array_reverse($parts);
-        if (count($parts) < 2) {
-            return $word;
-        }
-
-        $shortParts = 0;
-        foreach ($parts as $part) {
-            if (strlen($part) <= 2 && !in_array(strtolower($part), ['a', 'an', 'as', 'at', 'be', 'by', 'do', 'if', 'in', 'is', 'it', 'js', 'me', 'no', 'of', 'on', 'or', 'pc', 'so', 'tm', 'to', 'vm', 'we'], true)) {
-                $shortParts++;
-            }
-        }
-        if ($shortParts > 0) {
-            return $word;
-        }
-
-        return implode(' ', $parts);
     }
 
     private function lineIsOnlyPdfNoise(string $line): bool
@@ -1244,11 +1036,6 @@ final class PdfReader
         $line = trim($line);
         if ($line === '') {
             return false;
-        }
-
-        $compact = strtolower(preg_replace('/[^a-z0-9]+/iu', '', $line) ?? $line);
-        if (preg_match('/^(permissiontomake|classroomuseisgranted|forprofitorcommercialadvantage|onthefirstpage|tocopyotherwise|proceedingsofthe|copyright|june\d{1,2})/', $compact) === 1) {
-            return true;
         }
 
         return preg_match('/^[,.;:()\[\]{}|_~`\'"’‘“”\-]+$/u', $line) === 1;
@@ -1309,6 +1096,14 @@ final class PdfReader
         }
         if ($this->repairedPdfLayoutStartsNewBlock($previousLayout, $lineLayout)) {
             return true;
+        }
+        if ($this->lineHasPdfListBlockEvidence($previous) && !$this->lineHasPdfListBlockEvidence($line)) {
+            if (preg_match('/[.!?]\s*$/u', $previous) !== 1 && preg_match('/^\p{Ll}/u', $line) === 1) {
+                return false;
+            }
+            if ($this->repairedPdfLayoutLeavesListItem($previousLayout, $lineLayout)) {
+                return true;
+            }
         }
         if ($this->repairedPdfLayoutContinuesWrappedLine($previousLayout, $lineLayout)) {
             return false;
@@ -1381,6 +1176,30 @@ final class PdfReader
         return abs($previousLayout['x1'] - $lineLayout['x1']) <= max(8.0, $referenceHeight * 0.75);
     }
 
+    /**
+     * @param array{text: string, page: int, x1: float, y1: float, x2: float, y2: float, fontSize: float}|null $previousLayout
+     * @param array{text: string, page: int, x1: float, y1: float, x2: float, y2: float, fontSize: float}|null $lineLayout
+     */
+    private function repairedPdfLayoutLeavesListItem(?array $previousLayout, ?array $lineLayout): bool
+    {
+        if ($previousLayout === null || $lineLayout === null) {
+            return false;
+        }
+        if ($previousLayout['page'] !== $lineLayout['page']) {
+            return true;
+        }
+
+        $previousHeight = max(1.0, $previousLayout['y2'] - $previousLayout['y1']);
+        $lineHeight = max(1.0, $lineLayout['y2'] - $lineLayout['y1']);
+        $referenceHeight = max($previousHeight, $lineHeight, $previousLayout['fontSize'], $lineLayout['fontSize'], 1.0);
+        $verticalGap = $previousLayout['y1'] - $lineLayout['y2'];
+        if ($verticalGap < -$referenceHeight * 0.4 || $verticalGap > $referenceHeight * 1.45) {
+            return false;
+        }
+
+        return $lineLayout['x1'] <= $previousLayout['x1'] + max(8.0, $referenceHeight * 0.75);
+    }
+
     private function lineEndsWithUrl(string $line): bool
     {
         return preg_match('/(?:https?:\/\/|www\.)\S+$/i', trim($line)) === 1;
@@ -1388,7 +1207,25 @@ final class PdfReader
 
     private function repairedLineLooksLikeSectionLabel(string $line): bool
     {
-        return preg_match('/^(ABSTRACT|Categories and Subject Descriptors|General Terms|Keywords|Permission to make|Copyright)\b/i', trim($line)) === 1;
+        $line = trim($line);
+        if ($line === '' || preg_match('/[.!?]$/u', $line) === 1) {
+            return false;
+        }
+        $words = $this->pdfLineWordTokens($line);
+        if (count($words) === 0 || count($words) > 6) {
+            return false;
+        }
+        if (preg_match('/[:：]$/u', $line) === 1) {
+            return true;
+        }
+        if (preg_match('/^\p{Lu}[\p{Lu}\p{N},;:() \-]+$/u', $line) === 1) {
+            return true;
+        }
+        if (count($words) <= 3 && preg_match('/^\p{Lu}[\p{L}\p{N}&()\/ .-]*$/u', $line) === 1) {
+            return true;
+        }
+
+        return $this->looksLikeRepairedPdfTitle($line);
     }
 
     private function looksLikeRepairedPdfTitle(string $line): bool
@@ -1407,78 +1244,16 @@ final class PdfReader
         $significant = 0;
         foreach ($words as $word) {
             $word = trim($word, " \t\n\r\0\x0B,;:()");
-            if ($word === '' || in_array(strtolower($word), ['a', 'an', 'and', 'for', 'in', 'of', 'on', 'or', 'the', 'to', 'with'], true)) {
+            if ($word === '') {
                 continue;
             }
             $significant++;
-            if (preg_match('/^[A-Z0-9]/', $word) === 1) {
+            if (preg_match('/^[\p{Lu}\p{N}]/u', $word) === 1) {
                 $titleLike++;
             }
         }
 
         return $significant > 0 && $titleLike / $significant >= 0.6;
-    }
-
-    /**
-     * @return array<string, float>
-     */
-    private function proseWordDictionary(): array
-    {
-        static $dictionary = null;
-        if (is_array($dictionary)) {
-            return $dictionary;
-        }
-
-        $dictionary = [];
-        $rank = 1;
-        $builtin = preg_split('/\s+/', trim(<<<'WORDS'
-set rate rates see table tables united states addition total totals school schools student students eligible ineligible responding nonresponding original sample sampled sampling percent percentage assessment assessed booklet completed participating participated participate participation substitute substitutes substitution population populations international national target coverage weighted unweighted desired education educational system systems denotes enrollment size age classroom classrooms selected selection probability exclusion exclusions excluded replacement combined overall zealand federation republic calculated calculating without including included include includes independent matched pairs annotation annotations indicating indicated indicate defined deined nation nations each methods method using focused exclusively nonresponse adjusted adjustment weights factors statistically significant signiicant signiicantly predictors predictor reduced price priced lunch possible might provide provides provided information presence regression analysis analyses variable variables distribution respondents nonrespondents response bias public private community poverty central procedure account fact samples both mean ccd data percentage percentages two just base below assumed comparing compared characteristics timss
-the of and to in a is that for on as with by this are be or an from at it we can all any not but such than no more most one each ones when while if then into out up down over under through between during before after yet
-these those there their they them our ours your its his her was were been being have has had do does did may might must should would could will shall also both either neither same other another because since where which who whose what why how means uses use runs makes stops allows give decide decides invokes crosses crossed crossing second immediately currently always begins
-dynamic language languages javascript script python ruby compile compiler compilers compilation compiled compiling code machine native bytecode interpreter runtime run time typed type types information expression expressions operation operations instruction instructions generic generalized concrete possible combinations traditional static analysis inference optimized optimization optimizations performance startup browser web application applications google mail docs zimbra collaboration suite available handle combinations runtime present alternative fly elegant way incrementally lazily discovered measured certain
-trace traces traced tracing based just specialization specialize specialized specializations inter procedural incremental lazily discovered discover alternative alternatives paths path loop loops nested hot side exit exits guard guards speculation speculatively validate validation branch branches values mapping invariant iteration iterations method methods system systems program programs benchmark benchmarks measured measure speed speedups efficient efficiency excellent mixed mode execution sequence sequences records recorded recording frequently frequent executed execute executing generated generates generating difficult accessible access non experts expressive deployment source files file scripts complex product productivity fluid experience generation virtual machines provide provides providing reconcile reconciles granularity individual expectation expectations expect remain integer integers exact slower cost cheap elegant implemented implementation technique techniques present presents paper abstract introduction design experimentation measurement programming permissions permission copyright personal classroom copies copied copy digital hard work classroom granted without fee distributed distribute profit commercial bear notice full otherwise republish post posting redistribute advantage citation first page republication servers list categories subject descriptors general terms overview general capture captures compile regions region related work discussed state dark box boxes gray light white overhead maximize minimize spent industry conclusions conclusion potential point points monitor monitors count counts edge edges native
-justintime just in time dynamically statically startup start up run-time runtime compile-time compile time
-available unavailable concrete actual occurring occur occurs occurred through throughputs fly on the fly need needs emit emits emitting gather gathers able unable determine determined determines identifying identifies identify found taken followed subsequent subsequent calculation policy copies copy made granted fee provided profit commercial advantage notices title publication republication posting lists require requires permission specific citation
-popular expressive productivity reasons however implementation implement language features programmers programmer developer developers primarily selected chosen productivity features virtual machines low high start time improve improves improved improving existing portable processor processors architecture architectures bytecodes bytecode regions region covers cover covering coverage forming formed organized follows explain explains described describe describes approach section sections details major activities activity transition transitions cause causes state home native code machine code easy distributing used small well browser logic domain order user enable new rely vary transform operate exact generalized deal potential hence suited highly interactive environment standard interpreter interpreters
-document documents paragraph paragraphs column columns row rows layout layouts reader readers dictionary dictionaries repair repairs repaired preserve preserves prose text extraction extracted spacing spaces words word missing adjacent source target page pages title heading headings example examples sample samples content line lines visual visually arbitrary technical neutral generic pdf lose lost without special cases case flavor feature features left right sentence sentences continue continues interleave starts third finishes show shows
-action actions ask asking around clean cleaning cleaner cleansing health healthcare hygiene regularly provider providers practice practicing prepare prepares prepared preparing prevent prevents preventing risk risks hands hand water towel towels room rooms hospital hospitals infection infections germs surfaces bathroom alcohol based rub rubs turn turns turned turning off want wants wanted wanting
-inner outer header headers tree trees traceable untraceable inlining inline calls succeeds succeeds call callee caller primitives prime primes object objects class tag tags stack activation record records load store stores mask results result variable variables slots slot frame frames local locals constants constant low level high level register registers memory instruction selection allocation allocator lir instructions instruction temporary semantics data optimized away locations live finally later passed finished fragment entered observed matches
-cannot longer infer inference generate efficient machine code generated performance generated code starts running compiles fast native code dynamic compiler loop counters counters start integers remain for all all iterations compiled traces compiled trace covers one path program with executes guarantee path followed typing exactly were during recording subsequent guards fails fails side exits branch taken continue tracing reaches reach require copy every stop starts new outer loop inner loop finishes dynamically translate translate specialized trace trees achieve effects vm efficiently performs optim attractive effective supports features speedup speedups traceable programs algorithm dynamically forming frequently executed code regions depth causing excessive tail
-try tries trying number numbers events broken sample figure
-WORDS)) ?: [];
-        foreach ($builtin as $word) {
-            $word = strtolower(trim($word));
-            if ($word === '') {
-                continue;
-            }
-            $dictionary[$word] = min($dictionary[$word] ?? INF, log($rank + 8));
-            $rank++;
-        }
-
-        foreach (['/usr/share/dict/words', '/usr/share/dict/web2'] as $path) {
-            if (!is_file($path) || !is_readable($path)) {
-                continue;
-            }
-            $handle = fopen($path, 'r');
-            if (!is_resource($handle)) {
-                continue;
-            }
-            while (($line = fgets($handle)) !== false) {
-                $word = strtolower(trim($line));
-                if (preg_match('/^[a-z]{4,24}$/', $word) !== 1) {
-                    continue;
-                }
-                $dictionary[$word] = min($dictionary[$word] ?? INF, 12.0 + min(5.0, strlen($word) / 5.0));
-            }
-            fclose($handle);
-        }
-
-        foreach (range('a', 'z') as $letter) {
-            unset($dictionary[$letter]);
-        }
-        $dictionary['a'] = 0.5;
-
-        return $dictionary;
     }
 
     /**

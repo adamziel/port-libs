@@ -581,7 +581,7 @@ function plpc_import_rendered_images(string $blocks, array $imageSources, string
             continue;
         }
 
-        $blocks = plpc_replace_image_source($blocks, $source, $attachment['url']);
+        $blocks = plpc_replace_image_source($blocks, $source, $attachment['url'], $attachment['id']);
         $imported++;
         $diagnostics[] = 'image-imported:' . $source . '=>' . $attachment['id'];
     }
@@ -644,7 +644,7 @@ function plpc_import_extracted_media_entries(string $blocks, array $imageSources
             continue;
         }
 
-        $blocks = plpc_replace_image_source($blocks, $source, $attachment['url']);
+        $blocks = plpc_replace_image_source($blocks, $source, $attachment['url'], $attachment['id']);
         $imported++;
         $importedSources[] = $source;
         $diagnostics[] = 'image-imported:' . $source . '=>' . $attachment['id'];
@@ -658,13 +658,108 @@ function plpc_import_extracted_media_entries(string $blocks, array $imageSources
     ];
 }
 
-function plpc_replace_image_source(string $blocks, string $source, string $url): string
+function plpc_replace_image_source(string $blocks, string $source, string $url, ?int $attachmentId = null): string
 {
-    return str_replace(
+    $blocks = str_replace(
         ['src="' . esc_attr($source) . '"', "src='" . esc_attr($source) . "'"],
         ['src="' . esc_url($url) . '"', "src='" . esc_url($url) . "'"],
         $blocks
     );
+
+    if ($attachmentId !== null && $attachmentId > 0) {
+        $blocks = plpc_mark_imported_image_blocks($blocks, $url, $attachmentId);
+    }
+
+    return $blocks;
+}
+
+function plpc_mark_imported_image_blocks(string $blocks, string $url, int $attachmentId): string
+{
+    $rewritten = preg_replace_callback(
+        '/<!--\s+wp:image(?P<attrs>.*?)-->(?P<html>.*?)<!--\s+\/wp:image\s+-->/s',
+        static function (array $match) use ($url, $attachmentId): string {
+            $matched = false;
+            $html = plpc_add_wp_image_class_to_matching_img_tags((string) $match['html'], $url, $attachmentId, $matched);
+            if (!$matched) {
+                return (string) $match[0];
+            }
+
+            $attributes = [];
+            $rawAttributes = trim((string) $match['attrs']);
+            if ($rawAttributes !== '') {
+                $decoded = json_decode($rawAttributes, true);
+                if (!is_array($decoded)) {
+                    return '<!-- wp:image' . (string) $match['attrs'] . '-->' . $html . '<!-- /wp:image -->';
+                }
+                $attributes = $decoded;
+            }
+
+            $attributes = ['id' => $attachmentId] + array_diff_key($attributes, ['id' => true]);
+            $encoded = json_encode($attributes, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+            $opening = is_string($encoded) && $encoded !== '{}'
+                ? '<!-- wp:image ' . $encoded . ' -->'
+                : '<!-- wp:image -->';
+
+            return $opening . $html . '<!-- /wp:image -->';
+        },
+        $blocks
+    );
+
+    return is_string($rewritten) ? $rewritten : $blocks;
+}
+
+function plpc_add_wp_image_class_to_matching_img_tags(string $html, string $url, int $attachmentId, bool &$matched): string
+{
+    $className = 'wp-image-' . $attachmentId;
+    $rewritten = preg_replace_callback(
+        '/<img\b[^>]*>/i',
+        static function (array $match) use ($url, $className, &$matched): string {
+            $tag = (string) $match[0];
+            if (preg_match('/\bsrc\s*=\s*(["\'])(.*?)\1/i', $tag, $sourceMatch) !== 1) {
+                return $tag;
+            }
+
+            $source = html_entity_decode((string) $sourceMatch[2], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+            if ($source !== $url) {
+                return $tag;
+            }
+
+            $matched = true;
+
+            return plpc_add_html_class_to_tag($tag, $className);
+        },
+        $html
+    );
+
+    return is_string($rewritten) ? $rewritten : $html;
+}
+
+function plpc_add_html_class_to_tag(string $tag, string $className): string
+{
+    if (preg_match('/\bclass\s*=\s*(["\'])(.*?)\1/i', $tag) === 1) {
+        $rewritten = preg_replace_callback(
+            '/\bclass\s*=\s*(["\'])(.*?)\1/i',
+            static function (array $match) use ($className): string {
+                $quote = (string) $match[1];
+                $classes = preg_split('/\s+/', trim((string) $match[2])) ?: [];
+                if (!in_array($className, $classes, true)) {
+                    $classes[] = $className;
+                }
+
+                return 'class=' . $quote . implode(' ', array_filter($classes, static fn (string $class): bool => $class !== '')) . $quote;
+            },
+            $tag,
+            1
+        );
+
+        return is_string($rewritten) ? $rewritten : $tag;
+    }
+
+    if (preg_match('/\s*\/>$/', $tag) === 1) {
+        return (string) preg_replace('/\s*\/>$/', ' class="' . $className . '"/>', $tag, 1);
+    }
+
+    return (string) preg_replace('/\s*>$/', ' class="' . $className . '">', $tag, 1);
 }
 
 function plpc_zip_package(string $bytes): ?ZipPackage
