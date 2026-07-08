@@ -21,7 +21,9 @@ return [
 
         $t->contains('Lend a hand in the ongoing effort to restore', $html);
         $t->contains('Get involved in the campaign to improve air quality in the San Francisco Bay Area.', $html);
+        $t->contains('www.nps.gov/goga', $html);
         $t->contains('<p>Muir Beach is halfway between Stinson Beach and the Marin Headlands, where and Dias Ridge Trails connect with Muir Beach.</p>', $html);
+        $t->true(!str_contains($html, 'wwwww.wnp'), 'Overprinted footer text must not be interleaved into corrupted URLs.');
         $t->true(!str_contains($html, 'Plhaaanrrd'), 'Garbled map prose must not be imported.');
         $t->true(!str_contains($html, 'PIRATES'), 'Map labels must not be imported as body prose.');
         $t->true(!str_contains($html, '<h2>Muir Beach is halfway'), 'Wrapped paragraph rows must not become headings.');

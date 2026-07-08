@@ -394,7 +394,8 @@ final class PdfReader
     private function positionedProseLineItemsFromTextRuns(array $runs): array
     {
         $runsByPage = [];
-        foreach ($runs as $run) {
+        foreach ($runs as $index => $run) {
+            $run['_order'] = $index;
             $normalized = $this->positionedRun($run);
             if ($normalized === null) {
                 continue;
@@ -1558,7 +1559,8 @@ WORDS)) ?: [];
         }
 
         $runsByPage = [];
-        foreach ($runs as $run) {
+        foreach ($runs as $index => $run) {
+            $run['_order'] = $index;
             $normalized = $this->positionedRun($run);
             if ($normalized === null) {
                 continue;
@@ -1641,6 +1643,7 @@ WORDS)) ?: [];
             'fontSize' => max(1.0, $fontSize ?? max(1.0, abs($y2 - $y1))),
             'startsWithWhitespace' => preg_match('/^\s/u', $rawText) === 1,
             'endsWithWhitespace' => preg_match('/\s$/u', $rawText) === 1,
+            'order' => max(0, (int) ($run['_order'] ?? 0)),
         ];
     }
 
@@ -1985,12 +1988,160 @@ WORDS)) ?: [];
 
         usort($rows, static fn (array $left, array $right): int => $right['center'] <=> $left['center']);
         foreach ($rows as &$row) {
+            $row['runs'] = $this->removeOverprintedPositionedRuns($row['runs']);
             usort($row['runs'], static fn (array $left, array $right): int => $left['x1'] <=> $right['x1']);
             unset($row['minCenter'], $row['maxCenter']);
         }
         unset($row);
 
         return $rows;
+    }
+
+    /**
+     * @param list<array{page: int, text: string, x1: float, y1: float, x2: float, y2: float, textX1: float, textY1: float, textX2: float, textY2: float, fontSize: float, order?: int}> $runs
+     * @return list<array{page: int, text: string, x1: float, y1: float, x2: float, y2: float, textX1: float, textY1: float, textX2: float, textY2: float, fontSize: float, order?: int}>
+     */
+    private function removeOverprintedPositionedRuns(array $runs): array
+    {
+        if (count($runs) < 4) {
+            return $runs;
+        }
+
+        $ordered = $runs;
+        usort($ordered, static fn (array $left, array $right): int => ((int) ($left['order'] ?? 0)) <=> ((int) ($right['order'] ?? 0)));
+
+        $layers = [];
+        $current = [];
+        $currentRight = null;
+        foreach ($ordered as $run) {
+            if ($current !== [] && $currentRight !== null && $run['x1'] < $currentRight - max(6.0, $run['fontSize'] * 2.0)) {
+                $layers[] = $current;
+                $current = [];
+                $currentRight = null;
+            }
+            $current[] = $run;
+            $currentRight = max($currentRight ?? $run['x2'], $run['x2']);
+        }
+        if ($current !== []) {
+            $layers[] = $current;
+        }
+
+        if (count($layers) < 2) {
+            return $runs;
+        }
+
+        $kept = [];
+        foreach ($layers as $layer) {
+            $duplicateIndex = null;
+            foreach ($kept as $index => $keptLayer) {
+                if ($this->positionedRunLayersLookOverprinted($keptLayer, $layer)) {
+                    $duplicateIndex = $index;
+                    break;
+                }
+            }
+            if ($duplicateIndex === null) {
+                $kept[] = $layer;
+                continue;
+            }
+            $keptText = $this->normalizedPositionedLayerText($kept[$duplicateIndex]);
+            $layerText = $this->normalizedPositionedLayerText($layer);
+            if ($keptText !== '' && $layerText !== '' && str_ends_with($keptText, $layerText)) {
+                continue;
+            }
+            if (($keptText === '' || !str_ends_with($layerText, $keptText))
+                && $this->positionedRunLayerArea($layer) >= $this->positionedRunLayerArea($kept[$duplicateIndex])) {
+                continue;
+            }
+            if ($layerText !== '' && ($keptText === '' || str_ends_with($layerText, $keptText) || $this->positionedRunLayerArea($layer) < $this->positionedRunLayerArea($kept[$duplicateIndex]))) {
+                $kept[$duplicateIndex] = $layer;
+            }
+        }
+
+        if (count($kept) === count($layers)) {
+            return $runs;
+        }
+
+        return array_merge(...$kept);
+    }
+
+    /**
+     * @param list<array{page: int, text: string, x1: float, y1: float, x2: float, y2: float, textX1: float, textY1: float, textX2: float, textY2: float, fontSize: float}> $left
+     * @param list<array{page: int, text: string, x1: float, y1: float, x2: float, y2: float, textX1: float, textY1: float, textX2: float, textY2: float, fontSize: float}> $right
+     */
+    private function positionedRunLayersLookOverprinted(array $left, array $right): bool
+    {
+        $leftText = $this->normalizedPositionedLayerText($left);
+        $rightText = $this->normalizedPositionedLayerText($right);
+        if ($leftText === '' || $rightText === '') {
+            return false;
+        }
+        if ($leftText !== $rightText && !str_ends_with($leftText, $rightText) && !str_ends_with($rightText, $leftText)) {
+            return false;
+        }
+
+        $leftBounds = $this->positionedRunsBounds($left);
+        $rightBounds = $this->positionedRunsBounds($right);
+        $overlapWidth = min($leftBounds['x2'], $rightBounds['x2']) - max($leftBounds['x1'], $rightBounds['x1']);
+        $overlapHeight = min($leftBounds['y2'], $rightBounds['y2']) - max($leftBounds['y1'], $rightBounds['y1']);
+        if ($overlapWidth <= 0.0 || $overlapHeight < -2.0) {
+            return false;
+        }
+
+        $leftWidth = max(1.0, $leftBounds['x2'] - $leftBounds['x1']);
+        $rightWidth = max(1.0, $rightBounds['x2'] - $rightBounds['x1']);
+
+        return $overlapWidth / min($leftWidth, $rightWidth) >= 0.82;
+    }
+
+    /**
+     * @param list<array{page: int, text: string, x1: float, y1: float, x2: float, y2: float, textX1: float, textY1: float, textX2: float, textY2: float, fontSize: float}> $runs
+     */
+    private function positionedRunLayerArea(array $runs): float
+    {
+        $bounds = $this->positionedRunsBounds($runs);
+
+        return max(1.0, $bounds['x2'] - $bounds['x1']) * max(1.0, $bounds['y2'] - $bounds['y1']);
+    }
+
+    /**
+     * @param list<array{page: int, text: string, x1: float, y1: float, x2: float, y2: float, textX1: float, textY1: float, textX2: float, textY2: float, fontSize: float}> $runs
+     * @return array{x1: float, y1: float, x2: float, y2: float}
+     */
+    private function positionedRunsBounds(array $runs): array
+    {
+        $bounds = ['x1' => INF, 'y1' => INF, 'x2' => -INF, 'y2' => -INF];
+        foreach ($runs as $run) {
+            $bounds['x1'] = min($bounds['x1'], $run['x1'], $run['textX1']);
+            $bounds['y1'] = min($bounds['y1'], $run['y1'], $run['textY1']);
+            $bounds['x2'] = max($bounds['x2'], $run['x2'], $run['textX2']);
+            $bounds['y2'] = max($bounds['y2'], $run['y2'], $run['textY2']);
+        }
+
+        return is_finite($bounds['x1']) && is_finite($bounds['x2']) && is_finite($bounds['y1']) && is_finite($bounds['y2'])
+            ? $bounds
+            : ['x1' => 0.0, 'y1' => 0.0, 'x2' => 0.0, 'y2' => 0.0];
+    }
+
+    /**
+     * @param list<array{text: string, x1: float}> $runs
+     */
+    private function positionedRunsText(array $runs): string
+    {
+        usort($runs, static fn (array $left, array $right): int => $left['x1'] <=> $right['x1']);
+        $text = '';
+        foreach ($runs as $run) {
+            $text = $this->appendCellText($text, $run['text']);
+        }
+
+        return $text;
+    }
+
+    /**
+     * @param list<array{text: string, x1: float}> $runs
+     */
+    private function normalizedPositionedLayerText(array $runs): string
+    {
+        return preg_replace('/\s+/u', '', $this->positionedRunsText($runs)) ?? '';
     }
 
     /**
