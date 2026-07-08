@@ -463,6 +463,33 @@ XML,
         $t->same('paragraph', $normalizedDocx['attrs']['captionBlocks'][0]['type']);
         $t->true(!array_key_exists('captionInlines', $normalizedDocx['attrs']));
     },
+    'normalizes direct figure images against native plain image bodies' => static function (TestRunner $t): void {
+        $harness = new DocxNativeAstComparisonHarness();
+        $method = new ReflectionMethod(DocxNativeAstComparisonHarness::class, 'normalizedNode');
+        $image = new AstNode('image', [
+            'url' => 'word/media/image1.emf',
+            'title' => '',
+            'alt' => '',
+        ]);
+
+        $docxFigure = new AstNode('figure', ['caption' => 'Caption'], [$image]);
+        $nativeFigure = new AstNode('figure', ['caption' => 'Caption'], [
+            new AstNode('plain', [], [
+                new AstNode('image', [
+                    'url' => 'media/image1.emf',
+                    'title' => '',
+                    'alt' => '',
+                ]),
+            ]),
+        ]);
+
+        $normalizedDocx = $method->invoke($harness, $docxFigure);
+        $normalizedNative = $method->invoke($harness, $nativeFigure);
+
+        $t->same($normalizedNative, $normalizedDocx);
+        $t->same('plain', $normalizedDocx['children'][0]['type']);
+        $t->same('image', $normalizedDocx['children'][0]['children'][0]['type']);
+    },
     'matches one row docx table against native table shape after focused normalization' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writeDocxDocument): void {
         $root = $makeTempDir();
 

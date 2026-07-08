@@ -241,7 +241,7 @@ final class MathMlToTexReader
             'munderover' => $this->ordinaryPiece($this->renderUnderOver($element, 'underover')),
             'menclose' => $this->ordinaryPiece($this->renderChildren($element)),
             'annotation', 'annotation-xml' => null,
-            default => $this->ordinaryPiece($this->renderChildren($element)),
+            default => null,
         };
     }
 

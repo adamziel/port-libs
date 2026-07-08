@@ -678,7 +678,7 @@ final class XmlHtmlDom
         'zoomandpan' => 'zoomAndPan',
     ];
 
-    public static function loadXmlDocument(string $xml, string $label = 'XML document', bool $preserveWhiteSpace = true): \DOMDocument
+    public static function loadXmlDocument(string $xml, string $label = 'XML document', bool $preserveWhiteSpace = true, bool $recoverMalformed = false): \DOMDocument
     {
         self::assertSafeSource($xml, $label);
         $xml = self::xmlSourceWithoutUnsafeDoctype($xml, $label);
@@ -690,7 +690,7 @@ final class XmlHtmlDom
         $dom->substituteEntities = false;
         $loaded = $dom->loadXML($xml, LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING);
         $errors = libxml_get_errors();
-        if (!$loaded) {
+        if (!$loaded && $recoverMalformed) {
             libxml_clear_errors();
             $dom = new \DOMDocument();
             $dom->preserveWhiteSpace = $preserveWhiteSpace;

@@ -449,11 +449,38 @@ final class DocxNativeAstComparisonHarness
         }
         ksort($attrs, SORT_STRING);
 
+        $children = $node->type === 'figure'
+            ? $this->normalizedFigureChildren($node->children)
+            : $this->normalizedChildren($node->children);
+
         return [
             'type' => $node->type,
             'attrs' => $attrs,
-            'children' => $this->normalizedChildren($node->children),
+            'children' => $children,
         ];
+    }
+
+    /**
+     * @param list<AstNode> $children
+     * @return list<array<string, mixed>>
+     */
+    private function normalizedFigureChildren(array $children): array
+    {
+        $normalized = [];
+        foreach ($children as $child) {
+            if ($child->type === 'image') {
+                $this->appendNormalizedChild($normalized, [
+                    'type' => 'plain',
+                    'attrs' => [],
+                    'children' => [$this->normalizedNode($child)],
+                ]);
+                continue;
+            }
+
+            $this->appendNormalizedChild($normalized, $this->normalizedNode($child));
+        }
+
+        return $this->trimBoundaryWhitespaceText($normalized);
     }
 
     private function isDerivedFigureCaptionInlineCache(AstNode $node, string $key): bool

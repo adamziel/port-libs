@@ -153,7 +153,7 @@ final class DocBookReader
 
     public function read(string $bytes): AstNode
     {
-        $dom = XmlHtmlDom::loadXmlDocument($bytes, 'DOCBOOK input', false);
+        $dom = XmlHtmlDom::loadXmlDocument($bytes, 'DOCBOOK input', false, true);
         $root = $dom->documentElement;
         if (!$root instanceof \DOMElement) {
             throw new \InvalidArgumentException('DocBook reader requires a document element.');

@@ -71,7 +71,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .upstream-cache/pandoc-current
-          key: pandoc-html-delimited-upstream-sparse-v1-${{ runner.os }}-${{ env.PANDOC_HTML_DELIMITED_UPSTREAM_PINNED_COMMIT }}
+          key: pandoc-html-delimited-upstream-sparse-v2-${{ runner.os }}-${{ env.PANDOC_HTML_DELIMITED_UPSTREAM_PINNED_COMMIT }}
 
       - name: Hydrate pinned Pandoc HTML/delimited upstream cache
         if: steps.pandoc-html-delimited-upstream-cache.outputs.cache-hit != 'true'

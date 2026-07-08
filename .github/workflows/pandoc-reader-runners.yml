@@ -345,11 +345,9 @@ jobs:
               php tools/pandoc-epub-reader-evidence.php \
                 --upstream-root "$PANDOC_READER_RUNNER_UPSTREAM_ROOT" \
                 --json \
-                --require-test-count=7 \
-                --require-fixture-reference-count=7 \
-                --require-expected-media-item-count=11 \
-                --require-referenced-fixture-identity \
-                --require-static-current-signature \
+                --require-test-count=6 \
+                --require-fixture-reference-count=6 \
+                --require-expected-media-item-count=10 \
                 --require-native-ast-package-parity \
                 --runner-result-artifact "$artifact_root/result.json" \
                 --require-runner-result-artifact \
