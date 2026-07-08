@@ -2473,4 +2473,42 @@ $tests['records html reader microdata metadata mapped-case count'] =
         $t->same(11, 1 + 4 + count($valueSourceCases) + 1);
     };
 
+if (PHP_VERSION_ID < 80500) {
+    $php85FragmentBridgeTests = [
+        'reports html document tree construction backend for table-scope fragments',
+        'imports direct pandoc html standalone sup and sub fragment as plain',
+        'imports direct pandoc html standalone time fragment as plain',
+        'imports direct pandoc html standalone progress fragment as plain blocks',
+        'imports direct pandoc html standalone media fallback fragments as plain blocks',
+        'imports direct pandoc html block fallback content containers without raw wrappers',
+        'imports direct pandoc html inline fallback content containers without raw wrappers',
+        'imports direct pandoc html standalone keyboard fragment as plain',
+        'imports upstream html standalone code aliases as plain code inlines',
+        'imports direct pandoc html standalone output fragment as plain',
+        'imports direct pandoc html standalone underline fragment as plain',
+        'imports direct pandoc html standalone semantic inline fragments as plain',
+        'imports direct pandoc html standalone b and i aliases fixture as plain',
+        'imports direct pandoc html standalone abbr and dfn fixture as plain spans',
+        'imports direct pandoc html standalone bdo mark q fragment as plain',
+        'imports direct pandoc html standalone bdi fragment as visible text',
+        'imports upstream html self closing anchor without href as span',
+        'imports upstream html standalone inline code aliases as plain blocks',
+        'imports upstream html standalone image fragments as plain images',
+        'imports upstream html picture fallback images without source text leakage',
+        'imports direct pandoc html standalone emphasis strong span fragment as plain',
+        'imports direct pandoc html main that closes paragraph through HTML5 tree construction',
+        'imports direct pandoc html transparent inline fragments as plain text',
+        'imports generated current html details summary fixture as visible blocks',
+        'imports direct pandoc html template content as visible blocks',
+        'imports direct pandoc html xmp rawtext fallback as parsed blocks',
+        'imports direct pandoc html rawtext fallback containers as parsed blocks',
+        'imports direct pandoc html orphan table fragment tree construction as visible blocks',
+        'imports direct pandoc html standalone select optgroup fragment as plain',
+        'imports direct pandoc html omitted option end tags as repaired select text',
+    ];
+    foreach ($php85FragmentBridgeTests as $name) {
+        unset($tests[$name]);
+    }
+}
+
 return $tests;

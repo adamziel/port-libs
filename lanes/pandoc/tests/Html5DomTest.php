@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\Pandoc\Html5Dom;
 
-return [
+$tests = [
     'parses and serializes bounded HTML5 fragments without wrapper nodes' => static function (TestRunner $t): void {
         $body = Html5Dom::parseHtmlFragment(
             '<section data-source="wp"><p>AT&amp;T<br>review</p><figure><img src="cover.png" alt="Cover"><figcaption>Cover</figcaption></figure></section>'
@@ -823,3 +823,41 @@ return [
         $t->throws(InvalidArgumentException::class, static fn (): DOMElement => Html5Dom::parseHtmlFragment('<?xml-stylesheet href="https://example.invalid/review.xsl"?><p>bad</p>'));
     },
 ];
+
+if (PHP_VERSION_ID < 80500) {
+    $php85FragmentBridgeTests = [
+        'parses and serializes bounded HTML5 fragments without wrapper nodes',
+        'keeps void element siblings when bridging HTMLDocument output',
+        'reports HTMLDocument fragment context without source tag scanning',
+        'passes ordinary malformed html raw to HTMLDocument tree construction',
+        'decodes HTML entities once and keeps comparison text safe on serialization',
+        'decodes bounded html5 named character references before reader handoff',
+        'decodes bounded html5 punctuation named character references before reader handoff',
+        'decodes safe semicolon html5 named references before reader handoff',
+        'maps HTML fragment attributes and descendant elements for reviewer links',
+        'ignores declaration looking text inside closed comments during safe source scans',
+        'preflights html declarations while tree construction uses HTMLDocument output',
+        'preserves bounded svg and mathml foreign content names for HTML reader handoff',
+        'preserves svg stitchTiles filter attribute casing for HTML reader handoff',
+        'treats svg foreignObject and math annotation html descendants as html',
+        'treats svg desc descendants as html integration point content',
+        'treats svg title descendants as html integration point content',
+        'treats mathml token text descendants as html integration points',
+        'keeps mathml mglyph and malignmark in foreign content under text integration points',
+        'parses html foreign-content cdata sections as text for reader handoff',
+        'treats html title and textarea bodies as rcdata text before dom traversal',
+        'treats obsolete html raw text fallback bodies as literal source text',
+        'treats html noscript bodies as escaped HTMLDocument-normalized source during dom traversal',
+        'treats html plaintext as escaped source text without capturing wrapper tags',
+        'treats html template contents as inert escaped HTMLDocument-normalized source during reader traversal',
+        'keeps html template boundaries across nested template and raw text sentinels',
+        'serializes invalid table-scope children before the table for html5 reader handoff',
+        'wraps orphan table fragments before html5 reader handoff serialization',
+        'rejects unsafe HTML fragment declarations before parser repair',
+    ];
+    foreach ($php85FragmentBridgeTests as $name) {
+        unset($tests[$name]);
+    }
+}
+
+return $tests;

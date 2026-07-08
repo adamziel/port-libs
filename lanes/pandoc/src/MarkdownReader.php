@@ -3262,7 +3262,8 @@ final class MarkdownReader
         $closingSource = substr($html, $bounds['closeStart'], $bounds['closeEnd'] - $bounds['closeStart'] + 1);
         $inner = substr($html, $bounds['openEnd'] + 1, $bounds['closeStart'] - $bounds['openEnd'] - 1);
         $element = $this->htmlElementFromOpeningTag($openingSource, $tag);
-        $markdownAttribute = $element instanceof \DOMElement ? $this->htmlMarkdownAttributeValue($element) : null;
+        $markdownAttribute = ($element instanceof \DOMElement ? $this->htmlMarkdownAttributeValue($element) : null)
+            ?? $this->htmlOpeningTagAttributeValue($openingSource, 'markdown');
 
         $enabledByAttribute = $markdownAttribute !== null
             && $this->markdownAttributeExtensionEnabled()
@@ -3482,6 +3483,25 @@ final class MarkdownReader
         $pattern = '/\s+' . preg_quote($attribute, '/') . '(?:\s*=\s*(?:"[^"]*"|\'[^\']*\'|[^\s"\'=<>`]+))?/i';
 
         return preg_replace($pattern, '', $source, 1) ?? $source;
+    }
+
+    private function htmlOpeningTagAttributeValue(string $source, string $attribute): ?string
+    {
+        $pattern = '/\s+' . preg_quote($attribute, '/') . '(?:\s*=\s*("[^"]*"|\'[^\']*\'|[^\s"\'=<>`]+))?/i';
+        if (preg_match($pattern, $source, $match) !== 1) {
+            return null;
+        }
+
+        $value = $match[1] ?? '';
+        if ($value === '') {
+            return '';
+        }
+        $quote = $value[0] ?? '';
+        if (($quote === '"' || $quote === "'") && str_ends_with($value, $quote)) {
+            $value = substr($value, 1, -1);
+        }
+
+        return strtolower(trim(html_entity_decode($value, ENT_QUOTES | ENT_HTML5, 'UTF-8')));
     }
 
     /**
