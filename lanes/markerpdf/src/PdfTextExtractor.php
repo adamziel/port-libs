@@ -4722,6 +4722,11 @@ final class PdfTextExtractor
         if ($pageContexts !== []) {
             return $pageContexts;
         }
+        if ($this->xrefTrailerRootObjectNumber($pdfBytes) !== null
+            && $this->catalogPagesRootObjectNumbers($objects, $pdfBytes) === []
+        ) {
+            return [];
+        }
 
         $contexts = [];
         $fontToUnicodeMaps = $this->fontToUnicodeMapsForResourceContext($pdfBytes, $objects, true);
@@ -4925,7 +4930,12 @@ final class PdfTextExtractor
     private function pageObjectNumbers(array $objects, ?string $pdfBytes = null): array
     {
         $pageObjectNumbers = [];
-        foreach ($this->catalogPagesRootObjectNumbers($objects, $pdfBytes) as $pagesObjectNumber) {
+        $catalogPagesRootObjectNumbers = $this->catalogPagesRootObjectNumbers($objects, $pdfBytes);
+        if ($catalogPagesRootObjectNumbers === [] && $pdfBytes !== null && $this->xrefTrailerRootObjectNumber($pdfBytes) !== null) {
+            return [];
+        }
+
+        foreach ($catalogPagesRootObjectNumbers as $pagesObjectNumber) {
             foreach ($this->pageObjectNumbersFromTree($pagesObjectNumber, $objects) as $pageObjectNumber) {
                 $pageObjectNumbers[] = $pageObjectNumber;
             }
@@ -4957,13 +4967,18 @@ final class PdfTextExtractor
     private function catalogPagesRootObjectNumbers(array $objects, ?string $pdfBytes = null): array
     {
         $trailerRootObjectNumber = $pdfBytes === null ? null : $this->xrefTrailerRootObjectNumber($pdfBytes);
-        if ($trailerRootObjectNumber !== null && isset($objects[$trailerRootObjectNumber])) {
+        if ($trailerRootObjectNumber !== null && !isset($objects[$trailerRootObjectNumber])) {
+            return [];
+        }
+        if ($trailerRootObjectNumber !== null) {
             $body = $objects[$trailerRootObjectNumber];
             if (preg_match('/\/Type\s*\/Catalog\b/', $body) === 1
                 && preg_match('/\/Pages\s+(\d+)\s+\d+\s+R\b/', $body, $match) === 1
             ) {
                 return [(int) $match[1]];
             }
+
+            return [];
         }
 
         $roots = [];
@@ -11227,7 +11242,7 @@ final class PdfTextExtractor
      */
     private function streamPayloadRanges(string $pdfBytes): array
     {
-        if (preg_match_all('/\bstream(?:\r\n|\n|\r)?(.*?)\r?\n?endstream\b/s', $pdfBytes, $matches, PREG_SET_ORDER | PREG_OFFSET_CAPTURE) < 1) {
+        if (preg_match_all('/>>\s*stream(?:\r\n|\n|\r)?(.*?)\r?\n?endstream\b/s', $pdfBytes, $matches, PREG_SET_ORDER | PREG_OFFSET_CAPTURE) < 1) {
             return [];
         }
 
@@ -12238,7 +12253,7 @@ final class PdfTextExtractor
     {
         $startOffsets = $this->startXrefOffsets($pdfBytes);
         if ($startOffsets === []) {
-            return null;
+            return $this->latestTrailerRootObjectNumber($pdfBytes);
         }
 
         for ($startIndex = count($startOffsets) - 1; $startIndex >= 0; $startIndex--) {
@@ -12267,6 +12282,21 @@ final class PdfTextExtractor
                         $pendingOffsets[] = $previousOffset;
                     }
                 }
+            }
+        }
+
+        return null;
+    }
+
+    private function latestTrailerRootObjectNumber(string $pdfBytes): ?int
+    {
+        if (preg_match_all('/trailer\s*<<(.*?)>>/s', $pdfBytes, $matches) !== 1) {
+            return null;
+        }
+
+        for ($index = count($matches[1]) - 1; $index >= 0; $index--) {
+            if (preg_match('/\/Root\s+(\d+)\s+\d+\s+R\b/', $matches[1][$index], $rootMatch) === 1) {
+                return (int) $rootMatch[1];
             }
         }
 
