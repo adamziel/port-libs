@@ -38,20 +38,72 @@ spl_autoload_register(static function (string $class): void {
     }
 });
 
-add_filter('upload_mimes', static function (array $mimes): array {
-    $mimes['svg'] = 'image/svg+xml';
+add_filter('upload_mimes', 'plpc_upload_mimes');
+
+function plpc_upload_mimes(array $mimes): array
+{
     $mimes['webp'] = 'image/webp';
+    if (
+        plpc_is_playground_environment()
+        || (function_exists('current_user_can') && current_user_can('unfiltered_html'))
+    ) {
+        $mimes['svg'] = 'image/svg+xml';
+    }
 
     return $mimes;
-});
+}
 
 add_action('rest_api_init', static function (): void {
     register_rest_route('port-libs/v1', '/convert', [
         'methods' => 'POST',
-        'permission_callback' => '__return_true',
+        'permission_callback' => 'plpc_convert_permission',
         'callback' => 'plpc_convert_uploaded_document',
     ]);
 });
+
+function plpc_convert_permission(): bool|WP_Error
+{
+    if (plpc_is_playground_environment()) {
+        return true;
+    }
+
+    if (
+        function_exists('current_user_can')
+        && current_user_can('upload_files')
+        && current_user_can('edit_pages')
+    ) {
+        return true;
+    }
+
+    if (class_exists('WP_Error')) {
+        return new WP_Error(
+            'rest_forbidden',
+            'Document conversion requires WordPress Playground or an authenticated user who can upload files and edit pages.',
+            ['status' => 403]
+        );
+    }
+
+    return false;
+}
+
+function plpc_is_playground_environment(): bool
+{
+    foreach (['WP_PLAYGROUND', 'WORDPRESS_PLAYGROUND', 'IS_WORDPRESS_PLAYGROUND'] as $constant) {
+        if (defined($constant) && constant($constant)) {
+            return true;
+        }
+    }
+
+    $host = strtolower((string) ($_SERVER['HTTP_HOST'] ?? $_SERVER['SERVER_NAME'] ?? ''));
+    $host = preg_replace('/:\d+\z/', '', $host) ?? $host;
+    if ($host === 'playground.wordpress.net' || str_ends_with($host, '.playground.wordpress.net')) {
+        return true;
+    }
+
+    $referer = strtolower((string) ($_SERVER['HTTP_REFERER'] ?? ''));
+
+    return str_contains($referer, 'playground.wordpress.net');
+}
 
 function plpc_convert_uploaded_document(WP_REST_Request $request): WP_REST_Response
 {

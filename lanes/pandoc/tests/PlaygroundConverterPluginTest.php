@@ -25,6 +25,33 @@ if (!class_exists('WP_REST_Response')) {
     }
 }
 
+if (!class_exists('WP_Error')) {
+    class WP_Error
+    {
+        public function __construct(
+            private string $code,
+            private string $message,
+            private array $data = []
+        ) {
+        }
+
+        public function get_error_code(): string
+        {
+            return $this->code;
+        }
+
+        public function get_error_message(): string
+        {
+            return $this->message;
+        }
+
+        public function get_error_data(): array
+        {
+            return $this->data;
+        }
+    }
+}
+
 if (!function_exists('add_filter')) {
     function add_filter(string $hookName, callable $callback): void
     {
@@ -72,6 +99,13 @@ if (!function_exists('wp_check_filetype')) {
         };
 
         return ['ext' => $extension, 'type' => $type];
+    }
+}
+
+if (!function_exists('current_user_can')) {
+    function current_user_can(string $capability): bool
+    {
+        return in_array($capability, $GLOBALS['plpc_test_current_user_caps'] ?? [], true);
     }
 }
 
@@ -138,6 +172,98 @@ if (!function_exists('esc_attr')) {
 require_once dirname(__DIR__, 3) . '/tools/playground-converter-plugin/port-libs-playground-converter.php';
 
 return [
+    'playground converter route permits WordPress Playground hosts' => static function (TestRunner $t): void {
+        $previousHost = $_SERVER['HTTP_HOST'] ?? null;
+        $previousReferer = $_SERVER['HTTP_REFERER'] ?? null;
+        $GLOBALS['plpc_test_current_user_caps'] = [];
+        $_SERVER['HTTP_HOST'] = 'preview.playground.wordpress.net';
+        unset($_SERVER['HTTP_REFERER']);
+
+        try {
+            $t->same(true, plpc_convert_permission());
+        } finally {
+            if ($previousHost === null) {
+                unset($_SERVER['HTTP_HOST']);
+            } else {
+                $_SERVER['HTTP_HOST'] = $previousHost;
+            }
+            if ($previousReferer === null) {
+                unset($_SERVER['HTTP_REFERER']);
+            } else {
+                $_SERVER['HTTP_REFERER'] = $previousReferer;
+            }
+            $GLOBALS['plpc_test_current_user_caps'] = [];
+        }
+    },
+    'playground converter route permits authenticated editors outside Playground' => static function (TestRunner $t): void {
+        $previousHost = $_SERVER['HTTP_HOST'] ?? null;
+        $_SERVER['HTTP_HOST'] = 'example.test';
+        $GLOBALS['plpc_test_current_user_caps'] = ['upload_files', 'edit_pages'];
+
+        try {
+            $t->same(true, plpc_convert_permission());
+        } finally {
+            if ($previousHost === null) {
+                unset($_SERVER['HTTP_HOST']);
+            } else {
+                $_SERVER['HTTP_HOST'] = $previousHost;
+            }
+            $GLOBALS['plpc_test_current_user_caps'] = [];
+        }
+    },
+    'playground converter route rejects anonymous non Playground installs' => static function (TestRunner $t): void {
+        $previousHost = $_SERVER['HTTP_HOST'] ?? null;
+        $previousReferer = $_SERVER['HTTP_REFERER'] ?? null;
+        $_SERVER['HTTP_HOST'] = 'example.test';
+        unset($_SERVER['HTTP_REFERER']);
+        $GLOBALS['plpc_test_current_user_caps'] = [];
+
+        try {
+            $permission = plpc_convert_permission();
+            $t->true($permission instanceof WP_Error, 'Anonymous non-Playground requests should be rejected with WP_Error.');
+            $t->same('rest_forbidden', $permission->get_error_code());
+            $t->same(['status' => 403], $permission->get_error_data());
+        } finally {
+            if ($previousHost === null) {
+                unset($_SERVER['HTTP_HOST']);
+            } else {
+                $_SERVER['HTTP_HOST'] = $previousHost;
+            }
+            if ($previousReferer === null) {
+                unset($_SERVER['HTTP_REFERER']);
+            } else {
+                $_SERVER['HTTP_REFERER'] = $previousReferer;
+            }
+            $GLOBALS['plpc_test_current_user_caps'] = [];
+        }
+    },
+    'playground converter only enables svg uploads in trusted contexts' => static function (TestRunner $t): void {
+        $previousHost = $_SERVER['HTTP_HOST'] ?? null;
+        $_SERVER['HTTP_HOST'] = 'example.test';
+        $GLOBALS['plpc_test_current_user_caps'] = [];
+
+        try {
+            $untrusted = plpc_upload_mimes([]);
+            $t->same('image/webp', $untrusted['webp'] ?? null);
+            $t->true(!isset($untrusted['svg']), 'Anonymous non-Playground installs should not enable SVG uploads.');
+
+            $GLOBALS['plpc_test_current_user_caps'] = ['unfiltered_html'];
+            $trustedUser = plpc_upload_mimes([]);
+            $t->same('image/svg+xml', $trustedUser['svg'] ?? null);
+
+            $_SERVER['HTTP_HOST'] = 'playground.wordpress.net';
+            $GLOBALS['plpc_test_current_user_caps'] = [];
+            $playground = plpc_upload_mimes([]);
+            $t->same('image/svg+xml', $playground['svg'] ?? null);
+        } finally {
+            if ($previousHost === null) {
+                unset($_SERVER['HTTP_HOST']);
+            } else {
+                $_SERVER['HTTP_HOST'] = $previousHost;
+            }
+            $GLOBALS['plpc_test_current_user_caps'] = [];
+        }
+    },
     'playground pdf importer keeps geometry table reconstruction enabled with prose repair' => static function (TestRunner $t): void {
         $options = plpc_converter_options('pdf');
 
