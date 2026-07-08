@@ -64,6 +64,7 @@ final class WordPressBlockWriter
                 if ($alignment !== '') {
                     $headingAttrs['textAlign'] = $alignment;
                 }
+                $headingAttrs = array_replace($headingAttrs, $this->blockColorCommentAttrs($node));
                 $blocks[] = $this->blockComment('heading', $headingAttrs)
                     . "\n" . '<h' . $level . $this->renderHeadingAttrs($node) . '>' . $this->renderInlines($node) . '</h' . $level . '>'
                     . "\n" . '<!-- /wp:heading -->';
@@ -363,9 +364,11 @@ final class WordPressBlockWriter
 
         $alignment = $this->blockTextAlignment($node);
         $commentAttrs = $alignment === '' ? [] : ['align' => $alignment];
+        $commentAttrs = array_replace($commentAttrs, $this->blockColorCommentAttrs($node));
         $htmlAttrs = $alignment === ''
             ? $this->renderBlockHtmlAttrs($node)
             : $this->renderBlockHtmlAttrsWithClasses($node, ['has-text-align-' . $alignment]);
+        $htmlAttrs .= $this->blockColorHtmlAttr($node);
 
         return $this->blockComment('paragraph', $commentAttrs)
             . "\n" . '<p' . $htmlAttrs . '>' . $this->renderInlines($node) . '</p>'
@@ -692,9 +695,11 @@ final class WordPressBlockWriter
     {
         $alignment = $this->blockTextAlignment($node);
 
-        return $alignment === ''
+        $attrs = $alignment === ''
             ? $this->renderBlockHtmlAttrs($node)
             : $this->renderBlockHtmlAttrsWithClasses($node, ['has-text-align-' . $alignment]);
+
+        return $attrs . $this->blockColorHtmlAttr($node);
     }
 
     /**
@@ -714,6 +719,49 @@ final class WordPressBlockWriter
         $alignment = strtolower(trim((string) $node->attr('align', $node->attr('textAlign', ''))));
 
         return in_array($alignment, ['left', 'center', 'right', 'justify'], true) ? $alignment : '';
+    }
+
+    /**
+     * @return array{style?: array{color: array<string, string>}}
+     */
+    private function blockColorCommentAttrs(AstNode $node): array
+    {
+        $color = [];
+        $text = $this->blockCssColor((string) $node->attr('textColor', ''));
+        if ($text !== '') {
+            $color['text'] = $text;
+        }
+        $background = $this->blockCssColor((string) $node->attr('backgroundColor', ''));
+        if ($background !== '') {
+            $color['background'] = $background;
+        }
+
+        return $color === [] ? [] : ['style' => ['color' => $color]];
+    }
+
+    private function blockColorHtmlAttr(AstNode $node): string
+    {
+        $styles = [];
+        $text = $this->blockCssColor((string) $node->attr('textColor', ''));
+        if ($text !== '') {
+            $styles[] = 'color:' . $text;
+        }
+        $background = $this->blockCssColor((string) $node->attr('backgroundColor', ''));
+        if ($background !== '') {
+            $styles[] = 'background-color:' . $background;
+        }
+
+        return $styles === [] ? '' : ' style="' . $this->esc(implode('; ', $styles)) . '"';
+    }
+
+    private function blockCssColor(string $color): string
+    {
+        $color = trim($color);
+        if (preg_match('/^#[0-9a-f]{6}$/i', $color) === 1) {
+            return strtoupper($color);
+        }
+
+        return '';
     }
 
     private function orderedListHtmlType(string $style): string

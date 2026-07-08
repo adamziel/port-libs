@@ -1557,6 +1557,10 @@ final class DocxReader
         if ($alignment !== '') {
             $attrs['align'] = $alignment;
         }
+        $backgroundColor = $this->paragraphBackgroundColor($paragraph);
+        if ($backgroundColor !== '') {
+            $attrs['backgroundColor'] = $backgroundColor;
+        }
 
         return new AstNode('paragraph', $attrs, $inlines);
     }
@@ -1575,6 +1579,10 @@ final class DocxReader
         $alignment = $this->paragraphAlignment($paragraph);
         if ($alignment !== '') {
             $attrs['align'] = $alignment;
+        }
+        $backgroundColor = $this->paragraphBackgroundColor($paragraph);
+        if ($backgroundColor !== '') {
+            $attrs['backgroundColor'] = $backgroundColor;
         }
 
         $styleId = $this->paragraphStyleId($paragraph);
@@ -1602,6 +1610,42 @@ final class DocxReader
         }
 
         return (string) ($this->styles[$styleId]['paragraphAlignment'] ?? '');
+    }
+
+    private function paragraphBackgroundColor(\DOMElement $paragraph): string
+    {
+        $pPr = $this->directChild($paragraph, 'pPr');
+        $direct = $pPr instanceof \DOMElement ? $this->paragraphPropertiesBackgroundColor($pPr) : '';
+        if ($direct !== '') {
+            return $direct;
+        }
+
+        $styleId = $this->paragraphStyleId($paragraph);
+        if ($styleId === '') {
+            return '';
+        }
+
+        return (string) ($this->styles[$styleId]['paragraphBackgroundColor'] ?? '');
+    }
+
+    private function paragraphPropertiesBackgroundColor(\DOMElement $pPr): string
+    {
+        $shd = $this->directChild($pPr, 'shd');
+        if (!$shd instanceof \DOMElement) {
+            return '';
+        }
+
+        return $this->wordHexColor($this->attr($shd, self::W_NS, 'fill'));
+    }
+
+    private function wordHexColor(string $value): string
+    {
+        $value = strtoupper(ltrim(trim($value), '#'));
+        if ($value === '' || $value === 'AUTO') {
+            return '';
+        }
+
+        return preg_match('/^[0-9A-F]{6}$/', $value) === 1 ? '#' . $value : '';
     }
 
     private function wordJustificationAlignment(string $value): string
@@ -5549,6 +5593,10 @@ final class DocxReader
                         if ($alignment !== '') {
                             $entry['paragraphAlignment'] = $alignment;
                         }
+                    }
+                    $paragraphBackgroundColor = $this->paragraphPropertiesBackgroundColor($child);
+                    if ($paragraphBackgroundColor !== '') {
+                        $entry['paragraphBackgroundColor'] = $paragraphBackgroundColor;
                     }
                     $ind = $this->directChild($child, 'ind');
                     if ($ind instanceof \DOMElement) {

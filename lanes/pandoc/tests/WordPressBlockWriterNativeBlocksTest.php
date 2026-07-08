@@ -82,6 +82,20 @@ return [
         $t->contains('<h2 class="has-text-align-right">Right heading</h2>', $blocks);
     },
 
+    'renders paragraph and heading custom colors as native block style attrs' => static function (TestRunner $t) use ($text): void {
+        $document = new AstNode('document', [], [
+            new AstNode('paragraph', ['backgroundColor' => '#D9EAF7'], [$text('Shaded paragraph.')]),
+            new AstNode('heading', ['level' => 2, 'textColor' => '#1F2937', 'backgroundColor' => '#FFF2CC'], [$text('Colored heading')]),
+        ]);
+
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->contains('<!-- wp:paragraph {"style":{"color":{"background":"#D9EAF7"}}} -->', $blocks);
+        $t->contains('<p style="background-color:#D9EAF7">Shaded paragraph.</p>', $blocks);
+        $t->contains('<!-- wp:heading {"level":2,"style":{"color":{"text":"#1F2937","background":"#FFF2CC"}}} -->', $blocks);
+        $t->contains('<h2 style="color:#1F2937; background-color:#FFF2CC">Colored heading</h2>', $blocks);
+    },
+
     'keeps raw html as an explicit custom html block' => static function (TestRunner $t): void {
         $document = new AstNode('document', [], [
             new AstNode('raw_html', ['html' => '<aside>Source HTML</aside>']),

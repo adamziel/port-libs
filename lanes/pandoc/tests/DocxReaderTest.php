@@ -325,8 +325,8 @@ return [
     'preserves docx paragraph and heading alignment for wordpress native attrs' => static function (TestRunner $t) use ($buildDocxReaderPackagePartsBytes): void {
         $bytes = $buildDocxReaderPackagePartsBytes([
             '[Content_Types].xml' => '<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/></Types>',
-            'word/styles.xml' => '<?xml version="1.0"?><w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:style w:type="paragraph" w:styleId="CenteredBody"><w:name w:val="Centered Body"/><w:pPr><w:jc w:val="center"/></w:pPr></w:style><w:style w:type="paragraph" w:styleId="Heading1"><w:name w:val="heading 1"/><w:pPr><w:jc w:val="right"/></w:pPr></w:style></w:styles>',
-            'word/document.xml' => '<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:pPr><w:pStyle w:val="CenteredBody"/></w:pPr><w:r><w:t>Centered by style.</w:t></w:r></w:p><w:p><w:pPr><w:pStyle w:val="CenteredBody"/><w:jc w:val="both"/></w:pPr><w:r><w:t>Justified directly.</w:t></w:r></w:p><w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr><w:r><w:t>Right heading</w:t></w:r></w:p></w:body></w:document>',
+            'word/styles.xml' => '<?xml version="1.0"?><w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:style w:type="paragraph" w:styleId="CenteredBody"><w:name w:val="Centered Body"/><w:pPr><w:jc w:val="center"/><w:shd w:fill="D9EAF7"/></w:pPr></w:style><w:style w:type="paragraph" w:styleId="Heading1"><w:name w:val="heading 1"/><w:pPr><w:jc w:val="right"/><w:shd w:fill="EEECE1"/></w:pPr></w:style></w:styles>',
+            'word/document.xml' => '<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:pPr><w:pStyle w:val="CenteredBody"/></w:pPr><w:r><w:t>Centered by style.</w:t></w:r></w:p><w:p><w:pPr><w:pStyle w:val="CenteredBody"/><w:jc w:val="both"/><w:shd w:fill="FFF2CC"/></w:pPr><w:r><w:t>Justified directly.</w:t></w:r></w:p><w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr><w:r><w:t>Right heading</w:t></w:r></w:p></w:body></w:document>',
         ]);
 
         $document = (new DocxReader())->read($bytes);
@@ -335,12 +335,17 @@ return [
 
         $t->same('paragraph', $blocks[0]->type);
         $t->same('center', $blocks[0]->attr('align'));
+        $t->same('#D9EAF7', $blocks[0]->attr('backgroundColor'));
         $t->same('justify', $blocks[1]->attr('align'));
+        $t->same('#FFF2CC', $blocks[1]->attr('backgroundColor'));
         $t->same('heading', $blocks[2]->type);
         $t->same('right', $blocks[2]->attr('align'));
-        $t->contains('<!-- wp:paragraph {"align":"center"} -->', $wordpress);
-        $t->contains('<!-- wp:paragraph {"align":"justify"} -->', $wordpress);
-        $t->contains('<!-- wp:heading {"level":1,"textAlign":"right"} -->', $wordpress);
+        $t->same('#EEECE1', $blocks[2]->attr('backgroundColor'));
+        $t->contains('<!-- wp:paragraph {"align":"center","style":{"color":{"background":"#D9EAF7"}}} -->', $wordpress);
+        $t->contains('<!-- wp:paragraph {"align":"justify","style":{"color":{"background":"#FFF2CC"}}} -->', $wordpress);
+        $t->contains('<!-- wp:heading {"level":1,"textAlign":"right","style":{"color":{"background":"#EEECE1"}}} -->', $wordpress);
+        $t->contains('<p class="has-text-align-center" style="background-color:#D9EAF7">Centered by style.</p>', $wordpress);
+        $t->contains('<h1 id="right-heading" class="has-text-align-right" style="background-color:#EEECE1">Right heading</h1>', $wordpress);
     },
     'nests docx direct underline inside strong and emphasis wrappers' => static function (TestRunner $t) use ($buildDocxReaderPackageBytes): void {
         $bytes = $buildDocxReaderPackageBytes('<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:rPr><w:i/><w:u w:val="single"/></w:rPr><w:t>italic underlined</w:t></w:r></w:p><w:p><w:r><w:rPr><w:b/><w:u w:val="single"/></w:rPr><w:t>bold underlined</w:t></w:r></w:p><w:p><w:r><w:rPr><w:b/><w:i/><w:u w:val="single"/></w:rPr><w:t>bold italic underlined</w:t></w:r></w:p></w:body></w:document>');
