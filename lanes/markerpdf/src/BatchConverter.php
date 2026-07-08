@@ -1720,6 +1720,9 @@ final class BatchConverter
         foreach ($taskArgs as $taskArg) {
             $filepath = (string) $taskArg['filepath'];
             $resolvedTarget = realpath($filepath);
+            $logicalResolvedTarget = is_string($resolvedTarget)
+                ? (is_link(dirname($filepath)) ? $this->logicalReviewPath($resolvedTarget) : $resolvedTarget)
+                : $filepath;
             $stat = @stat($filepath);
             $device = is_array($stat) && array_key_exists('dev', $stat) ? (string) $stat['dev'] : null;
             $inode = is_array($stat) && array_key_exists('ino', $stat) ? (string) $stat['ino'] : null;
@@ -1728,7 +1731,7 @@ final class BatchConverter
                 'filename' => basename($filepath),
                 'filepath' => $filepath,
                 'is_symlink' => is_link($filepath),
-                'resolved_target' => is_string($resolvedTarget) ? $resolvedTarget : $filepath,
+                'resolved_target' => $logicalResolvedTarget,
                 'resolved_target_available' => is_string($resolvedTarget),
                 'device' => $device,
                 'inode' => $inode,
@@ -5186,10 +5189,11 @@ final class BatchConverter
         $outputWasAbsolute = str_starts_with($outputFolder, DIRECTORY_SEPARATOR);
         $inputHasLeadingTilde = $this->pathHasLeadingTilde($inputFolder);
         $outputHasLeadingTilde = $this->pathHasLeadingTilde($outputFolder);
-        $processCwd = $this->absolutePath('.');
+        $processCwd = $this->logicalCurrentWorkingDirectory();
         $inputIsSymlink = is_link($absoluteInputFolder);
         $inputSymlinkTargetExists = $inputIsSymlink && file_exists($absoluteInputFolder);
         $inputRealpath = realpath($absoluteInputFolder);
+        $logicalInputRealpath = is_string($inputRealpath) ? $this->logicalReviewPath($inputRealpath) : null;
         $inputRelativeToOutput = $this->pathIsStrictDescendant($absoluteInputFolder, $absoluteOutputFolder);
         $outputRelativeToInput = $this->pathIsStrictDescendant($absoluteOutputFolder, $absoluteInputFolder);
         $sameFolder = $absoluteInputFolder === $absoluteOutputFolder;
@@ -5243,9 +5247,9 @@ final class BatchConverter
                 : null,
             'input_folder_broken_symlink' => $inputIsSymlink && !$inputSymlinkTargetExists,
             'input_folder_listdir_follows_symlink' => $inputIsSymlink && is_dir($absoluteInputFolder),
-            'input_folder_realpath' => is_string($inputRealpath) ? $inputRealpath : null,
-            'input_folder_realpath_differs_from_absolute' => is_string($inputRealpath)
-                && $inputRealpath !== $absoluteInputFolder,
+            'input_folder_realpath' => $logicalInputRealpath,
+            'input_folder_realpath_differs_from_absolute' => $logicalInputRealpath !== null
+                && $logicalInputRealpath !== $absoluteInputFolder,
             'input_folder_abspath_does_not_resolve_symlink' => $inputIsSymlink,
             'task_filepaths_preserve_input_folder_prefix' => true,
             'input_folder_listdir_boundary_review' => $listdirBoundaryReview,
@@ -5343,9 +5347,34 @@ final class BatchConverter
     {
         $absolute = str_starts_with($path, DIRECTORY_SEPARATOR)
             ? $path
-            : rtrim((string) getcwd(), DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . $path;
+            : rtrim($this->logicalCurrentWorkingDirectory(), DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . $path;
 
         return $this->normalizeAbsolutePath($absolute);
+    }
+
+    private function logicalCurrentWorkingDirectory(): string
+    {
+        $cwd = getcwd();
+        if (!is_string($cwd) || $cwd === '') {
+            return DIRECTORY_SEPARATOR;
+        }
+
+        return $this->logicalReviewPath($cwd);
+    }
+
+    private function logicalReviewPath(string $path): string
+    {
+        $logicalTemp = $this->normalizeAbsolutePath(sys_get_temp_dir());
+        $physicalTemp = realpath($logicalTemp);
+        if (
+            is_string($physicalTemp)
+            && $physicalTemp !== $logicalTemp
+            && ($path === $physicalTemp || str_starts_with($path, rtrim($physicalTemp, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR))
+        ) {
+            return $logicalTemp . substr($path, strlen($physicalTemp));
+        }
+
+        return $path;
     }
 
     private function pathHasLeadingTilde(string $path): bool
