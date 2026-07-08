@@ -9,9 +9,10 @@ use PortLibs\MarkerPDF\PdfTextExtractor;
 final class PdfReader
 {
     private const DEFAULT_MAX_TEXT_BYTES = 120000;
+    private const DEFAULT_FAST_MODE_BYTES = 5_000_000;
 
     /**
-     * @param array{maxTextBytes?: int, maxPages?: int, pdfMaxPages?: int, max_pages?: int, password?: string, pdfPassword?: string, geometryTables?: bool, pdfGeometryTables?: bool, extractGeometryTables?: bool, pdfRepairProseText?: bool, repairProseText?: bool} $options
+     * @param array{maxTextBytes?: int, maxPages?: int, pdfMaxPages?: int, max_pages?: int, password?: string, pdfPassword?: string, geometryTables?: bool, pdfGeometryTables?: bool, extractGeometryTables?: bool, pdfRepairProseText?: bool, repairProseText?: bool, pdfFastTextOnly?: bool, fastTextOnly?: bool, pdfFastModeBytes?: int} $options
      */
     public function __construct(private readonly array $options = [])
     {
@@ -23,14 +24,20 @@ final class PdfReader
             throw new \RuntimeException('PDF reading needs PortLibs\\MarkerPDF\\PdfTextExtractor.');
         }
 
-        $extractor = new PdfTextExtractor($this->options);
+        $structuralMetadata = $this->structuralMetadata($pdfBytes);
+        $fastTextOnly = $this->fastTextOnlyMode($pdfBytes, $structuralMetadata);
+        $extractorOptions = $this->options;
+        if ($fastTextOnly && $this->pdfMaxPages() === null) {
+            $extractorOptions['pdfMaxPages'] = (int) ($this->options['pdfFastMaxPages'] ?? 2);
+        }
+        $extractor = new PdfTextExtractor($extractorOptions);
         $lines = $this->normalizeLines($extractor->extractTextLines($pdfBytes));
-        $geometryTablesEnabled = $this->geometryTablesEnabled();
-        $proseRepairEnabled = $this->proseTextRepairEnabled();
-        $runs = $extractor->extractTextRuns($pdfBytes);
-        $positionedRuns = ($geometryTablesEnabled || $proseRepairEnabled) ? $extractor->extractPositionedTextRuns($pdfBytes) : [];
+        $geometryTablesEnabled = !$fastTextOnly && $this->geometryTablesEnabled();
+        $proseRepairEnabled = !$fastTextOnly && $this->proseTextRepairEnabled();
+        $runs = $fastTextOnly ? [] : $extractor->extractTextRuns($pdfBytes);
+        $positionedRuns = (!$fastTextOnly && ($geometryTablesEnabled || $proseRepairEnabled)) ? $extractor->extractPositionedTextRuns($pdfBytes) : [];
         $filledRectangles = $geometryTablesEnabled ? $extractor->extractFilledRectangles($pdfBytes) : [];
-        $diagnostics = $extractor->diagnostics($pdfBytes);
+        $diagnostics = $fastTextOnly ? $this->fastTextOnlyDiagnostics() : $extractor->diagnostics($pdfBytes);
         $plainText = implode("\n", $lines);
         $maxTextBytes = max(0, (int) ($this->options['maxTextBytes'] ?? self::DEFAULT_MAX_TEXT_BYTES));
         $limitedLines = $this->limitLines($lines, $maxTextBytes);
@@ -82,8 +89,9 @@ final class PdfReader
             : $limitedLines;
         $blocks = $taggedBlocks !== [] ? $taggedBlocks : ($geometryTableBlocks !== [] ? $geometryTableBlocks : $this->blocksFromLines($repairedLines));
         $blocks = $appliedLinkAnnotations === [] ? $blocks : $this->applyLinkAnnotationsToBlocks($blocks, $appliedLinkAnnotations);
-        $metadata = array_replace($this->structuralMetadata($pdfBytes), [
+        $metadata = array_replace($structuralMetadata, [
             'pdfExtractor' => PdfTextExtractor::class,
+            'pdfFastTextOnly' => $fastTextOnly,
             'pdfTextLines' => count($lines),
             'pdfTextRuns' => count($runs),
             'pdfPositionedTextRuns' => count($positionedRuns),
@@ -173,6 +181,70 @@ final class PdfReader
         }
 
         return null;
+    }
+
+    /**
+     * @param array<string, mixed> $structuralMetadata
+     */
+    private function fastTextOnlyMode(string $pdfBytes, array $structuralMetadata): bool
+    {
+        foreach (['pdfFastTextOnly', 'fastTextOnly'] as $key) {
+            if (array_key_exists($key, $this->options)) {
+                return (bool) $this->options[$key];
+            }
+        }
+
+        $threshold = (int) ($this->options['pdfFastModeBytes'] ?? self::DEFAULT_FAST_MODE_BYTES);
+        if ($threshold > 0 && strlen($pdfBytes) >= $threshold) {
+            return true;
+        }
+
+        $maxPages = $this->pdfMaxPages();
+        $estimatedPages = (int) ($structuralMetadata['pdfEstimatedPages'] ?? 0);
+
+        return $maxPages !== null && $estimatedPages > $maxPages * 2;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function fastTextOnlyDiagnostics(): array
+    {
+        return [
+            'warnings' => ['Large PDF imported in bounded text-only mode; expensive geometry, annotation, and tagged-structure diagnostics were skipped.'],
+            'unsupportedFilters' => [],
+            'failedStreams' => 0,
+            'malformedXrefOffsets' => [],
+            'malformedXrefStreams' => 0,
+            'malformedObjectStreams' => 0,
+            'missingUnicodeFonts' => [],
+            'missingUnicodeFontEncodings' => [],
+            'suppressedGlyphRuns' => 0,
+            'ignoredXObjectSubtypes' => [],
+            'ignoredXObjectCount' => 0,
+            'taggedRoleMap' => [],
+            'taggedStructureRoles' => [],
+            'taggedStructureLanguages' => [],
+            'taggedClassMap' => [],
+            'taggedStructureAttributes' => [],
+            'taggedStructureItems' => [],
+            'taggedStructureBlocks' => [],
+            'taggedTables' => [],
+            'taggedAttributeOwners' => [],
+            'taggedStructElementCount' => 0,
+            'linkAnnotations' => [],
+            'textAnnotations' => [],
+            'fileAttachmentAnnotations' => [],
+            'popupAnnotations' => [],
+            'appearanceAnnotations' => [],
+            'pageExtractionIssues' => [],
+            'pagesWithExtractionIssues' => [],
+            'encryptionDecrypted' => false,
+            'encryptionHandler' => null,
+            'encryptionPasswordType' => null,
+            'encryptionPermissions' => null,
+            'encryptionAllowsContentExtraction' => null,
+        ];
     }
 
     /**

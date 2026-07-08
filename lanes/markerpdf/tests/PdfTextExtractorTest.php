@@ -7757,4 +7757,38 @@ return [
             @unlink($path);
         }
     },
+    'treats oversized flate decoded streams as failed instead of exhausting memory' => static function (TestRunner $t): void {
+        $decoded = str_repeat('Oversized decoded stream. ', 128);
+        $encoded = gzcompress($decoded);
+        $t->true(is_string($encoded), 'Fixture should deflate');
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Length " . strlen($encoded) . " /Filter /FlateDecode >>\nstream\n{$encoded}\nendstream\nendobj\n%%EOF";
+        $extractor = new PdfTextExtractor(['maxDecodedStreamBytes' => 128]);
+
+        $t->same([], $extractor->extractTextLines($pdf));
+        $diagnostics = $extractor->diagnostics($pdf);
+        $t->same(1, $diagnostics['failedStreams']);
+        $t->contains('1 PDF stream(s) could not be decoded.', implode("\n", $diagnostics['warnings']));
+    },
+    'skips oversized content stream tokenization instead of building unbounded token arrays' => static function (TestRunner $t): void {
+        $content = 'BT /F1 12 Tf 72 720 Td (Visible before cap) Tj ET ' . str_repeat('0 0 0 rg ', 512);
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n%%EOF";
+        $extractor = new PdfTextExtractor(['maxTokenizedContentStreamBytes' => 128]);
+
+        $t->same([], $extractor->extractTextLines($pdf));
+        $t->same([], $extractor->extractTextRuns($pdf));
+        $t->same([], $extractor->extractPositionedTextRuns($pdf));
+    },
+    'bounds positioned text run collection for dense content streams' => static function (TestRunner $t): void {
+        $content = 'BT /F1 12 Tf 72 720 Td ' . str_repeat('(x) Tj ', 20) . 'ET';
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n%%EOF";
+        $extractor = new PdfTextExtractor(['maxPositionedTextRuns' => 5]);
+
+        $runs = $extractor->extractPositionedTextRuns($pdf);
+        $t->same(5, count($runs));
+        $t->same('x', $runs[0]['text']);
+        $t->same('x', $runs[4]['text']);
+    },
 ];

@@ -1824,4 +1824,38 @@ return [
             (new LatexWriter())->write($document)
         );
     },
+    'reads legacy native table constructors without dropping table structure' => static function (TestRunner $t): void {
+        $native = 'Pandoc (Meta {unMeta = fromList []}) [Table [Str "Legacy",Space,Str "Table"] [AlignDefault,AlignRight] [0.0,0.25] [[Plain [Str "Name"]],[Plain [Str "Score"]]] [[[Plain [Str "Ada"]],[Plain [Str "10"]]]]]';
+        $document = (new NativeReader())->read($native);
+        $table = $document->children[0];
+
+        $t->same('table', $table->type);
+        $t->same(true, $table->attr('legacyTableConstructor'));
+        $t->same('Legacy Table', $table->attr('caption'));
+        $t->same(['default', 'right'], $table->attr('alignments'));
+        $t->same([0.0, 0.25], $table->attr('widths'));
+        $t->same('Name', $table->children[0]->children[0]->children[0]->attr('text'));
+        $t->same('Ada', $table->children[1]->children[0]->children[0]->attr('text'));
+    },
+    'reads legacy native link and image constructors without attributes' => static function (TestRunner $t): void {
+        $native = 'Pandoc (Meta {unMeta = fromList []}) [Para [Link [Str "Docs"] ("https://example.test","manual"),Space,Image [Str "Diagram"] ("diagram.pdf","fig:")]]';
+        $document = (new NativeReader())->read($native);
+        $paragraph = $document->children[0];
+        $link = $paragraph->children[0];
+        $image = $paragraph->children[2];
+
+        $t->same('link', $link->type);
+        $t->same(true, $link->attr('legacyInlineConstructor'));
+        $t->same('https://example.test', $link->attr('url'));
+        $t->same('manual', $link->attr('title'));
+        $t->same('Docs', $link->children[0]->attr('text'));
+        $t->same(['t' => 'Link', 'c' => [[['t' => 'Str', 'c' => 'Docs']], ['https://example.test', 'manual']]], $link->attr('native'));
+
+        $t->same('image', $image->type);
+        $t->same(true, $image->attr('legacyInlineConstructor'));
+        $t->same('diagram.pdf', $image->attr('url'));
+        $t->same('fig:', $image->attr('title'));
+        $t->same('Diagram', $image->attr('alt'));
+        $t->same(['t' => 'Image', 'c' => [[['t' => 'Str', 'c' => 'Diagram']], ['diagram.pdf', 'fig:']]], $image->attr('native'));
+    },
 ];

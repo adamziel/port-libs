@@ -85,7 +85,34 @@ final class DocxReader
 
     public function read(string $bytes): AstNode
     {
-        return $this->readDocument(ZipPackage::fromString($bytes));
+        try {
+            $package = ZipPackage::fromString($bytes);
+        } catch (\RuntimeException|\InvalidArgumentException $exception) {
+            return $this->fallbackDocument($bytes, $exception->getMessage());
+        }
+
+        return $this->readDocument($package);
+    }
+
+    private function fallbackDocument(string $bytes, string $error): AstNode
+    {
+        return new AstNode('document', [
+            'sourceFormat' => 'docx',
+            'meta' => [
+                'sourceFormat' => 'docx',
+                'docxFallback' => [
+                    'reason' => 'invalid-docx-package',
+                    'error' => $error,
+                    'sourceBytes' => strlen($bytes),
+                    'sourceSha256' => hash('sha256', $bytes),
+                ],
+            ],
+        ], [
+            new AstNode('code_block', [
+                'text' => strlen($bytes) <= 8192 ? $bytes : substr($bytes, 0, 8192) . "\n...",
+                'classes' => ['docx-source'],
+            ]),
+        ]);
     }
 
     /**

@@ -973,6 +973,91 @@ XML);
 };
 
 return [
+    'returns a diagnostic document for corrupt xlsx package bytes' => static function (TestRunner $t): void {
+        $bytes = "not a zip package\nspreadsheet-ish text";
+
+        $document = (new XlsxReader())->read($bytes);
+        $meta = $document->attr('meta');
+
+        $t->same('xlsx', $document->attr('sourceFormat'));
+        $t->same('invalid-xlsx-package', $meta['xlsxFallback']['reason']);
+        $t->same(strlen($bytes), $meta['xlsxFallback']['sourceBytes']);
+        $t->same(hash('sha256', $bytes), $meta['xlsxFallback']['sourceSha256']);
+        $t->same('code_block', $document->children[0]->type);
+        $t->same($bytes, $document->children[0]->attr('text'));
+        $t->same(['xlsx-source'], $document->children[0]->attr('classes'));
+    },
+
+    'imports readable xlsx sheets while preserving failed sheet diagnostics' => static function (TestRunner $t): void {
+        $path = tempnam(sys_get_temp_dir(), 'pandoc-xlsx-partial-');
+        if ($path === false) {
+            throw new RuntimeException('Unable to create temporary XLSX path');
+        }
+
+        $zip = new ZipArchive();
+        if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+            @unlink($path);
+            throw new RuntimeException('Unable to create temporary XLSX package');
+        }
+        $zip->addFromString('_rels/.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>
+</Relationships>
+XML);
+        $zip->addFromString('xl/workbook.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"
+          xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <sheets>
+    <sheet name="Good" sheetId="1" r:id="rId1"/>
+    <sheet name="Missing" sheetId="2" r:id="rId2"/>
+  </sheets>
+</workbook>
+XML);
+        $zip->addFromString('xl/_rels/workbook.xml.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
+  <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/missing.xml"/>
+</Relationships>
+XML);
+        $zip->addFromString('xl/worksheets/sheet1.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <sheetData>
+    <row r="1"><c r="A1" t="inlineStr"><is><t>Name</t></is></c><c r="B1" t="inlineStr"><is><t>Value</t></is></c></row>
+    <row r="2"><c r="A2" t="inlineStr"><is><t>Status</t></is></c><c r="B2"><v>42</v></c></row>
+  </sheetData>
+</worksheet>
+XML);
+        $zip->close();
+
+        try {
+            $bytes = file_get_contents($path);
+            if (!is_string($bytes)) {
+                throw new RuntimeException('Unable to read temporary XLSX package');
+            }
+        } finally {
+            @unlink($path);
+        }
+
+        $document = (new XlsxReader())->read($bytes);
+        $html = PandocConverter::write($document, 'html');
+        $metadata = $document->attr('xlsx');
+
+        $t->same('xlsx', $document->attr('sourceFormat'));
+        $t->same(2, $metadata['sheetCount']);
+        $t->same(1, $metadata['failedSheetCount']);
+        $t->same(false, $metadata['sheets'][1]['readable']);
+        $t->same(false, $metadata['sheets'][1]['tableEmitted']);
+        $t->contains('ZIP package entry not found: /xl/worksheets/missing.xml', $metadata['sheets'][1]['error']);
+        $t->contains('<h2 id="sheet-1">Good</h2>', $html);
+        $t->contains('<td>42.0</td>', $html);
+        $t->contains('<h2 id="sheet-2">Missing</h2>', $html);
+        $t->contains('Worksheet could not be imported:', $html);
+    },
+
     'matches pinned upstream xlsx reader basic fixture semantics' => static function (TestRunner $t) use ($buildXlsxPackage): void {
         $document = (new XlsxReader())->read($buildXlsxPackage());
         $review = $document->attr('xlsx');

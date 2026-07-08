@@ -98,9 +98,43 @@ final class XlsxReader
 
     public function read(string $bytes): AstNode
     {
-        $package = ZipPackage::fromString($bytes);
+        try {
+            $package = ZipPackage::fromString($bytes);
+        } catch (\RuntimeException|\InvalidArgumentException $exception) {
+            return $this->fallbackDocument($bytes, $exception->getMessage());
+        }
 
         return $this->readPackage($package, strlen($bytes));
+    }
+
+    private function fallbackDocument(string $bytes, string $error): AstNode
+    {
+        return new AstNode('document', [
+            'sourceFormat' => 'xlsx',
+            'meta' => [
+                'sourceFormat' => 'xlsx',
+                'xlsxFallback' => [
+                    'reason' => 'invalid-xlsx-package',
+                    'error' => $error,
+                    'sourceBytes' => strlen($bytes),
+                    'sourceSha256' => hash('sha256', $bytes),
+                ],
+            ],
+        ], [
+            new AstNode('code_block', [
+                'text' => $this->sourcePreview($bytes),
+                'classes' => ['xlsx-source'],
+            ]),
+        ]);
+    }
+
+    private function sourcePreview(string $bytes): string
+    {
+        if (strlen($bytes) <= 8192) {
+            return $bytes;
+        }
+
+        return substr($bytes, 0, 8192) . "\n...";
     }
 
     private function readPackage(ZipPackage $package, int $sourceBytes): AstNode
@@ -140,33 +174,63 @@ final class XlsxReader
         $dataValidationCount = 0;
         $dataValidationSheetCount = 0;
         $dataValidationRangeCount = 0;
+        $failedSheetCount = 0;
         foreach ($sheets as $sheet) {
-            $relationship = $workbookRelationships->byId($sheet['relationshipId']);
-            if (!$relationship instanceof OpcRelationship) {
-                throw new \RuntimeException('XLSX sheet relationship not found: ' . $sheet['relationshipId']);
-            }
-            if ($relationship->isExternal()) {
-                throw new \RuntimeException('XLSX external worksheet relationships are not supported');
-            }
+            $sheetPart = null;
+            try {
+                $relationship = $workbookRelationships->byId($sheet['relationshipId']);
+                if (!$relationship instanceof OpcRelationship) {
+                    throw new \RuntimeException('XLSX sheet relationship not found: ' . $sheet['relationshipId']);
+                }
+                if ($relationship->isExternal()) {
+                    throw new \RuntimeException('XLSX external worksheet relationships are not supported');
+                }
 
-            $sheetPart = OpcPackagePath::stripQueryAndFragment($workbookRelationships->resolveTarget($relationship));
-            $sheetDocument = $this->loadPackageXml($package, $sheetPart, 'XLSX worksheet ' . $sheet['name']);
-            $sheetRelationships = $this->relationshipsOrEmpty($package, $sheetPart);
-            $sheetLayout = $this->parseSheetLayoutMetadata($sheetDocument);
-            $sheetComments = $this->parseSheetComments($package, $sheetPart, $sheetRelationships);
-            $sheetDiagnostics = $this->parseSheetDiagnostics($sheetDocument);
-            $sheetDataValidations = $this->parseSheetDataValidations($sheetDocument);
-            $sheetTableMetadata = $this->parseSheetTableMetadata($package, $sheetPart, $sheetDocument, $sheetRelationships);
-            $cells = $this->parseSheetCells($sheetDocument, $sharedStrings, $styles, $workbookInfo['date1904'], $sheetRelationships, $sheetComments['commentsByCell'], $sheetLayout);
-            $table = $this->cellsToTable($sheet['name'], $cells);
-            $blocks[] = new AstNode('heading', [
-                'level' => 2,
-                'id' => 'sheet-' . $sheet['index'],
-                'text' => $sheet['name'],
-            ], [new AstNode('text', ['text' => $sheet['name']])]);
-            if ($table instanceof AstNode) {
-                $blocks[] = $table;
-                $tableCount++;
+                $sheetPart = OpcPackagePath::stripQueryAndFragment($workbookRelationships->resolveTarget($relationship));
+                $sheetDocument = $this->loadPackageXml($package, $sheetPart, 'XLSX worksheet ' . $sheet['name']);
+                $sheetRelationships = $this->relationshipsOrEmpty($package, $sheetPart);
+                $sheetLayout = $this->parseSheetLayoutMetadata($sheetDocument);
+                $sheetComments = $this->parseSheetComments($package, $sheetPart, $sheetRelationships);
+                $sheetDiagnostics = $this->parseSheetDiagnostics($sheetDocument);
+                $sheetDataValidations = $this->parseSheetDataValidations($sheetDocument);
+                $sheetTableMetadata = $this->parseSheetTableMetadata($package, $sheetPart, $sheetDocument, $sheetRelationships);
+                $cells = $this->parseSheetCells($sheetDocument, $sharedStrings, $styles, $workbookInfo['date1904'], $sheetRelationships, $sheetComments['commentsByCell'], $sheetLayout);
+                $table = $this->cellsToTable($sheet['name'], $cells);
+                $blocks[] = new AstNode('heading', [
+                    'level' => 2,
+                    'id' => 'sheet-' . $sheet['index'],
+                    'text' => $sheet['name'],
+                ], [new AstNode('text', ['text' => $sheet['name']])]);
+                if ($table instanceof AstNode) {
+                    $blocks[] = $table;
+                    $tableCount++;
+                }
+            } catch (\RuntimeException|\InvalidArgumentException $exception) {
+                ++$failedSheetCount;
+                $blocks[] = new AstNode('heading', [
+                    'level' => 2,
+                    'id' => 'sheet-' . $sheet['index'],
+                    'text' => $sheet['name'],
+                ], [new AstNode('text', ['text' => $sheet['name']])]);
+                $blocks[] = new AstNode('paragraph', [
+                    'text' => 'Worksheet could not be imported: ' . $exception->getMessage(),
+                    'classes' => ['xlsx-sheet-import-warning'],
+                ], [
+                    new AstNode('text', ['text' => 'Worksheet could not be imported: ' . $exception->getMessage()]),
+                ]);
+                $sheetReviews[] = [
+                    'index' => $sheet['index'],
+                    'name' => $sheet['name'],
+                    'relationshipId' => $sheet['relationshipId'],
+                    'partName' => is_string($sheetPart) ? ltrim($sheetPart, '/') : null,
+                    'state' => $sheet['state'],
+                    'hidden' => $sheet['hidden'],
+                    'veryHidden' => $sheet['veryHidden'],
+                    'readable' => false,
+                    'error' => $exception->getMessage(),
+                    'tableEmitted' => false,
+                ];
+                continue;
             }
 
             $formulaCellCount += $sheetDiagnostics['formulaCellCount'];
@@ -249,6 +313,7 @@ final class XlsxReader
                 'entryCount' => count($package->names()),
                 'workbookPart' => ltrim($workbookPart, '/'),
                 'sheetCount' => count($sheets),
+                'failedSheetCount' => $failedSheetCount,
                 'tableCount' => $tableCount,
                 'hiddenSheetPolicy' => 'emit-all-sheets-record-visibility',
                 'hiddenSheetCount' => count(array_filter($sheets, static fn (array $sheet): bool => $sheet['hidden'])),

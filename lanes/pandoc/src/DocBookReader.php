@@ -168,8 +168,8 @@ final class DocBookReader
         }
 
         $format = $this->format();
-        $structure = XmlHtmlDom::summarizeDocBookStructure($dom, $format);
-        $review = XmlHtmlDom::summarizeDocBookReviewPacket($dom, $format);
+        [$structure, $structureError] = $this->summarizeDocBookStructure($dom, $root, $format);
+        [$review, $reviewError] = $this->summarizeDocBookReviewPacket($dom, $root, $format);
         $bibliography = XmlHtmlDom::summarizeDocBookBibliography($dom);
         $this->prepareCalloutLabels($root);
         $this->prepareXrefLabels($root);
@@ -202,6 +202,12 @@ final class DocBookReader
             'xmlDetectedTables' => $this->countNodesOfType($blocks, 'table'),
             'xmlDetectedHeadings' => $this->countNodesOfType($blocks, 'heading'),
         ]);
+        if ($structureError !== null) {
+            $meta['docbookStructureFallbackReason'] = $structureError;
+        }
+        if ($reviewError !== null) {
+            $meta['docbookReviewPacketFallbackReason'] = $reviewError;
+        }
 
         $title = $this->cleanText($structure['title'] ?? '');
         if ($title === '' && $this->name($root) === 'refentry') {
@@ -250,6 +256,95 @@ final class DocBookReader
         $format = strtolower(trim((string) ($this->options['format'] ?? 'docbook')));
 
         return in_array($format, ['docbook4', 'docbook5'], true) ? $format : 'docbook';
+    }
+
+    /**
+     * @return array{0:array<string, mixed>, 1:string|null}
+     */
+    private function summarizeDocBookStructure(\DOMDocument $dom, \DOMElement $root, string $format): array
+    {
+        try {
+            return [XmlHtmlDom::summarizeDocBookStructure($dom, $format), null];
+        } catch (\InvalidArgumentException $exception) {
+            return [$this->fallbackDocBookStructure($root, $format), $exception->getMessage()];
+        }
+    }
+
+    /**
+     * @return array{0:array<string, mixed>, 1:string|null}
+     */
+    private function summarizeDocBookReviewPacket(\DOMDocument $dom, \DOMElement $root, string $format): array
+    {
+        try {
+            return [XmlHtmlDom::summarizeDocBookReviewPacket($dom, $format), null];
+        } catch (\InvalidArgumentException $exception) {
+            return [[
+                'formatFamily' => 'docbook',
+                'format' => $format,
+                'reviewPolicy' => 'docbook-fragment-review-fallback',
+                'directReaderParity' => false,
+                'directReaderDiagnosticCodes' => ['docbook-review-packet-fragment-root'],
+                'rootName' => $this->name($root),
+                'rootNamespace' => $root->namespaceURI,
+                'textSample' => $this->truncateText(XmlHtmlDom::normalizedText($root), 512),
+                'diagnostic' => $exception->getMessage(),
+            ], $exception->getMessage()];
+        }
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function fallbackDocBookStructure(\DOMElement $root, string $format): array
+    {
+        $title = $this->cleanText($this->firstChildText($root, ['title']));
+        $text = XmlHtmlDom::normalizedText($root);
+
+        return [
+            'formatFamily' => 'docbook',
+            'format' => $format,
+            'reviewPolicy' => 'docbook-fragment-structure-fallback',
+            'directReaderParity' => false,
+            'directReaderDiagnosticCodes' => ['docbook-structure-fragment-root'],
+            'rootName' => $this->name($root),
+            'rootNamespace' => $root->namespaceURI,
+            'title' => $title,
+            'docbookVersion' => XmlHtmlDom::attribute($root, 'version'),
+            'sectionCount' => count($this->descendantElementsByNames($root, self::SECTION_NAMES)),
+            'tableCount' => count($this->descendantElementsByNames($root, array_fill_keys(self::TABLE_ROOT_NAMES, true))),
+            'figureCount' => count($this->descendantElementsByNames($root, ['figure' => true, 'informalfigure' => true])),
+            'bibliographyCount' => count($this->descendantElementsByNames($root, ['bibliography' => true])),
+            'bibliographyEntryCount' => count($this->descendantElementsByNames($root, ['biblioentry' => true, 'bibliomixed' => true])),
+            'xrefCount' => count($this->descendantElementsByNames($root, ['xref' => true, 'link' => true])),
+            'mediaObjectCount' => count($this->descendantElementsByNames($root, ['mediaobject' => true, 'inlinemediaobject' => true])),
+            'textSample' => $this->truncateText($text, 512),
+        ];
+    }
+
+    /**
+     * @param array<string, true> $names
+     * @return list<\DOMElement>
+     */
+    private function descendantElementsByNames(\DOMElement $root, array $names): array
+    {
+        $elements = [];
+        foreach (XmlHtmlDom::descendantElements($root) as $element) {
+            if (isset($names[$this->name($element)])) {
+                $elements[] = $element;
+            }
+        }
+
+        return $elements;
+    }
+
+    private function truncateText(string $text, int $maxBytes): string
+    {
+        $text = $this->cleanText($text);
+        if (strlen($text) <= $maxBytes) {
+            return $text;
+        }
+
+        return rtrim(substr($text, 0, $maxBytes)) . '...';
     }
 
     private function rootLooksLikeDocBook(\DOMElement $root): bool

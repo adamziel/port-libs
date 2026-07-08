@@ -6,6 +6,10 @@ namespace PortLibs\MarkerPDF;
 
 final class PdfTextExtractor
 {
+    private const DEFAULT_MAX_DECODED_STREAM_BYTES = 16_777_216;
+    private const DEFAULT_MAX_TOKENIZED_CONTENT_STREAM_BYTES = 8_388_608;
+    private const DEFAULT_MAX_CONTENT_TOKENS = 250_000;
+    private const DEFAULT_MAX_POSITIONED_TEXT_RUNS = 5_000;
     private const POSITIONED_TEXT_WORD_GAP = 12.0;
     private const POSITIONED_TEXT_LINE_TOLERANCE = 2.0;
     private const SIMPLE_TEXT_ADVANCE_RATIO = 0.5;
@@ -549,7 +553,7 @@ final class PdfTextExtractor
     ];
 
     /**
-     * @param array{password?: string, pdfPassword?: string, maxPages?: int, pdfMaxPages?: int, max_pages?: int} $options
+     * @param array{password?: string, pdfPassword?: string, maxPages?: int, pdfMaxPages?: int, max_pages?: int, maxDecodedStreamBytes?: int, pdfMaxDecodedStreamBytes?: int, maxTokenizedContentStreamBytes?: int, pdfMaxTokenizedContentStreamBytes?: int, maxContentTokens?: int, pdfMaxContentTokens?: int, maxPositionedTextRuns?: int, pdfMaxPositionedTextRuns?: int} $options
      */
     public function __construct(private readonly array $options = [])
     {
@@ -584,6 +588,7 @@ final class PdfTextExtractor
     {
         $runs = [];
         $streamNumber = 0;
+        $maxRuns = $this->maxPositionedTextRuns();
         foreach ($this->limitedStreamContexts($pdfBytes) as $context) {
             $streamNumber++;
             $page = is_int($context['page'] ?? null) ? $context['page'] : $streamNumber;
@@ -601,6 +606,9 @@ final class PdfTextExtractor
                 }
 
                 $runs[] = $positionedRun;
+                if (count($runs) >= $maxRuns) {
+                    return $runs;
+                }
             }
         }
 
@@ -1105,6 +1113,8 @@ final class PdfTextExtractor
     private function positionedTextRunsByPageObject(array $objects): array
     {
         $runsByPageObject = [];
+        $totalRuns = 0;
+        $maxRuns = $this->maxPositionedTextRuns();
         foreach ($this->pageContentStreamContexts($objects) as $context) {
             $pageObject = (int) ($context['pageObject'] ?? 0);
             if ($pageObject <= 0) {
@@ -1120,6 +1130,10 @@ final class PdfTextExtractor
                 $context['propertyMcids']
             ) as $run) {
                 $runsByPageObject[$pageObject][] = $run;
+                $totalRuns++;
+                if ($totalRuns >= $maxRuns) {
+                    return $runsByPageObject;
+                }
             }
         }
 
@@ -5972,15 +5986,27 @@ final class PdfTextExtractor
 
     private function decodeFlateStream(string $stream): ?string
     {
-        $inflated = @gzuncompress($stream);
+        $maxLength = $this->maxDecodedStreamBytes();
+        $inflated = @gzuncompress($stream, $maxLength);
         if ($inflated === false) {
-            $inflated = @gzinflate($stream);
+            $inflated = @gzinflate($stream, $maxLength);
         }
         if ($inflated === false) {
-            $inflated = @gzdecode($stream);
+            $inflated = @gzdecode($stream, $maxLength);
         }
 
         return $inflated === false ? null : $inflated;
+    }
+
+    private function maxDecodedStreamBytes(): int
+    {
+        foreach (['pdfMaxDecodedStreamBytes', 'maxDecodedStreamBytes'] as $key) {
+            if (array_key_exists($key, $this->options) && $this->options[$key] !== null && $this->options[$key] !== '') {
+                return max(1, (int) $this->options[$key]);
+            }
+        }
+
+        return self::DEFAULT_MAX_DECODED_STREAM_BYTES;
     }
 
     /**
@@ -13969,6 +13995,7 @@ final class PdfTextExtractor
         $actualTextStack = [];
         $artifactStack = [];
         $currentTransformationMatrix = $this->identityTransformationMatrix();
+        $maxRuns = $this->maxPositionedTextRuns();
 
         foreach ($this->contentTokens($stream) as $token) {
             if ($token === 'BDC') {
@@ -14066,6 +14093,9 @@ final class PdfTextExtractor
                                 $currentFontSize,
                                 $axis
                             );
+                            if (count($runs) >= $maxRuns) {
+                                return $runs;
+                            }
                         }
                     }
 
@@ -14280,6 +14310,10 @@ final class PdfTextExtractor
      */
     private function contentTokens(string $stream): array
     {
+        if (strlen($stream) > $this->maxTokenizedContentStreamBytes()) {
+            return [];
+        }
+
         $tokens = [];
         $length = strlen($stream);
         $index = 0;
@@ -14300,21 +14334,33 @@ final class PdfTextExtractor
 
             if ($char === '(') {
                 $tokens[] = $this->readLiteralToken($stream, $index);
+                if (count($tokens) >= $this->maxContentTokens()) {
+                    break;
+                }
                 continue;
             }
 
             if ($char === '<' && $index + 1 < $length && $stream[$index + 1] === '<') {
                 $tokens[] = $this->readDictionaryToken($stream, $index);
+                if (count($tokens) >= $this->maxContentTokens()) {
+                    break;
+                }
                 continue;
             }
 
             if ($char === '<' && ($index + 1 >= $length || $stream[$index + 1] !== '<')) {
                 $tokens[] = $this->readHexToken($stream, $index);
+                if (count($tokens) >= $this->maxContentTokens()) {
+                    break;
+                }
                 continue;
             }
 
             if ($char === '[') {
                 $tokens[] = $this->readArrayToken($stream, $index);
+                if (count($tokens) >= $this->maxContentTokens()) {
+                    break;
+                }
                 continue;
             }
 
@@ -14331,10 +14377,48 @@ final class PdfTextExtractor
                 $this->skipInlineImage($stream, $index);
                 continue;
             }
-            $tokens[] = $token;
+            if ($token !== '') {
+                $tokens[] = $token;
+                if (count($tokens) >= $this->maxContentTokens()) {
+                    break;
+                }
+            }
         }
 
-        return array_values(array_filter($tokens, static fn (string $token): bool => $token !== ''));
+        return $tokens;
+    }
+
+    private function maxTokenizedContentStreamBytes(): int
+    {
+        foreach (['pdfMaxTokenizedContentStreamBytes', 'maxTokenizedContentStreamBytes'] as $key) {
+            if (array_key_exists($key, $this->options) && $this->options[$key] !== null && $this->options[$key] !== '') {
+                return max(1, (int) $this->options[$key]);
+            }
+        }
+
+        return self::DEFAULT_MAX_TOKENIZED_CONTENT_STREAM_BYTES;
+    }
+
+    private function maxContentTokens(): int
+    {
+        foreach (['pdfMaxContentTokens', 'maxContentTokens'] as $key) {
+            if (array_key_exists($key, $this->options) && $this->options[$key] !== null && $this->options[$key] !== '') {
+                return max(1, (int) $this->options[$key]);
+            }
+        }
+
+        return self::DEFAULT_MAX_CONTENT_TOKENS;
+    }
+
+    private function maxPositionedTextRuns(): int
+    {
+        foreach (['pdfMaxPositionedTextRuns', 'maxPositionedTextRuns'] as $key) {
+            if (array_key_exists($key, $this->options) && $this->options[$key] !== null && $this->options[$key] !== '') {
+                return max(1, (int) $this->options[$key]);
+            }
+        }
+
+        return self::DEFAULT_MAX_POSITIONED_TEXT_RUNS;
     }
 
     private function skipInlineImage(string $stream, int &$index): void

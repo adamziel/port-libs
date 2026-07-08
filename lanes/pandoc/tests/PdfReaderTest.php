@@ -3021,6 +3021,20 @@ $pdfWithHybridXrefStreamAndTablePreviousBranches = static function () use ($xref
 };
 
 return [
+    'imports large pdfs in bounded text only mode when requested' => static function (TestRunner $t) use ($pdfWithContent): void {
+        $pdf = $pdfWithContent('BT /F1 12 Tf 72 720 Td (Fast mode text) Tj ET');
+
+        $document = (new PdfReader(['pdfFastTextOnly' => true, 'pdfFastMaxPages' => 1]))->read($pdf);
+        $meta = $document->attr('meta');
+
+        $t->same(true, $meta['pdfFastTextOnly']);
+        $t->same(0, $meta['pdfTextRuns']);
+        $t->same(0, $meta['pdfPositionedTextRuns']);
+        $t->same(false, $meta['pdfGeometryTablesEnabled']);
+        $t->contains('bounded text-only mode', implode(' ', $meta['pdfWarnings']));
+        $t->same('Fast mode text', $document->children[0]->attr('text'));
+    },
+
     'reads searchable pdf text into shared ast blocks' => static function (TestRunner $t) use ($pdfWithContent): void {
         $pdf = $pdfWithContent(
             'BT /F1 24 Tf 72 720 Td (PDF Demo Title) Tj T* '

@@ -209,6 +209,46 @@ return [
         $t->same(false, array_key_exists('c', $decoded['blocks'][1]));
         $t->same('Para', $decoded['blocks'][2]['t']);
     },
+    'reads older pandoc json through tolerant constructor recovery' => static function (TestRunner $t): void {
+        $source = [
+            'pandoc-api-version' => [1, 22, 2, 1],
+            'meta' => [],
+            'blocks' => [
+                ['t' => 'Table', 'c' => [
+                    [['t' => 'Str', 'c' => 'Legacy'], ['t' => 'Space'], ['t' => 'Str', 'c' => 'Table']],
+                    [['t' => 'AlignDefault'], ['t' => 'AlignRight']],
+                    [0.0, 0.25],
+                    [
+                        [['t' => 'Plain', 'c' => [['t' => 'Str', 'c' => 'Name']]]],
+                        [['t' => 'Plain', 'c' => [['t' => 'Str', 'c' => 'Score']]]],
+                    ],
+                    [
+                        [
+                            [['t' => 'Plain', 'c' => [['t' => 'Str', 'c' => 'Ada']]]],
+                            [['t' => 'Plain', 'c' => [['t' => 'Str', 'c' => '10']]]],
+                        ],
+                    ],
+                ]],
+            ],
+        ];
+
+        $document = (new JsonReader())->read(json_encode($source, JSON_THROW_ON_ERROR));
+        $table = $document->children[0];
+
+        $t->same('table', $table->type);
+        $t->same('Legacy Table', $table->attr('caption'));
+        $t->same(['default', 'right'], $table->attr('alignments'));
+        $t->same('Name', $table->children[0]->children[0]->children[0]->attr('text'));
+        $t->same('Ada', $table->children[1]->children[0]->children[0]->attr('text'));
+    },
+    'preserves non-pandoc json as a reviewable code block' => static function (TestRunner $t): void {
+        $document = (new JsonReader())->read('{"type":"data","items":[{"title":"Post"}]}');
+
+        $t->same('json', $document->attr('sourceFormat'));
+        $t->same('not-pandoc-json', $document->attr('jsonFallback')['reason'] ?? null);
+        $t->same('code_block', $document->children[0]->type);
+        $t->contains('"title": "Post"', $document->children[0]->attr('text'));
+    },
     'rejects incompatible pandoc json api versions' => static function (TestRunner $t): void {
         $t->throws(\InvalidArgumentException::class, static function (): void {
             (new JsonReader())->read(json_encode([

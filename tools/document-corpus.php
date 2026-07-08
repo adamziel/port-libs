@@ -1575,6 +1575,7 @@ function converterOptions(string $format): array
     $canonical = PandocConverter::canonicalInputFormat($format);
     if ($canonical === 'pdf') {
         $readerOptions['maxTextBytes'] = 80000;
+        $readerOptions['pdfMaxPages'] = 2;
         $readerOptions['pdfGeometryTables'] = true;
         $readerOptions['pdfRepairProseText'] = true;
     }

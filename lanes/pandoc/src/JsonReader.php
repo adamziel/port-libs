@@ -12,13 +12,92 @@ final class JsonReader
     public function read(string $json): AstNode
     {
         $decoded = json_decode($json, true, 512, JSON_THROW_ON_ERROR);
-        $document = $this->expectMap($decoded, 'Pandoc JSON document');
-        $this->assertCompatibleVersion($document['pandoc-api-version'] ?? null);
+        if (!$this->looksLikePandocJsonDocument($decoded)) {
+            return $this->fallbackJsonDocument($json, 'not-pandoc-json');
+        }
 
-        $meta = $this->parseMeta($document['meta'] ?? []);
-        $blocks = $this->parseBlockList($document['blocks'] ?? []);
+        try {
+            if (!array_is_list($decoded)) {
+                $document = $this->expectMap($decoded, 'Pandoc JSON document');
+                $this->assertCompatibleVersion($document['pandoc-api-version'] ?? null);
+                if ($this->isCurrentApiVersion($document['pandoc-api-version'] ?? null)) {
+                    $meta = $this->parseMeta($document['meta'] ?? []);
+                    $blocks = $this->parseBlockList($document['blocks'] ?? []);
 
-        return new AstNode('document', $meta === [] ? [] : ['meta' => $meta], $blocks);
+                    return new AstNode('document', $meta === [] ? [] : ['meta' => $meta], $blocks);
+                }
+            }
+
+            return (new PandocJsonReader())->readPacket($decoded);
+        } catch (\InvalidArgumentException $exception) {
+            if ($this->isMajorVersionIncompatibility($exception)) {
+                throw $exception;
+            }
+
+            return $this->fallbackJsonDocument($json, 'pandoc-json-parse-recovery', $exception->getMessage());
+        }
+    }
+
+    private function looksLikePandocJsonDocument(mixed $decoded): bool
+    {
+        if (!is_array($decoded)) {
+            return false;
+        }
+        if (array_is_list($decoded)) {
+            return count($decoded) === 2;
+        }
+        if (($decoded['t'] ?? null) === 'Pandoc') {
+            return true;
+        }
+
+        return array_key_exists('blocks', $decoded)
+            || array_key_exists('meta', $decoded)
+            || array_key_exists('pandoc-api-version', $decoded);
+    }
+
+    private function fallbackJsonDocument(string $json, string $reason, ?string $error = null): AstNode
+    {
+        $attrs = [
+            'sourceFormat' => 'json',
+            'jsonFallback' => [
+                'reason' => $reason,
+                'sourceBytes' => strlen($json),
+                'sourceSha256' => hash('sha256', $json),
+            ],
+        ];
+        if ($error !== null && $error !== '') {
+            $attrs['jsonFallback']['error'] = $error;
+        }
+
+        return new AstNode('document', $attrs, [
+            new AstNode('code_block', [
+                'text' => $this->formattedJsonSource($json),
+                'classes' => ['json'],
+            ]),
+        ]);
+    }
+
+    private function formattedJsonSource(string $json): string
+    {
+        try {
+            $decoded = json_decode($json, true, 512, JSON_THROW_ON_ERROR);
+            return json_encode($decoded, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+        } catch (\JsonException) {
+            return $json;
+        }
+    }
+
+    private function isMajorVersionIncompatibility(\InvalidArgumentException $exception): bool
+    {
+        return str_contains($exception->getMessage(), 'Incompatible Pandoc JSON API major version');
+    }
+
+    private function isCurrentApiVersion(mixed $value): bool
+    {
+        $version = $this->expectList($value, 'pandoc-api-version');
+
+        return ($version[0] ?? null) === self::PANDOC_API_VERSION[0]
+            && ($version[1] ?? null) === self::PANDOC_API_VERSION[1];
     }
 
     private function assertCompatibleVersion(mixed $value): void
@@ -34,12 +113,11 @@ final class JsonReader
             throw new \InvalidArgumentException('Pandoc JSON API version entries must be integers');
         }
 
-        if ($major !== self::PANDOC_API_VERSION[0] || $minor !== self::PANDOC_API_VERSION[1]) {
+        if ($major !== self::PANDOC_API_VERSION[0]) {
             throw new \InvalidArgumentException(sprintf(
-                'Incompatible Pandoc JSON API version %s; expected major/minor %d.%d',
+                'Incompatible Pandoc JSON API major version %s; expected major %d',
                 implode('.', array_map(static fn (mixed $part): string => (string) $part, $version)),
                 self::PANDOC_API_VERSION[0],
-                self::PANDOC_API_VERSION[1],
             ));
         }
     }

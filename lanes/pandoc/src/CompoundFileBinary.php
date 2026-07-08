@@ -70,7 +70,7 @@ final class CompoundFileBinary
         if ($byteOrder !== 0xfffe) {
             throw new \InvalidArgumentException('CFB file must use little-endian byte order');
         }
-        if ($minorVersion !== 0x003e) {
+        if (!in_array($minorVersion, [0x0021, 0x003e], true)) {
             throw new \InvalidArgumentException('CFB file uses an unsupported minor version');
         }
         if (!in_array($majorVersion, [3, 4], true)) {
@@ -585,9 +585,6 @@ final class CompoundFileBinary
         foreach ($miniFat as $miniSectorId => $miniFatEntry) {
             $miniFatEntry = (int) $miniFatEntry;
             if ($miniSectorId >= $miniStreamSectorCount) {
-                if ($miniFatEntry !== self::FREESECT) {
-                    throw new \RuntimeException('CFB MiniFAT marks a mini-sector beyond the root mini stream as allocated');
-                }
                 continue;
             }
 
@@ -787,9 +784,6 @@ final class CompoundFileBinary
         $expected = substr_replace($expected, pack('V', self::FREESECT), 68, 4);
         $expected = substr_replace($expected, pack('V', self::FREESECT), 72, 4);
         $expected = substr_replace($expected, pack('V', self::FREESECT), 76, 4);
-        if ($entryBytes !== $expected) {
-            throw new \RuntimeException('CFB unallocated directory entry must be zeroed except NOSTREAM sibling pointers');
-        }
     }
 
     /**
@@ -819,9 +813,9 @@ final class CompoundFileBinary
         if ($type === 1 && $size !== 0) {
             throw new \RuntimeException('CFB storage directory entry must not declare stream bytes: ' . $name);
         }
-        if ($type === 1 && $startSector !== self::ENDOFCHAIN) {
-            throw new \RuntimeException('CFB storage directory entry must use ENDOFCHAIN start sector: ' . $name);
-        }
+        // Some producer-written storages carry stale start sectors even though
+        // storages do not own stream bytes. Ignore the start sector and keep
+        // validating real stream chains for stream/root entries.
         if ($type === 5 && (int) ($entry['directoryId'] ?? -1) !== 0) {
             throw new \RuntimeException('CFB directory contains a duplicate Root Entry storage: ' . $name);
         }
@@ -912,10 +906,6 @@ final class CompoundFileBinary
         }
 
         $rightBlackHeight = self::collectDirectoryTree($entry['rightSiblingId'], $parentPath, $rawEntries, $entries, $byName, $visited, $entry, $maxEntry, $entryIsRed, false);
-        if ($leftBlackHeight !== $rightBlackHeight) {
-            throw new \RuntimeException('CFB directory sibling tree has unequal black height: ' . $entry['name']);
-        }
-
         return $leftBlackHeight + ($entryIsRed ? 0 : 1);
     }
 

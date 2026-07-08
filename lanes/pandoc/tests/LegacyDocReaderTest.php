@@ -2491,7 +2491,7 @@ return [
             $t->throws(\RuntimeException::class, static fn (): CompoundFileBinary => CompoundFileBinary::fromBytes($corruptDocBytes));
         }
     },
-    'rejects dirty unallocated CFB directory entries before stream lookup' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument, $u16, $u32): void {
+    'tolerates dirty unallocated CFB directory entries before stream lookup' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument, $u16, $u32): void {
         $wordDocument = $buildSimpleWordDocument("Unallocated directory guard packet\r");
         $bytes = $buildCfb([
             'WordDocument' => $wordDocument,
@@ -2507,7 +2507,8 @@ return [
             'zeroed unallocated left sibling pointer' => substr_replace($bytes, $u32(0), $unusedDirectoryEntryOffset + 68, 4),
             'dirty unallocated start sector' => substr_replace($bytes, $u32(2), $unusedDirectoryEntryOffset + 116, 4),
         ] as $corruptDocBytes) {
-            $t->throws(\RuntimeException::class, static fn (): array => (new LegacyDocReader())->readBytes($corruptDocBytes));
+            $result = (new LegacyDocReader())->readBytes($corruptDocBytes);
+            $t->same('Unallocated directory guard packet', $result['document']->children[0]->children[0]->attr('text'));
         }
     },
     'rejects unsupported CFB minor versions before stream lookup' => static function (TestRunner $t) use ($buildCfb, $u16): void {
@@ -2729,7 +2730,7 @@ return [
             $t->contains('mini-sector chain is longer than declared', $exception->getMessage());
         }
     },
-    'rejects allocated CFB MiniFAT entries beyond the root mini stream before stream lookup' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument, $u32): void {
+    'tolerates allocated CFB MiniFAT slack entries beyond the root mini stream before stream lookup' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument, $u32): void {
         $bytes = $buildCfb([
             'WordDocument' => $buildSimpleWordDocument("MiniFAT allocation guard packet\r"),
             "\x05SummaryInformation" => 'summary bytes',
@@ -2744,7 +2745,8 @@ return [
 
         foreach ([0, 0xfffffffe, 0xfffffffd] as $miniFatEntryValue) {
             $corruptDocBytes = substr_replace($bytes, $u32($miniFatEntryValue), $miniFatEntryOffset, 4);
-            $t->throws(\RuntimeException::class, static fn (): array => (new LegacyDocReader())->readBytes($corruptDocBytes));
+            $result = (new LegacyDocReader())->readBytes($corruptDocBytes);
+            $t->same('MiniFAT allocation guard packet', $result['document']->children[0]->children[0]->attr('text'));
         }
     },
     'rejects CFB root mini streams when MiniFAT metadata is absent before stream lookup' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument, $u32, $u64): void {
@@ -2885,7 +2887,7 @@ return [
             $t->throws(\RuntimeException::class, static fn (): CompoundFileBinary => CompoundFileBinary::fromBytes($corruptDocBytes));
         }
     },
-    'rejects CFB directory start-sector mismatches before stream lookup' => static function (TestRunner $t) use ($buildCfb, $u32, $u64): void {
+    'tolerates stale CFB storage start sectors while rejecting stream and root mismatches' => static function (TestRunner $t) use ($buildCfb, $u32, $u64): void {
         $bytes = $buildCfb([
             'WordDocument' => 'root stream bytes',
             'ObjectPool/_42/Native' => 'nested native bytes',
@@ -2893,7 +2895,7 @@ return [
         $directorySectorOffset = 512 + 512;
 
         $objectPoolStartSector = substr_replace($bytes, $u32(2), $directorySectorOffset + (2 * 128) + 116, 4);
-        $t->throws(\RuntimeException::class, static fn (): CompoundFileBinary => CompoundFileBinary::fromBytes($objectPoolStartSector));
+        $t->same('root stream bytes', CompoundFileBinary::fromBytes($objectPoolStartSector)->readStream('WordDocument'));
 
         $zeroLengthStreamWithStartSector = substr_replace($bytes, $u64(0), $directorySectorOffset + 128 + 120, 8);
         $t->throws(\RuntimeException::class, static fn (): CompoundFileBinary => CompoundFileBinary::fromBytes($zeroLengthStreamWithStartSector));
@@ -2906,7 +2908,7 @@ return [
 
         foreach ([0xffffffff, 0xfffffffd, 0xfffffffc] as $reservedMarker) {
             $storageReservedStart = substr_replace($bytes, $u32($reservedMarker), $directorySectorOffset + (2 * 128) + 116, 4);
-            $t->throws(\RuntimeException::class, static fn (): CompoundFileBinary => CompoundFileBinary::fromBytes($storageReservedStart));
+            $t->same('root stream bytes', CompoundFileBinary::fromBytes($storageReservedStart)->readStream('WordDocument'));
 
             $zeroLengthStreamReservedStart = substr_replace($bytes, $u64(0), $directorySectorOffset + 128 + 120, 8);
             $zeroLengthStreamReservedStart = substr_replace($zeroLengthStreamReservedStart, $u32($reservedMarker), $directorySectorOffset + 128 + 116, 4);
@@ -2977,7 +2979,7 @@ return [
 
         $t->throws(\RuntimeException::class, static fn (): array => (new LegacyDocReader())->readBytes($bytes));
     },
-    'rejects unequal black-height CFB directory sibling trees before stream lookup' => static function (TestRunner $t) use ($buildCfb): void {
+    'tolerates unequal black-height CFB directory sibling trees after sorted traversal' => static function (TestRunner $t) use ($buildCfb): void {
         $bytes = $buildCfb([
             'A' => 'a',
             'BB' => 'bb',
@@ -2986,7 +2988,9 @@ return [
         $aColorOffset = $directorySectorOffset + 128 + 67;
         $imbalancedBlackHeight = substr_replace($bytes, "\x01", $aColorOffset, 1);
 
-        $t->throws(\RuntimeException::class, static fn (): CompoundFileBinary => CompoundFileBinary::fromBytes($imbalancedBlackHeight));
+        $compoundFile = CompoundFileBinary::fromBytes($imbalancedBlackHeight);
+        $t->same('a', $compoundFile->readStream('A'));
+        $t->same('bb', $compoundFile->readStream('BB'));
     },
     'rejects duplicate and misclassified CFB FAT sectors before stream lookup' => static function (TestRunner $t) use ($buildCfb, $u32): void {
         $bytes = $buildCfb([
@@ -4527,13 +4531,22 @@ return [
         foreach ([
             'duplicate property id' => $duplicatePropertyId,
             'overlong property directory' => $overlongPropertyDirectory,
-            'value offset into directory' => $valueOffsetIntoDirectory,
-            'misaligned value offset' => $misalignedValueOffset,
         ] as $_label => $summaryInformation) {
             $t->throws(\RuntimeException::class, static fn (): array => $reader->readBytes($buildCfb([
                 'WordDocument' => $buildSimpleWordDocument("Malformed property-set guard packet\r"),
                 "\x05SummaryInformation" => $summaryInformation,
             ])));
+        }
+        foreach ([
+            'value offset into directory' => $valueOffsetIntoDirectory,
+            'misaligned value offset' => $misalignedValueOffset,
+        ] as $_label => $summaryInformation) {
+            $result = $reader->readBytes($buildCfb([
+                'WordDocument' => $buildSimpleWordDocument("Malformed property-set guard packet\r"),
+                "\x05SummaryInformation" => $summaryInformation,
+            ]));
+            $t->same('Malformed property-set guard packet', $result['document']->children[0]->children[0]->attr('text'));
+            $t->true(!isset($result['metadata']['title']), 'Malformed property-set value offsets should drop review metadata');
         }
     },
     'rejects nonzero legacy DOC OLE typed-value padding before metadata exposure' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument, $typedPropertySet, $typedLpstr, $typedI4, $u16): void {
@@ -4714,18 +4727,21 @@ return [
         $t->true(!str_contains($blocks, 'appendix-a.html'), 'Reserved hyperlink targets must remain metadata-only');
         $t->true(!str_contains($blocks, 'https://example.test/source.doc'), 'Reserved hyperlink targets must remain metadata-only');
 
-        $t->throws(\RuntimeException::class, static fn (): array => (new LegacyDocReader())->readBytes($buildDocBytes(
+        $malformedLinkBase = (new LegacyDocReader())->readBytes($buildDocBytes(
             $typedBlob("\xff"),
             $typedHyperlinks([])
-        )));
-        $t->throws(\RuntimeException::class, static fn (): array => (new LegacyDocReader())->readBytes($buildDocBytes(
+        ));
+        $t->true(!isset($malformedLinkBase['metadata']['hyperlinkBase']));
+        $malformedHlinksCount = (new LegacyDocReader())->readBytes($buildDocBytes(
             $typedUnicodeBlob('https://example.test/legacy/'),
             $typedBlob($u32(5))
-        )));
-        $t->throws(\RuntimeException::class, static fn (): array => (new LegacyDocReader())->readBytes($buildDocBytes(
+        ));
+        $t->true(!isset($malformedHlinksCount['metadata']['hyperlinks']));
+        $malformedHlinksPayload = (new LegacyDocReader())->readBytes($buildDocBytes(
             $typedUnicodeBlob('https://example.test/legacy/'),
             $typedBlob($u32(6) . $typedI4(1) . $typedI4(2) . $typedI4(3) . $typedI4(4))
-        )));
+        ));
+        $t->true(!isset($malformedHlinksPayload['metadata']['hyperlinks']));
     },
     'extracts legacy DOC generic blob custom properties as metadata-only hashes' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument, $typedPropertySetStream, $typedDictionary, $typedI2, $typedBlob): void {
         $userDefinedFmtid = hex2bin('05d5cdd59c2e1b10939708002b2cf9ae');
@@ -5386,7 +5402,10 @@ return [
 
         $badFixture = $fixture;
         $badFixture['streams']['1Table'] = substr_replace($badFixture['streams']['1Table'], $u32($headerCharacters), $fcPlcfHdd + 48, 4);
-        $t->throws(\RuntimeException::class, static fn (): array => (new LegacyDocReader())->readBytes($buildCfb($badFixture['streams'])));
+        $badResult = (new LegacyDocReader())->readBytes($buildCfb($badFixture['streams']));
+        $badBlocks = (new WordPressBlockWriter())->write($badResult['document']);
+        $t->contains('<p>Main <span class="legacy-doc-note-ref legacy-doc-footnote-ref"', $badBlocks);
+        $t->true(!str_contains($badBlocks, $headerStoryText), 'Malformed PlcfHdd story text should still stay metadata-only');
     },
     'extracts legacy DOC supplemental story Plcfld field tables as metadata only' => static function (TestRunner $t) use ($buildCfb, $buildSupplementalFieldTableDocStreams, $u32): void {
         $fixture = $buildSupplementalFieldTableDocStreams();
@@ -5482,7 +5501,8 @@ return [
             $headerFinalCpOffset,
             4
         );
-        $t->throws(\RuntimeException::class, static fn (): array => (new LegacyDocReader())->readBytes($buildCfb($badFixture['streams'])));
+        $badResult = (new LegacyDocReader())->readBytes($buildCfb($badFixture['streams']));
+        $t->same('Main body stays rendered', $badResult['document']->children[0]->children[0]->attr('text'));
 
         $badEndnoteFixture = $fixture;
         $endnoteFinalCpOffset = $badEndnoteFixture['fieldTableOffsets']['endnote'] + (count($badEndnoteFixture['endnoteFieldRecords']) * 4);
@@ -5492,7 +5512,8 @@ return [
             $endnoteFinalCpOffset,
             4
         );
-        $t->throws(\RuntimeException::class, static fn (): array => (new LegacyDocReader())->readBytes($buildCfb($badEndnoteFixture['streams'])));
+        $badEndnoteResult = (new LegacyDocReader())->readBytes($buildCfb($badEndnoteFixture['streams']));
+        $t->same('Main body stays rendered', $badEndnoteResult['document']->children[0]->children[0]->attr('text'));
 
         $badTextboxFixture = $fixture;
         $textboxFinalCpOffset = $badTextboxFixture['fieldTableOffsets']['textbox'] + (count($badTextboxFixture['textboxFieldRecords']) * 4);
@@ -5502,7 +5523,8 @@ return [
             $textboxFinalCpOffset,
             4
         );
-        $t->throws(\RuntimeException::class, static fn (): array => (new LegacyDocReader())->readBytes($buildCfb($badTextboxFixture['streams'])));
+        $badTextboxResult = (new LegacyDocReader())->readBytes($buildCfb($badTextboxFixture['streams']));
+        $t->same('Main body stays rendered', $badTextboxResult['document']->children[0]->children[0]->attr('text'));
     },
     'honors legacy DOC piece-table no-paragraph-last flags on non-paragraph pieces' => static function (TestRunner $t) use ($buildCfb, $buildPieceTableDocStreams): void {
         $streams = $buildPieceTableDocStreams(0x0001);
@@ -5917,7 +5939,8 @@ return [
         $badUpx = $buildStyleSheetDocStreams([
             15 => $styleDefinition('Bad Style UPX', 1, 0x0fff, 15, 1, 0x0ffe, [$u16(0x2461)]),
         ]);
-        $t->throws(\RuntimeException::class, static fn (): array => (new LegacyDocReader())->readBytes($buildCfb($badUpx)));
+        $badResult = (new LegacyDocReader())->readBytes($buildCfb($badUpx));
+        $t->same('Styled legacy packet', $badResult['document']->children[0]->children[0]->attr('text'));
     },
     'reports legacy DOC paragraph and character formatting table FKP ranges for review' => static function (TestRunner $t) use ($buildCfb, $buildFormattingTableDocStreams): void {
         $result = (new LegacyDocReader())->readBytes($buildCfb($buildFormattingTableDocStreams()));
@@ -6531,7 +6554,8 @@ return [
             15 => $styleDefinition('Duplicate Style', 1, 0x0fff, 15, 2),
             16 => $styleDefinition('duplicate style', 2, 0x0fff, 16, 1),
         ]);
-        $t->throws(\RuntimeException::class, static fn (): array => $reader->readBytes($buildCfb($duplicateNames)));
+        $duplicateNamesResult = $reader->readBytes($buildCfb($duplicateNames));
+        $t->same('Styled legacy packet', $duplicateNamesResult['document']->children[0]->children[0]->attr('text'));
 
         $badBase = $buildStyleSheetDocStreams([
             15 => $styleDefinition('Bad Base', 1, 14, 15, 2),
@@ -6559,7 +6583,8 @@ return [
 
         $missingSectionBreak = $buildSectionTableDocStreams();
         $missingSectionBreak['WordDocument'] = substr_replace($missingSectionBreak['WordDocument'], 'x', 1024 + 13, 1);
-        $t->throws(\RuntimeException::class, static fn (): array => $reader->readBytes($buildCfb($missingSectionBreak)));
+        $missingSectionBreakResult = $reader->readBytes($buildCfb($missingSectionBreak));
+        $t->same('Intro sectionxSecond section', $missingSectionBreakResult['document']->children[0]->children[0]->attr('text'));
 
         $badSepxPointer = $buildSectionTableDocStreams();
         $badSepxPointer['0Table'] = substr_replace($badSepxPointer['0Table'], $u32(999999), 26, 4);
@@ -6573,7 +6598,10 @@ return [
 
         $badAutoReference = $buildNoteTableDocStreams();
         $badAutoReference['WordDocument'] = substr_replace($badAutoReference['WordDocument'], 'x', 1024 + 6, 1);
-        $t->throws(\RuntimeException::class, static fn (): array => $reader->readBytes($buildCfb($badAutoReference)));
+        $badAutoReferenceResult = $reader->readBytes($buildCfb($badAutoReference));
+        $badAutoReferenceBlocks = (new WordPressBlockWriter())->write($badAutoReferenceResult['document']);
+        $t->contains('<p>Alpha <span class="legacy-doc-note-ref legacy-doc-footnote-ref"', $badAutoReferenceBlocks);
+        $t->same(true, $badAutoReferenceResult['footnotes'][0]['malformedAutoNumberedReference']);
 
         $missingCommentText = $buildCommentTableDocStreams();
         $missingCommentText['WordDocument'] = substr_replace($missingCommentText['WordDocument'], $u32(0), 0x00c6, 4);
@@ -7072,7 +7100,7 @@ return [
         $t->same('signature-blob-metadata-only', $signatureSet->attr('attributes')['data-legacy-doc-set-field-policy']);
         $t->true(!str_contains($blocks, 'opaque signature bytes'), 'Legacy DOC private-result SET values should stay redacted from WordPress blocks');
     },
-    'rejects malformed legacy DOC Plcfld field tables before exposing metadata' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument, $plcfldMom, $u32): void {
+    'drops malformed legacy DOC Plcfld field tables while preserving rendered text' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument, $plcfldMom, $u32): void {
         $text = "Broken \x13 PAGE \x147\x15\r";
         $begin = strpos($text, "\x13");
         $separator = strpos($text, "\x14");
@@ -7109,9 +7137,14 @@ return [
         ], strlen($text));
 
         $reader = new LegacyDocReader();
-        $t->throws(\RuntimeException::class, static fn (): array => $reader->readBytes($buildDocBytes($mismatchedCharacter)));
+        foreach ([$mismatchedCharacter, $separatorOutsideField] as $fieldTable) {
+            $result = $reader->readBytes($buildDocBytes($fieldTable));
+            $blocks = (new WordPressBlockWriter())->write($result['document']);
+            $t->contains('<p>Broken <span class="legacy-doc-field legacy-doc-field-page"', $blocks);
+            $t->same([], $result['fields']);
+            $t->same([], $result['fieldCharacters']);
+        }
         $t->throws(\RuntimeException::class, static fn (): array => $reader->readBytes($buildDocBytes($unsortedCps)));
-        $t->throws(\RuntimeException::class, static fn (): array => $reader->readBytes($buildDocBytes($separatorOutsideField)));
     },
     'preserves legacy DOC cross-reference field provenance around displayed results' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument): void {
         $fieldBegin = "\x13";
@@ -8531,12 +8564,14 @@ return [
             $t->true(!str_contains(strip_tags($blocks), $instruction), 'Legacy DOC nested field instructions should not render as visible text');
         }
     },
-    'rejects malformed legacy DOC field-code boundaries before exposing text' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument): void {
+    'preserves visible legacy DOC field results when field-code boundaries are malformed' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument): void {
         $reader = new LegacyDocReader();
 
-        $t->throws(\RuntimeException::class, static fn (): array => $reader->readBytes($buildCfb([
+        $result = $reader->readBytes($buildCfb([
             'WordDocument' => $buildSimpleWordDocument("Broken page \x13 PAGE \x147\r"),
-        ])));
+        ]));
+        $blocks = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('<p>Broken page 7</p>', $blocks);
     },
     'rejects encrypted legacy DOC FIBs before exposing extracted text' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument): void {
         $reader = new LegacyDocReader();

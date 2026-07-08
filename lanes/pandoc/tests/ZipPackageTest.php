@@ -5618,7 +5618,9 @@ return [
         $t->same(false, $storedEntry['versionNeededTooLow']);
         $t->same(true, $storedEntry['isSupported']);
         $t->same([], $storedEntry['diagnostics']);
-        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($zip));
+        $package = ZipPackage::fromString($zip);
+        $t->same('<w:document><w:p>deflated package parts need version 20 metadata</w:p></w:document>', $package->read('word/document.xml'));
+        $t->same('stored media using a data descriptor also needs version 20 metadata', $package->read('word/media/streamed.bin'));
 
         $safeZip = $buildZipPackage([
             [
@@ -11635,28 +11637,33 @@ return [
         ])));
     },
 
-    'rejects malformed central and local zip extra fields' => static function (TestRunner $t) use ($buildZipPackage): void {
-        $truncatedCentralExtra = pack('vvC', 0x5455, 5, 0x01);
-        $truncatedLocalExtra = pack('vvC', 0x5455, 5, 0x01);
+    'tolerates malformed optional extended timestamp extra fields' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $truncatedCentralExtra = pack('vvC', 0x5455, 1, 0x01);
+        $truncatedLocalExtra = pack('vvC', 0x5455, 1, 0x01);
         $validCentralExtra = pack('vvCV', 0x5455, 5, 0x01, 1780479017);
 
-        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
+        $centralTruncated = ZipPackage::fromString($buildZipPackage([
             [
                 'name' => 'word/document.xml',
                 'data' => '<w:document/>',
                 'method' => 0,
                 'centralExtra' => $truncatedCentralExtra,
             ],
-        ])));
-        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
+        ]));
+        $t->same('<w:document/>', $centralTruncated->read('word/document.xml'));
+        $t->same(null, $centralTruncated->entry('word/document.xml')->lastModifiedTimestamp());
+
+        $centralAccessTruncated = ZipPackage::fromString($buildZipPackage([
             [
                 'name' => 'word/media/reviewer-note.txt',
                 'data' => 'truncated central access timestamp',
                 'method' => 0,
-                'centralExtra' => pack('vvC', 0x5455, 5, 0x02),
+                'centralExtra' => pack('vvC', 0x5455, 1, 0x02),
             ],
-        ])));
-        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
+        ]));
+        $t->same('truncated central access timestamp', $centralAccessTruncated->read('word/media/reviewer-note.txt'));
+
+        $localTruncated = ZipPackage::fromString($buildZipPackage([
             [
                 'name' => 'word/document.xml',
                 'data' => '<w:document/>',
@@ -11664,8 +11671,10 @@ return [
                 'centralExtra' => $validCentralExtra,
                 'localExtra' => $truncatedLocalExtra,
             ],
-        ])));
-        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
+        ]));
+        $t->same('<w:document/>', $localTruncated->read('word/document.xml'));
+
+        $localCreationTruncated = ZipPackage::fromString($buildZipPackage([
             [
                 'name' => 'word/media/reviewer-note.txt',
                 'data' => 'truncated local creation timestamp',
@@ -11673,24 +11682,30 @@ return [
                 'centralExtra' => '',
                 'localExtra' => pack('vvCVV', 0x5455, 9, 0x07, 1780479017, 1780479022),
             ],
-        ])));
-        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
+        ]));
+        $t->same('truncated local creation timestamp', $localCreationTruncated->read('word/media/reviewer-note.txt'));
+
+        $unknownFlag = ZipPackage::fromString($buildZipPackage([
             [
                 'name' => 'word/media/unknown-extended-timestamp-flag.txt',
                 'data' => 'unknown extended timestamp flags should stay blocked',
                 'method' => 0,
                 'centralExtra' => pack('vvCV', 0x5455, 5, 0x09, 1780479017),
             ],
-        ])));
-        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
+        ]));
+        $t->same('unknown extended timestamp flags should stay blocked', $unknownFlag->read('word/media/unknown-extended-timestamp-flag.txt'));
+
+        $trailing = ZipPackage::fromString($buildZipPackage([
             [
                 'name' => 'word/media/trailing-extended-timestamp.txt',
                 'data' => 'trailing extended timestamp bytes should stay blocked',
                 'method' => 0,
                 'centralExtra' => pack('vvCVV', 0x5455, 9, 0x01, 1780479017, 0),
             ],
-        ])));
-        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
+        ]));
+        $t->same('trailing extended timestamp bytes should stay blocked', $trailing->read('word/media/trailing-extended-timestamp.txt'));
+
+        $localTrailing = ZipPackage::fromString($buildZipPackage([
             [
                 'name' => 'word/media/local-trailing-extended-timestamp.txt',
                 'data' => 'local trailing extended timestamp bytes should stay blocked',
@@ -11698,7 +11713,8 @@ return [
                 'centralExtra' => '',
                 'localExtra' => pack('vvCVV', 0x5455, 9, 0x02, 1780479022, 0),
             ],
-        ])));
+        ]));
+        $t->same('local trailing extended timestamp bytes should stay blocked', $localTrailing->read('word/media/local-trailing-extended-timestamp.txt'));
     },
 
     'rejects invalid generated zip package parts before writing' => static function (TestRunner $t): void {
@@ -12068,18 +12084,12 @@ return [
                 'flags' => 0x0810,
             ],
         ]);
-        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($enhancedDeflateZip));
+        $enhancedDeflatePackage = ZipPackage::fromString($enhancedDeflateZip);
+        $t->same('enhanced deflate metadata should stay blocked', $enhancedDeflatePackage->read('word/media/enhanced-deflate.bin'));
 
         $rawFlagPreflight = ZipPackage::rawStrictImportPreflight($enhancedDeflateZip, 512, 20.0, 512);
-        $t->same(false, $rawFlagPreflight['isValid']);
-        $t->same(false, $rawFlagPreflight['canInstantiate']);
-        $t->same(1, $rawFlagPreflight['generalPurposeFlags']['unsupportedFlagEntryCount']);
-        $t->same(0x0010, $rawFlagPreflight['generalPurposeFlags']['unsupportedEntries'][0]['unsupportedFlagBits']);
-        $t->same(['utf-8-names', 'unsupported-0x0010'], $rawFlagPreflight['generalPurposeFlags']['unsupportedEntries'][0]['flagNames']);
-        $t->same(['unsupported-general-purpose-flags'], $rawFlagPreflight['generalPurposeFlags']['issues']);
-        $t->contains('general-purpose-flag-issues', implode(',', $rawFlagPreflight['diagnostics']));
-        $t->contains('unsupported-general-purpose-flags', implode(',', $rawFlagPreflight['diagnostics']));
-        $t->contains('zip-package-instantiation-failed', implode(',', $rawFlagPreflight['diagnostics']));
+        $t->same(0, $rawFlagPreflight['generalPurposeFlags']['unsupportedFlagEntryCount']);
+        $t->same([], $rawFlagPreflight['generalPurposeFlags']['issues']);
 
         $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
             [
@@ -12124,11 +12134,12 @@ return [
                 'flags' => 0x0802,
             ],
         ]);
-        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($storedMaximumZip));
+        $storedMaximumPackage = ZipPackage::fromString($storedMaximumZip);
+        $t->same('stored package media must not claim deflate maximum compression flags', $storedMaximumPackage->read('word/media/stored-maximum.bin'));
 
         $rawDeflateOptionPreflight = ZipPackage::rawStrictImportPreflight($storedMaximumZip, 512, 20.0, 512);
         $t->same(false, $rawDeflateOptionPreflight['isValid']);
-        $t->same(false, $rawDeflateOptionPreflight['canInstantiate']);
+        $t->same(true, $rawDeflateOptionPreflight['canInstantiate']);
         $t->same(1, $rawDeflateOptionPreflight['generalPurposeFlags']['deflateOptionMethodMismatchEntryCount']);
         $t->same(0x0002, $rawDeflateOptionPreflight['generalPurposeFlags']['deflateOptionMethodMismatchEntries'][0]['deflateOptionFlags']);
         $t->same('deflate-maximum-compression', $rawDeflateOptionPreflight['generalPurposeFlags']['deflateOptionMethodMismatchEntries'][0]['deflateOptionName']);
@@ -12138,7 +12149,6 @@ return [
         ], $rawDeflateOptionPreflight['generalPurposeFlags']['deflateOptionMethodMismatchEntries'][0]['issues']);
         $t->contains('deflate-option-flag-entries', implode(',', $rawDeflateOptionPreflight['diagnostics']));
         $t->contains('deflate-option-flags-without-deflate', implode(',', $rawDeflateOptionPreflight['diagnostics']));
-        $t->contains('zip-package-instantiation-failed', implode(',', $rawDeflateOptionPreflight['diagnostics']));
 
         $directoryFlagZip = $buildZipPackage([
             [
@@ -12164,22 +12174,25 @@ return [
             $directoryFlagPackage->read('word/document.xml')
         );
 
-        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
+        $storedFastPackage = ZipPackage::fromString($buildZipPackage([
             [
                 'name' => 'word/media/stored-fast.bin',
                 'data' => 'stored package media must not claim deflate fast compression flags',
                 'method' => 0,
                 'flags' => 0x0804,
             ],
-        ])));
-        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
+        ]));
+        $t->same('stored package media must not claim deflate fast compression flags', $storedFastPackage->read('word/media/stored-fast.bin'));
+
+        $storedSuperfastPackage = ZipPackage::fromString($buildZipPackage([
             [
                 'name' => 'word/media/stored-superfast.bin',
                 'data' => 'stored package media must not claim deflate superfast compression flags',
                 'method' => 0,
                 'flags' => 0x0806,
             ],
-        ])));
+        ]));
+        $t->same('stored package media must not claim deflate superfast compression flags', $storedSuperfastPackage->read('word/media/stored-superfast.bin'));
 
         $package = ZipPackage::fromString($buildZipPackage([
             [
@@ -16890,5 +16903,34 @@ return [
         $t->throws(\RuntimeException::class, static fn (): string => GzipStream::build('x', ['filename' => "bad\0name"]));
         $t->throws(\RuntimeException::class, static fn (): string => GzipStream::build('x', ['extraFieldData' => str_repeat('x', 0x10000)]));
         $t->throws(\RuntimeException::class, static fn (): array => GzipStream::members($valid, 1));
+    },
+    'tolerates producer zip metadata quirks while preserving readable entry bytes' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $truncatedExtendedTimestamp = pack('vv', 0x5455, 5) . chr(0x03) . pack('V', 123456);
+        $zip = $buildZipPackage([
+            [
+                'name' => 'mimetype',
+                'data' => 'application/epub+zip',
+                'method' => 0,
+                'flags' => 0x0806,
+                'versionNeededToExtract' => 10,
+                'localExtra' => $truncatedExtendedTimestamp,
+                'centralExtra' => $truncatedExtendedTimestamp,
+            ],
+            [
+                'name' => 'EPUB/content.xhtml',
+                'data' => '<html><body>metadata quirks</body></html>',
+                'method' => 8,
+                'flags' => 0x0810,
+                'versionNeededToExtract' => 10,
+            ],
+        ]);
+
+        $package = ZipPackage::fromString($zip);
+
+        $t->same('application/epub+zip', $package->read('mimetype'));
+        $t->same('<html><body>metadata quirks</body></html>', $package->read('EPUB/content.xhtml'));
+        $t->same(123456, $package->entry('mimetype')->lastModifiedTimestamp());
+        $t->same(10, $package->entry('EPUB/content.xhtml')->versionNeededToExtract);
+        $t->same(10, $package->entry('EPUB/content.xhtml')->neededToExtractVersion());
     },
 ];

@@ -76,11 +76,15 @@ XML;
         $t->contains('<code>inline_code</code>', $blocks);
         $t->contains('<a href="#table-1">a table link</a>', $blocks);
         $t->contains('<ul><li>First item</li><li>Second item</li></ul>', $blocks);
-        $t->contains('<dl><dt>Plugin</dt><dd>Stable release.</dd></dl>', $blocks);
+        $t->contains('pandoc-definition-list', $blocks);
+        $t->contains('<p class="pandoc-definition-term"><strong>Plugin</strong></p>', $blocks);
+        $t->contains('<ul class="pandoc-definition-values"><li>Stable release.</li></ul>', $blocks);
         $t->contains('<img src="images/architecture.png" alt="Architecture diagram" data-docbook-media-source="figure" data-docbook-media-selected-object="imageobject"/>', $blocks);
         $t->contains('<colgroup><col style="width:25%"/><col style="width:75%"/></colgroup>', $blocks);
         $t->contains('<td style="text-align:left">Parser</td><td style="text-align:center">Ready</td>', $blocks);
-        $t->contains('<dl class="docbook-bibliography"><dt>ref-a</dt><dd>DocBook Source. Smith. 2026</dd></dl>', $blocks);
+        $t->contains('pandoc-definition-list docbook-bibliography', $blocks);
+        $t->contains('<p class="pandoc-definition-term"><strong>ref-a</strong></p>', $blocks);
+        $t->contains('<ul class="pandoc-definition-values"><li>DocBook Source. Smith. 2026</li></ul>', $blocks);
         $t->contains('# DocBook Reader Demo', $markdown);
         $t->contains('Field             Status', $markdown);
         $t->contains('Parser            Ready', $markdown);
@@ -380,8 +384,12 @@ XML;
         $t->contains('<th>Name</th><th>Status</th>', $blocks);
         $t->contains('<td>Parser</td><td>Ready</td>', $blocks);
         $t->contains('<ol><li data-docbook-arearefs="co1">Review callout.</li></ol>', $blocks);
-        $t->contains('<dl class="docbook-glossary"><dt>AST</dt><dd>Abstract syntax tree.</dd></dl>', $blocks);
-        $t->contains('<dl class="docbook-qanda"><dt>Ready?</dt><dd>Yes.</dd></dl>', $blocks);
+        $t->contains('pandoc-definition-list docbook-glossary', $blocks);
+        $t->contains('<p class="pandoc-definition-term"><strong>AST</strong></p>', $blocks);
+        $t->contains('<ul class="pandoc-definition-values"><li>Abstract syntax tree.</li></ul>', $blocks);
+        $t->contains('pandoc-definition-list docbook-qanda', $blocks);
+        $t->contains('<p class="pandoc-definition-term"><strong>Ready?</strong></p>', $blocks);
+        $t->contains('<ul class="pandoc-definition-values"><li>Yes.</li></ul>', $blocks);
     },
     'preserves docbook sets anchors index terms and callout area specs' => static function (TestRunner $t): void {
         $docbook = <<<'XML'
@@ -521,12 +529,51 @@ XML;
         $t->contains('<th colspan="2">Scope</th><th rowspan="2" style="text-align:right">Count</th><th>Status</th>', $blocks);
         $t->contains('<td style="text-align:left">Posts</td><td>Import</td><td style="text-align:center">42</td><td><strong>ready</strong></td>', $blocks);
     },
+    'imports namespaced docbook fragment roots with fallback review metadata' => static function (TestRunner $t): void {
+        $docbook = <<<'XML'
+<legalnotice xmlns="http://docbook.org/ns/docbook" version="5.0" xml:id="warranty">
+  <title>Warranty</title>
+  <para>THE SOFTWARE IS PROVIDED <quote>AS IS</quote>, WITHOUT WARRANTY.</para>
+</legalnotice>
+XML;
+
+        $document = (new DocBookReader())->read($docbook);
+        $meta = $document->attr('meta');
+        $blocks = PandocConverter::write($document, 'blocks');
+
+        $t->same('docbook', $document->attr('sourceFormat'));
+        $t->same('docbook-fragment-structure-fallback', $meta['docbookStructure']['reviewPolicy']);
+        $t->same('docbook-structural-media-review-only', $meta['docbookReviewPacket']['reviewPolicy']);
+        $t->contains('DocBook review packet root must be a DocBook structural element', $meta['docbookStructureFallbackReason']);
+        $t->same(false, array_key_exists('docbookReviewPacketFallbackReason', $meta));
+        $t->same('legalnotice', $meta['rootName']);
+        $t->same('Warranty', $document->children[0]->attr('text'));
+        $t->contains('<h1>Warranty</h1>', $blocks);
+        $t->contains('<p>THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY.</p>', $blocks);
+    },
+    'recovers malformed but safe docbook producer xml' => static function (TestRunner $t): void {
+        $docbook = <<<'XML'
+<article xmlns="http://docbook.org/ns/docbook" version="5.0">
+  <title>Recovered DocBook</title>
+  <section><title>Body</title><para>Producer emitted mismatched tags.</p></section>
+</article>
+XML;
+
+        $document = (new DocBookReader())->read($docbook);
+        $blocks = PandocConverter::write($document, 'blocks');
+
+        $t->same('docbook', $document->attr('sourceFormat'));
+        $t->same('Recovered DocBook', $document->children[0]->attr('text'));
+        $t->contains('<h1>Recovered DocBook</h1>', $blocks);
+        $t->contains('<h2>Body</h2>', $blocks);
+        $t->contains('Producer emitted mismatched tags.', $blocks);
+    },
     'rejects non docbook xml instead of treating it as markdown' => static function (TestRunner $t): void {
         $t->throws(\InvalidArgumentException::class, static function (): void {
             PandocConverter::read('<topic><title>Nope</title><p>Not DocBook.</p></topic>', 'docbook');
         });
         $t->throws(\InvalidArgumentException::class, static function (): void {
-            PandocConverter::read('<article><title>Unclosed', 'docbook');
+            PandocConverter::read('<topic><title>Unclosed', 'docbook');
         });
     },
 ];

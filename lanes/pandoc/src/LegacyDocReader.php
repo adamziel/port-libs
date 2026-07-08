@@ -1497,7 +1497,11 @@ final class LegacyDocReader
         for ($index = 0; $index < $cpCount - 1; $index++) {
             $cp = $cps[$index];
             if ($cp >= $headerCharacterCount) {
-                throw new \RuntimeException('Legacy DOC PlcfHdd header/footer story table points outside the header document');
+                return [
+                    'stories' => [],
+                    'declaredStoryCount' => 0,
+                    'ignoredFinalCp' => null,
+                ];
             }
             if ($previousCp !== null && $cp < $previousCp) {
                 throw new \RuntimeException('Legacy DOC PlcfHdd header/footer story table contains descending CPs');
@@ -1507,7 +1511,11 @@ final class LegacyDocReader
 
         $terminatingCp = $cps[$cpCount - 2];
         if ($terminatingCp !== $headerCharacterCount - 1) {
-            throw new \RuntimeException('Legacy DOC PlcfHdd header/footer story table does not terminate at ccpHdd minus one');
+            return [
+                'stories' => [],
+                'declaredStoryCount' => 0,
+                'ignoredFinalCp' => null,
+            ];
         }
 
         $stories = [];
@@ -1681,11 +1689,13 @@ final class LegacyDocReader
 
             if ($part === "\x14") {
                 if ($fieldStack === []) {
-                    throw new \RuntimeException('Legacy DOC field separator appears outside a field');
+                    $localCp++;
+                    continue;
                 }
                 $fieldIndex = count($fieldStack) - 1;
                 if ($fieldStack[$fieldIndex]['collectingResult'] === true) {
-                    throw new \RuntimeException('Legacy DOC field contains duplicate separators');
+                    $localCp++;
+                    continue;
                 }
                 $fieldStack[$fieldIndex]['collectingResult'] = true;
                 $fieldStack[$fieldIndex]['separatorCp'] = $segmentStartCp + $localCp;
@@ -1695,7 +1705,8 @@ final class LegacyDocReader
 
             if ($part === "\x15") {
                 if ($fieldStack === []) {
-                    throw new \RuntimeException('Legacy DOC field end appears outside a field');
+                    $localCp++;
+                    continue;
                 }
                 $field = array_pop($fieldStack);
                 $field['endCp'] = $segmentStartCp + $localCp;
@@ -1708,7 +1719,8 @@ final class LegacyDocReader
 
                 $fieldIndex = count($fieldStack) - 1;
                 if ($fieldStack[$fieldIndex]['collectingResult'] !== true) {
-                    throw new \RuntimeException('Legacy DOC nested field codes inside field instructions are not supported by the native reader');
+                    $fieldStack[$fieldIndex]['instruction'] .= $field['instruction'];
+                    continue;
                 }
 
                 array_push($fieldStack[$fieldIndex]['resultNodes'], ...$fieldNodes);
@@ -1733,7 +1745,32 @@ final class LegacyDocReader
         }
 
         if ($fieldStack !== []) {
-            throw new \RuntimeException('Legacy DOC field code is not terminated');
+            $nodes = array_merge($nodes, $this->visibleNodesFromUnterminatedFieldStack($fieldStack));
+        }
+
+        return $nodes;
+    }
+
+    /**
+     * @param array{instruction:string,resultText:string,resultNodes:list<AstNode>,collectingResult:bool,beginCp?:int,separatorCp?:int,endCp?:int} $field
+     * @return list<AstNode>
+     */
+    private function visibleNodesFromUnterminatedFieldStack(array $fieldStack): array
+    {
+        $nodes = [];
+        while ($fieldStack !== []) {
+            $field = array_pop($fieldStack);
+            $fieldNodes = ($field['collectingResult'] ?? false) === true ? ($field['resultNodes'] ?? []) : [];
+            if ($fieldStack === []) {
+                array_push($nodes, ...$fieldNodes);
+                continue;
+            }
+
+            $parentIndex = count($fieldStack) - 1;
+            if (($fieldStack[$parentIndex]['collectingResult'] ?? false) === true) {
+                array_push($fieldStack[$parentIndex]['resultNodes'], ...$fieldNodes);
+                $fieldStack[$parentIndex]['resultText'] .= (string) ($field['resultText'] ?? '');
+            }
         }
 
         return $nodes;
@@ -7624,7 +7661,10 @@ final class LegacyDocReader
                 throw new \RuntimeException('Legacy DOC OLE property-set directory contains duplicate property identifiers');
             }
             if ($valueOffset < $minimumValueOffset || $valueOffset >= $propertySetSize || ($valueOffset % 4) !== 0) {
-                throw new \RuntimeException('Legacy DOC OLE property-set directory contains an invalid property value offset');
+                return [
+                    'properties' => [],
+                    'dictionary' => [],
+                ];
             }
 
             $locations[$propertyId] = $offset + $valueOffset;
@@ -7649,7 +7689,17 @@ final class LegacyDocReader
             }
             $dictionaryName = $dictionary[$propertyId] ?? null;
             if (is_string($dictionaryName) && $this->isReservedHyperlinkPropertyName($dictionaryName)) {
-                $values[$propertyId] = $this->readReservedHyperlinkPropertyValue($dictionaryName, $bytes, $valueOffset);
+                try {
+                    $values[$propertyId] = $this->readReservedHyperlinkPropertyValue($dictionaryName, $bytes, $valueOffset);
+                } catch (\RuntimeException $exception) {
+                    $values[$propertyId] = [
+                        'type' => 'malformed-reserved-hyperlink-property',
+                        'sourceProperty' => $dictionaryName,
+                        'error' => $exception->getMessage(),
+                        'extractionPolicy' => 'metadata-only-native-review',
+                        'canExposeBytes' => false,
+                    ];
+                }
                 continue;
             }
             $values[$propertyId] = $this->readTypedPropertyValue($bytes, $valueOffset, $codepage);
@@ -8829,9 +8879,6 @@ final class LegacyDocReader
             $referenceIndex = (int) $reference['referenceIndex'];
             $autoNumbered = $referenceIndex !== 0;
             $referenceCharacter = $characters[$referenceCp] ?? '';
-            if ($autoNumbered && $referenceCharacter !== "\x02") {
-                throw new \RuntimeException('Legacy DOC auto-numbered ' . $type . ' reference is missing the special reference character');
-            }
 
             $range = $ranges[$index];
             $bodyText = $this->subdocumentRangeText(
@@ -8851,6 +8898,9 @@ final class LegacyDocReader
                 'textEndCp' => (int) $range['endCp'],
                 'canAnchor' => true,
             ];
+            if ($autoNumbered && $referenceCharacter !== "\x02") {
+                $record['malformedAutoNumberedReference'] = true;
+            }
             if ($bodyText !== null) {
                 $record['bodyText'] = $bodyText;
                 $record['bodyCharacterCount'] = $this->textCharacterLength($bodyText);
@@ -9228,7 +9278,10 @@ final class LegacyDocReader
                 throw new \RuntimeException('Legacy DOC ' . $label . ' field table contains duplicate or unsorted CPs');
             }
             if ($cp > $textLength) {
-                throw new \RuntimeException('Legacy DOC ' . $label . ' field table points outside the extracted ' . $story . ' text');
+                return [
+                    'characters' => [],
+                    'fields' => [],
+                ];
             }
             $previousCp = $cp;
             $cps[] = $cp;
@@ -9241,7 +9294,10 @@ final class LegacyDocReader
         for ($index = 0; $index < $fieldCharacterCount; $index++) {
             $cp = $cps[$index];
             if ($cp >= $textLength) {
-                throw new \RuntimeException('Legacy DOC ' . $label . ' field character CP points outside the extracted ' . $story . ' text');
+                return [
+                    'characters' => [],
+                    'fields' => [],
+                ];
             }
 
             $fldOffset = $dataOffset + ($index * 2);
@@ -9254,10 +9310,16 @@ final class LegacyDocReader
                 default => null,
             };
             if ($expectedCharacter === null) {
-                throw new \RuntimeException('Legacy DOC ' . $label . ' field table contains an unsupported field character code');
+                return [
+                    'characters' => [],
+                    'fields' => [],
+                ];
             }
             if (($textCharacters[$cp] ?? '') !== $expectedCharacter) {
-                throw new \RuntimeException('Legacy DOC ' . $label . ' field table CP does not match the extracted field character');
+                return [
+                    'characters' => [],
+                    'fields' => [],
+                ];
             }
 
             if ($fieldCharacterCode === self::FIELD_CHARACTER_BEGIN) {
@@ -9284,11 +9346,17 @@ final class LegacyDocReader
 
             if ($fieldCharacterCode === self::FIELD_CHARACTER_SEPARATOR) {
                 if ($stack === []) {
-                    throw new \RuntimeException('Legacy DOC ' . $label . ' field separator appears outside a field');
+                    return [
+                        'characters' => [],
+                        'fields' => [],
+                    ];
                 }
                 $openIndex = count($stack) - 1;
                 if (isset($stack[$openIndex]['separatorCp'])) {
-                    throw new \RuntimeException('Legacy DOC ' . $label . ' field contains duplicate separators');
+                    return [
+                        'characters' => [],
+                        'fields' => [],
+                    ];
                 }
                 $stack[$openIndex]['separatorCp'] = $cp;
                 $fieldCharacters[] = [
@@ -9303,7 +9371,10 @@ final class LegacyDocReader
             }
 
             if ($stack === []) {
-                throw new \RuntimeException('Legacy DOC ' . $label . ' field end appears outside a field');
+                return [
+                    'characters' => [],
+                    'fields' => [],
+                ];
             }
 
             $open = array_pop($stack);
@@ -9340,7 +9411,10 @@ final class LegacyDocReader
         }
 
         if ($stack !== []) {
-            throw new \RuntimeException('Legacy DOC ' . $label . ' field table contains unterminated fields');
+            return [
+                'characters' => [],
+                'fields' => [],
+            ];
         }
 
         return [
@@ -9617,7 +9691,7 @@ final class LegacyDocReader
         foreach ($nameParts as $styleName) {
             $normalized = $this->normalizedStyleName($styleName);
             if (isset($seenNames[$normalized])) {
-                throw new \RuntimeException('Legacy DOC stylesheet contains duplicate style names');
+                continue;
             }
             $seenNames[$normalized] = true;
         }
@@ -10458,14 +10532,14 @@ final class LegacyDocReader
 
         while ($cursor < $length) {
             if ($cursor + 2 > $length) {
-                throw new \RuntimeException('Legacy DOC PAPX paragraph property metadata contains a truncated SPRM');
+                return $properties;
             }
 
             $sprm = self::u16($grpprl, $cursor);
             $cursor += 2;
             $operandByteCount = $this->sprmOperandByteCount($sprm, $grpprl, $cursor);
             if ($cursor + $operandByteCount > $length) {
-                throw new \RuntimeException('Legacy DOC PAPX paragraph property metadata contains a truncated SPRM operand');
+                return $properties;
             }
 
             $operandOffset = $cursor;
@@ -10981,9 +11055,7 @@ final class LegacyDocReader
             $numberTextCodes[] = self::u16($bytes, $cursor + ($index * 2));
         }
         $cursor += $numberTextCharacters * 2;
-        if ($nfc === 0x17 && ($numberTextCharacters !== 1 || $placeholderOffsets !== [])) {
-            throw new \RuntimeException('Legacy DOC bullet list level must contain exactly one non-placeholder number-text character');
-        }
+        $malformedBulletNumberText = $nfc === 0x17 && ($numberTextCharacters !== 1 || $placeholderOffsets !== []);
 
         $placeholderLevels = [];
         foreach ($placeholderOffsets as $placeholderOffset) {
@@ -11022,6 +11094,7 @@ final class LegacyDocReader
             'placeholderLevels' => $placeholderLevels,
             'numberText' => $this->listNumberTextTemplate($numberTextCodes, $placeholderOffsets),
             'numberTextCharacterCount' => $numberTextCharacters,
+            'malformedBulletNumberText' => $malformedBulletNumberText,
             'paragraphPropertyBytes' => $papxBytes,
             'characterPropertyBytes' => $chpxBytes,
             'restartLimitLevel' => $ilvlRestartLim,
@@ -11318,7 +11391,7 @@ final class LegacyDocReader
         $characters = $this->unicodeCharacters($text);
         $textLength = count($characters);
         if ($cps[$sectionCount] < $textLength) {
-            throw new \RuntimeException('Legacy DOC section descriptor PLC final CP is before the extracted main text ends');
+            return [];
         }
 
         $sections = [];
@@ -11328,12 +11401,12 @@ final class LegacyDocReader
             $endCp = $cps[$index + 1];
             $hasSectionBreak = $index < $sectionCount - 1;
             if ($startCp > $textLength || ($hasSectionBreak && $endCp > $textLength)) {
-                throw new \RuntimeException('Legacy DOC section descriptor PLC points outside the extracted main text');
+                return [];
             }
             if ($hasSectionBreak) {
                 $breakCharacter = $endCp > 0 ? ($characters[$endCp - 1] ?? '') : '';
                 if ($breakCharacter !== "\f") {
-                    throw new \RuntimeException('Legacy DOC section descriptor PLC is missing the required section-break character');
+                    return [];
                 }
             }
 

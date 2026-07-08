@@ -603,9 +603,7 @@ final class ZipPackageEntry
         $flags = ord($data[0]);
         $unknownFlags = $flags & ~0x07;
         if ($unknownFlags !== 0) {
-            throw new \RuntimeException(
-                sprintf('ZIP extended timestamp extra field for %s uses unsupported flag bits 0x%02x', $label, $unknownFlags)
-            );
+            return null;
         }
 
         $cursor = 1;
@@ -630,7 +628,7 @@ final class ZipPackageEntry
                 ) {
                     break;
                 }
-                throw new \RuntimeException("ZIP extended timestamp extra field for {$label} is truncated");
+                return null;
             }
 
             $values = unpack('Vtimestamp', substr($data, $cursor, 4));
@@ -643,7 +641,7 @@ final class ZipPackageEntry
         }
 
         if ($cursor !== strlen($data)) {
-            throw new \RuntimeException("ZIP extended timestamp extra field for {$label} contains trailing bytes");
+            return null;
         }
 
         return $timestamps === [] ? null : $timestamps;

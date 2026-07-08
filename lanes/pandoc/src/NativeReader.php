@@ -1013,6 +1013,10 @@ final class NativeReader
 
     private function parseTable(): AstNode
     {
+        if (($this->peek()['value'] ?? null) === '[') {
+            return $this->parseLegacyTable();
+        }
+
         [$attrs, $attrNative] = $this->parseAttrTuplePayload();
         [$captionAttrs, $captionNative] = $this->parseCaptionAttrsPayload(true);
         $attrs = array_replace($attrs, $captionAttrs);
@@ -1050,6 +1054,59 @@ final class NativeReader
         }
 
         return new AstNode('table', $attrs, $children);
+    }
+
+    private function parseLegacyTable(): AstNode
+    {
+        $captionInlines = $this->parseInlineList();
+        $alignments = $this->parseList(fn (): string => $this->parseAlignment($this->expectAnyIdentifier()));
+        $widths = $this->parseList(fn (): float => (float) $this->expectNumber());
+        $headCells = $this->parseList(fn (): AstNode => $this->parseLegacyTableCell(true));
+        $bodyRows = $this->parseList(fn (): AstNode => new AstNode(
+            'table_row',
+            [],
+            $this->parseList(fn (): AstNode => $this->parseLegacyTableCell(false))
+        ));
+
+        $attrs = [
+            'constructor' => 'Table',
+            'legacyTableConstructor' => true,
+            'caption' => $this->plainInlineText($captionInlines),
+        ];
+        if ($captionInlines !== []) {
+            $attrs['captionInlines'] = $captionInlines;
+            $attrs['captionBlocks'] = [new AstNode('plain', [], $captionInlines)];
+        }
+        if ($alignments !== []) {
+            $attrs['alignments'] = $alignments;
+        }
+        if ($widths !== []) {
+            $attrs['widths'] = $widths;
+        }
+
+        $children = [];
+        if ($headCells !== []) {
+            $children[] = new AstNode('table_head', [], [
+                new AstNode('table_row', ['header' => true], $headCells),
+            ]);
+        }
+        if ($bodyRows !== []) {
+            $children[] = new AstNode('table_body', [], $bodyRows);
+        }
+
+        return new AstNode('table', $attrs, $children);
+    }
+
+    private function parseLegacyTableCell(bool $header): AstNode
+    {
+        $blocks = $this->parseBlockList();
+        $attrs = [
+            'header' => $header,
+            'text' => $this->plainBlockText($blocks),
+            'legacyTableCell' => true,
+        ];
+
+        return new AstNode('table_cell', $attrs, $blocks);
     }
 
     private function parseRawBlock(): AstNode
@@ -1188,6 +1245,10 @@ final class NativeReader
 
     private function parseLinkInline(): AstNode
     {
+        if (($this->peek()['value'] ?? null) === '[') {
+            return $this->parseLegacyLinkInline();
+        }
+
         [$attrs, $attrNative] = $this->parseAttrTuplePayload();
         $inlines = $this->parseInlineList();
         [$url, $title, $targetNative] = $this->parseTargetTuplePayload();
@@ -1203,8 +1264,31 @@ final class NativeReader
         return new AstNode('link', $attrs, $inlines);
     }
 
+    private function parseLegacyLinkInline(): AstNode
+    {
+        $inlines = $this->parseInlineList();
+        [$url, $title, $targetNative] = $this->parseTargetTuplePayload();
+        $attrs = [
+            'url' => $url,
+            'title' => $title,
+            'targetNative' => $targetNative,
+            'legacyInlineConstructor' => true,
+        ];
+        $inlineNative = $this->nativeInlineListPayload($inlines);
+        if ($inlineNative !== null) {
+            $attrs['constructor'] = 'Link';
+            $attrs['native'] = ['t' => 'Link', 'c' => [$inlineNative, $targetNative]];
+        }
+
+        return new AstNode('link', $attrs, $inlines);
+    }
+
     private function parseImageInline(): AstNode
     {
+        if (($this->peek()['value'] ?? null) === '[') {
+            return $this->parseLegacyImageInline();
+        }
+
         [$attrs, $attrNative] = $this->parseAttrTuplePayload();
         $inlines = $this->parseInlineList();
         [$url, $title, $targetNative] = $this->parseTargetTuplePayload();
@@ -1216,6 +1300,26 @@ final class NativeReader
         if ($inlineNative !== null) {
             $attrs['constructor'] = 'Image';
             $attrs['native'] = ['t' => 'Image', 'c' => [$attrNative, $inlineNative, $targetNative]];
+        }
+
+        return new AstNode('image', $attrs, $inlines);
+    }
+
+    private function parseLegacyImageInline(): AstNode
+    {
+        $inlines = $this->parseInlineList();
+        [$url, $title, $targetNative] = $this->parseTargetTuplePayload();
+        $attrs = [
+            'url' => $url,
+            'title' => $title,
+            'targetNative' => $targetNative,
+            'alt' => $this->plainInlineText($inlines),
+            'legacyInlineConstructor' => true,
+        ];
+        $inlineNative = $this->nativeInlineListPayload($inlines);
+        if ($inlineNative !== null) {
+            $attrs['constructor'] = 'Image';
+            $attrs['native'] = ['t' => 'Image', 'c' => [$inlineNative, $targetNative]];
         }
 
         return new AstNode('image', $attrs, $inlines);

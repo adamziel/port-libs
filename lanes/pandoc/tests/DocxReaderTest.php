@@ -135,6 +135,21 @@ $buildDocxReaderNativeZipPackageBytes = static function (array $parts, array $co
 };
 
 return [
+    'returns a diagnostic document for corrupt docx package bytes' => static function (TestRunner $t): void {
+        $bytes = "not a zip package\nplain text payload";
+
+        $document = (new DocxReader())->read($bytes);
+        $meta = $document->attr('meta');
+
+        $t->same('docx', $document->attr('sourceFormat'));
+        $t->same('invalid-docx-package', $meta['docxFallback']['reason']);
+        $t->same(strlen($bytes), $meta['docxFallback']['sourceBytes']);
+        $t->same(hash('sha256', $bytes), $meta['docxFallback']['sourceSha256']);
+        $t->same('code_block', $document->children[0]->type);
+        $t->same($bytes, $document->children[0]->attr('text'));
+        $t->same(['docx-source'], $document->children[0]->attr('classes'));
+    },
+
     'maps leading docx metadata styles without consuming after-normal body paragraphs' => static function (TestRunner $t) use ($buildDocxReaderPackagePartsBytes): void {
         $bytes = $buildDocxReaderPackagePartsBytes([
             '[Content_Types].xml' => '<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/></Types>',

@@ -2925,4 +2925,22 @@ HTML);
         $t->contains('BulletList [ [ Plain [ Str "Nested" , Space , Str "disclosure" , Space , Str "item." ]', $native);
         $t->contains('RawBlock (Format "html") "</details>"', $native);
     },
+    'imports declared epub bytes that are actually xhtml as fallback content' => static function (TestRunner $t): void {
+        $xhtml = <<<'HTML'
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Download page</h1><p>The EPUB download is being prepared.</p></body></html>
+HTML;
+
+        $document = (new EpubReader())->read($xhtml);
+        $meta = $document->attr('meta');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('epub', $document->attr('sourceFormat'));
+        $t->same('invalid-epub-package', $meta['epubFallback']['reason']);
+        $t->same(strlen($xhtml), $meta['epubFallback']['sourceBytes']);
+        $t->contains('end-of-central-directory', $meta['epubFallback']['error']);
+        $t->contains('<h1 id="download-page">Download page</h1>', $blocks);
+        $t->contains('<p>The EPUB download is being prepared.</p>', $blocks);
+    },
 ];

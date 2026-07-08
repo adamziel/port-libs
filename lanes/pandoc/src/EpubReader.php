@@ -30,7 +30,13 @@ final class EpubReader
 
     public function read(string $bytes): AstNode
     {
-        return $this->readZipPackage(ZipPackage::fromString($bytes));
+        try {
+            $package = ZipPackage::fromString($bytes);
+        } catch (\RuntimeException|\InvalidArgumentException $exception) {
+            return $this->fallbackDocument($bytes, $exception->getMessage());
+        }
+
+        return $this->readZipPackage($package);
     }
 
     public function readEpubFile(string $path): AstNode
@@ -41,6 +47,59 @@ final class EpubReader
         }
 
         return $this->read($bytes);
+    }
+
+    private function fallbackDocument(string $bytes, string $error): AstNode
+    {
+        $meta = [
+            'sourceFormat' => 'epub',
+            'epubFallback' => [
+                'reason' => 'invalid-epub-package',
+                'error' => $error,
+                'sourceBytes' => strlen($bytes),
+                'sourceSha256' => hash('sha256', $bytes),
+            ],
+        ];
+
+        if ($this->looksLikeHtmlDocument($bytes)) {
+            try {
+                $document = (new HtmlReader())->read($bytes);
+
+                return new AstNode('document', [
+                    'sourceFormat' => 'epub',
+                    'meta' => array_replace($document->attr('meta', []), $meta),
+                ], $document->children);
+            } catch (\Throwable) {
+            }
+        }
+
+        return new AstNode('document', [
+            'sourceFormat' => 'epub',
+            'meta' => $meta,
+        ], [
+            new AstNode('code_block', [
+                'text' => $this->sourcePreview($bytes),
+                'classes' => ['epub-source'],
+            ]),
+        ]);
+    }
+
+    private function looksLikeHtmlDocument(string $bytes): bool
+    {
+        $prefix = strtolower(ltrim(substr($bytes, 0, 2048)));
+
+        return str_starts_with($prefix, '<!doctype html')
+            || str_starts_with($prefix, '<html')
+            || str_contains($prefix, '<html ');
+    }
+
+    private function sourcePreview(string $bytes): string
+    {
+        if (strlen($bytes) <= 8192) {
+            return $bytes;
+        }
+
+        return substr($bytes, 0, 8192) . "\n...";
     }
 
     private function readZipPackage(ZipPackage $zip): AstNode

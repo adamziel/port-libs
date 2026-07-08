@@ -690,6 +690,14 @@ final class XmlHtmlDom
         $dom->substituteEntities = false;
         $loaded = $dom->loadXML($xml, LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING);
         $errors = libxml_get_errors();
+        if (!$loaded) {
+            libxml_clear_errors();
+            $dom = new \DOMDocument();
+            $dom->preserveWhiteSpace = $preserveWhiteSpace;
+            $dom->resolveExternals = false;
+            $dom->substituteEntities = false;
+            $loaded = $dom->loadXML($xml, LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING | LIBXML_RECOVER);
+        }
         libxml_clear_errors();
         libxml_use_internal_errors($previous);
 
