@@ -128,6 +128,13 @@ if (!function_exists('esc_url')) {
     }
 }
 
+if (!function_exists('esc_attr')) {
+    function esc_attr(string $text): string
+    {
+        return htmlspecialchars($text, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    }
+}
+
 require_once dirname(__DIR__, 3) . '/tools/playground-converter-plugin/port-libs-playground-converter.php';
 
 return [
@@ -142,6 +149,14 @@ return [
         $options = plpc_converter_options('csv');
 
         $t->same(true, $options['readerOptions']['allowBlankRecords'] ?? null);
+    },
+    'playground importer normalizes image import modes' => static function (TestRunner $t): void {
+        $t->same('important', plpc_normalize_image_mode(''));
+        $t->same('important', plpc_normalize_image_mode('auto'));
+        $t->same('none', plpc_normalize_image_mode('no_images'));
+        $t->same('none', plpc_normalize_image_mode(false));
+        $t->same('all', plpc_normalize_image_mode('all-images'));
+        $t->same('all', plpc_normalize_image_mode(true));
     },
     'playground importer expands zip files into safe collection entries' => static function (TestRunner $t): void {
         $zip = PortLibs\Pandoc\ZipPackage::build([

@@ -23,9 +23,14 @@ final class PandocMediaExtractor
     {
         $destination = (string) ($options['destination'] ?? $options['extractMedia'] ?? $options['extract-media'] ?? 'media');
         $sourcePath = isset($options['sourcePath']) && is_string($options['sourcePath']) ? $options['sourcePath'] : null;
+        $imageMode = $this->normalizeImageMode($options['imageMode'] ?? $options['image-mode'] ?? $options['pdfImageMode'] ?? $options['pdf-image-mode'] ?? 'all');
         $format = PandocConverter::canonicalInputFormat($format);
         $bag = new MediaBag();
-        $diagnostics = [];
+        $diagnostics = ['extract-media-image-mode:' . $imageMode];
+
+        if ($imageMode === 'none') {
+            $document = $this->documentWithoutImages($document);
+        }
 
         $imageSources = $this->imageSources($document);
         if ($imageSources !== []) {
@@ -37,8 +42,8 @@ final class PandocMediaExtractor
         }
 
         $pdfImagePlacements = [];
-        if ($format === 'pdf') {
-            $pdfImagePlacements = $this->loadPdfImages($bag, $bytes, $diagnostics);
+        if ($format === 'pdf' && $imageMode !== 'none') {
+            $pdfImagePlacements = $this->loadPdfImages($bag, $bytes, $diagnostics, $imageMode);
             if ($pdfImagePlacements !== []) {
                 $document = $this->documentWithPdfImageBlocks($document, $pdfImagePlacements);
             }
@@ -51,6 +56,50 @@ final class PandocMediaExtractor
             'entries' => $extracted['entries'],
             'diagnostics' => array_values(array_unique(array_merge($diagnostics, $extracted['diagnostics']))),
         ];
+    }
+
+    private function normalizeImageMode(mixed $mode): string
+    {
+        if (is_bool($mode)) {
+            return $mode ? 'all' : 'none';
+        }
+
+        $mode = strtolower(str_replace(['_', ' '], '-', trim((string) $mode)));
+
+        return match ($mode) {
+            'none', 'no', 'off', 'false', '0', 'no-images', 'without-images' => 'none',
+            'important', 'auto', 'selected', 'significant' => 'important',
+            default => 'all',
+        };
+    }
+
+    private function documentWithoutImages(AstNode $document): AstNode
+    {
+        return $this->filterImages($document) ?? new AstNode('document', $document->attrs, []);
+    }
+
+    private function filterImages(AstNode $node): ?AstNode
+    {
+        if ($node->type === 'image') {
+            return null;
+        }
+
+        $children = [];
+        $removedChild = false;
+        foreach ($node->children as $child) {
+            $filtered = $this->filterImages($child);
+            if ($filtered !== null) {
+                $children[] = $filtered;
+            } else {
+                $removedChild = true;
+            }
+        }
+
+        if ($removedChild && $children === [] && in_array($node->type, ['paragraph', 'plain', 'list_item'], true) && trim((string) $node->attr('text', '')) === '') {
+            return null;
+        }
+
+        return new AstNode($node->type, $node->attrs, $children);
     }
 
     /**
@@ -217,12 +266,9 @@ final class PandocMediaExtractor
 
     /**
      * @param list<string> $diagnostics
+     * @return list<array{source:string, page:int|null, object:string, mimeType:string, byteLength:int, width:int|null, height:int|null, imageMask:bool, importance:string}>
      */
-    /**
-     * @param list<string> $diagnostics
-     * @return list<array{source:string, page:int|null, object:string, mimeType:string, byteLength:int}>
-     */
-    private function loadPdfImages(MediaBag $bag, string $bytes, array &$diagnostics): array
+    private function loadPdfImages(MediaBag $bag, string $bytes, array &$diagnostics, string $imageMode): array
     {
         if (strlen($bytes) > self::MAX_PDF_SCAN_BYTES) {
             $diagnostics[] = 'extract-media-pdf-scan-skipped:too-large';
@@ -247,6 +293,10 @@ final class PandocMediaExtractor
                 continue;
             }
 
+            $width = $this->pdfIntegerEntry($body, 'Width');
+            $height = $this->pdfIntegerEntry($body, 'Height');
+            $imageMask = $this->pdfBooleanEntry($body, 'ImageMask');
+
             $filters = $this->pdfFilterNames($body);
             $mimeType = $this->pdfEmbeddableMimeType($filters);
             if ($mimeType === null) {
@@ -260,6 +310,12 @@ final class PandocMediaExtractor
                 continue;
             }
 
+            $importance = $this->pdfImageImportance($width, $height, strlen($stream), $imageMask);
+            if ($imageMode === 'important' && $importance !== 'important') {
+                $diagnostics[] = 'extract-media-pdf-image-unimportant:' . $objectNumber . ':' . $importance;
+                continue;
+            }
+
             $extension = $mimeType === 'image/jpeg' ? '.jpg' : '.jp2';
             $source = 'pdf/image-' . $objectNumber . $extension;
             $bag->insertMedia($source, $mimeType, $stream);
@@ -269,8 +325,12 @@ final class PandocMediaExtractor
                 'object' => $objectNumber,
                 'mimeType' => $mimeType,
                 'byteLength' => strlen($stream),
+                'width' => $width,
+                'height' => $height,
+                'imageMask' => $imageMask,
+                'importance' => $importance,
             ];
-            $diagnostics[] = 'extract-media-pdf-image-loaded:' . $objectNumber;
+            $diagnostics[] = 'extract-media-pdf-image-loaded:' . $objectNumber . ':' . $importance;
             $loaded++;
         }
 
@@ -278,7 +338,7 @@ final class PandocMediaExtractor
     }
 
     /**
-     * @param list<array{source:string, page:int|null, object:string, mimeType:string, byteLength:int}> $placements
+     * @param list<array{source:string, page:int|null, object:string, mimeType:string, byteLength:int, width:int|null, height:int|null, imageMask:bool, importance:string}> $placements
      */
     private function documentWithPdfImageBlocks(AstNode $document, array $placements): AstNode
     {
@@ -288,7 +348,14 @@ final class PandocMediaExtractor
                 'data-pandoc-pdf-image-object' => $placement['object'],
                 'data-pandoc-pdf-image-type' => $placement['mimeType'],
                 'data-pandoc-pdf-image-bytes' => (string) $placement['byteLength'],
+                'data-pandoc-pdf-image-importance' => $placement['importance'],
             ];
+            if ($placement['width'] !== null) {
+                $attributes['data-pandoc-pdf-image-width'] = (string) $placement['width'];
+            }
+            if ($placement['height'] !== null) {
+                $attributes['data-pandoc-pdf-image-height'] = (string) $placement['height'];
+            }
             if ($placement['page'] !== null) {
                 $attributes['data-pandoc-pdf-page'] = (string) $placement['page'];
             }
@@ -308,6 +375,38 @@ final class PandocMediaExtractor
         }
 
         return new AstNode($document->type, $document->attrs, array_merge($imageBlocks, $document->children));
+    }
+
+    private function pdfIntegerEntry(string $objectBody, string $name): ?int
+    {
+        if (preg_match('#/' . preg_quote($name, '#') . '\s+(\d+)\b#', $objectBody, $match) !== 1) {
+            return null;
+        }
+
+        return max(0, (int) $match[1]);
+    }
+
+    private function pdfBooleanEntry(string $objectBody, string $name): bool
+    {
+        return preg_match('#/' . preg_quote($name, '#') . '\s+true\b#i', $objectBody) === 1;
+    }
+
+    private function pdfImageImportance(?int $width, ?int $height, int $byteLength, bool $imageMask): string
+    {
+        if ($imageMask) {
+            return 'mask';
+        }
+        if ($width !== null && $height !== null && ($width < 16 || $height < 16)) {
+            return 'tiny';
+        }
+        if ($byteLength >= 8192) {
+            return 'important';
+        }
+        if ($width !== null && $height !== null && ($width * $height >= 10000 || ($width >= 96 && $height >= 96))) {
+            return 'important';
+        }
+
+        return 'small';
     }
 
     /**

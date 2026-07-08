@@ -184,21 +184,44 @@ return [
             . (string) $jpeg . "\n"
             . "endstream\n"
             . "endobj\n"
+            . "2 0 obj\n"
+            . '<< /Type /XObject /Subtype /Image /Width 128 /Height 128 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ' . strlen((string) $jpeg) . " >>\n"
+            . "stream\n"
+            . (string) $jpeg . "\n"
+            . "endstream\n"
+            . "endobj\n"
             . "%%EOF\n";
 
         $extractor = new \PortLibs\Pandoc\PandocMediaExtractor();
-        $result = $extractor->extract(new AstNode('document'), $pdf, 'pdf', ['destination' => 'media']);
+        $result = $extractor->extract(new AstNode('document'), $pdf, 'pdf', ['destination' => 'media', 'imageMode' => 'all']);
 
-        $t->same(1, count($result['entries']));
+        $t->same(2, count($result['entries']));
         $t->same('media/pdf/image-1.jpg', $result['entries'][0]['path'] ?? null);
         $t->same('image/jpeg', $result['entries'][0]['mimeType'] ?? null);
         $t->same($jpeg, $result['entries'][0]['contents'] ?? null);
-        $t->true(in_array('extract-media-pdf-image-loaded:1', $result['diagnostics'], true));
+        $t->true(in_array('extract-media-image-mode:all', $result['diagnostics'], true));
+        $t->true(in_array('extract-media-pdf-image-loaded:1:tiny', $result['diagnostics'], true));
         $t->same('paragraph', $result['document']->children[0]->type ?? null);
         $t->same('image', $result['document']->children[0]->children[0]->type ?? null);
         $t->same('media/pdf/image-1.jpg', $result['document']->children[0]->children[0]->attr('url'));
         $html = PandocConverter::write($result['document'], 'html');
         $t->contains('<img src="media/pdf/image-1.jpg"', $html);
+
+        $important = $extractor->extract(new AstNode('document'), $pdf, 'pdf', ['destination' => 'media', 'imageMode' => 'important']);
+        $t->same(1, count($important['entries']));
+        $t->same('media/pdf/image-2.jpg', $important['entries'][0]['path'] ?? null);
+        $t->true(in_array('extract-media-pdf-image-unimportant:1:tiny', $important['diagnostics'], true));
+        $t->true(in_array('extract-media-pdf-image-loaded:2:important', $important['diagnostics'], true));
+
+        $documentWithImage = new AstNode('document', [], [
+            new AstNode('paragraph', [], [
+                new AstNode('image', ['url' => 'picture.jpg'], [new AstNode('text', ['text' => 'Picture'])]),
+            ]),
+        ]);
+        $withoutImages = $extractor->extract($documentWithImage, $pdf, 'pdf', ['destination' => 'media', 'imageMode' => 'none']);
+        $t->same(0, count($withoutImages['entries']));
+        $t->same(0, count($withoutImages['document']->children));
+        $t->true(in_array('extract-media-image-mode:none', $withoutImages['diagnostics'], true));
     },
     'fails explicitly for unsupported registry formats' => static function (TestRunner $t): void {
         $t->throws(\InvalidArgumentException::class, static function (): void {

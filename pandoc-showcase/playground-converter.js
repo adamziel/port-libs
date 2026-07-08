@@ -1,4 +1,4 @@
-const pluginBuild = '04cfe2998ccb4ead';
+const pluginBuild = 'eeb407d60bb0d921';
 const playgroundClientModuleUrl = 'https://playground.wordpress.net/client/index.js';
 
 const iframe = document.getElementById('wp-playground');
@@ -8,6 +8,7 @@ const fileInput = document.getElementById('file-input');
 const directoryInput = document.getElementById('directory-input');
 const formatInput = document.getElementById('format-input');
 const titleInput = document.getElementById('title-input');
+const imageModeInputs = Array.from(document.querySelectorAll('input[name="image-mode"]'));
 const convertButton = document.getElementById('convert-button');
 const dropzone = document.getElementById('dropzone');
 const fileName = document.getElementById('file-name');
@@ -286,6 +287,9 @@ function setBusy(busy) {
   convertButton.disabled = busy || !selectedUpload;
   fileInput.disabled = busy;
   directoryInput.disabled = busy;
+  for (const input of imageModeInputs) {
+    input.disabled = busy;
+  }
   dropzone.dataset.disabled = busy ? 'true' : 'false';
   formatInput.disabled = busy;
   titleInput.disabled = busy;
@@ -441,6 +445,7 @@ async function payloadFromUpload(upload) {
       filename: entry.file.name,
       format: upload.format,
       title: upload.title,
+      imageMode: selectedImageMode(),
       bytes: await readFileAsBase64(entry.file),
     };
   }
@@ -448,12 +453,17 @@ async function payloadFromUpload(upload) {
   return {
     filename: upload.displayName,
     title: upload.title,
+    imageMode: selectedImageMode(),
     files: await Promise.all(upload.entries.map(async (entry) => ({
       path: entry.path,
       filename: entry.file.name,
       bytes: await readFileAsBase64(entry.file),
     }))),
   };
+}
+
+function selectedImageMode() {
+  return imageModeInputs.find((input) => input.checked)?.value || 'important';
 }
 
 function readFileAsBase64(file) {

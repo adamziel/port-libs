@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Import any document into WordPress</title>
   <link rel="stylesheet" href="styles.css">
-  <link rel="stylesheet" href="playground-converter.css?v=batch-import-20260707">
+  <link rel="stylesheet" href="playground-converter.css?v=image-modes-20260708">
 </head>
 <body>
   <main class="playground-tool">
@@ -84,6 +84,22 @@
         <input id="format-input" name="format" type="hidden">
         <input id="title-input" name="title" type="hidden">
 
+        <fieldset class="image-mode-control">
+          <legend>Images</legend>
+          <label>
+            <input type="radio" name="image-mode" value="important" checked>
+            <span>Images we thought were important</span>
+          </label>
+          <label>
+            <input type="radio" name="image-mode" value="none">
+            <span>No images</span>
+          </label>
+          <label>
+            <input type="radio" name="image-mode" value="all">
+            <span>All images</span>
+          </label>
+        </fieldset>
+
         <div id="conversion-progress" class="conversion-progress" role="status" aria-live="polite">
           <span class="progress-spinner" aria-hidden="true"></span>
           <span id="conversion-progress-text">Preparing conversion...</span>
@@ -113,6 +129,6 @@
     <strong>Drop to import</strong>
   </div>
 
-  <script type="module" src="playground-converter.js?v=batch-import-20260707"></script>
+  <script type="module" src="playground-converter.js?v=image-modes-20260708"></script>
 </body>
 </html>

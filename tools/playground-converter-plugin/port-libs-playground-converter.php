@@ -8,6 +8,7 @@
 declare(strict_types=1);
 
 use PortLibs\Pandoc\PandocConverter;
+use PortLibs\Pandoc\PandocMediaExtractor;
 use PortLibs\Pandoc\ZipPackage;
 
 if (!defined('ABSPATH')) {
@@ -69,9 +70,10 @@ function plpc_convert_uploaded_document(WP_REST_Request $request): WP_REST_Respo
         if ($title === '') {
             $title = plpc_title_from_filename($filename);
         }
+        $imageMode = plpc_normalize_image_mode($payload['imageMode'] ?? 'important');
 
         if (isset($payload['files']) && is_array($payload['files'])) {
-            return plpc_collection_response(plpc_collection_from_payload($payload, $title), $title);
+            return plpc_collection_response(plpc_collection_from_payload($payload, $title), $title, $imageMode);
         }
 
         $base64 = (string) ($payload['bytes'] ?? '');
@@ -81,13 +83,13 @@ function plpc_convert_uploaded_document(WP_REST_Request $request): WP_REST_Respo
         }
 
         if (plpc_should_expand_zip_upload($format, $filename, $bytes)) {
-            return plpc_collection_response(plpc_collection_from_zip($bytes, $filename, $title), $title);
+            return plpc_collection_response(plpc_collection_from_zip($bytes, $filename, $title), $title, $imageMode);
         }
 
         $result = plpc_convert_collection_file_to_page([
             'path' => $filename,
             'bytes' => $bytes,
-        ], null, $title);
+        ], null, $title, $imageMode);
 
         return new WP_REST_Response([
             'ok' => true,
@@ -267,7 +269,7 @@ function plpc_collection_path_is_ignored(string $path): bool
 /**
  * @param array{label: string, files: list<array{path: string, bytes: string}>} $collection
  */
-function plpc_collection_response(array $collection, string $title): WP_REST_Response
+function plpc_collection_response(array $collection, string $title, string $imageMode = 'important'): WP_REST_Response
 {
     $documents = plpc_convertible_collection_files($collection);
     if ($documents === []) {
@@ -280,7 +282,7 @@ function plpc_collection_response(array $collection, string $title): WP_REST_Res
     $imagesImported = 0;
     foreach ($documents as $file) {
         try {
-            $result = plpc_convert_collection_file_to_page($file, $collection);
+            $result = plpc_convert_collection_file_to_page($file, $collection, null, $imageMode);
             $posts[] = $result;
             $imageTagCount += $result['imageTagCount'];
             $imagesImported += $result['imagesImported'];
@@ -381,18 +383,26 @@ function plpc_convertible_collection_files(array $collection): array
  * @param array{label: string, files: list<array{path: string, bytes: string}>}|null $collection
  * @return array{postId: int, pageUrl: string, editUrl: string, format: string, title: string, path: string, imageTagCount: int, imagesImported: int, diagnostics: list<string>}
  */
-function plpc_convert_collection_file_to_page(array $file, ?array $collection = null, ?string $title = null): array
+function plpc_convert_collection_file_to_page(array $file, ?array $collection = null, ?string $title = null, string $imageMode = 'important'): array
 {
     $path = $file['path'];
     $format = (string) ($file['format'] ?? plpc_normalize_format('', $path));
     $postTitle = $title !== null && $title !== '' ? $title : plpc_title_from_filename($path);
     $options = plpc_converter_options($format);
     $document = PandocConverter::read($file['bytes'], $format, $options['readerOptions']);
+    $media = (new PandocMediaExtractor())->extract($document, $file['bytes'], $format, [
+        'destination' => 'media',
+        'imageMode' => $imageMode,
+    ]);
+    $document = $media['document'];
     $blocks = PandocConverter::write($document, 'wordpress', $options['writerOptions']);
 
     $imageSources = plpc_rendered_image_sources($blocks);
-    $mediaResult = plpc_import_rendered_images($blocks, $imageSources, $file['bytes'], basename($path), $collection, $path);
+    $mediaResult = plpc_import_extracted_media_entries($blocks, $imageSources, $media['entries']);
+    $remainingSources = array_values(array_filter($imageSources, static fn (string $source): bool => !in_array($source, $mediaResult['sources'], true)));
+    $fallbackMediaResult = plpc_import_rendered_images($mediaResult['blocks'], $remainingSources, $file['bytes'], basename($path), $collection, $path);
     $blocks = $mediaResult['blocks'];
+    $blocks = $fallbackMediaResult['blocks'];
 
     $postId = wp_insert_post([
         'post_type' => 'page',
@@ -412,8 +422,8 @@ function plpc_convert_collection_file_to_page(array $file, ?array $collection = 
         'title' => get_the_title((int) $postId),
         'path' => $path,
         'imageTagCount' => count($imageSources),
-        'imagesImported' => $mediaResult['imported'],
-        'diagnostics' => $mediaResult['diagnostics'],
+        'imagesImported' => $mediaResult['imported'] + $fallbackMediaResult['imported'],
+        'diagnostics' => array_values(array_merge($media['diagnostics'], $mediaResult['diagnostics'], $fallbackMediaResult['diagnostics'])),
     ];
 }
 
@@ -504,6 +514,21 @@ function plpc_normalize_format(string $format, string $filename): string
     return $map[$extension] ?? $extension;
 }
 
+function plpc_normalize_image_mode(mixed $mode): string
+{
+    if (is_bool($mode)) {
+        return $mode ? 'all' : 'none';
+    }
+
+    $mode = strtolower(str_replace(['_', ' '], '-', trim((string) $mode)));
+
+    return match ($mode) {
+        'none', 'no', 'off', 'false', '0', 'no-images', 'without-images' => 'none',
+        'all', 'yes', 'on', 'true', '1', 'all-images' => 'all',
+        default => 'important',
+    };
+}
+
 function plpc_title_from_filename(string $filename): string
 {
     $name = pathinfo($filename, PATHINFO_FILENAME);
@@ -556,11 +581,7 @@ function plpc_import_rendered_images(string $blocks, array $imageSources, string
             continue;
         }
 
-        $blocks = str_replace(
-            ['src="' . esc_attr($source) . '"', "src='" . esc_attr($source) . "'"],
-            ['src="' . esc_url($attachment['url']) . '"', "src='" . esc_url($attachment['url']) . "'"],
-            $blocks
-        );
+        $blocks = plpc_replace_image_source($blocks, $source, $attachment['url']);
         $imported++;
         $diagnostics[] = 'image-imported:' . $source . '=>' . $attachment['id'];
     }
@@ -570,6 +591,80 @@ function plpc_import_rendered_images(string $blocks, array $imageSources, string
         'imported' => $imported,
         'diagnostics' => $diagnostics,
     ];
+}
+
+/**
+ * @param list<string> $imageSources
+ * @param list<array{path:string, mediaPath:string, mimeType:string, byteLength:int, sha1:string, source:string, canonicalSource:string, sourcePath:string, pathRepairSummary:string, extractionPathRepairSummary:string, mimeTypeSource:string, inferredMimeType:string, mimeRepairSummary:string, contents:string}> $entries
+ * @return array{blocks: string, imported: int, sources: list<string>, diagnostics: list<string>}
+ */
+function plpc_import_extracted_media_entries(string $blocks, array $imageSources, array $entries): array
+{
+    if ($entries === [] || $imageSources === []) {
+        return [
+            'blocks' => $blocks,
+            'imported' => 0,
+            'sources' => [],
+            'diagnostics' => [],
+        ];
+    }
+
+    $entriesByPath = [];
+    foreach ($entries as $entry) {
+        $keys = array_values(array_unique(array_filter([
+            plpc_media_path_from_url((string) ($entry['path'] ?? '')),
+            plpc_media_path_from_url((string) ($entry['mediaPath'] ?? '')),
+            plpc_media_path_from_url((string) ($entry['source'] ?? '')),
+        ], static fn (string $key): bool => $key !== '')));
+        foreach ($keys as $key) {
+            $entriesByPath[$key] = $entry;
+        }
+    }
+
+    $imported = 0;
+    $importedSources = [];
+    $diagnostics = [];
+    foreach ($imageSources as $source) {
+        $path = plpc_media_path_from_url($source);
+        $entry = $entriesByPath[$path] ?? null;
+        if ($entry === null) {
+            continue;
+        }
+
+        $contents = (string) ($entry['contents'] ?? '');
+        $mimeType = (string) ($entry['mimeType'] ?? 'application/octet-stream');
+        $filename = sanitize_file_name(basename($path));
+        if ($filename === '') {
+            $filename = (string) ($entry['sha1'] ?? sha1($contents)) . plpc_extension_for_mime($mimeType);
+        }
+
+        $attachment = plpc_insert_media_attachment($contents, $filename, $mimeType);
+        if ($attachment === null) {
+            $diagnostics[] = 'image-upload-failed:' . $source;
+            continue;
+        }
+
+        $blocks = plpc_replace_image_source($blocks, $source, $attachment['url']);
+        $imported++;
+        $importedSources[] = $source;
+        $diagnostics[] = 'image-imported:' . $source . '=>' . $attachment['id'];
+    }
+
+    return [
+        'blocks' => $blocks,
+        'imported' => $imported,
+        'sources' => array_values(array_unique($importedSources)),
+        'diagnostics' => $diagnostics,
+    ];
+}
+
+function plpc_replace_image_source(string $blocks, string $source, string $url): string
+{
+    return str_replace(
+        ['src="' . esc_attr($source) . '"', "src='" . esc_attr($source) . "'"],
+        ['src="' . esc_url($url) . '"', "src='" . esc_url($url) . "'"],
+        $blocks
+    );
 }
 
 function plpc_zip_package(string $bytes): ?ZipPackage
