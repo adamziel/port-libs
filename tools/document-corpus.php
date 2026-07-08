@@ -595,6 +595,14 @@ function organicSeedUrls(): array
         seed('https://pubs.usgs.gov/sir/2026/5124/sir20265124.XML', 'bits', 'government-web', 'pubs.usgs.gov', 'USGS Scientific Investigations Report 2026-5124 BITS'),
         seed('https://dicom.nema.org/medical/Dicom/2024d/source/docbook/part18/part18.xml', 'docbook', 'standards-web', 'dicom.nema.org', 'DICOM PS3.18 DocBook'),
         seed('https://raw.githubusercontent.com/jchiquet/quarto-hceres/55fdc1e6f75e710eb67bfb0650bf237ff62886ca/references-HAL.bib', 'biblatex', 'github-raw', 'jchiquet/quarto-hceres', 'HCERES HAL references BibLaTeX'),
+        seed('https://americanenglish.state.gov/files/ae/resource_files/to_build_a_fire-efl_final.epub', 'epub', 'government-web', 'americanenglish.state.gov', 'To Build a Fire EPUB'),
+        seed('https://americanenglish.state.gov/files/ae/resource_files/the_gift_of_the_magi.epub', 'epub', 'government-web', 'americanenglish.state.gov', 'The Gift of the Magi EPUB'),
+        seed('https://americanenglish.state.gov/files/ae/resource_files/design_for_drama.epub', 'epub', 'government-web', 'americanenglish.state.gov', 'Design for Drama EPUB'),
+        seed('https://www.nist.gov/document/componentsofcybersecurityframeworkpptx', 'pptx', 'government-web', 'nist.gov', 'NIST Components of the Cybersecurity Framework PPTX'),
+        seed('https://ixpe.msfc.nasa.gov/for_scientists/templates/IXPE-Presentation-Template.pptx', 'pptx', 'government-web', 'nasa.gov', 'IXPE presentation template PPTX'),
+        seed('https://www.columbus.in.gov/columbus-transit/wp-content/uploads/sites/11/2020/02/Call-A-Bus-APPLICATION.doc', 'doc', 'government-web', 'columbus.in.gov', 'ADA paratransit application DOC'),
+        seed('https://www.waterboards.ca.gov/rwqcb3/board_decisions/adopted_orders/2010/2010_Oilfield_Reuse_appl_form.doc', 'doc', 'government-web', 'waterboards.ca.gov', 'Water board waste discharge application DOC'),
+        seed('https://raw.githubusercontent.com/eamena-project/eamena-arches-dev/main/dbs/database.eamena/data/reference_data/rm/hp/mds/mds-template-readonly.tsv', 'tsv', 'github-raw', 'eamena-project/eamena-arches-dev', 'EAMENA MDS template readonly TSV'),
     ];
 }
 
