@@ -1,5 +1,5 @@
 {
-    "generatedAt": "2026-07-08T23:22:31+00:00",
+    "generatedAt": "2026-07-08T23:33:54+00:00",
     "pandocVersion": "pandoc 3.10\nFeatures: +server +lua\nScripting engine: Lua 5.4\nUser data directory: $REPO\nCopyright (C) 2006-2025 John MacFarlane. Web:  https://pandoc.org\nThis is free software; see the source for copying conditions. There is no\nwarranty, not even for merchantability or fitness for a particular purpose.",
     "mediaImageMode": "important",
     "formats": [
@@ -343,7 +343,12 @@
         "faithfulEnough": 31,
         "review": 13,
         "divergent": 102,
-        "noText": 1
+        "noText": 1,
+        "visualComparisons": 147,
+        "visualFaithfulEnough": 87,
+        "visualReview": 29,
+        "visualDivergent": 30,
+        "visualNoStructure": 1
     },
     "blockUsage": {
         "totals": {
@@ -408,12 +413,20 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "divergent",
-                        "score": 0.0042
+                        "score": 0.0042,
+                        "textStatus": "divergent",
+                        "textScore": 0.0042,
+                        "visualStatus": "divergent",
+                        "visualScore": 0
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
                         "status": "divergent",
-                        "score": 0.3976
+                        "score": 0.3976,
+                        "textStatus": "divergent",
+                        "textScore": 0.3976,
+                        "visualStatus": "divergent",
+                        "visualScore": 0
                     }
                 }
             }
@@ -464,12 +477,20 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "divergent",
-                        "score": 0.027
+                        "score": 0.027,
+                        "textStatus": "divergent",
+                        "textScore": 0.027,
+                        "visualStatus": "divergent",
+                        "visualScore": 0
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
                         "status": "divergent",
-                        "score": 0.3023
+                        "score": 0.3023,
+                        "textStatus": "divergent",
+                        "textScore": 0.3023,
+                        "visualStatus": "divergent",
+                        "visualScore": 0
                     }
                 }
             }
@@ -520,12 +541,20 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "divergent",
-                        "score": 0.0042
+                        "score": 0.0042,
+                        "textStatus": "divergent",
+                        "textScore": 0.0042,
+                        "visualStatus": "divergent",
+                        "visualScore": 0
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
                         "status": "divergent",
-                        "score": 0.3976
+                        "score": 0.3976,
+                        "textStatus": "divergent",
+                        "textScore": 0.3976,
+                        "visualStatus": "divergent",
+                        "visualScore": 0
                     }
                 }
             }
@@ -576,12 +605,20 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "divergent",
-                        "score": 0.009
+                        "score": 0.009,
+                        "textStatus": "divergent",
+                        "textScore": 0.009,
+                        "visualStatus": "divergent",
+                        "visualScore": 0
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
                         "status": "divergent",
-                        "score": 0.4214
+                        "score": 0.4214,
+                        "textStatus": "divergent",
+                        "textScore": 0.4214,
+                        "visualStatus": "divergent",
+                        "visualScore": 0
                     }
                 }
             }
@@ -631,12 +668,20 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "divergent",
-                        "score": 0.0396
+                        "score": 0.0396,
+                        "textStatus": "divergent",
+                        "textScore": 0.0396,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 1
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
                         "status": "divergent",
-                        "score": 0.4352
+                        "score": 0.4352,
+                        "textStatus": "divergent",
+                        "textScore": 0.4352,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 1
                     }
                 }
             }
@@ -686,12 +731,20 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "divergent",
-                        "score": 0.0267
+                        "score": 0.0267,
+                        "textStatus": "divergent",
+                        "textScore": 0.0267,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 1
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
                         "status": "divergent",
-                        "score": 0.4299
+                        "score": 0.4299,
+                        "textStatus": "divergent",
+                        "textScore": 0.4299,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 1
                     }
                 }
             }
@@ -743,12 +796,20 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "faithful_enough",
-                        "score": 0.8038
+                        "score": 0.8038,
+                        "textStatus": "faithful_enough",
+                        "textScore": 0.8038,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.9915
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
                         "status": "faithful_enough",
-                        "score": 0.8309
+                        "score": 0.8309,
+                        "textStatus": "faithful_enough",
+                        "textScore": 0.8309,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.9915
                     }
                 }
             }
@@ -801,12 +862,20 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "faithful_enough",
-                        "score": 0.9595
+                        "score": 0.9595,
+                        "textStatus": "faithful_enough",
+                        "textScore": 0.9595,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.9989
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
                         "status": "faithful_enough",
-                        "score": 0.9644
+                        "score": 0.9644,
+                        "textStatus": "faithful_enough",
+                        "textScore": 0.9644,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.9989
                     }
                 }
             }
@@ -857,12 +926,20 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "divergent",
-                        "score": 0.0045
+                        "score": 0.0045,
+                        "textStatus": "divergent",
+                        "textScore": 0.0045,
+                        "visualStatus": "divergent",
+                        "visualScore": 0
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
                         "status": "divergent",
-                        "score": 0.4176
+                        "score": 0.4176,
+                        "textStatus": "divergent",
+                        "textScore": 0.4176,
+                        "visualStatus": "divergent",
+                        "visualScore": 0
                     }
                 }
             }
@@ -913,12 +990,20 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "divergent",
-                        "score": 0.0045
+                        "score": 0.0045,
+                        "textStatus": "divergent",
+                        "textScore": 0.0045,
+                        "visualStatus": "divergent",
+                        "visualScore": 0
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
                         "status": "divergent",
-                        "score": 0.4143
+                        "score": 0.4143,
+                        "textStatus": "divergent",
+                        "textScore": 0.4143,
+                        "visualStatus": "divergent",
+                        "visualScore": 0
                     }
                 }
             }
@@ -967,12 +1052,20 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "divergent",
-                        "score": 0
+                        "score": 0,
+                        "textStatus": "divergent",
+                        "textScore": 0,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.8636
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
                         "status": "divergent",
-                        "score": 0.4106
+                        "score": 0.4106,
+                        "textStatus": "divergent",
+                        "textScore": 0.4106,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.9048
                     }
                 }
             }
@@ -1021,12 +1114,20 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "divergent",
-                        "score": 0.0587
+                        "score": 0.0587,
+                        "textStatus": "divergent",
+                        "textScore": 0.0587,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.7857
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
                         "status": "divergent",
-                        "score": 0.4441
+                        "score": 0.4441,
+                        "textStatus": "divergent",
+                        "textScore": 0.4441,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.8462
                     }
                 }
             }
@@ -1075,12 +1176,20 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "divergent",
-                        "score": 0
+                        "score": 0,
+                        "textStatus": "divergent",
+                        "textScore": 0,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.8636
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
                         "status": "divergent",
-                        "score": 0.4106
+                        "score": 0.4106,
+                        "textStatus": "divergent",
+                        "textScore": 0.4106,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.9048
                     }
                 }
             }
@@ -1129,12 +1238,20 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "divergent",
-                        "score": 0
+                        "score": 0,
+                        "textStatus": "divergent",
+                        "textScore": 0,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.8333
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
                         "status": "divergent",
-                        "score": 0.4168
+                        "score": 0.4168,
+                        "textStatus": "divergent",
+                        "textScore": 0.4168,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.8824
                     }
                 }
             }
@@ -1185,12 +1302,20 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "divergent",
-                        "score": 0.0558
+                        "score": 0.0558,
+                        "textStatus": "divergent",
+                        "textScore": 0.0558,
+                        "visualStatus": "review",
+                        "visualScore": 0.6364
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
                         "status": "divergent",
-                        "score": 0.4455
+                        "score": 0.4455,
+                        "textStatus": "divergent",
+                        "textScore": 0.4455,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.8182
                     }
                 }
             }
@@ -1240,12 +1365,20 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "divergent",
-                        "score": 0.009
+                        "score": 0.009,
+                        "textStatus": "divergent",
+                        "textScore": 0.009,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.7857
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
                         "status": "divergent",
-                        "score": 0.4207
+                        "score": 0.4207,
+                        "textStatus": "divergent",
+                        "textScore": 0.4207,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.8462
                     }
                 }
             }
@@ -1295,12 +1428,20 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "divergent",
-                        "score": 0.1842
+                        "score": 0.1842,
+                        "textStatus": "divergent",
+                        "textScore": 0.1842,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.9048
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
                         "status": "divergent",
-                        "score": 0.4993
+                        "score": 0.4993,
+                        "textStatus": "divergent",
+                        "textScore": 0.4993,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.9048
                     }
                 }
             }
@@ -1350,12 +1491,20 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "divergent",
-                        "score": 0.0364
+                        "score": 0.0364,
+                        "textStatus": "divergent",
+                        "textScore": 0.0364,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.9074
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
                         "status": "divergent",
-                        "score": 0.4185
+                        "score": 0.4185,
+                        "textStatus": "divergent",
+                        "textScore": 0.4185,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.9608
                     }
                 }
             }
@@ -1407,12 +1556,20 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "divergent",
-                        "score": 0.08
+                        "score": 0.08,
+                        "textStatus": "divergent",
+                        "textScore": 0.08,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.8
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
                         "status": "divergent",
-                        "score": 0.4558
+                        "score": 0.4558,
+                        "textStatus": "divergent",
+                        "textScore": 0.4558,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.8
                     }
                 }
             }
@@ -1531,12 +1688,20 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "divergent",
-                        "score": 0.0441
+                        "score": 0.0441,
+                        "textStatus": "divergent",
+                        "textScore": 0.0441,
+                        "visualStatus": "review",
+                        "visualScore": 0.6667
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
                         "status": "divergent",
-                        "score": 0.4389
+                        "score": 0.4389,
+                        "textStatus": "divergent",
+                        "textScore": 0.4389,
+                        "visualStatus": "review",
+                        "visualScore": 0.6667
                     }
                 }
             }
@@ -1660,12 +1825,20 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "faithful_enough",
-                        "score": 0.8614
+                        "score": 0.8614,
+                        "textStatus": "faithful_enough",
+                        "textScore": 0.8614,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.8839
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
                         "status": "faithful_enough",
-                        "score": 0.8903
+                        "score": 0.8903,
+                        "textStatus": "faithful_enough",
+                        "textScore": 0.8903,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.9162
                     }
                 }
             }
@@ -1716,12 +1889,20 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "faithful_enough",
-                        "score": 0.975
+                        "score": 0.975,
+                        "textStatus": "faithful_enough",
+                        "textScore": 0.975,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.9498
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
                         "status": "faithful_enough",
-                        "score": 0.9793
+                        "score": 0.9793,
+                        "textStatus": "faithful_enough",
+                        "textScore": 0.9793,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.9904
                     }
                 }
             }
@@ -1772,12 +1953,20 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "divergent",
-                        "score": 0.0311
+                        "score": 0.0311,
+                        "textStatus": "divergent",
+                        "textScore": 0.0311,
+                        "visualStatus": "divergent",
+                        "visualScore": 0
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
                         "status": "divergent",
-                        "score": 0.396
+                        "score": 0.396,
+                        "textStatus": "divergent",
+                        "textScore": 0.396,
+                        "visualStatus": "divergent",
+                        "visualScore": 0
                     }
                 }
             }
@@ -1828,12 +2017,20 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "divergent",
-                        "score": 0.0045
+                        "score": 0.0045,
+                        "textStatus": "divergent",
+                        "textScore": 0.0045,
+                        "visualStatus": "divergent",
+                        "visualScore": 0
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
                         "status": "divergent",
-                        "score": 0.4176
+                        "score": 0.4176,
+                        "textStatus": "divergent",
+                        "textScore": 0.4176,
+                        "visualStatus": "divergent",
+                        "visualScore": 0
                     }
                 }
             }
@@ -1923,12 +2120,20 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "faithful_enough",
-                        "score": 0.8358
+                        "score": 0.8358,
+                        "textStatus": "faithful_enough",
+                        "textScore": 0.8358,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.8023
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
                         "status": "faithful_enough",
-                        "score": 0.9155
+                        "score": 0.9155,
+                        "textStatus": "faithful_enough",
+                        "textScore": 0.9155,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.9437
                     }
                 }
             }
@@ -1980,12 +2185,20 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "review",
-                        "score": 0.7869
+                        "score": 0.7869,
+                        "textStatus": "review",
+                        "textScore": 0.7869,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.8188
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
                         "status": "faithful_enough",
-                        "score": 0.8307
+                        "score": 0.8307,
+                        "textStatus": "faithful_enough",
+                        "textScore": 0.8307,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.8492
                     }
                 }
             }
@@ -2072,12 +2285,20 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "divergent",
-                        "score": 0.0134
+                        "score": 0.0134,
+                        "textStatus": "divergent",
+                        "textScore": 0.0134,
+                        "visualStatus": "divergent",
+                        "visualScore": 0.3333
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
                         "status": "divergent",
-                        "score": 0.4219
+                        "score": 0.4219,
+                        "textStatus": "divergent",
+                        "textScore": 0.4219,
+                        "visualStatus": "review",
+                        "visualScore": 0.5
                     }
                 }
             }
@@ -2267,12 +2488,20 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "divergent",
-                        "score": 0.2257
+                        "score": 0.2257,
+                        "textStatus": "divergent",
+                        "textScore": 0.2257,
+                        "visualStatus": "review",
+                        "visualScore": 0.6176
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
                         "status": "divergent",
-                        "score": 0.5124
+                        "score": 0.5124,
+                        "textStatus": "divergent",
+                        "textScore": 0.5124,
+                        "visualStatus": "review",
+                        "visualScore": 0.7333
                     }
                 }
             }
@@ -3555,12 +3784,20 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "faithful_enough",
-                        "score": 0.991
+                        "score": 0.991,
+                        "textStatus": "faithful_enough",
+                        "textScore": 0.991,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.8595
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
                         "status": "faithful_enough",
-                        "score": 0.9931
+                        "score": 0.9931,
+                        "textStatus": "faithful_enough",
+                        "textScore": 0.9931,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.9923
                     }
                 }
             }
@@ -3613,12 +3850,20 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "divergent",
-                        "score": 0.1915
+                        "score": 0.1915,
+                        "textStatus": "divergent",
+                        "textScore": 0.1915,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.8824
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
                         "status": "divergent",
-                        "score": 0.5007
+                        "score": 0.5007,
+                        "textStatus": "divergent",
+                        "textScore": 0.5007,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.8824
                     }
                 }
             }
@@ -3669,12 +3914,20 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "divergent",
-                        "score": 0.0396
+                        "score": 0.0396,
+                        "textStatus": "divergent",
+                        "textScore": 0.0396,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.7778
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
                         "status": "divergent",
-                        "score": 0.4389
+                        "score": 0.4389,
+                        "textStatus": "divergent",
+                        "textScore": 0.4389,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.7778
                     }
                 }
             }
@@ -3732,12 +3985,20 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "faithful_enough",
-                        "score": 0.9352
+                        "score": 0.9352,
+                        "textStatus": "faithful_enough",
+                        "textScore": 0.9352,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.9846
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
                         "status": "faithful_enough",
-                        "score": 0.9529
+                        "score": 0.9529,
+                        "textStatus": "faithful_enough",
+                        "textScore": 0.9529,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.9916
                     }
                 }
             }
@@ -3795,12 +4056,20 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "review",
-                        "score": 0.5831
+                        "score": 0.5831,
+                        "textStatus": "review",
+                        "textScore": 0.5831,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.9189
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
                         "status": "review",
-                        "score": 0.6753
+                        "score": 0.6753,
+                        "textStatus": "review",
+                        "textScore": 0.6753,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.9404
                     }
                 }
             }
@@ -3857,12 +4126,20 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "review",
-                        "score": 0.7309
+                        "score": 0.7309,
+                        "textStatus": "review",
+                        "textScore": 0.7309,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.918
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
                         "status": "faithful_enough",
-                        "score": 0.8175
+                        "score": 0.8175,
+                        "textStatus": "faithful_enough",
+                        "textScore": 0.8175,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.9876
                     }
                 }
             }
@@ -3909,12 +4186,20 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "no_text",
-                        "score": 0
+                        "score": 0,
+                        "textStatus": "no_text",
+                        "textScore": 0,
+                        "visualStatus": "no_visual_structure",
+                        "visualScore": 0
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
                         "status": "divergent",
-                        "score": 0.2303
+                        "score": 0.2303,
+                        "textStatus": "divergent",
+                        "textScore": 0.2303,
+                        "visualStatus": "divergent",
+                        "visualScore": 0
                     }
                 }
             }
@@ -3966,12 +4251,20 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "divergent",
-                        "score": 0.0926
+                        "score": 0.0926,
+                        "textStatus": "divergent",
+                        "textScore": 0.0926,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.8667
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
                         "status": "divergent",
-                        "score": 0.3226
+                        "score": 0.3226,
+                        "textStatus": "divergent",
+                        "textScore": 0.3226,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.8667
                     }
                 }
             }
@@ -4022,12 +4315,20 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "divergent",
-                        "score": 0.2588
+                        "score": 0.2588,
+                        "textStatus": "divergent",
+                        "textScore": 0.2588,
+                        "visualStatus": "review",
+                        "visualScore": 0.7143
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
                         "status": "divergent",
-                        "score": 0.4265
+                        "score": 0.4265,
+                        "textStatus": "divergent",
+                        "textScore": 0.4265,
+                        "visualStatus": "review",
+                        "visualScore": 0.7143
                     }
                 }
             }
@@ -4077,12 +4378,20 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "divergent",
-                        "score": 0.0396
+                        "score": 0.0396,
+                        "textStatus": "divergent",
+                        "textScore": 0.0396,
+                        "visualStatus": "review",
+                        "visualScore": 0.6667
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
                         "status": "divergent",
-                        "score": 0.4352
+                        "score": 0.4352,
+                        "textStatus": "divergent",
+                        "textScore": 0.4352,
+                        "visualStatus": "review",
+                        "visualScore": 0.6667
                     }
                 }
             }
@@ -4169,12 +4478,20 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "divergent",
-                        "score": 0.0745
+                        "score": 0.0745,
+                        "textStatus": "divergent",
+                        "textScore": 0.0745,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.8065
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
                         "status": "divergent",
-                        "score": 0.4529
+                        "score": 0.4529,
+                        "textStatus": "divergent",
+                        "textScore": 0.4529,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.9333
                     }
                 }
             }
@@ -4224,12 +4541,20 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "divergent",
-                        "score": 0.0308
+                        "score": 0.0308,
+                        "textStatus": "divergent",
+                        "textScore": 0.0308,
+                        "visualStatus": "review",
+                        "visualScore": 0.5455
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
                         "status": "divergent",
-                        "score": 0.4407
+                        "score": 0.4407,
+                        "textStatus": "divergent",
+                        "textScore": 0.4407,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.8182
                     }
                 }
             }
@@ -4279,12 +4604,20 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "divergent",
-                        "score": 0.0482
+                        "score": 0.0482,
+                        "textStatus": "divergent",
+                        "textScore": 0.0482,
+                        "visualStatus": "review",
+                        "visualScore": 0.6
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
                         "status": "divergent",
-                        "score": 0.4407
+                        "score": 0.4407,
+                        "textStatus": "divergent",
+                        "textScore": 0.4407,
+                        "visualStatus": "review",
+                        "visualScore": 0.6
                     }
                 }
             }
@@ -4333,12 +4666,20 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "divergent",
-                        "score": 0
+                        "score": 0,
+                        "textStatus": "divergent",
+                        "textScore": 0,
+                        "visualStatus": "review",
+                        "visualScore": 0.6
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
                         "status": "divergent",
-                        "score": 0.4247
+                        "score": 0.4247,
+                        "textStatus": "divergent",
+                        "textScore": 0.4247,
+                        "visualStatus": "review",
+                        "visualScore": 0.6
                     }
                 }
             }
@@ -4389,7 +4730,11 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "divergent",
-                        "score": 0.03
+                        "score": 0.03,
+                        "textStatus": "divergent",
+                        "textScore": 0.03,
+                        "visualStatus": "divergent",
+                        "visualScore": 0.3333
                     }
                 }
             }
@@ -4438,12 +4783,20 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "divergent",
-                        "score": 0.0091
+                        "score": 0.0091,
+                        "textStatus": "divergent",
+                        "textScore": 0.0091,
+                        "visualStatus": "divergent",
+                        "visualScore": 0.3333
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
                         "status": "divergent",
-                        "score": 0.4197
+                        "score": 0.4197,
+                        "textStatus": "divergent",
+                        "textScore": 0.4197,
+                        "visualStatus": "divergent",
+                        "visualScore": 0.3333
                     }
                 }
             }
@@ -4499,12 +4852,20 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "faithful_enough",
-                        "score": 0.9639
+                        "score": 0.9639,
+                        "textStatus": "faithful_enough",
+                        "textScore": 0.9639,
+                        "visualStatus": "divergent",
+                        "visualScore": 0.4802
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
                         "status": "faithful_enough",
-                        "score": 0.9795
+                        "score": 0.9795,
+                        "textStatus": "faithful_enough",
+                        "textScore": 0.9795,
+                        "visualStatus": "divergent",
+                        "visualScore": 0.4987
                     }
                 }
             }
@@ -4557,12 +4918,20 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "faithful_enough",
-                        "score": 0.9353
+                        "score": 0.9353,
+                        "textStatus": "faithful_enough",
+                        "textScore": 0.9353,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.9915
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
                         "status": "faithful_enough",
-                        "score": 0.9521
+                        "score": 0.9521,
+                        "textStatus": "faithful_enough",
+                        "textScore": 0.9521,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.9943
                     }
                 }
             }
@@ -4615,12 +4984,20 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "faithful_enough",
-                        "score": 0.9233
+                        "score": 0.9233,
+                        "textStatus": "faithful_enough",
+                        "textScore": 0.9233,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.9745
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
                         "status": "faithful_enough",
-                        "score": 0.9396
+                        "score": 0.9396,
+                        "textStatus": "faithful_enough",
+                        "textScore": 0.9396,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.9745
                     }
                 }
             }
@@ -4675,12 +5052,20 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "faithful_enough",
-                        "score": 0.9443
+                        "score": 0.9443,
+                        "textStatus": "faithful_enough",
+                        "textScore": 0.9443,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.9522
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
                         "status": "faithful_enough",
-                        "score": 0.9585
+                        "score": 0.9585,
+                        "textStatus": "faithful_enough",
+                        "textScore": 0.9585,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.9522
                     }
                 }
             }
@@ -4732,12 +5117,20 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "divergent",
-                        "score": 0.1315
+                        "score": 0.1315,
+                        "textStatus": "divergent",
+                        "textScore": 0.1315,
+                        "visualStatus": "review",
+                        "visualScore": 0.6667
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
                         "status": "divergent",
-                        "score": 0.4748
+                        "score": 0.4748,
+                        "textStatus": "divergent",
+                        "textScore": 0.4748,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.7692
                     }
                 }
             }
@@ -4787,12 +5180,20 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "divergent",
-                        "score": 0.0354
+                        "score": 0.0354,
+                        "textStatus": "divergent",
+                        "textScore": 0.0354,
+                        "visualStatus": "review",
+                        "visualScore": 0.6667
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
                         "status": "divergent",
-                        "score": 0.4341
+                        "score": 0.4341,
+                        "textStatus": "divergent",
+                        "textScore": 0.4341,
+                        "visualStatus": "review",
+                        "visualScore": 0.6667
                     }
                 }
             }
@@ -4847,12 +5248,20 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "divergent",
-                        "score": 0.0677
+                        "score": 0.0677,
+                        "textStatus": "divergent",
+                        "textScore": 0.0677,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.8
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
                         "status": "divergent",
-                        "score": 0.3142
+                        "score": 0.3142,
+                        "textStatus": "divergent",
+                        "textScore": 0.3142,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.9412
                     }
                 }
             }
@@ -4905,12 +5314,20 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "divergent",
-                        "score": 0.0473
+                        "score": 0.0473,
+                        "textStatus": "divergent",
+                        "textScore": 0.0473,
+                        "visualStatus": "review",
+                        "visualScore": 0.5455
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
                         "status": "divergent",
-                        "score": 0.4397
+                        "score": 0.4397,
+                        "textStatus": "divergent",
+                        "textScore": 0.4397,
+                        "visualStatus": "review",
+                        "visualScore": 0.6667
                     }
                 }
             }
@@ -4960,12 +5377,20 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "divergent",
-                        "score": 0.0269
+                        "score": 0.0269,
+                        "textStatus": "divergent",
+                        "textScore": 0.0269,
+                        "visualStatus": "review",
+                        "visualScore": 0.6
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
                         "status": "divergent",
-                        "score": 0.4319
+                        "score": 0.4319,
+                        "textStatus": "divergent",
+                        "textScore": 0.4319,
+                        "visualStatus": "review",
+                        "visualScore": 0.6
                     }
                 }
             }
@@ -5021,12 +5446,20 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "review",
-                        "score": 0.5508
+                        "score": 0.5508,
+                        "textStatus": "review",
+                        "textScore": 0.5508,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.911
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
                         "status": "review",
-                        "score": 0.7033
+                        "score": 0.7033,
+                        "textStatus": "review",
+                        "textScore": 0.7033,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.9715
                     }
                 }
             }
@@ -5076,12 +5509,20 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "divergent",
-                        "score": 0.0687
+                        "score": 0.0687,
+                        "textStatus": "divergent",
+                        "textScore": 0.0687,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.8
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
                         "status": "divergent",
-                        "score": 0.4492
+                        "score": 0.4492,
+                        "textStatus": "divergent",
+                        "textScore": 0.4492,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.8
                     }
                 }
             }
@@ -5130,12 +5571,20 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "divergent",
-                        "score": 0.0127
+                        "score": 0.0127,
+                        "textStatus": "divergent",
+                        "textScore": 0.0127,
+                        "visualStatus": "divergent",
+                        "visualScore": 0.4571
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
                         "status": "divergent",
-                        "score": 0.4292
+                        "score": 0.4292,
+                        "textStatus": "divergent",
+                        "textScore": 0.4292,
+                        "visualStatus": "divergent",
+                        "visualScore": 0.4706
                     }
                 }
             }
@@ -7401,7 +7850,11 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "faithful_enough",
-                        "score": 0.9985
+                        "score": 0.9985,
+                        "textStatus": "faithful_enough",
+                        "textScore": 0.9985,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.9017
                     }
                 }
             }
@@ -7451,12 +7904,20 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "divergent",
-                        "score": 0.2769
+                        "score": 0.2769,
+                        "textStatus": "divergent",
+                        "textScore": 0.2769,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.9697
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
                         "status": "divergent",
-                        "score": 0.5378
+                        "score": 0.5378,
+                        "textStatus": "divergent",
+                        "textScore": 0.5378,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.9697
                     }
                 }
             }
@@ -7505,12 +7966,20 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "divergent",
-                        "score": 0.0441
+                        "score": 0.0441,
+                        "textStatus": "divergent",
+                        "textScore": 0.0441,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.75
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
                         "status": "divergent",
-                        "score": 0.4389
+                        "score": 0.4389,
+                        "textStatus": "divergent",
+                        "textScore": 0.4389,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.75
                     }
                 }
             }
@@ -7600,12 +8069,20 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "divergent",
-                        "score": 0.2286
+                        "score": 0.2286,
+                        "textStatus": "divergent",
+                        "textScore": 0.2286,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.9219
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
                         "status": "divergent",
-                        "score": 0.5283
+                        "score": 0.5283,
+                        "textStatus": "divergent",
+                        "textScore": 0.5283,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.9677
                     }
                 }
             }
@@ -7656,12 +8133,20 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "divergent",
-                        "score": 0.0565
+                        "score": 0.0565,
+                        "textStatus": "divergent",
+                        "textScore": 0.0565,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.9273
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
                         "status": "divergent",
-                        "score": 0.4201
+                        "score": 0.4201,
+                        "textStatus": "divergent",
+                        "textScore": 0.4201,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.9623
                     }
                 }
             }
@@ -8329,12 +8814,20 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "review",
-                        "score": 0.6695
+                        "score": 0.6695,
+                        "textStatus": "review",
+                        "textScore": 0.6695,
+                        "visualStatus": "review",
+                        "visualScore": 0.6569
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
                         "status": "review",
-                        "score": 0.7741
+                        "score": 0.7741,
+                        "textStatus": "review",
+                        "textScore": 0.7741,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.9921
                     }
                 }
             }
@@ -8525,12 +9018,20 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "review",
-                        "score": 0.7507
+                        "score": 0.7507,
+                        "textStatus": "review",
+                        "textScore": 0.7507,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.9193
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
                         "status": "faithful_enough",
-                        "score": 0.8168
+                        "score": 0.8168,
+                        "textStatus": "faithful_enough",
+                        "textScore": 0.8168,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.9871
                     }
                 }
             }
@@ -8581,12 +9082,20 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "divergent",
-                        "score": 0.0045
+                        "score": 0.0045,
+                        "textStatus": "divergent",
+                        "textScore": 0.0045,
+                        "visualStatus": "divergent",
+                        "visualScore": 0
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
                         "status": "divergent",
-                        "score": 0.4176
+                        "score": 0.4176,
+                        "textStatus": "divergent",
+                        "textScore": 0.4176,
+                        "visualStatus": "divergent",
+                        "visualScore": 0
                     }
                 }
             }
@@ -8637,12 +9146,20 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "divergent",
-                        "score": 0.009
+                        "score": 0.009,
+                        "textStatus": "divergent",
+                        "textScore": 0.009,
+                        "visualStatus": "divergent",
+                        "visualScore": 0
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
                         "status": "divergent",
-                        "score": 0.4207
+                        "score": 0.4207,
+                        "textStatus": "divergent",
+                        "textScore": 0.4207,
+                        "visualStatus": "divergent",
+                        "visualScore": 0
                     }
                 }
             }
@@ -8691,12 +9208,20 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "divergent",
-                        "score": 0.1686
+                        "score": 0.1686,
+                        "textStatus": "divergent",
+                        "textScore": 0.1686,
+                        "visualStatus": "review",
+                        "visualScore": 0.5
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
                         "status": "divergent",
-                        "score": 0.4923
+                        "score": 0.4923,
+                        "textStatus": "divergent",
+                        "textScore": 0.4923,
+                        "visualStatus": "review",
+                        "visualScore": 0.5
                     }
                 }
             }
@@ -8745,12 +9270,20 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "divergent",
-                        "score": 0.0398
+                        "score": 0.0398,
+                        "textStatus": "divergent",
+                        "textScore": 0.0398,
+                        "visualStatus": "review",
+                        "visualScore": 0.5
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
                         "status": "divergent",
-                        "score": 0.4372
+                        "score": 0.4372,
+                        "textStatus": "divergent",
+                        "textScore": 0.4372,
+                        "visualStatus": "review",
+                        "visualScore": 0.5
                     }
                 }
             }
@@ -8800,12 +9333,20 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "divergent",
-                        "score": 0.0504
+                        "score": 0.0504,
+                        "textStatus": "divergent",
+                        "textScore": 0.0504,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.9459
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
                         "status": "divergent",
-                        "score": 0.4308
+                        "score": 0.4308,
+                        "textStatus": "divergent",
+                        "textScore": 0.4308,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.9722
                     }
                 }
             }
@@ -8855,12 +9396,20 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "review",
-                        "score": 0.5753
+                        "score": 0.5753,
+                        "textStatus": "review",
+                        "textScore": 0.5753,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.9615
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
                         "status": "review",
-                        "score": 0.6829
+                        "score": 0.6829,
+                        "textStatus": "review",
+                        "textScore": 0.6829,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.9621
                     }
                 }
             }
@@ -8910,12 +9459,20 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "review",
-                        "score": 0.7414
+                        "score": 0.7414,
+                        "textStatus": "review",
+                        "textScore": 0.7414,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.9881
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
                         "status": "review",
-                        "score": 0.7685
+                        "score": 0.7685,
+                        "textStatus": "review",
+                        "textScore": 0.7685,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.9923
                     }
                 }
             }
@@ -8966,7 +9523,11 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "divergent",
-                        "score": 0.1572
+                        "score": 0.1572,
+                        "textStatus": "divergent",
+                        "textScore": 0.1572,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 1
                     }
                 }
             }
@@ -9017,7 +9578,11 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "divergent",
-                        "score": 0.1106
+                        "score": 0.1106,
+                        "textStatus": "divergent",
+                        "textScore": 0.1106,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 1
                     }
                 }
             }
@@ -9070,7 +9635,11 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "divergent",
-                        "score": 0.4273
+                        "score": 0.4273,
+                        "textStatus": "divergent",
+                        "textScore": 0.4273,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 1
                     }
                 }
             }
@@ -9124,7 +9693,11 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "faithful_enough",
-                        "score": 0.9917
+                        "score": 0.9917,
+                        "textStatus": "faithful_enough",
+                        "textScore": 0.9917,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.9966
                     }
                 }
             }
@@ -10138,7 +10711,11 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "faithful_enough",
-                        "score": 0.8988
+                        "score": 0.8988,
+                        "textStatus": "faithful_enough",
+                        "textScore": 0.8988,
+                        "visualStatus": "review",
+                        "visualScore": 0.5611
                     }
                 }
             }
@@ -10993,7 +11570,11 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "faithful_enough",
-                        "score": 0.9545
+                        "score": 0.9545,
+                        "textStatus": "faithful_enough",
+                        "textScore": 0.9545,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.8303
                     }
                 }
             }
@@ -11866,7 +12447,11 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "faithful_enough",
-                        "score": 0.8153
+                        "score": 0.8153,
+                        "textStatus": "faithful_enough",
+                        "textScore": 0.8153,
+                        "visualStatus": "divergent",
+                        "visualScore": 0.4545
                     }
                 }
             }
@@ -12602,7 +13187,11 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "faithful_enough",
-                        "score": 0.8826
+                        "score": 0.8826,
+                        "textStatus": "faithful_enough",
+                        "textScore": 0.8826,
+                        "visualStatus": "review",
+                        "visualScore": 0.6815
                     }
                 }
             }
@@ -12652,7 +13241,11 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "divergent",
-                        "score": 0.0585
+                        "score": 0.0585,
+                        "textStatus": "divergent",
+                        "textScore": 0.0585,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 1
                     }
                 }
             }

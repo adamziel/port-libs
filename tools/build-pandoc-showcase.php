@@ -1175,7 +1175,9 @@ function showcase_record_faithfulness(string $siteDir, array $record): array
     if ($baselineKey === '') {
         return ['baseline' => null, 'comparisons' => []];
     }
-    $baselineText = showcase_output_text($siteDir, (string) ($record[$baselineKey]['path'] ?? ''));
+    $baselinePath = (string) ($record[$baselineKey]['path'] ?? '');
+    $baselineText = showcase_output_text($siteDir, $baselinePath);
+    $baselineVisual = showcase_output_visual_signature($siteDir, $baselinePath);
     if ($baselineText === '') {
         return ['baseline' => null, 'comparisons' => []];
     }
@@ -1191,14 +1193,26 @@ function showcase_record_faithfulness(string $siteDir, array $record): array
                 'label' => $label,
                 'status' => 'no_text',
                 'score' => 0.0,
+                'textStatus' => 'no_text',
+                'textScore' => 0.0,
+                'visualStatus' => 'no_visual_structure',
+                'visualScore' => 0.0,
             ];
             continue;
         }
-        $score = showcase_text_similarity($baselineText, $text);
+        $textScore = showcase_text_similarity($baselineText, $text);
+        $visualScore = showcase_visual_signature_similarity(
+            $baselineVisual,
+            showcase_output_visual_signature($siteDir, (string) ($record[$key]['path'] ?? ''))
+        );
         $comparisons[$key] = [
             'label' => $label,
-            'status' => $score >= 0.80 ? 'faithful_enough' : ($score >= 0.55 ? 'review' : 'divergent'),
-            'score' => $score,
+            'status' => $textScore >= 0.80 ? 'faithful_enough' : ($textScore >= 0.55 ? 'review' : 'divergent'),
+            'score' => $textScore,
+            'textStatus' => $textScore >= 0.80 ? 'faithful_enough' : ($textScore >= 0.55 ? 'review' : 'divergent'),
+            'textScore' => $textScore,
+            'visualStatus' => $visualScore >= 0.75 ? 'faithful_enough' : ($visualScore >= 0.50 ? 'review' : 'divergent'),
+            'visualScore' => $visualScore,
         ];
     }
 
@@ -1210,6 +1224,18 @@ function showcase_record_faithfulness(string $siteDir, array $record): array
 
 function showcase_output_text(string $siteDir, string $relativePath): string
 {
+    $html = showcase_output_html($siteDir, $relativePath);
+    if ($html === '') {
+        return '';
+    }
+    $text = html_entity_decode(strip_tags($html), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    $text = preg_replace('/\s+/u', ' ', $text) ?? $text;
+
+    return trim($text);
+}
+
+function showcase_output_html(string $siteDir, string $relativePath): string
+{
     if ($relativePath === '' || str_contains($relativePath, "\0") || str_contains($relativePath, '..')) {
         return '';
     }
@@ -1218,13 +1244,60 @@ function showcase_output_text(string $siteDir, string $relativePath): string
         return '';
     }
     $html = file_get_contents($path);
-    if (!is_string($html) || $html === '') {
-        return '';
-    }
-    $text = html_entity_decode(strip_tags($html), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-    $text = preg_replace('/\s+/u', ' ', $text) ?? $text;
 
-    return trim($text);
+    return is_string($html) ? $html : '';
+}
+
+/**
+ * @return array<string, int>
+ */
+function showcase_output_visual_signature(string $siteDir, string $relativePath): array
+{
+    $html = showcase_output_html($siteDir, $relativePath);
+    if ($html === '') {
+        return [];
+    }
+    $html = preg_replace('/<!--.*?-->/s', '', $html) ?? $html;
+    $html = preg_replace('/<(script|style)\b[^>]*>.*?<\/\1>/is', '', $html) ?? $html;
+    preg_match_all('/<\s*(h[1-6]|p|li|ul|ol|table|thead|tbody|tr|th|td|img|figure|figcaption|pre|code|blockquote|math|svg)\b/i', $html, $matches);
+
+    $counts = [];
+    foreach ($matches[1] ?? [] as $tag) {
+        $tag = strtolower((string) $tag);
+        if (preg_match('/^h[1-6]$/', $tag) === 1) {
+            $counts['heading'] = ($counts['heading'] ?? 0) + 1;
+        }
+        $counts[$tag] = ($counts[$tag] ?? 0) + 1;
+    }
+    ksort($counts);
+
+    return $counts;
+}
+
+/**
+ * @param array<string, int> $expected
+ * @param array<string, int> $actual
+ */
+function showcase_visual_signature_similarity(array $expected, array $actual): float
+{
+    if ($expected === [] && $actual === []) {
+        return 1.0;
+    }
+    if ($expected === [] || $actual === []) {
+        return 0.0;
+    }
+
+    $keys = array_values(array_unique([...array_keys($expected), ...array_keys($actual)]));
+    $overlap = 0;
+    $total = 0;
+    foreach ($keys as $key) {
+        $left = max(0, (int) ($expected[$key] ?? 0));
+        $right = max(0, (int) ($actual[$key] ?? 0));
+        $overlap += min($left, $right);
+        $total += max($left, $right);
+    }
+
+    return $total === 0 ? 1.0 : round($overlap / $total, 4);
 }
 
 function showcase_text_similarity(string $expected, string $actual): float
@@ -1261,7 +1334,7 @@ function showcase_text_tokens(string $text): array
 
 /**
  * @param list<array<string, mixed>> $records
- * @return array{comparisons:int, faithfulEnough:int, review:int, divergent:int, noText:int}
+ * @return array{comparisons:int, faithfulEnough:int, review:int, divergent:int, noText:int, visualComparisons:int, visualFaithfulEnough:int, visualReview:int, visualDivergent:int, visualNoStructure:int}
  */
 function showcase_faithfulness_summary(array $records): array
 {
@@ -1271,6 +1344,11 @@ function showcase_faithfulness_summary(array $records): array
         'review' => 0,
         'divergent' => 0,
         'noText' => 0,
+        'visualComparisons' => 0,
+        'visualFaithfulEnough' => 0,
+        'visualReview' => 0,
+        'visualDivergent' => 0,
+        'visualNoStructure' => 0,
     ];
     foreach ($records as $record) {
         $faithfulness = $record['faithfulness'] ?? [];
@@ -1291,6 +1369,17 @@ function showcase_faithfulness_summary(array $records): array
                 $summary['divergent']++;
             } else {
                 $summary['noText']++;
+            }
+            $summary['visualComparisons']++;
+            $visualStatus = (string) ($comparison['visualStatus'] ?? '');
+            if ($visualStatus === 'faithful_enough') {
+                $summary['visualFaithfulEnough']++;
+            } elseif ($visualStatus === 'review') {
+                $summary['visualReview']++;
+            } elseif ($visualStatus === 'divergent') {
+                $summary['visualDivergent']++;
+            } else {
+                $summary['visualNoStructure']++;
             }
         }
     }
@@ -1544,6 +1633,7 @@ function write_conversion_report(
     $html .= '<div class="stat"><strong>' . h((string) $summary['successfulConversions']) . '/' . h((string) $summary['totalConversions']) . '</strong><span>successful conversions</span></div>';
     $html .= '<div class="stat"><strong>' . h((string) $summary['failedConversions']) . '</strong><span>known failures</span></div>';
     $html .= '<div class="stat"><strong>' . h((string) ($faithfulnessSummary['faithfulEnough'] ?? 0)) . '/' . h((string) ($faithfulnessSummary['comparisons'] ?? 0)) . '</strong><span>text-faithful comparisons</span></div>';
+    $html .= '<div class="stat"><strong>' . h((string) ($faithfulnessSummary['visualFaithfulEnough'] ?? 0)) . '/' . h((string) ($faithfulnessSummary['visualComparisons'] ?? 0)) . '</strong><span>visual-structure matches</span></div>';
     $html .= '</div><div class="hero-actions"><a href="index.html">Full showcase</a><a href="playground-converter.html">Convert in WordPress Playground</a><a href="manifest.json">Manifest JSON</a></div></div></header>';
     $html .= '<main class="content-page report-page">';
 
@@ -1555,12 +1645,19 @@ function write_conversion_report(
     }
     $html .= '</div></section>';
 
-    $html .= '<section><h2>Faithful enough text check</h2>';
-    $html .= '<p>This check compares normalized visible text from generated outputs against Haskell Pandoc when available, or PHP HTML as a fallback baseline. It does not prove visual fidelity, but it catches missing or badly divergent text in otherwise successful conversions.</p>';
+    $html .= '<section><h2>Faithful enough diff checks</h2>';
+    $html .= '<p>These checks compare generated outputs against Haskell Pandoc when available, or PHP HTML as a fallback baseline. Text scores compare normalized visible words. Visual-structure scores compare the rendered document shape: headings, paragraphs, lists, tables, images, figures, captions, code, quotes, and math.</p>';
+    $html .= '<h3>Text</h3>';
     $html .= '<div class="report-grid">';
     $html .= '<div class="report-card"><h3>Faithful enough</h3><p class="report-number">' . h((string) ($faithfulnessSummary['faithfulEnough'] ?? 0)) . '</p></div>';
     $html .= '<div class="report-card"><h3>Needs review</h3><p class="report-number">' . h((string) ($faithfulnessSummary['review'] ?? 0)) . '</p></div>';
     $html .= '<div class="report-card"><h3>Divergent or empty</h3><p class="report-number">' . h((string) (($faithfulnessSummary['divergent'] ?? 0) + ($faithfulnessSummary['noText'] ?? 0))) . '</p></div>';
+    $html .= '</div>';
+    $html .= '<h3>Visual structure</h3>';
+    $html .= '<div class="report-grid">';
+    $html .= '<div class="report-card"><h3>Faithful enough</h3><p class="report-number">' . h((string) ($faithfulnessSummary['visualFaithfulEnough'] ?? 0)) . '</p></div>';
+    $html .= '<div class="report-card"><h3>Needs review</h3><p class="report-number">' . h((string) ($faithfulnessSummary['visualReview'] ?? 0)) . '</p></div>';
+    $html .= '<div class="report-card"><h3>Divergent or empty</h3><p class="report-number">' . h((string) (($faithfulnessSummary['visualDivergent'] ?? 0) + ($faithfulnessSummary['visualNoStructure'] ?? 0))) . '</p></div>';
     $html .= '</div></section>';
 
     $html .= '<section><h2>Curated stress showcase</h2><p>These are representative real-world files from the pulled corpus: leaflets, brochures, a scanned book, image-heavy packages, table-heavy office documents, and rich markup fixtures.</p>';
