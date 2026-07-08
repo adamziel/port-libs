@@ -68,6 +68,20 @@ return [
         $t->same(false, str_contains($blocks, '<!-- wp:html -->'), 'structured non-raw blocks should avoid Custom HTML blocks');
     },
 
+    'renders paragraph and heading text alignment as native block attrs' => static function (TestRunner $t) use ($text): void {
+        $document = new AstNode('document', [], [
+            new AstNode('paragraph', ['align' => 'center'], [$text('Centered paragraph.')]),
+            new AstNode('heading', ['level' => 2, 'align' => 'right'], [$text('Right heading')]),
+        ]);
+
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->contains('<!-- wp:paragraph {"align":"center"} -->', $blocks);
+        $t->contains('<p class="has-text-align-center">Centered paragraph.</p>', $blocks);
+        $t->contains('<!-- wp:heading {"level":2,"textAlign":"right"} -->', $blocks);
+        $t->contains('<h2 class="has-text-align-right">Right heading</h2>', $blocks);
+    },
+
     'keeps raw html as an explicit custom html block' => static function (TestRunner $t): void {
         $document = new AstNode('document', [], [
             new AstNode('raw_html', ['html' => '<aside>Source HTML</aside>']),

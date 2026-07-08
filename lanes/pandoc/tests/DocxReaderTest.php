@@ -322,6 +322,26 @@ return [
         $t->same(['text', 'code', 'text'], array_map(static fn ($node): string => $node->type, $paragraph->children));
         $t->same('inline   code', $paragraph->children[1]->attr('text'));
     },
+    'preserves docx paragraph and heading alignment for wordpress native attrs' => static function (TestRunner $t) use ($buildDocxReaderPackagePartsBytes): void {
+        $bytes = $buildDocxReaderPackagePartsBytes([
+            '[Content_Types].xml' => '<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/></Types>',
+            'word/styles.xml' => '<?xml version="1.0"?><w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:style w:type="paragraph" w:styleId="CenteredBody"><w:name w:val="Centered Body"/><w:pPr><w:jc w:val="center"/></w:pPr></w:style><w:style w:type="paragraph" w:styleId="Heading1"><w:name w:val="heading 1"/><w:pPr><w:jc w:val="right"/></w:pPr></w:style></w:styles>',
+            'word/document.xml' => '<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:pPr><w:pStyle w:val="CenteredBody"/></w:pPr><w:r><w:t>Centered by style.</w:t></w:r></w:p><w:p><w:pPr><w:pStyle w:val="CenteredBody"/><w:jc w:val="both"/></w:pPr><w:r><w:t>Justified directly.</w:t></w:r></w:p><w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr><w:r><w:t>Right heading</w:t></w:r></w:p></w:body></w:document>',
+        ]);
+
+        $document = (new DocxReader())->read($bytes);
+        $blocks = $document->children;
+        $wordpress = (new WordPressBlockWriter())->write($document);
+
+        $t->same('paragraph', $blocks[0]->type);
+        $t->same('center', $blocks[0]->attr('align'));
+        $t->same('justify', $blocks[1]->attr('align'));
+        $t->same('heading', $blocks[2]->type);
+        $t->same('right', $blocks[2]->attr('align'));
+        $t->contains('<!-- wp:paragraph {"align":"center"} -->', $wordpress);
+        $t->contains('<!-- wp:paragraph {"align":"justify"} -->', $wordpress);
+        $t->contains('<!-- wp:heading {"level":1,"textAlign":"right"} -->', $wordpress);
+    },
     'nests docx direct underline inside strong and emphasis wrappers' => static function (TestRunner $t) use ($buildDocxReaderPackageBytes): void {
         $bytes = $buildDocxReaderPackageBytes('<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:rPr><w:i/><w:u w:val="single"/></w:rPr><w:t>italic underlined</w:t></w:r></w:p><w:p><w:r><w:rPr><w:b/><w:u w:val="single"/></w:rPr><w:t>bold underlined</w:t></w:r></w:p><w:p><w:r><w:rPr><w:b/><w:i/><w:u w:val="single"/></w:rPr><w:t>bold italic underlined</w:t></w:r></w:p></w:body></w:document>');
 

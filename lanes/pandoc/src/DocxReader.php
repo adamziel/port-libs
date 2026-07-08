@@ -1552,7 +1552,13 @@ final class DocxReader
             return new AstNode('heading', $this->headingAttrs($paragraph, $level, $text), $inlines);
         }
 
-        return new AstNode('paragraph', ['text' => $text], $inlines);
+        $attrs = ['text' => $text];
+        $alignment = $this->paragraphAlignment($paragraph);
+        if ($alignment !== '') {
+            $attrs['align'] = $alignment;
+        }
+
+        return new AstNode('paragraph', $attrs, $inlines);
     }
 
     /**
@@ -1566,6 +1572,11 @@ final class DocxReader
             'text' => $text,
         ];
 
+        $alignment = $this->paragraphAlignment($paragraph);
+        if ($alignment !== '') {
+            $attrs['align'] = $alignment;
+        }
+
         $styleId = $this->paragraphStyleId($paragraph);
         if ($styleId !== '') {
             $classes = $this->headingStyleClasses($styleId);
@@ -1575,6 +1586,33 @@ final class DocxReader
         }
 
         return $attrs;
+    }
+
+    private function paragraphAlignment(\DOMElement $paragraph): string
+    {
+        $pPr = $this->directChild($paragraph, 'pPr');
+        $jc = $pPr instanceof \DOMElement ? $this->directChild($pPr, 'jc') : null;
+        if ($jc instanceof \DOMElement) {
+            return $this->wordJustificationAlignment($this->attr($jc, self::W_NS, 'val'));
+        }
+
+        $styleId = $this->paragraphStyleId($paragraph);
+        if ($styleId === '') {
+            return '';
+        }
+
+        return (string) ($this->styles[$styleId]['paragraphAlignment'] ?? '');
+    }
+
+    private function wordJustificationAlignment(string $value): string
+    {
+        return match (strtolower(trim($value))) {
+            'center' => 'center',
+            'right', 'end' => 'right',
+            'both', 'distribute', 'mediumkashida', 'highkashida', 'lowkashida', 'thai_distribute' => 'justify',
+            'left', 'start' => 'left',
+            default => '',
+        };
     }
 
     /**
@@ -5505,6 +5543,13 @@ final class DocxReader
                         $entry['basedOn'] = $basedOn;
                     }
                 } elseif ($child->localName === 'pPr') {
+                    $jc = $this->directChild($child, 'jc');
+                    if ($jc instanceof \DOMElement) {
+                        $alignment = $this->wordJustificationAlignment($this->attr($jc, self::W_NS, 'val'));
+                        if ($alignment !== '') {
+                            $entry['paragraphAlignment'] = $alignment;
+                        }
+                    }
                     $ind = $this->directChild($child, 'ind');
                     if ($ind instanceof \DOMElement) {
                         $left = $this->attr($ind, self::W_NS, 'left');

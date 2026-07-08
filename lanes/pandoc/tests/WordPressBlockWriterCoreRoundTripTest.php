@@ -158,6 +158,8 @@ return [
         static function (TestRunner $t) use ($text, $paragraph, $listItem, $tableCell, $tableRow): void {
             $document = new AstNode('document', [], [
                 new AstNode('heading', ['level' => 2, 'id' => 'imported-heading'], [$text('Imported heading')]),
+                new AstNode('heading', ['level' => 3, 'align' => 'right'], [$text('Right aligned heading')]),
+                new AstNode('paragraph', ['align' => 'center'], [$text('Centered source paragraph.')]),
                 new AstNode('paragraph', [], [
                     $text('Body paragraph with '),
                     new AstNode('strong', [], [$text('strong')]),
@@ -193,6 +195,8 @@ return [
             ]);
 
             $blocks = (new WordPressBlockWriter())->write($document);
+            $t->contains('<!-- wp:heading {"level":3,"textAlign":"right"} -->', $blocks);
+            $t->contains('<!-- wp:paragraph {"align":"center"} -->', $blocks);
 
             pandoc_assert_wordpress_round_trip($t, $blocks, [
                 'core/heading',

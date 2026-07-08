@@ -59,7 +59,12 @@ final class WordPressBlockWriter
             }
             if ($node->type === 'heading') {
                 $level = (int) $node->attr('level', 2);
-                $blocks[] = '<!-- wp:heading {"level":' . $level . '} -->'
+                $headingAttrs = ['level' => $level];
+                $alignment = $this->blockTextAlignment($node);
+                if ($alignment !== '') {
+                    $headingAttrs['textAlign'] = $alignment;
+                }
+                $blocks[] = $this->blockComment('heading', $headingAttrs)
                     . "\n" . '<h' . $level . $this->renderHeadingAttrs($node) . '>' . $this->renderInlines($node) . '</h' . $level . '>'
                     . "\n" . '<!-- /wp:heading -->';
             } elseif ($node->type === 'paragraph') {
@@ -356,8 +361,14 @@ final class WordPressBlockWriter
             return $this->renderParagraphImageBlock($node->children[0]);
         }
 
-        return '<!-- wp:paragraph -->'
-            . "\n" . '<p' . $this->renderBlockHtmlAttrs($node) . '>' . $this->renderInlines($node) . '</p>'
+        $alignment = $this->blockTextAlignment($node);
+        $commentAttrs = $alignment === '' ? [] : ['align' => $alignment];
+        $htmlAttrs = $alignment === ''
+            ? $this->renderBlockHtmlAttrs($node)
+            : $this->renderBlockHtmlAttrsWithClasses($node, ['has-text-align-' . $alignment]);
+
+        return $this->blockComment('paragraph', $commentAttrs)
+            . "\n" . '<p' . $htmlAttrs . '>' . $this->renderInlines($node) . '</p>'
             . "\n" . '<!-- /wp:paragraph -->';
     }
 
@@ -679,7 +690,30 @@ final class WordPressBlockWriter
 
     private function renderHeadingAttrs(AstNode $node): string
     {
-        return $this->renderBlockHtmlAttrs($node);
+        $alignment = $this->blockTextAlignment($node);
+
+        return $alignment === ''
+            ? $this->renderBlockHtmlAttrs($node)
+            : $this->renderBlockHtmlAttrsWithClasses($node, ['has-text-align-' . $alignment]);
+    }
+
+    /**
+     * @param array<string, mixed> $attrs
+     */
+    private function blockComment(string $name, array $attrs = []): string
+    {
+        if ($attrs === []) {
+            return '<!-- wp:' . $name . ' -->';
+        }
+
+        return '<!-- wp:' . $name . ' ' . json_encode($attrs, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES) . ' -->';
+    }
+
+    private function blockTextAlignment(AstNode $node): string
+    {
+        $alignment = strtolower(trim((string) $node->attr('align', $node->attr('textAlign', ''))));
+
+        return in_array($alignment, ['left', 'center', 'right', 'justify'], true) ? $alignment : '';
     }
 
     private function orderedListHtmlType(string $style): string
