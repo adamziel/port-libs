@@ -30,8 +30,11 @@ try {
         'seed' => commandSeed($repoRoot, $root, $dbPath),
         'add-url' => commandAddUrl($repoRoot, $root, $dbPath, $args),
         'discover-github' => commandDiscoverGithub($repoRoot, $root, $dbPath, $args),
+        'discover-known' => commandDiscoverKnown($repoRoot, $root, $dbPath, $args),
         'fetch' => commandFetch($repoRoot, $root, $dbPath, $args),
+        'fetch-balanced' => commandFetchBalanced($repoRoot, $root, $dbPath, $args),
         'render' => commandRender($repoRoot, $root, $dbPath, $args),
+        'render-balanced' => commandRenderBalanced($repoRoot, $root, $dbPath, $args),
         'render-one' => commandRenderOne($repoRoot, $root, $dbPath, $args),
         'report' => commandReport($repoRoot, $root, $dbPath, $args),
         'formats' => commandFormats($repoRoot, $root, $dbPath),
@@ -52,8 +55,11 @@ Commands:
   seed                         Insert curated organic online seed URLs.
   add-url --url=URL --format=F  Insert one organic online candidate URL.
   discover-github [--limit=N]  Discover public files from built-in GitHub repositories.
+  discover-known [--limit=N]   Discover public files using format-specific GitHub path rules.
   fetch [--limit=N]            Download queued candidate URLs into the local corpus store.
+  fetch-balanced [--limit=N]   Fetch queued candidates across under-target formats.
   render [--limit=N]           Render fetched documents through reference and PHP/WordPress paths.
+  render-balanced [--limit=N]  Render pending documents across under-rendered formats.
   report                       Write JSON and HTML review reports.
   formats                      Print supported input formats and current corpus counts.
 
@@ -61,6 +67,7 @@ Options:
   --root=PATH                  Corpus root. Default: .port-libs/document-corpus
   --db=PATH                    SQLite DB path. Default: ROOT/corpus.sqlite
   --limit=N                    Maximum rows to process for fetch/render/discovery.
+  --per-format=N               Per-format cap for balanced fetch/render. Default: 3.
   --format=FORMAT              Restrict fetch/render to one input format.
   --origin=TEXT                Origin for add-url. Default: URL host.
   --title=TEXT                 Human label for add-url. Default: URL basename.
@@ -186,6 +193,60 @@ function commandDiscoverGithub(string $repoRoot, string $root, string $dbPath, a
     fwrite(STDOUT, "Discovered {$inserted} new candidates from {$seen} matching GitHub tree entries\n");
 }
 
+function commandDiscoverKnown(string $repoRoot, string $root, string $dbPath, array $args): void
+{
+    commandInit($repoRoot, $root, $dbPath);
+    $db = db($dbPath);
+    $limit = positiveInt($args['limit'] ?? null, 300);
+    $inserted = 0;
+    $seen = 0;
+    $formatCounts = corpusCandidateCounts($db);
+    $formatTargets = corpusFormatTargets($db);
+    foreach (knownGitHubDiscoveryRepos() as $repo) {
+        if ($inserted >= $limit) {
+            break;
+        }
+        try {
+            $tree = githubTree((string) $repo['repo'], (string) $repo['ref']);
+        } catch (Throwable $error) {
+            fwrite(STDERR, 'known discovery skipped ' . (string) $repo['repo'] . '@' . (string) $repo['ref'] . ': ' . $error->getMessage() . "\n");
+            continue;
+        }
+        foreach ($tree as $node) {
+            if ($inserted >= $limit) {
+                break 2;
+            }
+            if (($node['type'] ?? '') !== 'blob') {
+                continue;
+            }
+            $path = (string) ($node['path'] ?? '');
+            $size = (int) ($node['size'] ?? 0);
+            $format = knownFormatForPath($repo, $path);
+            if ($format === null || $size <= 0 || $size > maxBytesForFormat($format) || shouldSkipOrganicPath($path)) {
+                continue;
+            }
+            if (($formatCounts[$format] ?? 0) >= ($formatTargets[$format] ?? 25)) {
+                continue;
+            }
+            $seen++;
+            $url = 'https://raw.githubusercontent.com/' . $repo['repo'] . '/' . rawurlencode((string) $repo['ref']) . '/' . str_replace('%2F', '/', rawurlencode($path));
+            $new = insertCandidate($db, [
+                'url' => $url,
+                'format' => $format,
+                'source_kind' => 'github-known-tree',
+                'origin' => (string) $repo['repo'],
+                'title' => basename($path),
+                'discovery_meta' => json_encode(['repo' => $repo['repo'], 'ref' => $repo['ref'], 'path' => $path, 'size' => $size, 'knownRules' => true], JSON_THROW_ON_ERROR),
+            ]);
+            if ($new) {
+                $inserted++;
+                $formatCounts[$format] = ($formatCounts[$format] ?? 0) + 1;
+            }
+        }
+    }
+    fwrite(STDOUT, "Discovered {$inserted} new known-format candidates from {$seen} matching GitHub tree entries\n");
+}
+
 function commandFetch(string $repoRoot, string $root, string $dbPath, array $args): void
 {
     commandInit($repoRoot, $root, $dbPath);
@@ -193,35 +254,29 @@ function commandFetch(string $repoRoot, string $root, string $dbPath, array $arg
     $limit = positiveInt($args['limit'] ?? null, 100);
     $format = trim((string) ($args['format'] ?? ''));
     $rows = pendingCandidates($db, $limit, $format);
+    [$ok, $failed] = fetchCandidateRows($db, $dbPath, $rows);
+    fwrite(STDOUT, "Fetch complete: ok={$ok} failed={$failed}\n");
+}
+
+function commandFetchBalanced(string $repoRoot, string $root, string $dbPath, array $args): void
+{
+    commandInit($repoRoot, $root, $dbPath);
+    $db = db($dbPath);
+    $limit = positiveInt($args['limit'] ?? null, 100);
+    $perFormat = positiveInt($args['per-format'] ?? null, 3);
     $ok = 0;
     $failed = 0;
-    foreach ($rows as $row) {
-        try {
-            $fetch = fetchUrl((string) $row['url'], [], maxBytesForFormat((string) $row['format']));
-            $bytes = $fetch['bytes'];
-            if ($bytes === '') {
-                throw new RuntimeException('empty response body');
-            }
-            validateCandidateBytes((string) $row['format'], (string) $row['url'], $bytes);
-            if (strlen($bytes) > maxBytesForFormat((string) $row['format'])) {
-                throw new RuntimeException('download exceeds bounded corpus size for format');
-            }
-            $sha = hash('sha256', $bytes);
-            $extension = extensionForFormat((string) $row['format'], (string) $row['url']);
-            $relativePath = 'files/' . substr($sha, 0, 2) . '/' . $sha . '.' . $extension;
-            $path = dirname($dbPath) . '/' . $relativePath;
-            writeBytes($path, $bytes);
-            upsertDocument($db, $row, $relativePath, $sha, strlen($bytes), $fetch);
-            markCandidate($db, (int) $row['id'], 'fetched', null);
-            $ok++;
-            fwrite(STDOUT, "fetched {$row['format']} {$row['url']}\n");
-        } catch (Throwable $error) {
-            markCandidate($db, (int) $row['id'], 'failed', $error->getMessage());
-            $failed++;
-            fwrite(STDERR, "failed {$row['url']}: {$error->getMessage()}\n");
+    foreach (balancedFetchFormats($db) as $format) {
+        if ($ok + $failed >= $limit) {
+            break;
         }
+        $remaining = $limit - $ok - $failed;
+        $rows = pendingCandidates($db, min($perFormat, $remaining), $format);
+        [$formatOk, $formatFailed] = fetchCandidateRows($db, $dbPath, $rows);
+        $ok += $formatOk;
+        $failed += $formatFailed;
     }
-    fwrite(STDOUT, "Fetch complete: ok={$ok} failed={$failed}\n");
+    fwrite(STDOUT, "Balanced fetch complete: ok={$ok} failed={$failed}\n");
 }
 
 function commandRender(string $repoRoot, string $root, string $dbPath, array $args): void
@@ -231,38 +286,29 @@ function commandRender(string $repoRoot, string $root, string $dbPath, array $ar
     $limit = positiveInt($args['limit'] ?? null, 50);
     $format = trim((string) ($args['format'] ?? ''));
     $rows = pendingDocuments($db, $limit, $format);
+    [$ok, $failed] = renderDocumentRows($db, $dbPath, $rows);
+    fwrite(STDOUT, "Render complete: ok={$ok} failed={$failed}\n");
+}
+
+function commandRenderBalanced(string $repoRoot, string $root, string $dbPath, array $args): void
+{
+    commandInit($repoRoot, $root, $dbPath);
+    $db = db($dbPath);
+    $limit = positiveInt($args['limit'] ?? null, 80);
+    $perFormat = positiveInt($args['per-format'] ?? null, 3);
     $ok = 0;
     $failed = 0;
-    foreach ($rows as $row) {
-        $result = runCommand([
-            PHP_BINARY,
-            '-d',
-            'memory_limit=' . (getenv('DOCUMENT_CORPUS_RENDER_MEMORY_LIMIT') ?: '1024M'),
-            __FILE__,
-            'render-one',
-            '--db=' . $dbPath,
-            '--id=' . (string) $row['id'],
-        ], 120);
-        fwrite(STDOUT, $result['stdout']);
-        fwrite(STDERR, $result['stderr']);
-        if ($result['exitCode'] === 0) {
-            $render = renderRow($db, (int) $row['id'], 'php-wordpress');
-            if ($render !== null && $render['status'] === 'ok') {
-                $ok++;
-                fwrite(STDOUT, "rendered #{$row['id']} {$row['format']} {$row['url']}\n");
-            } else {
-                $failed++;
-                $error = is_array($render) ? (string) ($render['error'] ?? '') : 'render subprocess did not record a php-wordpress render';
-                fwrite(STDERR, "render failed #{$row['id']}: " . ($error !== '' ? $error : 'php-wordpress render failed') . "\n");
-            }
-            continue;
+    foreach (balancedRenderFormats($db) as $format) {
+        if ($ok + $failed >= $limit) {
+            break;
         }
-
-        recordRenderFailure($db, (int) $row['id'], 'php-wordpress', trim($result['stderr']) ?: 'render subprocess failed');
-        $failed++;
-        fwrite(STDERR, "render failed #{$row['id']}: subprocess exit {$result['exitCode']}\n");
+        $remaining = $limit - $ok - $failed;
+        $rows = pendingDocuments($db, min($perFormat, $remaining), $format);
+        [$formatOk, $formatFailed] = renderDocumentRows($db, $dbPath, $rows);
+        $ok += $formatOk;
+        $failed += $formatFailed;
     }
-    fwrite(STDOUT, "Render complete: ok={$ok} failed={$failed}\n");
+    fwrite(STDOUT, "Balanced render complete: ok={$ok} failed={$failed}\n");
 }
 
 function commandRenderOne(string $repoRoot, string $root, string $dbPath, array $args): void
@@ -307,6 +353,111 @@ function commandFormats(string $repoRoot, string $root, string $dbPath): void
     foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
         printf("%-18s %-17s target=%3d docs=%3d queued=%3d rendered=%3d\n", $row['format'], $row['status'], $row['target_count'], $row['documents'], $row['queued'], $row['rendered']);
     }
+}
+
+function fetchCandidateRows(PDO $db, string $dbPath, array $rows): array
+{
+    $ok = 0;
+    $failed = 0;
+    foreach ($rows as $row) {
+        try {
+            $fetch = fetchUrl((string) $row['url'], [], maxBytesForFormat((string) $row['format']));
+            $bytes = $fetch['bytes'];
+            if ($bytes === '') {
+                throw new RuntimeException('empty response body');
+            }
+            validateCandidateBytes((string) $row['format'], (string) $row['url'], $bytes);
+            if (strlen($bytes) > maxBytesForFormat((string) $row['format'])) {
+                throw new RuntimeException('download exceeds bounded corpus size for format');
+            }
+            $sha = hash('sha256', $bytes);
+            $extension = extensionForFormat((string) $row['format'], (string) $row['url']);
+            $relativePath = 'files/' . substr($sha, 0, 2) . '/' . $sha . '.' . $extension;
+            $path = dirname($dbPath) . '/' . $relativePath;
+            writeBytes($path, $bytes);
+            upsertDocument($db, $row, $relativePath, $sha, strlen($bytes), $fetch);
+            markCandidate($db, (int) $row['id'], 'fetched', null);
+            $ok++;
+            fwrite(STDOUT, "fetched {$row['format']} {$row['url']}\n");
+        } catch (Throwable $error) {
+            markCandidate($db, (int) $row['id'], 'failed', $error->getMessage());
+            $failed++;
+            fwrite(STDERR, "failed {$row['url']}: {$error->getMessage()}\n");
+        }
+    }
+
+    return [$ok, $failed];
+}
+
+function renderDocumentRows(PDO $db, string $dbPath, array $rows): array
+{
+    $ok = 0;
+    $failed = 0;
+    foreach ($rows as $row) {
+        $result = runCommand([
+            PHP_BINARY,
+            '-d',
+            'memory_limit=' . (getenv('DOCUMENT_CORPUS_RENDER_MEMORY_LIMIT') ?: '1024M'),
+            __FILE__,
+            'render-one',
+            '--db=' . $dbPath,
+            '--id=' . (string) $row['id'],
+        ], 120);
+        fwrite(STDOUT, $result['stdout']);
+        fwrite(STDERR, $result['stderr']);
+        if ($result['exitCode'] === 0) {
+            $render = renderRow($db, (int) $row['id'], 'php-wordpress');
+            if ($render !== null && $render['status'] === 'ok') {
+                $ok++;
+                fwrite(STDOUT, "rendered #{$row['id']} {$row['format']} {$row['url']}\n");
+            } else {
+                $failed++;
+                $error = is_array($render) ? (string) ($render['error'] ?? '') : 'render subprocess did not record a php-wordpress render';
+                fwrite(STDERR, "render failed #{$row['id']}: " . ($error !== '' ? $error : 'php-wordpress render failed') . "\n");
+            }
+            continue;
+        }
+
+        recordRenderFailure($db, (int) $row['id'], 'php-wordpress', trim($result['stderr']) ?: 'render subprocess failed');
+        $failed++;
+        fwrite(STDERR, "render failed #{$row['id']}: subprocess exit {$result['exitCode']}\n");
+    }
+
+    return [$ok, $failed];
+}
+
+function balancedFetchFormats(PDO $db): array
+{
+    $rows = $db->query(<<<'SQL'
+        SELECT f.format,
+               COUNT(DISTINCT d.id) AS documents,
+               COUNT(DISTINCT CASE WHEN c.status='queued' THEN c.id END) AS queued
+        FROM formats f
+        LEFT JOIN documents d ON d.format=f.format
+        LEFT JOIN candidates c ON c.format=f.format
+        GROUP BY f.format
+        HAVING documents < f.target_count AND queued > 0
+        ORDER BY documents ASC, queued DESC, f.format ASC
+    SQL)->fetchAll(PDO::FETCH_ASSOC);
+
+    return array_map(static fn (array $row): string => (string) $row['format'], $rows);
+}
+
+function balancedRenderFormats(PDO $db): array
+{
+    $rows = $db->query(<<<'SQL'
+        SELECT f.format,
+               COUNT(DISTINCT d.id) AS documents,
+               COUNT(DISTINCT CASE WHEN r.renderer='php-wordpress' THEN r.document_id END) AS attempted
+        FROM formats f
+        LEFT JOIN documents d ON d.format=f.format
+        LEFT JOIN renders r ON r.document_id=d.id
+        GROUP BY f.format
+        HAVING documents > attempted
+        ORDER BY attempted ASC, documents DESC, f.format ASC
+    SQL)->fetchAll(PDO::FETCH_ASSOC);
+
+    return array_map(static fn (array $row): string => (string) $row['format'], $rows);
 }
 
 function db(string $path): PDO
@@ -480,6 +631,62 @@ function githubDiscoveryRepos(): array
         ['repo' => 'plk/biblatex', 'ref' => 'dev', 'formats' => ['bibtex', 'biblatex', 'latex', 'markdown']],
         ['repo' => 'docbook/xslt10-stylesheets', 'ref' => 'master', 'formats' => ['docbook', 'xml']],
     ];
+}
+
+/**
+ * @return list<array{repo:string, ref:string, rules:list<array{pattern:string, format:string}>}>
+ */
+function knownGitHubDiscoveryRepos(): array
+{
+    return [
+        ['repo' => 'bitcoin/bips', 'ref' => 'master', 'rules' => [
+            ['pattern' => '/^bip-\d+\.mediawiki$/', 'format' => 'mediawiki'],
+        ]],
+        ['repo' => 'freebsd/freebsd-src', 'ref' => 'main', 'rules' => [
+            ['pattern' => '#(^|/)(bin|sbin|usr\.bin|usr\.sbin|share/man)/.+\.[1-9]$#', 'format' => 'mdoc'],
+        ]],
+        ['repo' => 'scripting/Scripting-News', 'ref' => 'master', 'rules' => [
+            ['pattern' => '#^blog/opml/[0-9]{4}/[0-9]{2}\.opml$#', 'format' => 'opml'],
+        ]],
+        ['repo' => 'geometer/FBReaderJ', 'ref' => 'e83aec9f94084aa59d39e33876bdb6fdc275c95e', 'rules' => [
+            ['pattern' => '#^obsolete/help/MiniHelp\.[a-z][a-z]\.fb2$#', 'format' => 'fb2'],
+        ]],
+        ['repo' => 'tsolucio/corebosdocs', 'ref' => '01ab857b87ffa5ae07b593e487af5a12347802f8', 'rules' => [
+            ['pattern' => '#^pages/.+\.txt$#', 'format' => 'dokuwiki'],
+        ]],
+        ['repo' => 'wherecamppdx/wherecamppdx-dokuwiki', 'ref' => '38b728bca45ebcd80c6c7f8990bada2198d063c8', 'rules' => [
+            ['pattern' => '#^data/pages/.+\.txt$#', 'format' => 'dokuwiki'],
+        ]],
+        ['repo' => 'merb/old-wiki', 'ref' => '22b634a78c7e015c607c9efe0003d63e17eaff6c', 'rules' => [
+            ['pattern' => '#^pages/.+\.txt$#', 'format' => 'dokuwiki'],
+        ]],
+        ['repo' => 'pnp4nagios/docs', 'ref' => 'f95f287fd88250945c848d5c5337b430fd1f5a1e', 'rules' => [
+            ['pattern' => '#^pages/.+\.txt$#', 'format' => 'dokuwiki'],
+        ]],
+        ['repo' => 'jchiquet/quarto-hceres', 'ref' => '55fdc1e6f75e710eb67bfb0650bf237ff62886ca', 'rules' => [
+            ['pattern' => '#\.bib$#', 'format' => 'biblatex'],
+        ]],
+        ['repo' => 'jackwasey/icd', 'ref' => 'f200683642833d89d177ee53b880df1eab70d1cf', 'rules' => [
+            ['pattern' => '#\.bib$#', 'format' => 'biblatex'],
+        ]],
+        ['repo' => 'gwoodwa1/network_rag_pipeline', 'ref' => '7f9de75055c9801b3fa188f9cc7075bb47ca104d', 'rules' => [
+            ['pattern' => '#\.ast\.json$#', 'format' => 'json'],
+        ]],
+        ['repo' => 'b0mbix/markupit', 'ref' => 'e110aa5b95cf3263796adffe85a7fbf5eae4ad50', 'rules' => [
+            ['pattern' => '#^misc/ast_analysis/.+\.json$#', 'format' => 'native'],
+        ]],
+    ];
+}
+
+function knownFormatForPath(array $repo, string $path): ?string
+{
+    foreach (($repo['rules'] ?? []) as $rule) {
+        if (preg_match((string) $rule['pattern'], $path) === 1) {
+            return (string) $rule['format'];
+        }
+    }
+
+    return null;
 }
 
 /**
