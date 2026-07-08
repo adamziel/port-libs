@@ -27,6 +27,7 @@ if (($argv[1] ?? '') === '--convert-local') {
         $options['extractMedia'] = [
             'destination' => $mediaDestination,
             'outputDirectory' => $mediaOutputDir,
+            'imageMode' => 'important',
         ];
         $converted = PandocConverter::convertFileWithMedia($path, $format, $to, $options);
         file_put_contents($mediaManifest, json_encode([
@@ -1438,7 +1439,7 @@ function write_conversion_report(
 
     $mediaPreview = extracted_media_preview($records);
     $html .= '<section><h2>Extracted media preview</h2>';
-    $html .= '<p>The PHP path now runs an <code>--extract-media</code>-style pass. Referenced package images are written beside the converted output and their <code>&lt;img&gt;</code> URLs are rewritten to hosted files; directly embeddable PDF image streams are also copied out for review.</p>';
+    $html .= '<p>The PHP path now runs an <code>--extract-media</code>-style pass in <strong>images we thought were important</strong> mode. Referenced package images are written beside the converted output and their <code>&lt;img&gt;</code> URLs are rewritten to hosted files; PDF image streams are copied out when their intrinsic metadata suggests they are document content rather than tiny masks or decorative fragments.</p>';
     $html .= '<p class="meta">' . h((string) $mediaPreview['total']) . ' image media entr' . ($mediaPreview['total'] === 1 ? 'y' : 'ies') . ' extracted across ' . h((string) $mediaPreview['samples']) . ' source file' . ($mediaPreview['samples'] === 1 ? '' : 's') . '.</p>';
     if ($mediaPreview['previews'] !== []) {
         $html .= '<div class="media-gallery">';
@@ -1652,6 +1653,7 @@ $conversionSummary = conversion_summary($records);
 file_put_contents($siteDir . '/manifest.json', json_encode([
     'generatedAt' => gmdate('c'),
     'pandocVersion' => sanitize_generated_text(trim(run_process(['pandoc', '--version'], 10)['stdout'])),
+    'mediaImageMode' => 'important',
     'formats' => $formats,
     'coveredFormats' => $coveredFormats,
     'missingFormats' => $missingFormats,

@@ -1,6 +1,7 @@
 {
-    "generatedAt": "2026-07-08T18:50:29+00:00",
+    "generatedAt": "2026-07-08T19:15:04+00:00",
     "pandocVersion": "pandoc 3.10\nFeatures: +server +lua\nScripting engine: Lua 5.4\nUser data directory: $REPO\nCopyright (C) 2006-2025 John MacFarlane. Web:  https://pandoc.org\nThis is free software; see the source for copying conditions. There is no\nwarranty, not even for merchantability or fitness for a particular purpose.",
+    "mediaImageMode": "important",
     "formats": [
         "biblatex",
         "bibtex",
@@ -343,7 +344,7 @@
             "group": 279,
             "heading": 3919,
             "html": 59,
-            "image": 209,
+            "image": 199,
             "list": 1171,
             "paragraph": 15440,
             "quote": 66,
@@ -377,13 +378,17 @@
                 "ok": true,
                 "path": "outputs/bibtex-biblio/php.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/bibtex-biblio/wordpress-blocks.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlockCounts": {
                 "group": 1,
@@ -414,13 +419,17 @@
                 "ok": true,
                 "path": "outputs/bibtex-averroes/php.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/bibtex-averroes/wordpress-blocks.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlockCounts": {
                 "group": 1,
@@ -451,13 +460,17 @@
                 "ok": true,
                 "path": "outputs/biblatex-biblio/php.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/biblatex-biblio/wordpress-blocks.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlockCounts": {
                 "group": 1,
@@ -488,13 +501,17 @@
                 "ok": true,
                 "path": "outputs/biblatex-online/php.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/biblatex-online/wordpress-blocks.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlockCounts": {
                 "group": 1,
@@ -525,13 +542,17 @@
                 "ok": true,
                 "path": "outputs/bits-book/php.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/bits-book/wordpress-blocks.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlockCounts": {
                 "heading": 2,
@@ -561,13 +582,17 @@
                 "ok": true,
                 "path": "outputs/bits-section/php.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/bits-section/wordpress-blocks.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlockCounts": {
                 "heading": 2,
@@ -597,13 +622,17 @@
                 "ok": true,
                 "path": "outputs/commonmark-js-readme/php.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/commonmark-js-readme/wordpress-blocks.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlockCounts": {
                 "code": 14,
@@ -635,13 +664,17 @@
                 "ok": true,
                 "path": "outputs/commonmarkx-markdownlint-rules/php.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/commonmarkx-markdownlint-rules/wordpress-blocks.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlockCounts": {
                 "code": 160,
@@ -674,13 +707,17 @@
                 "ok": true,
                 "path": "outputs/csljson-book/php.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/csljson-book/wordpress-blocks.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlockCounts": {
                 "group": 1,
@@ -711,13 +748,17 @@
                 "ok": true,
                 "path": "outputs/csljson-article/php.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/csljson-article/wordpress-blocks.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlockCounts": {
                 "group": 1,
@@ -748,13 +789,17 @@
                 "ok": true,
                 "path": "outputs/csv-format-status/php.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/csv-format-status/wordpress-blocks.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlockCounts": {
                 "table": 1
@@ -783,13 +828,17 @@
                 "ok": true,
                 "path": "outputs/csv-rst-table/php.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/csv-rst-table/wordpress-blocks.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlockCounts": {
                 "table": 1
@@ -818,13 +867,17 @@
                 "ok": true,
                 "path": "outputs/tsv-format-status/php.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/tsv-format-status/wordpress-blocks.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlockCounts": {
                 "table": 1
@@ -853,13 +906,17 @@
                 "ok": true,
                 "path": "outputs/tsv-source-status/php.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/tsv-source-status/wordpress-blocks.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlockCounts": {
                 "table": 1
@@ -888,13 +945,17 @@
                 "ok": true,
                 "path": "outputs/docbook-article/php.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/docbook-article/wordpress-blocks.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlockCounts": {
                 "heading": 2,
@@ -925,13 +986,17 @@
                 "ok": true,
                 "path": "outputs/docbook-table/php.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/docbook-table/wordpress-blocks.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlockCounts": {
                 "heading": 2,
@@ -961,13 +1026,17 @@
                 "ok": true,
                 "path": "outputs/docx-headers/php.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/docx-headers/wordpress-blocks.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlockCounts": {
                 "heading": 6,
@@ -997,13 +1066,17 @@
                 "ok": true,
                 "path": "outputs/docx-tables/php.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/docx-tables/wordpress-blocks.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlockCounts": {
                 "heading": 1,
@@ -1033,13 +1106,17 @@
                 "ok": true,
                 "path": "outputs/docx-notes/php.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/docx-notes/wordpress-blocks.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlockCounts": {
                 "group": 1,
@@ -1103,6 +1180,7 @@
                     }
                 ],
                 "mediaDiagnostics": [
+                    "extract-media-image-mode:important",
                     "extract-media-package-loaded:media-image1.jpg",
                     "extract-media-package-loaded:media-image2.jpg",
                     "media-resource-mapped:media/image1.jpg",
@@ -1145,6 +1223,7 @@
                     }
                 ],
                 "mediaDiagnostics": [
+                    "extract-media-image-mode:important",
                     "extract-media-package-loaded:media-image1.jpg",
                     "extract-media-package-loaded:media-image2.jpg",
                     "media-resource-mapped:media/image1.jpg",
@@ -1210,6 +1289,7 @@
                     }
                 ],
                 "mediaDiagnostics": [
+                    "extract-media-image-mode:important",
                     "extract-media-package-loaded:media-image1.png",
                     "extract-media-package-loaded:media-image2.png",
                     "media-resource-mapped:media/image1.png",
@@ -1252,6 +1332,7 @@
                     }
                 ],
                 "mediaDiagnostics": [
+                    "extract-media-image-mode:important",
                     "extract-media-package-loaded:media-image1.png",
                     "extract-media-package-loaded:media-image2.png",
                     "media-resource-mapped:media/image1.png",
@@ -1290,13 +1371,17 @@
                 "ok": true,
                 "path": "outputs/docx-microsoft-excel-migration/php.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/docx-microsoft-excel-migration/wordpress-blocks.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlockCounts": {
                 "heading": 125,
@@ -1327,13 +1412,17 @@
                 "ok": true,
                 "path": "outputs/endnotexml-reader/php.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/endnotexml-reader/wordpress-blocks.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlockCounts": {
                 "group": 1,
@@ -1364,13 +1453,17 @@
                 "ok": true,
                 "path": "outputs/endnotexml-book/php.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/endnotexml-book/wordpress-blocks.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlockCounts": {
                 "group": 1,
@@ -1418,6 +1511,7 @@
                     }
                 ],
                 "mediaDiagnostics": [
+                    "extract-media-image-mode:important",
                     "extract-media-package-loaded:wasteland-cover.jpg",
                     "media-resource-mapped:wasteland-cover.jpg"
                 ]
@@ -1443,6 +1537,7 @@
                     }
                 ],
                 "mediaDiagnostics": [
+                    "extract-media-image-mode:important",
                     "extract-media-package-loaded:wasteland-cover.jpg",
                     "media-resource-mapped:wasteland-cover.jpg"
                 ]
@@ -1479,13 +1574,17 @@
                 "ok": true,
                 "path": "outputs/epub-features/php.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/epub-features/wordpress-blocks.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlockCounts": {
                 "group": 18,
@@ -1534,6 +1633,7 @@
                     }
                 ],
                 "mediaDiagnostics": [
+                    "extract-media-image-mode:important",
                     "extract-media-package-loaded:image-image.jpg",
                     "media-resource-mapped:image/image.jpg"
                 ]
@@ -1559,6 +1659,7 @@
                     }
                 ],
                 "mediaDiagnostics": [
+                    "extract-media-image-mode:important",
                     "extract-media-package-loaded:image-image.jpg",
                     "media-resource-mapped:image/image.jpg"
                 ]
@@ -1654,6 +1755,7 @@
                     }
                 ],
                 "mediaDiagnostics": [
+                    "extract-media-image-mode:important",
                     "extract-media-package-loaded:img-multiscripts_and_greek_alphabet.png",
                     "extract-media-package-loaded:img-check.gif",
                     "extract-media-package-loaded:img-check.png",
@@ -1730,6 +1832,7 @@
                     }
                 ],
                 "mediaDiagnostics": [
+                    "extract-media-image-mode:important",
                     "extract-media-package-loaded:img-multiscripts_and_greek_alphabet.png",
                     "extract-media-package-loaded:img-check.gif",
                     "extract-media-package-loaded:img-check.png",
@@ -2312,6 +2415,7 @@
                     }
                 ],
                 "mediaDiagnostics": [
+                    "extract-media-image-mode:important",
                     "extract-media-package-loaded:360840914614224901_cover.jpg",
                     "extract-media-package-loaded:360840914614224901_f0002-image.jpg",
                     "extract-media-package-loaded:360840914614224901_title.png",
@@ -2932,6 +3036,7 @@
                     }
                 ],
                 "mediaDiagnostics": [
+                    "extract-media-image-mode:important",
                     "extract-media-package-loaded:360840914614224901_cover.jpg",
                     "extract-media-package-loaded:360840914614224901_f0002-image.jpg",
                     "extract-media-package-loaded:360840914614224901_title.png",
@@ -3041,13 +3146,17 @@
                 "ok": true,
                 "path": "outputs/fb2-basic/php.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/fb2-basic/wordpress-blocks.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlockCounts": {
                 "group": 4,
@@ -3080,13 +3189,17 @@
                 "ok": true,
                 "path": "outputs/fb2-notes/php.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/fb2-notes/wordpress-blocks.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlockCounts": {
                 "group": 2,
@@ -3117,13 +3230,17 @@
                 "ok": true,
                 "path": "outputs/gfm-gitlab-markdown-guide/php.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/gfm-gitlab-markdown-guide/wordpress-blocks.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlockCounts": {
                 "code": 85,
@@ -3161,13 +3278,17 @@
                 "ok": true,
                 "path": "outputs/markdown-github-rendered-syntax/php.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/markdown-github-rendered-syntax/wordpress-blocks.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlockCounts": {
                 "code": 8,
@@ -3205,13 +3326,17 @@
                 "ok": true,
                 "path": "outputs/html-reader/php.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/html-reader/wordpress-blocks.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlockCounts": {
                 "code": 5,
@@ -3248,13 +3373,17 @@
                 "ok": true,
                 "path": "outputs/html-template/php.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/html-template/wordpress-blocks.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlockCounts": []
         },
@@ -3281,13 +3410,17 @@
                 "ok": true,
                 "path": "outputs/ipynb-simple/php.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/ipynb-simple/wordpress-blocks.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlockCounts": {
                 "code": 2,
@@ -3319,13 +3452,17 @@
                 "ok": true,
                 "path": "outputs/ipynb-mime/php.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/ipynb-mime/wordpress-blocks.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlockCounts": {
                 "code": 6,
@@ -3356,13 +3493,17 @@
                 "ok": true,
                 "path": "outputs/jats-article/php.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/jats-article/wordpress-blocks.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlockCounts": {
                 "heading": 2,
@@ -3390,12 +3531,12 @@
             },
             "phpHtml": {
                 "ok": false,
-                "error": "PHP Fatal error:  Uncaught InvalidArgumentException: Unable to parse JATS input at line 229, column 27: Attribute xlink:href redefined in $REPO/lanes/pandoc/src/XmlHtmlDom.php:705\nStack trace:\n#0 $REPO/lanes/pandoc/src/XmlReader.php(69): PortLibs\\Pandoc\\XmlHtmlDom::loadXmlDocument('<?xml version=\"...', 'JATS input', false)\n#1 $REPO/lanes/pandoc/src/PandocConverter.php(37): PortLibs\\Pandoc\\XmlReader->read('<?xml version=\"...')\n#2 $REPO/lanes/pandoc/src/PandocConverter.php(93): PortLibs\\Pandoc\\PandocConverter::read('<?xml version=\"...', 'jats', Array)\n#3 $REPO/lanes/pandoc/src/PandocConverter.php(152): PortLibs\\Pandoc\\PandocConverter::convertWithMedia('<?xml version=\"...', 'jats', 'html', Array)\n#4 $REPO/tools/build-pandoc-showcase.php(31): PortLibs\\Pandoc\\PandocConverter::convertFileWithMedia('$TMP', 'jats', 'html', Array)\n#5 {main}\n  thrown in $REPO/lanes/pandoc/src/XmlHtmlDom.php on line 705\nFatal error: Uncaught InvalidArgumentException: Unable to parse JATS input at line 229, column 27: Attribute xlink:href redefined in $REPO/lanes/pandoc/src/XmlHtmlDom.php:705\nStack trace:\n#0 $REPO/lanes/pandoc/src/XmlReader.php(69): PortLibs\\Pandoc\\XmlHtmlDom::loadXmlDocument('<?xml version=\"...', 'JATS input', false)\n#1 $REPO/lanes/pandoc/src/PandocConverter.php(37): PortLibs\\Pandoc\\XmlReader->read('<?xml version=\"...')\n#2 $REPO/lanes/pandoc/src/PandocConverter.php(93): PortLibs\\Pandoc\\PandocConverter::read('<?xml version=\"...', 'jats', Array)\n#3 $REPO/lanes/pandoc/src/PandocConverter.php(152): PortLibs\\Pandoc\\PandocConverter::convertWithMedia('<?xml version=\"...', 'jats', 'html', Array)\n#4 $REPO/tools/build-pandoc-showcase.php(31): PortLibs\\Pandoc\\PandocConverter::convertFileWithMedia('$TMP', 'jats', 'html', Array)\n#5 {main}\n  thrown in $REPO/lanes/pandoc/src/XmlHtmlDom.php on line 705",
+                "error": "PHP Fatal error:  Uncaught InvalidArgumentException: Unable to parse JATS input at line 229, column 27: Attribute xlink:href redefined in $REPO/lanes/pandoc/src/XmlHtmlDom.php:705\nStack trace:\n#0 $REPO/lanes/pandoc/src/XmlReader.php(69): PortLibs\\Pandoc\\XmlHtmlDom::loadXmlDocument('<?xml version=\"...', 'JATS input', false)\n#1 $REPO/lanes/pandoc/src/PandocConverter.php(37): PortLibs\\Pandoc\\XmlReader->read('<?xml version=\"...')\n#2 $REPO/lanes/pandoc/src/PandocConverter.php(93): PortLibs\\Pandoc\\PandocConverter::read('<?xml version=\"...', 'jats', Array)\n#3 $REPO/lanes/pandoc/src/PandocConverter.php(152): PortLibs\\Pandoc\\PandocConverter::convertWithMedia('<?xml version=\"...', 'jats', 'html', Array)\n#4 $REPO/tools/build-pandoc-showcase.php(32): PortLibs\\Pandoc\\PandocConverter::convertFileWithMedia('$TMP', 'jats', 'html', Array)\n#5 {main}\n  thrown in $REPO/lanes/pandoc/src/XmlHtmlDom.php on line 705\nFatal error: Uncaught InvalidArgumentException: Unable to parse JATS input at line 229, column 27: Attribute xlink:href redefined in $REPO/lanes/pandoc/src/XmlHtmlDom.php:705\nStack trace:\n#0 $REPO/lanes/pandoc/src/XmlReader.php(69): PortLibs\\Pandoc\\XmlHtmlDom::loadXmlDocument('<?xml version=\"...', 'JATS input', false)\n#1 $REPO/lanes/pandoc/src/PandocConverter.php(37): PortLibs\\Pandoc\\XmlReader->read('<?xml version=\"...')\n#2 $REPO/lanes/pandoc/src/PandocConverter.php(93): PortLibs\\Pandoc\\PandocConverter::read('<?xml version=\"...', 'jats', Array)\n#3 $REPO/lanes/pandoc/src/PandocConverter.php(152): PortLibs\\Pandoc\\PandocConverter::convertWithMedia('<?xml version=\"...', 'jats', 'html', Array)\n#4 $REPO/tools/build-pandoc-showcase.php(32): PortLibs\\Pandoc\\PandocConverter::convertFileWithMedia('$TMP', 'jats', 'html', Array)\n#5 {main}\n  thrown in $REPO/lanes/pandoc/src/XmlHtmlDom.php on line 705",
                 "path": "outputs/jats-reader/php.html.error.txt"
             },
             "wpBlocks": {
                 "ok": false,
-                "error": "PHP Fatal error:  Uncaught InvalidArgumentException: Unable to parse JATS input at line 229, column 27: Attribute xlink:href redefined in $REPO/lanes/pandoc/src/XmlHtmlDom.php:705\nStack trace:\n#0 $REPO/lanes/pandoc/src/XmlReader.php(69): PortLibs\\Pandoc\\XmlHtmlDom::loadXmlDocument('<?xml version=\"...', 'JATS input', false)\n#1 $REPO/lanes/pandoc/src/PandocConverter.php(37): PortLibs\\Pandoc\\XmlReader->read('<?xml version=\"...')\n#2 $REPO/lanes/pandoc/src/PandocConverter.php(93): PortLibs\\Pandoc\\PandocConverter::read('<?xml version=\"...', 'jats', Array)\n#3 $REPO/lanes/pandoc/src/PandocConverter.php(152): PortLibs\\Pandoc\\PandocConverter::convertWithMedia('<?xml version=\"...', 'jats', 'wordpress', Array)\n#4 $REPO/tools/build-pandoc-showcase.php(31): PortLibs\\Pandoc\\PandocConverter::convertFileWithMedia('$TMP', 'jats', 'wordpress', Array)\n#5 {main}\n  thrown in $REPO/lanes/pandoc/src/XmlHtmlDom.php on line 705\nFatal error: Uncaught InvalidArgumentException: Unable to parse JATS input at line 229, column 27: Attribute xlink:href redefined in $REPO/lanes/pandoc/src/XmlHtmlDom.php:705\nStack trace:\n#0 $REPO/lanes/pandoc/src/XmlReader.php(69): PortLibs\\Pandoc\\XmlHtmlDom::loadXmlDocument('<?xml version=\"...', 'JATS input', false)\n#1 $REPO/lanes/pandoc/src/PandocConverter.php(37): PortLibs\\Pandoc\\XmlReader->read('<?xml version=\"...')\n#2 $REPO/lanes/pandoc/src/PandocConverter.php(93): PortLibs\\Pandoc\\PandocConverter::read('<?xml version=\"...', 'jats', Array)\n#3 $REPO/lanes/pandoc/src/PandocConverter.php(152): PortLibs\\Pandoc\\PandocConverter::convertWithMedia('<?xml version=\"...', 'jats', 'wordpress', Array)\n#4 $REPO/tools/build-pandoc-showcase.php(31): PortLibs\\Pandoc\\PandocConverter::convertFileWithMedia('$TMP', 'jats', 'wordpress', Array)\n#5 {main}\n  thrown in $REPO/lanes/pandoc/src/XmlHtmlDom.php on line 705",
+                "error": "PHP Fatal error:  Uncaught InvalidArgumentException: Unable to parse JATS input at line 229, column 27: Attribute xlink:href redefined in $REPO/lanes/pandoc/src/XmlHtmlDom.php:705\nStack trace:\n#0 $REPO/lanes/pandoc/src/XmlReader.php(69): PortLibs\\Pandoc\\XmlHtmlDom::loadXmlDocument('<?xml version=\"...', 'JATS input', false)\n#1 $REPO/lanes/pandoc/src/PandocConverter.php(37): PortLibs\\Pandoc\\XmlReader->read('<?xml version=\"...')\n#2 $REPO/lanes/pandoc/src/PandocConverter.php(93): PortLibs\\Pandoc\\PandocConverter::read('<?xml version=\"...', 'jats', Array)\n#3 $REPO/lanes/pandoc/src/PandocConverter.php(152): PortLibs\\Pandoc\\PandocConverter::convertWithMedia('<?xml version=\"...', 'jats', 'wordpress', Array)\n#4 $REPO/tools/build-pandoc-showcase.php(32): PortLibs\\Pandoc\\PandocConverter::convertFileWithMedia('$TMP', 'jats', 'wordpress', Array)\n#5 {main}\n  thrown in $REPO/lanes/pandoc/src/XmlHtmlDom.php on line 705\nFatal error: Uncaught InvalidArgumentException: Unable to parse JATS input at line 229, column 27: Attribute xlink:href redefined in $REPO/lanes/pandoc/src/XmlHtmlDom.php:705\nStack trace:\n#0 $REPO/lanes/pandoc/src/XmlReader.php(69): PortLibs\\Pandoc\\XmlHtmlDom::loadXmlDocument('<?xml version=\"...', 'JATS input', false)\n#1 $REPO/lanes/pandoc/src/PandocConverter.php(37): PortLibs\\Pandoc\\XmlReader->read('<?xml version=\"...')\n#2 $REPO/lanes/pandoc/src/PandocConverter.php(93): PortLibs\\Pandoc\\PandocConverter::read('<?xml version=\"...', 'jats', Array)\n#3 $REPO/lanes/pandoc/src/PandocConverter.php(152): PortLibs\\Pandoc\\PandocConverter::convertWithMedia('<?xml version=\"...', 'jats', 'wordpress', Array)\n#4 $REPO/tools/build-pandoc-showcase.php(32): PortLibs\\Pandoc\\PandocConverter::convertFileWithMedia('$TMP', 'jats', 'wordpress', Array)\n#5 {main}\n  thrown in $REPO/lanes/pandoc/src/XmlHtmlDom.php on line 705",
                 "path": "outputs/jats-reader/wordpress-blocks.html.error.txt"
             },
             "wpBlockCounts": []
@@ -3423,13 +3564,17 @@
                 "ok": true,
                 "path": "outputs/jira-ticket/php.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/jira-ticket/wordpress-blocks.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlockCounts": {
                 "heading": 1,
@@ -3461,13 +3606,17 @@
                 "ok": true,
                 "path": "outputs/jira-release/php.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/jira-release/wordpress-blocks.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlockCounts": {
                 "heading": 1,
@@ -3497,13 +3646,17 @@
                 "ok": true,
                 "path": "outputs/json-pandoc-ast/php.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/json-pandoc-ast/wordpress-blocks.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlockCounts": {
                 "heading": 1,
@@ -3533,13 +3686,17 @@
                 "ok": true,
                 "path": "outputs/json-pandoc-list/php.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/json-pandoc-list/wordpress-blocks.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlockCounts": {
                 "list": 1
@@ -3569,13 +3726,17 @@
                 "ok": true,
                 "path": "outputs/latex-table/php.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/latex-table/wordpress-blocks.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlockCounts": {
                 "code": 1,
@@ -3605,13 +3766,17 @@
                 "ok": true,
                 "path": "outputs/latex-bar/php.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/latex-bar/wordpress-blocks.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlockCounts": {
                 "paragraph": 1
@@ -3640,13 +3805,17 @@
                 "ok": true,
                 "path": "outputs/markdown-pandoc-manual/php.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/markdown-pandoc-manual/wordpress-blocks.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlockCounts": {
                 "code": 227,
@@ -3682,13 +3851,17 @@
                 "ok": true,
                 "path": "outputs/markdown-mmd-quickstart/php.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/markdown-mmd-quickstart/wordpress-blocks.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlockCounts": {
                 "code": 8,
@@ -3721,13 +3894,17 @@
                 "ok": true,
                 "path": "outputs/markdown-phpextra-php-markdown-readme/php.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/markdown-phpextra-php-markdown-readme/wordpress-blocks.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlockCounts": {
                 "code": 9,
@@ -3760,13 +3937,17 @@
                 "ok": true,
                 "path": "outputs/markdown-strict-gruber-syntax/php.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/markdown-strict-gruber-syntax/wordpress-blocks.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlockCounts": {
                 "code": 82,
@@ -3801,13 +3982,17 @@
                 "ok": true,
                 "path": "outputs/man-generated-fixture/php.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/man-generated-fixture/wordpress-blocks.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlockCounts": {
                 "group": 1,
@@ -3839,13 +4024,17 @@
                 "ok": true,
                 "path": "outputs/man-simple-fixture/php.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/man-simple-fixture/wordpress-blocks.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlockCounts": {
                 "heading": 2,
@@ -3875,13 +4064,17 @@
                 "ok": true,
                 "path": "outputs/mediawiki-feature-packet/php.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/mediawiki-feature-packet/wordpress-blocks.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlockCounts": {
                 "code": 1,
@@ -3916,13 +4109,17 @@
                 "ok": true,
                 "path": "outputs/mediawiki-template-math-note/php.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/mediawiki-template-math-note/wordpress-blocks.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlockCounts": {
                 "code": 1,
@@ -3955,13 +4152,17 @@
                 "ok": true,
                 "path": "outputs/native-basic/php.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/native-basic/wordpress-blocks.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlockCounts": {
                 "heading": 1,
@@ -3991,13 +4192,17 @@
                 "ok": true,
                 "path": "outputs/native-markdown-more/php.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/native-markdown-more/wordpress-blocks.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlockCounts": {
                 "code": 4,
@@ -4033,13 +4238,17 @@
                 "ok": true,
                 "path": "outputs/odt-headers/php.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/odt-headers/wordpress-blocks.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlockCounts": {
                 "heading": 3,
@@ -4069,13 +4278,17 @@
                 "ok": true,
                 "path": "outputs/odt-table-spans/php.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/odt-table-spans/wordpress-blocks.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlockCounts": {
                 "table": 1
@@ -5082,6 +5295,7 @@
                     }
                 ],
                 "mediaDiagnostics": [
+                    "extract-media-image-mode:important",
                     "extract-media-package-loaded:Pictures-10000E9800001CA1000005CA923763AE09D71344.svg",
                     "extract-media-package-loaded:Pictures-10000200000000BE000000BE7C09862D6ED22B4D.gif",
                     "extract-media-package-loaded:Pictures-10000200000000BE000000BEF55E133B1E14C9FD.gif",
@@ -6195,6 +6409,7 @@
                     }
                 ],
                 "mediaDiagnostics": [
+                    "extract-media-image-mode:important",
                     "extract-media-package-loaded:Pictures-10000E9800001CA1000005CA923763AE09D71344.svg",
                     "extract-media-package-loaded:Pictures-10000200000000BE000000BE7C09862D6ED22B4D.gif",
                     "extract-media-package-loaded:Pictures-10000200000000BE000000BEF55E133B1E14C9FD.gif",
@@ -6358,13 +6573,17 @@
                 "ok": true,
                 "path": "outputs/opml-reader/php.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/opml-reader/wordpress-blocks.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlockCounts": {
                 "heading": 63,
@@ -6394,13 +6613,17 @@
                 "ok": true,
                 "path": "outputs/opml-outline/php.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/opml-outline/wordpress-blocks.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlockCounts": {
                 "heading": 3
@@ -6446,6 +6669,7 @@
                     }
                 ],
                 "mediaDiagnostics": [
+                    "extract-media-image-mode:important",
                     "extract-media-package-loaded:ppt-media-image1.png",
                     "media-resource-mapped:ppt/media/image1.png"
                 ]
@@ -6471,6 +6695,7 @@
                     }
                 ],
                 "mediaDiagnostics": [
+                    "extract-media-image-mode:important",
                     "extract-media-package-loaded:ppt-media-image1.png",
                     "media-resource-mapped:ppt/media/image1.png"
                 ]
@@ -6507,13 +6732,17 @@
                 "ok": true,
                 "path": "outputs/pptx-tables/php.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/pptx-tables/wordpress-blocks.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlockCounts": {
                 "heading": 2,
@@ -6816,6 +7045,7 @@
                     }
                 ],
                 "mediaDiagnostics": [
+                    "extract-media-image-mode:important",
                     "extract-media-package-loaded:ppt-media-image1.png",
                     "extract-media-package-loaded:ppt-media-image2.png",
                     "extract-media-package-loaded:ppt-media-image3.png",
@@ -7130,6 +7360,7 @@
                     }
                 ],
                 "mediaDiagnostics": [
+                    "extract-media-image-mode:important",
                     "extract-media-package-loaded:ppt-media-image1.png",
                     "extract-media-package-loaded:ppt-media-image2.png",
                     "extract-media-package-loaded:ppt-media-image3.png",
@@ -7262,6 +7493,7 @@
                     }
                 ],
                 "mediaDiagnostics": [
+                    "extract-media-image-mode:important",
                     "extract-media-package-loaded:ppt-media-image2.jpg",
                     "extract-media-package-loaded:ppt-media-image3.jpg",
                     "extract-media-package-loaded:ppt-media-image4.jpg",
@@ -7338,6 +7570,7 @@
                     }
                 ],
                 "mediaDiagnostics": [
+                    "extract-media-image-mode:important",
                     "extract-media-package-loaded:ppt-media-image2.jpg",
                     "extract-media-package-loaded:ppt-media-image3.jpg",
                     "extract-media-package-loaded:ppt-media-image4.jpg",
@@ -7379,13 +7612,17 @@
                 "ok": true,
                 "path": "outputs/ris-texbook/php.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/ris-texbook/wordpress-blocks.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlockCounts": {
                 "group": 1,
@@ -7416,13 +7653,17 @@
                 "ok": true,
                 "path": "outputs/ris-web/php.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/ris-web/wordpress-blocks.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlockCounts": {
                 "group": 1,
@@ -7453,13 +7694,17 @@
                 "ok": true,
                 "path": "outputs/rtf-template/php.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/rtf-template/wordpress-blocks.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlockCounts": {
                 "paragraph": 5
@@ -7488,13 +7733,17 @@
                 "ok": true,
                 "path": "outputs/rtf-simple/php.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/rtf-simple/wordpress-blocks.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlockCounts": {
                 "paragraph": 2
@@ -7523,13 +7772,17 @@
                 "ok": true,
                 "path": "outputs/xlsx-basic/php.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/xlsx-basic/wordpress-blocks.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlockCounts": {
                 "heading": 2,
@@ -7559,13 +7812,17 @@
                 "ok": true,
                 "path": "outputs/xlsx-conditional-access-blueprint/php.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/xlsx-conditional-access-blueprint/wordpress-blocks.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlockCounts": {
                 "heading": 1,
@@ -7595,13 +7852,17 @@
                 "ok": true,
                 "path": "outputs/xlsx-census-tax-parameter-workbook/php.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/xlsx-census-tax-parameter-workbook/wordpress-blocks.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlockCounts": {
                 "heading": 51,
@@ -7632,13 +7893,17 @@
                 "ok": true,
                 "path": "outputs/xml-docbook-generic/php.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/xml-docbook-generic/wordpress-blocks.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlockCounts": {
                 "heading": 2,
@@ -7669,13 +7934,17 @@
                 "ok": true,
                 "path": "outputs/xml-outline-generic/php.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/xml-outline-generic/wordpress-blocks.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlockCounts": {
                 "heading": 1,
@@ -7707,6 +7976,7 @@
                 "path": "outputs/pdf-irs-w4/php.html",
                 "media": [],
                 "mediaDiagnostics": [
+                    "extract-media-image-mode:important",
                     "extract-media-pdf-image-skipped:FlateDecode"
                 ]
             },
@@ -7715,6 +7985,7 @@
                 "path": "outputs/pdf-irs-w4/wordpress-blocks.html",
                 "media": [],
                 "mediaDiagnostics": [
+                    "extract-media-image-mode:important",
                     "extract-media-pdf-image-skipped:FlateDecode"
                 ]
             },
@@ -7748,6 +8019,7 @@
                 "path": "outputs/pdf-tracemonkey/php.html",
                 "media": [],
                 "mediaDiagnostics": [
+                    "extract-media-image-mode:important",
                     "extract-media-pdf-image-skipped:FlateDecode"
                 ]
             },
@@ -7756,6 +8028,7 @@
                 "path": "outputs/pdf-tracemonkey/wordpress-blocks.html",
                 "media": [],
                 "mediaDiagnostics": [
+                    "extract-media-image-mode:important",
                     "extract-media-pdf-image-skipped:FlateDecode"
                 ]
             },
@@ -8105,21 +8378,6 @@
                         "mimeRepairSummary": "declared-mime-matches-path"
                     },
                     {
-                        "path": "outputs/pdf-cdc-hand-hygiene-brochure/media/pdf/image-235.jpg",
-                        "mediaPath": "pdf/image-235.jpg",
-                        "mimeType": "image/jpeg",
-                        "byteLength": 1631,
-                        "sha1": "5265f27032e097d6d00dc856757501a7c0a8300e",
-                        "source": "pdf/image-235.jpg",
-                        "canonicalSource": "pdf/image-235.jpg",
-                        "sourcePath": "pdf/image-235.jpg",
-                        "pathRepairSummary": "safe-relative-path",
-                        "extractionPathRepairSummary": "safe-relative-path",
-                        "mimeTypeSource": "declared",
-                        "inferredMimeType": "image/jpeg",
-                        "mimeRepairSummary": "declared-mime-matches-path"
-                    },
-                    {
                         "path": "outputs/pdf-cdc-hand-hygiene-brochure/media/pdf/image-237.jp2",
                         "mediaPath": "pdf/image-237.jp2",
                         "mimeType": "image/jp2",
@@ -8128,21 +8386,6 @@
                         "source": "pdf/image-237.jp2",
                         "canonicalSource": "pdf/image-237.jp2",
                         "sourcePath": "pdf/image-237.jp2",
-                        "pathRepairSummary": "safe-relative-path",
-                        "extractionPathRepairSummary": "safe-relative-path",
-                        "mimeTypeSource": "declared",
-                        "inferredMimeType": "application/octet-stream",
-                        "mimeRepairSummary": "declared-mime-matches-path"
-                    },
-                    {
-                        "path": "outputs/pdf-cdc-hand-hygiene-brochure/media/pdf/image-238.jp2",
-                        "mediaPath": "pdf/image-238.jp2",
-                        "mimeType": "image/jp2",
-                        "byteLength": 2593,
-                        "sha1": "f174117650b3809726154d6e77b2a77d955fe1a9",
-                        "source": "pdf/image-238.jp2",
-                        "canonicalSource": "pdf/image-238.jp2",
-                        "sourcePath": "pdf/image-238.jp2",
                         "pathRepairSummary": "safe-relative-path",
                         "extractionPathRepairSummary": "safe-relative-path",
                         "mimeTypeSource": "declared",
@@ -8241,37 +8484,38 @@
                     }
                 ],
                 "mediaDiagnostics": [
+                    "extract-media-image-mode:important",
                     "extract-media-pdf-image-skipped:FlateDecode",
-                    "extract-media-pdf-image-loaded:210",
-                    "extract-media-pdf-image-loaded:211",
-                    "extract-media-pdf-image-loaded:212",
-                    "extract-media-pdf-image-loaded:213",
-                    "extract-media-pdf-image-loaded:214",
-                    "extract-media-pdf-image-loaded:215",
-                    "extract-media-pdf-image-loaded:217",
-                    "extract-media-pdf-image-loaded:219",
-                    "extract-media-pdf-image-loaded:220",
-                    "extract-media-pdf-image-loaded:221",
-                    "extract-media-pdf-image-loaded:223",
-                    "extract-media-pdf-image-loaded:225",
-                    "extract-media-pdf-image-loaded:226",
-                    "extract-media-pdf-image-loaded:227",
-                    "extract-media-pdf-image-loaded:228",
-                    "extract-media-pdf-image-loaded:229",
-                    "extract-media-pdf-image-loaded:230",
-                    "extract-media-pdf-image-loaded:231",
-                    "extract-media-pdf-image-loaded:232",
-                    "extract-media-pdf-image-loaded:233",
-                    "extract-media-pdf-image-loaded:234",
-                    "extract-media-pdf-image-loaded:235",
-                    "extract-media-pdf-image-loaded:237",
-                    "extract-media-pdf-image-loaded:238",
-                    "extract-media-pdf-image-loaded:241",
-                    "extract-media-pdf-image-loaded:243",
-                    "extract-media-pdf-image-loaded:245",
-                    "extract-media-pdf-image-loaded:247",
-                    "extract-media-pdf-image-loaded:248",
-                    "extract-media-pdf-image-loaded:249",
+                    "extract-media-pdf-image-loaded:210:important",
+                    "extract-media-pdf-image-loaded:211:important",
+                    "extract-media-pdf-image-loaded:212:important",
+                    "extract-media-pdf-image-loaded:213:important",
+                    "extract-media-pdf-image-loaded:214:important",
+                    "extract-media-pdf-image-loaded:215:important",
+                    "extract-media-pdf-image-loaded:217:important",
+                    "extract-media-pdf-image-loaded:219:important",
+                    "extract-media-pdf-image-loaded:220:important",
+                    "extract-media-pdf-image-loaded:221:important",
+                    "extract-media-pdf-image-loaded:223:important",
+                    "extract-media-pdf-image-loaded:225:important",
+                    "extract-media-pdf-image-loaded:226:important",
+                    "extract-media-pdf-image-loaded:227:important",
+                    "extract-media-pdf-image-loaded:228:important",
+                    "extract-media-pdf-image-loaded:229:important",
+                    "extract-media-pdf-image-loaded:230:important",
+                    "extract-media-pdf-image-loaded:231:important",
+                    "extract-media-pdf-image-loaded:232:important",
+                    "extract-media-pdf-image-loaded:233:important",
+                    "extract-media-pdf-image-loaded:234:important",
+                    "extract-media-pdf-image-unimportant:235:small",
+                    "extract-media-pdf-image-loaded:237:important",
+                    "extract-media-pdf-image-unimportant:238:small",
+                    "extract-media-pdf-image-loaded:241:important",
+                    "extract-media-pdf-image-loaded:243:important",
+                    "extract-media-pdf-image-loaded:245:important",
+                    "extract-media-pdf-image-loaded:247:important",
+                    "extract-media-pdf-image-loaded:248:important",
+                    "extract-media-pdf-image-loaded:249:important",
                     "media-resource-mapped:pdf/image-210.jp2",
                     "media-resource-mapped:pdf/image-211.jpg",
                     "media-resource-mapped:pdf/image-212.jpg",
@@ -8293,9 +8537,7 @@
                     "media-resource-mapped:pdf/image-232.jpg",
                     "media-resource-mapped:pdf/image-233.jpg",
                     "media-resource-mapped:pdf/image-234.jpg",
-                    "media-resource-mapped:pdf/image-235.jpg",
                     "media-resource-mapped:pdf/image-237.jp2",
-                    "media-resource-mapped:pdf/image-238.jp2",
                     "media-resource-mapped:pdf/image-241.jp2",
                     "media-resource-mapped:pdf/image-243.jp2",
                     "media-resource-mapped:pdf/image-245.jp2",
@@ -8624,21 +8866,6 @@
                         "mimeRepairSummary": "declared-mime-matches-path"
                     },
                     {
-                        "path": "outputs/pdf-cdc-hand-hygiene-brochure/media/pdf/image-235.jpg",
-                        "mediaPath": "pdf/image-235.jpg",
-                        "mimeType": "image/jpeg",
-                        "byteLength": 1631,
-                        "sha1": "5265f27032e097d6d00dc856757501a7c0a8300e",
-                        "source": "pdf/image-235.jpg",
-                        "canonicalSource": "pdf/image-235.jpg",
-                        "sourcePath": "pdf/image-235.jpg",
-                        "pathRepairSummary": "safe-relative-path",
-                        "extractionPathRepairSummary": "safe-relative-path",
-                        "mimeTypeSource": "declared",
-                        "inferredMimeType": "image/jpeg",
-                        "mimeRepairSummary": "declared-mime-matches-path"
-                    },
-                    {
                         "path": "outputs/pdf-cdc-hand-hygiene-brochure/media/pdf/image-237.jp2",
                         "mediaPath": "pdf/image-237.jp2",
                         "mimeType": "image/jp2",
@@ -8647,21 +8874,6 @@
                         "source": "pdf/image-237.jp2",
                         "canonicalSource": "pdf/image-237.jp2",
                         "sourcePath": "pdf/image-237.jp2",
-                        "pathRepairSummary": "safe-relative-path",
-                        "extractionPathRepairSummary": "safe-relative-path",
-                        "mimeTypeSource": "declared",
-                        "inferredMimeType": "application/octet-stream",
-                        "mimeRepairSummary": "declared-mime-matches-path"
-                    },
-                    {
-                        "path": "outputs/pdf-cdc-hand-hygiene-brochure/media/pdf/image-238.jp2",
-                        "mediaPath": "pdf/image-238.jp2",
-                        "mimeType": "image/jp2",
-                        "byteLength": 2593,
-                        "sha1": "f174117650b3809726154d6e77b2a77d955fe1a9",
-                        "source": "pdf/image-238.jp2",
-                        "canonicalSource": "pdf/image-238.jp2",
-                        "sourcePath": "pdf/image-238.jp2",
                         "pathRepairSummary": "safe-relative-path",
                         "extractionPathRepairSummary": "safe-relative-path",
                         "mimeTypeSource": "declared",
@@ -8760,37 +8972,38 @@
                     }
                 ],
                 "mediaDiagnostics": [
+                    "extract-media-image-mode:important",
                     "extract-media-pdf-image-skipped:FlateDecode",
-                    "extract-media-pdf-image-loaded:210",
-                    "extract-media-pdf-image-loaded:211",
-                    "extract-media-pdf-image-loaded:212",
-                    "extract-media-pdf-image-loaded:213",
-                    "extract-media-pdf-image-loaded:214",
-                    "extract-media-pdf-image-loaded:215",
-                    "extract-media-pdf-image-loaded:217",
-                    "extract-media-pdf-image-loaded:219",
-                    "extract-media-pdf-image-loaded:220",
-                    "extract-media-pdf-image-loaded:221",
-                    "extract-media-pdf-image-loaded:223",
-                    "extract-media-pdf-image-loaded:225",
-                    "extract-media-pdf-image-loaded:226",
-                    "extract-media-pdf-image-loaded:227",
-                    "extract-media-pdf-image-loaded:228",
-                    "extract-media-pdf-image-loaded:229",
-                    "extract-media-pdf-image-loaded:230",
-                    "extract-media-pdf-image-loaded:231",
-                    "extract-media-pdf-image-loaded:232",
-                    "extract-media-pdf-image-loaded:233",
-                    "extract-media-pdf-image-loaded:234",
-                    "extract-media-pdf-image-loaded:235",
-                    "extract-media-pdf-image-loaded:237",
-                    "extract-media-pdf-image-loaded:238",
-                    "extract-media-pdf-image-loaded:241",
-                    "extract-media-pdf-image-loaded:243",
-                    "extract-media-pdf-image-loaded:245",
-                    "extract-media-pdf-image-loaded:247",
-                    "extract-media-pdf-image-loaded:248",
-                    "extract-media-pdf-image-loaded:249",
+                    "extract-media-pdf-image-loaded:210:important",
+                    "extract-media-pdf-image-loaded:211:important",
+                    "extract-media-pdf-image-loaded:212:important",
+                    "extract-media-pdf-image-loaded:213:important",
+                    "extract-media-pdf-image-loaded:214:important",
+                    "extract-media-pdf-image-loaded:215:important",
+                    "extract-media-pdf-image-loaded:217:important",
+                    "extract-media-pdf-image-loaded:219:important",
+                    "extract-media-pdf-image-loaded:220:important",
+                    "extract-media-pdf-image-loaded:221:important",
+                    "extract-media-pdf-image-loaded:223:important",
+                    "extract-media-pdf-image-loaded:225:important",
+                    "extract-media-pdf-image-loaded:226:important",
+                    "extract-media-pdf-image-loaded:227:important",
+                    "extract-media-pdf-image-loaded:228:important",
+                    "extract-media-pdf-image-loaded:229:important",
+                    "extract-media-pdf-image-loaded:230:important",
+                    "extract-media-pdf-image-loaded:231:important",
+                    "extract-media-pdf-image-loaded:232:important",
+                    "extract-media-pdf-image-loaded:233:important",
+                    "extract-media-pdf-image-loaded:234:important",
+                    "extract-media-pdf-image-unimportant:235:small",
+                    "extract-media-pdf-image-loaded:237:important",
+                    "extract-media-pdf-image-unimportant:238:small",
+                    "extract-media-pdf-image-loaded:241:important",
+                    "extract-media-pdf-image-loaded:243:important",
+                    "extract-media-pdf-image-loaded:245:important",
+                    "extract-media-pdf-image-loaded:247:important",
+                    "extract-media-pdf-image-loaded:248:important",
+                    "extract-media-pdf-image-loaded:249:important",
                     "media-resource-mapped:pdf/image-210.jp2",
                     "media-resource-mapped:pdf/image-211.jpg",
                     "media-resource-mapped:pdf/image-212.jpg",
@@ -8812,9 +9025,7 @@
                     "media-resource-mapped:pdf/image-232.jpg",
                     "media-resource-mapped:pdf/image-233.jpg",
                     "media-resource-mapped:pdf/image-234.jpg",
-                    "media-resource-mapped:pdf/image-235.jpg",
                     "media-resource-mapped:pdf/image-237.jp2",
-                    "media-resource-mapped:pdf/image-238.jp2",
                     "media-resource-mapped:pdf/image-241.jp2",
                     "media-resource-mapped:pdf/image-243.jp2",
                     "media-resource-mapped:pdf/image-245.jp2",
@@ -8825,7 +9036,7 @@
             },
             "wpBlockCounts": {
                 "heading": 3,
-                "image": 30,
+                "image": 28,
                 "list": 7,
                 "paragraph": 17
             }
@@ -9080,21 +9291,6 @@
                         "mimeRepairSummary": "declared-mime-matches-path"
                     },
                     {
-                        "path": "outputs/pdf-grand-canyon-north-rim-map/media/pdf/image-309.jpg",
-                        "mediaPath": "pdf/image-309.jpg",
-                        "mimeType": "image/jpeg",
-                        "byteLength": 850,
-                        "sha1": "59b6625feab873e1c62e2ef1fc6b6e1292924fb8",
-                        "source": "pdf/image-309.jpg",
-                        "canonicalSource": "pdf/image-309.jpg",
-                        "sourcePath": "pdf/image-309.jpg",
-                        "pathRepairSummary": "safe-relative-path",
-                        "extractionPathRepairSummary": "safe-relative-path",
-                        "mimeTypeSource": "declared",
-                        "inferredMimeType": "image/jpeg",
-                        "mimeRepairSummary": "declared-mime-matches-path"
-                    },
-                    {
                         "path": "outputs/pdf-grand-canyon-north-rim-map/media/pdf/image-311.jpg",
                         "mediaPath": "pdf/image-311.jpg",
                         "mimeType": "image/jpeg",
@@ -9125,36 +9321,6 @@
                         "mimeRepairSummary": "declared-mime-matches-path"
                     },
                     {
-                        "path": "outputs/pdf-grand-canyon-north-rim-map/media/pdf/image-637.jpg",
-                        "mediaPath": "pdf/image-637.jpg",
-                        "mimeType": "image/jpeg",
-                        "byteLength": 562,
-                        "sha1": "328370e0b44aa681cce9413ec15af94f02a4ce90",
-                        "source": "pdf/image-637.jpg",
-                        "canonicalSource": "pdf/image-637.jpg",
-                        "sourcePath": "pdf/image-637.jpg",
-                        "pathRepairSummary": "safe-relative-path",
-                        "extractionPathRepairSummary": "safe-relative-path",
-                        "mimeTypeSource": "declared",
-                        "inferredMimeType": "image/jpeg",
-                        "mimeRepairSummary": "declared-mime-matches-path"
-                    },
-                    {
-                        "path": "outputs/pdf-grand-canyon-north-rim-map/media/pdf/image-639.jpg",
-                        "mediaPath": "pdf/image-639.jpg",
-                        "mimeType": "image/jpeg",
-                        "byteLength": 470,
-                        "sha1": "49e1b6ea4ca66405efef979ab859e01e3d70753f",
-                        "source": "pdf/image-639.jpg",
-                        "canonicalSource": "pdf/image-639.jpg",
-                        "sourcePath": "pdf/image-639.jpg",
-                        "pathRepairSummary": "safe-relative-path",
-                        "extractionPathRepairSummary": "safe-relative-path",
-                        "mimeTypeSource": "declared",
-                        "inferredMimeType": "image/jpeg",
-                        "mimeRepairSummary": "declared-mime-matches-path"
-                    },
-                    {
                         "path": "outputs/pdf-grand-canyon-north-rim-map/media/pdf/image-641.jpg",
                         "mediaPath": "pdf/image-641.jpg",
                         "mimeType": "image/jpeg",
@@ -9178,51 +9344,6 @@
                         "source": "pdf/image-642.jpg",
                         "canonicalSource": "pdf/image-642.jpg",
                         "sourcePath": "pdf/image-642.jpg",
-                        "pathRepairSummary": "safe-relative-path",
-                        "extractionPathRepairSummary": "safe-relative-path",
-                        "mimeTypeSource": "declared",
-                        "inferredMimeType": "image/jpeg",
-                        "mimeRepairSummary": "declared-mime-matches-path"
-                    },
-                    {
-                        "path": "outputs/pdf-grand-canyon-north-rim-map/media/pdf/image-643.jpg",
-                        "mediaPath": "pdf/image-643.jpg",
-                        "mimeType": "image/jpeg",
-                        "byteLength": 1028,
-                        "sha1": "40a3b388aa15c98703f550a4a80ae7c8bac0d96d",
-                        "source": "pdf/image-643.jpg",
-                        "canonicalSource": "pdf/image-643.jpg",
-                        "sourcePath": "pdf/image-643.jpg",
-                        "pathRepairSummary": "safe-relative-path",
-                        "extractionPathRepairSummary": "safe-relative-path",
-                        "mimeTypeSource": "declared",
-                        "inferredMimeType": "image/jpeg",
-                        "mimeRepairSummary": "declared-mime-matches-path"
-                    },
-                    {
-                        "path": "outputs/pdf-grand-canyon-north-rim-map/media/pdf/image-645.jpg",
-                        "mediaPath": "pdf/image-645.jpg",
-                        "mimeType": "image/jpeg",
-                        "byteLength": 388,
-                        "sha1": "b8cb268eb4ac93235a740cea3854ebc33a268c2d",
-                        "source": "pdf/image-645.jpg",
-                        "canonicalSource": "pdf/image-645.jpg",
-                        "sourcePath": "pdf/image-645.jpg",
-                        "pathRepairSummary": "safe-relative-path",
-                        "extractionPathRepairSummary": "safe-relative-path",
-                        "mimeTypeSource": "declared",
-                        "inferredMimeType": "image/jpeg",
-                        "mimeRepairSummary": "declared-mime-matches-path"
-                    },
-                    {
-                        "path": "outputs/pdf-grand-canyon-north-rim-map/media/pdf/image-646.jpg",
-                        "mediaPath": "pdf/image-646.jpg",
-                        "mimeType": "image/jpeg",
-                        "byteLength": 1162,
-                        "sha1": "9f219dabdfc6dd3d77be44a35c523688695fa62c",
-                        "source": "pdf/image-646.jpg",
-                        "canonicalSource": "pdf/image-646.jpg",
-                        "sourcePath": "pdf/image-646.jpg",
                         "pathRepairSummary": "safe-relative-path",
                         "extractionPathRepairSummary": "safe-relative-path",
                         "mimeTypeSource": "declared",
@@ -9288,84 +9409,48 @@
                         "mimeTypeSource": "declared",
                         "inferredMimeType": "image/jpeg",
                         "mimeRepairSummary": "declared-mime-matches-path"
-                    },
-                    {
-                        "path": "outputs/pdf-grand-canyon-north-rim-map/media/pdf/image-656.jpg",
-                        "mediaPath": "pdf/image-656.jpg",
-                        "mimeType": "image/jpeg",
-                        "byteLength": 572,
-                        "sha1": "5ea07db8899a5dad79d431c050d315b556fbfd79",
-                        "source": "pdf/image-656.jpg",
-                        "canonicalSource": "pdf/image-656.jpg",
-                        "sourcePath": "pdf/image-656.jpg",
-                        "pathRepairSummary": "safe-relative-path",
-                        "extractionPathRepairSummary": "safe-relative-path",
-                        "mimeTypeSource": "declared",
-                        "inferredMimeType": "image/jpeg",
-                        "mimeRepairSummary": "declared-mime-matches-path"
-                    },
-                    {
-                        "path": "outputs/pdf-grand-canyon-north-rim-map/media/pdf/image-657.jpg",
-                        "mediaPath": "pdf/image-657.jpg",
-                        "mimeType": "image/jpeg",
-                        "byteLength": 3563,
-                        "sha1": "dfe2d2fe02798712aec72f147acbffc30daa493e",
-                        "source": "pdf/image-657.jpg",
-                        "canonicalSource": "pdf/image-657.jpg",
-                        "sourcePath": "pdf/image-657.jpg",
-                        "pathRepairSummary": "safe-relative-path",
-                        "extractionPathRepairSummary": "safe-relative-path",
-                        "mimeTypeSource": "declared",
-                        "inferredMimeType": "image/jpeg",
-                        "mimeRepairSummary": "declared-mime-matches-path"
                     }
                 ],
                 "mediaDiagnostics": [
-                    "extract-media-pdf-image-loaded:637",
+                    "extract-media-image-mode:important",
+                    "extract-media-pdf-image-unimportant:637:small",
                     "extract-media-pdf-image-skipped:FlateDecode",
-                    "extract-media-pdf-image-loaded:639",
-                    "extract-media-pdf-image-loaded:641",
-                    "extract-media-pdf-image-loaded:642",
-                    "extract-media-pdf-image-loaded:643",
-                    "extract-media-pdf-image-loaded:645",
-                    "extract-media-pdf-image-loaded:646",
-                    "extract-media-pdf-image-loaded:650",
-                    "extract-media-pdf-image-loaded:651",
-                    "extract-media-pdf-image-loaded:653",
-                    "extract-media-pdf-image-loaded:655",
-                    "extract-media-pdf-image-loaded:656",
-                    "extract-media-pdf-image-loaded:657",
-                    "extract-media-pdf-image-loaded:118",
-                    "extract-media-pdf-image-loaded:122",
-                    "extract-media-pdf-image-loaded:194",
-                    "extract-media-pdf-image-loaded:198",
-                    "extract-media-pdf-image-loaded:224",
-                    "extract-media-pdf-image-loaded:228",
-                    "extract-media-pdf-image-loaded:263",
-                    "extract-media-pdf-image-loaded:267",
-                    "extract-media-pdf-image-loaded:273",
-                    "extract-media-pdf-image-loaded:277",
-                    "extract-media-pdf-image-loaded:299",
-                    "extract-media-pdf-image-loaded:303",
-                    "extract-media-pdf-image-loaded:306",
-                    "extract-media-pdf-image-loaded:307",
-                    "extract-media-pdf-image-loaded:308",
-                    "extract-media-pdf-image-loaded:309",
-                    "extract-media-pdf-image-loaded:311",
-                    "extract-media-pdf-image-loaded:312",
-                    "media-resource-mapped:pdf/image-637.jpg",
-                    "media-resource-mapped:pdf/image-639.jpg",
+                    "extract-media-pdf-image-unimportant:639:small",
+                    "extract-media-pdf-image-loaded:641:important",
+                    "extract-media-pdf-image-loaded:642:important",
+                    "extract-media-pdf-image-unimportant:643:small",
+                    "extract-media-pdf-image-unimportant:645:small",
+                    "extract-media-pdf-image-unimportant:646:small",
+                    "extract-media-pdf-image-loaded:650:important",
+                    "extract-media-pdf-image-loaded:651:important",
+                    "extract-media-pdf-image-loaded:653:important",
+                    "extract-media-pdf-image-loaded:655:important",
+                    "extract-media-pdf-image-unimportant:656:small",
+                    "extract-media-pdf-image-unimportant:657:small",
+                    "extract-media-pdf-image-loaded:118:important",
+                    "extract-media-pdf-image-loaded:122:important",
+                    "extract-media-pdf-image-loaded:194:important",
+                    "extract-media-pdf-image-loaded:198:important",
+                    "extract-media-pdf-image-loaded:224:important",
+                    "extract-media-pdf-image-loaded:228:important",
+                    "extract-media-pdf-image-loaded:263:important",
+                    "extract-media-pdf-image-loaded:267:important",
+                    "extract-media-pdf-image-loaded:273:important",
+                    "extract-media-pdf-image-loaded:277:important",
+                    "extract-media-pdf-image-loaded:299:important",
+                    "extract-media-pdf-image-loaded:303:important",
+                    "extract-media-pdf-image-loaded:306:important",
+                    "extract-media-pdf-image-loaded:307:important",
+                    "extract-media-pdf-image-loaded:308:important",
+                    "extract-media-pdf-image-unimportant:309:small",
+                    "extract-media-pdf-image-loaded:311:important",
+                    "extract-media-pdf-image-loaded:312:important",
                     "media-resource-mapped:pdf/image-641.jpg",
                     "media-resource-mapped:pdf/image-642.jpg",
-                    "media-resource-mapped:pdf/image-643.jpg",
-                    "media-resource-mapped:pdf/image-645.jpg",
-                    "media-resource-mapped:pdf/image-646.jpg",
                     "media-resource-mapped:pdf/image-650.jpg",
                     "media-resource-mapped:pdf/image-651.jpg",
                     "media-resource-mapped:pdf/image-653.jpg",
                     "media-resource-mapped:pdf/image-655.jpg",
-                    "media-resource-mapped:pdf/image-656.jpg",
-                    "media-resource-mapped:pdf/image-657.jpg",
                     "media-resource-mapped:pdf/image-118.jpg",
                     "media-resource-mapped:pdf/image-122.jpg",
                     "media-resource-mapped:pdf/image-194.jpg",
@@ -9381,7 +9466,6 @@
                     "media-resource-mapped:pdf/image-306.jpg",
                     "media-resource-mapped:pdf/image-307.jpg",
                     "media-resource-mapped:pdf/image-308.jpg",
-                    "media-resource-mapped:pdf/image-309.jpg",
                     "media-resource-mapped:pdf/image-311.jpg",
                     "media-resource-mapped:pdf/image-312.jpg"
                 ]
@@ -9616,21 +9700,6 @@
                         "mimeRepairSummary": "declared-mime-matches-path"
                     },
                     {
-                        "path": "outputs/pdf-grand-canyon-north-rim-map/media/pdf/image-309.jpg",
-                        "mediaPath": "pdf/image-309.jpg",
-                        "mimeType": "image/jpeg",
-                        "byteLength": 850,
-                        "sha1": "59b6625feab873e1c62e2ef1fc6b6e1292924fb8",
-                        "source": "pdf/image-309.jpg",
-                        "canonicalSource": "pdf/image-309.jpg",
-                        "sourcePath": "pdf/image-309.jpg",
-                        "pathRepairSummary": "safe-relative-path",
-                        "extractionPathRepairSummary": "safe-relative-path",
-                        "mimeTypeSource": "declared",
-                        "inferredMimeType": "image/jpeg",
-                        "mimeRepairSummary": "declared-mime-matches-path"
-                    },
-                    {
                         "path": "outputs/pdf-grand-canyon-north-rim-map/media/pdf/image-311.jpg",
                         "mediaPath": "pdf/image-311.jpg",
                         "mimeType": "image/jpeg",
@@ -9661,36 +9730,6 @@
                         "mimeRepairSummary": "declared-mime-matches-path"
                     },
                     {
-                        "path": "outputs/pdf-grand-canyon-north-rim-map/media/pdf/image-637.jpg",
-                        "mediaPath": "pdf/image-637.jpg",
-                        "mimeType": "image/jpeg",
-                        "byteLength": 562,
-                        "sha1": "328370e0b44aa681cce9413ec15af94f02a4ce90",
-                        "source": "pdf/image-637.jpg",
-                        "canonicalSource": "pdf/image-637.jpg",
-                        "sourcePath": "pdf/image-637.jpg",
-                        "pathRepairSummary": "safe-relative-path",
-                        "extractionPathRepairSummary": "safe-relative-path",
-                        "mimeTypeSource": "declared",
-                        "inferredMimeType": "image/jpeg",
-                        "mimeRepairSummary": "declared-mime-matches-path"
-                    },
-                    {
-                        "path": "outputs/pdf-grand-canyon-north-rim-map/media/pdf/image-639.jpg",
-                        "mediaPath": "pdf/image-639.jpg",
-                        "mimeType": "image/jpeg",
-                        "byteLength": 470,
-                        "sha1": "49e1b6ea4ca66405efef979ab859e01e3d70753f",
-                        "source": "pdf/image-639.jpg",
-                        "canonicalSource": "pdf/image-639.jpg",
-                        "sourcePath": "pdf/image-639.jpg",
-                        "pathRepairSummary": "safe-relative-path",
-                        "extractionPathRepairSummary": "safe-relative-path",
-                        "mimeTypeSource": "declared",
-                        "inferredMimeType": "image/jpeg",
-                        "mimeRepairSummary": "declared-mime-matches-path"
-                    },
-                    {
                         "path": "outputs/pdf-grand-canyon-north-rim-map/media/pdf/image-641.jpg",
                         "mediaPath": "pdf/image-641.jpg",
                         "mimeType": "image/jpeg",
@@ -9714,51 +9753,6 @@
                         "source": "pdf/image-642.jpg",
                         "canonicalSource": "pdf/image-642.jpg",
                         "sourcePath": "pdf/image-642.jpg",
-                        "pathRepairSummary": "safe-relative-path",
-                        "extractionPathRepairSummary": "safe-relative-path",
-                        "mimeTypeSource": "declared",
-                        "inferredMimeType": "image/jpeg",
-                        "mimeRepairSummary": "declared-mime-matches-path"
-                    },
-                    {
-                        "path": "outputs/pdf-grand-canyon-north-rim-map/media/pdf/image-643.jpg",
-                        "mediaPath": "pdf/image-643.jpg",
-                        "mimeType": "image/jpeg",
-                        "byteLength": 1028,
-                        "sha1": "40a3b388aa15c98703f550a4a80ae7c8bac0d96d",
-                        "source": "pdf/image-643.jpg",
-                        "canonicalSource": "pdf/image-643.jpg",
-                        "sourcePath": "pdf/image-643.jpg",
-                        "pathRepairSummary": "safe-relative-path",
-                        "extractionPathRepairSummary": "safe-relative-path",
-                        "mimeTypeSource": "declared",
-                        "inferredMimeType": "image/jpeg",
-                        "mimeRepairSummary": "declared-mime-matches-path"
-                    },
-                    {
-                        "path": "outputs/pdf-grand-canyon-north-rim-map/media/pdf/image-645.jpg",
-                        "mediaPath": "pdf/image-645.jpg",
-                        "mimeType": "image/jpeg",
-                        "byteLength": 388,
-                        "sha1": "b8cb268eb4ac93235a740cea3854ebc33a268c2d",
-                        "source": "pdf/image-645.jpg",
-                        "canonicalSource": "pdf/image-645.jpg",
-                        "sourcePath": "pdf/image-645.jpg",
-                        "pathRepairSummary": "safe-relative-path",
-                        "extractionPathRepairSummary": "safe-relative-path",
-                        "mimeTypeSource": "declared",
-                        "inferredMimeType": "image/jpeg",
-                        "mimeRepairSummary": "declared-mime-matches-path"
-                    },
-                    {
-                        "path": "outputs/pdf-grand-canyon-north-rim-map/media/pdf/image-646.jpg",
-                        "mediaPath": "pdf/image-646.jpg",
-                        "mimeType": "image/jpeg",
-                        "byteLength": 1162,
-                        "sha1": "9f219dabdfc6dd3d77be44a35c523688695fa62c",
-                        "source": "pdf/image-646.jpg",
-                        "canonicalSource": "pdf/image-646.jpg",
-                        "sourcePath": "pdf/image-646.jpg",
                         "pathRepairSummary": "safe-relative-path",
                         "extractionPathRepairSummary": "safe-relative-path",
                         "mimeTypeSource": "declared",
@@ -9824,84 +9818,48 @@
                         "mimeTypeSource": "declared",
                         "inferredMimeType": "image/jpeg",
                         "mimeRepairSummary": "declared-mime-matches-path"
-                    },
-                    {
-                        "path": "outputs/pdf-grand-canyon-north-rim-map/media/pdf/image-656.jpg",
-                        "mediaPath": "pdf/image-656.jpg",
-                        "mimeType": "image/jpeg",
-                        "byteLength": 572,
-                        "sha1": "5ea07db8899a5dad79d431c050d315b556fbfd79",
-                        "source": "pdf/image-656.jpg",
-                        "canonicalSource": "pdf/image-656.jpg",
-                        "sourcePath": "pdf/image-656.jpg",
-                        "pathRepairSummary": "safe-relative-path",
-                        "extractionPathRepairSummary": "safe-relative-path",
-                        "mimeTypeSource": "declared",
-                        "inferredMimeType": "image/jpeg",
-                        "mimeRepairSummary": "declared-mime-matches-path"
-                    },
-                    {
-                        "path": "outputs/pdf-grand-canyon-north-rim-map/media/pdf/image-657.jpg",
-                        "mediaPath": "pdf/image-657.jpg",
-                        "mimeType": "image/jpeg",
-                        "byteLength": 3563,
-                        "sha1": "dfe2d2fe02798712aec72f147acbffc30daa493e",
-                        "source": "pdf/image-657.jpg",
-                        "canonicalSource": "pdf/image-657.jpg",
-                        "sourcePath": "pdf/image-657.jpg",
-                        "pathRepairSummary": "safe-relative-path",
-                        "extractionPathRepairSummary": "safe-relative-path",
-                        "mimeTypeSource": "declared",
-                        "inferredMimeType": "image/jpeg",
-                        "mimeRepairSummary": "declared-mime-matches-path"
                     }
                 ],
                 "mediaDiagnostics": [
-                    "extract-media-pdf-image-loaded:637",
+                    "extract-media-image-mode:important",
+                    "extract-media-pdf-image-unimportant:637:small",
                     "extract-media-pdf-image-skipped:FlateDecode",
-                    "extract-media-pdf-image-loaded:639",
-                    "extract-media-pdf-image-loaded:641",
-                    "extract-media-pdf-image-loaded:642",
-                    "extract-media-pdf-image-loaded:643",
-                    "extract-media-pdf-image-loaded:645",
-                    "extract-media-pdf-image-loaded:646",
-                    "extract-media-pdf-image-loaded:650",
-                    "extract-media-pdf-image-loaded:651",
-                    "extract-media-pdf-image-loaded:653",
-                    "extract-media-pdf-image-loaded:655",
-                    "extract-media-pdf-image-loaded:656",
-                    "extract-media-pdf-image-loaded:657",
-                    "extract-media-pdf-image-loaded:118",
-                    "extract-media-pdf-image-loaded:122",
-                    "extract-media-pdf-image-loaded:194",
-                    "extract-media-pdf-image-loaded:198",
-                    "extract-media-pdf-image-loaded:224",
-                    "extract-media-pdf-image-loaded:228",
-                    "extract-media-pdf-image-loaded:263",
-                    "extract-media-pdf-image-loaded:267",
-                    "extract-media-pdf-image-loaded:273",
-                    "extract-media-pdf-image-loaded:277",
-                    "extract-media-pdf-image-loaded:299",
-                    "extract-media-pdf-image-loaded:303",
-                    "extract-media-pdf-image-loaded:306",
-                    "extract-media-pdf-image-loaded:307",
-                    "extract-media-pdf-image-loaded:308",
-                    "extract-media-pdf-image-loaded:309",
-                    "extract-media-pdf-image-loaded:311",
-                    "extract-media-pdf-image-loaded:312",
-                    "media-resource-mapped:pdf/image-637.jpg",
-                    "media-resource-mapped:pdf/image-639.jpg",
+                    "extract-media-pdf-image-unimportant:639:small",
+                    "extract-media-pdf-image-loaded:641:important",
+                    "extract-media-pdf-image-loaded:642:important",
+                    "extract-media-pdf-image-unimportant:643:small",
+                    "extract-media-pdf-image-unimportant:645:small",
+                    "extract-media-pdf-image-unimportant:646:small",
+                    "extract-media-pdf-image-loaded:650:important",
+                    "extract-media-pdf-image-loaded:651:important",
+                    "extract-media-pdf-image-loaded:653:important",
+                    "extract-media-pdf-image-loaded:655:important",
+                    "extract-media-pdf-image-unimportant:656:small",
+                    "extract-media-pdf-image-unimportant:657:small",
+                    "extract-media-pdf-image-loaded:118:important",
+                    "extract-media-pdf-image-loaded:122:important",
+                    "extract-media-pdf-image-loaded:194:important",
+                    "extract-media-pdf-image-loaded:198:important",
+                    "extract-media-pdf-image-loaded:224:important",
+                    "extract-media-pdf-image-loaded:228:important",
+                    "extract-media-pdf-image-loaded:263:important",
+                    "extract-media-pdf-image-loaded:267:important",
+                    "extract-media-pdf-image-loaded:273:important",
+                    "extract-media-pdf-image-loaded:277:important",
+                    "extract-media-pdf-image-loaded:299:important",
+                    "extract-media-pdf-image-loaded:303:important",
+                    "extract-media-pdf-image-loaded:306:important",
+                    "extract-media-pdf-image-loaded:307:important",
+                    "extract-media-pdf-image-loaded:308:important",
+                    "extract-media-pdf-image-unimportant:309:small",
+                    "extract-media-pdf-image-loaded:311:important",
+                    "extract-media-pdf-image-loaded:312:important",
                     "media-resource-mapped:pdf/image-641.jpg",
                     "media-resource-mapped:pdf/image-642.jpg",
-                    "media-resource-mapped:pdf/image-643.jpg",
-                    "media-resource-mapped:pdf/image-645.jpg",
-                    "media-resource-mapped:pdf/image-646.jpg",
                     "media-resource-mapped:pdf/image-650.jpg",
                     "media-resource-mapped:pdf/image-651.jpg",
                     "media-resource-mapped:pdf/image-653.jpg",
                     "media-resource-mapped:pdf/image-655.jpg",
-                    "media-resource-mapped:pdf/image-656.jpg",
-                    "media-resource-mapped:pdf/image-657.jpg",
                     "media-resource-mapped:pdf/image-118.jpg",
                     "media-resource-mapped:pdf/image-122.jpg",
                     "media-resource-mapped:pdf/image-194.jpg",
@@ -9917,14 +9875,13 @@
                     "media-resource-mapped:pdf/image-306.jpg",
                     "media-resource-mapped:pdf/image-307.jpg",
                     "media-resource-mapped:pdf/image-308.jpg",
-                    "media-resource-mapped:pdf/image-309.jpg",
                     "media-resource-mapped:pdf/image-311.jpg",
                     "media-resource-mapped:pdf/image-312.jpg"
                 ]
             },
             "wpBlockCounts": {
                 "heading": 15,
-                "image": 31,
+                "image": 23,
                 "paragraph": 20
             }
         },
@@ -10314,31 +10271,32 @@
                     }
                 ],
                 "mediaDiagnostics": [
-                    "extract-media-pdf-image-loaded:00003",
-                    "extract-media-pdf-image-loaded:00010",
+                    "extract-media-image-mode:important",
+                    "extract-media-pdf-image-loaded:00003:important",
+                    "extract-media-pdf-image-loaded:00010:important",
                     "extract-media-pdf-image-skipped:JBIG2Decode",
-                    "extract-media-pdf-image-loaded:00018",
-                    "extract-media-pdf-image-loaded:00023",
-                    "extract-media-pdf-image-loaded:00024",
-                    "extract-media-pdf-image-loaded:00065",
-                    "extract-media-pdf-image-loaded:00066",
-                    "extract-media-pdf-image-loaded:00084",
-                    "extract-media-pdf-image-loaded:00085",
-                    "extract-media-pdf-image-loaded:00094",
-                    "extract-media-pdf-image-loaded:00095",
-                    "extract-media-pdf-image-loaded:00103",
-                    "extract-media-pdf-image-loaded:00112",
-                    "extract-media-pdf-image-loaded:00121",
-                    "extract-media-pdf-image-loaded:00122",
-                    "extract-media-pdf-image-loaded:00130",
-                    "extract-media-pdf-image-loaded:00139",
-                    "extract-media-pdf-image-loaded:00149",
-                    "extract-media-pdf-image-loaded:00158",
-                    "extract-media-pdf-image-loaded:00167",
-                    "extract-media-pdf-image-loaded:00176",
-                    "extract-media-pdf-image-loaded:00177",
-                    "extract-media-pdf-image-loaded:00185",
-                    "extract-media-pdf-image-loaded:00213",
+                    "extract-media-pdf-image-loaded:00018:important",
+                    "extract-media-pdf-image-loaded:00023:important",
+                    "extract-media-pdf-image-loaded:00024:important",
+                    "extract-media-pdf-image-loaded:00065:important",
+                    "extract-media-pdf-image-loaded:00066:important",
+                    "extract-media-pdf-image-loaded:00084:important",
+                    "extract-media-pdf-image-loaded:00085:important",
+                    "extract-media-pdf-image-loaded:00094:important",
+                    "extract-media-pdf-image-loaded:00095:important",
+                    "extract-media-pdf-image-loaded:00103:important",
+                    "extract-media-pdf-image-loaded:00112:important",
+                    "extract-media-pdf-image-loaded:00121:important",
+                    "extract-media-pdf-image-loaded:00122:important",
+                    "extract-media-pdf-image-loaded:00130:important",
+                    "extract-media-pdf-image-loaded:00139:important",
+                    "extract-media-pdf-image-loaded:00149:important",
+                    "extract-media-pdf-image-loaded:00158:important",
+                    "extract-media-pdf-image-loaded:00167:important",
+                    "extract-media-pdf-image-loaded:00176:important",
+                    "extract-media-pdf-image-loaded:00177:important",
+                    "extract-media-pdf-image-loaded:00185:important",
+                    "extract-media-pdf-image-loaded:00213:important",
                     "media-resource-mapped:pdf/image-00003.jp2",
                     "media-resource-mapped:pdf/image-00010.jp2",
                     "media-resource-mapped:pdf/image-00018.jp2",
@@ -10731,31 +10689,32 @@
                     }
                 ],
                 "mediaDiagnostics": [
-                    "extract-media-pdf-image-loaded:00003",
-                    "extract-media-pdf-image-loaded:00010",
+                    "extract-media-image-mode:important",
+                    "extract-media-pdf-image-loaded:00003:important",
+                    "extract-media-pdf-image-loaded:00010:important",
                     "extract-media-pdf-image-skipped:JBIG2Decode",
-                    "extract-media-pdf-image-loaded:00018",
-                    "extract-media-pdf-image-loaded:00023",
-                    "extract-media-pdf-image-loaded:00024",
-                    "extract-media-pdf-image-loaded:00065",
-                    "extract-media-pdf-image-loaded:00066",
-                    "extract-media-pdf-image-loaded:00084",
-                    "extract-media-pdf-image-loaded:00085",
-                    "extract-media-pdf-image-loaded:00094",
-                    "extract-media-pdf-image-loaded:00095",
-                    "extract-media-pdf-image-loaded:00103",
-                    "extract-media-pdf-image-loaded:00112",
-                    "extract-media-pdf-image-loaded:00121",
-                    "extract-media-pdf-image-loaded:00122",
-                    "extract-media-pdf-image-loaded:00130",
-                    "extract-media-pdf-image-loaded:00139",
-                    "extract-media-pdf-image-loaded:00149",
-                    "extract-media-pdf-image-loaded:00158",
-                    "extract-media-pdf-image-loaded:00167",
-                    "extract-media-pdf-image-loaded:00176",
-                    "extract-media-pdf-image-loaded:00177",
-                    "extract-media-pdf-image-loaded:00185",
-                    "extract-media-pdf-image-loaded:00213",
+                    "extract-media-pdf-image-loaded:00018:important",
+                    "extract-media-pdf-image-loaded:00023:important",
+                    "extract-media-pdf-image-loaded:00024:important",
+                    "extract-media-pdf-image-loaded:00065:important",
+                    "extract-media-pdf-image-loaded:00066:important",
+                    "extract-media-pdf-image-loaded:00084:important",
+                    "extract-media-pdf-image-loaded:00085:important",
+                    "extract-media-pdf-image-loaded:00094:important",
+                    "extract-media-pdf-image-loaded:00095:important",
+                    "extract-media-pdf-image-loaded:00103:important",
+                    "extract-media-pdf-image-loaded:00112:important",
+                    "extract-media-pdf-image-loaded:00121:important",
+                    "extract-media-pdf-image-loaded:00122:important",
+                    "extract-media-pdf-image-loaded:00130:important",
+                    "extract-media-pdf-image-loaded:00139:important",
+                    "extract-media-pdf-image-loaded:00149:important",
+                    "extract-media-pdf-image-loaded:00158:important",
+                    "extract-media-pdf-image-loaded:00167:important",
+                    "extract-media-pdf-image-loaded:00176:important",
+                    "extract-media-pdf-image-loaded:00177:important",
+                    "extract-media-pdf-image-loaded:00185:important",
+                    "extract-media-pdf-image-loaded:00213:important",
                     "media-resource-mapped:pdf/image-00003.jp2",
                     "media-resource-mapped:pdf/image-00010.jp2",
                     "media-resource-mapped:pdf/image-00018.jp2",
@@ -11114,26 +11073,27 @@
                     }
                 ],
                 "mediaDiagnostics": [
-                    "extract-media-pdf-image-loaded:4",
-                    "extract-media-pdf-image-loaded:6",
-                    "extract-media-pdf-image-loaded:8",
-                    "extract-media-pdf-image-loaded:10",
-                    "extract-media-pdf-image-loaded:12",
-                    "extract-media-pdf-image-loaded:31",
-                    "extract-media-pdf-image-loaded:37",
-                    "extract-media-pdf-image-loaded:60",
-                    "extract-media-pdf-image-loaded:61",
-                    "extract-media-pdf-image-loaded:63",
-                    "extract-media-pdf-image-loaded:65",
-                    "extract-media-pdf-image-loaded:249",
-                    "extract-media-pdf-image-loaded:258",
-                    "extract-media-pdf-image-loaded:260",
-                    "extract-media-pdf-image-loaded:262",
-                    "extract-media-pdf-image-loaded:268",
-                    "extract-media-pdf-image-loaded:269",
-                    "extract-media-pdf-image-loaded:270",
-                    "extract-media-pdf-image-loaded:271",
-                    "extract-media-pdf-image-loaded:272",
+                    "extract-media-image-mode:important",
+                    "extract-media-pdf-image-loaded:4:important",
+                    "extract-media-pdf-image-loaded:6:important",
+                    "extract-media-pdf-image-loaded:8:important",
+                    "extract-media-pdf-image-loaded:10:important",
+                    "extract-media-pdf-image-loaded:12:important",
+                    "extract-media-pdf-image-loaded:31:important",
+                    "extract-media-pdf-image-loaded:37:important",
+                    "extract-media-pdf-image-loaded:60:important",
+                    "extract-media-pdf-image-loaded:61:important",
+                    "extract-media-pdf-image-loaded:63:important",
+                    "extract-media-pdf-image-loaded:65:important",
+                    "extract-media-pdf-image-loaded:249:important",
+                    "extract-media-pdf-image-loaded:258:important",
+                    "extract-media-pdf-image-loaded:260:important",
+                    "extract-media-pdf-image-loaded:262:important",
+                    "extract-media-pdf-image-loaded:268:important",
+                    "extract-media-pdf-image-loaded:269:important",
+                    "extract-media-pdf-image-loaded:270:important",
+                    "extract-media-pdf-image-loaded:271:important",
+                    "extract-media-pdf-image-loaded:272:important",
                     "media-resource-mapped:pdf/image-4.jpg",
                     "media-resource-mapped:pdf/image-6.jpg",
                     "media-resource-mapped:pdf/image-8.jpg",
@@ -11462,26 +11422,27 @@
                     }
                 ],
                 "mediaDiagnostics": [
-                    "extract-media-pdf-image-loaded:4",
-                    "extract-media-pdf-image-loaded:6",
-                    "extract-media-pdf-image-loaded:8",
-                    "extract-media-pdf-image-loaded:10",
-                    "extract-media-pdf-image-loaded:12",
-                    "extract-media-pdf-image-loaded:31",
-                    "extract-media-pdf-image-loaded:37",
-                    "extract-media-pdf-image-loaded:60",
-                    "extract-media-pdf-image-loaded:61",
-                    "extract-media-pdf-image-loaded:63",
-                    "extract-media-pdf-image-loaded:65",
-                    "extract-media-pdf-image-loaded:249",
-                    "extract-media-pdf-image-loaded:258",
-                    "extract-media-pdf-image-loaded:260",
-                    "extract-media-pdf-image-loaded:262",
-                    "extract-media-pdf-image-loaded:268",
-                    "extract-media-pdf-image-loaded:269",
-                    "extract-media-pdf-image-loaded:270",
-                    "extract-media-pdf-image-loaded:271",
-                    "extract-media-pdf-image-loaded:272",
+                    "extract-media-image-mode:important",
+                    "extract-media-pdf-image-loaded:4:important",
+                    "extract-media-pdf-image-loaded:6:important",
+                    "extract-media-pdf-image-loaded:8:important",
+                    "extract-media-pdf-image-loaded:10:important",
+                    "extract-media-pdf-image-loaded:12:important",
+                    "extract-media-pdf-image-loaded:31:important",
+                    "extract-media-pdf-image-loaded:37:important",
+                    "extract-media-pdf-image-loaded:60:important",
+                    "extract-media-pdf-image-loaded:61:important",
+                    "extract-media-pdf-image-loaded:63:important",
+                    "extract-media-pdf-image-loaded:65:important",
+                    "extract-media-pdf-image-loaded:249:important",
+                    "extract-media-pdf-image-loaded:258:important",
+                    "extract-media-pdf-image-loaded:260:important",
+                    "extract-media-pdf-image-loaded:262:important",
+                    "extract-media-pdf-image-loaded:268:important",
+                    "extract-media-pdf-image-loaded:269:important",
+                    "extract-media-pdf-image-loaded:270:important",
+                    "extract-media-pdf-image-loaded:271:important",
+                    "extract-media-pdf-image-loaded:272:important",
                     "media-resource-mapped:pdf/image-4.jpg",
                     "media-resource-mapped:pdf/image-6.jpg",
                     "media-resource-mapped:pdf/image-8.jpg",
@@ -11535,13 +11496,17 @@
                 "ok": true,
                 "path": "outputs/doc-poi-47304/php.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlocks": {
                 "ok": true,
                 "path": "outputs/doc-poi-47304/wordpress-blocks.html",
                 "media": [],
-                "mediaDiagnostics": []
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlockCounts": {
                 "paragraph": 1
@@ -11569,12 +11534,12 @@
             },
             "phpHtml": {
                 "ok": false,
-                "error": "PHP Fatal error:  Uncaught RuntimeException: CFB root storage entry must be black in $REPO/lanes/pandoc/src/CompoundFileBinary.php:765\nStack trace:\n#0 $REPO/lanes/pandoc/src/CompoundFileBinary.php(239): PortLibs\\Pandoc\\CompoundFileBinary::parseDirectory('R\\x00o\\x00o\\x00t\\x00 \\x00E\\x00n\\x00t...', 3)\n#1 $REPO/lanes/pandoc/src/LegacyDocReader.php(228): PortLibs\\Pandoc\\CompoundFileBinary::fromBytes('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#2 $REPO/lanes/pandoc/src/LegacyDocReader.php(220): PortLibs\\Pandoc\\LegacyDocReader->readBytes('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#3 $REPO/lanes/pandoc/src/PandocConverter.php(37): PortLibs\\Pandoc\\LegacyDocReader->read('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#4 $REPO/lanes/pandoc/src/PandocConverter.php(93): PortLibs\\Pandoc\\PandocConverter::read('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...', 'doc', Array)\n#5 $REPO/lanes/pandoc/src/PandocConverter.php(152): PortLibs\\Pandoc\\PandocConverter::convertWithMedia('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...', 'doc', 'html', Array)\n#6 $REPO/tools/build-pandoc-showcase.php(31): PortLibs\\Pandoc\\PandocConverter::convertFileWithMedia('$TMP', 'doc', 'html', Array)\n#7 {main}\n  thrown in $REPO/lanes/pandoc/src/CompoundFileBinary.php on line 765\nFatal error: Uncaught RuntimeException: CFB root storage entry must be black in $REPO/lanes/pandoc/src/CompoundFileBinary.php:765\nStack trace:\n#0 $REPO/lanes/pandoc/src/CompoundFileBinary.php(239): PortLibs\\Pandoc\\CompoundFileBinary::parseDirectory('R\\x00o\\x00o\\x00t\\x00 \\x00E\\x00n\\x00t...', 3)\n#1 $REPO/lanes/pandoc/src/LegacyDocReader.php(228): PortLibs\\Pandoc\\CompoundFileBinary::fromBytes('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#2 $REPO/lanes/pandoc/src/LegacyDocReader.php(220): PortLibs\\Pandoc\\LegacyDocReader->readBytes('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#3 $REPO/lanes/pandoc/src/PandocConverter.php(37): PortLibs\\Pandoc\\LegacyDocReader->read('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#4 $REPO/lanes/pandoc/src/PandocConverter.php(93): PortLibs\\Pandoc\\PandocConverter::read('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...', 'doc', Array)\n#5 $REPO/lanes/pandoc/src/PandocConverter.php(152): PortLibs\\Pandoc\\PandocConverter::convertWithMedia('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...', 'doc', 'html', Array)\n#6 $REPO/tools/build-pandoc-showcase.php(31): PortLibs\\Pandoc\\PandocConverter::convertFileWithMedia('$TMP', 'doc', 'html', Array)\n#7 {main}\n  thrown in $REPO/lanes/pandoc/src/CompoundFileBinary.php on line 765",
+                "error": "PHP Fatal error:  Uncaught RuntimeException: CFB root storage entry must be black in $REPO/lanes/pandoc/src/CompoundFileBinary.php:765\nStack trace:\n#0 $REPO/lanes/pandoc/src/CompoundFileBinary.php(239): PortLibs\\Pandoc\\CompoundFileBinary::parseDirectory('R\\x00o\\x00o\\x00t\\x00 \\x00E\\x00n\\x00t...', 3)\n#1 $REPO/lanes/pandoc/src/LegacyDocReader.php(228): PortLibs\\Pandoc\\CompoundFileBinary::fromBytes('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#2 $REPO/lanes/pandoc/src/LegacyDocReader.php(220): PortLibs\\Pandoc\\LegacyDocReader->readBytes('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#3 $REPO/lanes/pandoc/src/PandocConverter.php(37): PortLibs\\Pandoc\\LegacyDocReader->read('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#4 $REPO/lanes/pandoc/src/PandocConverter.php(93): PortLibs\\Pandoc\\PandocConverter::read('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...', 'doc', Array)\n#5 $REPO/lanes/pandoc/src/PandocConverter.php(152): PortLibs\\Pandoc\\PandocConverter::convertWithMedia('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...', 'doc', 'html', Array)\n#6 $REPO/tools/build-pandoc-showcase.php(32): PortLibs\\Pandoc\\PandocConverter::convertFileWithMedia('$TMP', 'doc', 'html', Array)\n#7 {main}\n  thrown in $REPO/lanes/pandoc/src/CompoundFileBinary.php on line 765\nFatal error: Uncaught RuntimeException: CFB root storage entry must be black in $REPO/lanes/pandoc/src/CompoundFileBinary.php:765\nStack trace:\n#0 $REPO/lanes/pandoc/src/CompoundFileBinary.php(239): PortLibs\\Pandoc\\CompoundFileBinary::parseDirectory('R\\x00o\\x00o\\x00t\\x00 \\x00E\\x00n\\x00t...', 3)\n#1 $REPO/lanes/pandoc/src/LegacyDocReader.php(228): PortLibs\\Pandoc\\CompoundFileBinary::fromBytes('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#2 $REPO/lanes/pandoc/src/LegacyDocReader.php(220): PortLibs\\Pandoc\\LegacyDocReader->readBytes('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#3 $REPO/lanes/pandoc/src/PandocConverter.php(37): PortLibs\\Pandoc\\LegacyDocReader->read('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#4 $REPO/lanes/pandoc/src/PandocConverter.php(93): PortLibs\\Pandoc\\PandocConverter::read('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...', 'doc', Array)\n#5 $REPO/lanes/pandoc/src/PandocConverter.php(152): PortLibs\\Pandoc\\PandocConverter::convertWithMedia('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...', 'doc', 'html', Array)\n#6 $REPO/tools/build-pandoc-showcase.php(32): PortLibs\\Pandoc\\PandocConverter::convertFileWithMedia('$TMP', 'doc', 'html', Array)\n#7 {main}\n  thrown in $REPO/lanes/pandoc/src/CompoundFileBinary.php on line 765",
                 "path": "outputs/doc-poi-57843/php.html.error.txt"
             },
             "wpBlocks": {
                 "ok": false,
-                "error": "PHP Fatal error:  Uncaught RuntimeException: CFB root storage entry must be black in $REPO/lanes/pandoc/src/CompoundFileBinary.php:765\nStack trace:\n#0 $REPO/lanes/pandoc/src/CompoundFileBinary.php(239): PortLibs\\Pandoc\\CompoundFileBinary::parseDirectory('R\\x00o\\x00o\\x00t\\x00 \\x00E\\x00n\\x00t...', 3)\n#1 $REPO/lanes/pandoc/src/LegacyDocReader.php(228): PortLibs\\Pandoc\\CompoundFileBinary::fromBytes('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#2 $REPO/lanes/pandoc/src/LegacyDocReader.php(220): PortLibs\\Pandoc\\LegacyDocReader->readBytes('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#3 $REPO/lanes/pandoc/src/PandocConverter.php(37): PortLibs\\Pandoc\\LegacyDocReader->read('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#4 $REPO/lanes/pandoc/src/PandocConverter.php(93): PortLibs\\Pandoc\\PandocConverter::read('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...', 'doc', Array)\n#5 $REPO/lanes/pandoc/src/PandocConverter.php(152): PortLibs\\Pandoc\\PandocConverter::convertWithMedia('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...', 'doc', 'wordpress', Array)\n#6 $REPO/tools/build-pandoc-showcase.php(31): PortLibs\\Pandoc\\PandocConverter::convertFileWithMedia('$TMP', 'doc', 'wordpress', Array)\n#7 {main}\n  thrown in $REPO/lanes/pandoc/src/CompoundFileBinary.php on line 765\nFatal error: Uncaught RuntimeException: CFB root storage entry must be black in $REPO/lanes/pandoc/src/CompoundFileBinary.php:765\nStack trace:\n#0 $REPO/lanes/pandoc/src/CompoundFileBinary.php(239): PortLibs\\Pandoc\\CompoundFileBinary::parseDirectory('R\\x00o\\x00o\\x00t\\x00 \\x00E\\x00n\\x00t...', 3)\n#1 $REPO/lanes/pandoc/src/LegacyDocReader.php(228): PortLibs\\Pandoc\\CompoundFileBinary::fromBytes('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#2 $REPO/lanes/pandoc/src/LegacyDocReader.php(220): PortLibs\\Pandoc\\LegacyDocReader->readBytes('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#3 $REPO/lanes/pandoc/src/PandocConverter.php(37): PortLibs\\Pandoc\\LegacyDocReader->read('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#4 $REPO/lanes/pandoc/src/PandocConverter.php(93): PortLibs\\Pandoc\\PandocConverter::read('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...', 'doc', Array)\n#5 $REPO/lanes/pandoc/src/PandocConverter.php(152): PortLibs\\Pandoc\\PandocConverter::convertWithMedia('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...', 'doc', 'wordpress', Array)\n#6 $REPO/tools/build-pandoc-showcase.php(31): PortLibs\\Pandoc\\PandocConverter::convertFileWithMedia('$TMP', 'doc', 'wordpress', Array)\n#7 {main}\n  thrown in $REPO/lanes/pandoc/src/CompoundFileBinary.php on line 765",
+                "error": "PHP Fatal error:  Uncaught RuntimeException: CFB root storage entry must be black in $REPO/lanes/pandoc/src/CompoundFileBinary.php:765\nStack trace:\n#0 $REPO/lanes/pandoc/src/CompoundFileBinary.php(239): PortLibs\\Pandoc\\CompoundFileBinary::parseDirectory('R\\x00o\\x00o\\x00t\\x00 \\x00E\\x00n\\x00t...', 3)\n#1 $REPO/lanes/pandoc/src/LegacyDocReader.php(228): PortLibs\\Pandoc\\CompoundFileBinary::fromBytes('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#2 $REPO/lanes/pandoc/src/LegacyDocReader.php(220): PortLibs\\Pandoc\\LegacyDocReader->readBytes('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#3 $REPO/lanes/pandoc/src/PandocConverter.php(37): PortLibs\\Pandoc\\LegacyDocReader->read('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#4 $REPO/lanes/pandoc/src/PandocConverter.php(93): PortLibs\\Pandoc\\PandocConverter::read('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...', 'doc', Array)\n#5 $REPO/lanes/pandoc/src/PandocConverter.php(152): PortLibs\\Pandoc\\PandocConverter::convertWithMedia('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...', 'doc', 'wordpress', Array)\n#6 $REPO/tools/build-pandoc-showcase.php(32): PortLibs\\Pandoc\\PandocConverter::convertFileWithMedia('$TMP', 'doc', 'wordpress', Array)\n#7 {main}\n  thrown in $REPO/lanes/pandoc/src/CompoundFileBinary.php on line 765\nFatal error: Uncaught RuntimeException: CFB root storage entry must be black in $REPO/lanes/pandoc/src/CompoundFileBinary.php:765\nStack trace:\n#0 $REPO/lanes/pandoc/src/CompoundFileBinary.php(239): PortLibs\\Pandoc\\CompoundFileBinary::parseDirectory('R\\x00o\\x00o\\x00t\\x00 \\x00E\\x00n\\x00t...', 3)\n#1 $REPO/lanes/pandoc/src/LegacyDocReader.php(228): PortLibs\\Pandoc\\CompoundFileBinary::fromBytes('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#2 $REPO/lanes/pandoc/src/LegacyDocReader.php(220): PortLibs\\Pandoc\\LegacyDocReader->readBytes('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#3 $REPO/lanes/pandoc/src/PandocConverter.php(37): PortLibs\\Pandoc\\LegacyDocReader->read('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#4 $REPO/lanes/pandoc/src/PandocConverter.php(93): PortLibs\\Pandoc\\PandocConverter::read('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...', 'doc', Array)\n#5 $REPO/lanes/pandoc/src/PandocConverter.php(152): PortLibs\\Pandoc\\PandocConverter::convertWithMedia('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...', 'doc', 'wordpress', Array)\n#6 $REPO/tools/build-pandoc-showcase.php(32): PortLibs\\Pandoc\\PandocConverter::convertFileWithMedia('$TMP', 'doc', 'wordpress', Array)\n#7 {main}\n  thrown in $REPO/lanes/pandoc/src/CompoundFileBinary.php on line 765",
                 "path": "outputs/doc-poi-57843/wordpress-blocks.html.error.txt"
             },
             "wpBlockCounts": []
