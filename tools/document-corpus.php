@@ -1763,30 +1763,345 @@ function tokens(string $text): array
 
 function corpusReport(PDO $db): array
 {
+    $summary = $db->query(<<<'SQL'
+        SELECT
+            (SELECT COUNT(*) FROM formats) AS formats,
+            (SELECT COUNT(*) FROM candidates) AS candidates,
+            (SELECT COUNT(*) FROM candidates WHERE status='queued') AS queued_candidates,
+            (SELECT COUNT(*) FROM candidates WHERE status='failed') AS failed_candidates,
+            (SELECT COUNT(*) FROM documents) AS documents,
+            (SELECT COUNT(*) FROM renders WHERE status='ok') AS ok_renders,
+            (SELECT COUNT(*) FROM renders WHERE status!='ok') AS failed_renders,
+            (SELECT COUNT(*) FROM renders WHERE renderer='php-wordpress') AS wordpress_attempts,
+            (SELECT COUNT(*) FROM renders WHERE renderer='php-wordpress' AND status='ok') AS wordpress_ok,
+            (SELECT COUNT(*) FROM renders WHERE renderer='php-wordpress' AND status!='ok') AS wordpress_failed,
+            (SELECT COUNT(*) FROM documents d WHERE NOT EXISTS (SELECT 1 FROM renders r WHERE r.document_id=d.id AND r.renderer='php-wordpress')) AS pending_wordpress,
+            (SELECT COUNT(*) FROM comparisons) AS comparisons,
+            (SELECT COUNT(*) FROM comparisons WHERE status='needs-review') AS needs_review,
+            (SELECT COUNT(*) FROM (
+                SELECT f.format
+                FROM formats f
+                LEFT JOIN documents d ON d.format=f.format
+                GROUP BY f.format
+                HAVING COUNT(d.id) < f.target_count
+            )) AS formats_under_target
+    SQL)->fetch(PDO::FETCH_ASSOC);
+
+    $byFormat = $db->query(<<<'SQL'
+        SELECT
+            f.format,
+            f.status,
+            f.target_count,
+            COUNT(DISTINCT c.id) AS candidates,
+            COUNT(DISTINCT CASE WHEN c.status='queued' THEN c.id END) AS queued_candidates,
+            COUNT(DISTINCT CASE WHEN c.status='failed' THEN c.id END) AS failed_candidates,
+            COUNT(DISTINCT d.id) AS documents,
+            COUNT(DISTINCT CASE WHEN wp.renderer='php-wordpress' THEN wp.document_id END) AS wordpress_attempts,
+            COUNT(DISTINCT CASE WHEN wp.renderer='php-wordpress' AND wp.status='ok' THEN wp.document_id END) AS wordpress_ok,
+            COUNT(DISTINCT CASE WHEN wp.renderer='php-wordpress' AND wp.status!='ok' THEN wp.document_id END) AS wordpress_failed,
+            COUNT(DISTINCT cmp.id) AS comparisons,
+            COUNT(DISTINCT CASE WHEN cmp.status='needs-review' THEN cmp.id END) AS needs_review
+        FROM formats f
+        LEFT JOIN candidates c ON c.format=f.format
+        LEFT JOIN documents d ON d.format=f.format
+        LEFT JOIN renders wp ON wp.document_id=d.id AND wp.renderer='php-wordpress'
+        LEFT JOIN comparisons cmp ON cmp.document_id=d.id
+        GROUP BY f.format
+        ORDER BY f.format
+    SQL)->fetchAll(PDO::FETCH_ASSOC);
+
+    $comparisonRows = $db->query(<<<'SQL'
+        SELECT d.id, d.format, d.title, d.url, d.local_path, cmp.status, cmp.reference_renderer, cmp.wordpress_renderer, cmp.metrics_json, cmp.notes
+        FROM comparisons cmp
+        JOIN documents d ON d.id=cmp.document_id
+        ORDER BY d.format, d.id
+    SQL)->fetchAll(PDO::FETCH_ASSOC);
+    $comparisonInsights = comparisonInsights($comparisonRows);
+
+    $failureRows = $db->query(<<<'SQL'
+        SELECT d.id, d.format, d.title, d.url, d.local_path, r.renderer, r.error, r.metrics_json
+        FROM renders r
+        JOIN documents d ON d.id=r.document_id
+        WHERE r.status!='ok'
+        ORDER BY d.format, d.id, r.renderer
+    SQL)->fetchAll(PDO::FETCH_ASSOC);
+    $failureInsights = failureInsights($failureRows);
+
     return [
         'generatedAt' => gmdate('c'),
-        'summary' => $db->query('SELECT (SELECT COUNT(*) FROM formats) AS formats, (SELECT COUNT(*) FROM candidates) AS candidates, (SELECT COUNT(*) FROM documents) AS documents, (SELECT COUNT(*) FROM renders WHERE status="ok") AS ok_renders, (SELECT COUNT(*) FROM comparisons WHERE status="needs-review") AS needs_review')->fetch(PDO::FETCH_ASSOC),
-        'byFormat' => $db->query('SELECT f.format, f.target_count, COUNT(DISTINCT d.id) AS documents, COUNT(DISTINCT c.id) AS candidates, COUNT(DISTINCT CASE WHEN cmp.status="needs-review" THEN cmp.id END) AS needs_review FROM formats f LEFT JOIN candidates c ON c.format=f.format LEFT JOIN documents d ON d.format=f.format LEFT JOIN comparisons cmp ON cmp.document_id=d.id GROUP BY f.format ORDER BY f.format')->fetchAll(PDO::FETCH_ASSOC),
-        'needsReview' => $db->query('SELECT d.id, d.format, d.url, d.local_path, cmp.metrics_json, cmp.notes FROM comparisons cmp JOIN documents d ON d.id=cmp.document_id WHERE cmp.status="needs-review" ORDER BY d.format, d.id LIMIT 200')->fetchAll(PDO::FETCH_ASSOC),
-        'failures' => $db->query('SELECT d.id, d.format, d.url, r.renderer, r.error FROM renders r JOIN documents d ON d.id=r.document_id WHERE r.status!="ok" ORDER BY d.format, d.id LIMIT 200')->fetchAll(PDO::FETCH_ASSOC),
+        'summary' => $summary,
+        'byFormat' => enrichFormatRows($byFormat),
+        'reviewQueue' => $comparisonInsights['reviewQueue'],
+        'worstComparisons' => $comparisonInsights['worstComparisons'],
+        'structureRisks' => $comparisonInsights['structureRisks'],
+        'failureClusters' => $failureInsights['clusters'],
+        'failureQueue' => $failureInsights['queue'],
+        'needsReview' => array_slice($comparisonInsights['reviewQueue'], 0, 200),
+        'failures' => array_slice($failureInsights['queue'], 0, 200),
     ];
 }
 
 function renderReportHtml(array $report): string
 {
-    $rows = '';
-    foreach ($report['byFormat'] as $row) {
-        $rows .= '<tr><td>' . e((string) $row['format']) . '</td><td>' . (int) $row['target_count'] . '</td><td>' . (int) $row['candidates'] . '</td><td>' . (int) $row['documents'] . '</td><td>' . (int) $row['needs_review'] . '</td></tr>';
-    }
-    $review = '';
-    foreach ($report['needsReview'] as $row) {
-        $metrics = json_decode((string) $row['metrics_json'], true);
-        $review .= '<li><strong>' . e((string) $row['format']) . ' #' . (int) $row['id'] . '</strong> '
-            . '<a href="' . e((string) $row['url']) . '">' . e((string) $row['url']) . '</a> '
-            . 'jaccard=' . e((string) ($metrics['textJaccard'] ?? '')) . ' coverage=' . e((string) ($metrics['referenceTextCoverage'] ?? '')) . '</li>';
+    $summaryCards = '';
+    foreach (($report['summary'] ?? []) as $key => $value) {
+        $summaryCards .= '<div class="card"><span>' . e((string) $key) . '</span><strong>' . e((string) $value) . '</strong></div>';
     }
 
-    return '<!doctype html><meta charset="utf-8"><title>Document corpus report</title><style>body{font:14px system-ui,sans-serif;margin:24px;color:#17202a}table{border-collapse:collapse;width:100%}td,th{border:1px solid #d8dee4;padding:6px;text-align:left}th{background:#f6f8fa}</style><h1>Document corpus report</h1><pre>' . e(json_encode($report['summary'], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)) . '</pre><h2>By format</h2><table><tr><th>Format</th><th>Target</th><th>Candidates</th><th>Documents</th><th>Needs review</th></tr>' . $rows . '</table><h2>Needs review</h2><ul>' . $review . '</ul>';
+    $rows = '';
+    foreach ($report['byFormat'] as $row) {
+        $rows .= '<tr><td>' . e((string) $row['format']) . '</td><td>' . e((string) $row['triage']) . '</td><td>' . (int) $row['target_count'] . '</td><td>' . (int) $row['documents'] . '</td><td>' . (int) $row['wordpress_ok'] . '</td><td>' . (int) $row['wordpress_failed'] . '</td><td>' . (int) $row['comparisons'] . '</td><td>' . (int) $row['needs_review'] . '</td></tr>';
+    }
+
+    $review = '';
+    foreach (array_slice($report['reviewQueue'] ?? [], 0, 100) as $row) {
+        $review .= '<li><strong>' . e((string) $row['format']) . ' #' . (int) $row['id'] . '</strong> '
+            . '<a href="' . e((string) $row['url']) . '">' . e((string) $row['url']) . '</a> '
+            . '<span class="pill">' . e((string) $row['triage']) . '</span> '
+            . 'jaccard=' . e((string) ($row['textJaccard'] ?? '')) . ' coverage=' . e((string) ($row['referenceTextCoverage'] ?? ''))
+            . ' ref=' . e((string) ($row['referencePath'] ?? '')) . ' wp=' . e((string) ($row['wordpressPath'] ?? '')) . '</li>';
+    }
+
+    $clusters = '';
+    foreach (array_slice($report['failureClusters'] ?? [], 0, 80) as $cluster) {
+        $clusters .= '<tr><td>' . e((string) $cluster['format']) . '</td><td>' . e((string) $cluster['renderer']) . '</td><td>' . e((string) $cluster['category']) . '</td><td>' . (int) $cluster['count'] . '</td><td>' . e((string) $cluster['sampleError']) . '</td></tr>';
+    }
+
+    $structure = '';
+    foreach (array_slice($report['structureRisks'] ?? [], 0, 100) as $row) {
+        $structure .= '<li><strong>' . e((string) $row['format']) . ' #' . (int) $row['id'] . '</strong> '
+            . '<span class="pill">' . e(implode(', ', $row['risks'])) . '</span> '
+            . '<a href="' . e((string) $row['url']) . '">' . e((string) $row['url']) . '</a></li>';
+    }
+
+    return '<!doctype html><meta charset="utf-8"><title>Document corpus report</title><style>body{font:14px system-ui,sans-serif;margin:24px;color:#17202a}h1,h2{margin:22px 0 10px}.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}.card{border:1px solid #d8dee4;background:#f6f8fa;padding:8px}.card span{display:block;color:#57606a;font-size:12px}.card strong{font-size:20px}table{border-collapse:collapse;width:100%}td,th{border:1px solid #d8dee4;padding:6px;text-align:left;vertical-align:top}th{background:#f6f8fa}.pill{display:inline-block;border:1px solid #d8dee4;border-radius:999px;padding:1px 6px;background:#fff;margin:0 4px 2px 0}li{margin:6px 0}a{color:#0969da;word-break:break-all}</style><h1>Document corpus report</h1><div class="cards">' . $summaryCards . '</div><h2>By format</h2><table><tr><th>Format</th><th>Triage</th><th>Target</th><th>Documents</th><th>WP ok</th><th>WP failed</th><th>Comparisons</th><th>Needs review</th></tr>' . $rows . '</table><h2>Worst comparison queue</h2><ul>' . $review . '</ul><h2>Structure risks</h2><ul>' . $structure . '</ul><h2>Failure clusters</h2><table><tr><th>Format</th><th>Renderer</th><th>Category</th><th>Count</th><th>Sample error</th></tr>' . $clusters . '</table>';
+}
+
+function enrichFormatRows(array $rows): array
+{
+    foreach ($rows as &$row) {
+        $documents = (int) $row['documents'];
+        $target = (int) $row['target_count'];
+        $wpFailed = (int) $row['wordpress_failed'];
+        $needsReview = (int) $row['needs_review'];
+        $row['target_met'] = $documents >= $target;
+        $row['wordpress_success_rate'] = $documents === 0 ? 0.0 : round((int) $row['wordpress_ok'] / $documents, 4);
+        $row['triage'] = formatTriage($documents, $target, $wpFailed, $needsReview);
+    }
+    unset($row);
+
+    return $rows;
+}
+
+function formatTriage(int $documents, int $target, int $wpFailed, int $needsReview): string
+{
+    if ($documents < $target) {
+        return 'coverage-gap';
+    }
+    if ($wpFailed > 0) {
+        return 'conversion-failures';
+    }
+    if ($needsReview > 0) {
+        return 'comparison-review';
+    }
+
+    return 'passing-sample';
+}
+
+function comparisonInsights(array $rows): array
+{
+    $reviewQueue = [];
+    $structureRisks = [];
+    foreach ($rows as $row) {
+        $metrics = json_decode((string) $row['metrics_json'], true);
+        if (!is_array($metrics)) {
+            $metrics = [];
+        }
+        $item = [
+            'id' => (int) $row['id'],
+            'format' => (string) $row['format'],
+            'title' => (string) ($row['title'] ?? ''),
+            'url' => (string) $row['url'],
+            'localPath' => (string) $row['local_path'],
+            'referenceRenderer' => (string) $row['reference_renderer'],
+            'wordpressRenderer' => (string) $row['wordpress_renderer'],
+            'status' => (string) $row['status'],
+            'textJaccard' => (float) ($metrics['textJaccard'] ?? 0),
+            'referenceTextCoverage' => (float) ($metrics['referenceTextCoverage'] ?? 0),
+            'triage' => comparisonTriage($metrics),
+            'referencePath' => 'renders/' . (int) $row['id'] . '/reference.html',
+            'wordpressPath' => 'renders/' . (int) $row['id'] . '/php-wordpress.html',
+            'metrics' => $metrics,
+            'notes' => (string) ($row['notes'] ?? ''),
+        ];
+        if ($row['status'] === 'needs-review') {
+            $reviewQueue[] = $item;
+        }
+        $risks = structureRisks($metrics);
+        if ($risks !== []) {
+            $item['risks'] = $risks;
+            $structureRisks[] = $item;
+        }
+    }
+
+    usort($reviewQueue, static fn (array $a, array $b): int => [$a['referenceTextCoverage'], $a['textJaccard'], $a['id']] <=> [$b['referenceTextCoverage'], $b['textJaccard'], $b['id']]);
+    usort($structureRisks, static fn (array $a, array $b): int => count($b['risks']) <=> count($a['risks']) ?: $a['id'] <=> $b['id']);
+
+    return [
+        'reviewQueue' => $reviewQueue,
+        'worstComparisons' => array_slice($reviewQueue, 0, 50),
+        'structureRisks' => $structureRisks,
+    ];
+}
+
+function comparisonTriage(array $metrics): string
+{
+    $coverage = (float) ($metrics['referenceTextCoverage'] ?? 0);
+    $jaccard = (float) ($metrics['textJaccard'] ?? 0);
+    if ($coverage < 0.60) {
+        return 'major-text-loss';
+    }
+    if ($coverage < 0.80) {
+        return 'text-coverage-risk';
+    }
+    if ($jaccard < 0.82) {
+        return 'semantic-drift-risk';
+    }
+    if (structureRisks($metrics) !== []) {
+        return 'structure-risk';
+    }
+
+    return 'review-ok';
+}
+
+function structureRisks(array $metrics): array
+{
+    $risks = [];
+    $reference = is_array($metrics['reference'] ?? null) ? $metrics['reference'] : [];
+    $wordpress = is_array($metrics['wordpress'] ?? null) ? $metrics['wordpress'] : [];
+    foreach (['tables', 'images', 'lists', 'headings', 'links'] as $key) {
+        $left = (int) ($reference[$key] ?? 0);
+        $right = (int) ($wordpress[$key] ?? 0);
+        if ($left > $right) {
+            $risks[] = "lost-{$key}:{$left}-to-{$right}";
+        }
+    }
+
+    return $risks;
+}
+
+function failureInsights(array $rows): array
+{
+    $queue = [];
+    $clusters = [];
+    foreach ($rows as $row) {
+        $error = trim((string) ($row['error'] ?? ''));
+        $category = failureCategory((string) $row['renderer'], $error);
+        $item = [
+            'id' => (int) $row['id'],
+            'format' => (string) $row['format'],
+            'title' => (string) ($row['title'] ?? ''),
+            'url' => (string) $row['url'],
+            'localPath' => (string) $row['local_path'],
+            'renderer' => (string) $row['renderer'],
+            'category' => $category,
+            'error' => errorExcerpt($error),
+            'errorHash' => sha1($error),
+            'likelyAction' => failureAction($category),
+        ];
+        $queue[] = $item;
+        $key = $item['format'] . "\0" . $item['renderer'] . "\0" . $category . "\0" . normalizeFailureMessage($error);
+        if (!isset($clusters[$key])) {
+            $clusters[$key] = [
+                'format' => $item['format'],
+                'renderer' => $item['renderer'],
+                'category' => $category,
+                'count' => 0,
+                'sampleError' => errorExcerpt($error),
+                'sampleErrorHash' => sha1($error),
+                'sampleDocumentId' => $item['id'],
+                'sampleUrl' => $item['url'],
+                'likelyAction' => $item['likelyAction'],
+            ];
+        }
+        $clusters[$key]['count']++;
+    }
+    usort($queue, static fn (array $a, array $b): int => [$a['format'], $a['category'], $a['id']] <=> [$b['format'], $b['category'], $b['id']]);
+    $clusters = array_values($clusters);
+    usort($clusters, static fn (array $a, array $b): int => $b['count'] <=> $a['count'] ?: [$a['format'], $a['category']] <=> [$b['format'], $b['category']]);
+
+    return ['queue' => $queue, 'clusters' => $clusters];
+}
+
+function failureCategory(string $renderer, string $error): string
+{
+    $lower = strtolower($error);
+    if (str_contains($lower, 'allowed memory size') || str_contains($lower, 'fatal error')) {
+        return 'resource-exhaustion';
+    }
+    if ($renderer === 'none') {
+        return 'no-reference-renderer';
+    }
+    if (str_contains($lower, 'incompatible pandoc json api version')) {
+        return 'input-version-gap';
+    }
+    if (str_contains($lower, 'must not declare a document type')) {
+        return 'xml-safety-rejection';
+    }
+    if (str_contains($lower, 'entity') && str_contains($lower, 'not defined')) {
+        return 'xml-entity-resolution-gap';
+    }
+    if (str_contains($lower, 'expected ') || str_contains($lower, 'unable to parse')) {
+        return $renderer === 'php-wordpress' ? 'reader-parser-gap' : 'reference-parser-gap';
+    }
+    if (str_contains($lower, 'no reference renderer configured')) {
+        return 'no-reference-renderer';
+    }
+
+    return $renderer === 'php-wordpress' ? 'conversion-failure' : 'reference-failure';
+}
+
+function failureAction(string $category): string
+{
+    return match ($category) {
+        'no-reference-renderer' => 'Add or document a reference renderer before treating this as a conversion-quality signal.',
+        'input-version-gap' => 'Decide whether to support older Pandoc JSON/native versions or classify them as unsupported input variants.',
+        'xml-safety-rejection' => 'Keep safe XML defaults; add a sanitized parser path only if this format requires DTD-bearing organic files.',
+        'xml-entity-resolution-gap' => 'Add safe entity handling or preprocessing for XML-like formats without enabling arbitrary external entities.',
+        'resource-exhaustion' => 'Bound pathological table/layout work and add a regression that proves large organic inputs fail gracefully or complete.',
+        'reader-parser-gap' => 'Improve the local reader for this syntax family and add a focused regression.',
+        'reference-parser-gap' => 'Inspect the source and reference command before blaming WordPress output.',
+        default => 'Inspect the rendered artifacts and source document.',
+    };
+}
+
+function normalizeFailureMessage(string $error): string
+{
+    $message = preg_replace('/^\s*(?:#\d+\s+.*|Stack trace:)\s*$/m', '', $error) ?? $error;
+    $message = preg_replace('/#\d+/', '#N', $message) ?? $message;
+    $message = preg_replace('/line \d+, column \d+/i', 'line N, column N', $message) ?? $message;
+    $message = preg_replace('/\d+(?:\.\d+)?/', 'N', $message) ?? $message;
+
+    return mb_substr($message, 0, 180);
+}
+
+function errorExcerpt(string $error): string
+{
+    $error = trim($error);
+    if ($error === '') {
+        return '';
+    }
+    $lines = preg_split('/\r\n|\r|\n/', $error) ?: [$error];
+    $lines = array_values(array_filter($lines, static fn (string $line): bool => !preg_match('/^\s*(?:#\d+\s+|Stack trace:)/', $line)));
+    $excerpt = implode("\n", array_slice($lines, 0, 2));
+    if (mb_strlen($excerpt) > 260) {
+        $excerpt = mb_substr($excerpt, 0, 257) . '...';
+    }
+    if (count($lines) > 2) {
+        $excerpt .= "\n...";
+    }
+
+    return $excerpt;
 }
 
 function e(string $text): string
