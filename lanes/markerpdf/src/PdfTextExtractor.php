@@ -678,7 +678,20 @@ final class PdfTextExtractor
             return [];
         }
 
-        return $this->previewPageLabelsWithoutTextFallback($pdfBytes);
+        $labels = $this->previewPageLabelsWithoutTextFallback($pdfBytes);
+        if ($labels !== []) {
+            return $labels;
+        }
+
+        $pageCount = count($this->extractPageTexts($pdfBytes));
+        if ($pageCount === 0) {
+            return [];
+        }
+
+        return array_map(
+            static fn (int $pageNumber): string => (string) $pageNumber,
+            range(1, $pageCount)
+        );
     }
 
     /**
@@ -716,7 +729,7 @@ final class PdfTextExtractor
         }
 
         return [
-            'pages' => count($this->pageObjectNumbers($this->pdfObjects($pdfBytes))),
+            'pages' => count($this->pageObjectNumbers($this->pdfObjects($pdfBytes), $pdfBytes)),
             'document_info' => $documentInfo,
             'pdf_toc' => array_map(
                 static function (array $row): array {
@@ -4705,7 +4718,7 @@ final class PdfTextExtractor
     private function streamContexts(string $pdfBytes): array
     {
         $objects = $this->pdfObjects($pdfBytes);
-        $pageContexts = $this->pageContentStreamContexts($objects);
+        $pageContexts = $this->pageContentStreamContexts($objects, $pdfBytes);
         if ($pageContexts !== []) {
             return $pageContexts;
         }
@@ -4715,14 +4728,18 @@ final class PdfTextExtractor
         $fontEncodings = $this->fontEncodingsForResourceContext($pdfBytes, $objects, true);
         $propertyActualTexts = $this->propertyActualTextsFromContext($pdfBytes, $objects);
         $propertyMcids = $this->propertyMcidsFromContext($pdfBytes, $objects);
-        if (!preg_match_all('/<<(.*?)>>\s*stream\r?\n?(.*?)\r?\n?endstream/s', $pdfBytes, $matches, PREG_SET_ORDER)) {
-            return $contexts;
-        }
+        $fallbackHiddenStreamObjects = $this->fallbackHiddenStreamObjectNumbers($objects);
+        foreach ($objects as $objectNumber => $objectBody) {
+            $streamParts = $this->streamObjectParts($objectBody);
+            if (
+                $streamParts === null
+                || isset($fallbackHiddenStreamObjects[(int) $objectNumber])
+                || !$this->fallbackStreamObjectIsVisibleContentCandidate($streamParts['dictionary'])
+            ) {
+                continue;
+            }
 
-        foreach ($matches as $match) {
-            $dict = $match[1];
-            $stream = $match[2];
-            $decoded = $this->decodeStream($dict, $stream, $objects);
+            $decoded = $this->decodeStream($streamParts['dictionary'], $streamParts['stream'], $objects);
             if ($decoded === null) {
                 continue;
             }
@@ -4737,6 +4754,62 @@ final class PdfTextExtractor
         }
 
         return $contexts;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<int, true>
+     */
+    private function fallbackHiddenStreamObjectNumbers(array $objects): array
+    {
+        $hidden = [];
+        foreach ($objects as $body) {
+            foreach (['Metadata', 'Private'] as $name) {
+                if (preg_match_all('/\/' . $name . '\s+(\d+)\s+\d+\s+R\b/s', $body, $matches)) {
+                    foreach ($matches[1] as $objectNumber) {
+                        $hidden[(int) $objectNumber] = true;
+                    }
+                }
+            }
+
+            foreach ($this->fallbackEmbeddedFileReferences($body) as $objectNumber) {
+                $hidden[$objectNumber] = true;
+            }
+        }
+
+        return $hidden;
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function fallbackEmbeddedFileReferences(string $body): array
+    {
+        $references = [];
+        if (preg_match_all('/\/EF\b(.*?)(?=\/[A-Za-z0-9_.#-]+\b|>>|\bendobj\b)/s', $body, $matches)) {
+            foreach ($matches[1] as $efOperand) {
+                if (preg_match_all('/(\d+)\s+\d+\s+R\b/', $efOperand, $referenceMatches)) {
+                    foreach ($referenceMatches[1] as $objectNumber) {
+                        $references[] = (int) $objectNumber;
+                    }
+                }
+            }
+        }
+
+        return array_values(array_unique($references));
+    }
+
+    private function fallbackStreamObjectIsVisibleContentCandidate(string $dictionary): bool
+    {
+        if (preg_match('/\/Type\s*\/(?:XRef|ObjStm|Metadata|EmbeddedFile|Filespec|Font|FontDescriptor|CMap)\b/s', $dictionary) === 1) {
+            return false;
+        }
+
+        if (preg_match('/\/Subtype\s*\/(?:Image|XML|CIDFontType0C|CIDFontType2|Type1C|OpenType|TrueType|Form)\b/s', $dictionary) === 1) {
+            return false;
+        }
+
+        return true;
     }
 
     /**
@@ -4786,11 +4859,11 @@ final class PdfTextExtractor
      *     pageObject: int
      * }>
      */
-    private function pageContentStreamContexts(array $objects): array
+    private function pageContentStreamContexts(array $objects, ?string $pdfBytes = null): array
     {
         $contexts = [];
         $pageNumber = 0;
-        foreach ($this->limitedPageObjectNumbers($objects) as $objectNumber) {
+        foreach ($this->limitedPageObjectNumbers($objects, $pdfBytes) as $objectNumber) {
             $pageNumber++;
             $body = $objects[$objectNumber] ?? null;
             if (!is_string($body) || !$this->isPageObjectBody($body)) {
@@ -4849,10 +4922,10 @@ final class PdfTextExtractor
      * @param array<int, string> $objects
      * @return list<int>
      */
-    private function pageObjectNumbers(array $objects): array
+    private function pageObjectNumbers(array $objects, ?string $pdfBytes = null): array
     {
         $pageObjectNumbers = [];
-        foreach ($this->catalogPagesRootObjectNumbers($objects) as $pagesObjectNumber) {
+        foreach ($this->catalogPagesRootObjectNumbers($objects, $pdfBytes) as $pagesObjectNumber) {
             foreach ($this->pageObjectNumbersFromTree($pagesObjectNumber, $objects) as $pageObjectNumber) {
                 $pageObjectNumbers[] = $pageObjectNumber;
             }
@@ -4866,9 +4939,9 @@ final class PdfTextExtractor
      * @param array<int, string> $objects
      * @return list<int>
      */
-    private function limitedPageObjectNumbers(array $objects): array
+    private function limitedPageObjectNumbers(array $objects, ?string $pdfBytes = null): array
     {
-        $pageObjectNumbers = $this->pageObjectNumbers($objects);
+        $pageObjectNumbers = $this->pageObjectNumbers($objects, $pdfBytes);
         $maxPages = $this->maxPages();
         if ($maxPages === null) {
             return $pageObjectNumbers;
@@ -4881,8 +4954,18 @@ final class PdfTextExtractor
      * @param array<int, string> $objects
      * @return list<int>
      */
-    private function catalogPagesRootObjectNumbers(array $objects): array
+    private function catalogPagesRootObjectNumbers(array $objects, ?string $pdfBytes = null): array
     {
+        $trailerRootObjectNumber = $pdfBytes === null ? null : $this->xrefTrailerRootObjectNumber($pdfBytes);
+        if ($trailerRootObjectNumber !== null && isset($objects[$trailerRootObjectNumber])) {
+            $body = $objects[$trailerRootObjectNumber];
+            if (preg_match('/\/Type\s*\/Catalog\b/', $body) === 1
+                && preg_match('/\/Pages\s+(\d+)\s+\d+\s+R\b/', $body, $match) === 1
+            ) {
+                return [(int) $match[1]];
+            }
+        }
+
         $roots = [];
         foreach ($objects as $body) {
             if (preg_match('/\/Type\s*\/Catalog\b/', $body) !== 1) {
@@ -11112,21 +11195,82 @@ final class PdfTextExtractor
      */
     private function rawPdfObjects(string $pdfBytes): array
     {
-        if (!preg_match_all('/(\d+)\s+(\d+)\s+obj\b(.*?)\bendobj/s', $pdfBytes, $matches, PREG_SET_ORDER | PREG_OFFSET_CAPTURE)) {
+        if (!preg_match_all('/(\d+)\s+(\d+)\s+obj\b/s', $pdfBytes, $matches, PREG_SET_ORDER | PREG_OFFSET_CAPTURE)) {
             return [];
         }
 
+        $streamRanges = $this->streamPayloadRanges($pdfBytes);
         $rawObjects = [];
         foreach ($matches as $match) {
+            if ($this->offsetInsideRanges($match[0][1], $streamRanges)) {
+                continue;
+            }
+            $bodyStart = $match[0][1] + strlen($match[0][0]);
+            $bodyEnd = $this->endObjectOffsetOutsideRanges($pdfBytes, $bodyStart, $streamRanges);
+            if ($bodyEnd === null) {
+                continue;
+            }
+
             $rawObjects[] = [
                 'objectNumber' => (int) $match[1][0],
                 'generation' => (int) $match[2][0],
-                'body' => $match[3][0],
+                'body' => substr($pdfBytes, $bodyStart, $bodyEnd - $bodyStart),
                 'offset' => $match[0][1],
             ];
         }
 
         return $rawObjects;
+    }
+
+    /**
+     * @return list<array{start: int, end: int}>
+     */
+    private function streamPayloadRanges(string $pdfBytes): array
+    {
+        if (preg_match_all('/\bstream(?:\r\n|\n|\r)?(.*?)\r?\n?endstream\b/s', $pdfBytes, $matches, PREG_SET_ORDER | PREG_OFFSET_CAPTURE) < 1) {
+            return [];
+        }
+
+        $ranges = [];
+        foreach ($matches as $match) {
+            $ranges[] = [
+                'start' => $match[1][1],
+                'end' => $match[1][1] + strlen($match[1][0]),
+            ];
+        }
+
+        return $ranges;
+    }
+
+    /**
+     * @param list<array{start: int, end: int}> $ranges
+     */
+    private function offsetInsideRanges(int $offset, array $ranges): bool
+    {
+        foreach ($ranges as $range) {
+            if ($offset >= $range['start'] && $offset < $range['end']) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param list<array{start: int, end: int}> $ranges
+     */
+    private function endObjectOffsetOutsideRanges(string $pdfBytes, int $offset, array $ranges): ?int
+    {
+        while (preg_match('/\bendobj\b/', $pdfBytes, $match, PREG_OFFSET_CAPTURE, $offset) === 1) {
+            $candidate = $match[0][1];
+            if (!$this->offsetInsideRanges($candidate, $ranges)) {
+                return $candidate;
+            }
+
+            $offset = $candidate + strlen($match[0][0]);
+        }
+
+        return null;
     }
 
     /**
@@ -12090,6 +12234,70 @@ final class PdfTextExtractor
             ?? $this->xrefStreamSectionAtOffset($pdfBytes, $offset, $encryptionContext);
     }
 
+    private function xrefTrailerRootObjectNumber(string $pdfBytes): ?int
+    {
+        $startOffsets = $this->startXrefOffsets($pdfBytes);
+        if ($startOffsets === []) {
+            return null;
+        }
+
+        for ($startIndex = count($startOffsets) - 1; $startIndex >= 0; $startIndex--) {
+            $seenOffsets = [];
+            $pendingOffsets = [$startOffsets[$startIndex]];
+            while ($pendingOffsets !== []) {
+                $offset = array_pop($pendingOffsets);
+                if ($offset === null || isset($seenOffsets[$offset])) {
+                    continue;
+                }
+                $seenOffsets[$offset] = true;
+
+                $rootObjectNumber = $this->xrefSectionRootObjectNumberAtOffset($pdfBytes, $offset);
+                if ($rootObjectNumber !== null) {
+                    return $rootObjectNumber;
+                }
+
+                $section = $this->xrefSectionAtOffset($pdfBytes, $offset);
+                if ($section === null) {
+                    continue;
+                }
+
+                $previousOffsets = $section['prevOffsets'] ?? ($section['prev'] === null ? [] : [$section['prev']]);
+                foreach (array_reverse($previousOffsets) as $previousOffset) {
+                    if (!isset($seenOffsets[$previousOffset])) {
+                        $pendingOffsets[] = $previousOffset;
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private function xrefSectionRootObjectNumberAtOffset(string $pdfBytes, int $offset): ?int
+    {
+        if ($offset < 0 || $offset >= strlen($pdfBytes)) {
+            return null;
+        }
+
+        $tail = substr($pdfBytes, $offset);
+        if (str_starts_with($tail, 'xref')) {
+            $table = $this->xrefTableBodyAndTrailer($tail);
+            $dictionary = $table['dictionary'] ?? null;
+            if (is_string($dictionary) && preg_match('/\/Root\s+(\d+)\s+\d+\s+R\b/', $dictionary, $match) === 1) {
+                return (int) $match[1];
+            }
+        }
+
+        if (preg_match('/\A\d+\s+\d+\s+obj\b(.*?)\bendobj/s', $tail, $objectMatch) === 1
+            && preg_match('/\/Type\s*\/XRef\b|\/Type\/XRef\b/', $objectMatch[1]) === 1
+            && preg_match('/\/Root\s+(\d+)\s+\d+\s+R\b/', $objectMatch[1], $rootMatch) === 1
+        ) {
+            return (int) $rootMatch[1];
+        }
+
+        return null;
+    }
+
     /**
      * @return list<int>
      */
@@ -12154,7 +12362,7 @@ final class PdfTextExtractor
         if ($xrefStreamOffset !== null && $xrefStreamOffset !== $offset) {
             $xrefStreamSection = $this->xrefStreamSectionAtOffset($pdfBytes, $xrefStreamOffset, $encryptionContext);
             if ($xrefStreamSection !== null) {
-                $entries = array_merge($entries, $xrefStreamSection['entries']);
+                $entries = array_merge($xrefStreamSection['entries'], $entries);
                 if ($xrefStreamSection['prev'] !== null) {
                     $prevOffsets[] = $xrefStreamSection['prev'];
                 }
@@ -12580,6 +12788,13 @@ final class PdfTextExtractor
             return true;
         }
 
+        $referencePrefix = $embeddedObjectNumber . ':';
+        foreach ($xrefEntries as $referenceKey => $entry) {
+            if (str_starts_with($referenceKey, $referencePrefix) && ($entry['status'] ?? '') === 'f') {
+                return false;
+            }
+        }
+
         $entry = $xrefEntries[$embeddedObjectNumber . ':0'] ?? null;
         return $entry !== null
             && ($entry['status'] ?? '') === 'compressed'
@@ -12701,11 +12916,7 @@ final class PdfTextExtractor
             return null;
         }
 
-        if (!isset($objects[$objectNumber])) {
-            return null;
-        }
-
-        return $this->integerObjectBodyValue($objects[$objectNumber]);
+        return $this->integerObjectBodyValueFromObjects($objectNumber, $objects);
     }
 
     private function integerObjectBodyValue(string $body): ?int
@@ -12715,6 +12926,29 @@ final class PdfTextExtractor
         }
 
         return (int) $match[1];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<int, true> $seen
+     */
+    private function integerObjectBodyValueFromObjects(int $objectNumber, array $objects, array $seen = []): ?int
+    {
+        if (isset($seen[$objectNumber]) || !isset($objects[$objectNumber])) {
+            return null;
+        }
+
+        $body = $objects[$objectNumber];
+        $value = $this->integerObjectBodyValue($body);
+        if ($value !== null) {
+            return $value;
+        }
+
+        if (preg_match('/\A\s*(\d+)\s+\d+\s+R\s*\z/s', $body, $match) !== 1) {
+            return null;
+        }
+
+        return $this->integerObjectBodyValueFromObjects((int) $match[1], $objects, $seen + [$objectNumber => true]);
     }
 
     /**
