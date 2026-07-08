@@ -3502,8 +3502,11 @@ XML);
         $t->contains('<blockquote class="wp-block-quote"><p>Reviewer note with <code>wp_insert_post</code>.</p></blockquote>', $blocks);
         $t->contains('<em>reading order</em><br/>and a hard break.', $blocks);
         $t->contains('<li>First migration check</li><li>Second check with <a href="https://example.test/source">source</a></li>', $blocks);
-        $t->contains('<dl id="review-glossary" class="migration-terms"><dt>Review status</dt><dd>Ready for <strong>direct XHTML</strong> handoff.</dd>', $blocks);
-        $t->contains('<dt>Resource note</dt><dd><p>Keep package-local links like <a href="EPUB/chapter1.xhtml#opening-note">opening note</a> reviewable.</p><ul><li>Preserve nested checks.</li></ul></dd></dl>', $blocks);
+        $t->contains('<div id="review-glossary" class="wp-block-group pandoc-definition-list migration-terms">', $blocks);
+        $t->contains('<p class="pandoc-definition-term"><strong>Review status</strong></p>', $blocks);
+        $t->contains('<ul class="pandoc-definition-values"><li>Ready for <strong>direct XHTML</strong> handoff.</li></ul>', $blocks);
+        $t->contains('<p class="pandoc-definition-term"><strong>Resource note</strong></p>', $blocks);
+        $t->contains('<ul class="pandoc-definition-values"><li><p>Keep package-local links like <a href="EPUB/chapter1.xhtml#opening-note">opening note</a> reviewable.</p><ul><li>Preserve nested checks.</li></ul></li></ul>', $blocks);
     },
     'maps epub xhtml mathml into native math nodes' => static function (TestRunner $t) use ($writePackageFile, $removeDirectory): void {
         $root = sys_get_temp_dir() . '/port-libs-epub-xhtml-mathml-' . str_replace('.', '', uniqid('', true));
@@ -3587,8 +3590,11 @@ XML);
         $t->same(true, $secondItem->children[1]->attr('loose'));
         $t->same('EPUB/chapter1.xhtml#opening-note', $secondItem->children[1]->children[0]->children[1]->attr('url'));
         $t->same('Preserve nested checks.', $secondItem->children[1]->children[1]->children[0]->children[0]->attr('text'));
-        $t->contains('<dl id="review-glossary" class="migration-terms"><dt>Review status</dt><dd>Ready for <strong>direct XHTML</strong> handoff.</dd>', $blocks);
-        $t->contains('<dt>Resource note</dt><dd><p>Keep package-local links like <a href="EPUB/chapter1.xhtml#opening-note">opening note</a> reviewable.</p><ul><li>Preserve nested checks.</li></ul></dd></dl>', $blocks);
+        $t->contains('<div id="review-glossary" class="wp-block-group pandoc-definition-list migration-terms">', $blocks);
+        $t->contains('<p class="pandoc-definition-term"><strong>Review status</strong></p>', $blocks);
+        $t->contains('<ul class="pandoc-definition-values"><li>Ready for <strong>direct XHTML</strong> handoff.</li></ul>', $blocks);
+        $t->contains('<p class="pandoc-definition-term"><strong>Resource note</strong></p>', $blocks);
+        $t->contains('<ul class="pandoc-definition-values"><li><p>Keep package-local links like <a href="EPUB/chapter1.xhtml#opening-note">opening note</a> reviewable.</p><ul><li>Preserve nested checks.</li></ul></li></ul>', $blocks);
     },
     'preserves epub xhtml figure caption inline provenance for writer handoff' => static function (TestRunner $t) use ($writePackageFile, $removeDirectory): void {
         $root = sys_get_temp_dir() . '/port-libs-epub-xhtml-figure-caption-' . str_replace('.', '', uniqid('', true));

@@ -212,6 +212,14 @@ final class EpubReader
             $note_reference_hrefs = $this->epubNoteReferenceHrefs($content_dom, $content_base_href);
             $link_attribute_overlays_by_href = $this->epubBodyLinkAttributeOverlaysByHref($content_dom, $content_base_href);
             $picture_raw_html_overlays = $this->epubPictureRawHtmlOverlaysInImageOrder($content_dom, $content_base_href);
+            $this->recordEpubContentRawMediaResources(
+                $xhtml,
+                $this->dirname($this->stripUrlQueryAndFragment($item['href'])),
+                $base_path,
+                $referenced_resources,
+                $media_bag_resources,
+                $media_bag_sources
+            );
             $document = $this->epubContentHtmlReader()->read($this->contentDocumentMarkupForHtmlReader($xhtml, $content_dom, $content_base_href));
             $document = $this->normalizeEpubMediaRawBlocks($document);
             $document = $this->normalizeEpubRawInlineVoidElements($document);
@@ -2699,6 +2707,50 @@ final class EpubReader
         }
 
         return $urls;
+    }
+
+    /**
+     * @param list<string> $referenced_resources
+     * @param list<string> $media_bag_resources
+     * @param array<string, string> $media_bag_sources
+     */
+    private function recordEpubContentRawMediaResources(
+        string $xhtml,
+        string $content_dir,
+        string $package_base_path,
+        array &$referenced_resources,
+        array &$media_bag_resources,
+        array &$media_bag_sources
+    ): void {
+        try {
+            $dom = XmlHtmlDom::loadXmlDocument($xhtml, 'EPUB XHTML media resource scan');
+        } catch (\Throwable) {
+            return;
+        }
+
+        foreach ($dom->getElementsByTagName('*') as $element) {
+            if (!$element instanceof \DOMElement) {
+                continue;
+            }
+
+            $names = match (strtolower($element->localName)) {
+                'audio', 'source', 'track' => ['src'],
+                'video' => ['src', 'poster'],
+                default => [],
+            };
+            foreach ($names as $name) {
+                $url = trim((string) XmlHtmlDom::attribute($element, $name));
+                if ($url === '') {
+                    continue;
+                }
+
+                $this->recordReferencedResource($url, $content_dir, $package_base_path, $referenced_resources);
+                $resource = $this->recordMediaBagResource($url, $content_dir, $package_base_path, $media_bag_resources);
+                if ($resource !== null) {
+                    $this->recordMediaBagSource($this->fixEpubImageUrl($url, $content_dir), $resource, $media_bag_sources);
+                }
+            }
+        }
     }
 
     private function rawHtmlOpeningElement(string $source, string $name): ?\DOMElement

@@ -3286,6 +3286,9 @@ final class MarkdownReader
         $opening = $element instanceof \DOMElement
             ? $this->renderHtmlOpeningTag($element, $enabledByAttribute ? ['markdown'] : [])
             : $openingSource;
+        if ($enabledByAttribute) {
+            $opening = $this->removeHtmlOpeningTagAttribute($opening, 'markdown');
+        }
         $closing = strtolower($closingSource);
         $innerDocument = (new self($this->options))->read(trim($inner, "\r\n"));
 
@@ -3472,6 +3475,13 @@ final class MarkdownReader
     private function htmlMarkdownAttributeEnablesMarkdown(string $value): bool
     {
         return !in_array($value, ['', '0', 'false', 'off', 'no'], true);
+    }
+
+    private function removeHtmlOpeningTagAttribute(string $source, string $attribute): string
+    {
+        $pattern = '/\s+' . preg_quote($attribute, '/') . '(?:\s*=\s*(?:"[^"]*"|\'[^\']*\'|[^\s"\'=<>`]+))?/i';
+
+        return preg_replace($pattern, '', $source, 1) ?? $source;
     }
 
     /**

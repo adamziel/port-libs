@@ -322,15 +322,15 @@ return [
             $t->same(['orphan-docx'], $report['docxWithoutNativeSamples']);
             $t->same(['orphan-native'], $report['nativeWithoutDocxSamples']);
             $t->same(2, $report['auditedPairCount']);
-            $t->same(1, $report['docxParsedCount']);
-            $t->same(1, $report['docxFailedCount']);
+            $t->same(2, $report['docxParsedCount']);
+            $t->same(0, $report['docxFailedCount']);
             $t->same(1, $report['nativeParsedCount']);
             $t->same(1, $report['nativeFailedCount']);
             $t->same(1, $report['bothParsedCount']);
             $t->same(1, $report['bothFailedOrPartialCount']);
             $t->same(50.0, $report['bothParserCoveragePercent']);
             $t->same('broken', $report['pairRows'][0]['name']);
-            $t->same('failed', $report['pairRows'][0]['docxParse']['status']);
+            $t->same('parsed', $report['pairRows'][0]['docxParse']['status']);
             $t->same('failed', $report['pairRows'][0]['nativeParse']['status']);
             $t->same('sample', $report['pairRows'][1]['name']);
             $t->same('parsed', $report['pairRows'][1]['docxParse']['status']);
@@ -341,7 +341,7 @@ return [
             $t->same(false, $report['parserAcceptanceRegression']['passed']);
             $t->same(true, $report['parserAcceptanceRegression']['regressed']);
             $t->true(in_array('paired-docx-native-artifact-count-below-baseline', $report['parserAcceptanceRegression']['failureReasons'], true));
-            $t->true(in_array('docx-parse-failures-present', $report['parserAcceptanceRegression']['failureReasons'], true));
+            $t->true(in_array('native-parse-failures-present', $report['parserAcceptanceRegression']['failureReasons'], true));
             $t->true(DocxParityCorpusAudit::hasParserAcceptanceRegression($report));
             $t->same(['upstream-docx-runner-results', 'docx-native-ast-equality', 'writer-golden-docx-package-parity', 'parser-failure-zero-tolerance', 'checked-in-pinned-docx-package-corpus'], array_map(
                 static fn (array $gap): string => (string) $gap['id'],
@@ -352,7 +352,7 @@ return [
             $t->contains('generated package comparison run=no', $report['orderedRemainingGaps'][2]['currentEvidence']);
             $t->contains(DocxWriterGoldenManifest::GENERATED_DIRECTORY_NOT_CONFIGURED_REASON, $report['orderedRemainingGaps'][2]['currentEvidence']);
             $t->same('open', $report['orderedRemainingGaps'][3]['status']);
-            $t->contains('docx failures=1; native failures=1; partial-or-failed pairs=1', $report['orderedRemainingGaps'][3]['currentEvidence']);
+            $t->contains('docx failures=0; native failures=1; partial-or-failed pairs=1', $report['orderedRemainingGaps'][3]['currentEvidence']);
             $t->contains('DOCX writer implementation: implementation-present-or-registered', $text);
             $t->contains('Writer golden package parts inventoried: 1/1 hashed readable parts', $text);
             $t->contains('Both parsers accepted: 1/2 (50.00%)', $text);

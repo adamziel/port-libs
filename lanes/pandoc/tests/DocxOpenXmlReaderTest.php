@@ -22150,7 +22150,8 @@ XML;
         $blocks = (new WordPressBlockWriter())->write($document);
         $t->contains('[^1]: Footnote [relationship source](https://example.test/footnote-source) note.', $markdown);
         $t->contains('[^2]: Endnote package audit.', $markdown);
-        $t->contains('<section class="footnotes" role="doc-endnotes"><ol><li id="fn-1"><p>Footnote <a href="https://example.test/footnote-source">relationship source</a> note.</p>', $blocks);
+        $t->contains('<div class="wp-block-group footnotes" role="doc-endnotes">', $blocks);
+        $t->contains('<ol><li id="fn-1"><p>Footnote <a href="https://example.test/footnote-source">relationship source</a> note.</p> <a href="#fnref-1" aria-label="Back to content">Back</a></li>', $blocks);
         $t->contains('<li id="fn-2"><p>Endnote package audit.</p>', $blocks);
     },
     'reports malformed docx footnotes and unexpected endnotes roots without aborting package ingestion' => static function (TestRunner $t): void {
@@ -22380,7 +22381,8 @@ XML;
         $blocks = (new WordPressBlockWriter())->write($document);
         $t->contains('with reviewer commentcommented text[^1]', $markdown);
         $t->contains('[^1]: Comment [source](https://example.test/comment-source) keeps review context.', $markdown);
-        $t->contains('<section class="footnotes" role="doc-endnotes"><ol><li id="fn-1"><p>Comment <a href="https://example.test/comment-source">source</a> keeps review context.</p>', $blocks);
+        $t->contains('<div class="wp-block-group footnotes" role="doc-endnotes">', $blocks);
+        $t->contains('<ol><li id="fn-1"><p>Comment <a href="https://example.test/comment-source">source</a> keeps review context.</p> <a href="#fnref-1" aria-label="Back to content">Back</a></li></ol>', $blocks);
     },
     'summarizes docx note and comment relationship diagnostics' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();

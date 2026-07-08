@@ -1019,21 +1019,55 @@ final class Html5Dom
      */
     private static function html5BodyContextFragment(string $html, array $literalPayloadElements): ?array
     {
-        $document = \Dom\HTMLDocument::createFromString(
+        $insertDocument = \Dom\HTMLDocument::createFromString(
             '<!doctype html><html><body></body></html>',
+            self::HTML_DOCUMENT_PARSE_OPTIONS,
+            'UTF-8'
+        );
+        $insertBody = self::html5FirstElementByTagName($insertDocument, 'body');
+        if (!$insertBody instanceof \Dom\Element) {
+            return null;
+        }
+        $insertBody->insertAdjacentHTML(\Dom\AdjacentPosition::BeforeEnd, $html);
+        $insertCandidate = [
+            'body' => $insertBody,
+            'source' => self::html5SerializeChildren($insertDocument, $insertBody, $literalPayloadElements),
+        ];
+
+        $document = \Dom\HTMLDocument::createFromString(
+            '<!doctype html><html><body>' . $html . '</body></html>',
             self::HTML_DOCUMENT_PARSE_OPTIONS,
             'UTF-8'
         );
         $body = self::html5FirstElementByTagName($document, 'body');
         if (!$body instanceof \Dom\Element) {
-            return null;
+            return $insertCandidate;
         }
-        $body->insertAdjacentHTML(\Dom\AdjacentPosition::BeforeEnd, $html);
-
-        return [
+        $documentCandidate = [
             'body' => $body,
             'source' => self::html5SerializeChildren($document, $body, $literalPayloadElements),
         ];
+
+        return self::html5PreferredFragmentCandidate($insertCandidate, $documentCandidate);
+    }
+
+    /**
+     * @param array<string, mixed> $insertCandidate
+     * @param array<string, mixed> $documentCandidate
+     * @return array<string, mixed>
+     */
+    private static function html5PreferredFragmentCandidate(array $insertCandidate, array $documentCandidate): array
+    {
+        if (
+            self::html5FragmentCandidateLeaksSyntheticWrapper((string) $documentCandidate['source'])
+            && !self::html5FragmentCandidateLeaksSyntheticWrapper((string) $insertCandidate['source'])
+        ) {
+            return $insertCandidate;
+        }
+
+        return self::html5FragmentCandidateScore((string) $documentCandidate['source']) > self::html5FragmentCandidateScore((string) $insertCandidate['source'])
+            ? $documentCandidate
+            : $insertCandidate;
     }
 
     /**
@@ -1042,22 +1076,49 @@ final class Html5Dom
      */
     private static function html5TableContextFragment(string $html, array $literalPayloadElements): ?array
     {
-        $document = \Dom\HTMLDocument::createFromString(
+        $insertDocument = \Dom\HTMLDocument::createFromString(
             '<!doctype html><html><body><table id="pandoc-html-fragment-context"></table></body></html>',
+            self::HTML_DOCUMENT_PARSE_OPTIONS,
+            'UTF-8'
+        );
+        $insertTable = $insertDocument->getElementById('pandoc-html-fragment-context');
+        if (!$insertTable instanceof \Dom\HTMLElement) {
+            return null;
+        }
+        $insertTable->insertAdjacentHTML(\Dom\AdjacentPosition::BeforeEnd, $html);
+        $insertCandidate = [
+            'table' => $insertTable,
+            'source' => self::html5TableContextSource($insertDocument, $insertTable, $literalPayloadElements),
+        ];
+
+        $document = \Dom\HTMLDocument::createFromString(
+            '<!doctype html><html><body><table id="pandoc-html-fragment-context">' . $html . '</table></body></html>',
             self::HTML_DOCUMENT_PARSE_OPTIONS,
             'UTF-8'
         );
         $table = $document->getElementById('pandoc-html-fragment-context');
         if (!$table instanceof \Dom\HTMLElement) {
-            return null;
+            return $insertCandidate;
         }
-
-        $table->insertAdjacentHTML(\Dom\AdjacentPosition::BeforeEnd, $html);
-
-        return [
+        $documentCandidate = [
             'table' => $table,
             'source' => self::html5TableContextSource($document, $table, $literalPayloadElements),
         ];
+
+        return self::html5PreferredFragmentCandidate($insertCandidate, $documentCandidate);
+    }
+
+    private static function html5FragmentCandidateLeaksSyntheticWrapper(string $source): bool
+    {
+        return preg_match('/<\/(?:body|html)>/i', $source) === 1;
+    }
+
+    private static function html5FragmentCandidateScore(string $source): int
+    {
+        $text = html_entity_decode(strip_tags($source), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $text = preg_replace('/\s+/u', '', $text) ?? $text;
+
+        return strlen($text);
     }
 
     /**
@@ -1271,7 +1332,12 @@ final class Html5Dom
             return html_entity_decode((string) $element->textContent, ENT_QUOTES | ENT_HTML5, 'UTF-8');
         }
         if (in_array($name, ['iframe', 'noembed', 'noframes', 'noscript', 'plaintext', 'xmp'], true) && property_exists($element, 'innerHTML')) {
-            return (string) $element->innerHTML;
+            $payload = (string) $element->innerHTML;
+            if ($name === 'plaintext') {
+                $payload = preg_replace('/<\/body>\s*<\/html>\s*$/i', '', $payload) ?? $payload;
+            }
+
+            return $payload;
         }
 
         return (string) $element->textContent;
