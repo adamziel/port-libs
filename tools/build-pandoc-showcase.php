@@ -11,14 +11,32 @@ ini_set('display_errors', 'stderr');
 error_reporting(E_ALL & ~E_DEPRECATED);
 
 if (($argv[1] ?? '') === '--convert-local') {
+    raise_memory_limit('512M');
     $path = $argv[2] ?? '';
     $format = $argv[3] ?? '';
     $to = $argv[4] ?? '';
+    $mediaOutputDir = $argv[5] ?? '';
+    $mediaDestination = $argv[6] ?? '';
+    $mediaManifest = $argv[7] ?? '';
     if ($path === '' || $format === '' || $to === '') {
-        fwrite(STDERR, "Usage: php tools/build-pandoc-showcase.php --convert-local <path> <from> <to>\n");
+        fwrite(STDERR, "Usage: php tools/build-pandoc-showcase.php --convert-local <path> <from> <to> [media-output-dir media-destination media-manifest]\n");
         exit(2);
     }
-    echo PandocConverter::convertFile($path, $format, $to, showcase_converter_options($format, $to));
+    $options = showcase_converter_options($format, $to);
+    if ($mediaOutputDir !== '' && $mediaDestination !== '' && $mediaManifest !== '') {
+        $options['extractMedia'] = [
+            'destination' => $mediaDestination,
+            'outputDirectory' => $mediaOutputDir,
+        ];
+        $converted = PandocConverter::convertFileWithMedia($path, $format, $to, $options);
+        file_put_contents($mediaManifest, json_encode([
+            'media' => $converted['media'],
+            'diagnostics' => $converted['diagnostics'],
+        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+        echo $converted['output'];
+        exit(0);
+    }
+    echo PandocConverter::convertFile($path, $format, $to, $options);
     exit(0);
 }
 
@@ -27,6 +45,34 @@ $siteDir = $root . '/pandoc-showcase';
 $samplesDir = $siteDir . '/samples';
 $outputsDir = $siteDir . '/outputs';
 $rawBase = 'https://raw.githubusercontent.com/jgm/pandoc/' . PandocFormatRegistry::UPSTREAM_SOURCE_COMMIT . '/';
+
+function raise_memory_limit(string $minimum): void
+{
+    $current = ini_get('memory_limit');
+    if ($current === false || $current === '-1') {
+        return;
+    }
+    if (memory_limit_bytes($current) < memory_limit_bytes($minimum)) {
+        ini_set('memory_limit', $minimum);
+    }
+}
+
+function memory_limit_bytes(string $value): int
+{
+    $value = trim($value);
+    if ($value === '' || $value === '-1') {
+        return PHP_INT_MAX;
+    }
+    $unit = strtolower(substr($value, -1));
+    $number = (float) $value;
+
+    return match ($unit) {
+        'g' => (int) ($number * 1073741824),
+        'm' => (int) ($number * 1048576),
+        'k' => (int) ($number * 1024),
+        default => (int) $number,
+    };
+}
 
 /**
  * @return array<string, mixed>
@@ -994,28 +1040,80 @@ function run_process(array $cmd, int $timeoutSeconds = 0): array
 }
 
 /**
- * @return array{ok:bool, path?:string, error?:string}
+ * @return array{ok:bool, path?:string, error?:string, media?:list<array<string,mixed>>, mediaDiagnostics?:list<string>}
  */
 function write_output_from_process(string $dir, string $name, string $sourcePath, string $from, string $to): array
 {
-    $timeout = PandocConverter::canonicalInputFormat($from) === 'pdf' ? 75 : 25;
-    $result = run_process([PHP_BINARY, __FILE__, '--convert-local', $sourcePath, $from, $to], $timeout);
+    $timeout = PandocConverter::canonicalInputFormat($from) === 'pdf' || (is_file($sourcePath) && filesize($sourcePath) > 262144) ? 75 : 25;
+    $mediaDir = $dir . '/media';
+    $manifestPath = tempnam(sys_get_temp_dir(), 'pandoc-media-manifest-');
+    if (!is_string($manifestPath)) {
+        $manifestPath = $dir . '/' . $name . '.media.json';
+    }
+    $result = run_process([PHP_BINARY, __FILE__, '--convert-local', $sourcePath, $from, $to, $mediaDir, 'media', $manifestPath], $timeout);
     if ($result['exitCode'] === 0) {
         $stdout = $to === 'html'
             ? wrap_local_html_document($result['stdout'], 'PHP Pandoc HTML output')
             : $result['stdout'];
         file_put_contents($dir . '/' . $name, $stdout);
 
-        return ['ok' => true, 'path' => 'outputs/' . basename($dir) . '/' . $name];
+        $manifest = read_media_manifest($manifestPath, basename($dir));
+        if (is_file($manifestPath)) {
+            unlink($manifestPath);
+        }
+
+        return [
+            'ok' => true,
+            'path' => 'outputs/' . basename($dir) . '/' . $name,
+            'media' => $manifest['media'],
+            'mediaDiagnostics' => $manifest['diagnostics'],
+        ];
     }
 
     $message = sanitize_generated_text(trim($result['stderr'] . "\n" . $result['stdout']));
     if ($message === '') {
         $message = 'Local converter exited with code ' . $result['exitCode'];
     }
+    if (is_file($manifestPath)) {
+        unlink($manifestPath);
+    }
     file_put_contents($dir . '/' . $name . '.error.txt', $message);
 
     return ['ok' => false, 'error' => $message, 'path' => 'outputs/' . basename($dir) . '/' . $name . '.error.txt'];
+}
+
+/**
+ * @return array{media:list<array<string,mixed>>, diagnostics:list<string>}
+ */
+function read_media_manifest(string $path, string $sampleId): array
+{
+    if (!is_file($path)) {
+        return ['media' => [], 'diagnostics' => []];
+    }
+    $json = json_decode((string) file_get_contents($path), true);
+    if (!is_array($json)) {
+        return ['media' => [], 'diagnostics' => ['extract-media-manifest-unreadable']];
+    }
+
+    $media = [];
+    foreach (($json['media'] ?? []) as $entry) {
+        if (!is_array($entry)) {
+            continue;
+        }
+        $pathValue = isset($entry['path']) && is_string($entry['path']) ? $entry['path'] : '';
+        if ($pathValue !== '' && str_starts_with($pathValue, 'media/')) {
+            $entry['path'] = 'outputs/' . $sampleId . '/' . $pathValue;
+        }
+        $media[] = $entry;
+    }
+    $diagnostics = [];
+    foreach (($json['diagnostics'] ?? []) as $diagnostic) {
+        if (is_string($diagnostic) && $diagnostic !== '') {
+            $diagnostics[] = $diagnostic;
+        }
+    }
+
+    return ['media' => $media, 'diagnostics' => $diagnostics];
 }
 
 /**
@@ -1162,6 +1260,107 @@ function human_size(int $bytes): string
 
 /**
  * @param list<array<string, mixed>> $records
+ * @return array{total:int, samples:int, previews:list<array<string,mixed>>}
+ */
+function extracted_media_preview(array $records): array
+{
+    $total = 0;
+    $sampleIds = [];
+    $candidates = [];
+    $seen = [];
+    $priority = array_flip([
+        'pdf-muir-beach-brochure',
+        'pdf-cdc-hand-hygiene-brochure',
+        'pdf-grand-canyon-north-rim-map',
+        'pdf-archive-motograph-book',
+        'epub-picture',
+        'epub-gutenberg-alice-illustrated',
+        'docx-inline-images',
+        'pptx-cdc-food-safety-slides',
+        'odt-oasis-opendocument-schema',
+    ]);
+    foreach ($records as $record) {
+        foreach (['wpBlocks' => 'WordPress blocks', 'phpHtml' => 'PHP HTML'] as $key => $label) {
+            $result = $record[$key] ?? null;
+            if (!is_array($result)) {
+                continue;
+            }
+            foreach (($result['media'] ?? []) as $entry) {
+                if (!is_array($entry)) {
+                    continue;
+                }
+                $mimeType = (string) ($entry['mimeType'] ?? '');
+                $path = (string) ($entry['path'] ?? '');
+                if ($path === '' || !str_starts_with($mimeType, 'image/')) {
+                    continue;
+                }
+                $total++;
+                $sampleIds[(string) $record['id']] = true;
+                $dedupeKey = $path . '|' . (string) ($entry['sha1'] ?? '');
+                if (isset($seen[$dedupeKey]) || !media_preview_can_render($mimeType, $path)) {
+                    continue;
+                }
+                $seen[$dedupeKey] = true;
+                $candidates[] = [
+                    'path' => $path,
+                    'mimeType' => $mimeType,
+                    'byteLength' => (int) ($entry['byteLength'] ?? 0),
+                    'source' => (string) ($entry['source'] ?? ''),
+                    'sampleId' => (string) $record['id'],
+                    'sampleLabel' => (string) $record['label'],
+                    'format' => (string) $record['format'],
+                    'converter' => $label,
+                ];
+            }
+        }
+    }
+
+    usort($candidates, static function (array $a, array $b) use ($priority): int {
+        $aPriority = $priority[(string) $a['sampleId']] ?? 1000;
+        $bPriority = $priority[(string) $b['sampleId']] ?? 1000;
+        if ($aPriority !== $bPriority) {
+            return $aPriority <=> $bPriority;
+        }
+        $sample = (string) $a['sampleId'] <=> (string) $b['sampleId'];
+        if ($sample !== 0) {
+            return $sample;
+        }
+        $converter = (string) $a['converter'] <=> (string) $b['converter'];
+        if ($converter !== 0) {
+            return $converter;
+        }
+
+        return (string) $a['path'] <=> (string) $b['path'];
+    });
+
+    $previews = [];
+    $perSample = [];
+    foreach ($candidates as $candidate) {
+        $sampleId = (string) $candidate['sampleId'];
+        if (($perSample[$sampleId] ?? 0) >= 10) {
+            continue;
+        }
+        $previews[] = $candidate;
+        $perSample[$sampleId] = ($perSample[$sampleId] ?? 0) + 1;
+        if (count($previews) >= 96) {
+            break;
+        }
+    }
+
+    return ['total' => $total, 'samples' => count($sampleIds), 'previews' => $previews];
+}
+
+function media_preview_can_render(string $mimeType, string $path): bool
+{
+    if (in_array($mimeType, ['image/jpeg', 'image/png', 'image/gif', 'image/svg+xml', 'image/webp', 'image/bmp', 'image/apng', 'image/avif'], true)) {
+        return true;
+    }
+
+    return preg_match('/\.(?:jpe?g|png|gif|svg|webp|bmp|apng|avif)(?:[?#].*)?\z/i', $path) === 1;
+}
+
+/**
+ * @param list<array<string, mixed>> $records
  * @param list<string> $coveredFormats
  * @param list<string> $missingFormats
  * @param array<string, mixed> $summary
@@ -1236,6 +1435,22 @@ function write_conversion_report(
         $html .= '<td>' . result_badge(is_array($record['haskell'] ?? null) ? $record['haskell'] : []) . '</td></tr>';
     }
     $html .= '</tbody></table></section>';
+
+    $mediaPreview = extracted_media_preview($records);
+    $html .= '<section><h2>Extracted media preview</h2>';
+    $html .= '<p>The PHP path now runs an <code>--extract-media</code>-style pass. Referenced package images are written beside the converted output and their <code>&lt;img&gt;</code> URLs are rewritten to hosted files; directly embeddable PDF image streams are also copied out for review.</p>';
+    $html .= '<p class="meta">' . h((string) $mediaPreview['total']) . ' image media entr' . ($mediaPreview['total'] === 1 ? 'y' : 'ies') . ' extracted across ' . h((string) $mediaPreview['samples']) . ' source file' . ($mediaPreview['samples'] === 1 ? '' : 's') . '.</p>';
+    if ($mediaPreview['previews'] !== []) {
+        $html .= '<div class="media-gallery">';
+        foreach ($mediaPreview['previews'] as $preview) {
+            $html .= '<figure><a href="' . h((string) $preview['path']) . '"><img src="' . h((string) $preview['path']) . '" alt=""></a>';
+            $html .= '<figcaption><strong>' . h((string) $preview['sampleLabel']) . '</strong><span><code>' . h((string) $preview['format']) . '</code> · ' . h((string) $preview['converter']) . '</span><span>' . h(basename((string) $preview['path'])) . ' · ' . h(human_size((int) $preview['byteLength'])) . '</span></figcaption></figure>';
+        }
+        $html .= '</div>';
+    } else {
+        $html .= '<p class="status-warn">No browser-previewable extracted images were found in this run.</p>';
+    }
+    $html .= '</section>';
 
     $html .= '<section><h2>Success by input format</h2><table class="report-table compact-table"><thead><tr><th>Format</th><th>Files</th><th>Successful conversions</th><th>Failures</th></tr></thead><tbody>';
     foreach ($summary['byFormat'] as $format => $formatSummary) {
@@ -1629,6 +1844,42 @@ h1 {
 }
 .report-table tr:last-child td {
   border-bottom: 0;
+}
+.media-gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+.media-gallery figure {
+  margin: 0;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.media-gallery a {
+  display: grid;
+  place-items: center;
+  height: 140px;
+  background: #f7f9fb;
+}
+.media-gallery img {
+  max-width: 100%;
+  max-height: 140px;
+  object-fit: contain;
+}
+.media-gallery figcaption {
+  display: grid;
+  gap: 2px;
+  padding: 9px 10px 10px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.media-gallery figcaption strong {
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 1.25;
 }
 .compact-table td:first-child {
   white-space: nowrap;

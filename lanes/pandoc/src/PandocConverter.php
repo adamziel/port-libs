@@ -81,6 +81,39 @@ final class PandocConverter
     }
 
     /**
+     * @param array{readerOptions?: array<string, mixed>, writerOptions?: array<string, mixed>, extractMedia?: string|array<string, mixed>, extract-media?: string|array<string, mixed>} $options
+     * @return array{output:string, media:list<array<string, mixed>>, diagnostics:list<string>}
+     */
+    public static function convertWithMedia(string $bytes, string $from, string $to, array $options = []): array
+    {
+        $readerOptions = isset($options['readerOptions']) && is_array($options['readerOptions']) ? $options['readerOptions'] : [];
+        $writerOptions = isset($options['writerOptions']) && is_array($options['writerOptions']) ? $options['writerOptions'] : [];
+        $extractOptions = self::extractMediaOptions($options);
+
+        $document = self::read($bytes, $from, $readerOptions);
+        $entries = [];
+        $diagnostics = [];
+        if ($extractOptions !== null) {
+            if (!isset($extractOptions['sourcePath']) && isset($readerOptions['sourcePath']) && is_string($readerOptions['sourcePath'])) {
+                $extractOptions['sourcePath'] = $readerOptions['sourcePath'];
+            }
+            $extracted = (new PandocMediaExtractor())->extract($document, $bytes, $from, $extractOptions);
+            $document = $extracted['document'];
+            $entries = $extracted['entries'];
+            $diagnostics = $extracted['diagnostics'];
+            if (isset($extractOptions['outputDirectory']) && is_string($extractOptions['outputDirectory']) && $extractOptions['outputDirectory'] !== '') {
+                self::writeMediaEntries($entries, $extractOptions['outputDirectory']);
+            }
+        }
+
+        return [
+            'output' => self::write($document, $to, $writerOptions),
+            'media' => self::publicMediaEntries($entries),
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
      * @param array{readerOptions?: array<string, mixed>, writerOptions?: array<string, mixed>} $options
      */
     public static function convertFile(string $path, string $from, string $to, array $options = []): string
@@ -97,6 +130,26 @@ final class PandocConverter
         }
 
         return self::convert($bytes, $from, $to, $options);
+    }
+
+    /**
+     * @param array{readerOptions?: array<string, mixed>, writerOptions?: array<string, mixed>, extractMedia?: string|array<string, mixed>, extract-media?: string|array<string, mixed>} $options
+     * @return array{output:string, media:list<array<string, mixed>>, diagnostics:list<string>}
+     */
+    public static function convertFileWithMedia(string $path, string $from, string $to, array $options = []): array
+    {
+        $bytes = file_get_contents($path);
+        if (!is_string($bytes)) {
+            throw new \RuntimeException("Unable to read '{$path}'.");
+        }
+        if (!isset($options['readerOptions']) || !is_array($options['readerOptions'])) {
+            $options['readerOptions'] = [];
+        }
+        if (!isset($options['readerOptions']['sourcePath'])) {
+            $options['readerOptions']['sourcePath'] = $path;
+        }
+
+        return self::convertWithMedia($bytes, $from, $to, $options);
     }
 
     public static function canRead(string $format): bool
@@ -138,6 +191,62 @@ final class PandocConverter
     private static function normalizeFormat(string $format): string
     {
         return strtolower(str_replace('-', '_', trim($format)));
+    }
+
+    /**
+     * @param array<string, mixed> $options
+     * @return array<string, mixed>|null
+     */
+    private static function extractMediaOptions(array $options): ?array
+    {
+        $raw = $options['extractMedia'] ?? $options['extract-media'] ?? null;
+        if ($raw === null || $raw === false) {
+            return null;
+        }
+        if (is_string($raw)) {
+            return ['destination' => $raw];
+        }
+        if (is_array($raw)) {
+            return $raw;
+        }
+        if ($raw === true) {
+            return ['destination' => 'media'];
+        }
+
+        throw new \InvalidArgumentException('extractMedia must be a destination string or options array.');
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     */
+    private static function writeMediaEntries(array $entries, string $outputDirectory): void
+    {
+        foreach ($entries as $entry) {
+            $mediaPath = isset($entry['mediaPath']) && is_string($entry['mediaPath']) ? $entry['mediaPath'] : '';
+            $contents = isset($entry['contents']) && is_string($entry['contents']) ? $entry['contents'] : null;
+            if ($mediaPath === '' || $contents === null || str_contains($mediaPath, "\0") || str_contains($mediaPath, '..')) {
+                continue;
+            }
+            $path = rtrim($outputDirectory, '/\\') . '/' . str_replace('\\', '/', $mediaPath);
+            $dir = dirname($path);
+            if (!is_dir($dir) && !mkdir($dir, 0777, true) && !is_dir($dir)) {
+                throw new \RuntimeException("Unable to create media directory '{$dir}'.");
+            }
+            file_put_contents($path, $contents);
+        }
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return list<array<string, mixed>>
+     */
+    private static function publicMediaEntries(array $entries): array
+    {
+        return array_map(static function (array $entry): array {
+            unset($entry['contents']);
+
+            return $entry;
+        }, $entries);
     }
 
     /**

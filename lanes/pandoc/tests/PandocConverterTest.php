@@ -133,6 +133,68 @@ return [
         $t->contains('<outline text="Root" _note="Intro **note**.">', $opml);
         $t->contains('  <outline text="Child">', $opml);
     },
+    'extracts and rewrites package media beside converted output' => static function (TestRunner $t): void {
+        $root = dirname(__DIR__, 3);
+        $epub = $root . '/pandoc-showcase/samples/epub-picture-epub2_picture.epub';
+        $docx = $root . '/pandoc-showcase/samples/docx-inline-images-inline_images.docx';
+        $tmp = sys_get_temp_dir() . '/pandoc-extract-media-' . bin2hex(random_bytes(6));
+        mkdir($tmp, 0777, true);
+        $cleanup = static function (string $path) use (&$cleanup): void {
+            if (!is_dir($path)) {
+                return;
+            }
+            foreach (scandir($path) ?: [] as $entry) {
+                if ($entry === '.' || $entry === '..') {
+                    continue;
+                }
+                $child = $path . '/' . $entry;
+                is_dir($child) ? $cleanup($child) : unlink($child);
+            }
+            rmdir($path);
+        };
+
+        try {
+            $epubResult = PandocConverter::convertFileWithMedia($epub, 'epub', 'html', [
+                'extractMedia' => ['destination' => 'media', 'outputDirectory' => $tmp . '/epub'],
+            ]);
+            $t->contains('src="media/image/image.jpg"', $epubResult['output']);
+            $t->same(1, count($epubResult['media']));
+            $t->same('media/image/image.jpg', $epubResult['media'][0]['path'] ?? null);
+            $t->true(is_file($tmp . '/epub/image/image.jpg'));
+            $t->true((int) filesize($tmp . '/epub/image/image.jpg') > 1000);
+
+            $docxResult = PandocConverter::convertFileWithMedia($docx, 'docx', 'wordpress', [
+                'extractMedia' => ['destination' => 'media', 'outputDirectory' => $tmp . '/docx'],
+            ]);
+            $t->contains('src="media/media/image1.jpg"', $docxResult['output']);
+            $t->true(count($docxResult['media']) >= 2);
+            $t->true(is_file($tmp . '/docx/media/image1.jpg'));
+            $t->true(is_file($tmp . '/docx/media/image2.jpg'));
+        } finally {
+            $cleanup($tmp);
+        }
+    },
+    'extracts browser friendly pdf image streams for media hosting review' => static function (TestRunner $t): void {
+        $jpeg = base64_decode('/9j/4AAQSkZJRgABAQAAAQABAAD/2w==', true);
+        $t->true(is_string($jpeg));
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n"
+            . '<< /Type /XObject /Subtype /Image /Width 1 /Height 1 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ' . strlen((string) $jpeg) . " >>\n"
+            . "stream\n"
+            . (string) $jpeg . "\n"
+            . "endstream\n"
+            . "endobj\n"
+            . "%%EOF\n";
+
+        $extractor = new \PortLibs\Pandoc\PandocMediaExtractor();
+        $result = $extractor->extract(new AstNode('document'), $pdf, 'pdf', ['destination' => 'media']);
+
+        $t->same(1, count($result['entries']));
+        $t->same('media/pdf/image-1.jpg', $result['entries'][0]['path'] ?? null);
+        $t->same('image/jpeg', $result['entries'][0]['mimeType'] ?? null);
+        $t->same($jpeg, $result['entries'][0]['contents'] ?? null);
+        $t->true(in_array('extract-media-pdf-image-loaded:1', $result['diagnostics'], true));
+    },
     'fails explicitly for unsupported registry formats' => static function (TestRunner $t): void {
         $t->throws(\InvalidArgumentException::class, static function (): void {
             PandocConverter::read('unsupported input', 'asciidoc');
