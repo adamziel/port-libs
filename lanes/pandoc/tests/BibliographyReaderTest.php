@@ -870,8 +870,11 @@ BIB;
         $t->throws(\InvalidArgumentException::class, static function (): void {
             PandocConverter::read('@book{missing,title={Bad}', 'bibtex');
         });
-        $t->throws(\InvalidArgumentException::class, static function (): void {
-            PandocConverter::read('{"id":"single-object"}', 'csljson');
-        });
+    },
+    'accepts organic single-item CSL JSON objects through converter dispatch' => static function (TestRunner $t): void {
+        $document = PandocConverter::read('{"DOI":"10.1234/single-object","type":"article-journal","title":"Single Object Packet"}', 'csljson');
+        $t->same('csljson', $document->attr('sourceFormat'));
+        $t->same(1, $document->attr('cslItemCount'));
+        $t->same(['10.1234/single-object'], $document->attr('cslItemIds'));
     },
 ];

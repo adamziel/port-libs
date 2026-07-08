@@ -48,8 +48,11 @@ final class CitationCslProcessor
             throw new \InvalidArgumentException('Invalid CSL JSON: ' . json_last_error_msg());
         }
 
-        if (!is_array($decoded) || !array_is_list($decoded)) {
-            throw new \InvalidArgumentException('CSL JSON bibliography must be a list of item objects');
+        if (!is_array($decoded)) {
+            throw new \InvalidArgumentException('CSL JSON bibliography must be an item object or a list of item objects');
+        }
+        if (!array_is_list($decoded)) {
+            $decoded = [$decoded];
         }
 
         return self::fromItems($decoded);
@@ -152,22 +155,12 @@ final class CitationCslProcessor
         $itemsById = [];
         $primaryIds = [];
         $canonicalIdsById = [];
-        $normalizedItems = [];
-        foreach ($items as $index => $item) {
-            if (!is_array($item)) {
-                throw new \InvalidArgumentException('CSL item at index ' . $index . ' must be an object');
-            }
-
-            $normalized = self::normalizeItem($item, $index);
+        $normalizedItems = self::normalizeItems($items);
+        foreach ($normalizedItems as $normalized) {
             $id = (string) $normalized['id'];
-            if (isset($itemsById[$id])) {
-                throw new \InvalidArgumentException('Duplicate CSL item id: ' . $id);
-            }
-
             $itemsById[$id] = $normalized;
             $primaryIds[] = $id;
             $canonicalIdsById[$id] = $id;
-            $normalizedItems[] = $normalized;
         }
 
         foreach ($normalizedItems as $normalized) {
@@ -200,6 +193,45 @@ final class CitationCslProcessor
         }
 
         return new self($itemsById, null, $primaryIds, $canonicalIdsById);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $items
+     * @return list<array<string, mixed>>
+     */
+    public static function normalizeItems(array $items): array
+    {
+        $normalizedItems = [];
+        $ids = [];
+        foreach ($items as $index => $item) {
+            if (!is_array($item)) {
+                throw new \InvalidArgumentException('CSL item at index ' . $index . ' must be an object');
+            }
+
+            $normalized = self::normalizeItem($item, $index);
+            $id = (string) $normalized['id'];
+            if (isset($ids[$id])) {
+                $baseId = $id;
+                $suffix = $ids[$baseId] + 1;
+                do {
+                    $id = $baseId . '-' . $suffix;
+                    $suffix++;
+                } while (isset($ids[$id]));
+                $ids[$baseId] = $suffix - 1;
+                $normalized['id'] = $id;
+                $normalized['originalId'] = $baseId;
+                $normalized['idDisambiguation'] = [
+                    'source' => 'duplicate-csl-item-id',
+                    'originalId' => $baseId,
+                    'disambiguatedId' => $id,
+                ];
+            }
+
+            $ids[$id] = $ids[$id] ?? 1;
+            $normalizedItems[] = $normalized;
+        }
+
+        return $normalizedItems;
     }
 
     /**
@@ -1111,7 +1143,8 @@ final class CitationCslProcessor
     {
         $id = $item['id'] ?? null;
         if (!is_string($id) && !is_int($id)) {
-            throw new \InvalidArgumentException('CSL item at index ' . $index . ' is missing string id');
+            $id = self::derivedCslItemId($item, $index);
+            $item['id'] = $id;
         }
 
         $id = trim((string) $id);
@@ -3081,6 +3114,13 @@ final class CitationCslProcessor
                 continue;
             }
 
+            if (is_array($value)) {
+                $value = self::firstScalarValue($value);
+                if ($value === null) {
+                    continue;
+                }
+            }
+
             if (!is_scalar($value)) {
                 throw new \InvalidArgumentException('CSL field ' . $key . ' must be scalar when present');
             }
@@ -3092,6 +3132,17 @@ final class CitationCslProcessor
         }
 
         return '';
+    }
+
+    private static function firstScalarValue(array $values): mixed
+    {
+        foreach ($values as $value) {
+            if (is_scalar($value)) {
+                return $value;
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -4144,7 +4195,7 @@ final class CitationCslProcessor
                 || self::boolField($name, 'etAl', false)
                 || self::boolField($name, 'et-al', false);
             if (!$etAl && $literal === '' && $family === '' && $given === '' && $nonDroppingParticle === '' && $droppingParticle === '') {
-                throw new \InvalidArgumentException('CSL item ' . $id . ' field ' . $field . '[' . $index . '] has no name content');
+                continue;
             }
 
             $names[] = [
@@ -6619,6 +6670,35 @@ final class CitationCslProcessor
         }
 
         return $item;
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private static function derivedCslItemId(array $item, int $index): string
+    {
+        foreach (['DOI', 'doi', 'URL', 'url'] as $field) {
+            $value = $item[$field] ?? null;
+            if (is_string($value) || is_int($value)) {
+                $id = trim((string) $value);
+                if ($id !== '') {
+                    return $id;
+                }
+            }
+        }
+
+        $title = $item['title'] ?? null;
+        if (is_array($title)) {
+            $title = reset($title);
+        }
+        if (is_string($title) || is_int($title)) {
+            $id = trim((string) $title);
+            if ($id !== '') {
+                return 'item-' . substr(hash('sha256', $id), 0, 16);
+            }
+        }
+
+        return 'item-' . ($index + 1);
     }
 
     /**

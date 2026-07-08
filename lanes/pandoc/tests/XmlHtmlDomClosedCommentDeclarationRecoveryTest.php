@@ -61,6 +61,7 @@ return [
         $t->throws(InvalidArgumentException::class, static fn (): DOMDocument => XmlHtmlDom::loadHtmlFragment('<p>before</p><!DOCTYPE html>', 'live doctype HTML fragment'));
         $t->throws(InvalidArgumentException::class, static fn (): DOMDocument => XmlHtmlDom::loadHtmlFragment('<!ENTITY reviewer SYSTEM "file:///etc/passwd"><p>bad</p>', 'live entity HTML fragment'));
         $t->throws(InvalidArgumentException::class, static fn (): DOMDocument => XmlHtmlDom::loadHtmlFragment('<?xml-stylesheet href="https://example.invalid/review.xsl"?><p>bad</p>', 'live PI HTML fragment'));
-        $t->throws(InvalidArgumentException::class, static fn (): DOMDocument => XmlHtmlDom::loadXmlDocument('<!DOCTYPE pkg><pkg/>', 'live doctype XML document'));
+        $liveDoctype = XmlHtmlDom::loadXmlDocument('<!DOCTYPE pkg><pkg/>', 'live doctype XML document');
+        $t->same('pkg', $liveDoctype->documentElement instanceof DOMElement ? $liveDoctype->documentElement->tagName : null);
     },
 ];

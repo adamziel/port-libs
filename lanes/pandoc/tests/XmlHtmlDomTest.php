@@ -22,10 +22,20 @@ return [
         $t->true($item instanceof DOMElement);
         $t->same('en', $item->getAttributeNS('http://www.w3.org/XML/1998/namespace', 'lang'));
         $t->same('Review & Import', $item->textContent);
+        $withDoctype = XmlHtmlDom::loadXmlDocument(
+            '<!DOCTYPE pkg [<!ENTITY reviewer "Ada &amp; Grace">]><pkg><item>&reviewer;</item></pkg>',
+            'review packet XML with internal text entity'
+        );
+        $t->same('Ada & Grace', $withDoctype->documentElement instanceof DOMElement ? $withDoctype->documentElement->textContent : null);
+        $withUndeclaredEntity = XmlHtmlDom::loadXmlDocument(
+            '<pkg><item>Reader &AppVersion;</item><space>&nbsp;</space></pkg>',
+            'review packet XML with organic undeclared entities'
+        );
+        $t->same('Reader AppVersion ', $withUndeclaredEntity->documentElement instanceof DOMElement ? $withUndeclaredEntity->documentElement->textContent : null);
         $t->throws(InvalidArgumentException::class, static fn (): DOMDocument => XmlHtmlDom::loadXmlDocument('<pkg><item></pkg>', 'broken XML'));
         $t->throws(InvalidArgumentException::class, static fn (): DOMDocument => XmlHtmlDom::loadXmlDocument('<!DOCTYPE pkg [<!ENTITY xxe SYSTEM "file:///etc/passwd">]><pkg>&xxe;</pkg>', 'unsafe XML'));
     },
-    'allows XML declarations but rejects XML processing instructions' => static function (TestRunner $t): void {
+    'allows XML declarations and strips inert XML processing instructions' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadXmlDocument(
             '<?xml version="1.0" encoding="UTF-8"?><pkg><item>Review packet</item></pkg>',
             'declared review packet XML',
@@ -35,14 +45,17 @@ return [
         $t->true($dom->documentElement instanceof DOMElement);
         $t->same('pkg', $dom->documentElement->tagName);
         $t->same('Review packet', $dom->documentElement->textContent);
-        $t->throws(InvalidArgumentException::class, static fn (): DOMDocument => XmlHtmlDom::loadXmlDocument(
+        $stylesheet = XmlHtmlDom::loadXmlDocument(
             '<?xml-stylesheet href="https://example.invalid/review.xsl"?><pkg><item>review</item></pkg>',
             'stylesheet XML'
-        ));
-        $t->throws(InvalidArgumentException::class, static fn (): DOMDocument => XmlHtmlDom::loadXmlDocument(
+        );
+        $review = XmlHtmlDom::loadXmlDocument(
             '<?xml version="1.0"?><pkg><?review href="file:///etc/passwd"?><item>review</item></pkg>',
             'review PI XML'
-        ));
+        );
+        $t->same(0, $stylesheet->getElementsByTagName('xml-stylesheet')->length);
+        $t->same('review', $stylesheet->documentElement instanceof DOMElement ? $stylesheet->documentElement->textContent : null);
+        $t->same('review', $review->documentElement instanceof DOMElement ? $review->documentElement->textContent : null);
     },
     'queries namespaced XML DOM nodes for package reader handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadXmlDocument(<<<'XML'

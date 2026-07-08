@@ -17,7 +17,7 @@ final class BibliographyReader
 
     public function read(string $bytes): AstNode
     {
-        $items = $this->items($bytes);
+        $items = CitationCslProcessor::normalizeItems($this->items($bytes));
         $ids = $this->itemIds($items);
         $processor = CitationCslProcessor::fromItems($items);
         $bibliography = $processor->bibliographyDefinitionList($ids);
@@ -89,8 +89,21 @@ final class BibliographyReader
         if (json_last_error() !== JSON_ERROR_NONE) {
             throw new \InvalidArgumentException('Invalid CSL JSON: ' . json_last_error_msg());
         }
-        if (!is_array($decoded) || !$this->decodedJsonIsList($decoded, $json)) {
-            throw new \InvalidArgumentException('CSL JSON bibliography must be a list of item objects');
+        if (!is_array($decoded)) {
+            throw new \InvalidArgumentException('CSL JSON bibliography must be an item object or a list of item objects');
+        }
+        if (!$this->decodedJsonIsList($decoded, $json)) {
+            $decoded = [$decoded];
+        }
+        foreach ($decoded as $index => $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+            $id = $item['id'] ?? null;
+            if ((!is_string($id) && !is_int($id)) || trim((string) $id) === '') {
+                $item['id'] = $this->derivedCslItemId($item, $index);
+                $decoded[$index] = $item;
+            }
         }
 
         /** @var list<array<string, mixed>> $decoded */
@@ -1343,7 +1356,7 @@ final class BibliographyReader
         foreach ($items as $index => $item) {
             $id = $item['id'] ?? null;
             if (!is_string($id) && !is_int($id)) {
-                throw new \InvalidArgumentException('CSL item at index ' . $index . ' is missing string id');
+                $id = $this->derivedCslItemId($item, $index);
             }
 
             $id = trim((string) $id);
@@ -1355,6 +1368,35 @@ final class BibliographyReader
         }
 
         return $ids;
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private function derivedCslItemId(array $item, int $index): string
+    {
+        foreach (['DOI', 'doi', 'URL', 'url'] as $field) {
+            $value = $item[$field] ?? null;
+            if (is_string($value) || is_int($value)) {
+                $id = trim((string) $value);
+                if ($id !== '') {
+                    return $id;
+                }
+            }
+        }
+
+        $title = $item['title'] ?? null;
+        if (is_array($title)) {
+            $title = reset($title);
+        }
+        if (is_string($title) || is_int($title)) {
+            $id = trim((string) $title);
+            if ($id !== '') {
+                return 'item-' . substr(hash('sha256', $id), 0, 16);
+            }
+        }
+
+        return 'item-' . ($index + 1);
     }
 
     private function parserName(): string

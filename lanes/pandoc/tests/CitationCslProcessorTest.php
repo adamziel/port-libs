@@ -33020,10 +33020,18 @@ XML);
     },
     'rejects malformed csl json and invalid citation records without external citeproc' => static function (TestRunner $t): void {
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{not json'));
-        $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{"id":"single-object"}'));
-        $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([['title' => 'Missing ID']]));
+        $single = CitationCslProcessor::fromJson('{"DOI":"10.1234/single-object","type":"article-journal","title":"Single Object Packet"}');
+        $t->same('Single Object Packet. DOI 10.1234/single-object.', $single->renderBibliographyEntry('10.1234/single-object'));
+        $organicNames = CitationCslProcessor::fromJson('[{"id":"organic-empty-name","type":"article-journal","title":"Organic Empty Name Packet","author":[{},{"family":"Ng","given":"Nia"}]}]');
+        $t->same('Ng, Nia. Organic Empty Name Packet.', $organicNames->renderBibliographyEntry('organic-empty-name'));
+        $duplicates = CitationCslProcessor::fromItems([
+            ['id' => 'dup', 'title' => 'First Duplicate Packet'],
+            ['id' => 'dup', 'title' => 'Second Duplicate Packet'],
+        ]);
+        $t->same('First Duplicate Packet.', $duplicates->renderBibliographyEntry('dup'));
+        $t->same('Second Duplicate Packet.', $duplicates->renderBibliographyEntry('dup-2'));
+        $t->same('dup', $duplicates->item('dup-2')['originalId'] ?? null);
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([['id' => ''], ['id' => 'ok']]));
-        $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([['id' => 'dup'], ['id' => 'dup']]));
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([['id' => 'bad-author', 'author' => 'Ada']]));
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([['id' => 'bad-name', 'author' => [[]]]]));
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([['id' => 'bad-year', 'issued' => ['date-parts' => [['soon']]]]]));
@@ -33032,7 +33040,9 @@ XML);
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([['id' => 'bad-source-files', 'sourceFiles' => 'source.pdf']]));
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([['id' => 'bad-source-file-path', 'sourceFiles' => [['label' => 'Missing path']]]]));
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromBibtex('@book{missing, title={Bad}'));
-        $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromBibtex('@book{dup,title={A}} @article{dup,title={B}}'));
+        $bibtexDuplicates = CitationCslProcessor::fromBibtex('@book{dup,title={A}} @article{dup,title={B}}');
+        $t->same('A.', $bibtexDuplicates->renderBibliographyEntry('dup'));
+        $t->same('B.', $bibtexDuplicates->renderBibliographyEntry('dup-2'));
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromBibtex('@online{bad,date={2026-13-01}}'));
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromBibtex('@misc{bad,year={2026},month={13}}'));
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromBibtex('@book{bad,title {Missing Equals}}'));

@@ -681,7 +681,7 @@ final class XmlHtmlDom
     public static function loadXmlDocument(string $xml, string $label = 'XML document', bool $preserveWhiteSpace = true): \DOMDocument
     {
         self::assertSafeSource($xml, $label);
-        self::assertNoDoctype($xml, $label);
+        $xml = self::xmlSourceWithoutUnsafeDoctype($xml, $label);
 
         $previous = libxml_use_internal_errors(true);
         $dom = new \DOMDocument();
@@ -697,7 +697,7 @@ final class XmlHtmlDom
             throw new \InvalidArgumentException(self::parseErrorMessage('Unable to parse ' . $label, $errors));
         }
 
-        self::assertNoProcessingInstructions($dom, $label);
+        self::removeProcessingInstructions($dom);
 
         return $dom;
     }
@@ -34354,6 +34354,138 @@ final class XmlHtmlDom
         }
     }
 
+    private static function xmlSourceWithoutUnsafeDoctype(string $source, string $label): string
+    {
+        $declarationScanSource = self::sourceForDeclarationScan($source);
+        if (preg_match('/<!\s*DOCTYPE\b/i', $declarationScanSource, $match, PREG_OFFSET_CAPTURE) !== 1) {
+            return self::xmlSourceWithRecoverableNamedEntities($source);
+        }
+
+        $doctypeStart = (int) $match[0][1];
+        $doctypeEnd = self::xmlDoctypeDeclarationEnd($source, $doctypeStart);
+        if ($doctypeEnd === null) {
+            throw new \InvalidArgumentException($label . ' has an unterminated document type declaration');
+        }
+
+        $doctype = substr($source, $doctypeStart, $doctypeEnd - $doctypeStart);
+        $entities = self::safeInternalXmlEntities($doctype);
+        $blockedEntities = self::externalXmlEntityNames($doctype);
+        $withoutDoctype = substr($source, 0, $doctypeStart) . substr($source, $doctypeEnd);
+
+        return self::xmlSourceWithRecoverableNamedEntities($withoutDoctype, $entities, $blockedEntities);
+    }
+
+    /**
+     * @param array<string, string> $entities
+     * @param array<string, true> $blockedEntities
+     */
+    private static function xmlSourceWithRecoverableNamedEntities(string $source, array $entities = [], array $blockedEntities = []): string
+    {
+        return preg_replace_callback('/&([A-Za-z_][A-Za-z0-9_.:-]*);/', static function (array $matches) use ($entities, $blockedEntities): string {
+            $name = $matches[1];
+            if (in_array($name, ['amp', 'lt', 'gt', 'quot', 'apos'], true)) {
+                return $matches[0];
+            }
+            if (isset($blockedEntities[$name])) {
+                return $matches[0];
+            }
+            if (isset($entities[$name])) {
+                return $entities[$name];
+            }
+
+            $htmlEntity = TagSoupEntity::lookup($name . ';');
+            $replacement = $htmlEntity ?? $name;
+
+            return htmlspecialchars($replacement, ENT_QUOTES | ENT_SUBSTITUTE | ENT_XML1, 'UTF-8');
+        }, $source) ?? $source;
+    }
+
+    private static function xmlDoctypeDeclarationEnd(string $source, int $offset): ?int
+    {
+        $length = strlen($source);
+        $bracketDepth = 0;
+        $quote = null;
+        for ($cursor = $offset; $cursor < $length; $cursor++) {
+            $char = $source[$cursor];
+            if ($quote !== null) {
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+            if ($char === '[') {
+                $bracketDepth++;
+                continue;
+            }
+            if ($char === ']' && $bracketDepth > 0) {
+                $bracketDepth--;
+                continue;
+            }
+            if ($char === '>' && $bracketDepth === 0) {
+                return $cursor + 1;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private static function safeInternalXmlEntities(string $doctype): array
+    {
+        if (preg_match('/\[(.*)\]/s', $doctype, $subsetMatch) !== 1) {
+            return [];
+        }
+
+        $entities = [];
+        if (preg_match_all('/<!ENTITY\s+([A-Za-z_][A-Za-z0-9_.:-]*)\s+([\'"])(.*?)\2\s*>/s', $subsetMatch[1], $matches, PREG_SET_ORDER) !== false) {
+            foreach ($matches as $match) {
+                $value = (string) $match[3];
+                if (preg_match('/<!|<\?|%[A-Za-z_][A-Za-z0-9_.:-]*;/', $value) === 1) {
+                    continue;
+                }
+                $entities[(string) $match[1]] = htmlspecialchars(self::decodeXmlBuiltinEntities($value), ENT_QUOTES | ENT_SUBSTITUTE | ENT_XML1, 'UTF-8');
+            }
+        }
+
+        return $entities;
+    }
+
+    /**
+     * @return array<string, true>
+     */
+    private static function externalXmlEntityNames(string $doctype): array
+    {
+        if (preg_match('/\[(.*)\]/s', $doctype, $subsetMatch) !== 1) {
+            return [];
+        }
+
+        $entities = [];
+        if (preg_match_all('/<!ENTITY\s+([A-Za-z_][A-Za-z0-9_.:-]*)\s+(?:SYSTEM|PUBLIC)\b/is', $subsetMatch[1], $matches, PREG_SET_ORDER) !== false) {
+            foreach ($matches as $match) {
+                $entities[(string) $match[1]] = true;
+            }
+        }
+
+        return $entities;
+    }
+
+    private static function decodeXmlBuiltinEntities(string $value): string
+    {
+        return strtr($value, [
+            '&lt;' => '<',
+            '&gt;' => '>',
+            '&quot;' => '"',
+            '&apos;' => "'",
+            '&amp;' => '&',
+        ]);
+    }
+
     private static function assertNoHtmlFragmentDeclarations(string $source, string $label): void
     {
         $declarationScanSource = self::sourceForDeclarationScan($source);
@@ -34460,14 +34592,19 @@ final class XmlHtmlDom
         return [$tag, $offset];
     }
 
-    private static function assertNoProcessingInstructions(\DOMNode $node, string $label): void
+    private static function removeProcessingInstructions(\DOMNode $node): void
     {
         if ($node instanceof \DOMProcessingInstruction) {
-            throw new \InvalidArgumentException($label . ' must not include processing instructions');
+            if ($node->parentNode !== null) {
+                $node->parentNode->removeChild($node);
+            }
+            return;
         }
 
-        foreach ($node->childNodes as $child) {
-            self::assertNoProcessingInstructions($child, $label);
+        foreach (iterator_to_array($node->childNodes) as $child) {
+            if ($child instanceof \DOMNode) {
+                self::removeProcessingInstructions($child);
+            }
         }
     }
 

@@ -50,13 +50,17 @@ return [
         $t->same([], $legacyFragment->diagnostics());
         $t->same([], $html5Fragment->diagnostics());
     },
-    'keeps live XML declarations rejected outside closed CDATA sections' => static function (TestRunner $t): void {
-        $t->throws(InvalidArgumentException::class, static fn (): DOMDocument => XmlHtmlDom::loadXmlDocument('<!DOCTYPE pkg [<!ENTITY reviewer SYSTEM "file:///etc/passwd">]><pkg/>', 'live doctype XML document'));
-        $t->throws(InvalidArgumentException::class, static fn (): DOMDocument => XmlHtmlDom::loadXmlDocument('<pkg><?review href="file"?></pkg>', 'live PI XML document'));
+    'keeps unsafe live XML declarations bounded outside closed CDATA sections' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadXmlDocument('<!DOCTYPE pkg [<!ENTITY reviewer "safe reviewer">]><pkg>&reviewer;</pkg>', 'live internal entity XML document');
+        $t->same('safe reviewer', $dom->documentElement instanceof DOMElement ? $dom->documentElement->textContent : null);
+        $piDom = XmlHtmlDom::loadXmlDocument('<pkg><?review href="file"?><item>safe</item></pkg>', 'live PI XML document');
+        $t->same('safe', $piDom->documentElement instanceof DOMElement ? $piDom->documentElement->textContent : null);
+        $t->throws(InvalidArgumentException::class, static fn (): DOMDocument => XmlHtmlDom::loadXmlDocument('<!DOCTYPE pkg [<!ENTITY reviewer SYSTEM "file:///etc/passwd">]><pkg>&reviewer;</pkg>', 'live external entity XML document'));
         $t->throws(InvalidArgumentException::class, static fn (): DOMElement => Html5Dom::parseXmlFragment('<pkg><![CDATA[<!DOCTYPE pkg</pkg>'));
         $t->throws(InvalidArgumentException::class, static fn (): DOMDocument => Html5Dom::parseXmlDocument('<pkg><?review href="file"?></pkg>'));
         $t->throws(RuntimeException::class, static fn (): DOMDocument => Html5Dom::parseXmlDocument('<pkg><![CDATA[<?review href="file"</pkg>'));
-        $t->throws(InvalidArgumentException::class, static fn (): DOMDocument => XmlHtml5Dom::parseXmlDocument('<?review href="file"?><pkg/>', 'live facade PI XML document'));
+        $facadePiDom = XmlHtml5Dom::parseXmlDocument('<?review href="file"?><pkg><item>safe</item></pkg>', 'live facade PI XML document');
+        $t->same('safe', $facadePiDom->documentElement instanceof DOMElement ? $facadePiDom->documentElement->textContent : null);
         $t->throws(InvalidArgumentException::class, static fn (): XmlHtmlDomFragment => XmlHtmlDomFragment::parseXml('<pkg><![CDATA[<!ENTITY reviewer SYSTEM "file:///etc/passwd"</pkg>'));
         $t->throws(InvalidArgumentException::class, static fn (): Html5DomFragment => Html5DomFragment::fromXml('<pkg><![CDATA[<?review href="file"</pkg>'));
     },

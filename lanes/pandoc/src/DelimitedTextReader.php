@@ -15,9 +15,12 @@ final class DelimitedTextReader
     private const DIALECT_DETECTION_MIN_MODAL_RATIO = 0.7;
     private const DIALECT_DETECTION_MAX_RAGGED_RATIO = 0.1;
     private const DIALECT_DETECTION_MIN_SCORE_MARGIN = 0.15;
+    private const DEFAULT_MAX_RENDERED_ROWS = 1000;
+    private const DEFAULT_MAX_RENDERED_CELLS = 20000;
+    private const BLANK_ROW_SAMPLE_LIMIT = 1000;
 
     /**
-     * @param array{header?:bool, extension?:string, sourcePath?:string, delimiter?:string, quote?:string|null|false, escape?:string|null|false, keepSpace?:bool, strictParsing?:bool, allowBlankRecords?:bool, cellLineBreak?:string} $options
+     * @param array{header?:bool, extension?:string, sourcePath?:string, delimiter?:string, quote?:string|null|false, escape?:string|null|false, keepSpace?:bool, strictParsing?:bool, allowBlankRecords?:bool, cellLineBreak?:string, maxRenderedRows?:int, maxRenderedCells?:int} $options
      */
     public function readCsv(string $text, array $options = []): AstNode
     {
@@ -25,7 +28,7 @@ final class DelimitedTextReader
     }
 
     /**
-     * @param array{header?:bool, extension?:string, sourcePath?:string, delimiter?:string, quote?:string|null|false, escape?:string|null|false, keepSpace?:bool, strictParsing?:bool, allowBlankRecords?:bool, cellLineBreak?:string} $options
+     * @param array{header?:bool, extension?:string, sourcePath?:string, delimiter?:string, quote?:string|null|false, escape?:string|null|false, keepSpace?:bool, strictParsing?:bool, allowBlankRecords?:bool, cellLineBreak?:string, maxRenderedRows?:int, maxRenderedCells?:int} $options
      */
     public function readTsv(string $text, array $options = []): AstNode
     {
@@ -33,7 +36,7 @@ final class DelimitedTextReader
     }
 
     /**
-     * @param array{header?:bool, extension?:string, sourcePath?:string, delimiter?:string, quote?:string|null|false, escape?:string|null|false, keepSpace?:bool, strictParsing?:bool, allowBlankRecords?:bool, cellLineBreak?:string} $options
+     * @param array{header?:bool, extension?:string, sourcePath?:string, delimiter?:string, quote?:string|null|false, escape?:string|null|false, keepSpace?:bool, strictParsing?:bool, allowBlankRecords?:bool, cellLineBreak?:string, maxRenderedRows?:int, maxRenderedCells?:int} $options
      */
     public function readAuto(string $text, array $options = []): AstNode
     {
@@ -41,7 +44,7 @@ final class DelimitedTextReader
     }
 
     /**
-     * @param array{header?:bool, extension?:string, sourcePath?:string, delimiter?:string, quote?:string|null|false, escape?:string|null|false, keepSpace?:bool, strictParsing?:bool, allowBlankRecords?:bool, cellLineBreak?:string} $options
+     * @param array{header?:bool, extension?:string, sourcePath?:string, delimiter?:string, quote?:string|null|false, escape?:string|null|false, keepSpace?:bool, strictParsing?:bool, allowBlankRecords?:bool, cellLineBreak?:string, maxRenderedRows?:int, maxRenderedCells?:int} $options
      */
     public function read(string $text, string $format = 'csv', array $options = []): AstNode
     {
@@ -60,8 +63,10 @@ final class DelimitedTextReader
         $inputPrefix['formatContext'] = $this->formatContext($formatResolution, $options);
         $hasHeader = $this->headerOption($options);
         $cellLineBreak = $this->cellLineBreakOption($options);
+        $maxRenderedRows = $this->maxRenderedRowsOption($options);
+        $maxRenderedCells = $this->maxRenderedCellsOption($options);
 
-        $parse = $this->parseRowsWithDiagnostics($sourceText, $dialect);
+        $parse = $this->parseRowsWithDiagnostics($sourceText, $dialect, $maxRenderedRows);
         if ($strictParsing) {
             $this->assertStrictParsing($format, $inputPrefix, $parse, $allowBlankRecords);
         }
@@ -72,14 +77,23 @@ final class DelimitedTextReader
         $controlCharacters = $this->controlCharacterSummary($sourceText, $dialect, $options);
         if ($rows === []) {
             $sourceAnalysis = $this->sourceAnalysis($sourceText, $dialect, []);
+            $sourceExtent = $this->sourceExtentFromParse($parse, 0, 0, false);
+            $packet = $this->reviewPacket($format, $dialect, [], [], [], $blankRows, $hasHeader, 0, $formatInference, $inputPrefix, $sourceAnalysis, $parse['diagnostics'], $parse['metrics'], $controlCharacters, $sourceExtent);
+
             return new AstNode('document', [
                 'sourceFormat' => $format,
-                'delimitedText' => $this->reviewPacket($format, $dialect, [], [], [], $blankRows, $hasHeader, 0, $formatInference, $inputPrefix, $sourceAnalysis, $parse['diagnostics'], $parse['metrics'], $controlCharacters),
+                'delimitedText' => $packet,
             ]);
         }
 
         $widths = array_map('count', $rows);
         $columnCount = $this->repairedColumnCount($widths, $hasHeader);
+        $rendered = $this->boundedRenderedRows($rows, $fieldMetadataRows, $sourceRowIndexes, $widths, $hasHeader, $columnCount, $maxRenderedRows, $maxRenderedCells);
+        $rows = $rendered['rows'];
+        $fieldMetadataRows = $rendered['fieldMetadataRows'];
+        $sourceRowIndexes = $rendered['sourceRowIndexes'];
+        $widths = $rendered['widths'];
+        $sourceExtent = $this->sourceExtentFromParse($parse, count($rows), array_sum($widths), $rendered['truncated']);
         $sourceAnalysis = $this->sourceAnalysis($sourceText, $dialect, $widths);
         $sourceHeader = $hasHeader ? array_shift($rows) : null;
         $sourceHeaderFieldMetadata = $hasHeader ? array_shift($fieldMetadataRows) : null;
@@ -96,7 +110,7 @@ final class DelimitedTextReader
         $table = TableGeometry::withReviewPacket(new AstNode('table', [
             'sourceFormat' => $format,
             'alignments' => array_fill(0, $columnCount, 'default'),
-            'delimitedText' => $this->reviewPacket($format, $dialect, $sourceHeader === null ? $rows : [$sourceHeader, ...$rows], $widths, $sourceRowIndexes, $blankRows, $hasHeader, $columnCount, $formatInference, $inputPrefix, $sourceAnalysis, $parse['diagnostics'], $parse['metrics'], $controlCharacters),
+            'delimitedText' => $this->reviewPacket($format, $dialect, $sourceHeader === null ? $rows : [$sourceHeader, ...$rows], $widths, $sourceRowIndexes, $blankRows, $hasHeader, $columnCount, $formatInference, $inputPrefix, $sourceAnalysis, $parse['diagnostics'], $parse['metrics'], $controlCharacters, $sourceExtent),
             'columnNames' => $sourceHeader === null ? $this->generatedColumnLabels($columnCount) : $this->normalizedRow($sourceHeader, $columnCount),
         ], [
             new AstNode('table_head', [], $headRows),
@@ -943,7 +957,7 @@ final class DelimitedTextReader
      *     sourceRowIndexes:list<int>,
      *     blankRows:list<int>,
      *     diagnostics:list<array<string, mixed>>,
-     *     metrics:array{
+     *     metrics:array<string, mixed>|array{
      *         quotedFieldCount:int,
      *         doubledQuoteEscapeCount:int,
      *         escapedQuoteSequenceCount:int,
@@ -960,7 +974,7 @@ final class DelimitedTextReader
      *     }
      * }
      */
-    private function parseRowsWithDiagnostics(string $text, array $dialect): array
+    private function parseRowsWithDiagnostics(string $text, array $dialect, ?int $maxStoredRows = null): array
     {
         $delimiter = $dialect['delimiter'];
         $quote = $dialect['quote'];
@@ -990,9 +1004,18 @@ final class DelimitedTextReader
             'multilineFieldCount' => 0,
             'partialRecordCount' => 0,
             'emptyQuotedFirstFieldWithoutDelimiterCount' => 0,
+            'sourceRowCount' => 0,
+            'sourceFieldCount' => 0,
+            'sourceMinFieldCount' => 0,
+            'sourceMaxFieldCount' => 0,
+            'storedRowCount' => 0,
+            'omittedRowCount' => 0,
+            'blankRowCount' => 0,
+            'blankRowsTruncated' => 0,
         ];
         $whitespaceOnlyBlankRows = $this->pandocWhitespaceOnlyDocumentBlankRows($text);
         if ($whitespaceOnlyBlankRows !== null) {
+            $metrics['blankRowCount'] = count($whitespaceOnlyBlankRows);
             return [
                 'rows' => [],
                 'fieldMetadataRows' => [],
@@ -1005,6 +1028,11 @@ final class DelimitedTextReader
 
         $row = [];
         $rowFieldMetadata = [];
+        $rowFieldCount = 0;
+        $firstField = null;
+        $firstFieldQuoted = false;
+        $firstFieldEndOffset = null;
+        $storeCurrentRow = true;
         $field = '';
         $rowIndex = 0;
         $columnIndex = 0;
@@ -1022,6 +1050,11 @@ final class DelimitedTextReader
         $finishField = static function (int $sourceEndOffset) use (
             &$row,
             &$rowFieldMetadata,
+            &$rowFieldCount,
+            &$firstField,
+            &$firstFieldQuoted,
+            &$firstFieldEndOffset,
+            &$storeCurrentRow,
             &$field,
             &$columnIndex,
             &$fieldStartOffset,
@@ -1036,22 +1069,30 @@ final class DelimitedTextReader
             $sourceSpan
         ): void {
             $sourceEndOffset = max($fieldStartOffset, $sourceEndOffset);
-            $span = $sourceSpan($fieldStartOffset, $sourceEndOffset);
-            $row[] = $field;
-            $rowFieldMetadata[] = [
-                'sourceRow' => $rowIndex,
-                'sourceRowNumber' => $rowIndex + 1,
-                'sourceField' => $columnIndex,
-                'sourceFieldNumber' => $columnIndex + 1,
-                'sourceStartOffset' => $fieldStartOffset,
-                'sourceEndOffset' => $sourceEndOffset,
-                'sourceByteRange' => [$fieldStartOffset, $sourceEndOffset],
-                'sourceByteLength' => $sourceEndOffset - $fieldStartOffset,
-                ...$span,
-                'sourceQuoted' => $quotedField,
-                'sourceQuoteClosed' => !$quotedField || !$inQuotedField,
-                'sourceMultiline' => $fieldHadQuotedLineBreak,
-            ];
+            $rowFieldCount++;
+            if ($rowFieldCount === 1) {
+                $firstField = $field;
+                $firstFieldQuoted = $quotedField;
+                $firstFieldEndOffset = $sourceEndOffset;
+            }
+            if ($storeCurrentRow) {
+                $span = $sourceSpan($fieldStartOffset, $sourceEndOffset);
+                $row[] = $field;
+                $rowFieldMetadata[] = [
+                    'sourceRow' => $rowIndex,
+                    'sourceRowNumber' => $rowIndex + 1,
+                    'sourceField' => $columnIndex,
+                    'sourceFieldNumber' => $columnIndex + 1,
+                    'sourceStartOffset' => $fieldStartOffset,
+                    'sourceEndOffset' => $sourceEndOffset,
+                    'sourceByteRange' => [$fieldStartOffset, $sourceEndOffset],
+                    'sourceByteLength' => $sourceEndOffset - $fieldStartOffset,
+                    ...$span,
+                    'sourceQuoted' => $quotedField,
+                    'sourceQuoteClosed' => !$quotedField || !$inQuotedField,
+                    'sourceMultiline' => $fieldHadQuotedLineBreak,
+                ];
+            }
             if ($quotedField && $fieldHadQuotedLineBreak) {
                 $metrics['multilineFieldCount']++;
             }
@@ -1071,6 +1112,11 @@ final class DelimitedTextReader
             &$fieldMetadataRows,
             &$row,
             &$rowFieldMetadata,
+            &$rowFieldCount,
+            &$firstField,
+            &$firstFieldQuoted,
+            &$firstFieldEndOffset,
+            &$storeCurrentRow,
             &$sourceRowIndexes,
             &$blankRows,
             &$field,
@@ -1083,15 +1129,15 @@ final class DelimitedTextReader
             &$afterClosingQuoteWhitespace,
             &$diagnostics,
             &$metrics,
-            $finishField
+            $finishField,
+            $maxStoredRows
         ): void {
-            $hasPendingField = $fieldStarted || $field !== '' || $row !== [] || $quotedField || $afterClosingQuote;
+            $hasPendingField = $fieldStarted || $field !== '' || $rowFieldCount > 0 || $row !== [] || $quotedField || $afterClosingQuote;
             if ($hasPendingField) {
                 $finishField($sourceEndOffset);
-                $isSingleEmptyFieldRecord = count($row) === 1 && $row[0] === '';
+                $isSingleEmptyFieldRecord = $rowFieldCount === 1 && $firstField === '';
                 if ($isSingleEmptyFieldRecord) {
-                    $metadata = $rowFieldMetadata[0] ?? [];
-                    if (($metadata['sourceQuoted'] ?? false) === true) {
+                    if ($firstFieldQuoted) {
                         $metrics['emptyQuotedFirstFieldWithoutDelimiterCount']++;
                         $diagnostics[] = [
                             'code' => 'delimited-text-empty-first-field-without-delimiter',
@@ -1099,28 +1145,54 @@ final class DelimitedTextReader
                             'message' => 'A quoted empty first field was not followed by a delimiter; Pandoc rejects empty first fields unless another field is present.',
                             'row' => $rowIndex,
                             'column' => 0,
-                            'offset' => (int) ($metadata['sourceEndOffset'] ?? $sourceEndOffset),
+                            'offset' => (int) ($firstFieldEndOffset ?? $sourceEndOffset),
                         ];
                     }
                 }
 
                 if (!$isSingleEmptyFieldRecord) {
-                    $rows[] = $row;
-                    $fieldMetadataRows[] = $rowFieldMetadata;
-                    $sourceRowIndexes[] = $rowIndex;
+                    $metrics['sourceRowCount']++;
+                    $metrics['sourceFieldCount'] += $rowFieldCount;
+                    $metrics['sourceMinFieldCount'] = $metrics['sourceRowCount'] === 1
+                        ? $rowFieldCount
+                        : min((int) $metrics['sourceMinFieldCount'], $rowFieldCount);
+                    $metrics['sourceMaxFieldCount'] = max((int) $metrics['sourceMaxFieldCount'], $rowFieldCount);
+                    if ($storeCurrentRow) {
+                        $rows[] = $row;
+                        $fieldMetadataRows[] = $rowFieldMetadata;
+                        $sourceRowIndexes[] = $rowIndex;
+                        $metrics['storedRowCount'] = count($rows);
+                    } else {
+                        $metrics['omittedRowCount']++;
+                    }
                 } else {
-                    $blankRows[] = $rowIndex;
+                    $metrics['blankRowCount']++;
+                    if (count($blankRows) < self::BLANK_ROW_SAMPLE_LIMIT) {
+                        $blankRows[] = $rowIndex;
+                    } else {
+                        $metrics['blankRowsTruncated']++;
+                    }
                 }
             } else {
-                $blankRows[] = $rowIndex;
+                $metrics['blankRowCount']++;
+                if (count($blankRows) < self::BLANK_ROW_SAMPLE_LIMIT) {
+                    $blankRows[] = $rowIndex;
+                } else {
+                    $metrics['blankRowsTruncated']++;
+                }
             }
 
             $row = [];
             $rowFieldMetadata = [];
+            $rowFieldCount = 0;
+            $firstField = null;
+            $firstFieldQuoted = false;
+            $firstFieldEndOffset = null;
             $rowIndex++;
             $columnIndex = 0;
             $fieldStartOffset = $nextRowStartOffset;
             $afterClosingQuoteWhitespace = false;
+            $storeCurrentRow = $maxStoredRows === null || count($rows) < $maxStoredRows;
         };
 
         for ($offset = 0; $offset < $length; $offset++) {
@@ -1742,6 +1814,113 @@ final class DelimitedTextReader
     }
 
     /**
+     * @param array{maxRenderedRows?:int} $options
+     */
+    private function maxRenderedRowsOption(array $options): int
+    {
+        if (!array_key_exists('maxRenderedRows', $options)) {
+            return self::DEFAULT_MAX_RENDERED_ROWS;
+        }
+        if (!is_int($options['maxRenderedRows']) || $options['maxRenderedRows'] < 1) {
+            throw new \InvalidArgumentException('Delimited text maxRenderedRows option must be a positive integer');
+        }
+
+        return $options['maxRenderedRows'];
+    }
+
+    /**
+     * @param array{maxRenderedCells?:int} $options
+     */
+    private function maxRenderedCellsOption(array $options): int
+    {
+        if (!array_key_exists('maxRenderedCells', $options)) {
+            return self::DEFAULT_MAX_RENDERED_CELLS;
+        }
+        if (!is_int($options['maxRenderedCells']) || $options['maxRenderedCells'] < 1) {
+            throw new \InvalidArgumentException('Delimited text maxRenderedCells option must be a positive integer');
+        }
+
+        return $options['maxRenderedCells'];
+    }
+
+    /**
+     * @param list<list<string>> $rows
+     * @param list<list<array<string, mixed>>> $fieldMetadataRows
+     * @param list<int> $sourceRowIndexes
+     * @param list<int> $widths
+     * @return array{
+     *     rows:list<list<string>>,
+     *     fieldMetadataRows:list<list<array<string, mixed>>>,
+     *     sourceRowIndexes:list<int>,
+     *     widths:list<int>,
+     *     truncated:bool
+     * }
+     */
+    private function boundedRenderedRows(
+        array $rows,
+        array $fieldMetadataRows,
+        array $sourceRowIndexes,
+        array $widths,
+        bool $hasHeader,
+        int $columnCount,
+        int $maxRenderedRows,
+        int $maxRenderedCells
+    ): array {
+        $rowLimit = min($maxRenderedRows, count($rows));
+        if ($columnCount > 0) {
+            $cellLimitedRows = max(1, intdiv($maxRenderedCells, max(1, $columnCount)));
+            if ($hasHeader && count($rows) > 1) {
+                $cellLimitedRows = max(2, $cellLimitedRows);
+            }
+            $rowLimit = min($rowLimit, $cellLimitedRows);
+        }
+
+        if ($rowLimit >= count($rows)) {
+            return [
+                'rows' => $rows,
+                'fieldMetadataRows' => $fieldMetadataRows,
+                'sourceRowIndexes' => $sourceRowIndexes,
+                'widths' => $widths,
+                'truncated' => false,
+            ];
+        }
+
+        return [
+            'rows' => array_slice($rows, 0, $rowLimit),
+            'fieldMetadataRows' => array_slice($fieldMetadataRows, 0, $rowLimit),
+            'sourceRowIndexes' => array_slice($sourceRowIndexes, 0, $rowLimit),
+            'widths' => array_slice($widths, 0, $rowLimit),
+            'truncated' => true,
+        ];
+    }
+
+    /**
+     * @param array{metrics:array<string, mixed>} $parse
+     * @return array<string, mixed>
+     */
+    private function sourceExtentFromParse(array $parse, int $renderedRowCount, int $renderedFieldCount, bool $renderingTruncated): array
+    {
+        $metrics = is_array($parse['metrics'] ?? null) ? $parse['metrics'] : [];
+        $sourceRowCount = max($renderedRowCount, (int) ($metrics['sourceRowCount'] ?? $renderedRowCount));
+        $sourceFieldCount = max($renderedFieldCount, (int) ($metrics['sourceFieldCount'] ?? $renderedFieldCount));
+        $storedRowCount = (int) ($metrics['storedRowCount'] ?? $renderedRowCount);
+        $omittedRowCount = max(0, $sourceRowCount - $renderedRowCount);
+
+        return [
+            'sourceRowCount' => $sourceRowCount,
+            'sourceFieldCount' => $sourceFieldCount,
+            'sourceMinFieldCount' => (int) ($metrics['sourceMinFieldCount'] ?? 0),
+            'sourceMaxFieldCount' => (int) ($metrics['sourceMaxFieldCount'] ?? 0),
+            'storedRowCount' => $storedRowCount,
+            'renderedRowCount' => $renderedRowCount,
+            'renderedFieldCount' => $renderedFieldCount,
+            'omittedRowCount' => $omittedRowCount,
+            'renderingTruncated' => $renderingTruncated || $omittedRowCount > 0,
+            'blankRowCount' => (int) ($metrics['blankRowCount'] ?? 0),
+        ];
+    }
+
+    /**
      * @param array{delimiter:string, delimiterName:string, quote:string|null, escape:string|null, keepSpace:bool} $dialect
      * @param list<list<string>> $rows
      * @param list<int> $widths
@@ -1775,6 +1954,7 @@ final class DelimitedTextReader
      *     emptyQuotedFirstFieldWithoutDelimiterCount:int
      * } $parseMetrics
      * @param array<string, mixed> $controlCharacters
+     * @param array<string, mixed> $sourceExtent
      * @return array<string, mixed>
      */
     private function reviewPacket(
@@ -1791,11 +1971,13 @@ final class DelimitedTextReader
         array $sourceAnalysis,
         array $parseDiagnostics,
         array $parseMetrics,
-        array $controlCharacters
+        array $controlCharacters,
+        array $sourceExtent
     ): array
     {
-        $rowCount = count($rows);
-        $sourceColumnCount = $widths === [] ? 0 : max($widths);
+        $renderedRowCount = count($rows);
+        $rowCount = (int) ($sourceExtent['sourceRowCount'] ?? $renderedRowCount);
+        $sourceColumnCount = max((int) ($sourceExtent['sourceMaxFieldCount'] ?? 0), $widths === [] ? 0 : max($widths));
         $columnCount = max(0, $repairedColumnCount);
         $raggedRows = [];
         foreach ($widths as $index => $width) {
@@ -1809,6 +1991,16 @@ final class DelimitedTextReader
         $diagnostics = $this->reviewDiagnostics($hasHeader, $formatInference, $inputPrefix, $sourceAnalysis, $rowWidthSummary, $controlCharacters);
         foreach ($parseDiagnostics as $diagnostic) {
             $diagnostics[] = $diagnostic;
+        }
+        if (($sourceExtent['renderingTruncated'] ?? false) === true) {
+            $diagnostics[] = [
+                'code' => 'delimited-text-rendered-table-truncated',
+                'severity' => 'info',
+                'message' => 'The source table was larger than the bounded rendered-table preview; later rows were omitted from the document tree to avoid exhausting memory.',
+                'sourceRowCount' => $rowCount,
+                'renderedRowCount' => (int) ($sourceExtent['renderedRowCount'] ?? $renderedRowCount),
+                'omittedRowCount' => (int) ($sourceExtent['omittedRowCount'] ?? 0),
+            ];
         }
 
         return [
@@ -1833,15 +2025,22 @@ final class DelimitedTextReader
             'headerSource' => $hasHeader && $rowCount > 0 ? 'source-row-0' : 'generated',
             'rowCount' => $rowCount,
             'bodyRowCount' => $hasHeader ? max(0, $rowCount - 1) : $rowCount,
+            'renderedRowCount' => (int) ($sourceExtent['renderedRowCount'] ?? $renderedRowCount),
+            'renderedBodyRowCount' => $hasHeader
+                ? max(0, (int) ($sourceExtent['renderedRowCount'] ?? $renderedRowCount) - 1)
+                : (int) ($sourceExtent['renderedRowCount'] ?? $renderedRowCount),
+            'omittedRowCount' => (int) ($sourceExtent['omittedRowCount'] ?? 0),
+            'renderingTruncated' => (bool) ($sourceExtent['renderingTruncated'] ?? false),
             'columnCount' => $columnCount,
             'sourceMaxFieldCount' => $sourceColumnCount,
             'columnNames' => $hasHeader && $rows !== []
                 ? $this->normalizedRow($rows[0], $columnCount)
                 : $this->generatedColumnLabels($columnCount),
-            'fieldCount' => array_sum($widths),
-            'minFieldCount' => $widths === [] ? 0 : min($widths),
+            'fieldCount' => (int) ($sourceExtent['sourceFieldCount'] ?? array_sum($widths)),
+            'renderedFieldCount' => (int) ($sourceExtent['renderedFieldCount'] ?? array_sum($widths)),
+            'minFieldCount' => (int) ($sourceExtent['sourceMinFieldCount'] ?? ($widths === [] ? 0 : min($widths))),
             'maxFieldCount' => $sourceColumnCount,
-            'blankRowCount' => count($blankRows),
+            'blankRowCount' => (int) ($sourceExtent['blankRowCount'] ?? count($blankRows)),
             'blankRows' => $blankRows,
             'raggedRowCount' => count($raggedRows),
             'raggedRows' => $raggedRows,

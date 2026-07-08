@@ -6947,4 +6947,30 @@ NATIVE;
         $t->same('', $table->children[1]->children[1]->children[2]->attr('text'));
         $t->same(3, count($table->children[1]->children));
     },
+    'renders large delimited sources as bounded honest table previews' => static function (TestRunner $t): void {
+        $lines = ['id,name,value'];
+        for ($index = 1; $index <= 12; $index++) {
+            $lines[] = "{$index},row {$index}," . ($index * 10);
+        }
+
+        $document = (new DelimitedTextReader())->readCsv(implode("\n", $lines) . "\n", [
+            'maxRenderedRows' => 5,
+            'maxRenderedCells' => 12,
+        ]);
+        $table = $document->children[0];
+        $packet = $table->attr('delimitedText');
+        $codes = array_column($packet['diagnostics'] ?? [], 'code');
+
+        $t->same(13, $packet['rowCount'] ?? null);
+        $t->same(12, $packet['bodyRowCount'] ?? null);
+        $t->same(4, $packet['renderedRowCount'] ?? null);
+        $t->same(3, $packet['renderedBodyRowCount'] ?? null);
+        $t->same(9, $packet['omittedRowCount'] ?? null);
+        $t->same(true, $packet['renderingTruncated'] ?? null);
+        $t->same(39, $packet['fieldCount'] ?? null);
+        $t->same(12, $packet['renderedFieldCount'] ?? null);
+        $t->true(in_array('delimited-text-rendered-table-truncated', $codes, true));
+        $t->same(3, count($table->children[1]->children));
+        $t->same('3', $table->children[1]->children[2]->children[0]->attr('text'));
+    },
 ];
