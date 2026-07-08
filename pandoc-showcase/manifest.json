@@ -1,5 +1,5 @@
 {
-    "generatedAt": "2026-07-08T19:15:04+00:00",
+    "generatedAt": "2026-07-08T19:47:35+00:00",
     "pandocVersion": "pandoc 3.10\nFeatures: +server +lua\nScripting engine: Lua 5.4\nUser data directory: $REPO\nCopyright (C) 2006-2025 John MacFarlane. Web:  https://pandoc.org\nThis is free software; see the source for copying conditions. There is no\nwarranty, not even for merchantability or fitness for a particular purpose.",
     "mediaImageMode": "important",
     "formats": [
@@ -342,11 +342,11 @@
         "totals": {
             "code": 615,
             "group": 279,
-            "heading": 3919,
+            "heading": 4058,
             "html": 59,
             "image": 199,
-            "list": 1171,
-            "paragraph": 15440,
+            "list": 1173,
+            "paragraph": 15556,
             "quote": 66,
             "separator": 65,
             "table": 544,
@@ -7990,7 +7990,7 @@
                 ]
             },
             "wpBlockCounts": {
-                "heading": 1,
+                "heading": 2,
                 "paragraph": 6
             }
         },
@@ -8033,9 +8033,9 @@
                 ]
             },
             "wpBlockCounts": {
-                "heading": 5,
+                "heading": 67,
                 "list": 1,
-                "paragraph": 88
+                "paragraph": 153
             }
         },
         {
@@ -9035,10 +9035,10 @@
                 ]
             },
             "wpBlockCounts": {
-                "heading": 3,
+                "heading": 8,
                 "image": 28,
-                "list": 7,
-                "paragraph": 17
+                "list": 9,
+                "paragraph": 22
             }
         },
         {
@@ -9880,9 +9880,9 @@
                 ]
             },
             "wpBlockCounts": {
-                "heading": 15,
+                "heading": 70,
                 "image": 23,
-                "paragraph": 20
+                "paragraph": 59
             }
         },
         {
@@ -10742,7 +10742,7 @@
                 ]
             },
             "wpBlockCounts": {
-                "heading": 1,
+                "heading": 2,
                 "image": 24,
                 "paragraph": 9
             }
@@ -11466,10 +11466,10 @@
                 ]
             },
             "wpBlockCounts": {
-                "heading": 3,
+                "heading": 18,
                 "image": 20,
                 "list": 2,
-                "paragraph": 21
+                "paragraph": 28
             }
         },
         {
