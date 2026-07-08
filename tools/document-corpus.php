@@ -989,6 +989,9 @@ function validateCandidateBytes(string $format, string $url, string $bytes): voi
         if ($first !== '{' && $first !== '[') {
             throw new RuntimeException('json candidate is not JSON content');
         }
+        if (!str_contains(substr($bytes, 0, 20000), '"pandoc-api-version"')) {
+            throw new RuntimeException('json input must be a Pandoc JSON document');
+        }
     }
     if ($format === 'ipynb' && !str_contains(substr($bytes, 0, 20000), '"cells"')) {
         throw new RuntimeException('ipynb candidate does not look like a notebook');
