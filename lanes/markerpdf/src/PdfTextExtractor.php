@@ -11216,7 +11216,13 @@ final class PdfTextExtractor
             }
         }
 
-        $referenceObjectNumbers = $this->internalObjectNumbersByReference($rawObjects, $maxObjectNumber);
+        $promotedReferences = [];
+        $trailerRootReference = $this->xrefTrailerRootReference($pdfBytes);
+        if ($trailerRootReference !== null && $trailerRootReference['generation'] > 0) {
+            $promotedReferences[$trailerRootReference['objectNumber'] . ':' . $trailerRootReference['generation']] = $trailerRootReference['objectNumber'];
+        }
+
+        $referenceObjectNumbers = $this->internalObjectNumbersByReference($rawObjects, $maxObjectNumber, $promotedReferences);
         foreach ($rawObjects as $rawObject) {
             $objectKey = $referenceObjectNumbers[$rawObject['objectNumber'] . ':' . $rawObject['generation']];
             $body = $rawObject['body'];
@@ -11321,11 +11327,27 @@ final class PdfTextExtractor
     private function rawObjectsSelectedByXrefEntries(array $rawObjects, array $xrefEntries): array
     {
         $selected = [];
+        $requiredObjectStreamCarriers = [];
+        foreach ($xrefEntries as $entry) {
+            if (($entry['status'] ?? null) === 'compressed' && is_int($entry['objectStreamNumber'] ?? null)) {
+                $requiredObjectStreamCarriers[$entry['objectStreamNumber']] = true;
+            }
+        }
+
         foreach ($rawObjects as $rawObject) {
             $referenceKey = $rawObject['objectNumber'] . ':' . $rawObject['generation'];
             $entry = $xrefEntries[$referenceKey] ?? null;
-            if ($entry === null || $entry['status'] !== 'n' || ($entry['offset'] ?? null) !== $rawObject['offset']) {
+            if ($entry === null || $entry['status'] !== 'n') {
                 continue;
+            }
+
+            if (($entry['offset'] ?? null) !== $rawObject['offset']) {
+                if (
+                    !isset($requiredObjectStreamCarriers[$rawObject['objectNumber']])
+                    || preg_match('/\/Type\s*\/ObjStm\b|\/Type\/ObjStm\b/', $rawObject['body']) !== 1
+                ) {
+                    continue;
+                }
             }
 
             $selected[] = $rawObject;
@@ -12276,9 +12298,18 @@ final class PdfTextExtractor
 
     private function xrefTrailerRootObjectNumber(string $pdfBytes): ?int
     {
+        $reference = $this->xrefTrailerRootReference($pdfBytes);
+        return $reference['objectNumber'] ?? null;
+    }
+
+    /**
+     * @return array{objectNumber: int, generation: int}|null
+     */
+    private function xrefTrailerRootReference(string $pdfBytes): ?array
+    {
         $startOffsets = $this->startXrefOffsets($pdfBytes);
         if ($startOffsets === []) {
-            return $this->latestTrailerRootObjectNumber($pdfBytes);
+            return $this->latestTrailerRootReference($pdfBytes);
         }
 
         for ($startIndex = count($startOffsets) - 1; $startIndex >= 0; $startIndex--) {
@@ -12291,9 +12322,9 @@ final class PdfTextExtractor
                 }
                 $seenOffsets[$offset] = true;
 
-                $rootObjectNumber = $this->xrefSectionRootObjectNumberAtOffset($pdfBytes, $offset);
-                if ($rootObjectNumber !== null) {
-                    return $rootObjectNumber;
+                $rootResolution = $this->xrefSectionRootResolutionAtOffset($pdfBytes, $offset);
+                if ($rootResolution['present']) {
+                    return $rootResolution['reference'] ?? $this->clearedRootReference();
                 }
 
                 $section = $this->xrefSectionAtOffset($pdfBytes, $offset);
@@ -12302,6 +12333,12 @@ final class PdfTextExtractor
                 }
 
                 $previousOffsets = $section['prevOffsets'] ?? ($section['prev'] === null ? [] : [$section['prev']]);
+                foreach ($previousOffsets as $previousOffset) {
+                    $previousRoot = $this->xrefSectionRootReferenceAtOffset($pdfBytes, $previousOffset);
+                    if ($previousRoot !== null && $this->xrefEntriesSuppressReference($section['entries'], $previousRoot)) {
+                        return $this->clearedRootReference();
+                    }
+                }
                 foreach (array_reverse($previousOffsets) as $previousOffset) {
                     if (!isset($seenOffsets[$previousOffset])) {
                         $pendingOffsets[] = $previousOffset;
@@ -12313,15 +12350,38 @@ final class PdfTextExtractor
         return null;
     }
 
+    /**
+     * @return array{objectNumber: int, generation: int}
+     */
+    private function clearedRootReference(): array
+    {
+        return [
+            'objectNumber' => 0,
+            'generation' => 0,
+        ];
+    }
+
     private function latestTrailerRootObjectNumber(string $pdfBytes): ?int
+    {
+        $reference = $this->latestTrailerRootReference($pdfBytes);
+        return $reference['objectNumber'] ?? null;
+    }
+
+    /**
+     * @return array{objectNumber: int, generation: int}|null
+     */
+    private function latestTrailerRootReference(string $pdfBytes): ?array
     {
         if (preg_match_all('/trailer\s*<<(.*?)>>/s', $pdfBytes, $matches) !== 1) {
             return null;
         }
 
         for ($index = count($matches[1]) - 1; $index >= 0; $index--) {
-            if (preg_match('/\/Root\s+(\d+)\s+\d+\s+R\b/', $matches[1][$index], $rootMatch) === 1) {
-                return (int) $rootMatch[1];
+            if (preg_match('/\/Root\s+(\d+)\s+(\d+)\s+R\b/', $matches[1][$index], $rootMatch) === 1) {
+                return [
+                    'objectNumber' => (int) $rootMatch[1],
+                    'generation' => (int) $rootMatch[2],
+                ];
             }
         }
 
@@ -12330,27 +12390,95 @@ final class PdfTextExtractor
 
     private function xrefSectionRootObjectNumberAtOffset(string $pdfBytes, int $offset): ?int
     {
+        $reference = $this->xrefSectionRootReferenceAtOffset($pdfBytes, $offset);
+        return $reference['objectNumber'] ?? null;
+    }
+
+    /**
+     * @return array{objectNumber: int, generation: int}|null
+     */
+    private function xrefSectionRootReferenceAtOffset(string $pdfBytes, int $offset): ?array
+    {
+        return $this->xrefSectionRootResolutionAtOffset($pdfBytes, $offset)['reference'];
+    }
+
+    /**
+     * @return array{present: bool, reference: array{objectNumber: int, generation: int}|null}
+     */
+    private function xrefSectionRootResolutionAtOffset(string $pdfBytes, int $offset): array
+    {
+        $empty = [
+            'present' => false,
+            'reference' => null,
+        ];
         if ($offset < 0 || $offset >= strlen($pdfBytes)) {
-            return null;
+            return $empty;
         }
 
         $tail = substr($pdfBytes, $offset);
         if (str_starts_with($tail, 'xref')) {
             $table = $this->xrefTableBodyAndTrailer($tail);
             $dictionary = $table['dictionary'] ?? null;
-            if (is_string($dictionary) && preg_match('/\/Root\s+(\d+)\s+\d+\s+R\b/', $dictionary, $match) === 1) {
-                return (int) $match[1];
+            if (is_string($dictionary) && preg_match('/\/Root\s+(\d+)\s+(\d+)\s+R\b/', $dictionary, $match) === 1) {
+                return [
+                    'present' => true,
+                    'reference' => [
+                        'objectNumber' => (int) $match[1],
+                        'generation' => (int) $match[2],
+                    ],
+                ];
+            }
+            if (is_string($dictionary) && preg_match('/\/Root\b/s', $dictionary) === 1) {
+                return [
+                    'present' => true,
+                    'reference' => null,
+                ];
             }
         }
 
         if (preg_match('/\A\d+\s+\d+\s+obj\b(.*?)\bendobj/s', $tail, $objectMatch) === 1
             && preg_match('/\/Type\s*\/XRef\b|\/Type\/XRef\b/', $objectMatch[1]) === 1
-            && preg_match('/\/Root\s+(\d+)\s+\d+\s+R\b/', $objectMatch[1], $rootMatch) === 1
+            && preg_match('/\/Root\s+(\d+)\s+(\d+)\s+R\b/', $objectMatch[1], $rootMatch) === 1
         ) {
-            return (int) $rootMatch[1];
+            return [
+                'present' => true,
+                'reference' => [
+                    'objectNumber' => (int) $rootMatch[1],
+                    'generation' => (int) $rootMatch[2],
+                ],
+            ];
+        }
+        if (preg_match('/\A\d+\s+\d+\s+obj\b(.*?)\bendobj/s', $tail, $objectMatch) === 1
+            && preg_match('/\/Type\s*\/XRef\b|\/Type\/XRef\b/', $objectMatch[1]) === 1
+            && preg_match('/\/Root\b/s', $objectMatch[1]) === 1
+        ) {
+            return [
+                'present' => true,
+                'reference' => null,
+            ];
         }
 
-        return null;
+        return $empty;
+    }
+
+    /**
+     * @param array<string, array{status: string, offset?: int, objectStreamNumber?: int, objectStreamIndex?: int}> $entries
+     * @param array{objectNumber: int, generation: int} $reference
+     */
+    private function xrefEntriesSuppressReference(array $entries, array $reference): bool
+    {
+        if (($entries[$reference['objectNumber'] . ':' . $reference['generation']]['status'] ?? null) === 'f') {
+            return true;
+        }
+
+        $prefix = $reference['objectNumber'] . ':';
+        foreach ($entries as $referenceKey => $entry) {
+            if (str_starts_with($referenceKey, $prefix) && ($entry['status'] ?? null) === 'f') {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -12409,14 +12537,17 @@ final class PdfTextExtractor
 
         $trailerDictionary = $table['dictionary'];
         $helperObjectMaxOffset = $this->xrefSectionBoundaryOffset($pdfBytes, $offset);
-        $prev = $this->integerDictionaryValue($trailerDictionary, 'Prev', $pdfBytes, true, $helperObjectMaxOffset);
+        $prev = $this->integerDictionaryValue($trailerDictionary, 'Prev', $pdfBytes, true, $offset);
+        $prev = $this->repairedPreviousXrefOffset($pdfBytes, $prev, $offset);
         $prevOffsets = $prev === null ? [] : [$prev];
 
         $entries = $this->xrefTableEntriesFromBody($table['body']);
+        $repairBoundaryOffset = $offset;
         $xrefStreamOffset = $this->integerDictionaryValue($trailerDictionary, 'XRefStm', $pdfBytes, true, $helperObjectMaxOffset);
         if ($xrefStreamOffset !== null && $xrefStreamOffset !== $offset) {
             $xrefStreamSection = $this->xrefStreamSectionAtOffset($pdfBytes, $xrefStreamOffset, $encryptionContext);
             if ($xrefStreamSection !== null) {
+                $repairBoundaryOffset = min($repairBoundaryOffset, $xrefStreamOffset);
                 $entries = array_merge($xrefStreamSection['entries'], $entries);
                 if ($xrefStreamSection['prev'] !== null) {
                     $prevOffsets[] = $xrefStreamSection['prev'];
@@ -12426,6 +12557,7 @@ final class PdfTextExtractor
         }
 
         $prevOffsets = array_values(array_unique($prevOffsets));
+        $entries = $this->repairCurrentUpdateXrefEntries($entries, $pdfBytes, $prev, $repairBoundaryOffset);
 
         return [
             'entries' => $entries,
@@ -12541,10 +12673,14 @@ final class PdfTextExtractor
             return null;
         }
 
-        $prev = $this->integerDictionaryValue($stream['dictionary'], 'Prev', $pdfBytes, true, $helperObjectMaxOffset);
+        $prev = $this->integerDictionaryValue($stream['dictionary'], 'Prev', $pdfBytes, true, $offset);
+        $prev = $this->repairedPreviousXrefOffset($pdfBytes, $prev, $offset);
+
+        $entries = $this->xrefStreamEntriesFromBody($stream['dictionary'], $decoded, $pdfBytes, $helperObjectMaxOffset);
+        $entries = $this->repairCurrentUpdateXrefEntries($entries, $pdfBytes, $prev, $offset);
 
         return [
-            'entries' => $this->xrefStreamEntriesFromBody($stream['dictionary'], $decoded, $pdfBytes, $helperObjectMaxOffset),
+            'entries' => $entries,
             'prev' => $prev,
             'prevOffsets' => $prev === null ? [] : [$prev],
         ];
@@ -12634,8 +12770,157 @@ final class PdfTextExtractor
                     $entries[$objectNumber . ':' . $field3] = [
                         'status' => 'f',
                     ];
+                    continue;
+                }
+
+                if ($type > 2) {
+                    $entries[$objectNumber . ':' . $field3] = [
+                        'status' => 'f',
+                    ];
                 }
             }
+        }
+
+        return $entries;
+    }
+
+    private function repairedPreviousXrefOffset(string $pdfBytes, ?int $previousOffset, int $currentOffset): ?int
+    {
+        if ($previousOffset === null || $previousOffset < 0) {
+            return $previousOffset;
+        }
+
+        if ($previousOffset < $currentOffset
+            && ($this->xrefTableBodyAndTrailer(substr($pdfBytes, $previousOffset)) !== null
+            || $this->xrefStreamObjectBodyAtOffset($pdfBytes, $previousOffset) !== null
+            )
+        ) {
+            return $previousOffset;
+        }
+
+        $candidate = null;
+        if (preg_match_all('/\bxref\b/s', $pdfBytes, $matches, PREG_OFFSET_CAPTURE) >= 1) {
+            foreach ($matches[0] as $match) {
+                $offset = $match[1];
+                if (!is_int($offset) || $offset >= $currentOffset || $offset === $currentOffset) {
+                    continue;
+                }
+                if ($this->xrefTableBodyAndTrailer(substr($pdfBytes, $offset)) !== null) {
+                    $candidate = $this->betterRepairedPreviousXrefOffset($candidate, $offset, $previousOffset);
+                }
+            }
+        }
+
+        foreach ($this->rawPdfObjects($pdfBytes) as $rawObject) {
+            $offset = $rawObject['offset'];
+            if ($offset >= $currentOffset) {
+                continue;
+            }
+            if (preg_match('/\/Type\s*\/XRef\b|\/Type\/XRef\b/', $rawObject['body']) === 1) {
+                $candidate = $this->betterRepairedPreviousXrefOffset($candidate, $offset, $previousOffset);
+            }
+        }
+
+        return $candidate;
+    }
+
+    private function betterRepairedPreviousXrefOffset(?int $currentCandidate, int $candidate, int $declaredOffset): int
+    {
+        if ($currentCandidate === null) {
+            return $candidate;
+        }
+
+        $currentDistance = abs($currentCandidate - $declaredOffset);
+        $candidateDistance = abs($candidate - $declaredOffset);
+        if ($candidateDistance === $currentDistance) {
+            return max($currentCandidate, $candidate);
+        }
+
+        return $candidateDistance < $currentDistance ? $candidate : $currentCandidate;
+    }
+
+    private function xrefStreamObjectBodyAtOffset(string $pdfBytes, int $offset): ?string
+    {
+        $tail = substr($pdfBytes, $offset);
+        if (preg_match('/\A\d+\s+\d+\s+obj\b(.*?)\bendobj/s', $tail, $objectMatch) !== 1) {
+            return null;
+        }
+
+        return preg_match('/\/Type\s*\/XRef\b|\/Type\/XRef\b/', $objectMatch[1]) === 1
+            ? $objectMatch[1]
+            : null;
+    }
+
+    /**
+     * @param array<string, array{status: string, offset?: int, objectStreamNumber?: int, objectStreamIndex?: int}> $entries
+     * @return array<string, array{status: string, offset?: int, objectStreamNumber?: int, objectStreamIndex?: int}>
+     */
+    private function repairCurrentUpdateXrefEntries(array $entries, string $pdfBytes, ?int $previousOffset, int $currentXrefOffset): array
+    {
+        if ($previousOffset === null || $previousOffset < 0 || $currentXrefOffset <= $previousOffset) {
+            return $entries;
+        }
+
+        $currentObjectsByReference = [];
+        $currentObjectsByOffset = [];
+        foreach ($this->rawPdfObjects($pdfBytes) as $rawObject) {
+            $offset = $rawObject['offset'];
+            if ($offset <= $previousOffset || $offset >= $currentXrefOffset) {
+                continue;
+            }
+            if (preg_match('/\/Type\s*\/XRef\b|\/Type\/XRef\b/', $rawObject['body']) === 1) {
+                continue;
+            }
+
+            $referenceKey = $rawObject['objectNumber'] . ':' . $rawObject['generation'];
+            $currentObjectsByReference[$referenceKey] = $rawObject;
+            $currentObjectsByOffset[$offset] = $rawObject;
+        }
+
+        if ($currentObjectsByReference === []) {
+            return $entries;
+        }
+
+        foreach ($entries as $referenceKey => $entry) {
+            if (($entry['status'] ?? null) !== 'n') {
+                continue;
+            }
+
+            $currentObject = $currentObjectsByReference[$referenceKey] ?? null;
+            if ($currentObject !== null && ($entry['offset'] ?? null) !== $currentObject['offset']) {
+                $entries[$referenceKey]['offset'] = $currentObject['offset'];
+                continue;
+            }
+
+            $offset = $entry['offset'] ?? null;
+            $offsetOwner = is_int($offset) ? ($currentObjectsByOffset[$offset] ?? null) : null;
+            if ($offsetOwner === null) {
+                continue;
+            }
+
+            $ownerReferenceKey = $offsetOwner['objectNumber'] . ':' . $offsetOwner['generation'];
+            if ($ownerReferenceKey === $referenceKey) {
+                continue;
+            }
+
+            unset($entries[$referenceKey]);
+            if (($entries[$ownerReferenceKey]['status'] ?? null) !== 'f') {
+                $entries[$ownerReferenceKey] = [
+                    'status' => 'n',
+                    'offset' => $offsetOwner['offset'],
+                ];
+            }
+        }
+
+        foreach ($currentObjectsByReference as $referenceKey => $rawObject) {
+            if (($entries[$referenceKey]['status'] ?? null) === 'f') {
+                continue;
+            }
+
+            $entries[$referenceKey] = [
+                'status' => 'n',
+                'offset' => $rawObject['offset'],
+            ];
         }
 
         return $entries;
@@ -12697,7 +12982,8 @@ final class PdfTextExtractor
         $objectNumber = (int) $match[1];
         $generation = (int) $match[2];
         $selectedBody = null;
-        foreach ($this->rawPdfObjects($pdfBytes) as $rawObject) {
+        $rawObjects = $this->rawPdfObjects($pdfBytes);
+        foreach ($rawObjects as $rawObject) {
             if ($maxOffset !== null && $rawObject['offset'] > $maxOffset) {
                 continue;
             }
@@ -12709,7 +12995,46 @@ final class PdfTextExtractor
             }
         }
 
-        return $selectedBody;
+        if ($selectedBody !== null) {
+            return $selectedBody;
+        }
+
+        $directObjects = [];
+        foreach ($rawObjects as $rawObject) {
+            if ($maxOffset !== null && $rawObject['offset'] > $maxOffset) {
+                continue;
+            }
+            $directObjects[$rawObject['objectNumber']] = $rawObject['body'];
+        }
+
+        foreach ($rawObjects as $rawObject) {
+            if ($maxOffset !== null && $rawObject['offset'] > $maxOffset) {
+                continue;
+            }
+            foreach ($this->objectsFromObjectStream($rawObject['body'], $directObjects) as $embeddedObjectNumber => $embeddedObject) {
+                if ($embeddedObjectNumber === $objectNumber && $generation === 0) {
+                    return $embeddedObject['body'];
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private function singleReferenceArrayDictionaryObjectBody(
+        string $dictionary,
+        string $name,
+        string $pdfBytes,
+        bool $preferLatest = false,
+        ?int $maxOffset = null
+    ): ?string
+    {
+        if (preg_match('/\/' . preg_quote($name, '/') . '\s*\[\s*(\d+)\s+(\d+)\s+R\s*\]/s', $dictionary, $match) !== 1) {
+            return null;
+        }
+
+        $referenceDictionary = '<< /' . $name . ' ' . (int) $match[1] . ' ' . (int) $match[2] . ' R >>';
+        return $this->indirectDictionaryObjectBody($referenceDictionary, $name, $pdfBytes, $preferLatest, $maxOffset);
     }
 
     private function unsignedIntegerFromBytes(string $bytes): int
@@ -12726,10 +13051,11 @@ final class PdfTextExtractor
      * @param list<array{objectNumber: int, generation: int, body: string, offset: int}> $rawObjects
      * @return array<string, int>
      */
-    private function internalObjectNumbersByReference(array $rawObjects, int $maxObjectNumber): array
+    private function internalObjectNumbersByReference(array $rawObjects, int $maxObjectNumber, array $promotedReferences = []): array
     {
         $referenceObjectNumbers = [];
         $nextSyntheticObjectNumber = max($maxObjectNumber + 1, 1000000000);
+        $reservedObjectNumbers = array_flip(array_values($promotedReferences));
 
         foreach ($rawObjects as $rawObject) {
             $referenceKey = $rawObject['objectNumber'] . ':' . $rawObject['generation'];
@@ -12737,7 +13063,12 @@ final class PdfTextExtractor
                 continue;
             }
 
-            if ($rawObject['generation'] === 0) {
+            if (isset($promotedReferences[$referenceKey])) {
+                $referenceObjectNumbers[$referenceKey] = $promotedReferences[$referenceKey];
+                continue;
+            }
+
+            if ($rawObject['generation'] === 0 && !isset($reservedObjectNumbers[$rawObject['objectNumber']])) {
                 $referenceObjectNumbers[$referenceKey] = $rawObject['objectNumber'];
                 continue;
             }
@@ -12930,6 +13261,11 @@ final class PdfTextExtractor
             if ($body !== null) {
                 return $this->integerObjectBodyValue($body);
             }
+
+            $body = $this->singleReferenceArrayDictionaryObjectBody($dictionary, $name, $pdfBytes, $preferLatestIndirect, $indirectObjectMaxOffset);
+            if ($body !== null) {
+                return $this->integerObjectBodyValue($body);
+            }
         }
 
         if (preg_match('/\/' . preg_quote($name, '/') . '\s+([+-]?\d+)(?!\s+\d+\s+R\b)\b/', $dictionary, $match) === 1) {
@@ -12976,11 +13312,15 @@ final class PdfTextExtractor
 
     private function integerObjectBodyValue(string $body): ?int
     {
-        if (preg_match('/\A\s*([+-]?\d+)\s*\z/s', $body, $match) !== 1) {
-            return null;
+        if (preg_match('/\A\s*([+-]?\d+)\s*\z/s', $body, $match) === 1) {
+            return (int) $match[1];
         }
 
-        return (int) $match[1];
+        if (preg_match('/\A\s*\[\s*([+-]?\d+)\s*\]\s*\z/s', $body, $match) === 1) {
+            return (int) $match[1];
+        }
+
+        return null;
     }
 
     /**
