@@ -649,6 +649,7 @@ function organicSeedUrls(): array
         seed('https://raw.githubusercontent.com/nodejs/node/main/README.md', 'commonmark', 'github-raw', 'nodejs/node', 'Node.js README CommonMark'),
         seed('https://raw.githubusercontent.com/nodejs/node/main/benchmark/README.md', 'commonmark', 'github-raw', 'nodejs/node', 'Node.js benchmark README CommonMark'),
         seed('https://raw.githubusercontent.com/commonmark/commonmark-spec/master/alternative-html-blocks.txt', 'commonmark_x', 'github-raw', 'commonmark/commonmark-spec', 'CommonMark alternative HTML blocks discussion'),
+        ...pythonMarkdownCommonMarkXSeedUrls(['abbreviations', 'admonition', 'definition_lists', 'fenced_code_blocks', 'meta_data', 'toc', 'wikilinks', 'sane_lists']),
         seed('https://raw.githubusercontent.com/github/docs/main/content/pull-requests/collaborating-with-pull-requests/reviewing-changes-in-pull-requests/about-pull-request-reviews.md', 'gfm', 'github-raw', 'github/docs', 'GitHub pull request reviews GFM'),
         seed('https://raw.githubusercontent.com/github/docs/main/content/account-and-profile/concepts/email-addresses.md', 'gfm', 'github-raw', 'github/docs', 'GitHub email addresses docs GFM'),
         seed('https://raw.githubusercontent.com/github/docs/main/content/account-and-profile/concepts/organization-membership.md', 'gfm', 'github-raw', 'github/docs', 'GitHub organization membership docs GFM'),
@@ -664,6 +665,9 @@ function organicSeedUrls(): array
         seed('https://raw.githubusercontent.com/WordPress/gutenberg/trunk/docs/contributors/accessibility-testing.md', 'gfm', 'github-raw', 'WordPress/gutenberg', 'Gutenberg accessibility testing docs GFM'),
         seed('https://raw.githubusercontent.com/WordPress/gutenberg/trunk/docs/contributors/code/README.md', 'gfm', 'github-raw', 'WordPress/gutenberg', 'Gutenberg code contributor README GFM'),
         seed('https://fletcherpenney.net/multimarkdown/index.txt', 'markdown_mmd', 'author-web', 'fletcherpenney.net', 'MultiMarkdown website source index'),
+        seed('https://daringfireball.net/projects/markdown/dingus.text', 'markdown_strict', 'author-web', 'daringfireball.net', 'Markdown Dingus source text'),
+        seed('https://raw.githubusercontent.com/jgm/pandoc/main/CONTRIBUTING.md', 'markdown_strict', 'github-raw', 'jgm/pandoc', 'Pandoc contributing Markdown'),
+        seed('https://raw.githubusercontent.com/jgm/pandoc/main/INSTALL.md', 'markdown_strict', 'github-raw', 'jgm/pandoc', 'Pandoc install Markdown'),
         seed('https://raw.githubusercontent.com/php-fig/fig-standards/master/accepted/PSR-1-basic-coding-standard.md', 'markdown_phpextra', 'github-raw', 'php-fig/fig-standards', 'PSR-1 basic coding standard'),
         seed('https://raw.githubusercontent.com/php-fig/fig-standards/master/accepted/PSR-12-extended-coding-style-guide.md', 'markdown_phpextra', 'github-raw', 'php-fig/fig-standards', 'PSR-12 extended coding style guide'),
         ...phpFigMarkdownExtraSeedUrls(['PSR-0', 'PSR-11-container', 'PSR-13-links', 'PSR-14-event-dispatcher', 'PSR-15-request-handlers', 'PSR-16-simple-cache', 'PSR-17-http-factory', 'PSR-18-http-client', 'PSR-2-coding-style-guide', 'PSR-3-logger-interface']),
@@ -687,7 +691,7 @@ function organicSeedUrls(): array
         seed('https://americanenglish.state.gov/files/ae/resource_files/design_for_drama.epub', 'epub', 'government-web', 'americanenglish.state.gov', 'Design for Drama EPUB'),
         seed('https://elifesciences.org/articles/32822.xml', 'jats', 'journal-web', 'elifesciences.org', 'eLife article 32822 JATS XML'),
         seed('https://elifesciences.org/articles/09560.xml', 'jats', 'journal-web', 'elifesciences.org', 'eLife article 09560 JATS XML'),
-        ...elifeJatsSeedUrls(['00666', '03032', '10181', '12386', '34420', '46269', '52760', '57679', '64793', '67490']),
+        ...elifeJatsSeedUrls(['00013', '00031', '00288', '00311', '00666', '01201', '01567', '01832', '03032', '05068', '06547', '07464', '10181', '12386', '34420', '46269', '52760', '57679', '64793', '67490']),
         seed('https://www.nist.gov/document/componentsofcybersecurityframeworkpptx', 'pptx', 'government-web', 'nist.gov', 'NIST Components of the Cybersecurity Framework PPTX'),
         seed('https://ixpe.msfc.nasa.gov/for_scientists/templates/IXPE-Presentation-Template.pptx', 'pptx', 'government-web', 'nasa.gov', 'IXPE presentation template PPTX'),
         seed('https://raw.githubusercontent.com/quantum-journal/quantum-journal/master/quantumarticle.pdf', 'pdf', 'github-raw', 'quantum-journal/quantum-journal', 'Quantum article class documentation PDF'),
@@ -736,7 +740,7 @@ function organicSeedUrls(): array
         seed('https://dnr.illinois.gov/content/dam/soi/en/web/dnr/conservation/m2p/documents/monthlybudget-m2p.odt', 'odt', 'government-web', 'dnr.illinois.gov', 'Illinois monthly expenditure schedule ODT'),
         seed('https://townofgalwayny.gov/wp-content/uploads/2023/06/Planning-Board-Meeting-Notes-April-2023-DRAFT.odt', 'odt', 'municipal-web', 'townofgalwayny.gov', 'Galway planning board meeting notes ODT'),
         seed('https://www.phenix.bnl.gov/~suhanov/ncc/materials/adhesives/adhesives.odt', 'odt', 'research-web', 'bnl.gov', 'BNL conductive adhesives ODT'),
-        ...gsjBitsSeedUrls(['0439', '0443', '0445', '0447', '0448', '0449', '0458', '0459', '0478', '0481', '0484', '0488']),
+        ...gsjBitsSeedUrls(['0439', '0443', '0445', '0447', '0448', '0449', '0458', '0459', '0478', '0481', '0484', '0488', '0501', '0502', '0506', '0510']),
         seed('https://www.eia.gov/energyexplained/oil-and-petroleum-products/data/US-tight-oil-production.xlsx', 'xlsx', 'government-web', 'eia.gov', 'EIA tight oil production XLSX'),
         seed('https://edd.ca.gov/siteassets/files/newsroom/facts-and-stats/excel/call-center-data.xlsx', 'xlsx', 'government-web', 'edd.ca.gov', 'California EDD call center data XLSX'),
         seed('https://www.fdic.gov/quarterly-banking-profile/all-fdic-insured-institutions-charts-and-data.xlsx', 'xlsx', 'government-web', 'fdic.gov', 'FDIC institutions charts and data XLSX'),
@@ -791,6 +795,17 @@ function fletcherMmdSiteSeedUrls(array $slugs): array
     foreach ($slugs as $slug) {
         $label = str_replace('-', ' ', (string) $slug);
         $seeds[] = seed("https://fletcherpenney.net/multimarkdown/{$slug}/index.txt", 'markdown_mmd', 'author-web', 'fletcherpenney.net', "MultiMarkdown {$label} source page");
+    }
+
+    return $seeds;
+}
+
+function pythonMarkdownCommonMarkXSeedUrls(array $slugs): array
+{
+    $seeds = [];
+    foreach ($slugs as $slug) {
+        $label = str_replace('_', ' ', (string) $slug);
+        $seeds[] = seed("https://raw.githubusercontent.com/Python-Markdown/markdown/master/docs/extensions/{$slug}.md", 'commonmark_x', 'github-raw', 'Python-Markdown/markdown', "Python Markdown {$label} extension docs");
     }
 
     return $seeds;
