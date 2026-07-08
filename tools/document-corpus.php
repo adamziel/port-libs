@@ -599,6 +599,7 @@ function organicSeedUrls(): array
         seed('https://raw.githubusercontent.com/github/docs/main/content/account-and-profile/how-tos/account-settings/managing-accessibility-settings.md', 'markdown_github', 'github-raw', 'github/docs', 'GitHub accessibility settings docs'),
         seed('https://raw.githubusercontent.com/fletcher/MultiMarkdown-6/master/QuickStart/QuickStart.txt', 'markdown_mmd', 'github-raw', 'fletcher/MultiMarkdown-6', 'MultiMarkdown QuickStart source'),
         seed('https://raw.githubusercontent.com/fletcher/MultiMarkdown-6/master/DevelopmentNotes/DevelopmentNotes.txt', 'markdown_mmd', 'github-raw', 'fletcher/MultiMarkdown-6', 'MultiMarkdown Development Notes source'),
+        ...fletcherMmdSiteSeedUrls(['features', 'download', 'install', 'use', 'help', 'ports']),
         seed('https://raw.githubusercontent.com/composer/composer/main/doc/01-basic-usage.md', 'markdown_phpextra', 'github-raw', 'composer/composer', 'Composer basic usage docs'),
         seed('https://raw.githubusercontent.com/composer/composer/main/doc/02-libraries.md', 'markdown_phpextra', 'github-raw', 'composer/composer', 'Composer libraries docs'),
         seed('https://raw.githubusercontent.com/composer/composer/main/doc/03-cli.md', 'markdown_phpextra', 'github-raw', 'composer/composer', 'Composer CLI docs'),
@@ -639,6 +640,10 @@ function organicSeedUrls(): array
         ]),
         seed('https://raw.githubusercontent.com/commonmark/commonmark-spec/master/spec.txt', 'commonmark', 'github-raw', 'commonmark/commonmark-spec', 'CommonMark specification source'),
         seed('https://raw.githubusercontent.com/commonmark/cmark/master/why-cmark-and-not-x.md', 'commonmark', 'github-raw', 'commonmark/cmark', 'Why cmark CommonMark document'),
+        seed('https://raw.githubusercontent.com/nodejs/node/main/BUILDING.md', 'commonmark', 'github-raw', 'nodejs/node', 'Node.js building documentation CommonMark'),
+        seed('https://raw.githubusercontent.com/nodejs/node/main/CONTRIBUTING.md', 'commonmark', 'github-raw', 'nodejs/node', 'Node.js contributing documentation CommonMark'),
+        seed('https://raw.githubusercontent.com/nodejs/node/main/GOVERNANCE.md', 'commonmark', 'github-raw', 'nodejs/node', 'Node.js governance documentation CommonMark'),
+        seed('https://raw.githubusercontent.com/nodejs/node/main/SECURITY.md', 'commonmark', 'github-raw', 'nodejs/node', 'Node.js security documentation CommonMark'),
         seed('https://raw.githubusercontent.com/commonmark/commonmark-spec/master/alternative-html-blocks.txt', 'commonmark_x', 'github-raw', 'commonmark/commonmark-spec', 'CommonMark alternative HTML blocks discussion'),
         seed('https://raw.githubusercontent.com/github/docs/main/content/pull-requests/collaborating-with-pull-requests/reviewing-changes-in-pull-requests/about-pull-request-reviews.md', 'gfm', 'github-raw', 'github/docs', 'GitHub pull request reviews GFM'),
         seed('https://raw.githubusercontent.com/github/docs/main/content/account-and-profile/concepts/email-addresses.md', 'gfm', 'github-raw', 'github/docs', 'GitHub email addresses docs GFM'),
@@ -646,22 +651,53 @@ function organicSeedUrls(): array
         seed('https://raw.githubusercontent.com/github/docs/main/content/account-and-profile/concepts/organization-profile.md', 'gfm', 'github-raw', 'github/docs', 'GitHub organization profile docs GFM'),
         seed('https://raw.githubusercontent.com/WordPress/gutenberg/trunk/docs/contributors/code/coding-guidelines.md', 'gfm', 'github-raw', 'WordPress/gutenberg', 'Gutenberg coding guidelines GFM'),
         seed('https://raw.githubusercontent.com/WordPress/gutenberg/trunk/docs/contributors/code/deprecations.md', 'gfm', 'github-raw', 'WordPress/gutenberg', 'Gutenberg deprecations docs GFM'),
+        seed('https://raw.githubusercontent.com/WordPress/gutenberg/trunk/docs/contributors/code/auto-cherry-picking.md', 'gfm', 'github-raw', 'WordPress/gutenberg', 'Gutenberg auto cherry picking docs GFM'),
+        seed('https://raw.githubusercontent.com/WordPress/gutenberg/trunk/docs/contributors/code/backward-compatibility.md', 'gfm', 'github-raw', 'WordPress/gutenberg', 'Gutenberg backward compatibility docs GFM'),
+        seed('https://raw.githubusercontent.com/github/docs/main/content/account-and-profile/how-tos/account-management/deleting-your-personal-account.md', 'gfm', 'github-raw', 'github/docs', 'GitHub deleting account docs GFM'),
+        seed('https://raw.githubusercontent.com/github/docs/main/content/account-and-profile/how-tos/account-management/managing-multiple-accounts.md', 'gfm', 'github-raw', 'github/docs', 'GitHub multiple accounts docs GFM'),
+        seed('https://raw.githubusercontent.com/github/docs/main/content/account-and-profile/how-tos/email-preferences/setting-your-commit-email-address.md', 'gfm', 'github-raw', 'github/docs', 'GitHub commit email address docs GFM'),
         seed('https://fletcherpenney.net/multimarkdown/index.txt', 'markdown_mmd', 'author-web', 'fletcherpenney.net', 'MultiMarkdown website source index'),
         seed('https://raw.githubusercontent.com/php-fig/fig-standards/master/accepted/PSR-1-basic-coding-standard.md', 'markdown_phpextra', 'github-raw', 'php-fig/fig-standards', 'PSR-1 basic coding standard'),
         seed('https://raw.githubusercontent.com/php-fig/fig-standards/master/accepted/PSR-12-extended-coding-style-guide.md', 'markdown_phpextra', 'github-raw', 'php-fig/fig-standards', 'PSR-12 extended coding style guide'),
+        ...phpFigMarkdownExtraSeedUrls(['PSR-0', 'PSR-11-container', 'PSR-13-links', 'PSR-14-event-dispatcher', 'PSR-15-request-handlers', 'PSR-16-simple-cache', 'PSR-17-http-factory', 'PSR-18-http-client', 'PSR-2-coding-style-guide', 'PSR-3-logger-interface']),
         seed('https://raw.githubusercontent.com/python/cpython/main/Doc/tutorial/introduction.rst', 'rst', 'github-raw', 'python/cpython', 'Python tutorial introduction RST'),
         seed('https://raw.githubusercontent.com/python/cpython/main/Doc/library/pathlib.rst', 'rst', 'github-raw', 'python/cpython', 'Python pathlib documentation RST'),
         seed('https://raw.githubusercontent.com/python/cpython/main/Doc/howto/logging.rst', 'rst', 'github-raw', 'python/cpython', 'Python logging HOWTO RST'),
+        ...pythonRstSeedUrls([
+            ['Doc/tutorial/controlflow.rst', 'Python tutorial control flow RST'],
+            ['Doc/tutorial/datastructures.rst', 'Python tutorial data structures RST'],
+            ['Doc/tutorial/modules.rst', 'Python tutorial modules RST'],
+            ['Doc/library/os.rst', 'Python os module docs RST'],
+            ['Doc/library/json.rst', 'Python json module docs RST'],
+            ['Doc/library/asyncio.rst', 'Python asyncio module docs RST'],
+            ['Doc/howto/regex.rst', 'Python regex HOWTO RST'],
+            ['Doc/howto/argparse.rst', 'Python argparse HOWTO RST'],
+            ['Doc/howto/urllib2.rst', 'Python urllib HOWTO RST'],
+            ['Doc/howto/sorting.rst', 'Python sorting HOWTO RST'],
+        ]),
         seed('https://americanenglish.state.gov/files/ae/resource_files/to_build_a_fire-efl_final.epub', 'epub', 'government-web', 'americanenglish.state.gov', 'To Build a Fire EPUB'),
         seed('https://americanenglish.state.gov/files/ae/resource_files/the_gift_of_the_magi.epub', 'epub', 'government-web', 'americanenglish.state.gov', 'The Gift of the Magi EPUB'),
         seed('https://americanenglish.state.gov/files/ae/resource_files/design_for_drama.epub', 'epub', 'government-web', 'americanenglish.state.gov', 'Design for Drama EPUB'),
         seed('https://elifesciences.org/articles/32822.xml', 'jats', 'journal-web', 'elifesciences.org', 'eLife article 32822 JATS XML'),
         seed('https://elifesciences.org/articles/09560.xml', 'jats', 'journal-web', 'elifesciences.org', 'eLife article 09560 JATS XML'),
+        ...elifeJatsSeedUrls(['00666', '03032', '10181', '12386', '34420', '46269', '52760', '57679', '64793', '67490']),
         seed('https://www.nist.gov/document/componentsofcybersecurityframeworkpptx', 'pptx', 'government-web', 'nist.gov', 'NIST Components of the Cybersecurity Framework PPTX'),
         seed('https://ixpe.msfc.nasa.gov/for_scientists/templates/IXPE-Presentation-Template.pptx', 'pptx', 'government-web', 'nasa.gov', 'IXPE presentation template PPTX'),
         seed('https://raw.githubusercontent.com/quantum-journal/quantum-journal/master/quantumarticle.pdf', 'pdf', 'github-raw', 'quantum-journal/quantum-journal', 'Quantum article class documentation PDF'),
         seed('https://raw.githubusercontent.com/quantum-journal/quantum-journal/master/quantum-template.pdf', 'pdf', 'github-raw', 'quantum-journal/quantum-journal', 'Quantum article template PDF'),
         seed('https://raw.githubusercontent.com/quantum-journal/quantum-journal/master/quantum-bibliographystyle-demo.pdf', 'pdf', 'github-raw', 'quantum-journal/quantum-journal', 'Quantum bibliography style demo PDF'),
+        ...arxivPdfSeedUrls([
+            ['1706.03762', 'Attention Is All You Need PDF'],
+            ['2005.14165', 'Language Models are Few-Shot Learners PDF'],
+            ['1810.04805', 'BERT paper PDF'],
+            ['1512.03385', 'ResNet paper PDF'],
+            ['1409.1556', 'VGG networks paper PDF'],
+            ['1603.04467', 'WaveNet paper PDF'],
+            ['1905.11946', 'EfficientNet paper PDF'],
+            ['1910.10683', 'T5 paper PDF'],
+            ['1412.6980', 'Adam optimizer paper PDF'],
+            ['1301.3781', 'word2vec paper PDF'],
+        ]),
         seed('https://www.columbus.in.gov/columbus-transit/wp-content/uploads/sites/11/2020/02/Call-A-Bus-APPLICATION.doc', 'doc', 'government-web', 'columbus.in.gov', 'ADA paratransit application DOC'),
         seed('https://www.waterboards.ca.gov/rwqcb3/board_decisions/adopted_orders/2010/2010_Oilfield_Reuse_appl_form.doc', 'doc', 'government-web', 'waterboards.ca.gov', 'Water board waste discharge application DOC'),
         seed('https://asp-prod1.crk.umn.edu/csms/app/doctemplates/syllabustemplate.doc', 'doc', 'education-web', 'umn.edu', 'University of Minnesota Crookston syllabus template DOC'),
@@ -672,6 +708,7 @@ function organicSeedUrls(): array
         seed('https://raw.githubusercontent.com/docbook/xslt10-stylesheets/master/xsl/docsrc/warranty.xml', 'docbook', 'github-raw', 'docbook/xslt10-stylesheets', 'DocBook XSLT warranty documentation XML'),
         seed('https://raw.githubusercontent.com/docbook/xslt10-stylesheets/master/xsl/params/abstract.notitle.enabled.xml', 'docbook', 'github-raw', 'docbook/xslt10-stylesheets', 'DocBook abstract title parameter XML'),
         seed('https://raw.githubusercontent.com/docbook/xslt10-stylesheets/master/xsl/params/admon.graphics.xml', 'docbook', 'github-raw', 'docbook/xslt10-stylesheets', 'DocBook admon graphics parameter XML'),
+        ...docbookParamSeedUrls(['abstract.properties', 'abstract.title.properties', 'activate.external.olinks', 'active.toc', 'admon.graphics.extension', 'admon.graphics.path', 'admon.style', 'admon.textlabel', 'alignment', 'appendix.autolabel']),
         seed('https://dir.texas.gov/sites/default/files/2024-09/Model%20Policy%20for%20Preventing%20Use%20of%20Prohibited%20Technology%20and%20Covered%20Applications.docx', 'docx', 'government-web', 'dir.texas.gov', 'Texas prohibited technology model policy DOCX'),
         seed('https://www.fedramp.gov/resources/templates/FedRAMP-High-Moderate-Low-LI-SaaS-Baseline-System-Security-Plan-%28SSP%29.docx', 'docx', 'government-web', 'fedramp.gov', 'FedRAMP SSP template DOCX'),
         seed('https://www.dgs.ca.gov/-/media/Divisions/OFAM/Statewide-Travel-Program/Forms/Miscellaneous/State-Travel-Policy-Rsources-docs/SAM-41171FAQsJune-2024.docx', 'docx', 'government-web', 'dgs.ca.gov', 'California state travel policy FAQ DOCX'),
@@ -690,6 +727,12 @@ function organicSeedUrls(): array
         seed('https://coast.noaa.gov/data/digitalcoast/xls/ccap-changedata.xlsx', 'xlsx', 'government-web', 'coast.noaa.gov', 'NOAA C-CAP change data workbook XLSX'),
         seed('https://raw.githubusercontent.com/eamena-project/eamena-arches-dev/main/dbs/database.eamena/data/reference_data/rm/hp/mds/mds-template-readonly.tsv', 'tsv', 'github-raw', 'eamena-project/eamena-arches-dev', 'EAMENA MDS template readonly TSV'),
         seed('https://raw.githubusercontent.com/vega/vega-datasets/master/data/unemployment.tsv', 'tsv', 'github-raw', 'vega/vega-datasets', 'Vega unemployment TSV dataset'),
+        ...galaxyTsvSeedUrls([
+            ['topics/contributing/tutorials/meta-analysis-data/sc-roles.tsv', 'Galaxy training single-cell roles TSV'],
+            ['topics/contributing/tutorials/meta-analysis-data/sc.tsv', 'Galaxy training single-cell TSV'],
+            ['topics/contributing/tutorials/meta-analysis-data/single-cell-over-time.tsv', 'Galaxy training single cell over time TSV'],
+            ['topics/galaxy-interface/tutorials/upload-rules-advanced/PRJNA355367.tsv', 'Galaxy training PRJNA355367 TSV'],
+        ]),
     ];
 }
 
@@ -720,6 +763,77 @@ function gsjBitsSeedUrls(array $ids): array
     $seeds = [];
     foreach ($ids as $id) {
         $seeds[] = seed("https://gbank.gsj.jp/ld/zfk/xmldata/{$id}_BITS.xml", 'bits', 'government-web', 'gbank.gsj.jp', "GSJ geological map BITS XML {$id}");
+    }
+
+    return $seeds;
+}
+
+function fletcherMmdSiteSeedUrls(array $slugs): array
+{
+    $seeds = [];
+    foreach ($slugs as $slug) {
+        $label = str_replace('-', ' ', (string) $slug);
+        $seeds[] = seed("https://fletcherpenney.net/multimarkdown/{$slug}/index.txt", 'markdown_mmd', 'author-web', 'fletcherpenney.net', "MultiMarkdown {$label} source page");
+    }
+
+    return $seeds;
+}
+
+function phpFigMarkdownExtraSeedUrls(array $names): array
+{
+    $seeds = [];
+    foreach ($names as $name) {
+        $seeds[] = seed("https://raw.githubusercontent.com/php-fig/fig-standards/master/accepted/{$name}.md", 'markdown_phpextra', 'github-raw', 'php-fig/fig-standards', str_replace('-', ' ', "{$name} standard"));
+    }
+
+    return $seeds;
+}
+
+function pythonRstSeedUrls(array $items): array
+{
+    $seeds = [];
+    foreach ($items as [$path, $title]) {
+        $seeds[] = seed("https://raw.githubusercontent.com/python/cpython/main/{$path}", 'rst', 'github-raw', 'python/cpython', $title);
+    }
+
+    return $seeds;
+}
+
+function elifeJatsSeedUrls(array $ids): array
+{
+    $seeds = [];
+    foreach ($ids as $id) {
+        $seeds[] = seed("https://elifesciences.org/articles/{$id}.xml", 'jats', 'journal-web', 'elifesciences.org', "eLife article {$id} JATS XML");
+    }
+
+    return $seeds;
+}
+
+function arxivPdfSeedUrls(array $items): array
+{
+    $seeds = [];
+    foreach ($items as [$id, $title]) {
+        $seeds[] = seed("https://arxiv.org/pdf/{$id}.pdf", 'pdf', 'preprint-web', 'arxiv.org', $title);
+    }
+
+    return $seeds;
+}
+
+function docbookParamSeedUrls(array $names): array
+{
+    $seeds = [];
+    foreach ($names as $name) {
+        $seeds[] = seed("https://raw.githubusercontent.com/docbook/xslt10-stylesheets/master/xsl/params/{$name}.xml", 'docbook', 'github-raw', 'docbook/xslt10-stylesheets', "DocBook {$name} parameter XML");
+    }
+
+    return $seeds;
+}
+
+function galaxyTsvSeedUrls(array $items): array
+{
+    $seeds = [];
+    foreach ($items as [$path, $title]) {
+        $seeds[] = seed("https://raw.githubusercontent.com/galaxyproject/training-material/main/{$path}", 'tsv', 'github-raw', 'galaxyproject/training-material', $title);
     }
 
     return $seeds;
