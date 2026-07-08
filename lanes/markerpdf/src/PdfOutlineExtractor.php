@@ -706,18 +706,21 @@ final class PdfOutlineExtractor
             }
         }
 
-        if ($this->metadataHasTaggedTargets($metadata)) {
-            $metadata['source'][] = 'tagged_content';
-        }
-
         if ($articleThreads !== []) {
             $metadata['source'][] = 'article_threads';
             $metadata['article_threads'] = $articleThreads;
         }
 
         if ($includePageReview && $pageReviews !== []) {
-            $metadata['source'][] = 'page_review';
             $metadata['page_review'] = $pageReviews;
+        }
+
+        if ($this->metadataHasTaggedTargets($metadata)) {
+            $metadata['source'][] = 'tagged_content';
+        }
+
+        if ($includePageReview && $pageReviews !== []) {
+            $metadata['source'][] = 'page_review';
         }
 
         return $metadata;
@@ -1168,6 +1171,15 @@ final class PdfOutlineExtractor
 
             foreach ($rows as $row) {
                 if (is_array($row) && isset($row['target_tagged_content']) && $row['target_tagged_content'] !== []) {
+                    return true;
+                }
+            }
+        }
+
+        $pageReviewRows = $metadata['page_review'] ?? null;
+        if (is_array($pageReviewRows)) {
+            foreach ($pageReviewRows as $row) {
+                if (is_array($row) && isset($row['structure_marked_content']) && $row['structure_marked_content'] !== []) {
                     return true;
                 }
             }

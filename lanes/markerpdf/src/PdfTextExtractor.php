@@ -10,6 +10,7 @@ final class PdfTextExtractor
     private const DEFAULT_MAX_TOKENIZED_CONTENT_STREAM_BYTES = 8_388_608;
     private const DEFAULT_MAX_CONTENT_TOKENS = 250_000;
     private const DEFAULT_MAX_POSITIONED_TEXT_RUNS = 5_000;
+    private const STRUCT_FALLBACK_REPLACEMENT_PREFIX = "\0struct-fallback-replacement\0";
     private const POSITIONED_TEXT_WORD_GAP = 12.0;
     private const POSITIONED_TEXT_LINE_TOLERANCE = 2.0;
     private const SIMPLE_TEXT_ADVANCE_RATIO = 0.5;
@@ -727,13 +728,37 @@ final class PdfTextExtractor
                 $documentInfo[$key] = $metadata[$key];
             }
         }
+        if (!isset($documentInfo['author']) && is_array($metadata['authors'] ?? null)) {
+            $author = $metadata['authors'][0] ?? null;
+            if (is_string($author) && $author !== '') {
+                $documentInfo['author'] = $author;
+            }
+        }
+        if (is_array($metadata['keywords'] ?? null)) {
+            $keywords = $metadata['keywords'][0] ?? null;
+            if (is_string($keywords) && $keywords !== '') {
+                $documentInfo['keywords'] = $keywords;
+            }
+        } elseif (is_string($metadata['keywords'] ?? null) && $metadata['keywords'] !== '') {
+            $documentInfo['keywords'] = $metadata['keywords'];
+        }
+        foreach (['creation_date', 'modification_date'] as $key) {
+            if (is_string($metadata[$key] ?? null) && $metadata[$key] !== '') {
+                $documentInfo[$key] = $metadata[$key];
+            }
+        }
+        foreach (['created_at' => 'creation_date', 'modified_at' => 'modification_date'] as $sourceKey => $targetKey) {
+            if (!isset($documentInfo[$targetKey]) && is_string($metadata[$sourceKey] ?? null) && $metadata[$sourceKey] !== '') {
+                $documentInfo[$targetKey] = $metadata[$sourceKey];
+            }
+        }
 
         return [
             'pages' => count($this->pageObjectNumbers($this->pdfObjects($pdfBytes), $pdfBytes)),
             'document_info' => $documentInfo,
             'pdf_toc' => array_map(
                 static function (array $row): array {
-                    if (array_key_exists('destination', $row) && $row['destination'] === null) {
+                    if (array_key_exists('destination', $row)) {
                         unset($row['destination']);
                     }
 
@@ -13734,7 +13759,14 @@ final class PdfTextExtractor
         foreach ($this->contentTokens($stream) as $token) {
             if ($token === 'BDC') {
                 $isArtifact = $this->markedContentIsArtifact($operands);
-                $actualText = $isArtifact ? null : $this->actualTextOperand($operands, $propertyActualTexts, $mcidActualTexts, $propertyMcids);
+                $actualText = $isArtifact ? null : $this->actualTextOperand(
+                    $operands,
+                    $propertyActualTexts,
+                    $mcidActualTexts,
+                    $propertyMcids,
+                    $this->currentToUnicodeMap($fontToUnicodeMaps, $currentFontResource),
+                    $this->currentFontEncoding($fontEncodings, $currentFontResource)
+                );
                 if ($actualText !== null) {
                     $runs[] = $actualText;
                 }
@@ -13809,7 +13841,14 @@ final class PdfTextExtractor
         foreach ($this->contentTokens($stream) as $token) {
             if ($token === 'BDC') {
                 $isArtifact = $this->markedContentIsArtifact($operands);
-                $actualTextStack[] = $isArtifact ? null : $this->actualTextOperand($operands, $propertyActualTexts, $mcidActualTexts, $propertyMcids);
+                $actualTextStack[] = $isArtifact ? null : $this->actualTextOperand(
+                    $operands,
+                    $propertyActualTexts,
+                    $mcidActualTexts,
+                    $propertyMcids,
+                    $this->currentToUnicodeMap($fontToUnicodeMaps, $currentFontResource),
+                    $this->currentFontEncoding($fontEncodings, $currentFontResource)
+                );
                 $artifactStack[] = $isArtifact;
                 $operands = [];
                 continue;
@@ -14189,7 +14228,14 @@ final class PdfTextExtractor
         foreach ($this->contentTokens($stream) as $token) {
             if ($token === 'BDC') {
                 $isArtifact = $this->markedContentIsArtifact($operands);
-                $actualText = $isArtifact ? null : $this->actualTextOperand($operands, $propertyActualTexts, $mcidActualTexts, $propertyMcids);
+                $actualText = $isArtifact ? null : $this->actualTextOperand(
+                    $operands,
+                    $propertyActualTexts,
+                    $mcidActualTexts,
+                    $propertyMcids,
+                    $this->currentToUnicodeMap($fontToUnicodeMaps, $currentFontResource),
+                    $this->currentFontEncoding($fontEncodings, $currentFontResource)
+                );
                 if ($actualText !== null) {
                     $this->appendActualText($lines, $currentLine, $actualText, $pendingPositionWordGap, $pendingPositionGap, $pendingPositionFontSize);
                 }
@@ -14521,7 +14567,14 @@ final class PdfTextExtractor
         foreach ($this->contentTokens($stream) as $token) {
             if ($token === 'BDC') {
                 $isArtifact = $this->markedContentIsArtifact($operands);
-                $actualTextStack[] = $isArtifact ? null : $this->actualTextOperand($operands, $propertyActualTexts, $mcidActualTexts, $propertyMcids);
+                $actualTextStack[] = $isArtifact ? null : $this->actualTextOperand(
+                    $operands,
+                    $propertyActualTexts,
+                    $mcidActualTexts,
+                    $propertyMcids,
+                    $this->currentToUnicodeMap($fontToUnicodeMaps, $currentFontResource),
+                    $this->currentFontEncoding($fontEncodings, $currentFontResource)
+                );
                 $artifactStack[] = $isArtifact;
                 $operands = [];
                 continue;
@@ -16167,8 +16220,17 @@ final class PdfTextExtractor
      * @param array<string, string> $propertyActualTexts
      * @param array<int, string> $mcidActualTexts
      * @param array<string, int> $propertyMcids
+     * @param array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>, unicodeSourceEncoding?: string}|null $toUnicodeMap
+     * @param array{base: string, differences: array<int, string>, suppressUnmapped?: bool}|null $fontEncoding
      */
-    private function actualTextOperand(array $operands, array $propertyActualTexts, array $mcidActualTexts, array $propertyMcids): ?string
+    private function actualTextOperand(
+        array $operands,
+        array $propertyActualTexts,
+        array $mcidActualTexts,
+        array $propertyMcids,
+        ?array $toUnicodeMap = null,
+        ?array $fontEncoding = null
+    ): ?string
     {
         for ($index = count($operands) - 1; $index >= 0; $index--) {
             $operand = trim($operands[$index]);
@@ -16193,7 +16255,7 @@ final class PdfTextExtractor
 
         $mcid = $this->mcidOperand($operands, $propertyMcids);
         if ($mcid !== null && array_key_exists($mcid, $mcidActualTexts)) {
-            return $mcidActualTexts[$mcid];
+            return $this->replacementTextForCurrentGlyphMapping($mcidActualTexts[$mcid], $toUnicodeMap, $fontEncoding);
         }
 
         return null;
@@ -16252,14 +16314,40 @@ final class PdfTextExtractor
      */
     private function structElementReplacementTextFromDictionary(string $dictionary, array $objects = []): ?string
     {
-        foreach (['ActualText', 'Alt', 'E'] as $key) {
+        $actualText = $this->textStringFromDictionaryKey($dictionary, 'ActualText', $objects);
+        if ($actualText !== null) {
+            return $actualText;
+        }
+
+        foreach (['Alt', 'E'] as $key) {
             $text = $this->textStringFromDictionaryKey($dictionary, $key, $objects);
             if ($text !== null) {
-                return $text;
+                return self::STRUCT_FALLBACK_REPLACEMENT_PREFIX . $text;
             }
         }
 
         return null;
+    }
+
+    /**
+     * @param array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>, unicodeSourceEncoding?: string}|null $toUnicodeMap
+     * @param array{base: string, differences: array<int, string>, suppressUnmapped?: bool}|null $fontEncoding
+     */
+    private function replacementTextForCurrentGlyphMapping(
+        string $replacementText,
+        ?array $toUnicodeMap,
+        ?array $fontEncoding
+    ): ?string
+    {
+        if (!str_starts_with($replacementText, self::STRUCT_FALLBACK_REPLACEMENT_PREFIX)) {
+            return $replacementText;
+        }
+
+        if ($toUnicodeMap !== null || ($fontEncoding['suppressUnmapped'] ?? false) !== true) {
+            return null;
+        }
+
+        return substr($replacementText, strlen(self::STRUCT_FALLBACK_REPLACEMENT_PREFIX));
     }
 
     /**
