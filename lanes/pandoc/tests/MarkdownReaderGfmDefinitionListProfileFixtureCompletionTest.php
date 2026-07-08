@@ -30,7 +30,9 @@ return [
             $t->same('Definition in GFM profile', $plain->attr('text'));
             $t->contains('DefinitionList [ ( [ Str "Term" ]', $native);
             $t->contains('Plain [ Str "Definition" , Space , Str "in"', $native);
-            $t->contains('<dl><dt>Term</dt><dd>Definition in GFM profile</dd></dl>', $blocks);
+            $t->contains('<div class="wp-block-group pandoc-definition-list">', $blocks);
+            $t->contains('<p class="pandoc-definition-term"><strong>Term</strong></p>', $blocks);
+            $t->contains('<ul class="pandoc-definition-values"><li>Definition in GFM profile</li></ul>', $blocks);
         },
 
     'records pandoc 3.10 gfm definition-list profile fixture literal' =>
