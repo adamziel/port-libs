@@ -319,7 +319,7 @@ function plpc_collection_response(array $collection, string $title, string $imag
     }
 
     $indexTitle = $title !== '' ? $title : (string) $collection['label'];
-    $indexBlocks = plpc_collection_index_blocks($indexTitle, $posts);
+    $indexBlocks = plpc_collection_index_blocks($indexTitle, $posts, $diagnostics);
     $indexPostId = wp_insert_post([
         'post_type' => 'page',
         'post_title' => $indexTitle,
@@ -404,6 +404,9 @@ function plpc_convert_collection_file_to_page(array $file, ?array $collection = 
     $blocks = $mediaResult['blocks'];
     $blocks = $fallbackMediaResult['blocks'];
 
+    $diagnostics = array_values(array_merge($media['diagnostics'], $mediaResult['diagnostics'], $fallbackMediaResult['diagnostics']));
+    $blocks = plpc_prepend_conversion_warning_blocks($blocks, $format, $diagnostics);
+
     $postId = wp_insert_post([
         'post_type' => 'page',
         'post_title' => $postTitle,
@@ -423,14 +426,15 @@ function plpc_convert_collection_file_to_page(array $file, ?array $collection = 
         'path' => $path,
         'imageTagCount' => count($imageSources),
         'imagesImported' => $mediaResult['imported'] + $fallbackMediaResult['imported'],
-        'diagnostics' => array_values(array_merge($media['diagnostics'], $mediaResult['diagnostics'], $fallbackMediaResult['diagnostics'])),
+        'diagnostics' => $diagnostics,
     ];
 }
 
 /**
  * @param list<array{postId: int, pageUrl: string, editUrl: string, format: string, title: string, path: string, imageTagCount: int, imagesImported: int, diagnostics: list<string>}> $posts
+ * @param list<string> $diagnostics
  */
-function plpc_collection_index_blocks(string $title, array $posts): string
+function plpc_collection_index_blocks(string $title, array $posts, array $diagnostics = []): string
 {
     $items = '';
     foreach ($posts as $post) {
@@ -438,12 +442,110 @@ function plpc_collection_index_blocks(string $title, array $posts): string
             . ' <code>' . esc_html($post['path']) . '</code></li>';
     }
 
-    return '<!-- wp:heading {"level":1} -->'
+    $blocks = '<!-- wp:heading {"level":1} -->'
         . "\n" . '<h1 class="wp-block-heading">' . esc_html($title) . '</h1>'
         . "\n" . '<!-- /wp:heading -->'
         . "\n\n" . '<!-- wp:list -->'
         . "\n" . '<ul class="wp-block-list">' . $items . '</ul>'
         . "\n" . '<!-- /wp:list -->';
+
+    return plpc_prepend_conversion_warning_blocks($blocks, '', $diagnostics);
+}
+
+/**
+ * @param list<string> $diagnostics
+ */
+function plpc_prepend_conversion_warning_blocks(string $blocks, string $format, array $diagnostics): string
+{
+    $warnings = plpc_conversion_warning_messages($format, $diagnostics);
+    if ($warnings === []) {
+        return $blocks;
+    }
+
+    return plpc_conversion_warning_blocks($warnings) . "\n\n" . $blocks;
+}
+
+/**
+ * @param list<string> $diagnostics
+ * @return list<string>
+ */
+function plpc_conversion_warning_messages(string $format, array $diagnostics): array
+{
+    $warnings = [];
+    if (PandocConverter::canonicalInputFormat($format) === 'pdf') {
+        $warnings[] = 'PDF layout was reconstructed from page geometry. Reading order, columns, tables, and image placement may need review.';
+    }
+
+    foreach ($diagnostics as $diagnostic) {
+        $diagnostic = trim((string) $diagnostic);
+        if ($diagnostic === '') {
+            continue;
+        }
+
+        $message = plpc_conversion_warning_message($diagnostic);
+        if ($message !== '') {
+            $warnings[] = $message;
+        }
+    }
+
+    return array_values(array_unique($warnings));
+}
+
+function plpc_conversion_warning_message(string $diagnostic): string
+{
+    $unscoped = preg_replace('/\A[^:]+:(?=extract-media-|image-|document-failed:)/', '', $diagnostic) ?? $diagnostic;
+
+    if (str_starts_with($unscoped, 'document-failed:')) {
+        return 'One document in the upload could not be converted: ' . substr($unscoped, strlen('document-failed:'));
+    }
+    if (str_starts_with($unscoped, 'image-not-resolved:')) {
+        return 'An image reference could not be found in the uploaded file or folder: ' . substr($unscoped, strlen('image-not-resolved:'));
+    }
+    if (str_starts_with($unscoped, 'image-upload-failed:')) {
+        return 'An extracted image could not be imported into the WordPress media library: ' . substr($unscoped, strlen('image-upload-failed:'));
+    }
+    if ($unscoped === 'extract-media-package-unreadable') {
+        return 'Embedded media could not be read from the uploaded package.';
+    }
+    if (str_starts_with($unscoped, 'extract-media-package-read-failed:')) {
+        return 'One embedded media file could not be read from the uploaded package.';
+    }
+    if ($unscoped === 'extract-media-data-uri-invalid') {
+        return 'One embedded data URI image was invalid and was not imported.';
+    }
+    if ($unscoped === 'extract-media-pdf-scan-skipped:too-large') {
+        return 'PDF image extraction was skipped because the file was too large for the browser importer.';
+    }
+    if ($unscoped === 'extract-media-pdf-image-limit') {
+        return 'PDF image extraction stopped after the importer reached its image limit.';
+    }
+    if (str_starts_with($unscoped, 'extract-media-pdf-image-skipped:')) {
+        return 'Some PDF image streams could not be embedded directly and were skipped.';
+    }
+
+    return '';
+}
+
+/**
+ * @param list<string> $warnings
+ */
+function plpc_conversion_warning_blocks(array $warnings): string
+{
+    $items = '';
+    foreach ($warnings as $warning) {
+        $items .= '<li>' . esc_html($warning) . '</li>';
+    }
+
+    return '<!-- wp:group {"className":"port-libs-conversion-notice"} -->'
+        . "\n" . '<div class="wp-block-group port-libs-conversion-notice">'
+        . "\n" . '<!-- wp:heading {"level":2} -->'
+        . "\n" . '<h2 class="wp-block-heading">Conversion notes</h2>'
+        . "\n" . '<!-- /wp:heading -->'
+        . "\n\n" . '<!-- wp:list -->'
+        . "\n" . '<ul class="wp-block-list">' . $items . '</ul>'
+        . "\n" . '<!-- /wp:list -->'
+        . "\n" . '</div>'
+        . "\n" . '<!-- /wp:group -->';
 }
 
 /**

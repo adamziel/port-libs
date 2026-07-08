@@ -197,6 +197,48 @@ HTML;
         $t->contains('class="alignnone wp-image-77"', $rewritten);
         $t->true(!str_contains($rewritten, 'wp-image-77 wp-image-77'), 'Attachment class should not be duplicated.');
     },
+    'playground importer turns actionable diagnostics into page warning blocks' => static function (TestRunner $t): void {
+        $blocks = '<!-- wp:paragraph -->' . "\n" . '<p>Imported body.</p>' . "\n" . '<!-- /wp:paragraph -->';
+        $rewritten = plpc_prepend_conversion_warning_blocks($blocks, 'markdown', [
+            'extract-media-image-mode:important',
+            'image-imported:media/photo.png=>42',
+            'extract-media-package-loaded:media-photo.png',
+            'image-not-resolved:media/missing.png',
+            'extract-media-data-uri-invalid',
+        ]);
+
+        $t->contains('<!-- wp:group {"className":"port-libs-conversion-notice"} -->', $rewritten);
+        $t->contains('<h2 class="wp-block-heading">Conversion notes</h2>', $rewritten);
+        $t->contains('An image reference could not be found in the uploaded file or folder: media/missing.png', $rewritten);
+        $t->contains('One embedded data URI image was invalid and was not imported.', $rewritten);
+        $t->true(!str_contains($rewritten, 'image-imported'), 'Routine image import diagnostics should not be shown as warnings.');
+        $t->true(strpos($rewritten, 'Conversion notes') < strpos($rewritten, 'Imported body.'), 'Warnings should be prepended to the imported page.');
+    },
+    'playground importer warns that pdf imports are best effort' => static function (TestRunner $t): void {
+        $messages = plpc_conversion_warning_messages('pdf', ['extract-media-image-mode:important']);
+
+        $t->same([
+            'PDF layout was reconstructed from page geometry. Reading order, columns, tables, and image placement may need review.',
+        ], $messages);
+    },
+    'playground collection index includes conversion failures as visible warnings' => static function (TestRunner $t): void {
+        $blocks = plpc_collection_index_blocks('Batch', [
+            [
+                'postId' => 1,
+                'pageUrl' => 'https://playground.test/page',
+                'editUrl' => '',
+                'format' => 'markdown',
+                'title' => 'Converted',
+                'path' => 'docs/page.md',
+                'imageTagCount' => 0,
+                'imagesImported' => 0,
+                'diagnostics' => [],
+            ],
+        ], ['broken.docx:document-failed:Corrupt package']);
+
+        $t->contains('One document in the upload could not be converted: Corrupt package', $blocks);
+        $t->contains('<a href="https://playground.test/page">Converted</a>', $blocks);
+    },
     'playground importer expands zip files into safe collection entries' => static function (TestRunner $t): void {
         $zip = PortLibs\Pandoc\ZipPackage::build([
             ['name' => 'bundle/intro.md', 'data' => "# Intro\n\n![Logo](images/logo.png)\n"],
