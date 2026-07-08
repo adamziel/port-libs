@@ -1,5 +1,5 @@
 {
-    "generatedAt": "2026-07-08T19:47:35+00:00",
+    "generatedAt": "2026-07-08T20:00:10+00:00",
     "pandocVersion": "pandoc 3.10\nFeatures: +server +lua\nScripting engine: Lua 5.4\nUser data directory: $REPO\nCopyright (C) 2006-2025 John MacFarlane. Web:  https://pandoc.org\nThis is free software; see the source for copying conditions. There is no\nwarranty, not even for merchantability or fitness for a particular purpose.",
     "mediaImageMode": "important",
     "formats": [
@@ -341,12 +341,12 @@
     "blockUsage": {
         "totals": {
             "code": 615,
-            "group": 279,
-            "heading": 4058,
+            "group": 283,
+            "heading": 4062,
             "html": 59,
             "image": 199,
             "list": 1173,
-            "paragraph": 15556,
+            "paragraph": 15560,
             "quote": 66,
             "separator": 65,
             "table": 544,
@@ -9035,10 +9035,11 @@
                 ]
             },
             "wpBlockCounts": {
-                "heading": 8,
+                "group": 1,
+                "heading": 9,
                 "image": 28,
                 "list": 9,
-                "paragraph": 22
+                "paragraph": 23
             }
         },
         {
@@ -9880,9 +9881,10 @@
                 ]
             },
             "wpBlockCounts": {
-                "heading": 70,
+                "group": 1,
+                "heading": 71,
                 "image": 23,
-                "paragraph": 59
+                "paragraph": 60
             }
         },
         {
@@ -10742,9 +10744,10 @@
                 ]
             },
             "wpBlockCounts": {
-                "heading": 2,
+                "group": 1,
+                "heading": 3,
                 "image": 24,
-                "paragraph": 9
+                "paragraph": 10
             }
         },
         {
@@ -11466,10 +11469,11 @@
                 ]
             },
             "wpBlockCounts": {
-                "heading": 18,
+                "group": 1,
+                "heading": 19,
                 "image": 20,
                 "list": 2,
-                "paragraph": 28
+                "paragraph": 29
             }
         },
         {

@@ -6,11 +6,54 @@ use PortLibs\Pandoc\AstNode;
 use PortLibs\Pandoc\MarkdownReader;
 use PortLibs\Pandoc\MarkdownWriter;
 use PortLibs\Pandoc\MediaBag;
+use PortLibs\Pandoc\PandocMediaExtractor;
 use PortLibs\Pandoc\PandocJsonReader;
 use PortLibs\Pandoc\PandocJsonWriter;
 use PortLibs\Pandoc\WordPressBlockWriter;
 
 return [
+    'separates extracted pdf images from reconstructed document text' => static function (TestRunner $t): void {
+        $document = new AstNode('document', [], [
+            new AstNode('paragraph', ['text' => 'Reconstructed PDF text.'], [
+                new AstNode('text', ['text' => 'Reconstructed PDF text.']),
+            ]),
+        ]);
+        $jpegStream = "\xFF\xD8" . str_repeat('A', 9000) . "\xFF\xD9";
+        $pdfBytes = "7 0 obj\n"
+            . "<< /Subtype /Image /Width 320 /Height 240 /Filter /DCTDecode >>\n"
+            . "stream\n"
+            . $jpegStream
+            . "\nendstream\n"
+            . "endobj\n";
+
+        $extracted = (new PandocMediaExtractor())->extract($document, $pdfBytes, 'pdf', [
+            'destination' => 'media',
+            'imageMode' => 'important',
+        ]);
+        $children = $extracted['document']->children;
+        $section = $children[0];
+        $image = $section->children[2]->children[0];
+
+        $t->same('div', $section->type);
+        $t->same(['pandoc-pdf-extracted-images'], $section->attr('classes'));
+        $t->same('separate-section', $section->attr('attributes')['data-pandoc-pdf-image-placement'] ?? null);
+        $t->same('heading', $section->children[0]->type);
+        $t->same('Extracted PDF images', $section->children[0]->attr('text'));
+        $t->same('These images were extracted from PDF image streams and are shown separately because exact PDF image placement is not yet reconstructed.', $section->children[1]->attr('text'));
+        $t->same('media/pdf/image-7.jpg', $image->attr('url'));
+        $t->same('7', $image->attr('attributes')['data-pandoc-pdf-image-object'] ?? null);
+        $t->same('paragraph', $children[1]->type);
+        $t->same('Reconstructed PDF text.', $children[1]->attr('text'));
+        $t->contains('extract-media-pdf-image-loaded:7:important', implode(',', $extracted['diagnostics']));
+        $t->same('pdf/image-7.jpg', $extracted['entries'][0]['source'] ?? null);
+
+        $blocks = (new WordPressBlockWriter())->write($extracted['document']);
+        $t->contains('<div class="wp-block-group pandoc-pdf-extracted-images" data-pandoc-pdf-image-placement="separate-section">', $blocks);
+        $t->contains('<h2 id="extracted-pdf-images" class="pandoc-pdf-extracted-images-heading">Extracted PDF images</h2>', $blocks);
+        $t->contains('These images were extracted from PDF image streams and are shown separately because exact PDF image placement is not yet reconstructed.', $blocks);
+        $t->true(strpos($blocks, 'Extracted PDF images') < strpos($blocks, 'Reconstructed PDF text.'), 'Extracted PDF images section should precede reconstructed text.');
+    },
+
     'maps pandoc media bag resources to safe extraction paths' => static function (TestRunner $t): void {
         $bag = new MediaBag();
         $relativeBytes = "relative image bytes\n";

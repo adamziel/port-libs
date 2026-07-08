@@ -374,7 +374,29 @@ final class PandocMediaExtractor
             return $document;
         }
 
-        return new AstNode($document->type, $document->attrs, array_merge($imageBlocks, $document->children));
+        $section = new AstNode('div', [
+            'classes' => ['pandoc-pdf-extracted-images'],
+            'attributes' => [
+                'data-pandoc-pdf-image-placement' => 'separate-section',
+            ],
+        ], array_merge([
+            new AstNode('heading', [
+                'level' => 2,
+                'id' => 'extracted-pdf-images',
+                'classes' => ['pandoc-pdf-extracted-images-heading'],
+                'text' => 'Extracted PDF images',
+            ], [
+                new AstNode('text', ['text' => 'Extracted PDF images']),
+            ]),
+            new AstNode('paragraph', [
+                'classes' => ['pandoc-pdf-extracted-images-note'],
+                'text' => 'These images were extracted from PDF image streams and are shown separately because exact PDF image placement is not yet reconstructed.',
+            ], [
+                new AstNode('text', ['text' => 'These images were extracted from PDF image streams and are shown separately because exact PDF image placement is not yet reconstructed.']),
+            ]),
+        ], $imageBlocks));
+
+        return new AstNode($document->type, $document->attrs, array_merge([$section], $document->children));
     }
 
     private function pdfIntegerEntry(string $objectBody, string $name): ?int
