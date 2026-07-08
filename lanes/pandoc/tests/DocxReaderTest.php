@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\Pandoc\DocxReader;
+use PortLibs\Pandoc\HtmlWriter;
 use PortLibs\Pandoc\NativeWriter;
 use PortLibs\Pandoc\PandocConverter;
 use PortLibs\Pandoc\WordPressBlockWriter;
@@ -2274,6 +2275,40 @@ XML;
         $t->true(!str_contains($blocks, 'docx-field'), 'Folded table captions should not keep raw field wrappers in WordPress output');
         $t->true(!str_contains($native, 'RawInline'), 'Folded table captions should not keep raw bookmark inlines in native output');
         $t->true(!str_contains($native, 'docx-field'), 'Folded table captions should not keep field wrapper attributes in native output');
+    },
+    'preserves overlapping docx table caption bookmark aliases as linkable anchors' => static function (TestRunner $t) use ($buildDocxReaderPackageBytes): void {
+        $documentXml = <<<'XML'
+<?xml version="1.0"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:tbl><w:tr><w:tc><w:p><w:r><w:t>Count</w:t></w:r></w:p></w:tc></w:tr></w:tbl>
+    <w:p>
+      <w:pPr><w:pStyle w:val="Caption"/></w:pPr>
+      <w:bookmarkStart w:id="10" w:name="_RefTable14"/>
+      <w:bookmarkStart w:id="11" w:name="_TocTable14"/>
+      <w:r><w:t>Table 14: Shared caption</w:t></w:r>
+      <w:bookmarkEnd w:id="10"/>
+      <w:bookmarkEnd w:id="11"/>
+    </w:p>
+    <w:p><w:hyperlink w:anchor="_TocTable14"><w:r><w:t>Table 14</w:t></w:r></w:hyperlink></w:p>
+  </w:body>
+</w:document>
+XML;
+        $document = (new DocxReader())->read($buildDocxReaderPackageBytes($documentXml));
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $html = (new HtmlWriter())->write($document);
+        $table = $document->children[0];
+        $captionInlines = $table->attr('captionInlines');
+
+        $t->same(['table', 'paragraph'], array_map(static fn ($node): string => $node->type, $document->children));
+        $t->same('Table 14: Shared caption', $table->attr('caption'));
+        $t->same(['span', 'span', 'text'], array_map(static fn ($node): string => $node->type, $captionInlines));
+        $t->same('_RefTable14', $captionInlines[0]->attr('id'));
+        $t->same('_TocTable14', $captionInlines[1]->attr('id'));
+        $t->contains('<span id="_TocTable14" class="anchor"', $blocks);
+        $t->contains('<a href="#_TocTable14">Table 14</a>', $blocks);
+        $t->contains('<span id="_TocTable14" class="anchor"', $html);
+        $t->contains('<a href="#_TocTable14">Table 14</a>', $html);
     },
     'places docx table header rows in table head' => static function (TestRunner $t) use ($buildDocxReaderPackageBytes): void {
         $bytes = $buildDocxReaderPackageBytes('<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:tbl><w:tr><w:trPr><w:tblHeader/></w:trPr><w:tc><w:p><w:r><w:t>Field</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>Value</w:t></w:r></w:p></w:tc></w:tr><w:tr><w:trPr><w:tblHeader w:val="0"/></w:trPr><w:tc><w:p><w:r><w:t>Draft flag</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>False header row</w:t></w:r></w:p></w:tc></w:tr><w:tr><w:tc><w:p><w:r><w:t>Total</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>12</w:t></w:r></w:p></w:tc></w:tr></w:tbl></w:body></w:document>');

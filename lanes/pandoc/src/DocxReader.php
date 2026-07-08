@@ -1078,7 +1078,7 @@ final class DocxReader
     private function captionBookmarkAnchor(AstNode $node): ?AstNode
     {
         $name = $this->rawBookmarkStartName($node);
-        if ($name === null || !str_starts_with($name, '_Ref')) {
+        if ($name === null || $name === '') {
             return null;
         }
 
