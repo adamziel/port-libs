@@ -622,6 +622,23 @@ function organicSeedUrls(): array
         seed('https://raw.githubusercontent.com/fletcher/MultiMarkdown-6/master/DevelopmentNotes/DevelopmentNotes.txt', 'markdown_mmd', 'github-raw', 'fletcher/MultiMarkdown-6', 'MultiMarkdown Development Notes source'),
         seed('https://raw.githubusercontent.com/fletcher/MultiMarkdown-6/master/texmf/tex/latex/mmd6/README.md', 'markdown_mmd', 'github-raw', 'fletcher/MultiMarkdown-6', 'MultiMarkdown LaTeX package README'),
         ...fletcherMmdSiteSeedUrls(['features', 'download', 'install', 'use', 'help', 'ports']),
+        seed('https://fletcherpenney.net/multimarkdown/cms/index.txt', 'markdown_mmd', 'author-web', 'fletcherpenney.net', 'MultiMarkdown CMS source page'),
+        seed('https://fletcherpenney.net/colophon/index.txt', 'markdown_mmd', 'author-web', 'fletcherpenney.net', 'Fletcher Penney colophon source page'),
+        seed('https://fletcherpenney.net/support/index.txt', 'markdown_mmd', 'author-web', 'fletcherpenney.net', 'Fletcher Penney support source page'),
+        ...fletcherMmdPostSeedUrls([
+            ['/2006/01/sample_multi_markdown_document', 'Sample MultiMarkdown document source post'],
+            ['/2009/09/multimarkdown_as_cms', 'MultiMarkdown as CMS source post'],
+            ['/2010/01/how_to_use_mmd_as_your_cms', 'How to use MMD as your CMS source post'],
+            ['/2010/01/sample_multimarkdown_document', 'Sample MultiMarkdown document 2010 source post'],
+            ['/2011/04/multimarkdown_3.0_released!!!', 'MultiMarkdown 3.0 release source post'],
+            ['/2011/05/using_multimarkdown_with_omnioutlin', 'Using MultiMarkdown with OmniOutliner source post'],
+            ['/2013/04/mmd4', 'MMD4 source post'],
+            ['/2014/04/abbreviations', 'MultiMarkdown abbreviations source post'],
+            ['/2017/03/how_to_create_epub', 'How to create EPUB source post'],
+            ['/2017/03/mmd_6_epub', 'MMD 6 EPUB source post'],
+            ['/2018/12/multimarkdown_accessibility', 'MultiMarkdown accessibility source post'],
+            ['/2025/11/multimarkdown_7', 'MultiMarkdown 7 source post'],
+        ]),
         seed('https://raw.githubusercontent.com/composer/composer/main/doc/01-basic-usage.md', 'markdown_phpextra', 'github-raw', 'composer/composer', 'Composer basic usage docs'),
         seed('https://raw.githubusercontent.com/composer/composer/main/doc/02-libraries.md', 'markdown_phpextra', 'github-raw', 'composer/composer', 'Composer libraries docs'),
         seed('https://raw.githubusercontent.com/composer/composer/main/doc/03-cli.md', 'markdown_phpextra', 'github-raw', 'composer/composer', 'Composer CLI docs'),
@@ -650,6 +667,22 @@ function organicSeedUrls(): array
         seed('https://raw.githubusercontent.com/rstudio/bookdown/main/inst/rstudio/templates/project/resources/common/book.bib', 'biblatex', 'github-raw', 'rstudio/bookdown', 'Bookdown template book bibliography BibLaTeX'),
         seed('https://raw.githubusercontent.com/quarto-dev/quarto-web/main/references.bib', 'biblatex', 'github-raw', 'quarto-dev/quarto-web', 'Quarto web references BibLaTeX'),
         seed('https://raw.githubusercontent.com/quarto-dev/quarto-web/main/docs/get-started/authoring/_notebooks/references.bib', 'biblatex', 'github-raw', 'quarto-dev/quarto-web', 'Quarto authoring notebook references BibLaTeX'),
+        seed('https://raw.githubusercontent.com/hadley/adv-r/HEAD/book.bib', 'biblatex', 'github-raw', 'hadley/adv-r', 'Advanced R book bibliography BibLaTeX'),
+        seed('https://raw.githubusercontent.com/yihui/bookdown-crc/HEAD/book.bib', 'biblatex', 'github-raw', 'yihui/bookdown-crc', 'Bookdown CRC book bibliography BibLaTeX'),
+        seed('https://raw.githubusercontent.com/yihui/bookdown-crc/HEAD/packages.bib', 'biblatex', 'github-raw', 'yihui/bookdown-crc', 'Bookdown CRC packages bibliography BibLaTeX'),
+        ...crossrefBiblatexSeedUrls([
+            ['10.1038/s41586-024-07566-y', 'Nature AlphaFold 3 article'],
+            ['10.1145/3664647.3681704', 'ACM article 2024'],
+            ['10.1109/CVPR52733.2024.00042', 'IEEE CVPR 2024 paper'],
+            ['10.1016/j.artint.2023.103996', 'Artificial Intelligence article'],
+            ['10.1093/nar/gkae1052', 'NAR article gkae1052'],
+            ['10.1371/journal.pbio.3002730', 'PLOS Biology article'],
+            ['10.1038/nature16961', 'Nature gravitational waves article'],
+            ['10.1126/science.aad0501', 'Science gravitational waves article'],
+            ['10.1145/3133956.3134077', 'ACM Spectre-style paper'],
+            ['10.1109/SP.2019.00001', 'IEEE security paper'],
+            ['10.1016/j.neunet.2014.09.003', 'Adam optimizer article'],
+        ]),
         seed('https://raw.githubusercontent.com/quantum-journal/quantum-journal/master/quantum-bibliographystyle-demo.bib', 'bibtex', 'github-raw', 'quantum-journal/quantum-journal', 'Quantum bibliography style demo BibTeX'),
         seed('https://api.crossref.org/works/10.7554/eLife.32822/transform/application/x-research-info-systems', 'ris', 'crossref-api', 'crossref.org', 'Crossref RIS export for eLife 32822'),
         seed('https://api.crossref.org/works/10.1038/s41586-020-2649-2/transform/application/x-research-info-systems', 'ris', 'crossref-api', 'crossref.org', 'Crossref RIS export for Nature article'),
@@ -997,6 +1030,16 @@ function crossrefBibliographySeedUrls(array $items): array
     return $seeds;
 }
 
+function crossrefBiblatexSeedUrls(array $items): array
+{
+    $seeds = [];
+    foreach ($items as [$doi, $label]) {
+        $seeds[] = seed("https://api.crossref.org/works/{$doi}/transform/application/x-bibtex", 'biblatex', 'crossref-api', 'crossref.org', "Crossref BibLaTeX for {$label}");
+    }
+
+    return $seeds;
+}
+
 function gsjBitsSeedUrls(array $ids): array
 {
     $seeds = [];
@@ -1013,6 +1056,16 @@ function fletcherMmdSiteSeedUrls(array $slugs): array
     foreach ($slugs as $slug) {
         $label = str_replace('-', ' ', (string) $slug);
         $seeds[] = seed("https://fletcherpenney.net/multimarkdown/{$slug}/index.txt", 'markdown_mmd', 'author-web', 'fletcherpenney.net', "MultiMarkdown {$label} source page");
+    }
+
+    return $seeds;
+}
+
+function fletcherMmdPostSeedUrls(array $items): array
+{
+    $seeds = [];
+    foreach ($items as [$slug, $title]) {
+        $seeds[] = seed("https://fletcherpenney.net{$slug}.txt", 'markdown_mmd', 'author-web', 'fletcherpenney.net', $title);
     }
 
     return $seeds;
