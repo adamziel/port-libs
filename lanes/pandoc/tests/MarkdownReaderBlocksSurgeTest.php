@@ -1094,6 +1094,7 @@ foreach ($tableCaptionSurgeCases as $case) {
 
 
 $read = static fn (string $markdown): AstNode => (new MarkdownReader())->read($markdown);
+$readCommonmark = static fn (string $markdown): AstNode => (new MarkdownReader(['format' => 'commonmark']))->read($markdown);
 $types = static fn (AstNode $node): array => array_map(static fn (AstNode $child): string => $child->type, $node->children);
 $firstItem = static function (TestRunner $t, AstNode $document, string $listType): AstNode {
     $list = $document->children[0] ?? new AstNode('missing');
@@ -1959,15 +1960,15 @@ foreach ([
 }
 
 foreach ($bulletBoundaryCases as $label => [$leftMarker, $rightMarker]) {
-    $tests["maps commonmark block list bullet marker boundary {$label}"] = static function (TestRunner $t) use ($read, $listItemText, $leftMarker, $rightMarker): void {
-        $document = $read($leftMarker . ' first' . "\n" . $rightMarker . ' second');
+    $tests["maps commonmark block list bullet marker boundary {$label}"] = static function (TestRunner $t) use ($readCommonmark, $listItemText, $leftMarker, $rightMarker): void {
+        $document = $readCommonmark($leftMarker . ' first' . "\n" . $rightMarker . ' second');
         $t->same(['bullet_list', 'bullet_list'], array_map(static fn (AstNode $node): string => $node->type, $document->children));
         $t->same('first', $listItemText($document->children[0]->children[0]));
         $t->same('second', $listItemText($document->children[1]->children[0]));
     };
 
-    $tests["maps commonmark block list blank bullet marker boundary {$label}"] = static function (TestRunner $t) use ($read, $listItemText, $leftMarker, $rightMarker): void {
-        $document = $read($leftMarker . ' first' . "\n\n" . $rightMarker . ' second');
+    $tests["maps commonmark block list blank bullet marker boundary {$label}"] = static function (TestRunner $t) use ($readCommonmark, $listItemText, $leftMarker, $rightMarker): void {
+        $document = $readCommonmark($leftMarker . ' first' . "\n\n" . $rightMarker . ' second');
         $t->same(['bullet_list', 'bullet_list'], array_map(static fn (AstNode $node): string => $node->type, $document->children));
         $t->same(false, (bool) $document->children[0]->attr('loose'));
         $t->same(false, (bool) $document->children[1]->attr('loose'));
@@ -1975,6 +1976,19 @@ foreach ($bulletBoundaryCases as $label => [$leftMarker, $rightMarker]) {
         $t->same('second', $listItemText($document->children[1]->children[0]));
     };
 }
+
+$tests['maps pandoc markdown and markdown_github mixed bullet markers as one tight list'] =
+    static function (TestRunner $t) use ($listItemText): void {
+        $markdown = "- first\n\n* second\n+ third\n- fourth";
+        foreach (['markdown', 'markdown_github'] as $format) {
+            $document = (new MarkdownReader(['format' => $format]))->read($markdown);
+            $list = $document->children[0] ?? new AstNode('missing');
+
+            $t->same(['bullet_list'], array_map(static fn (AstNode $node): string => $node->type, $document->children), $format);
+            $t->same(false, (bool) $list->attr('loose'), $format);
+            $t->same(['first', 'second', 'third', 'fourth'], array_map($listItemText, $list->children), $format);
+        }
+    };
 
 $emptyMarkerBlockCases = [
     'dash blockquote' => ['markdown' => "-\n  > quoted\n- next", 'list' => 'bullet_list', 'child' => 'blockquote', 'text' => 'quoted'],

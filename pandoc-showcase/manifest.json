@@ -1,5 +1,5 @@
 {
-    "generatedAt": "2026-07-09T21:17:53+00:00",
+    "generatedAt": "2026-07-09T22:03:24+00:00",
     "pandocVersion": "pandoc 3.10\nFeatures: +server +lua\nScripting engine: Lua 5.4\nUser data directory: $REPO\nCopyright (C) 2006-2025 John MacFarlane. Web:  https://pandoc.org\nThis is free software; see the source for copying conditions. There is no\nwarranty, not even for merchantability or fitness for a particular purpose.",
     "mediaImageMode": "important",
     "formats": [
@@ -362,355 +362,398 @@
         "divergent": 0,
         "noText": 1,
         "visualComparisons": 147,
-        "visualFaithfulEnough": 145,
-        "visualReview": 1,
+        "visualFaithfulEnough": 146,
+        "visualReview": 0,
         "visualDivergent": 0,
         "visualNoStructure": 1
     },
     "importQualitySummary": {
         "samples": 90,
-        "pass": 77,
-        "review": 13,
-        "fail": 0
+        "pass": 78,
+        "review": 1,
+        "fail": 0,
+        "unbenchmarked": 11
     },
     "importQualitySegmentSummary": {
         "common": {
             "samples": 44,
-            "pass": 42,
-            "review": 2,
+            "pass": 43,
+            "review": 1,
             "fail": 0,
+            "unbenchmarked": 0,
             "wpFailures": 0,
-            "passOrReview": 44,
+            "passReviewOrUnbenchmarked": 44,
             "formats": {
                 "csv": {
                     "samples": 2,
                     "pass": 2,
                     "review": 0,
                     "fail": 0,
+                    "unbenchmarked": 0,
                     "wpFailures": 0,
-                    "passOrReview": 2
+                    "passReviewOrUnbenchmarked": 2
                 },
                 "docx": {
                     "samples": 9,
                     "pass": 9,
                     "review": 0,
                     "fail": 0,
+                    "unbenchmarked": 0,
                     "wpFailures": 0,
-                    "passOrReview": 9
+                    "passReviewOrUnbenchmarked": 9
                 },
                 "epub": {
                     "samples": 5,
                     "pass": 5,
                     "review": 0,
                     "fail": 0,
+                    "unbenchmarked": 0,
                     "wpFailures": 0,
-                    "passOrReview": 5
+                    "passReviewOrUnbenchmarked": 5
                 },
                 "gfm": {
                     "samples": 1,
                     "pass": 1,
                     "review": 0,
                     "fail": 0,
+                    "unbenchmarked": 0,
                     "wpFailures": 0,
-                    "passOrReview": 1
+                    "passReviewOrUnbenchmarked": 1
                 },
                 "html": {
                     "samples": 4,
                     "pass": 4,
                     "review": 0,
                     "fail": 0,
+                    "unbenchmarked": 0,
                     "wpFailures": 0,
-                    "passOrReview": 4
+                    "passReviewOrUnbenchmarked": 4
                 },
                 "markdown": {
                     "samples": 1,
                     "pass": 1,
                     "review": 0,
                     "fail": 0,
+                    "unbenchmarked": 0,
                     "wpFailures": 0,
-                    "passOrReview": 1
+                    "passReviewOrUnbenchmarked": 1
                 },
                 "markdown_github": {
                     "samples": 1,
-                    "pass": 0,
-                    "review": 1,
+                    "pass": 1,
+                    "review": 0,
                     "fail": 0,
+                    "unbenchmarked": 0,
                     "wpFailures": 0,
-                    "passOrReview": 1
+                    "passReviewOrUnbenchmarked": 1
                 },
                 "odt": {
                     "samples": 3,
                     "pass": 3,
                     "review": 0,
                     "fail": 0,
+                    "unbenchmarked": 0,
                     "wpFailures": 0,
-                    "passOrReview": 3
+                    "passReviewOrUnbenchmarked": 3
                 },
                 "pdf": {
                     "samples": 6,
                     "pass": 5,
                     "review": 1,
                     "fail": 0,
+                    "unbenchmarked": 0,
                     "wpFailures": 0,
-                    "passOrReview": 6
+                    "passReviewOrUnbenchmarked": 6
                 },
                 "pptx": {
                     "samples": 4,
                     "pass": 4,
                     "review": 0,
                     "fail": 0,
+                    "unbenchmarked": 0,
                     "wpFailures": 0,
-                    "passOrReview": 4
+                    "passReviewOrUnbenchmarked": 4
                 },
                 "rtf": {
                     "samples": 3,
                     "pass": 3,
                     "review": 0,
                     "fail": 0,
+                    "unbenchmarked": 0,
                     "wpFailures": 0,
-                    "passOrReview": 3
+                    "passReviewOrUnbenchmarked": 3
                 },
                 "tsv": {
                     "samples": 2,
                     "pass": 2,
                     "review": 0,
                     "fail": 0,
+                    "unbenchmarked": 0,
                     "wpFailures": 0,
-                    "passOrReview": 2
+                    "passReviewOrUnbenchmarked": 2
                 },
                 "xlsx": {
                     "samples": 3,
                     "pass": 3,
                     "review": 0,
                     "fail": 0,
+                    "unbenchmarked": 0,
                     "wpFailures": 0,
-                    "passOrReview": 3
+                    "passReviewOrUnbenchmarked": 3
                 }
             }
         },
         "exotic": {
             "samples": 46,
             "pass": 35,
-            "review": 11,
+            "review": 0,
             "fail": 0,
+            "unbenchmarked": 11,
             "wpFailures": 0,
-            "passOrReview": 46,
+            "passReviewOrUnbenchmarked": 46,
             "formats": {
                 "biblatex": {
                     "samples": 2,
                     "pass": 0,
-                    "review": 2,
+                    "review": 0,
                     "fail": 0,
+                    "unbenchmarked": 2,
                     "wpFailures": 0,
-                    "passOrReview": 2
+                    "passReviewOrUnbenchmarked": 2
                 },
                 "bibtex": {
                     "samples": 2,
                     "pass": 0,
-                    "review": 2,
+                    "review": 0,
                     "fail": 0,
+                    "unbenchmarked": 2,
                     "wpFailures": 0,
-                    "passOrReview": 2
+                    "passReviewOrUnbenchmarked": 2
                 },
                 "bits": {
                     "samples": 2,
                     "pass": 2,
                     "review": 0,
                     "fail": 0,
+                    "unbenchmarked": 0,
                     "wpFailures": 0,
-                    "passOrReview": 2
+                    "passReviewOrUnbenchmarked": 2
                 },
                 "commonmark": {
                     "samples": 1,
                     "pass": 1,
                     "review": 0,
                     "fail": 0,
+                    "unbenchmarked": 0,
                     "wpFailures": 0,
-                    "passOrReview": 1
+                    "passReviewOrUnbenchmarked": 1
                 },
                 "commonmark_x": {
                     "samples": 1,
                     "pass": 1,
                     "review": 0,
                     "fail": 0,
+                    "unbenchmarked": 0,
                     "wpFailures": 0,
-                    "passOrReview": 1
+                    "passReviewOrUnbenchmarked": 1
                 },
                 "csljson": {
                     "samples": 2,
                     "pass": 0,
-                    "review": 2,
+                    "review": 0,
                     "fail": 0,
+                    "unbenchmarked": 2,
                     "wpFailures": 0,
-                    "passOrReview": 2
+                    "passReviewOrUnbenchmarked": 2
                 },
                 "doc": {
                     "samples": 2,
                     "pass": 2,
                     "review": 0,
                     "fail": 0,
+                    "unbenchmarked": 0,
                     "wpFailures": 0,
-                    "passOrReview": 2
+                    "passReviewOrUnbenchmarked": 2
                 },
                 "docbook": {
                     "samples": 2,
                     "pass": 2,
                     "review": 0,
                     "fail": 0,
+                    "unbenchmarked": 0,
                     "wpFailures": 0,
-                    "passOrReview": 2
+                    "passReviewOrUnbenchmarked": 2
                 },
                 "dokuwiki": {
                     "samples": 1,
                     "pass": 1,
                     "review": 0,
                     "fail": 0,
+                    "unbenchmarked": 0,
                     "wpFailures": 0,
-                    "passOrReview": 1
+                    "passReviewOrUnbenchmarked": 1
                 },
                 "endnotexml": {
                     "samples": 2,
                     "pass": 0,
-                    "review": 2,
+                    "review": 0,
                     "fail": 0,
+                    "unbenchmarked": 2,
                     "wpFailures": 0,
-                    "passOrReview": 2
+                    "passReviewOrUnbenchmarked": 2
                 },
                 "fb2": {
                     "samples": 2,
                     "pass": 2,
                     "review": 0,
                     "fail": 0,
+                    "unbenchmarked": 0,
                     "wpFailures": 0,
-                    "passOrReview": 2
+                    "passReviewOrUnbenchmarked": 2
                 },
                 "ipynb": {
                     "samples": 2,
                     "pass": 2,
                     "review": 0,
                     "fail": 0,
+                    "unbenchmarked": 0,
                     "wpFailures": 0,
-                    "passOrReview": 2
+                    "passReviewOrUnbenchmarked": 2
                 },
                 "jats": {
                     "samples": 2,
                     "pass": 2,
                     "review": 0,
                     "fail": 0,
+                    "unbenchmarked": 0,
                     "wpFailures": 0,
-                    "passOrReview": 2
+                    "passReviewOrUnbenchmarked": 2
                 },
                 "jira": {
                     "samples": 2,
                     "pass": 2,
                     "review": 0,
                     "fail": 0,
+                    "unbenchmarked": 0,
                     "wpFailures": 0,
-                    "passOrReview": 2
+                    "passReviewOrUnbenchmarked": 2
                 },
                 "json": {
                     "samples": 2,
                     "pass": 2,
                     "review": 0,
                     "fail": 0,
+                    "unbenchmarked": 0,
                     "wpFailures": 0,
-                    "passOrReview": 2
+                    "passReviewOrUnbenchmarked": 2
                 },
                 "latex": {
                     "samples": 2,
                     "pass": 1,
-                    "review": 1,
+                    "review": 0,
                     "fail": 0,
+                    "unbenchmarked": 1,
                     "wpFailures": 0,
-                    "passOrReview": 2
+                    "passReviewOrUnbenchmarked": 2
                 },
                 "man": {
                     "samples": 2,
                     "pass": 2,
                     "review": 0,
                     "fail": 0,
+                    "unbenchmarked": 0,
                     "wpFailures": 0,
-                    "passOrReview": 2
+                    "passReviewOrUnbenchmarked": 2
                 },
                 "markdown_mmd": {
                     "samples": 1,
                     "pass": 1,
                     "review": 0,
                     "fail": 0,
+                    "unbenchmarked": 0,
                     "wpFailures": 0,
-                    "passOrReview": 1
+                    "passReviewOrUnbenchmarked": 1
                 },
                 "markdown_phpextra": {
                     "samples": 1,
                     "pass": 1,
                     "review": 0,
                     "fail": 0,
+                    "unbenchmarked": 0,
                     "wpFailures": 0,
-                    "passOrReview": 1
+                    "passReviewOrUnbenchmarked": 1
                 },
                 "markdown_strict": {
                     "samples": 1,
                     "pass": 1,
                     "review": 0,
                     "fail": 0,
+                    "unbenchmarked": 0,
                     "wpFailures": 0,
-                    "passOrReview": 1
+                    "passReviewOrUnbenchmarked": 1
                 },
                 "mdoc": {
                     "samples": 1,
                     "pass": 1,
                     "review": 0,
                     "fail": 0,
+                    "unbenchmarked": 0,
                     "wpFailures": 0,
-                    "passOrReview": 1
+                    "passReviewOrUnbenchmarked": 1
                 },
                 "mediawiki": {
                     "samples": 2,
                     "pass": 2,
                     "review": 0,
                     "fail": 0,
+                    "unbenchmarked": 0,
                     "wpFailures": 0,
-                    "passOrReview": 2
+                    "passReviewOrUnbenchmarked": 2
                 },
                 "native": {
                     "samples": 2,
                     "pass": 2,
                     "review": 0,
                     "fail": 0,
+                    "unbenchmarked": 0,
                     "wpFailures": 0,
-                    "passOrReview": 2
+                    "passReviewOrUnbenchmarked": 2
                 },
                 "opml": {
                     "samples": 2,
                     "pass": 2,
                     "review": 0,
                     "fail": 0,
+                    "unbenchmarked": 0,
                     "wpFailures": 0,
-                    "passOrReview": 2
+                    "passReviewOrUnbenchmarked": 2
                 },
                 "ris": {
                     "samples": 2,
                     "pass": 0,
-                    "review": 2,
+                    "review": 0,
                     "fail": 0,
+                    "unbenchmarked": 2,
                     "wpFailures": 0,
-                    "passOrReview": 2
+                    "passReviewOrUnbenchmarked": 2
                 },
                 "rst": {
                     "samples": 1,
                     "pass": 1,
                     "review": 0,
                     "fail": 0,
+                    "unbenchmarked": 0,
                     "wpFailures": 0,
-                    "passOrReview": 1
+                    "passReviewOrUnbenchmarked": 1
                 },
                 "xml": {
                     "samples": 2,
                     "pass": 2,
                     "review": 0,
                     "fail": 0,
+                    "unbenchmarked": 0,
                     "wpFailures": 0,
-                    "passOrReview": 2
+                    "passReviewOrUnbenchmarked": 2
                 }
             }
         }
@@ -729,16 +772,17 @@
                     "minSamples": 44,
                     "maxWpFailures": 0,
                     "minPass": 29,
-                    "minPassOrReview": 39,
+                    "minPassReviewOrUnbenchmarked": 39,
                     "maxFail": 5
                 },
                 "actual": {
                     "samples": 44,
                     "wpFailures": 0,
-                    "pass": 42,
-                    "review": 2,
+                    "pass": 43,
+                    "review": 1,
                     "fail": 0,
-                    "passOrReview": 44
+                    "unbenchmarked": 0,
+                    "passReviewOrUnbenchmarked": 44
                 },
                 "checks": {
                     "minSamples": {
@@ -754,9 +798,9 @@
                     "minPass": {
                         "status": "pass",
                         "expected": ">=29",
-                        "actual": 42
+                        "actual": 43
                     },
-                    "minPassOrReview": {
+                    "minPassReviewOrUnbenchmarked": {
                         "status": "pass",
                         "expected": ">=39",
                         "actual": 44
@@ -777,16 +821,17 @@
                     "minSamples": 43,
                     "maxWpFailures": 2,
                     "minPass": 18,
-                    "minPassOrReview": 39,
+                    "minPassReviewOrUnbenchmarked": 39,
                     "maxFail": 2
                 },
                 "actual": {
                     "samples": 46,
                     "wpFailures": 0,
                     "pass": 35,
-                    "review": 11,
+                    "review": 0,
                     "fail": 0,
-                    "passOrReview": 46
+                    "unbenchmarked": 11,
+                    "passReviewOrUnbenchmarked": 46
                 },
                 "checks": {
                     "minSamples": {
@@ -804,7 +849,7 @@
                         "expected": ">=18",
                         "actual": 35
                     },
-                    "minPassOrReview": {
+                    "minPassReviewOrUnbenchmarked": {
                         "status": "pass",
                         "expected": ">=39",
                         "actual": 46
@@ -826,7 +871,7 @@
             "heading": 4181,
             "html": 51,
             "image": 244,
-            "list": 1392,
+            "list": 1389,
             "paragraph": 16112,
             "quote": 54,
             "separator": 65,
@@ -876,60 +921,61 @@
                 "list": 3,
                 "paragraph": 3
             },
+            "sourceRawHtmlBlockCount": null,
             "faithfulness": {
                 "baseline": null,
                 "comparisons": []
             },
             "importQuality": {
-                "status": "review",
+                "status": "unbenchmarked",
                 "gates": {
                     "text_completeness": {
-                        "status": "review",
-                        "expected": ">=0.8",
+                        "status": "unbenchmarked",
+                        "expected": "comparison baseline",
                         "actual": null,
-                        "detail": "no baseline comparison available for visible text overlap with the baseline"
+                        "detail": "no comparison baseline is available for visible text overlap with the baseline"
                     },
                     "visual_structure": {
-                        "status": "review",
-                        "expected": ">=0.75",
+                        "status": "unbenchmarked",
+                        "expected": "comparison baseline",
                         "actual": null,
-                        "detail": "no baseline comparison available for heading/list/table/image shape overlap with the baseline"
+                        "detail": "no comparison baseline is available for heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
-                        "status": "pass",
-                        "expected": "0",
-                        "actual": 0,
-                        "detail": "paragraph count ratio"
+                        "status": "unbenchmarked",
+                        "expected": "comparison baseline",
+                        "actual": null,
+                        "detail": "no comparison baseline is available for paragraph count ratio"
                     },
                     "heading_count": {
-                        "status": "pass",
-                        "expected": "0",
-                        "actual": 0,
-                        "detail": "heading count ratio"
+                        "status": "unbenchmarked",
+                        "expected": "comparison baseline",
+                        "actual": null,
+                        "detail": "no comparison baseline is available for heading count ratio"
                     },
                     "list_count": {
-                        "status": "pass",
-                        "expected": "0",
-                        "actual": 0,
-                        "detail": "list count ratio"
+                        "status": "unbenchmarked",
+                        "expected": "comparison baseline",
+                        "actual": null,
+                        "detail": "no comparison baseline is available for list count ratio"
                     },
                     "definition_list_count": {
-                        "status": "review",
-                        "expected": "0",
-                        "actual": 1,
-                        "detail": "definition list count ratio has no baseline count"
+                        "status": "unbenchmarked",
+                        "expected": "comparison baseline",
+                        "actual": null,
+                        "detail": "no comparison baseline is available for definition list count ratio"
                     },
                     "table_count": {
-                        "status": "pass",
-                        "expected": "0",
-                        "actual": 0,
-                        "detail": "table count ratio"
+                        "status": "unbenchmarked",
+                        "expected": "comparison baseline",
+                        "actual": null,
+                        "detail": "no comparison baseline is available for table count ratio"
                     },
                     "image_count": {
-                        "status": "pass",
-                        "expected": "0",
-                        "actual": 0,
-                        "detail": "image count ratio"
+                        "status": "unbenchmarked",
+                        "expected": "comparison baseline",
+                        "actual": null,
+                        "detail": "no comparison baseline is available for image count ratio"
                     },
                     "media_imported": {
                         "status": "pass",
@@ -951,9 +997,10 @@
                     }
                 },
                 "summary": {
-                    "pass": 8,
-                    "review": 3,
-                    "fail": 0
+                    "pass": 3,
+                    "review": 0,
+                    "fail": 0,
+                    "unbenchmarked": 8
                 }
             }
         },
@@ -997,60 +1044,61 @@
                 "list": 4,
                 "paragraph": 4
             },
+            "sourceRawHtmlBlockCount": null,
             "faithfulness": {
                 "baseline": null,
                 "comparisons": []
             },
             "importQuality": {
-                "status": "review",
+                "status": "unbenchmarked",
                 "gates": {
                     "text_completeness": {
-                        "status": "review",
-                        "expected": ">=0.8",
+                        "status": "unbenchmarked",
+                        "expected": "comparison baseline",
                         "actual": null,
-                        "detail": "no baseline comparison available for visible text overlap with the baseline"
+                        "detail": "no comparison baseline is available for visible text overlap with the baseline"
                     },
                     "visual_structure": {
-                        "status": "review",
-                        "expected": ">=0.75",
+                        "status": "unbenchmarked",
+                        "expected": "comparison baseline",
                         "actual": null,
-                        "detail": "no baseline comparison available for heading/list/table/image shape overlap with the baseline"
+                        "detail": "no comparison baseline is available for heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
-                        "status": "pass",
-                        "expected": "0",
-                        "actual": 0,
-                        "detail": "paragraph count ratio"
+                        "status": "unbenchmarked",
+                        "expected": "comparison baseline",
+                        "actual": null,
+                        "detail": "no comparison baseline is available for paragraph count ratio"
                     },
                     "heading_count": {
-                        "status": "pass",
-                        "expected": "0",
-                        "actual": 0,
-                        "detail": "heading count ratio"
+                        "status": "unbenchmarked",
+                        "expected": "comparison baseline",
+                        "actual": null,
+                        "detail": "no comparison baseline is available for heading count ratio"
                     },
                     "list_count": {
-                        "status": "pass",
-                        "expected": "0",
-                        "actual": 0,
-                        "detail": "list count ratio"
+                        "status": "unbenchmarked",
+                        "expected": "comparison baseline",
+                        "actual": null,
+                        "detail": "no comparison baseline is available for list count ratio"
                     },
                     "definition_list_count": {
-                        "status": "review",
-                        "expected": "0",
-                        "actual": 1,
-                        "detail": "definition list count ratio has no baseline count"
+                        "status": "unbenchmarked",
+                        "expected": "comparison baseline",
+                        "actual": null,
+                        "detail": "no comparison baseline is available for definition list count ratio"
                     },
                     "table_count": {
-                        "status": "pass",
-                        "expected": "0",
-                        "actual": 0,
-                        "detail": "table count ratio"
+                        "status": "unbenchmarked",
+                        "expected": "comparison baseline",
+                        "actual": null,
+                        "detail": "no comparison baseline is available for table count ratio"
                     },
                     "image_count": {
-                        "status": "pass",
-                        "expected": "0",
-                        "actual": 0,
-                        "detail": "image count ratio"
+                        "status": "unbenchmarked",
+                        "expected": "comparison baseline",
+                        "actual": null,
+                        "detail": "no comparison baseline is available for image count ratio"
                     },
                     "media_imported": {
                         "status": "pass",
@@ -1072,9 +1120,10 @@
                     }
                 },
                 "summary": {
-                    "pass": 8,
-                    "review": 3,
-                    "fail": 0
+                    "pass": 3,
+                    "review": 0,
+                    "fail": 0,
+                    "unbenchmarked": 8
                 }
             }
         },
@@ -1118,60 +1167,61 @@
                 "list": 3,
                 "paragraph": 3
             },
+            "sourceRawHtmlBlockCount": null,
             "faithfulness": {
                 "baseline": null,
                 "comparisons": []
             },
             "importQuality": {
-                "status": "review",
+                "status": "unbenchmarked",
                 "gates": {
                     "text_completeness": {
-                        "status": "review",
-                        "expected": ">=0.8",
+                        "status": "unbenchmarked",
+                        "expected": "comparison baseline",
                         "actual": null,
-                        "detail": "no baseline comparison available for visible text overlap with the baseline"
+                        "detail": "no comparison baseline is available for visible text overlap with the baseline"
                     },
                     "visual_structure": {
-                        "status": "review",
-                        "expected": ">=0.75",
+                        "status": "unbenchmarked",
+                        "expected": "comparison baseline",
                         "actual": null,
-                        "detail": "no baseline comparison available for heading/list/table/image shape overlap with the baseline"
+                        "detail": "no comparison baseline is available for heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
-                        "status": "pass",
-                        "expected": "0",
-                        "actual": 0,
-                        "detail": "paragraph count ratio"
+                        "status": "unbenchmarked",
+                        "expected": "comparison baseline",
+                        "actual": null,
+                        "detail": "no comparison baseline is available for paragraph count ratio"
                     },
                     "heading_count": {
-                        "status": "pass",
-                        "expected": "0",
-                        "actual": 0,
-                        "detail": "heading count ratio"
+                        "status": "unbenchmarked",
+                        "expected": "comparison baseline",
+                        "actual": null,
+                        "detail": "no comparison baseline is available for heading count ratio"
                     },
                     "list_count": {
-                        "status": "pass",
-                        "expected": "0",
-                        "actual": 0,
-                        "detail": "list count ratio"
+                        "status": "unbenchmarked",
+                        "expected": "comparison baseline",
+                        "actual": null,
+                        "detail": "no comparison baseline is available for list count ratio"
                     },
                     "definition_list_count": {
-                        "status": "review",
-                        "expected": "0",
-                        "actual": 1,
-                        "detail": "definition list count ratio has no baseline count"
+                        "status": "unbenchmarked",
+                        "expected": "comparison baseline",
+                        "actual": null,
+                        "detail": "no comparison baseline is available for definition list count ratio"
                     },
                     "table_count": {
-                        "status": "pass",
-                        "expected": "0",
-                        "actual": 0,
-                        "detail": "table count ratio"
+                        "status": "unbenchmarked",
+                        "expected": "comparison baseline",
+                        "actual": null,
+                        "detail": "no comparison baseline is available for table count ratio"
                     },
                     "image_count": {
-                        "status": "pass",
-                        "expected": "0",
-                        "actual": 0,
-                        "detail": "image count ratio"
+                        "status": "unbenchmarked",
+                        "expected": "comparison baseline",
+                        "actual": null,
+                        "detail": "no comparison baseline is available for image count ratio"
                     },
                     "media_imported": {
                         "status": "pass",
@@ -1193,9 +1243,10 @@
                     }
                 },
                 "summary": {
-                    "pass": 8,
-                    "review": 3,
-                    "fail": 0
+                    "pass": 3,
+                    "review": 0,
+                    "fail": 0,
+                    "unbenchmarked": 8
                 }
             }
         },
@@ -1239,60 +1290,61 @@
                 "list": 1,
                 "paragraph": 1
             },
+            "sourceRawHtmlBlockCount": null,
             "faithfulness": {
                 "baseline": null,
                 "comparisons": []
             },
             "importQuality": {
-                "status": "review",
+                "status": "unbenchmarked",
                 "gates": {
                     "text_completeness": {
-                        "status": "review",
-                        "expected": ">=0.8",
+                        "status": "unbenchmarked",
+                        "expected": "comparison baseline",
                         "actual": null,
-                        "detail": "no baseline comparison available for visible text overlap with the baseline"
+                        "detail": "no comparison baseline is available for visible text overlap with the baseline"
                     },
                     "visual_structure": {
-                        "status": "review",
-                        "expected": ">=0.75",
+                        "status": "unbenchmarked",
+                        "expected": "comparison baseline",
                         "actual": null,
-                        "detail": "no baseline comparison available for heading/list/table/image shape overlap with the baseline"
+                        "detail": "no comparison baseline is available for heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
-                        "status": "pass",
-                        "expected": "0",
-                        "actual": 0,
-                        "detail": "paragraph count ratio"
+                        "status": "unbenchmarked",
+                        "expected": "comparison baseline",
+                        "actual": null,
+                        "detail": "no comparison baseline is available for paragraph count ratio"
                     },
                     "heading_count": {
-                        "status": "pass",
-                        "expected": "0",
-                        "actual": 0,
-                        "detail": "heading count ratio"
+                        "status": "unbenchmarked",
+                        "expected": "comparison baseline",
+                        "actual": null,
+                        "detail": "no comparison baseline is available for heading count ratio"
                     },
                     "list_count": {
-                        "status": "pass",
-                        "expected": "0",
-                        "actual": 0,
-                        "detail": "list count ratio"
+                        "status": "unbenchmarked",
+                        "expected": "comparison baseline",
+                        "actual": null,
+                        "detail": "no comparison baseline is available for list count ratio"
                     },
                     "definition_list_count": {
-                        "status": "review",
-                        "expected": "0",
-                        "actual": 1,
-                        "detail": "definition list count ratio has no baseline count"
+                        "status": "unbenchmarked",
+                        "expected": "comparison baseline",
+                        "actual": null,
+                        "detail": "no comparison baseline is available for definition list count ratio"
                     },
                     "table_count": {
-                        "status": "pass",
-                        "expected": "0",
-                        "actual": 0,
-                        "detail": "table count ratio"
+                        "status": "unbenchmarked",
+                        "expected": "comparison baseline",
+                        "actual": null,
+                        "detail": "no comparison baseline is available for table count ratio"
                     },
                     "image_count": {
-                        "status": "pass",
-                        "expected": "0",
-                        "actual": 0,
-                        "detail": "image count ratio"
+                        "status": "unbenchmarked",
+                        "expected": "comparison baseline",
+                        "actual": null,
+                        "detail": "no comparison baseline is available for image count ratio"
                     },
                     "media_imported": {
                         "status": "pass",
@@ -1314,9 +1366,10 @@
                     }
                 },
                 "summary": {
-                    "pass": 8,
-                    "review": 3,
-                    "fail": 0
+                    "pass": 3,
+                    "review": 0,
+                    "fail": 0,
+                    "unbenchmarked": 8
                 }
             }
         },
@@ -1359,6 +1412,7 @@
                 "heading": 1,
                 "paragraph": 1
             },
+            "sourceRawHtmlBlockCount": null,
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -1455,7 +1509,8 @@
                 "summary": {
                     "pass": 11,
                     "review": 0,
-                    "fail": 0
+                    "fail": 0,
+                    "unbenchmarked": 0
                 }
             }
         },
@@ -1498,6 +1553,7 @@
                 "heading": 1,
                 "paragraph": 1
             },
+            "sourceRawHtmlBlockCount": null,
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -1594,7 +1650,8 @@
                 "summary": {
                     "pass": 11,
                     "review": 0,
-                    "fail": 0
+                    "fail": 0,
+                    "unbenchmarked": 0
                 }
             }
         },
@@ -1639,6 +1696,7 @@
                 "list": 6,
                 "paragraph": 37
             },
+            "sourceRawHtmlBlockCount": null,
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -1735,7 +1793,8 @@
                 "summary": {
                     "pass": 11,
                     "review": 0,
-                    "fail": 0
+                    "fail": 0,
+                    "unbenchmarked": 0
                 }
             }
         },
@@ -1781,6 +1840,7 @@
                 "list": 38,
                 "paragraph": 534
             },
+            "sourceRawHtmlBlockCount": 13,
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -1870,14 +1930,15 @@
                     "custom_html_percentage": {
                         "status": "pass",
                         "expected": "<=0.05",
-                        "actual": 0.0163,
-                        "detail": "13/799 WordPress blocks are Custom HTML"
+                        "actual": 0,
+                        "detail": "13/799 WordPress blocks are Custom HTML; 13 source raw HTML blocks, 0 unexpected"
                     }
                 },
                 "summary": {
                     "pass": 11,
                     "review": 0,
-                    "fail": 0
+                    "fail": 0,
+                    "unbenchmarked": 0
                 }
             }
         },
@@ -1921,60 +1982,61 @@
                 "list": 1,
                 "paragraph": 1
             },
+            "sourceRawHtmlBlockCount": null,
             "faithfulness": {
                 "baseline": null,
                 "comparisons": []
             },
             "importQuality": {
-                "status": "review",
+                "status": "unbenchmarked",
                 "gates": {
                     "text_completeness": {
-                        "status": "review",
-                        "expected": ">=0.8",
+                        "status": "unbenchmarked",
+                        "expected": "comparison baseline",
                         "actual": null,
-                        "detail": "no baseline comparison available for visible text overlap with the baseline"
+                        "detail": "no comparison baseline is available for visible text overlap with the baseline"
                     },
                     "visual_structure": {
-                        "status": "review",
-                        "expected": ">=0.75",
+                        "status": "unbenchmarked",
+                        "expected": "comparison baseline",
                         "actual": null,
-                        "detail": "no baseline comparison available for heading/list/table/image shape overlap with the baseline"
+                        "detail": "no comparison baseline is available for heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
-                        "status": "pass",
-                        "expected": "0",
-                        "actual": 0,
-                        "detail": "paragraph count ratio"
+                        "status": "unbenchmarked",
+                        "expected": "comparison baseline",
+                        "actual": null,
+                        "detail": "no comparison baseline is available for paragraph count ratio"
                     },
                     "heading_count": {
-                        "status": "pass",
-                        "expected": "0",
-                        "actual": 0,
-                        "detail": "heading count ratio"
+                        "status": "unbenchmarked",
+                        "expected": "comparison baseline",
+                        "actual": null,
+                        "detail": "no comparison baseline is available for heading count ratio"
                     },
                     "list_count": {
-                        "status": "pass",
-                        "expected": "0",
-                        "actual": 0,
-                        "detail": "list count ratio"
+                        "status": "unbenchmarked",
+                        "expected": "comparison baseline",
+                        "actual": null,
+                        "detail": "no comparison baseline is available for list count ratio"
                     },
                     "definition_list_count": {
-                        "status": "review",
-                        "expected": "0",
-                        "actual": 1,
-                        "detail": "definition list count ratio has no baseline count"
+                        "status": "unbenchmarked",
+                        "expected": "comparison baseline",
+                        "actual": null,
+                        "detail": "no comparison baseline is available for definition list count ratio"
                     },
                     "table_count": {
-                        "status": "pass",
-                        "expected": "0",
-                        "actual": 0,
-                        "detail": "table count ratio"
+                        "status": "unbenchmarked",
+                        "expected": "comparison baseline",
+                        "actual": null,
+                        "detail": "no comparison baseline is available for table count ratio"
                     },
                     "image_count": {
-                        "status": "pass",
-                        "expected": "0",
-                        "actual": 0,
-                        "detail": "image count ratio"
+                        "status": "unbenchmarked",
+                        "expected": "comparison baseline",
+                        "actual": null,
+                        "detail": "no comparison baseline is available for image count ratio"
                     },
                     "media_imported": {
                         "status": "pass",
@@ -1996,9 +2058,10 @@
                     }
                 },
                 "summary": {
-                    "pass": 8,
-                    "review": 3,
-                    "fail": 0
+                    "pass": 3,
+                    "review": 0,
+                    "fail": 0,
+                    "unbenchmarked": 8
                 }
             }
         },
@@ -2042,60 +2105,61 @@
                 "list": 1,
                 "paragraph": 1
             },
+            "sourceRawHtmlBlockCount": null,
             "faithfulness": {
                 "baseline": null,
                 "comparisons": []
             },
             "importQuality": {
-                "status": "review",
+                "status": "unbenchmarked",
                 "gates": {
                     "text_completeness": {
-                        "status": "review",
-                        "expected": ">=0.8",
+                        "status": "unbenchmarked",
+                        "expected": "comparison baseline",
                         "actual": null,
-                        "detail": "no baseline comparison available for visible text overlap with the baseline"
+                        "detail": "no comparison baseline is available for visible text overlap with the baseline"
                     },
                     "visual_structure": {
-                        "status": "review",
-                        "expected": ">=0.75",
+                        "status": "unbenchmarked",
+                        "expected": "comparison baseline",
                         "actual": null,
-                        "detail": "no baseline comparison available for heading/list/table/image shape overlap with the baseline"
+                        "detail": "no comparison baseline is available for heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
-                        "status": "pass",
-                        "expected": "0",
-                        "actual": 0,
-                        "detail": "paragraph count ratio"
+                        "status": "unbenchmarked",
+                        "expected": "comparison baseline",
+                        "actual": null,
+                        "detail": "no comparison baseline is available for paragraph count ratio"
                     },
                     "heading_count": {
-                        "status": "pass",
-                        "expected": "0",
-                        "actual": 0,
-                        "detail": "heading count ratio"
+                        "status": "unbenchmarked",
+                        "expected": "comparison baseline",
+                        "actual": null,
+                        "detail": "no comparison baseline is available for heading count ratio"
                     },
                     "list_count": {
-                        "status": "pass",
-                        "expected": "0",
-                        "actual": 0,
-                        "detail": "list count ratio"
+                        "status": "unbenchmarked",
+                        "expected": "comparison baseline",
+                        "actual": null,
+                        "detail": "no comparison baseline is available for list count ratio"
                     },
                     "definition_list_count": {
-                        "status": "review",
-                        "expected": "0",
-                        "actual": 1,
-                        "detail": "definition list count ratio has no baseline count"
+                        "status": "unbenchmarked",
+                        "expected": "comparison baseline",
+                        "actual": null,
+                        "detail": "no comparison baseline is available for definition list count ratio"
                     },
                     "table_count": {
-                        "status": "pass",
-                        "expected": "0",
-                        "actual": 0,
-                        "detail": "table count ratio"
+                        "status": "unbenchmarked",
+                        "expected": "comparison baseline",
+                        "actual": null,
+                        "detail": "no comparison baseline is available for table count ratio"
                     },
                     "image_count": {
-                        "status": "pass",
-                        "expected": "0",
-                        "actual": 0,
-                        "detail": "image count ratio"
+                        "status": "unbenchmarked",
+                        "expected": "comparison baseline",
+                        "actual": null,
+                        "detail": "no comparison baseline is available for image count ratio"
                     },
                     "media_imported": {
                         "status": "pass",
@@ -2117,9 +2181,10 @@
                     }
                 },
                 "summary": {
-                    "pass": 8,
-                    "review": 3,
-                    "fail": 0
+                    "pass": 3,
+                    "review": 0,
+                    "fail": 0,
+                    "unbenchmarked": 8
                 }
             }
         },
@@ -2161,6 +2226,7 @@
             "wpBlockCounts": {
                 "table": 1
             },
+            "sourceRawHtmlBlockCount": null,
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -2257,7 +2323,8 @@
                 "summary": {
                     "pass": 11,
                     "review": 0,
-                    "fail": 0
+                    "fail": 0,
+                    "unbenchmarked": 0
                 }
             }
         },
@@ -2299,6 +2366,7 @@
             "wpBlockCounts": {
                 "table": 1
             },
+            "sourceRawHtmlBlockCount": null,
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -2395,7 +2463,8 @@
                 "summary": {
                     "pass": 11,
                     "review": 0,
-                    "fail": 0
+                    "fail": 0,
+                    "unbenchmarked": 0
                 }
             }
         },
@@ -2437,6 +2506,7 @@
             "wpBlockCounts": {
                 "table": 1
             },
+            "sourceRawHtmlBlockCount": null,
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -2533,7 +2603,8 @@
                 "summary": {
                     "pass": 11,
                     "review": 0,
-                    "fail": 0
+                    "fail": 0,
+                    "unbenchmarked": 0
                 }
             }
         },
@@ -2575,6 +2646,7 @@
             "wpBlockCounts": {
                 "table": 1
             },
+            "sourceRawHtmlBlockCount": null,
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -2671,7 +2743,8 @@
                 "summary": {
                     "pass": 11,
                     "review": 0,
-                    "fail": 0
+                    "fail": 0,
+                    "unbenchmarked": 0
                 }
             }
         },
@@ -2715,6 +2788,7 @@
                 "list": 1,
                 "paragraph": 1
             },
+            "sourceRawHtmlBlockCount": null,
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -2811,7 +2885,8 @@
                 "summary": {
                     "pass": 11,
                     "review": 0,
-                    "fail": 0
+                    "fail": 0,
+                    "unbenchmarked": 0
                 }
             }
         },
@@ -2854,6 +2929,7 @@
                 "heading": 1,
                 "table": 1
             },
+            "sourceRawHtmlBlockCount": null,
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -2950,7 +3026,8 @@
                 "summary": {
                     "pass": 11,
                     "review": 0,
-                    "fail": 0
+                    "fail": 0,
+                    "unbenchmarked": 0
                 }
             }
         },
@@ -2995,6 +3072,7 @@
                 "paragraph": 2,
                 "table": 1
             },
+            "sourceRawHtmlBlockCount": null,
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -3091,7 +3169,8 @@
                 "summary": {
                     "pass": 11,
                     "review": 0,
-                    "fail": 0
+                    "fail": 0,
+                    "unbenchmarked": 0
                 }
             }
         },
@@ -3136,6 +3215,7 @@
                 "paragraph": 4,
                 "table": 1
             },
+            "sourceRawHtmlBlockCount": null,
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -3232,7 +3312,8 @@
                 "summary": {
                     "pass": 11,
                     "review": 0,
-                    "fail": 0
+                    "fail": 0,
+                    "unbenchmarked": 0
                 }
             }
         },
@@ -3277,6 +3358,7 @@
                 "paragraph": 3,
                 "table": 1
             },
+            "sourceRawHtmlBlockCount": null,
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -3373,7 +3455,8 @@
                 "summary": {
                     "pass": 11,
                     "review": 0,
-                    "fail": 0
+                    "fail": 0,
+                    "unbenchmarked": 0
                 }
             }
         },
@@ -3416,6 +3499,7 @@
                 "heading": 6,
                 "paragraph": 7
             },
+            "sourceRawHtmlBlockCount": null,
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -3512,7 +3596,8 @@
                 "summary": {
                     "pass": 11,
                     "review": 0,
-                    "fail": 0
+                    "fail": 0,
+                    "unbenchmarked": 0
                 }
             }
         },
@@ -3555,6 +3640,7 @@
                 "heading": 1,
                 "table": 3
             },
+            "sourceRawHtmlBlockCount": null,
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -3651,7 +3737,8 @@
                 "summary": {
                     "pass": 11,
                     "review": 0,
-                    "fail": 0
+                    "fail": 0,
+                    "unbenchmarked": 0
                 }
             }
         },
@@ -3696,6 +3783,7 @@
                 "list": 1,
                 "paragraph": 1
             },
+            "sourceRawHtmlBlockCount": null,
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -3792,7 +3880,8 @@
                 "summary": {
                     "pass": 11,
                     "review": 0,
-                    "fail": 0
+                    "fail": 0,
+                    "unbenchmarked": 0
                 }
             }
         },
@@ -3904,6 +3993,7 @@
             "wpBlockCounts": {
                 "paragraph": 2
             },
+            "sourceRawHtmlBlockCount": null,
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -4000,7 +4090,8 @@
                 "summary": {
                     "pass": 11,
                     "review": 0,
-                    "fail": 0
+                    "fail": 0,
+                    "unbenchmarked": 0
                 }
             }
         },
@@ -4116,6 +4207,7 @@
                 "paragraph": 1320,
                 "table": 384
             },
+            "sourceRawHtmlBlockCount": null,
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -4126,7 +4218,7 @@
                         "textStatus": "faithful_enough",
                         "textScore": 0.9941,
                         "visualStatus": "faithful_enough",
-                        "visualScore": 0.9205
+                        "visualScore": 0.9206
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
@@ -4151,7 +4243,7 @@
                     "visual_structure": {
                         "status": "pass",
                         "expected": ">=0.75",
-                        "actual": 0.9205,
+                        "actual": 0.9206,
                         "detail": "heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
@@ -4212,7 +4304,8 @@
                 "summary": {
                     "pass": 11,
                     "review": 0,
-                    "fail": 0
+                    "fail": 0,
+                    "unbenchmarked": 0
                 }
             }
         },
@@ -4256,6 +4349,7 @@
                 "list": 6,
                 "paragraph": 125
             },
+            "sourceRawHtmlBlockCount": null,
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -4352,7 +4446,8 @@
                 "summary": {
                     "pass": 11,
                     "review": 0,
-                    "fail": 0
+                    "fail": 0,
+                    "unbenchmarked": 0
                 }
             }
         },
@@ -4435,6 +4530,7 @@
                 "paragraph": 1,
                 "table": 1
             },
+            "sourceRawHtmlBlockCount": null,
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -4445,7 +4541,7 @@
                         "textStatus": "faithful_enough",
                         "textScore": 1,
                         "visualStatus": "faithful_enough",
-                        "visualScore": 0.9259
+                        "visualScore": 0.9615
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
@@ -4470,7 +4566,7 @@
                     "visual_structure": {
                         "status": "pass",
                         "expected": ">=0.75",
-                        "actual": 0.9259,
+                        "actual": 0.9615,
                         "detail": "heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
@@ -4531,7 +4627,8 @@
                 "summary": {
                     "pass": 11,
                     "review": 0,
-                    "fail": 0
+                    "fail": 0,
+                    "unbenchmarked": 0
                 }
             }
         },
@@ -4575,60 +4672,61 @@
                 "list": 2,
                 "paragraph": 2
             },
+            "sourceRawHtmlBlockCount": null,
             "faithfulness": {
                 "baseline": null,
                 "comparisons": []
             },
             "importQuality": {
-                "status": "review",
+                "status": "unbenchmarked",
                 "gates": {
                     "text_completeness": {
-                        "status": "review",
-                        "expected": ">=0.8",
+                        "status": "unbenchmarked",
+                        "expected": "comparison baseline",
                         "actual": null,
-                        "detail": "no baseline comparison available for visible text overlap with the baseline"
+                        "detail": "no comparison baseline is available for visible text overlap with the baseline"
                     },
                     "visual_structure": {
-                        "status": "review",
-                        "expected": ">=0.75",
+                        "status": "unbenchmarked",
+                        "expected": "comparison baseline",
                         "actual": null,
-                        "detail": "no baseline comparison available for heading/list/table/image shape overlap with the baseline"
+                        "detail": "no comparison baseline is available for heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
-                        "status": "pass",
-                        "expected": "0",
-                        "actual": 0,
-                        "detail": "paragraph count ratio"
+                        "status": "unbenchmarked",
+                        "expected": "comparison baseline",
+                        "actual": null,
+                        "detail": "no comparison baseline is available for paragraph count ratio"
                     },
                     "heading_count": {
-                        "status": "pass",
-                        "expected": "0",
-                        "actual": 0,
-                        "detail": "heading count ratio"
+                        "status": "unbenchmarked",
+                        "expected": "comparison baseline",
+                        "actual": null,
+                        "detail": "no comparison baseline is available for heading count ratio"
                     },
                     "list_count": {
-                        "status": "pass",
-                        "expected": "0",
-                        "actual": 0,
-                        "detail": "list count ratio"
+                        "status": "unbenchmarked",
+                        "expected": "comparison baseline",
+                        "actual": null,
+                        "detail": "no comparison baseline is available for list count ratio"
                     },
                     "definition_list_count": {
-                        "status": "review",
-                        "expected": "0",
-                        "actual": 1,
-                        "detail": "definition list count ratio has no baseline count"
+                        "status": "unbenchmarked",
+                        "expected": "comparison baseline",
+                        "actual": null,
+                        "detail": "no comparison baseline is available for definition list count ratio"
                     },
                     "table_count": {
-                        "status": "pass",
-                        "expected": "0",
-                        "actual": 0,
-                        "detail": "table count ratio"
+                        "status": "unbenchmarked",
+                        "expected": "comparison baseline",
+                        "actual": null,
+                        "detail": "no comparison baseline is available for table count ratio"
                     },
                     "image_count": {
-                        "status": "pass",
-                        "expected": "0",
-                        "actual": 0,
-                        "detail": "image count ratio"
+                        "status": "unbenchmarked",
+                        "expected": "comparison baseline",
+                        "actual": null,
+                        "detail": "no comparison baseline is available for image count ratio"
                     },
                     "media_imported": {
                         "status": "pass",
@@ -4650,9 +4748,10 @@
                     }
                 },
                 "summary": {
-                    "pass": 8,
-                    "review": 3,
-                    "fail": 0
+                    "pass": 3,
+                    "review": 0,
+                    "fail": 0,
+                    "unbenchmarked": 8
                 }
             }
         },
@@ -4696,60 +4795,61 @@
                 "list": 1,
                 "paragraph": 1
             },
+            "sourceRawHtmlBlockCount": null,
             "faithfulness": {
                 "baseline": null,
                 "comparisons": []
             },
             "importQuality": {
-                "status": "review",
+                "status": "unbenchmarked",
                 "gates": {
                     "text_completeness": {
-                        "status": "review",
-                        "expected": ">=0.8",
+                        "status": "unbenchmarked",
+                        "expected": "comparison baseline",
                         "actual": null,
-                        "detail": "no baseline comparison available for visible text overlap with the baseline"
+                        "detail": "no comparison baseline is available for visible text overlap with the baseline"
                     },
                     "visual_structure": {
-                        "status": "review",
-                        "expected": ">=0.75",
+                        "status": "unbenchmarked",
+                        "expected": "comparison baseline",
                         "actual": null,
-                        "detail": "no baseline comparison available for heading/list/table/image shape overlap with the baseline"
+                        "detail": "no comparison baseline is available for heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
-                        "status": "pass",
-                        "expected": "0",
-                        "actual": 0,
-                        "detail": "paragraph count ratio"
+                        "status": "unbenchmarked",
+                        "expected": "comparison baseline",
+                        "actual": null,
+                        "detail": "no comparison baseline is available for paragraph count ratio"
                     },
                     "heading_count": {
-                        "status": "pass",
-                        "expected": "0",
-                        "actual": 0,
-                        "detail": "heading count ratio"
+                        "status": "unbenchmarked",
+                        "expected": "comparison baseline",
+                        "actual": null,
+                        "detail": "no comparison baseline is available for heading count ratio"
                     },
                     "list_count": {
-                        "status": "pass",
-                        "expected": "0",
-                        "actual": 0,
-                        "detail": "list count ratio"
+                        "status": "unbenchmarked",
+                        "expected": "comparison baseline",
+                        "actual": null,
+                        "detail": "no comparison baseline is available for list count ratio"
                     },
                     "definition_list_count": {
-                        "status": "review",
-                        "expected": "0",
-                        "actual": 1,
-                        "detail": "definition list count ratio has no baseline count"
+                        "status": "unbenchmarked",
+                        "expected": "comparison baseline",
+                        "actual": null,
+                        "detail": "no comparison baseline is available for definition list count ratio"
                     },
                     "table_count": {
-                        "status": "pass",
-                        "expected": "0",
-                        "actual": 0,
-                        "detail": "table count ratio"
+                        "status": "unbenchmarked",
+                        "expected": "comparison baseline",
+                        "actual": null,
+                        "detail": "no comparison baseline is available for table count ratio"
                     },
                     "image_count": {
-                        "status": "pass",
-                        "expected": "0",
-                        "actual": 0,
-                        "detail": "image count ratio"
+                        "status": "unbenchmarked",
+                        "expected": "comparison baseline",
+                        "actual": null,
+                        "detail": "no comparison baseline is available for image count ratio"
                     },
                     "media_imported": {
                         "status": "pass",
@@ -4771,9 +4871,10 @@
                     }
                 },
                 "summary": {
-                    "pass": 8,
-                    "review": 3,
-                    "fail": 0
+                    "pass": 3,
+                    "review": 0,
+                    "fail": 0,
+                    "unbenchmarked": 8
                 }
             }
         },
@@ -4856,6 +4957,7 @@
                 "paragraph": 16,
                 "quote": 1
             },
+            "sourceRawHtmlBlockCount": null,
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -4866,7 +4968,7 @@
                         "textStatus": "faithful_enough",
                         "textScore": 0.9947,
                         "visualStatus": "faithful_enough",
-                        "visualScore": 0.9818
+                        "visualScore": 1
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
@@ -4891,7 +4993,7 @@
                     "visual_structure": {
                         "status": "pass",
                         "expected": ">=0.75",
-                        "actual": 0.9818,
+                        "actual": 1,
                         "detail": "heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
@@ -4952,7 +5054,8 @@
                 "summary": {
                     "pass": 11,
                     "review": 0,
-                    "fail": 0
+                    "fail": 0,
+                    "unbenchmarked": 0
                 }
             }
         },
@@ -4997,6 +5100,7 @@
                 "list": 4,
                 "paragraph": 50
             },
+            "sourceRawHtmlBlockCount": null,
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -5093,7 +5197,8 @@
                 "summary": {
                     "pass": 11,
                     "review": 0,
-                    "fail": 0
+                    "fail": 0,
+                    "unbenchmarked": 0
                 }
             }
         },
@@ -5173,6 +5278,7 @@
                 "image": 1,
                 "paragraph": 2
             },
+            "sourceRawHtmlBlockCount": null,
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -5183,7 +5289,7 @@
                         "textStatus": "faithful_enough",
                         "textScore": 1,
                         "visualStatus": "faithful_enough",
-                        "visualScore": 0.75
+                        "visualScore": 1
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
@@ -5208,7 +5314,7 @@
                     "visual_structure": {
                         "status": "pass",
                         "expected": ">=0.75",
-                        "actual": 0.75,
+                        "actual": 1,
                         "detail": "heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
@@ -5269,7 +5375,8 @@
                 "summary": {
                     "pass": 11,
                     "review": 0,
-                    "fail": 0
+                    "fail": 0,
+                    "unbenchmarked": 0
                 }
             }
         },
@@ -5452,6 +5559,7 @@
                 "image": 4,
                 "paragraph": 7
             },
+            "sourceRawHtmlBlockCount": null,
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -5462,7 +5570,7 @@
                         "textStatus": "faithful_enough",
                         "textScore": 1,
                         "visualStatus": "faithful_enough",
-                        "visualScore": 0.84
+                        "visualScore": 1
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
@@ -5487,7 +5595,7 @@
                     "visual_structure": {
                         "status": "pass",
                         "expected": ">=0.75",
-                        "actual": 0.84,
+                        "actual": 1,
                         "detail": "heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
@@ -5548,7 +5656,8 @@
                 "summary": {
                     "pass": 11,
                     "review": 0,
-                    "fail": 0
+                    "fail": 0,
+                    "unbenchmarked": 0
                 }
             }
         },
@@ -6824,6 +6933,7 @@
                 "separator": 20,
                 "table": 16
             },
+            "sourceRawHtmlBlockCount": null,
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -6834,7 +6944,7 @@
                         "textStatus": "faithful_enough",
                         "textScore": 0.9994,
                         "visualStatus": "faithful_enough",
-                        "visualScore": 0.8676
+                        "visualScore": 0.8869
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
@@ -6859,7 +6969,7 @@
                     "visual_structure": {
                         "status": "pass",
                         "expected": ">=0.75",
-                        "actual": 0.8676,
+                        "actual": 0.8869,
                         "detail": "heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
@@ -6920,7 +7030,8 @@
                 "summary": {
                     "pass": 11,
                     "review": 0,
-                    "fail": 0
+                    "fail": 0,
+                    "unbenchmarked": 0
                 }
             }
         },
@@ -6966,6 +7077,7 @@
                 "paragraph": 12,
                 "separator": 2
             },
+            "sourceRawHtmlBlockCount": null,
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -7062,7 +7174,8 @@
                 "summary": {
                     "pass": 11,
                     "review": 0,
-                    "fail": 0
+                    "fail": 0,
+                    "unbenchmarked": 0
                 }
             }
         },
@@ -7106,6 +7219,7 @@
                 "list": 1,
                 "paragraph": 2
             },
+            "sourceRawHtmlBlockCount": null,
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -7202,7 +7316,8 @@
                 "summary": {
                     "pass": 11,
                     "review": 0,
-                    "fail": 0
+                    "fail": 0,
+                    "unbenchmarked": 0
                 }
             }
         },
@@ -7253,6 +7368,7 @@
                 "separator": 6,
                 "table": 3
             },
+            "sourceRawHtmlBlockCount": 34,
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -7263,7 +7379,7 @@
                         "textStatus": "faithful_enough",
                         "textScore": 0.9991,
                         "visualStatus": "faithful_enough",
-                        "visualScore": 0.9891
+                        "visualScore": 0.9945
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
@@ -7288,7 +7404,7 @@
                     "visual_structure": {
                         "status": "pass",
                         "expected": ">=0.75",
-                        "actual": 0.9891,
+                        "actual": 0.9945,
                         "detail": "heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
@@ -7342,14 +7458,15 @@
                     "custom_html_percentage": {
                         "status": "pass",
                         "expected": "<=0.05",
-                        "actual": 0.0483,
-                        "detail": "30/621 WordPress blocks are Custom HTML"
+                        "actual": 0,
+                        "detail": "30/621 WordPress blocks are Custom HTML; 30 source raw HTML blocks, 0 unexpected"
                     }
                 },
                 "summary": {
                     "pass": 11,
                     "review": 0,
-                    "fail": 0
+                    "fail": 0,
+                    "unbenchmarked": 0
                 }
             }
         },
@@ -7394,12 +7511,13 @@
                 "heading": 15,
                 "html": 8,
                 "image": 2,
-                "list": 10,
+                "list": 7,
                 "paragraph": 37,
                 "quote": 1,
                 "separator": 3,
                 "table": 3
             },
+            "sourceRawHtmlBlockCount": 8,
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -7410,7 +7528,7 @@
                         "textStatus": "faithful_enough",
                         "textScore": 0.9973,
                         "visualStatus": "faithful_enough",
-                        "visualScore": 0.922
+                        "visualScore": 0.945
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
@@ -7419,12 +7537,12 @@
                         "textStatus": "faithful_enough",
                         "textScore": 0.998,
                         "visualStatus": "faithful_enough",
-                        "visualScore": 0.945
+                        "visualScore": 0.9594
                     }
                 }
             },
             "importQuality": {
-                "status": "review",
+                "status": "pass",
                 "gates": {
                     "text_completeness": {
                         "status": "pass",
@@ -7435,7 +7553,7 @@
                     "visual_structure": {
                         "status": "pass",
                         "expected": ">=0.75",
-                        "actual": 0.922,
+                        "actual": 0.945,
                         "detail": "heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
@@ -7451,10 +7569,10 @@
                         "detail": "heading count ratio expected 15, got 15"
                     },
                     "list_count": {
-                        "status": "review",
+                        "status": "pass",
                         "expected": "0.80-1.25",
-                        "actual": 1.4,
-                        "detail": "list count ratio expected 10, got 14"
+                        "actual": 1.1,
+                        "detail": "list count ratio expected 10, got 11"
                     },
                     "definition_list_count": {
                         "status": "pass",
@@ -7487,16 +7605,17 @@
                         "detail": "all local fragment links resolve"
                     },
                     "custom_html_percentage": {
-                        "status": "review",
+                        "status": "pass",
                         "expected": "<=0.05",
-                        "actual": 0.0816,
-                        "detail": "8/98 WordPress blocks are Custom HTML"
+                        "actual": 0,
+                        "detail": "8/95 WordPress blocks are Custom HTML; 8 source raw HTML blocks, 0 unexpected"
                     }
                 },
                 "summary": {
-                    "pass": 9,
-                    "review": 2,
-                    "fail": 0
+                    "pass": 11,
+                    "review": 0,
+                    "fail": 0,
+                    "unbenchmarked": 0
                 }
             }
         },
@@ -7546,6 +7665,7 @@
                 "separator": 27,
                 "table": 18
             },
+            "sourceRawHtmlBlockCount": null,
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -7556,7 +7676,7 @@
                         "textStatus": "faithful_enough",
                         "textScore": 1,
                         "visualStatus": "faithful_enough",
-                        "visualScore": 0.9609
+                        "visualScore": 0.9624
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
@@ -7581,7 +7701,7 @@
                     "visual_structure": {
                         "status": "pass",
                         "expected": ">=0.75",
-                        "actual": 0.9609,
+                        "actual": 0.9624,
                         "detail": "heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
@@ -7642,7 +7762,8 @@
                 "summary": {
                     "pass": 11,
                     "review": 0,
-                    "fail": 0
+                    "fail": 0,
+                    "unbenchmarked": 0
                 }
             }
         },
@@ -7684,6 +7805,7 @@
             "wpBlockCounts": {
                 "paragraph": 1
             },
+            "sourceRawHtmlBlockCount": null,
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -7780,7 +7902,8 @@
                 "summary": {
                     "pass": 11,
                     "review": 0,
-                    "fail": 0
+                    "fail": 0,
+                    "unbenchmarked": 0
                 }
             }
         },
@@ -7825,6 +7948,7 @@
                 "paragraph": 3,
                 "table": 1
             },
+            "sourceRawHtmlBlockCount": null,
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -7921,7 +8045,8 @@
                 "summary": {
                     "pass": 11,
                     "review": 0,
-                    "fail": 0
+                    "fail": 0,
+                    "unbenchmarked": 0
                 }
             }
         },
@@ -7966,6 +8091,7 @@
                 "paragraph": 3,
                 "table": 1
             },
+            "sourceRawHtmlBlockCount": null,
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -8062,7 +8188,8 @@
                 "summary": {
                     "pass": 11,
                     "review": 0,
-                    "fail": 0
+                    "fail": 0,
+                    "unbenchmarked": 0
                 }
             }
         },
@@ -8107,6 +8234,7 @@
                 "heading": 3,
                 "paragraph": 2
             },
+            "sourceRawHtmlBlockCount": null,
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -8203,7 +8331,8 @@
                 "summary": {
                     "pass": 11,
                     "review": 0,
-                    "fail": 0
+                    "fail": 0,
+                    "unbenchmarked": 0
                 }
             }
         },
@@ -8247,6 +8376,7 @@
                 "group": 9,
                 "paragraph": 3
             },
+            "sourceRawHtmlBlockCount": null,
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -8343,7 +8473,8 @@
                 "summary": {
                     "pass": 11,
                     "review": 0,
-                    "fail": 0
+                    "fail": 0,
+                    "unbenchmarked": 0
                 }
             }
         },
@@ -8386,6 +8517,7 @@
                 "heading": 1,
                 "paragraph": 1
             },
+            "sourceRawHtmlBlockCount": null,
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -8482,7 +8614,8 @@
                 "summary": {
                     "pass": 11,
                     "review": 0,
-                    "fail": 0
+                    "fail": 0,
+                    "unbenchmarked": 0
                 }
             }
         },
@@ -8530,6 +8663,7 @@
                 "paragraph": 153,
                 "table": 16
             },
+            "sourceRawHtmlBlockCount": null,
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -8540,7 +8674,7 @@
                         "textStatus": "faithful_enough",
                         "textScore": 0.9828,
                         "visualStatus": "faithful_enough",
-                        "visualScore": 0.8741
+                        "visualScore": 0.8754
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
@@ -8565,7 +8699,7 @@
                     "visual_structure": {
                         "status": "pass",
                         "expected": ">=0.75",
-                        "actual": 0.8741,
+                        "actual": 0.8754,
                         "detail": "heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
@@ -8626,7 +8760,8 @@
                 "summary": {
                     "pass": 11,
                     "review": 0,
-                    "fail": 0
+                    "fail": 0,
+                    "unbenchmarked": 0
                 }
             }
         },
@@ -8671,6 +8806,7 @@
                 "paragraph": 1,
                 "table": 1
             },
+            "sourceRawHtmlBlockCount": null,
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -8767,7 +8903,8 @@
                 "summary": {
                     "pass": 11,
                     "review": 0,
-                    "fail": 0
+                    "fail": 0,
+                    "unbenchmarked": 0
                 }
             }
         },
@@ -8810,6 +8947,7 @@
                 "heading": 1,
                 "list": 1
             },
+            "sourceRawHtmlBlockCount": null,
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -8906,7 +9044,8 @@
                 "summary": {
                     "pass": 11,
                     "review": 0,
-                    "fail": 0
+                    "fail": 0,
+                    "unbenchmarked": 0
                 }
             }
         },
@@ -8949,6 +9088,7 @@
                 "heading": 1,
                 "paragraph": 1
             },
+            "sourceRawHtmlBlockCount": null,
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -9045,7 +9185,8 @@
                 "summary": {
                     "pass": 11,
                     "review": 0,
-                    "fail": 0
+                    "fail": 0,
+                    "unbenchmarked": 0
                 }
             }
         },
@@ -9087,6 +9228,7 @@
             "wpBlockCounts": {
                 "list": 1
             },
+            "sourceRawHtmlBlockCount": null,
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -9183,7 +9325,8 @@
                 "summary": {
                     "pass": 11,
                     "review": 0,
-                    "fail": 0
+                    "fail": 0,
+                    "unbenchmarked": 0
                 }
             }
         },
@@ -9227,60 +9370,61 @@
                 "code": 1,
                 "paragraph": 1
             },
+            "sourceRawHtmlBlockCount": null,
             "faithfulness": {
                 "baseline": null,
                 "comparisons": []
             },
             "importQuality": {
-                "status": "review",
+                "status": "unbenchmarked",
                 "gates": {
                     "text_completeness": {
-                        "status": "review",
-                        "expected": ">=0.8",
+                        "status": "unbenchmarked",
+                        "expected": "comparison baseline",
                         "actual": null,
-                        "detail": "no baseline comparison available for visible text overlap with the baseline"
+                        "detail": "no comparison baseline is available for visible text overlap with the baseline"
                     },
                     "visual_structure": {
-                        "status": "review",
-                        "expected": ">=0.75",
+                        "status": "unbenchmarked",
+                        "expected": "comparison baseline",
                         "actual": null,
-                        "detail": "no baseline comparison available for heading/list/table/image shape overlap with the baseline"
+                        "detail": "no comparison baseline is available for heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
-                        "status": "review",
-                        "expected": "0",
-                        "actual": 1,
-                        "detail": "paragraph count ratio has no baseline count"
+                        "status": "unbenchmarked",
+                        "expected": "comparison baseline",
+                        "actual": null,
+                        "detail": "no comparison baseline is available for paragraph count ratio"
                     },
                     "heading_count": {
-                        "status": "pass",
-                        "expected": "0",
-                        "actual": 0,
-                        "detail": "heading count ratio"
+                        "status": "unbenchmarked",
+                        "expected": "comparison baseline",
+                        "actual": null,
+                        "detail": "no comparison baseline is available for heading count ratio"
                     },
                     "list_count": {
-                        "status": "pass",
-                        "expected": "0",
-                        "actual": 0,
-                        "detail": "list count ratio"
+                        "status": "unbenchmarked",
+                        "expected": "comparison baseline",
+                        "actual": null,
+                        "detail": "no comparison baseline is available for list count ratio"
                     },
                     "definition_list_count": {
-                        "status": "pass",
-                        "expected": "0",
-                        "actual": 0,
-                        "detail": "definition list count ratio"
+                        "status": "unbenchmarked",
+                        "expected": "comparison baseline",
+                        "actual": null,
+                        "detail": "no comparison baseline is available for definition list count ratio"
                     },
                     "table_count": {
-                        "status": "pass",
-                        "expected": "0",
-                        "actual": 0,
-                        "detail": "table count ratio"
+                        "status": "unbenchmarked",
+                        "expected": "comparison baseline",
+                        "actual": null,
+                        "detail": "no comparison baseline is available for table count ratio"
                     },
                     "image_count": {
-                        "status": "pass",
-                        "expected": "0",
-                        "actual": 0,
-                        "detail": "image count ratio"
+                        "status": "unbenchmarked",
+                        "expected": "comparison baseline",
+                        "actual": null,
+                        "detail": "no comparison baseline is available for image count ratio"
                     },
                     "media_imported": {
                         "status": "pass",
@@ -9302,9 +9446,10 @@
                     }
                 },
                 "summary": {
-                    "pass": 8,
-                    "review": 3,
-                    "fail": 0
+                    "pass": 3,
+                    "review": 0,
+                    "fail": 0,
+                    "unbenchmarked": 8
                 }
             }
         },
@@ -9346,6 +9491,7 @@
             "wpBlockCounts": {
                 "paragraph": 1
             },
+            "sourceRawHtmlBlockCount": null,
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -9442,7 +9588,8 @@
                 "summary": {
                     "pass": 11,
                     "review": 0,
-                    "fail": 0
+                    "fail": 0,
+                    "unbenchmarked": 0
                 }
             }
         },
@@ -9490,6 +9637,7 @@
                 "quote": 1,
                 "table": 12
             },
+            "sourceRawHtmlBlockCount": null,
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -9586,7 +9734,8 @@
                 "summary": {
                     "pass": 11,
                     "review": 0,
-                    "fail": 0
+                    "fail": 0,
+                    "unbenchmarked": 0
                 }
             }
         },
@@ -9632,6 +9781,7 @@
                 "paragraph": 70,
                 "table": 1
             },
+            "sourceRawHtmlBlockCount": null,
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -9728,7 +9878,8 @@
                 "summary": {
                     "pass": 11,
                     "review": 0,
-                    "fail": 0
+                    "fail": 0,
+                    "unbenchmarked": 0
                 }
             }
         },
@@ -9774,6 +9925,7 @@
                 "list": 12,
                 "paragraph": 46
             },
+            "sourceRawHtmlBlockCount": null,
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -9870,7 +10022,8 @@
                 "summary": {
                     "pass": 11,
                     "review": 0,
-                    "fail": 0
+                    "fail": 0,
+                    "unbenchmarked": 0
                 }
             }
         },
@@ -9916,6 +10069,7 @@
                 "paragraph": 128,
                 "separator": 4
             },
+            "sourceRawHtmlBlockCount": null,
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -10012,7 +10166,8 @@
                 "summary": {
                     "pass": 11,
                     "review": 0,
-                    "fail": 0
+                    "fail": 0,
+                    "unbenchmarked": 0
                 }
             }
         },
@@ -10057,6 +10212,7 @@
                 "list": 1,
                 "paragraph": 4
             },
+            "sourceRawHtmlBlockCount": null,
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -10153,7 +10309,8 @@
                 "summary": {
                     "pass": 11,
                     "review": 0,
-                    "fail": 0
+                    "fail": 0,
+                    "unbenchmarked": 0
                 }
             }
         },
@@ -10196,6 +10353,7 @@
                 "heading": 2,
                 "paragraph": 2
             },
+            "sourceRawHtmlBlockCount": null,
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -10292,7 +10450,8 @@
                 "summary": {
                     "pass": 11,
                     "review": 0,
-                    "fail": 0
+                    "fail": 0,
+                    "unbenchmarked": 0
                 }
             }
         },
@@ -10338,6 +10497,7 @@
                 "paragraph": 4,
                 "verse": 1
             },
+            "sourceRawHtmlBlockCount": null,
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -10434,7 +10594,8 @@
                 "summary": {
                     "pass": 11,
                     "review": 0,
-                    "fail": 0
+                    "fail": 0,
+                    "unbenchmarked": 0
                 }
             }
         },
@@ -10482,6 +10643,7 @@
                 "separator": 1,
                 "table": 1
             },
+            "sourceRawHtmlBlockCount": null,
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -10578,7 +10740,8 @@
                 "summary": {
                     "pass": 11,
                     "review": 0,
-                    "fail": 0
+                    "fail": 0,
+                    "unbenchmarked": 0
                 }
             }
         },
@@ -10623,6 +10786,7 @@
                 "list": 1,
                 "paragraph": 2
             },
+            "sourceRawHtmlBlockCount": null,
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -10719,7 +10883,8 @@
                 "summary": {
                     "pass": 11,
                     "review": 0,
-                    "fail": 0
+                    "fail": 0,
+                    "unbenchmarked": 0
                 }
             }
         },
@@ -10762,6 +10927,7 @@
                 "heading": 1,
                 "paragraph": 1
             },
+            "sourceRawHtmlBlockCount": null,
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -10858,7 +11024,8 @@
                 "summary": {
                     "pass": 11,
                     "review": 0,
-                    "fail": 0
+                    "fail": 0,
+                    "unbenchmarked": 0
                 }
             }
         },
@@ -10907,6 +11074,7 @@
                 "table": 12,
                 "verse": 1
             },
+            "sourceRawHtmlBlockCount": null,
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -11003,7 +11171,8 @@
                 "summary": {
                     "pass": 11,
                     "review": 0,
-                    "fail": 0
+                    "fail": 0,
+                    "unbenchmarked": 0
                 }
             }
         },
@@ -11046,6 +11215,7 @@
                 "heading": 3,
                 "paragraph": 2
             },
+            "sourceRawHtmlBlockCount": null,
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -11142,7 +11312,8 @@
                 "summary": {
                     "pass": 11,
                     "review": 0,
-                    "fail": 0
+                    "fail": 0,
+                    "unbenchmarked": 0
                 }
             }
         },
@@ -11184,6 +11355,7 @@
             "wpBlockCounts": {
                 "table": 1
             },
+            "sourceRawHtmlBlockCount": null,
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -11280,7 +11452,8 @@
                 "summary": {
                     "pass": 11,
                     "review": 0,
-                    "fail": 0
+                    "fail": 0,
+                    "unbenchmarked": 0
                 }
             }
         },
@@ -13539,6 +13712,7 @@
                 "paragraph": 10588,
                 "table": 27
             },
+            "sourceRawHtmlBlockCount": null,
             "faithfulness": {
                 "baseline": "phpHtml",
                 "comparisons": {
@@ -13549,7 +13723,7 @@
                         "textStatus": "faithful_enough",
                         "textScore": 1,
                         "visualStatus": "faithful_enough",
-                        "visualScore": 0.9986
+                        "visualScore": 0.9987
                     }
                 }
             },
@@ -13565,7 +13739,7 @@
                     "visual_structure": {
                         "status": "pass",
                         "expected": ">=0.75",
-                        "actual": 0.9986,
+                        "actual": 0.9987,
                         "detail": "heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
@@ -13626,7 +13800,8 @@
                 "summary": {
                     "pass": 11,
                     "review": 0,
-                    "fail": 0
+                    "fail": 0,
+                    "unbenchmarked": 0
                 }
             }
         },
@@ -13669,6 +13844,7 @@
                 "heading": 63,
                 "paragraph": 2
             },
+            "sourceRawHtmlBlockCount": null,
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -13765,7 +13941,8 @@
                 "summary": {
                     "pass": 11,
                     "review": 0,
-                    "fail": 0
+                    "fail": 0,
+                    "unbenchmarked": 0
                 }
             }
         },
@@ -13807,6 +13984,7 @@
             "wpBlockCounts": {
                 "heading": 3
             },
+            "sourceRawHtmlBlockCount": null,
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -13903,7 +14081,8 @@
                 "summary": {
                     "pass": 11,
                     "review": 0,
-                    "fail": 0
+                    "fail": 0,
+                    "unbenchmarked": 0
                 }
             }
         },
@@ -13986,6 +14165,7 @@
                 "paragraph": 23,
                 "table": 1
             },
+            "sourceRawHtmlBlockCount": null,
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -13996,7 +14176,7 @@
                         "textStatus": "faithful_enough",
                         "textScore": 1,
                         "visualStatus": "faithful_enough",
-                        "visualScore": 0.9672
+                        "visualScore": 0.9833
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
@@ -14021,7 +14201,7 @@
                     "visual_structure": {
                         "status": "pass",
                         "expected": ">=0.75",
-                        "actual": 0.9672,
+                        "actual": 0.9833,
                         "detail": "heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
@@ -14082,7 +14262,8 @@
                 "summary": {
                     "pass": 11,
                     "review": 0,
-                    "fail": 0
+                    "fail": 0,
+                    "unbenchmarked": 0
                 }
             }
         },
@@ -14126,6 +14307,7 @@
                 "paragraph": 1,
                 "table": 2
             },
+            "sourceRawHtmlBlockCount": null,
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -14222,7 +14404,8 @@
                 "summary": {
                     "pass": 11,
                     "review": 0,
-                    "fail": 0
+                    "fail": 0,
+                    "unbenchmarked": 0
                 }
             }
         },
@@ -14883,6 +15066,7 @@
                 "paragraph": 62,
                 "table": 1
             },
+            "sourceRawHtmlBlockCount": null,
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -14893,7 +15077,7 @@
                         "textStatus": "faithful_enough",
                         "textScore": 1,
                         "visualStatus": "faithful_enough",
-                        "visualScore": 0.7945
+                        "visualScore": 0.995
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
@@ -14918,7 +15102,7 @@
                     "visual_structure": {
                         "status": "pass",
                         "expected": ">=0.75",
-                        "actual": 0.7945,
+                        "actual": 0.995,
                         "detail": "heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
@@ -14979,7 +15163,8 @@
                 "summary": {
                     "pass": 11,
                     "review": 0,
-                    "fail": 0
+                    "fail": 0,
+                    "unbenchmarked": 0
                 }
             }
         },
@@ -15163,6 +15348,7 @@
                 "paragraph": 76,
                 "table": 1
             },
+            "sourceRawHtmlBlockCount": null,
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -15173,7 +15359,7 @@
                         "textStatus": "faithful_enough",
                         "textScore": 1,
                         "visualStatus": "faithful_enough",
-                        "visualScore": 0.961
+                        "visualScore": 0.9933
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
@@ -15198,7 +15384,7 @@
                     "visual_structure": {
                         "status": "pass",
                         "expected": ">=0.75",
-                        "actual": 0.961,
+                        "actual": 0.9933,
                         "detail": "heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
@@ -15259,7 +15445,8 @@
                 "summary": {
                     "pass": 11,
                     "review": 0,
-                    "fail": 0
+                    "fail": 0,
+                    "unbenchmarked": 0
                 }
             }
         },
@@ -15303,60 +15490,61 @@
                 "list": 1,
                 "paragraph": 1
             },
+            "sourceRawHtmlBlockCount": null,
             "faithfulness": {
                 "baseline": null,
                 "comparisons": []
             },
             "importQuality": {
-                "status": "review",
+                "status": "unbenchmarked",
                 "gates": {
                     "text_completeness": {
-                        "status": "review",
-                        "expected": ">=0.8",
+                        "status": "unbenchmarked",
+                        "expected": "comparison baseline",
                         "actual": null,
-                        "detail": "no baseline comparison available for visible text overlap with the baseline"
+                        "detail": "no comparison baseline is available for visible text overlap with the baseline"
                     },
                     "visual_structure": {
-                        "status": "review",
-                        "expected": ">=0.75",
+                        "status": "unbenchmarked",
+                        "expected": "comparison baseline",
                         "actual": null,
-                        "detail": "no baseline comparison available for heading/list/table/image shape overlap with the baseline"
+                        "detail": "no comparison baseline is available for heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
-                        "status": "pass",
-                        "expected": "0",
-                        "actual": 0,
-                        "detail": "paragraph count ratio"
+                        "status": "unbenchmarked",
+                        "expected": "comparison baseline",
+                        "actual": null,
+                        "detail": "no comparison baseline is available for paragraph count ratio"
                     },
                     "heading_count": {
-                        "status": "pass",
-                        "expected": "0",
-                        "actual": 0,
-                        "detail": "heading count ratio"
+                        "status": "unbenchmarked",
+                        "expected": "comparison baseline",
+                        "actual": null,
+                        "detail": "no comparison baseline is available for heading count ratio"
                     },
                     "list_count": {
-                        "status": "pass",
-                        "expected": "0",
-                        "actual": 0,
-                        "detail": "list count ratio"
+                        "status": "unbenchmarked",
+                        "expected": "comparison baseline",
+                        "actual": null,
+                        "detail": "no comparison baseline is available for list count ratio"
                     },
                     "definition_list_count": {
-                        "status": "review",
-                        "expected": "0",
-                        "actual": 1,
-                        "detail": "definition list count ratio has no baseline count"
+                        "status": "unbenchmarked",
+                        "expected": "comparison baseline",
+                        "actual": null,
+                        "detail": "no comparison baseline is available for definition list count ratio"
                     },
                     "table_count": {
-                        "status": "pass",
-                        "expected": "0",
-                        "actual": 0,
-                        "detail": "table count ratio"
+                        "status": "unbenchmarked",
+                        "expected": "comparison baseline",
+                        "actual": null,
+                        "detail": "no comparison baseline is available for table count ratio"
                     },
                     "image_count": {
-                        "status": "pass",
-                        "expected": "0",
-                        "actual": 0,
-                        "detail": "image count ratio"
+                        "status": "unbenchmarked",
+                        "expected": "comparison baseline",
+                        "actual": null,
+                        "detail": "no comparison baseline is available for image count ratio"
                     },
                     "media_imported": {
                         "status": "pass",
@@ -15378,9 +15566,10 @@
                     }
                 },
                 "summary": {
-                    "pass": 8,
-                    "review": 3,
-                    "fail": 0
+                    "pass": 3,
+                    "review": 0,
+                    "fail": 0,
+                    "unbenchmarked": 8
                 }
             }
         },
@@ -15424,60 +15613,61 @@
                 "list": 1,
                 "paragraph": 1
             },
+            "sourceRawHtmlBlockCount": null,
             "faithfulness": {
                 "baseline": null,
                 "comparisons": []
             },
             "importQuality": {
-                "status": "review",
+                "status": "unbenchmarked",
                 "gates": {
                     "text_completeness": {
-                        "status": "review",
-                        "expected": ">=0.8",
+                        "status": "unbenchmarked",
+                        "expected": "comparison baseline",
                         "actual": null,
-                        "detail": "no baseline comparison available for visible text overlap with the baseline"
+                        "detail": "no comparison baseline is available for visible text overlap with the baseline"
                     },
                     "visual_structure": {
-                        "status": "review",
-                        "expected": ">=0.75",
+                        "status": "unbenchmarked",
+                        "expected": "comparison baseline",
                         "actual": null,
-                        "detail": "no baseline comparison available for heading/list/table/image shape overlap with the baseline"
+                        "detail": "no comparison baseline is available for heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
-                        "status": "pass",
-                        "expected": "0",
-                        "actual": 0,
-                        "detail": "paragraph count ratio"
+                        "status": "unbenchmarked",
+                        "expected": "comparison baseline",
+                        "actual": null,
+                        "detail": "no comparison baseline is available for paragraph count ratio"
                     },
                     "heading_count": {
-                        "status": "pass",
-                        "expected": "0",
-                        "actual": 0,
-                        "detail": "heading count ratio"
+                        "status": "unbenchmarked",
+                        "expected": "comparison baseline",
+                        "actual": null,
+                        "detail": "no comparison baseline is available for heading count ratio"
                     },
                     "list_count": {
-                        "status": "pass",
-                        "expected": "0",
-                        "actual": 0,
-                        "detail": "list count ratio"
+                        "status": "unbenchmarked",
+                        "expected": "comparison baseline",
+                        "actual": null,
+                        "detail": "no comparison baseline is available for list count ratio"
                     },
                     "definition_list_count": {
-                        "status": "review",
-                        "expected": "0",
-                        "actual": 1,
-                        "detail": "definition list count ratio has no baseline count"
+                        "status": "unbenchmarked",
+                        "expected": "comparison baseline",
+                        "actual": null,
+                        "detail": "no comparison baseline is available for definition list count ratio"
                     },
                     "table_count": {
-                        "status": "pass",
-                        "expected": "0",
-                        "actual": 0,
-                        "detail": "table count ratio"
+                        "status": "unbenchmarked",
+                        "expected": "comparison baseline",
+                        "actual": null,
+                        "detail": "no comparison baseline is available for table count ratio"
                     },
                     "image_count": {
-                        "status": "pass",
-                        "expected": "0",
-                        "actual": 0,
-                        "detail": "image count ratio"
+                        "status": "unbenchmarked",
+                        "expected": "comparison baseline",
+                        "actual": null,
+                        "detail": "no comparison baseline is available for image count ratio"
                     },
                     "media_imported": {
                         "status": "pass",
@@ -15499,9 +15689,10 @@
                     }
                 },
                 "summary": {
-                    "pass": 8,
-                    "review": 3,
-                    "fail": 0
+                    "pass": 3,
+                    "review": 0,
+                    "fail": 0,
+                    "unbenchmarked": 8
                 }
             }
         },
@@ -15585,6 +15776,7 @@
                 "paragraph": 3,
                 "table": 1
             },
+            "sourceRawHtmlBlockCount": null,
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -15595,7 +15787,7 @@
                         "textStatus": "faithful_enough",
                         "textScore": 1,
                         "visualStatus": "faithful_enough",
-                        "visualScore": 0.8966
+                        "visualScore": 0.9286
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
@@ -15620,7 +15812,7 @@
                     "visual_structure": {
                         "status": "pass",
                         "expected": ">=0.75",
-                        "actual": 0.8966,
+                        "actual": 0.9286,
                         "detail": "heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
@@ -15681,7 +15873,8 @@
                 "summary": {
                     "pass": 11,
                     "review": 0,
-                    "fail": 0
+                    "fail": 0,
+                    "unbenchmarked": 0
                 }
             }
         },
@@ -15723,6 +15916,7 @@
             "wpBlockCounts": {
                 "paragraph": 8
             },
+            "sourceRawHtmlBlockCount": null,
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -15819,7 +16013,8 @@
                 "summary": {
                     "pass": 11,
                     "review": 0,
-                    "fail": 0
+                    "fail": 0,
+                    "unbenchmarked": 0
                 }
             }
         },
@@ -15861,6 +16056,7 @@
             "wpBlockCounts": {
                 "paragraph": 2
             },
+            "sourceRawHtmlBlockCount": null,
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -15957,7 +16153,8 @@
                 "summary": {
                     "pass": 11,
                     "review": 0,
-                    "fail": 0
+                    "fail": 0,
+                    "unbenchmarked": 0
                 }
             }
         },
@@ -15999,6 +16196,7 @@
             "wpBlockCounts": {
                 "paragraph": 5
             },
+            "sourceRawHtmlBlockCount": null,
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -16095,7 +16293,8 @@
                 "summary": {
                     "pass": 11,
                     "review": 0,
-                    "fail": 0
+                    "fail": 0,
+                    "unbenchmarked": 0
                 }
             }
         },
@@ -16138,6 +16337,7 @@
                 "heading": 2,
                 "table": 2
             },
+            "sourceRawHtmlBlockCount": null,
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -16234,7 +16434,8 @@
                 "summary": {
                     "pass": 11,
                     "review": 0,
-                    "fail": 0
+                    "fail": 0,
+                    "unbenchmarked": 0
                 }
             }
         },
@@ -16277,6 +16478,7 @@
                 "heading": 1,
                 "table": 1
             },
+            "sourceRawHtmlBlockCount": null,
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -16373,7 +16575,8 @@
                 "summary": {
                     "pass": 11,
                     "review": 0,
-                    "fail": 0
+                    "fail": 0,
+                    "unbenchmarked": 0
                 }
             }
         },
@@ -16416,6 +16619,7 @@
                 "heading": 51,
                 "table": 51
             },
+            "sourceRawHtmlBlockCount": null,
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -16512,7 +16716,8 @@
                 "summary": {
                     "pass": 11,
                     "review": 0,
-                    "fail": 0
+                    "fail": 0,
+                    "unbenchmarked": 0
                 }
             }
         },
@@ -16556,6 +16761,7 @@
                 "heading": 2,
                 "paragraph": 3
             },
+            "sourceRawHtmlBlockCount": null,
             "faithfulness": {
                 "baseline": "phpHtml",
                 "comparisons": {
@@ -16643,7 +16849,8 @@
                 "summary": {
                     "pass": 11,
                     "review": 0,
-                    "fail": 0
+                    "fail": 0,
+                    "unbenchmarked": 0
                 }
             }
         },
@@ -16687,6 +16894,7 @@
                 "heading": 1,
                 "paragraph": 2
             },
+            "sourceRawHtmlBlockCount": null,
             "faithfulness": {
                 "baseline": "phpHtml",
                 "comparisons": {
@@ -16774,7 +16982,8 @@
                 "summary": {
                     "pass": 11,
                     "review": 0,
-                    "fail": 0
+                    "fail": 0,
+                    "unbenchmarked": 0
                 }
             }
         },
@@ -16857,6 +17066,7 @@
                 "list": 2,
                 "paragraph": 29
             },
+            "sourceRawHtmlBlockCount": null,
             "faithfulness": {
                 "baseline": "phpHtml",
                 "comparisons": {
@@ -16867,7 +17077,7 @@
                         "textStatus": "faithful_enough",
                         "textScore": 1,
                         "visualStatus": "faithful_enough",
-                        "visualScore": 0.9896
+                        "visualScore": 1
                     }
                 }
             },
@@ -16883,7 +17093,7 @@
                     "visual_structure": {
                         "status": "pass",
                         "expected": ">=0.75",
-                        "actual": 0.9896,
+                        "actual": 1,
                         "detail": "heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
@@ -16944,7 +17154,8 @@
                 "summary": {
                     "pass": 11,
                     "review": 0,
-                    "fail": 0
+                    "fail": 0,
+                    "unbenchmarked": 0
                 }
             }
         },
@@ -18250,6 +18461,7 @@
                 "paragraph": 118,
                 "table": 3
             },
+            "sourceRawHtmlBlockCount": null,
             "faithfulness": {
                 "baseline": "phpHtml",
                 "comparisons": {
@@ -18260,7 +18472,7 @@
                         "textStatus": "faithful_enough",
                         "textScore": 1,
                         "visualStatus": "faithful_enough",
-                        "visualScore": 0.8953
+                        "visualScore": 0.9888
                     }
                 }
             },
@@ -18276,7 +18488,7 @@
                     "visual_structure": {
                         "status": "pass",
                         "expected": ">=0.75",
-                        "actual": 0.8953,
+                        "actual": 0.9888,
                         "detail": "heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
@@ -18337,7 +18549,8 @@
                 "summary": {
                     "pass": 11,
                     "review": 0,
-                    "fail": 0
+                    "fail": 0,
+                    "unbenchmarked": 0
                 }
             }
         },
@@ -19478,6 +19691,7 @@
                 "list": 26,
                 "paragraph": 116
             },
+            "sourceRawHtmlBlockCount": null,
             "faithfulness": {
                 "baseline": "phpHtml",
                 "comparisons": {
@@ -19488,7 +19702,7 @@
                         "textStatus": "faithful_enough",
                         "textScore": 1,
                         "visualStatus": "faithful_enough",
-                        "visualScore": 0.8819
+                        "visualScore": 1
                     }
                 }
             },
@@ -19504,7 +19718,7 @@
                     "visual_structure": {
                         "status": "pass",
                         "expected": ">=0.75",
-                        "actual": 0.8819,
+                        "actual": 1,
                         "detail": "heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
@@ -19565,7 +19779,8 @@
                 "summary": {
                     "pass": 11,
                     "review": 0,
-                    "fail": 0
+                    "fail": 0,
+                    "unbenchmarked": 0
                 }
             }
         },
@@ -20693,6 +20908,7 @@
                 "image": 31,
                 "paragraph": 60
             },
+            "sourceRawHtmlBlockCount": null,
             "faithfulness": {
                 "baseline": "phpHtml",
                 "comparisons": {
@@ -20703,7 +20919,7 @@
                         "textStatus": "faithful_enough",
                         "textScore": 1,
                         "visualStatus": "faithful_enough",
-                        "visualScore": 0.8826
+                        "visualScore": 1
                     }
                 }
             },
@@ -20719,7 +20935,7 @@
                     "visual_structure": {
                         "status": "pass",
                         "expected": ">=0.75",
-                        "actual": 0.8826,
+                        "actual": 1,
                         "detail": "heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
@@ -20780,7 +20996,8 @@
                 "summary": {
                     "pass": 11,
                     "review": 0,
-                    "fail": 0
+                    "fail": 0,
+                    "unbenchmarked": 0
                 }
             }
         },
@@ -21646,6 +21863,7 @@
                 "image": 24,
                 "paragraph": 24
             },
+            "sourceRawHtmlBlockCount": null,
             "faithfulness": {
                 "baseline": "phpHtml",
                 "comparisons": {
@@ -21655,8 +21873,8 @@
                         "score": 1,
                         "textStatus": "faithful_enough",
                         "textScore": 1,
-                        "visualStatus": "review",
-                        "visualScore": 0.6842
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 1
                     }
                 }
             },
@@ -21670,9 +21888,9 @@
                         "detail": "visible text overlap with the baseline"
                     },
                     "visual_structure": {
-                        "status": "review",
+                        "status": "pass",
                         "expected": ">=0.75",
-                        "actual": 0.6842,
+                        "actual": 1,
                         "detail": "heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
@@ -21731,9 +21949,10 @@
                     }
                 },
                 "summary": {
-                    "pass": 9,
-                    "review": 2,
-                    "fail": 0
+                    "pass": 10,
+                    "review": 1,
+                    "fail": 0,
+                    "unbenchmarked": 0
                 }
             }
         },
@@ -22462,6 +22681,7 @@
                 "list": 2,
                 "paragraph": 27
             },
+            "sourceRawHtmlBlockCount": null,
             "faithfulness": {
                 "baseline": "phpHtml",
                 "comparisons": {
@@ -22472,7 +22692,7 @@
                         "textStatus": "faithful_enough",
                         "textScore": 1,
                         "visualStatus": "faithful_enough",
-                        "visualScore": 0.8333
+                        "visualScore": 1
                     }
                 }
             },
@@ -22488,7 +22708,7 @@
                     "visual_structure": {
                         "status": "pass",
                         "expected": ">=0.75",
-                        "actual": 0.8333,
+                        "actual": 1,
                         "detail": "heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
@@ -22549,7 +22769,8 @@
                 "summary": {
                     "pass": 11,
                     "review": 0,
-                    "fail": 0
+                    "fail": 0,
+                    "unbenchmarked": 0
                 }
             }
         },
@@ -22592,6 +22813,7 @@
             "wpBlockCounts": {
                 "paragraph": 1
             },
+            "sourceRawHtmlBlockCount": null,
             "faithfulness": {
                 "baseline": "phpHtml",
                 "comparisons": {
@@ -22679,7 +22901,8 @@
                 "summary": {
                     "pass": 11,
                     "review": 0,
-                    "fail": 0
+                    "fail": 0,
+                    "unbenchmarked": 0
                 }
             }
         },
@@ -22722,6 +22945,7 @@
             "wpBlockCounts": {
                 "paragraph": 21
             },
+            "sourceRawHtmlBlockCount": null,
             "faithfulness": {
                 "baseline": "phpHtml",
                 "comparisons": {
@@ -22809,7 +23033,8 @@
                 "summary": {
                     "pass": 11,
                     "review": 0,
-                    "fail": 0
+                    "fail": 0,
+                    "unbenchmarked": 0
                 }
             }
         }

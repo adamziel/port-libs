@@ -13755,7 +13755,7 @@ final class MarkdownReader
 
         while ($cursor < $count) {
             $marker = $this->matchListMarker($lines[$cursor], $cursor);
-            if (!$this->isSameListMarker($marker, $baseIndent, $ordered, $style, $delimiter, $listMarker)) {
+            if (!$this->isCompatibleListMarker($marker, $baseIndent, $ordered, $style, $delimiter, $listMarker)) {
                 break;
             }
 
@@ -13772,8 +13772,12 @@ final class MarkdownReader
 
             if ($blankCursor > $cursor) {
                 $nextMarker = $blankCursor < $count ? $this->matchListMarker($lines[$blankCursor], $blankCursor) : null;
-                if ($this->isSameListMarker($nextMarker, $baseIndent, $ordered, $style, $delimiter, $listMarker)) {
-                    $listLoose = true;
+                if ($this->isCompatibleListMarker($nextMarker, $baseIndent, $ordered, $style, $delimiter, $listMarker)) {
+                    // Pandoc Markdown keeps a mixed bullet-marker list tight
+                    // across its marker-change boundary.
+                    if ($this->isSameListMarker($nextMarker, $baseIndent, $ordered, $style, $delimiter, $listMarker)) {
+                        $listLoose = true;
+                    }
                     $cursor = $blankCursor;
                     continue;
                 }
@@ -13932,7 +13936,7 @@ final class MarkdownReader
 
             $lineMarker = $this->matchListMarker($line, $cursor);
             if ($lineMarker !== null) {
-                if ($this->isSameListMarker($lineMarker, $baseIndent, $ordered, $style, $delimiter, $marker['marker'])) {
+                if ($this->isCompatibleListMarker($lineMarker, $baseIndent, $ordered, $style, $delimiter, $marker['marker'])) {
                     break;
                 }
 
@@ -15063,6 +15067,47 @@ final class MarkdownReader
 
         return $ordered
             || $marker['marker'] === $listMarker;
+    }
+
+    /**
+     * Pandoc Markdown treats dash, asterisk, and plus markers as one
+     * bullet-list family. CommonMark and
+     * GFM retain the marker boundary, so preserve that distinction by profile.
+     *
+     * @param array{indent:int, ordered:bool, start:int|null, text:string, contentIndent:int, padding:int, style:string|null, delimiter:string|null, marker:string|null}|null $marker
+     */
+    private function isCompatibleListMarker(
+        ?array $marker,
+        int $baseIndent,
+        bool $ordered,
+        ?string $style,
+        ?string $delimiter,
+        ?string $listMarker = null
+    ): bool {
+        if ($this->isSameListMarker($marker, $baseIndent, $ordered, $style, $delimiter, $listMarker)) {
+            return true;
+        }
+
+        return $marker !== null
+            && !$ordered
+            && !$marker['ordered']
+            && $marker['indent'] === $baseIndent
+            && $this->mixedBulletMarkersSharePandocList();
+    }
+
+    private function mixedBulletMarkersSharePandocList(): bool
+    {
+        if (($this->options['pandocMarkdownGithubMixedBulletMarkers'] ?? false) === true) {
+            return true;
+        }
+
+        $format = $this->options['format'] ?? $this->options['variant'] ?? 'markdown';
+        $sourceFormat = is_scalar($format) ? strtolower(trim((string) $format)) : 'markdown';
+        if (preg_match('/^markdown[_-]github(?:[+-]|$)/', $sourceFormat) === 1) {
+            return true;
+        }
+
+        return !in_array(MarkdownFormatProfile::canonicalFormat($sourceFormat), ['commonmark', 'commonmark_x', 'gfm'], true);
     }
 
     private function isNestedListMarker(?array $marker, int $baseIndent, int $contentIndent): bool

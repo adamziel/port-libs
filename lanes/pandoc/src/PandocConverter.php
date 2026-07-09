@@ -26,10 +26,22 @@ final class PandocConverter
      */
     public static function read(string $bytes, string $format, array $options = []): AstNode
     {
-        $canonical = self::canonicalInputFormat($format);
+        $requestedFormat = self::normalizeFormat($format);
+        $canonical = self::canonicalInputFormat($requestedFormat);
         $entry = self::inputSupport($canonical);
         if ($entry['implementation'] === DelimitedTextReader::class) {
             return (new DelimitedTextReader())->read($bytes, $canonical, $options);
+        }
+
+        // The historical Pandoc alias has one list-boundary behavior that is
+        // not represented by the canonical GFM registry key. Keep the modern
+        // GFM feature profile while passing that narrow reader distinction.
+        if (
+            $entry['implementation'] === MarkdownReader::class
+            && preg_match('/^markdown_github(?:[+-]|$)/', $requestedFormat) === 1
+            && !isset($options['pandocMarkdownGithubMixedBulletMarkers'])
+        ) {
+            $options['pandocMarkdownGithubMixedBulletMarkers'] = true;
         }
 
         $reader = self::reader($entry['implementation'], $canonical, $options);

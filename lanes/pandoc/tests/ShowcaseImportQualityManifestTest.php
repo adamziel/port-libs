@@ -120,7 +120,7 @@ return [
             $t->same(true, $record['wpBlocks']['ok'] ?? null, "{$id} should convert to WordPress blocks.");
             $quality = is_array($record['importQuality'] ?? null) ? $record['importQuality'] : [];
             $t->true(
-                in_array($quality['status'] ?? null, ['pass', 'review'], true),
+                in_array($quality['status'] ?? null, ['pass', 'review', 'unbenchmarked'], true),
                 "{$id} should not have a failed import-quality result."
             );
             $anchor = is_array($quality['gates']['anchor_validity'] ?? null)
@@ -144,7 +144,7 @@ return [
             'media_imported',
             'custom_html_percentage',
         ];
-        $validStatuses = ['pass' => true, 'review' => true, 'fail' => true];
+        $validStatuses = ['pass' => true, 'review' => true, 'fail' => true, 'unbenchmarked' => true];
         $successful = 0;
 
         foreach ($records as $record) {
@@ -164,6 +164,37 @@ return [
 
         $t->true($successful >= 40, 'The gate check should cover a substantial successful WordPress import corpus.');
     },
+    'showcase manifest labels formats without a comparison baseline as unbenchmarked' => static function (TestRunner $t) use ($showcaseManifest, $recordsById): void {
+        $manifest = $showcaseManifest();
+        $records = is_array($manifest['records'] ?? null) ? $manifest['records'] : [];
+        $byId = $recordsById($records);
+
+        foreach (['bibtex-biblio', 'latex-table', 'ris-web'] as $id) {
+            $record = $byId[$id] ?? null;
+            $t->true(is_array($record), "{$id} should be present in the showcase manifest.");
+            $quality = is_array($record['importQuality'] ?? null) ? $record['importQuality'] : [];
+            $gates = is_array($quality['gates'] ?? null) ? $quality['gates'] : [];
+            $t->same('unbenchmarked', $quality['status'] ?? null, "{$id} should not be scored without a baseline.");
+            $t->same('unbenchmarked', $gates['text_completeness']['status'] ?? null, "{$id} text quality should remain explicitly unbenchmarked.");
+            $t->same('unbenchmarked', $gates['visual_structure']['status'] ?? null, "{$id} visual quality should remain explicitly unbenchmarked.");
+        }
+    },
+    'showcase manifest distinguishes source raw HTML from Custom HTML fallback' => static function (TestRunner $t) use ($showcaseManifest, $recordsById): void {
+        $manifest = $showcaseManifest();
+        $records = is_array($manifest['records'] ?? null) ? $manifest['records'] : [];
+        $byId = $recordsById($records);
+        $record = $byId['markdown-github-rendered-syntax'] ?? null;
+
+        $t->true(is_array($record), 'The rich GitHub Markdown sample should be present in the showcase manifest.');
+        $quality = is_array($record['importQuality'] ?? null) ? $record['importQuality'] : [];
+        $customHtml = is_array($quality['gates']['custom_html_percentage'] ?? null)
+            ? $quality['gates']['custom_html_percentage']
+            : [];
+        $t->same('pass', $quality['status'] ?? null, 'Source-preserved GitHub HTML should not lower import quality.');
+        $t->same(8, $record['sourceRawHtmlBlockCount'] ?? null, 'The source raw HTML block count should remain evidence-backed.');
+        $t->same('pass', $customHtml['status'] ?? null, 'Source raw HTML should not count as an unsupported Custom HTML fallback.');
+        $t->same(0.0, isset($customHtml['actual']) ? (float) $customHtml['actual'] : null, 'No unexpected Custom HTML fallback should remain.');
+    },
     'showcase manifest gates common import quality separately from exotic formats' => static function (TestRunner $t) use ($showcaseManifest): void {
         $manifest = $showcaseManifest();
         $summary = is_array($manifest['importQualitySegmentSummary'] ?? null) ? $manifest['importQualitySegmentSummary'] : [];
@@ -176,7 +207,7 @@ return [
         $t->true(($common['samples'] ?? 0) >= 44, 'Common import segment should cover the current normal-user corpus size.');
         $t->same(0, $common['wpFailures'] ?? null, 'Common import formats should not have WordPress block conversion failures.');
         $t->true(($common['pass'] ?? 0) >= 29, 'Common import pass count should not regress from the current baseline.');
-        $t->true(($common['passOrReview'] ?? 0) >= 39, 'Common import pass-or-review count should not regress from the current baseline.');
+        $t->true(($common['passReviewOrUnbenchmarked'] ?? 0) >= 39, 'Common import quality coverage should not regress from the current baseline.');
         $t->true(($common['fail'] ?? PHP_INT_MAX) <= 5, 'Common import fail count should not regress from the current baseline.');
 
         $formats = is_array($common['formats'] ?? null) ? $common['formats'] : [];
@@ -194,11 +225,11 @@ return [
         $t->same('pass', $exoticGate['status'] ?? null, 'Exotic import threshold gate should be evaluated separately.');
         $t->same(false, $exoticGate['required'] ?? null, 'Exotic import threshold gate should be tracked without blocking common-format progress.');
         $t->same(29, $commonGate['thresholds']['minPass'] ?? null, 'Common pass threshold should be explicit and ratchetable.');
-        $t->same(39, $commonGate['thresholds']['minPassOrReview'] ?? null, 'Common pass-or-review threshold should be explicit and ratchetable.');
+        $t->same(39, $commonGate['thresholds']['minPassReviewOrUnbenchmarked'] ?? null, 'Common quality-coverage threshold should be explicit and ratchetable.');
         $t->same(5, $commonGate['thresholds']['maxFail'] ?? null, 'Common fail threshold should be explicit and ratchetable.');
         $t->same(0, $commonGate['thresholds']['maxWpFailures'] ?? null, 'Common WordPress conversion failures should be a blocking threshold.');
         $t->same(18, $exoticGate['thresholds']['minPass'] ?? null, 'Exotic pass threshold should be explicit but separate.');
-        $t->same(39, $exoticGate['thresholds']['minPassOrReview'] ?? null, 'Exotic pass-or-review threshold should be explicit but separate.');
+        $t->same(39, $exoticGate['thresholds']['minPassReviewOrUnbenchmarked'] ?? null, 'Exotic quality-coverage threshold should be explicit but separate.');
         $t->same(2, $exoticGate['thresholds']['maxFail'] ?? null, 'Exotic fail threshold should be explicit but separate.');
     },
     'showcase manifest compares simple html samples against visible body text' => static function (TestRunner $t) use ($showcaseManifest, $recordsById): void {

@@ -78,6 +78,22 @@ return [
         $t->same(null, $mmd->attr('meta'));
         $t->same(['horizontal_rule', 'heading', 'heading'], array_map(static fn (AstNode $node): string => $node->type, $mmd->children));
     },
+    'preserves GitHub Markdown list semantics without losing modern GFM extensions through converter dispatch' => static function (TestRunner $t): void {
+        $document = PandocConverter::read("- first\n\n* second\n+ third\n- fourth\n", 'markdown_github');
+        $list = $document->children[0] ?? new AstNode('missing');
+        $html = PandocConverter::convert(
+            "https://github.com/openai\n\n\$E = mc^2\$\n",
+            'markdown_github',
+            'html',
+            ['writerOptions' => ['writerHTMLMathMethod' => 'mathml']]
+        );
+
+        $t->same(['bullet_list'], array_map(static fn (AstNode $node): string => $node->type, $document->children));
+        $t->same(false, (bool) $list->attr('loose'));
+        $t->same(4, count($list->children));
+        $t->contains('<a href="https://github.com/openai"', $html);
+        $t->contains('<math', $html);
+    },
     'converts rtf through the registered reader path' => static function (TestRunner $t): void {
         $blocks = PandocConverter::convert('{\\rtf1\\ansi\\pard RTF {\\b bold} import.\\par}', 'rtf', 'blocks');
 
