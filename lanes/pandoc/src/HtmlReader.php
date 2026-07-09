@@ -31,7 +31,9 @@ final class HtmlReader
     {
         $backend = $this->options['htmlReaderBackend'] ?? self::BACKEND_TAGSOUP_PANDOC_PORT;
         if ($backend === self::BACKEND_TAGSOUP_PANDOC_PORT) {
-            return (new PandocHtmlTagSoupReader($this->options))->read($bytes);
+            return $this->repairHtmlLocalFragmentLinks(
+                (new PandocHtmlTagSoupReader($this->options))->read($bytes)
+            );
         }
         if ($backend !== self::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE) {
             throw new \InvalidArgumentException('Unknown HTML reader backend: ' . (string) $backend);
@@ -111,7 +113,178 @@ final class HtmlReader
             'htmlConsumedFootnoteContainerCount' => $consumedFootnoteContainerCount,
         ], $this->microdataMetadata($bytes));
 
-        return new AstNode('document', $attrs, $children);
+        return $this->repairHtmlLocalFragmentLinks(new AstNode('document', $attrs, $children));
+    }
+
+    private function repairHtmlLocalFragmentLinks(AstNode $document): AstNode
+    {
+        if (($this->options['htmlRepairPairedLocalFragmentLinks'] ?? true) === false) {
+            return $document;
+        }
+
+        $targets = [];
+        $this->collectHtmlLocalFragmentTargets($document->children, $targets);
+        $linksByLabel = [];
+        $this->collectHtmlUnresolvedLocalFragmentLinks($document->children, $targets, [], $linksByLabel);
+        $repairs = [];
+        foreach ($linksByLabel as $links) {
+            if (count($links) !== 2) {
+                continue;
+            }
+            $first = $links[0];
+            $second = $links[1];
+            if ($first['fragment'] === $second['fragment']) {
+                continue;
+            }
+            $repairs[$first['pathKey']] = $second['fragment'];
+            $repairs[$second['pathKey']] = $first['fragment'];
+        }
+        if ($repairs === []) {
+            return $document;
+        }
+
+        $attrs = $document->attrs;
+        $attrs['htmlLocalFragmentLinkRepairCount'] = count($repairs);
+
+        return new AstNode(
+            $document->type,
+            $attrs,
+            $this->applyHtmlLocalFragmentLinkRepairs($document->children, [], $repairs)
+        );
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     * @param array<string, true> $targets
+     */
+    private function collectHtmlLocalFragmentTargets(array $nodes, array &$targets): void
+    {
+        foreach ($nodes as $node) {
+            $id = (string) $node->attr('id', '');
+            if ($id !== '') {
+                $targets[$id] = true;
+            }
+            foreach (['htmlAttributes', 'attributes'] as $attrName) {
+                $attributes = $node->attr($attrName, []);
+                if (!is_array($attributes)) {
+                    continue;
+                }
+                foreach (['id', 'name'] as $name) {
+                    $value = (string) ($attributes[$name] ?? '');
+                    if ($value !== '') {
+                        $targets[$value] = true;
+                    }
+                }
+            }
+            if ($node->children !== []) {
+                $this->collectHtmlLocalFragmentTargets($node->children, $targets);
+            }
+        }
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     * @param array<string, true> $targets
+     * @param list<int> $path
+     * @param array<string, list<array{pathKey:string, fragment:string}>> $linksByLabel
+     */
+    private function collectHtmlUnresolvedLocalFragmentLinks(array $nodes, array $targets, array $path, array &$linksByLabel): void
+    {
+        foreach ($nodes as $index => $node) {
+            $nodePath = [...$path, $index];
+            if ($node->type === 'link' && (string) $node->attr('id', '') === '') {
+                $url = (string) $node->attr('url', '');
+                if (str_starts_with($url, '#') && strlen($url) > 1) {
+                    $fragment = rawurldecode(substr($url, 1));
+                    $label = $this->normalizedHtmlLinkLabel($node->children);
+                    if ($fragment !== '' && $label !== '' && !isset($targets[$fragment])) {
+                        $linksByLabel[$label][] = [
+                            'pathKey' => implode('.', $nodePath),
+                            'fragment' => $fragment,
+                        ];
+                    }
+                }
+            }
+            if ($node->children !== []) {
+                $this->collectHtmlUnresolvedLocalFragmentLinks($node->children, $targets, $nodePath, $linksByLabel);
+            }
+        }
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     */
+    private function normalizedHtmlLinkLabel(array $nodes): string
+    {
+        $text = $this->collapseHtmlImportWhitespace($this->plainTextFromAstNodes($nodes));
+        if ($text === '') {
+            return '';
+        }
+
+        return mb_strtolower($text, 'UTF-8');
+    }
+
+    private function collapseHtmlImportWhitespace(string $text): string
+    {
+        $result = '';
+        $pendingSpace = false;
+        foreach (mb_str_split($text) as $char) {
+            if ($char === ' ' || $char === "\n" || $char === "\r" || $char === "\t" || $char === "\f" || $char === "\v") {
+                $pendingSpace = $result !== '';
+                continue;
+            }
+            if ($pendingSpace) {
+                $result .= ' ';
+                $pendingSpace = false;
+            }
+            $result .= $char;
+        }
+
+        return $result;
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     */
+    private function plainTextFromAstNodes(array $nodes): string
+    {
+        $text = '';
+        foreach ($nodes as $node) {
+            $text .= (string) $node->attr('text', '');
+            if ($node->children !== []) {
+                $text .= $this->plainTextFromAstNodes($node->children);
+            }
+        }
+
+        return $text;
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     * @param list<int> $path
+     * @param array<string, string> $repairs
+     * @return list<AstNode>
+     */
+    private function applyHtmlLocalFragmentLinkRepairs(array $nodes, array $path, array $repairs): array
+    {
+        $rebuilt = [];
+        foreach ($nodes as $index => $node) {
+            $nodePath = [...$path, $index];
+            $pathKey = implode('.', $nodePath);
+            $children = $node->children === []
+                ? []
+                : $this->applyHtmlLocalFragmentLinkRepairs($node->children, $nodePath, $repairs);
+            $attrs = $node->attrs;
+            if ($node->type === 'link' && isset($repairs[$pathKey]) && (string) ($attrs['id'] ?? '') === '') {
+                $attrs['id'] = $repairs[$pathKey];
+                $htmlAttributes = is_array($attrs['htmlAttributes'] ?? null) ? $attrs['htmlAttributes'] : [];
+                $htmlAttributes['id'] = $repairs[$pathKey];
+                $attrs['htmlAttributes'] = $htmlAttributes;
+            }
+            $rebuilt[] = new AstNode($node->type, $attrs, $children);
+        }
+
+        return $rebuilt;
     }
 
     private static function htmlTreeConstructionBackendForSource(string $bytes): string

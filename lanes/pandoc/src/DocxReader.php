@@ -659,6 +659,10 @@ final class DocxReader
             $pendingBookmarkOnlyEmptyParagraph = null;
         };
 
+        $bookmarkOnlyEmptyParagraph = function (\DOMElement $paragraph): AstNode {
+            return new AstNode('paragraph', ['text' => ''], $this->inlineChildren($paragraph));
+        };
+
         foreach ($this->transparentChildElements($body) as $child) {
             if ($child->localName === 'p') {
                 $styleId = $this->paragraphStyleId($child);
@@ -696,7 +700,7 @@ final class DocxReader
                         $blocks[] = new AstNode('paragraph', ['text' => '']);
                         $seenVisibleContent = true;
                     } elseif ($this->paragraphHasOnlyBookmarkMarkup($child)) {
-                        $pendingBookmarkOnlyEmptyParagraph = new AstNode('paragraph', ['text' => '']);
+                        $pendingBookmarkOnlyEmptyParagraph = $bookmarkOnlyEmptyParagraph($child);
                     } else {
                         $pendingBookmarkOnlyEmptyParagraph = null;
                     }

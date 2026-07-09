@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\Pandoc\DocxReader;
+use PortLibs\Pandoc\AstNode;
 use PortLibs\Pandoc\HtmlWriter;
 use PortLibs\Pandoc\NativeWriter;
 use PortLibs\Pandoc\PandocConverter;
@@ -1481,6 +1482,33 @@ XML],
         $t->true(!str_contains($blocks, 'data-docx-field='), 'Canonicalized field links should render as plain Pandoc links');
         $t->true(!str_contains($blocks, '_GoBack'), 'Word _GoBack bookmarks should not leak into rendered output');
         $t->true(!str_contains($blocks, 'pandoc-openxml-bookmark-start'), 'Heading bookmarks should canonicalize to the heading id instead of raw bookmark spans');
+    },
+    'promotes referenced docx bookmark-only paragraph before heading' => static function (TestRunner $t) use ($buildDocxReaderPackageBytes): void {
+        $bytes = $buildDocxReaderPackageBytes(<<<'XML'
+<?xml version="1.0"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p><w:r><w:t>See </w:t></w:r><w:fldSimple w:instr=" REF _RefBeforeHeading \h "><w:r><w:t>0</w:t></w:r></w:fldSimple></w:p>
+    <w:p><w:bookmarkStart w:id="9" w:name="_RefBeforeHeading"/><w:bookmarkEnd w:id="9"/></w:p>
+    <w:p><w:pPr><w:pStyle w:val="Heading2"/></w:pPr><w:r><w:t>Validation Type Enumeration</w:t></w:r></w:p>
+  </w:body>
+</w:document>
+XML);
+
+        $document = (new DocxReader())->read($bytes);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $html = (new HtmlWriter())->write($document);
+
+        $t->same(['paragraph', 'paragraph', 'heading'], array_map(static fn (AstNode $node): string => $node->type, $document->children));
+        $t->same('link', $document->children[0]->children[1]->type);
+        $t->same('#_RefBeforeHeading', $document->children[0]->children[1]->attr('url'));
+        $t->same('span', $document->children[1]->children[0]->type);
+        $t->same('_RefBeforeHeading', $document->children[1]->children[0]->attr('id'));
+        $t->same(['anchor'], $document->children[1]->children[0]->attr('classes'));
+        $t->contains('<a href="#_RefBeforeHeading">0</a>', $blocks);
+        $t->contains('<span id="_RefBeforeHeading" class="anchor"', $blocks);
+        $t->contains('<a href="#_RefBeforeHeading">0</a>', $html);
+        $t->contains('<span id="_RefBeforeHeading" class="anchor"', $html);
     },
     'maps explicit docx heading zero styles without broad heading fallback' => static function (TestRunner $t): void {
         $package = ZipPackage::fromParts([

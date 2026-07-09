@@ -3,10 +3,12 @@
 declare(strict_types=1);
 
 use PortLibs\Pandoc\Html5Dom;
+use PortLibs\Pandoc\HtmlWriter;
 use PortLibs\Pandoc\HtmlReader;
 use PortLibs\Pandoc\MarkdownReader;
 use PortLibs\Pandoc\PandocHtmlTagSoupReader;
 use PortLibs\Pandoc\TagSoupParser;
+use PortLibs\Pandoc\WordPressBlockWriter;
 
 $tests = [];
 
@@ -852,6 +854,28 @@ $tests['imports upstream html self closing anchor without href as span'] =
         $t->same(['span'], array_map(static fn ($node): string => $node->type, $plain->children));
         $t->same('anchor', $anchor->attr('id'));
         $t->same([], $anchor->children);
+    };
+
+$tests['repairs paired unresolved html fragment links by visible label'] =
+    static function (TestRunner $t): void {
+        $html = '<h1>Notes</h1>'
+            . '<p>Reference <a href="#target-a">(1)</a> and <a href="#target-long">(long)</a>.</p>'
+            . '<p><a href="#return-a">(1)</a> First note body.</p>'
+            . '<p><a href="#return-long">(long)</a> Long note body.</p>';
+        foreach ([
+            'tagsoup' => new HtmlReader(),
+            'bridge' => new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]),
+        ] as $label => $reader) {
+            $document = $reader->read($html);
+            $htmlOutput = (new HtmlWriter())->write($document);
+            $blocks = (new WordPressBlockWriter())->write($document);
+
+            $t->same(4, $document->attr('htmlLocalFragmentLinkRepairCount'), "{$label} should repair both paired links.");
+            $t->contains('<a href="#target-a" id="return-a">(1)</a>', $htmlOutput);
+            $t->contains('<a href="#return-a" id="target-a">(1)</a>', $htmlOutput);
+            $t->contains('<a href="#target-long" id="return-long">(long)</a>', $blocks);
+            $t->contains('<a href="#return-long" id="target-long">(long)</a>', $blocks);
+        }
     };
 
 $tests['imports upstream html standalone inline code aliases as plain blocks'] =
