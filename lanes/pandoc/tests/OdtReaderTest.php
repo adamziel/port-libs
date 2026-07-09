@@ -75,8 +75,18 @@ XML);
         <text:list-item><text:p>Alpha four</text:p></text:list-item>
       </text:list>
       <table:table>
+        <table:table-header-rows>
+          <table:table-row>
+            <table:table-cell table:number-rows-spanned="2"><text:p>Header row span</text:p></table:table-cell>
+            <table:table-cell><text:p>Header two</text:p></table:table-cell>
+          </table:table-row>
+          <table:table-row>
+            <table:covered-table-cell/>
+            <table:table-cell><text:p>Header follow-up</text:p></table:table-cell>
+          </table:table-row>
+        </table:table-header-rows>
         <table:table-row>
-          <table:table-cell><text:p>Cell A</text:p></table:table-cell>
+          <table:table-cell table:number-columns-spanned="2"><text:p>Cell A</text:p></table:table-cell>
           <table:table-cell><text:p>Cell B</text:p></table:table-cell>
         </table:table-row>
       </table:table>
@@ -111,6 +121,13 @@ XML);
         $t->same(3, $document->children[3]->attr('start'));
         $t->same('lower_alpha', $document->children[3]->attr('style'));
         $t->same('one_paren', $document->children[3]->attr('delimiter'));
+        $table = $document->children[4];
+        $t->same('table', $table->type);
+        $t->same(2, count($table->children[0]->children));
+        $t->same('Header row span', $table->children[0]->children[0]->children[0]->attr('text'));
+        $t->same(2, $table->children[0]->children[0]->children[0]->attr('rowspan'));
+        $t->same('Header follow-up', $table->children[0]->children[1]->children[0]->attr('text'));
+        $t->same(2, $table->children[1]->children[0]->children[0]->attr('colspan'));
         $t->contains('<!-- wp:heading {"level":1} -->', $blocks);
         $t->contains('<strong>bold</strong>', $blocks);
         $t->contains('<em>italic</em>', $blocks);
@@ -118,6 +135,8 @@ XML);
         $t->contains('<!-- wp:list {"ordered":true,"start":3} -->', $blocks);
         $t->contains('<ol start="3" type="a"><li>Alpha three</li><li>Alpha four</li></ol>', $blocks);
         $t->contains('<!-- wp:table -->', $blocks);
+        $t->contains('<thead><tr><th rowspan="2"><p>Header row span</p></th><th><p>Header two</p></th></tr><tr><th><p>Header follow-up</p></th></tr></thead>', $blocks);
+        $t->contains('<td colspan="2"><p>Cell A</p></td>', $blocks);
         $t->contains('Pictures/image.png', $blocks);
         $t->contains('<!-- wp:list -->', $converterBlocks);
     },

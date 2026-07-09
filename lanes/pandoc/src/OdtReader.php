@@ -383,22 +383,62 @@ final class OdtReader
 
     private function table(\DOMElement $element): AstNode
     {
-        $rows = [];
+        $headRows = [];
+        $bodyRows = [];
+        $footRows = [];
         foreach ($element->childNodes as $child) {
-            if (!$child instanceof \DOMElement || $child->localName !== 'table-row') {
+            if (!$child instanceof \DOMElement) {
                 continue;
             }
-            $repeat = max(1, min(50, (int) ($this->attr($child, self::TABLE_NS, 'number-rows-repeated') ?: '1')));
-            $row = $this->tableRow($child);
-            for ($i = 0; $i < $repeat; $i++) {
-                $rows[] = $row;
+            if ($child->localName === 'table-header-rows') {
+                array_push($headRows, ...$this->tableRowsFromContainer($child));
+                continue;
+            }
+            if ($child->localName === 'table-footer-rows') {
+                array_push($footRows, ...$this->tableRowsFromContainer($child));
+                continue;
+            }
+            if ($child->localName === 'table-row') {
+                array_push($bodyRows, ...$this->tableRowsFromContainer($child));
+                continue;
+            }
+            if (in_array($child->localName, ['table-rows', 'table-row-group'], true)) {
+                array_push($bodyRows, ...$this->tableRowsFromContainer($child));
             }
         }
 
-        return new AstNode('table', [], [
-            new AstNode('table_head'),
-            new AstNode('table_body', [], $rows),
-        ]);
+        $children = [
+            new AstNode('table_head', [], $headRows),
+            new AstNode('table_body', [], $bodyRows),
+        ];
+        if ($footRows !== []) {
+            $children[] = new AstNode('table_foot', [], $footRows);
+        }
+
+        return new AstNode('table', [], $children);
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function tableRowsFromContainer(\DOMElement $container): array
+    {
+        if ($container->localName === 'table-row') {
+            $repeat = max(1, min(50, (int) ($this->attr($container, self::TABLE_NS, 'number-rows-repeated') ?: '1')));
+            $row = $this->tableRow($container);
+
+            return array_fill(0, $repeat, $row);
+        }
+
+        $rows = [];
+        foreach ($container->childNodes as $child) {
+            if (!$child instanceof \DOMElement || !in_array($child->localName, ['table-row', 'table-row-group'], true)) {
+                continue;
+            }
+            array_push($rows, ...$this->tableRowsFromContainer($child));
+        }
+
+        return $rows;
     }
 
     private function tableRow(\DOMElement $row): AstNode

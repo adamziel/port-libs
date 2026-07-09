@@ -161,6 +161,9 @@ urn:oasis:names:tc:opendocument:xmlns:of:1.2<br />
 <p>This specification uses the prefixes defined in Tables 1 and 2 when referring to elements and attributes in this specification. However, implementors may use any prefix, provided that there is a namespace declaration that binds the prefix to the IRI of the corresponding namespace.</p>
 <p>Table 1 - XML Namespaces defined by the OpenDocument schema</p>
 <table>
+<thead>
+<tr><th><p>Prefix</p></th><th><p>Description</p></th><th><p>Namespace</p></th></tr>
+</thead>
 <tbody>
 <tr><td><p>anim</p></td><td><p>Elements and attributes that describe animation content.</p></td><td><p>urn:oasis:names:tc:opendocument:xmlns:<br />
 animation:1.0</p></td></tr>
@@ -198,12 +201,18 @@ style:1.0</p></td></tr>
 </table>
 <p>Table 2 - XML Namespaces defined by the OpenDocument metadata manifest ontology</p>
 <table>
+<thead>
+<tr><th><p>Prefix</p></th><th><p>Description</p></th><th><p>Namespace</p></th></tr>
+</thead>
 <tbody>
 <tr><td><p>odf</p></td><td><p>RDF node property and node elements for OpenDocument package entities</p></td><td><p>http://docs.oasis-open.org/ns/office/1.2/meta/odf#</p></td></tr>
 </tbody>
 </table>
 <p>Table 3 - XML Namespaces defined by the OpenDocument schema that include elements and attributes that are compatible to elements and attributes of other standards.</p>
 <table>
+<thead>
+<tr><th><p>Prefix</p></th><th><p>Description</p></th><th><p>Namespace</p></th></tr>
+</thead>
 <tbody>
 <tr><td><p>fo</p></td><td><p>Attributes that are compatible to attributes defined in [XSL].</p></td><td><p>urn:oasis:names:tc:opendocument:xmlns:<br />
 xsl-fo-compatible:1.0</p></td></tr>
@@ -215,6 +224,9 @@ smil-compatible:1.0</p></td></tr>
 </table>
 <p>Table 4 - XML Namespaces used by the OpenDocument schema</p>
 <table>
+<thead>
+<tr><th><p>Prefix</p></th><th><p>Description</p></th><th><p>Namespace</p></th></tr>
+</thead>
 <tbody>
 <tr><td><p>dc</p></td><td><p>The Dublin Core Namespace (see [DCMI]).</p></td><td><p>http://purl.org/dc/elements/1.1/</p></td></tr>
 <tr><td><p>math</p></td><td><p>MathML Namespace (see [MathML])</p></td><td><p>http://www.w3.org/1998/Math/MathML</p></td></tr>
@@ -226,12 +238,18 @@ smil-compatible:1.0</p></td></tr>
 </table>
 <p>Table 5 - XML Namespaces defined by the OpenDocument metadata manifest ontology</p>
 <table>
+<thead>
+<tr><th><p>Prefix</p></th><th><p>Description</p></th><th><p>Namespace</p></th></tr>
+</thead>
 <tbody>
 <tr><td><p>pkg</p></td><td><p>OWL classes and properties contained in metadata manifest files.</p></td><td><p>http://docs.oasis-open.org/ns/office/1.2/meta/pkg#</p></td></tr>
 </tbody>
 </table>
 <p>Table 6 - Other XML Namespaces defined by this specification</p>
 <table>
+<thead>
+<tr><th><p>Prefix</p></th><th><p>Description</p></th><th><p>Namespace</p></th></tr>
+</thead>
 <tbody>
 <tr><td><p>of</p></td><td><p>Namespace for formulas defined by Part 4 of this specification that occur in attribute values. </p></td><td><p>urn:oasis:names:tc:opendocument:xmlns:of:1.2 </p></td></tr>
 </tbody>
@@ -415,6 +433,9 @@ smil-compatible:1.0</p></td></tr>
 <p>OpenDocument file models are summarized in Table 7. </p>
 <p>Table 7 - Root element content models</p>
 <table>
+<thead>
+<tr><th><p>Root Element</p></th><th><p>&lt;office:meta&gt;</p></th><th><p>&lt;office:settings&gt;</p></th><th><p>&lt;office:scripts&gt;</p></th><th><p>&lt;office:font-face-decls&gt;</p></th><th><p>&lt;office:styles&gt;</p></th><th><p>&lt;office:automatic-styles&gt;</p></th><th><p>&lt;office:master-styles&gt;</p></th><th><p>&lt;office:body&gt;</p></th></tr>
+</thead>
 <tbody>
 <tr><td><p>&lt;office:document&gt;</p></td><td><p>X</p></td><td><p>X</p></td><td><p>X</p></td><td><p>X</p></td><td><p>X</p></td><td><p>X</p></td><td><p>X</p></td><td><p>X</p></td></tr>
 <tr><td><p>&lt;office:document-content&gt;</p></td><td></td><td></td><td><p>X</p></td><td><p>X</p></td><td></td><td><p>X</p></td><td></td><td><p>X</p></td></tr>
@@ -3548,6 +3569,9 @@ The view box attribute establishes a coordinate system for the point sequence. T
 <p>Section 19.433 contains guidelines for event names that may be used within forms and form controls. In addition to those, the events listed in Table 9 may be used in forms and form controls.</p>
 <p>Table 9 - Form control event names</p>
 <table>
+<thead>
+<tr><th><p>Value of script:event-name Attribute</p></th><th><p>Applies To</p></th><th><p>Description of Event</p></th></tr>
+</thead>
 <tbody>
 <tr><td><p>form:approveaction</p></td><td><p>Button or image.</p></td><td><p>Occurs before an “on perform action” event takes place. Allows a user to veto an action.</p></td></tr>
 <tr><td><p>form:performaction</p></td><td><p>Button or image.</p></td><td><p>Occurs when the control action is to be performed. The common interpretation of this event is “pressing the button”.</p></td></tr>
@@ -5791,6 +5815,9 @@ together to form the start and end values (in this order) in a Gantt chart. Star
 <p>The following commands are defined:</p>
 <p>Table 10 - Enhanced path commands</p>
 <table>
+<thead>
+<tr><th><p>Command</p></th><th><p>Name</p></th><th><p>Parameters</p></th><th><p>Description</p></th></tr>
+</thead>
 <tbody>
 <tr><td><p>A</p></td><td><p>arcto</p></td><td><p>(x1 y1 x2 y2 x3 y3 x4 y4) +</p></td><td><p>(x1, y1) and (x2, y2) define the bounding box of an ellipse. A line is then drawn from the current point to the start angle of the arc that is specified by the radial vector of point (x3, y3) and then counter-clockwise to the end-angle that is specified by point (x4, y4).</p></td></tr>
 <tr><td><p>B</p></td><td><p>arc</p></td><td><p>(x1 y1 x2 y2 x3 y3 x4 y4) +</p></td><td><p>The same as the “A” command, except that an implied moveto to the starting point is done.</p></td></tr>
@@ -6150,6 +6177,9 @@ name ::= [^ ]+ </p>
 </ul>
 <p>Table 13 - Handle position constants</p>
 <table>
+<thead>
+<tr><th><p>Constant</p></th><th><p>Description</p></th></tr>
+</thead>
 <tbody>
 <tr><td><p>bottom</p></td><td><p>The bottom coordinate of the view box as specified by the svg:viewBox 19.574 attribute is used.</p></td></tr>
 <tr><td><p>hasfill</p></td><td><p>If the shape has a fill style, a value of 1 is used.</p></td></tr>
@@ -8157,6 +8187,9 @@ If the value of number:min-decimal-places is less than the value of number:decim
 <p>The value type of each of these elements shall be specified. If the value type is not string or if the &lt;table:table-cell&gt; element content differs from the value of the element, the corresponding Value Attribute(s) (Table 14 - Value attributes) shall contain the value(s) of the element. </p>
 <p>Table 14 - Value attributes</p>
 <table>
+<thead>
+<tr><th><p>Value Type</p></th><th><p>Value Attribute(s)</p></th><th><p>Encoded as...</p></th><th><p>Example</p></th></tr>
+</thead>
 <tbody>
 <tr><td><p>boolean</p></td><td><p>office:boolean-value</p></td><td><p>true or false</p></td><td><p>&quot;true&quot;</p></td></tr>
 <tr><td><p>currency</p></td><td><p>office:value and<br />
@@ -8573,6 +8606,9 @@ currency symbol</p></td><td><p>&quot;100&quot;<br />
 <p>Table 15 specifies events defined in [DOMEvents2] that have an equivalent event in HTML. The namespace used for these events is “http://www.w3.org/2001/xml-events”“. </p>
 <p>Table 15 - Script Events</p>
 <table>
+<thead>
+<tr><th><p>Value of script:event-name Attribute</p></th><th><p>Equivalent HTML Event</p></th><th><p>Description of Event</p></th></tr>
+</thead>
 <tbody>
 <tr><td><p>dom:change</p></td><td><p>onchange</p></td><td><p>Occurs when a control is no longer focused and the value of the control was modified since it was given focus.</p></td></tr>
 <tr><td><p>dom:DOMFocusIn</p></td><td><p>onfocus</p></td><td><p>Occurs when a control is given focus using the mouse or the TAB key.</p></td></tr>
@@ -11543,6 +11579,9 @@ currency symbol</p></td><td><p>&quot;100&quot;<br />
 <p>If neither an element attribute nor a graphic property is given or can be found by inheritance, then the attribute text:anchor-type defaults to value &quot;paragraph&quot;.</p>
 <p>Table 17 - Text anchor positions</p>
 <table>
+<thead>
+<tr><th><p>If the value of the text:anchor-type attribute is ...</p></th><th><p>The anchor position is...</p></th><th><p>The drawing shape element shall be located in file text ...</p></th><th><p>Notes</p></th></tr>
+</thead>
 <tbody>
 <tr><td><p>as-char</p></td><td><p>There is no anchor position. The drawing shape behaves like a character.</p></td><td><p>At the position where the character appears in the document.</p></td><td></td></tr>
 <tr><td><p>char</p></td><td><p>The character after the drawing shape element.</p></td><td><p>Just before the character.</p></td><td></td></tr>
@@ -11643,6 +11682,9 @@ currency symbol</p></td><td><p>&quot;100&quot;<br />
 <p>The defined values for the text:bullet-char attribute are shown in Table 18:</p>
 <p>Table 18 - Typical bullet characters</p>
 <table>
+<thead>
+<tr><th><p>UNICODE Character Code</p></th><th><p>Typical Shape</p></th><th><p>UNICODE Character Name</p></th></tr>
+</thead>
 <tbody>
 <tr><td><p>U+2022</p></td><td><p>•</p></td><td><p>BULLET</p></td></tr>
 <tr><td><p>U+25CF</p></td><td><p>●</p></td><td><p>BLACK CIRCLE</p></td></tr>
@@ -15890,12 +15932,28 @@ currency symbol</p></td><td><p>&quot;100&quot;<br />
 <p>Tables 19 and 20 display the defined combinations of values of the attributes style:horizontal-pos and style:horizontal-rel 20.299. The values of these alignment attributes are listed in the first column on the left, and an alignment attribute value/anchor type value match is indicated by an X.</p>
 <p>Table 19 - Horizontal position values</p>
 <table>
+<thead>
+<tr><th><p>Value of style:horizontal-pos</p></th><th colspan="5"><table>
+<tbody>
+<tr><td colspan="5"><p>Value of text:anchor-type</p></td></tr>
+<tr><td><p>page</p></td><td><p>frame</p></td><td><p>paragraph</p></td><td><p>char</p></td><td><p>as-char</p></td></tr>
+</tbody>
+</table></th></tr>
+</thead>
 <tbody>
 <tr><td><p>any</p></td><td><p>X</p></td><td><p>X</p></td><td><p>X</p></td><td><p>X</p></td><td></td></tr>
 </tbody>
 </table>
 <p>Table 20 - Horizontal relation values</p>
 <table>
+<thead>
+<tr><th><p>Value of style:horizontal-rel</p></th><th colspan="5"><table>
+<tbody>
+<tr><td colspan="5"><p>Value of text:anchor-type</p></td></tr>
+<tr><td><p>page</p></td><td><p>frame</p></td><td><p>paragraph</p></td><td><p>char</p></td><td><p>as-char</p></td></tr>
+</tbody>
+</table></th></tr>
+</thead>
 <tbody>
 <tr><td><p>char</p></td><td></td><td></td><td></td><td><p>X</p></td><td></td></tr>
 <tr><td><p>frame</p></td><td></td><td><p>X</p></td><td></td><td></td><td></td></tr>
@@ -16353,6 +16411,9 @@ currency symbol</p></td><td><p>&quot;100&quot;<br />
 <p>The defined values for the style:rotation-align attribute are shown in Table 21:</p>
 <p>Table 21 - Rotation align values</p>
 <table>
+<thead>
+<tr><th><p>Alignment</p></th><th><p>Text is...</p></th><th><p>Borders and background are...</p></th></tr>
+</thead>
 <tbody>
 <tr><td><p>None.</p></td><td><p>Rotated and aligned within the cell. </p></td><td><p>Unchanged.</p></td></tr>
 <tr><td><table>
@@ -16862,6 +16923,14 @@ currency symbol</p></td><td><p>&quot;100&quot;<br />
 <p>Table 23 displays the defined values of style:vertical-rel and text:anchor-type attributes. Value combinations that can appear in a document are marked with an X.</p>
 <p>Table 23 - Vertical Relation Values</p>
 <table>
+<thead>
+<tr><th><p>Value of style:vertical-rel</p></th><th colspan="5"><table>
+<tbody>
+<tr><td colspan="5"><p>Value of text:anchor-type</p></td></tr>
+<tr><td><p>page</p></td><td><p>frame</p></td><td><p>paragraph</p></td><td><p>char</p></td><td><p>as-char</p></td></tr>
+</tbody>
+</table></th></tr>
+</thead>
 <tbody>
 <tr><td><p>baseline</p></td><td></td><td></td><td></td><td></td><td><p>X</p></td></tr>
 <tr><td><p>char</p></td><td></td><td></td><td></td><td><p>X</p></td><td><p>X</p></td></tr>
@@ -17047,6 +17116,9 @@ currency symbol</p></td><td><p>&quot;100&quot;<br />
 <p>The defined values for the text:anchor-type attribute are shown in Table 24.</p>
 <p>Table 24 - Text anchor positions</p>
 <table>
+<thead>
+<tr><th><p>If the value of the text:anchor-type attribute is ...</p></th><th><p>The anchor position is...</p></th><th><p>The drawing shape element shall be located in the file text ...</p></th><th><p>Notes</p></th></tr>
+</thead>
 <tbody>
 <tr><td><p>as-char</p></td><td><p>There is no anchor position. The drawing shape behaves like a character.</p></td><td><p>At the position where the character appears in the document.</p></td><td></td></tr>
 <tr><td><p>char</p></td><td><p>The character after the drawing shape element.</p></td><td><p>Just before the character.</p></td><td></td></tr>
@@ -17204,6 +17276,9 @@ currency symbol</p></td><td><p>&quot;100&quot;<br />
 <p>Registered MIME types are for use with documents contained in OpenDocument packages. </p>
 <p>Table 25 - Registered MIME types</p>
 <table>
+<thead>
+<tr><th><p>MIME type</p></th><th><p>Ext.</p></th><th><p>Description</p></th></tr>
+</thead>
 <tbody>
 <tr><td><p>application/vnd.oasis.opendocument.text</p></td><td><p>odt</p></td><td><p>Text document</p></td></tr>
 <tr><td><p>application/<br />
@@ -17235,6 +17310,9 @@ currency symbol</p></td><td><p>&quot;100&quot;<br />
 <p>Please check [MIMETYPES] before using these MIME types. If a MIME type is not listed there, the MIME type that is the result of inserting &quot;x-&quot; behind the &quot;/&quot; (U+002F, SOLIDUS) character (application/x-vnd.oasis.opendocument.text) should be used.</p>
 <p>Table 26 - Recommended MIME types</p>
 <table>
+<thead>
+<tr><th><p>MIME type</p></th><th><p>Ext.</p></th><th><p>Description</p></th></tr>
+</thead>
 <tbody>
 <tr><td><p>application/vnd.oasis.opendocument.base</p></td><td><p>odb</p></td><td><p>Database front end document</p></td></tr>
 </tbody>
