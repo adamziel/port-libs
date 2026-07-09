@@ -90,7 +90,10 @@ final class PdfReader
                 $repairSourceLayouts = $positionedLineItems;
                 $repairSource = 'positioned';
             } else {
-                $repairSplitWordHints = $this->pdfTextRunSplitWordHints($runs);
+                $repairSplitWordHints = array_replace(
+                    $this->pdfTextRunSplitWordHints($runs),
+                    $this->pdfPositionedRunSpacingHints($limitedPositionedRuns)
+                );
             }
         }
         $repairedLines = $taggedBlocks === [] && $geometryTableBlocks === [] && $proseRepairEnabled
@@ -1209,6 +1212,165 @@ final class PdfReader
         return "fragment\0" . $spacedFragment;
     }
 
+    private function spacingHintKey(string $gluedText): string
+    {
+        return "spacing\0" . $gluedText;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $runs
+     * @return array<string, string>
+     */
+    private function pdfPositionedRunSpacingHints(array $runs): array
+    {
+        $runsByPage = [];
+        foreach ($runs as $index => $run) {
+            $run['_order'] = $index;
+            $normalized = $this->positionedRun($run);
+            if ($normalized === null) {
+                continue;
+            }
+            $runsByPage[$normalized['page']][] = $normalized;
+        }
+        if ($runsByPage === []) {
+            return [];
+        }
+
+        ksort($runsByPage);
+        $hints = [];
+        foreach ($runsByPage as $pageRuns) {
+            $fontSizes = array_map(static fn (array $run): float => $run['fontSize'], $pageRuns);
+            $medianFontSize = max(1.0, $this->median($fontSizes));
+            $rowTolerance = max(3.0, $medianFontSize * 0.55);
+            foreach ($this->clusterPositionedRows($pageRuns, $rowTolerance) as $row) {
+                foreach ($this->positionedSpacingHintTokenSegments($row['runs']) as $tokens) {
+                    $tokenCount = count($tokens);
+                    for ($start = 0; $start < $tokenCount - 1; $start++) {
+                        $glued = '';
+                        $spaced = '';
+                        for ($end = $start; $end < $tokenCount && $end < $start + 8; $end++) {
+                            $token = $tokens[$end];
+                            $glued .= $token;
+                            $spaced .= ($spaced === '' ? '' : ' ') . $token;
+                            if ($end === $start) {
+                                continue;
+                            }
+                            if (!$this->spacingHintTokenSequenceLooksUsable(array_slice($tokens, $start, $end - $start + 1))) {
+                                continue;
+                            }
+                            if ($glued !== '' && $glued !== $spaced) {
+                                $hints[$this->spacingHintKey($glued)] = $spaced;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        return $hints;
+    }
+
+    /**
+     * @param list<array{page: int, text: string, x1: float, y1: float, x2: float, y2: float, textX1: float, textY1: float, textX2: float, textY2: float, fontSize: float, startsWithWhitespace?: bool, endsWithWhitespace?: bool}> $runs
+     * @return list<list<string>>
+     */
+    private function positionedSpacingHintTokenSegments(array $runs): array
+    {
+        usort($runs, static fn (array $left, array $right): int => ($left['textX1'] <=> $right['textX1']) ?: (($left['order'] ?? 0) <=> ($right['order'] ?? 0)));
+        $segments = [];
+        $current = [];
+        $previous = null;
+        $flush = static function () use (&$segments, &$current): void {
+            if (count($current) >= 2) {
+                $segments[] = $current;
+            }
+            $current = [];
+        };
+        foreach ($runs as $run) {
+            $token = $this->spacingHintTokenFromPositionedRun((string) $run['text']);
+            if ($token === '') {
+                $flush();
+                $previous = null;
+                continue;
+            }
+            if ($previous !== null && !$this->positionedRunsHaveSpacingHintBoundary($previous, $run)) {
+                $flush();
+            }
+            $current[] = $token;
+            $previous = $run;
+        }
+        $flush();
+
+        return $segments;
+    }
+
+    private function spacingHintTokenFromPositionedRun(string $text): string
+    {
+        $text = trim($text);
+        if ($text === '' || preg_match('/-\s*$/u', $text) === 1) {
+            return '';
+        }
+        if (preg_match('/^[^\p{L}\p{N}]*([\p{L}\p{N}]{1,24})[^\p{L}\p{N}]*$/u', $text, $matches) !== 1) {
+            return '';
+        }
+
+        return $matches[1];
+    }
+
+    /**
+     * @param array{page: int, text: string, x1: float, y1: float, x2: float, y2: float, textX1: float, textY1: float, textX2: float, textY2: float, fontSize: float, endsWithWhitespace?: bool} $left
+     * @param array{page: int, text: string, x1: float, y1: float, x2: float, y2: float, textX1: float, textY1: float, textX2: float, textY2: float, fontSize: float, startsWithWhitespace?: bool} $right
+     */
+    private function positionedRunsHaveSpacingHintBoundary(array $left, array $right): bool
+    {
+        if (($left['endsWithWhitespace'] ?? false) || ($right['startsWithWhitespace'] ?? false)) {
+            return true;
+        }
+
+        $fontSize = max($left['fontSize'], $right['fontSize'], 1.0);
+        $gap = $right['textX1'] - $left['textX2'];
+
+        return $gap >= -max(1.5, $fontSize * 0.15)
+            && $gap <= max(18.0, $fontSize * 2.6);
+    }
+
+    /**
+     * @param list<string> $tokens
+     */
+    private function spacingHintTokenSequenceLooksUsable(array $tokens): bool
+    {
+        if (count($tokens) < 2) {
+            return false;
+        }
+        $letters = 0;
+        foreach ($tokens as $token) {
+            $length = $this->length($token);
+            if ($length > 24 || preg_match('/^[\p{L}\p{N}]+$/u', $token) !== 1) {
+                return false;
+            }
+            if (preg_match('/\p{L}/u', $token) === 1) {
+                $letters++;
+            }
+        }
+        if ($letters === 0) {
+            return false;
+        }
+
+        if (count($tokens) === 2) {
+            [$left, $right] = $tokens;
+            $leftLength = $this->length($left);
+            $rightLength = $this->length($right);
+            if ($leftLength < 2 || $rightLength < 2) {
+                return false;
+            }
+            if ($rightLength === 2 && preg_match('/^\p{Lu}{2}$/u', $right) !== 1) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     private function pdfTextRunTrailingSplitFragment(string $text): string
     {
         if ($text === '' || preg_match('/\s$/u', $text) === 1) {
@@ -1284,12 +1446,16 @@ final class PdfReader
         $line = $this->removeStandaloneBraceArtifacts($line);
         $line = $this->repairSplitUrlWhitespace($line);
         $line = $this->repairSplitFragmentWhitespace($line, $splitWordHints);
+        $line = $this->repairPositionedSpacingWhitespace($line, $splitWordHints);
+        $lineHasWordSpacing = preg_match('/\p{L}\s+\p{L}/u', $line) === 1;
         $line = preg_replace('/([,;:!?])(?=\S)/u', '$1 ', $line) ?? $line;
         $line = preg_replace('/(?<!\d)\.(?=\p{Lu})/u', '. ', $line) ?? $line;
-        $line = preg_replace('/([\p{Ll}])(\p{Lu}{2,})(?=\p{Ll})/u', '$1 $2', $line) ?? $line;
-        $line = preg_replace('/(\p{Lu}{2,})(\p{Lu}\p{Ll})/u', '$1 $2', $line) ?? $line;
-        $line = preg_replace('/(\p{Lu}{2,})(\p{Ll})/u', '$1 $2', $line) ?? $line;
-        $line = preg_replace('/([\p{Ll}])([\p{Lu}][\p{Ll}])/u', '$1 $2', $line) ?? $line;
+        if ($lineHasWordSpacing) {
+            $line = preg_replace('/([\p{Ll}])(\p{Lu}{2,})(?=\p{Ll})/u', '$1 $2', $line) ?? $line;
+            $line = preg_replace('/(\p{Lu}{2,})(\p{Lu}\p{Ll})/u', '$1 $2', $line) ?? $line;
+            $line = preg_replace('/(\p{Lu}{2,})(\p{Ll})/u', '$1 $2', $line) ?? $line;
+            $line = preg_replace('/([\p{Ll}])([\p{Lu}][\p{Ll}])/u', '$1 $2', $line) ?? $line;
+        }
         $line = preg_replace('/([\p{L}])(\d{2,})/u', '$1 $2', $line) ?? $line;
         $line = preg_replace('/(\d)([\p{L}]{2,})/u', '$1 $2', $line) ?? $line;
         $line = preg_replace('/\/\/(?=[A-Za-z])/', '// ', $line) ?? $line;
@@ -1321,6 +1487,44 @@ final class PdfReader
         }
 
         return $line;
+    }
+
+    /**
+     * @param array<string, true|string> $splitWordHints
+     */
+    private function repairPositionedSpacingWhitespace(string $line, array $splitWordHints): string
+    {
+        $hints = [];
+        foreach ($splitWordHints as $key => $replacement) {
+            if (!is_string($replacement) || !str_starts_with($key, "spacing\0")) {
+                continue;
+            }
+
+            $glued = substr($key, strlen("spacing\0"));
+            if ($glued !== '' && str_contains($line, $glued)) {
+                $hints[$glued] = $replacement;
+            }
+        }
+        if ($hints === []) {
+            return $line;
+        }
+
+        uksort($hints, static fn (string $left, string $right): int => strlen($right) <=> strlen($left));
+        foreach ($hints as $glued => $replacement) {
+            if ($this->spacingReplacementNeedsLetterBoundary($replacement)) {
+                $pattern = '/(?<!\p{L})' . preg_quote($glued, '/') . '(?!\p{L})/u';
+                $line = preg_replace($pattern, $replacement, $line) ?? $line;
+                continue;
+            }
+            $line = str_replace($glued, $replacement, $line);
+        }
+
+        return $line;
+    }
+
+    private function spacingReplacementNeedsLetterBoundary(string $replacement): bool
+    {
+        return preg_match('/^\p{Ll}{1,3}\s+\p{Ll}{1,3}$/u', $replacement) === 1;
     }
 
     private function repairSplitUrlWhitespace(string $line): string

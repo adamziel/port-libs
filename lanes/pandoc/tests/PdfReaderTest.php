@@ -5516,6 +5516,68 @@ return [
             'TraceMonkey and HTMLParser remain readable.',
         ]));
     },
+    'repairs glued pdf prose using positioned run spacing evidence' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $run = static function (string $text, float $x1, float $x2): array {
+            return [
+                'text' => $text,
+                'page' => 1,
+                'x1' => $x1,
+                'x2' => $x2,
+                'y1' => 100.0,
+                'y2' => 112.0,
+                'textX1' => $x1,
+                'textX2' => $x2,
+                'textY1' => 100.0,
+                'textY2' => 112.0,
+                'fontSize' => 10.0,
+            ];
+        };
+        $repair = (function (array $lines, array $runs): array {
+            return $this->repairProseTextLines(
+                $lines,
+                true,
+                [],
+                array_replace($this->pdfTextRunSplitWordHints([]), $this->pdfPositionedRunSpacingHints($runs))
+            );
+        })->bindTo($reader, PdfReader::class);
+        $t->true($repair instanceof \Closure);
+
+        $repaired = $repair([
+            'performanceofthegeneratedmachinecode. Oursystemuses mixedmode execution.',
+            'Thetracetreefortheinnerloop records asideexit without duplicating theouterloop.',
+        ], [
+            $run('performance', 10.0, 70.0),
+            $run('of', 72.0, 82.0),
+            $run('the', 84.0, 100.0),
+            $run('generated', 102.0, 150.0),
+            $run('machine', 152.0, 190.0),
+            $run('code.', 192.0, 220.0),
+            $run('Our', 224.0, 244.0),
+            $run('system', 246.0, 282.0),
+            $run('uses', 284.0, 306.0),
+            $run('mixed', 308.0, 340.0),
+            $run('mode', 342.0, 366.0),
+            ['text' => 'The', 'page' => 1, 'x1' => 10.0, 'x2' => 30.0, 'y1' => 80.0, 'y2' => 92.0, 'textX1' => 10.0, 'textX2' => 30.0, 'textY1' => 80.0, 'textY2' => 92.0, 'fontSize' => 10.0],
+            ['text' => 'trace', 'page' => 1, 'x1' => 32.0, 'x2' => 60.0, 'y1' => 80.0, 'y2' => 92.0, 'textX1' => 32.0, 'textX2' => 60.0, 'textY1' => 80.0, 'textY2' => 92.0, 'fontSize' => 10.0],
+            ['text' => 'tree', 'page' => 1, 'x1' => 62.0, 'x2' => 86.0, 'y1' => 80.0, 'y2' => 92.0, 'textX1' => 62.0, 'textX2' => 86.0, 'textY1' => 80.0, 'textY2' => 92.0, 'fontSize' => 10.0],
+            ['text' => 'for', 'page' => 1, 'x1' => 88.0, 'x2' => 104.0, 'y1' => 80.0, 'y2' => 92.0, 'textX1' => 88.0, 'textX2' => 104.0, 'textY1' => 80.0, 'textY2' => 92.0, 'fontSize' => 10.0],
+            ['text' => 'the', 'page' => 1, 'x1' => 106.0, 'x2' => 124.0, 'y1' => 80.0, 'y2' => 92.0, 'textX1' => 106.0, 'textX2' => 124.0, 'textY1' => 80.0, 'textY2' => 92.0, 'fontSize' => 10.0],
+            ['text' => 'inner', 'page' => 1, 'x1' => 126.0, 'x2' => 154.0, 'y1' => 80.0, 'y2' => 92.0, 'textX1' => 126.0, 'textX2' => 154.0, 'textY1' => 80.0, 'textY2' => 92.0, 'fontSize' => 10.0],
+            ['text' => 'loop', 'page' => 1, 'x1' => 156.0, 'x2' => 180.0, 'y1' => 80.0, 'y2' => 92.0, 'textX1' => 156.0, 'textX2' => 180.0, 'textY1' => 80.0, 'textY2' => 92.0, 'fontSize' => 10.0],
+            ['text' => 'a', 'page' => 1, 'x1' => 220.0, 'x2' => 226.0, 'y1' => 80.0, 'y2' => 92.0, 'textX1' => 220.0, 'textX2' => 226.0, 'textY1' => 80.0, 'textY2' => 92.0, 'fontSize' => 10.0],
+            ['text' => 'side', 'page' => 1, 'x1' => 228.0, 'x2' => 252.0, 'y1' => 80.0, 'y2' => 92.0, 'textX1' => 228.0, 'textX2' => 252.0, 'textY1' => 80.0, 'textY2' => 92.0, 'fontSize' => 10.0],
+            ['text' => 'exit', 'page' => 1, 'x1' => 254.0, 'x2' => 278.0, 'y1' => 80.0, 'y2' => 92.0, 'textX1' => 254.0, 'textX2' => 278.0, 'textY1' => 80.0, 'textY2' => 92.0, 'fontSize' => 10.0],
+            ['text' => 'the', 'page' => 1, 'x1' => 316.0, 'x2' => 334.0, 'y1' => 80.0, 'y2' => 92.0, 'textX1' => 316.0, 'textX2' => 334.0, 'textY1' => 80.0, 'textY2' => 92.0, 'fontSize' => 10.0],
+            ['text' => 'outer', 'page' => 1, 'x1' => 336.0, 'x2' => 364.0, 'y1' => 80.0, 'y2' => 92.0, 'textX1' => 336.0, 'textX2' => 364.0, 'textY1' => 80.0, 'textY2' => 92.0, 'fontSize' => 10.0],
+            ['text' => 'loop.', 'page' => 1, 'x1' => 366.0, 'x2' => 394.0, 'y1' => 80.0, 'y2' => 92.0, 'textX1' => 366.0, 'textX2' => 394.0, 'textY1' => 80.0, 'textY2' => 92.0, 'fontSize' => 10.0],
+        ]);
+
+        $t->same([
+            'performance of the generated machine code. Our system uses mixed mode execution.',
+            'The trace tree for the inner loop records a side exit without duplicating the outer loop.',
+        ], $repaired);
+    },
     'repairs whitespace inserted inside pdf url text' => static function (TestRunner $t): void {
         $reader = new PdfReader();
         $repair = (function (array $lines): array {
