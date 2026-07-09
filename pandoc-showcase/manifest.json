@@ -1,5 +1,5 @@
 {
-    "generatedAt": "2026-07-09T02:09:45+00:00",
+    "generatedAt": "2026-07-09T02:28:45+00:00",
     "pandocVersion": "pandoc 3.10\nFeatures: +server +lua\nScripting engine: Lua 5.4\nUser data directory: $REPO\nCopyright (C) 2006-2025 John MacFarlane. Web:  https://pandoc.org\nThis is free software; see the source for copying conditions. There is no\nwarranty, not even for merchantability or fitness for a particular purpose.",
     "mediaImageMode": "important",
     "formats": [
@@ -89,28 +89,28 @@
         "rst"
     ],
     "conversionSummary": {
-        "totalSamples": 84,
-        "totalConversions": 252,
-        "successfulConversions": 236,
+        "totalSamples": 87,
+        "totalConversions": 261,
+        "successfulConversions": 245,
         "failedConversions": 16,
         "byConverter": {
             "wpBlocks": {
                 "label": "PHP WordPress blocks",
-                "ok": 82,
+                "ok": 85,
                 "failed": 2,
-                "total": 84
+                "total": 87
             },
             "phpHtml": {
                 "label": "PHP HTML",
-                "ok": 82,
+                "ok": 85,
                 "failed": 2,
-                "total": 84
+                "total": 87
             },
             "haskell": {
                 "label": "Haskell Pandoc HTML",
-                "ok": 72,
+                "ok": 75,
                 "failed": 12,
-                "total": 84
+                "total": 87
             }
         },
         "byFormat": {
@@ -169,10 +169,10 @@
                 "total": 6
             },
             "docx": {
-                "samples": 6,
-                "ok": 18,
+                "samples": 9,
+                "ok": 27,
                 "failed": 0,
-                "total": 18
+                "total": 27
             },
             "endnotexml": {
                 "samples": 2,
@@ -339,38 +339,38 @@
         }
     },
     "faithfulnessSummary": {
-        "comparisons": 153,
-        "faithfulEnough": 79,
+        "comparisons": 159,
+        "faithfulEnough": 85,
         "review": 31,
         "divergent": 42,
         "noText": 1,
-        "visualComparisons": 153,
-        "visualFaithfulEnough": 91,
+        "visualComparisons": 159,
+        "visualFaithfulEnough": 97,
         "visualReview": 31,
         "visualDivergent": 30,
         "visualNoStructure": 1
     },
     "importQualitySummary": {
-        "samples": 84,
-        "pass": 13,
-        "review": 29,
+        "samples": 87,
+        "pass": 14,
+        "review": 31,
         "fail": 42
     },
     "blockUsage": {
         "totals": {
             "code": 615,
             "group": 283,
-            "heading": 4069,
+            "heading": 4089,
             "html": 59,
             "image": 199,
-            "list": 1176,
-            "paragraph": 15595,
+            "list": 1183,
+            "paragraph": 15604,
             "quote": 54,
             "separator": 65,
-            "table": 546,
+            "table": 549,
             "verse": 1
         },
-        "sampleCount": 81
+        "sampleCount": 84
     },
     "records": [
         {
@@ -2506,6 +2506,411 @@
                     "pass": 9,
                     "review": 0,
                     "fail": 1
+                }
+            }
+        },
+        {
+            "id": "docx-quarterly-operations-report",
+            "format": "docx",
+            "label": "Quarterly operations report DOCX",
+            "description": "Generated normal-user report DOCX with headings, paragraphs, status table, ordered list, and bullets.",
+            "source": "Checked-in port-libs fixture at lanes/pandoc/fixtures/showcase-user-docs/quarterly-operations-report.docx",
+            "sourceUrl": "",
+            "samplePath": "samples/docx-quarterly-operations-report-quarterly-operations-report.docx",
+            "sampleSize": 11833,
+            "preview": "",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\DocxReader",
+                "notes": "Bounded DOCX package reader parses document.xml, styles, numbering levels/start/style/delimiter attributes, relationships, notes/comments, headers/footers, media references, bookmarks, simple reference fields, OMML equations, and core properties into the shared AST. Full DOCX parity remains open."
+            },
+            "haskell": {
+                "ok": true,
+                "path": "outputs/docx-quarterly-operations-report/haskell.html"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/docx-quarterly-operations-report/php.html",
+                "media": [],
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/docx-quarterly-operations-report/wordpress-blocks.html",
+                "media": [],
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
+            },
+            "wpBlockCounts": {
+                "heading": 6,
+                "list": 2,
+                "paragraph": 2,
+                "table": 1
+            },
+            "faithfulness": {
+                "baseline": "haskell",
+                "comparisons": {
+                    "wpBlocks": {
+                        "label": "PHP WordPress blocks",
+                        "status": "faithful_enough",
+                        "score": 0.8466,
+                        "textStatus": "faithful_enough",
+                        "textScore": 0.8466,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.9259
+                    },
+                    "phpHtml": {
+                        "label": "PHP HTML",
+                        "status": "faithful_enough",
+                        "score": 0.8769,
+                        "textStatus": "faithful_enough",
+                        "textScore": 0.8769,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.9434
+                    }
+                }
+            },
+            "importQuality": {
+                "status": "review",
+                "gates": {
+                    "text_completeness": {
+                        "status": "pass",
+                        "expected": ">=0.8",
+                        "actual": 0.8466,
+                        "detail": "visible text overlap with the baseline"
+                    },
+                    "visual_structure": {
+                        "status": "pass",
+                        "expected": ">=0.75",
+                        "actual": 0.9259,
+                        "detail": "heading/list/table/image shape overlap with the baseline"
+                    },
+                    "paragraph_merge_split": {
+                        "status": "review",
+                        "expected": "0.80-1.25",
+                        "actual": 0.6667,
+                        "detail": "paragraph count ratio expected 3, got 2"
+                    },
+                    "heading_count": {
+                        "status": "pass",
+                        "expected": "0.80-1.25",
+                        "actual": 0.8571,
+                        "detail": "heading count ratio expected 7, got 6"
+                    },
+                    "list_count": {
+                        "status": "pass",
+                        "expected": "0.80-1.25",
+                        "actual": 1,
+                        "detail": "list count ratio expected 2, got 2"
+                    },
+                    "table_count": {
+                        "status": "pass",
+                        "expected": "0.80-1.25",
+                        "actual": 1,
+                        "detail": "table count ratio expected 1, got 1"
+                    },
+                    "image_count": {
+                        "status": "pass",
+                        "expected": "0",
+                        "actual": 0,
+                        "detail": "image count ratio"
+                    },
+                    "media_imported": {
+                        "status": "pass",
+                        "expected": 0,
+                        "actual": 0,
+                        "detail": "no media extraction problems reported"
+                    },
+                    "anchor_validity": {
+                        "status": "pass",
+                        "expected": 0,
+                        "actual": 0,
+                        "detail": "all local fragment links resolve"
+                    },
+                    "custom_html_percentage": {
+                        "status": "pass",
+                        "expected": "<=0.05",
+                        "actual": 0,
+                        "detail": "0/11 WordPress blocks are Custom HTML"
+                    }
+                },
+                "summary": {
+                    "pass": 9,
+                    "review": 1,
+                    "fail": 0
+                }
+            }
+        },
+        {
+            "id": "docx-support-specialist-resume",
+            "format": "docx",
+            "label": "Support specialist resume DOCX",
+            "description": "Generated normal-user resume DOCX with contact details, experience sections, bullets, and skills table.",
+            "source": "Checked-in port-libs fixture at lanes/pandoc/fixtures/showcase-user-docs/support-specialist-resume.docx",
+            "sourceUrl": "",
+            "samplePath": "samples/docx-support-specialist-resume-support-specialist-resume.docx",
+            "sampleSize": 11608,
+            "preview": "",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\DocxReader",
+                "notes": "Bounded DOCX package reader parses document.xml, styles, numbering levels/start/style/delimiter attributes, relationships, notes/comments, headers/footers, media references, bookmarks, simple reference fields, OMML equations, and core properties into the shared AST. Full DOCX parity remains open."
+            },
+            "haskell": {
+                "ok": true,
+                "path": "outputs/docx-support-specialist-resume/haskell.html"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/docx-support-specialist-resume/php.html",
+                "media": [],
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/docx-support-specialist-resume/wordpress-blocks.html",
+                "media": [],
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
+            },
+            "wpBlockCounts": {
+                "heading": 7,
+                "list": 3,
+                "paragraph": 4,
+                "table": 1
+            },
+            "faithfulness": {
+                "baseline": "haskell",
+                "comparisons": {
+                    "wpBlocks": {
+                        "label": "PHP WordPress blocks",
+                        "status": "faithful_enough",
+                        "score": 0.9141,
+                        "textStatus": "faithful_enough",
+                        "textScore": 0.9141,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.9375
+                    },
+                    "phpHtml": {
+                        "label": "PHP HTML",
+                        "status": "faithful_enough",
+                        "score": 0.9318,
+                        "textStatus": "faithful_enough",
+                        "textScore": 0.9318,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.9574
+                    }
+                }
+            },
+            "importQuality": {
+                "status": "pass",
+                "gates": {
+                    "text_completeness": {
+                        "status": "pass",
+                        "expected": ">=0.8",
+                        "actual": 0.9141,
+                        "detail": "visible text overlap with the baseline"
+                    },
+                    "visual_structure": {
+                        "status": "pass",
+                        "expected": ">=0.75",
+                        "actual": 0.9375,
+                        "detail": "heading/list/table/image shape overlap with the baseline"
+                    },
+                    "paragraph_merge_split": {
+                        "status": "pass",
+                        "expected": "0.80-1.25",
+                        "actual": 1,
+                        "detail": "paragraph count ratio expected 4, got 4"
+                    },
+                    "heading_count": {
+                        "status": "pass",
+                        "expected": "0.80-1.25",
+                        "actual": 0.875,
+                        "detail": "heading count ratio expected 8, got 7"
+                    },
+                    "list_count": {
+                        "status": "pass",
+                        "expected": "0.80-1.25",
+                        "actual": 1,
+                        "detail": "list count ratio expected 3, got 3"
+                    },
+                    "table_count": {
+                        "status": "pass",
+                        "expected": "0.80-1.25",
+                        "actual": 1,
+                        "detail": "table count ratio expected 1, got 1"
+                    },
+                    "image_count": {
+                        "status": "pass",
+                        "expected": "0",
+                        "actual": 0,
+                        "detail": "image count ratio"
+                    },
+                    "media_imported": {
+                        "status": "pass",
+                        "expected": 0,
+                        "actual": 0,
+                        "detail": "no media extraction problems reported"
+                    },
+                    "anchor_validity": {
+                        "status": "pass",
+                        "expected": 0,
+                        "actual": 0,
+                        "detail": "all local fragment links resolve"
+                    },
+                    "custom_html_percentage": {
+                        "status": "pass",
+                        "expected": "<=0.05",
+                        "actual": 0,
+                        "detail": "0/15 WordPress blocks are Custom HTML"
+                    }
+                },
+                "summary": {
+                    "pass": 10,
+                    "review": 0,
+                    "fail": 0
+                }
+            }
+        },
+        {
+            "id": "docx-remote-work-policy",
+            "format": "docx",
+            "label": "Remote work policy DOCX",
+            "description": "Generated normal-user policy DOCX with request process, approval matrix, lists, and exception notes.",
+            "source": "Checked-in port-libs fixture at lanes/pandoc/fixtures/showcase-user-docs/remote-work-policy.docx",
+            "sourceUrl": "",
+            "samplePath": "samples/docx-remote-work-policy-remote-work-policy.docx",
+            "sampleSize": 11757,
+            "preview": "",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\DocxReader",
+                "notes": "Bounded DOCX package reader parses document.xml, styles, numbering levels/start/style/delimiter attributes, relationships, notes/comments, headers/footers, media references, bookmarks, simple reference fields, OMML equations, and core properties into the shared AST. Full DOCX parity remains open."
+            },
+            "haskell": {
+                "ok": true,
+                "path": "outputs/docx-remote-work-policy/haskell.html"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/docx-remote-work-policy/php.html",
+                "media": [],
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/docx-remote-work-policy/wordpress-blocks.html",
+                "media": [],
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
+            },
+            "wpBlockCounts": {
+                "heading": 7,
+                "list": 2,
+                "paragraph": 3,
+                "table": 1
+            },
+            "faithfulness": {
+                "baseline": "haskell",
+                "comparisons": {
+                    "wpBlocks": {
+                        "label": "PHP WordPress blocks",
+                        "status": "faithful_enough",
+                        "score": 0.9085,
+                        "textStatus": "faithful_enough",
+                        "textScore": 0.9085,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.9184
+                    },
+                    "phpHtml": {
+                        "label": "PHP HTML",
+                        "status": "faithful_enough",
+                        "score": 0.9103,
+                        "textStatus": "faithful_enough",
+                        "textScore": 0.9103,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.9375
+                    }
+                }
+            },
+            "importQuality": {
+                "status": "review",
+                "gates": {
+                    "text_completeness": {
+                        "status": "pass",
+                        "expected": ">=0.8",
+                        "actual": 0.9085,
+                        "detail": "visible text overlap with the baseline"
+                    },
+                    "visual_structure": {
+                        "status": "pass",
+                        "expected": ">=0.75",
+                        "actual": 0.9184,
+                        "detail": "heading/list/table/image shape overlap with the baseline"
+                    },
+                    "paragraph_merge_split": {
+                        "status": "review",
+                        "expected": "0.80-1.25",
+                        "actual": 0.75,
+                        "detail": "paragraph count ratio expected 4, got 3"
+                    },
+                    "heading_count": {
+                        "status": "pass",
+                        "expected": "0.80-1.25",
+                        "actual": 0.875,
+                        "detail": "heading count ratio expected 8, got 7"
+                    },
+                    "list_count": {
+                        "status": "pass",
+                        "expected": "0.80-1.25",
+                        "actual": 1,
+                        "detail": "list count ratio expected 2, got 2"
+                    },
+                    "table_count": {
+                        "status": "pass",
+                        "expected": "0.80-1.25",
+                        "actual": 1,
+                        "detail": "table count ratio expected 1, got 1"
+                    },
+                    "image_count": {
+                        "status": "pass",
+                        "expected": "0",
+                        "actual": 0,
+                        "detail": "image count ratio"
+                    },
+                    "media_imported": {
+                        "status": "pass",
+                        "expected": 0,
+                        "actual": 0,
+                        "detail": "no media extraction problems reported"
+                    },
+                    "anchor_validity": {
+                        "status": "pass",
+                        "expected": 0,
+                        "actual": 0,
+                        "detail": "all local fragment links resolve"
+                    },
+                    "custom_html_percentage": {
+                        "status": "pass",
+                        "expected": "<=0.05",
+                        "actual": 0,
+                        "detail": "0/13 WordPress blocks are Custom HTML"
+                    }
+                },
+                "summary": {
+                    "pass": 9,
+                    "review": 1,
+                    "fail": 0
                 }
             }
         },

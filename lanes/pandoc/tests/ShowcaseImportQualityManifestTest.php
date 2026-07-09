@@ -57,7 +57,7 @@ return [
 
         $expectedMinimums = [
             'doc' => 2,
-            'docx' => 6,
+            'docx' => 9,
             'pdf' => 6,
             'html' => 4,
             'epub' => 5,
@@ -77,6 +77,23 @@ return [
         }
 
         $t->true($normalUserRecordCount >= 40, 'Office, PDF, web, ebook, slide, spreadsheet, and tabular samples should reach the normal user corpus target.');
+    },
+    'showcase manifest includes normal user docx report resume and policy samples' => static function (TestRunner $t) use ($showcaseManifest, $recordsById): void {
+        $manifest = $showcaseManifest();
+        $records = is_array($manifest['records'] ?? null) ? $manifest['records'] : [];
+        $byId = $recordsById($records);
+
+        foreach ([
+            'docx-quarterly-operations-report',
+            'docx-support-specialist-resume',
+            'docx-remote-work-policy',
+        ] as $id) {
+            $t->true(isset($byId[$id]), "{$id} should be present in the showcase manifest.");
+            $t->same('docx', $byId[$id]['format'] ?? null, "{$id} should be a DOCX sample.");
+            $t->same(true, $byId[$id]['wpBlocks']['ok'] ?? null, "{$id} should convert to WordPress blocks.");
+            $gates = $byId[$id]['importQuality']['gates'] ?? [];
+            $t->true(isset($gates['text_completeness']), "{$id} should have import-quality gates.");
+        }
     },
     'showcase manifest records required import quality gates per successful sample' => static function (TestRunner $t) use ($showcaseManifest): void {
         $manifest = $showcaseManifest();

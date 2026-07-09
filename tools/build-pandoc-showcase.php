@@ -667,6 +667,9 @@ RIS;
             inline_sample('docbook-table', 'docbook', 'docbook-table.xml', 'DocBook table sample', "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<article xmlns=\"http://docbook.org/ns/docbook\" version=\"5.0\"><info><title>DocBook table</title></info><section><title>Coverage</title><informaltable><tgroup cols=\"2\"><tbody><row><entry>HTML</entry><entry>partial</entry></row><row><entry>DOCX</entry><entry>partial</entry></row></tbody></tgroup></informaltable></section></article>\n", 'Inline DocBook 5 table sample.'),
         ],
         'docx' => [
+            local_sample('docx-quarterly-operations-report', 'docx', 'lanes/pandoc/fixtures/showcase-user-docs/quarterly-operations-report.docx', 'Quarterly operations report DOCX', 'Generated normal-user report DOCX with headings, paragraphs, status table, ordered list, and bullets.'),
+            local_sample('docx-support-specialist-resume', 'docx', 'lanes/pandoc/fixtures/showcase-user-docs/support-specialist-resume.docx', 'Support specialist resume DOCX', 'Generated normal-user resume DOCX with contact details, experience sections, bullets, and skills table.'),
+            local_sample('docx-remote-work-policy', 'docx', 'lanes/pandoc/fixtures/showcase-user-docs/remote-work-policy.docx', 'Remote work policy DOCX', 'Generated normal-user policy DOCX with request process, approval matrix, lists, and exception notes.'),
             upstream_sample('docx-headers', 'docx', 'test/docx/headers.docx', 'DOCX headers', 'WordprocessingML package from upstream Pandoc DOCX reader tests.'),
             upstream_sample('docx-tables', 'docx', 'test/docx/tables.docx', 'DOCX tables', 'DOCX table coverage from upstream Pandoc reader tests.'),
             upstream_sample('docx-notes', 'docx', 'test/docx/notes.docx', 'DOCX footnotes and endnotes', 'DOCX notes fixture from upstream Pandoc reader tests.'),

@@ -1,4 +1,4 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Pandoc PHP Port Conversion Showcase</title><link rel="stylesheet" href="styles.css"></head><body><header class="hero"><div class="hero-inner"><p class="eyebrow">adamziel/port-libs</p><h1>Pandoc PHP port conversion showcase</h1><p class="lede">Real public documents and upstream fixtures are converted three ways: Haskell Pandoc to HTML, the local PHP port to HTML, and the local PHP port to WordPress block markup. The stress samples are intentionally messy enough to expose timeouts, memory limits, package complexity, and block coverage.</p><div class="stats"><div class="stat"><strong>37</strong><span>covered input formats</span></div><div class="stat"><strong>84</strong><span>source files</span></div><div class="stat"><strong>236/252</strong><span>successful conversions</span></div><div class="stat"><strong>2026-07-09</strong><span>generated</span></div></div><ul class="stress-samples" aria-label="Real-world stress samples"><li><a href="#docx-oasis-kmip-spec">OASIS KMIP DOCX</a></li><li><a href="#epub-gutenberg-alice-illustrated">Illustrated Alice EPUB</a></li><li><a href="#markdown-pandoc-manual">Pandoc manual Markdown</a></li><li><a href="#odt-oasis-opendocument-schema">OASIS OpenDocument ODT</a></li><li><a href="#pdf-irs-w4">IRS Form W-4 PDF</a></li><li><a href="#pptx-cdc-food-safety-slides">CDC PPTX</a></li><li><a href="#xlsx-census-tax-parameter-workbook">Census XLSX</a></li></ul><div class="hero-actions"><a href="conversion-report.html">Conversion report</a><a href="playground-converter.html">Convert in WordPress Playground</a><a href="block-usage.html">WordPress block usage guide</a><a href="manifest.json">Manifest JSON</a></div></div></header><main class="layout"><nav class="format-nav" aria-label="Formats"><a href="#format-biblatex">biblatex</a><a href="#format-bibtex">bibtex</a><a href="#format-bits">bits</a><a href="#format-commonmark">commonmark</a><a href="#format-commonmark_x">commonmark_x</a><a href="#format-csljson">csljson</a><a href="#format-csv">csv</a><a href="#format-doc">doc</a><a href="#format-docbook">docbook</a><a href="#format-docx">docx</a><a href="#format-endnotexml">endnotexml</a><a href="#format-epub">epub</a><a href="#format-fb2">fb2</a><a href="#format-gfm">gfm</a><a href="#format-html">html</a><a href="#format-ipynb">ipynb</a><a href="#format-jats">jats</a><a href="#format-jira">jira</a><a href="#format-json">json</a><a href="#format-latex">latex</a><a href="#format-man">man</a><a href="#format-markdown">markdown</a><a href="#format-markdown_github">markdown_github</a><a href="#format-markdown_mmd">markdown_mmd</a><a href="#format-markdown_phpextra">markdown_phpextra</a><a href="#format-markdown_strict">markdown_strict</a><a href="#format-mediawiki">mediawiki</a><a href="#format-native">native</a><a href="#format-odt">odt</a><a href="#format-opml">opml</a><a href="#format-pdf">pdf</a><a href="#format-pptx">pptx</a><a href="#format-ris">ris</a><a href="#format-rtf">rtf</a><a href="#format-tsv">tsv</a><a href="#format-xlsx">xlsx</a><a href="#format-xml">xml</a></nav><p class="status-warn">Missing local support entries with no sample yet: dokuwiki, mdoc, rst</p><section class="format-section" id="format-biblatex"><div class="format-heading"><h2>biblatex</h2><span>2 samples</span></div><article class="comparison" id="biblatex-biblio"><section class="original"><div class="panel-head"><h3>BibLaTeX-style bibliography</h3><p class="meta">459 bytes | <a href="https://raw.githubusercontent.com/jgm/pandoc/912bfa5e2e3f5c74eb125dfc19404f67c61ca58b/test/command/biblio.bib">jgm/pandoc upstream fixture at test/command/biblio.bib</a></p></div><div class="original-body"><pre class="source-preview">@Book{item1,
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Pandoc PHP Port Conversion Showcase</title><link rel="stylesheet" href="styles.css"></head><body><header class="hero"><div class="hero-inner"><p class="eyebrow">adamziel/port-libs</p><h1>Pandoc PHP port conversion showcase</h1><p class="lede">Real public documents and upstream fixtures are converted three ways: Haskell Pandoc to HTML, the local PHP port to HTML, and the local PHP port to WordPress block markup. The stress samples are intentionally messy enough to expose timeouts, memory limits, package complexity, and block coverage.</p><div class="stats"><div class="stat"><strong>37</strong><span>covered input formats</span></div><div class="stat"><strong>87</strong><span>source files</span></div><div class="stat"><strong>245/261</strong><span>successful conversions</span></div><div class="stat"><strong>2026-07-09</strong><span>generated</span></div></div><ul class="stress-samples" aria-label="Real-world stress samples"><li><a href="#docx-oasis-kmip-spec">OASIS KMIP DOCX</a></li><li><a href="#epub-gutenberg-alice-illustrated">Illustrated Alice EPUB</a></li><li><a href="#markdown-pandoc-manual">Pandoc manual Markdown</a></li><li><a href="#odt-oasis-opendocument-schema">OASIS OpenDocument ODT</a></li><li><a href="#pdf-irs-w4">IRS Form W-4 PDF</a></li><li><a href="#pptx-cdc-food-safety-slides">CDC PPTX</a></li><li><a href="#xlsx-census-tax-parameter-workbook">Census XLSX</a></li></ul><div class="hero-actions"><a href="conversion-report.html">Conversion report</a><a href="playground-converter.html">Convert in WordPress Playground</a><a href="block-usage.html">WordPress block usage guide</a><a href="manifest.json">Manifest JSON</a></div></div></header><main class="layout"><nav class="format-nav" aria-label="Formats"><a href="#format-biblatex">biblatex</a><a href="#format-bibtex">bibtex</a><a href="#format-bits">bits</a><a href="#format-commonmark">commonmark</a><a href="#format-commonmark_x">commonmark_x</a><a href="#format-csljson">csljson</a><a href="#format-csv">csv</a><a href="#format-doc">doc</a><a href="#format-docbook">docbook</a><a href="#format-docx">docx</a><a href="#format-endnotexml">endnotexml</a><a href="#format-epub">epub</a><a href="#format-fb2">fb2</a><a href="#format-gfm">gfm</a><a href="#format-html">html</a><a href="#format-ipynb">ipynb</a><a href="#format-jats">jats</a><a href="#format-jira">jira</a><a href="#format-json">json</a><a href="#format-latex">latex</a><a href="#format-man">man</a><a href="#format-markdown">markdown</a><a href="#format-markdown_github">markdown_github</a><a href="#format-markdown_mmd">markdown_mmd</a><a href="#format-markdown_phpextra">markdown_phpextra</a><a href="#format-markdown_strict">markdown_strict</a><a href="#format-mediawiki">mediawiki</a><a href="#format-native">native</a><a href="#format-odt">odt</a><a href="#format-opml">opml</a><a href="#format-pdf">pdf</a><a href="#format-pptx">pptx</a><a href="#format-ris">ris</a><a href="#format-rtf">rtf</a><a href="#format-tsv">tsv</a><a href="#format-xlsx">xlsx</a><a href="#format-xml">xml</a></nav><p class="status-warn">Missing local support entries with no sample yet: dokuwiki, mdoc, rst</p><section class="format-section" id="format-biblatex"><div class="format-heading"><h2>biblatex</h2><span>2 samples</span></div><article class="comparison" id="biblatex-biblio"><section class="original"><div class="panel-head"><h3>BibLaTeX-style bibliography</h3><p class="meta">459 bytes | <a href="https://raw.githubusercontent.com/jgm/pandoc/912bfa5e2e3f5c74eb125dfc19404f67c61ca58b/test/command/biblio.bib">jgm/pandoc upstream fixture at test/command/biblio.bib</a></p></div><div class="original-body"><pre class="source-preview">@Book{item1,
 author=&quot;John Doe&quot;,
 title=&quot;First Book&quot;,
 year=&quot;2005&quot;,
@@ -11946,7 +11946,991 @@ Try using Word to save your DOC file as DOCX, and convert that with pandoc.</pre
 &lt;/table&gt;
 &lt;/body&gt;
 &lt;/html&gt;
-</pre></section></div><div class="note">Bounded DocBook XML reader maps document metadata, sections, paragraphs, lists, links, CALS tables, media references, admonitions, code blocks, variable lists, and bibliography entries into the shared AST while preserving DocBook review packets. Full DocBook reader parity remains open.</div></section></article></section><section class="format-section" id="format-docx"><div class="format-heading"><h2>docx</h2><span>6 samples</span></div><article class="comparison" id="docx-headers"><section class="original"><div class="panel-head"><h3>DOCX headers</h3><p class="meta">18926 bytes | <a href="https://raw.githubusercontent.com/jgm/pandoc/912bfa5e2e3f5c74eb125dfc19404f67c61ca58b/test/docx/headers.docx">jgm/pandoc upstream fixture at test/docx/headers.docx</a></p></div><div class="original-body"><div class="download-only"><p>No local thumbnail is available for this binary or packaged file.</p><p><a href="samples/docx-headers-headers.docx">Download original file</a></p></div><p class="meta">WordprocessingML package from upstream Pandoc DOCX reader tests.</p></div></section><section class="converted" data-sample="docx-headers"><div class="converted-toolbar"><span class="meta">Converted representations</span><button class="view-source" type="button" data-source-toggle>View source</button></div><div class="comparison-grid"><section class="conversion-pane" id="docx-headers-wpBlocks"><div class="pane-head"><span class="pane-title">WP blocks</span><span class="pane-status status-ok">ok</span></div><iframe class="render-frame" data-sync-group="docx-headers" title="DOCX headers PHP WordPress blocks" src="outputs/docx-headers/wordpress-blocks.html"></iframe><pre class="source-box" data-sync-group="docx-headers">&lt;!-- wp:heading {&quot;level&quot;:1} --&gt;
+</pre></section></div><div class="note">Bounded DocBook XML reader maps document metadata, sections, paragraphs, lists, links, CALS tables, media references, admonitions, code blocks, variable lists, and bibliography entries into the shared AST while preserving DocBook review packets. Full DocBook reader parity remains open.</div></section></article></section><section class="format-section" id="format-docx"><div class="format-heading"><h2>docx</h2><span>9 samples</span></div><article class="comparison" id="docx-quarterly-operations-report"><section class="original"><div class="panel-head"><h3>Quarterly operations report DOCX</h3><p class="meta">11833 bytes | Checked-in port-libs fixture at lanes/pandoc/fixtures/showcase-user-docs/quarterly-operations-report.docx</p></div><div class="original-body"><div class="download-only"><p>No local thumbnail is available for this binary or packaged file.</p><p><a href="samples/docx-quarterly-operations-report-quarterly-operations-report.docx">Download original file</a></p></div><p class="meta">Generated normal-user report DOCX with headings, paragraphs, status table, ordered list, and bullets.</p></div></section><section class="converted" data-sample="docx-quarterly-operations-report"><div class="converted-toolbar"><span class="meta">Converted representations</span><button class="view-source" type="button" data-source-toggle>View source</button></div><div class="comparison-grid"><section class="conversion-pane" id="docx-quarterly-operations-report-wpBlocks"><div class="pane-head"><span class="pane-title">WP blocks</span><span class="pane-status status-ok">ok</span></div><iframe class="render-frame" data-sync-group="docx-quarterly-operations-report" title="Quarterly operations report DOCX PHP WordPress blocks" src="outputs/docx-quarterly-operations-report/wordpress-blocks.html"></iframe><pre class="source-box" data-sync-group="docx-quarterly-operations-report">&lt;!-- wp:heading {&quot;level&quot;:1} --&gt;
+&lt;h1 id=&quot;quarterly-operations-report&quot; style=&quot;margin-top:18pt; margin-bottom:4pt&quot;&gt;Quarterly Operations Report&lt;/h1&gt;
+&lt;!-- /wp:heading --&gt;
+
+&lt;!-- wp:heading {&quot;level&quot;:2} --&gt;
+&lt;h2 id=&quot;executive-summary&quot; style=&quot;margin-top:8pt; margin-bottom:4pt&quot;&gt;Executive summary&lt;/h2&gt;
+&lt;!-- /wp:heading --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p style=&quot;margin-top:9pt; margin-bottom:9pt&quot;&gt;The publishing migration remains on track for the next review period. The team completed the first import-quality pass, confirmed media handling for common document packages, and identified a short list of layout-sensitive documents for manual review.&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:heading {&quot;level&quot;:2} --&gt;
+&lt;h2 id=&quot;status-by-workstream&quot; style=&quot;margin-top:8pt; margin-bottom:4pt&quot;&gt;Status by workstream&lt;/h2&gt;
+&lt;!-- /wp:heading --&gt;
+
+&lt;!-- wp:table --&gt;
+&lt;figure class=&quot;wp-block-table&quot;&gt;&lt;table data-docx-table-style=&quot;Table&quot; data-docx-table-style-name=&quot;Table&quot; data-docx-table-style-based-on=&quot;TableNormal&quot; data-docx-table-style-chain=&quot;Table&quot;&gt;&lt;colgroup&gt;&lt;col style=&quot;width:21.2219%&quot;/&gt;&lt;col style=&quot;width:21.2219%&quot;/&gt;&lt;col style=&quot;width:21.2219%&quot;/&gt;&lt;col style=&quot;width:21.2219%&quot;/&gt;&lt;/colgroup&gt;&lt;thead&gt;&lt;tr&gt;&lt;th&gt;Workstream&lt;/th&gt;&lt;th&gt;Owner&lt;/th&gt;&lt;th&gt;Status&lt;/th&gt;&lt;th&gt;Next review&lt;/th&gt;&lt;/tr&gt;&lt;/thead&gt;&lt;tbody&gt;&lt;tr&gt;&lt;td&gt;Document inventory&lt;/td&gt;&lt;td&gt;Content operations&lt;/td&gt;&lt;td&gt;Complete&lt;/td&gt;&lt;td&gt;July 15&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;WordPress import review&lt;/td&gt;&lt;td&gt;Web platform&lt;/td&gt;&lt;td&gt;In progress&lt;/td&gt;&lt;td&gt;July 18&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;Accessibility checks&lt;/td&gt;&lt;td&gt;Design systems&lt;/td&gt;&lt;td&gt;Scheduled&lt;/td&gt;&lt;td&gt;July 22&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;Training materials&lt;/td&gt;&lt;td&gt;Enablement&lt;/td&gt;&lt;td&gt;In progress&lt;/td&gt;&lt;td&gt;July 24&lt;/td&gt;&lt;/tr&gt;&lt;/tbody&gt;&lt;/table&gt;&lt;/figure&gt;
+&lt;!-- /wp:table --&gt;
+
+&lt;!-- wp:heading {&quot;level&quot;:2} --&gt;
+&lt;h2 id=&quot;key-updates&quot; style=&quot;margin-top:8pt; margin-bottom:4pt&quot;&gt;Key updates&lt;/h2&gt;
+&lt;!-- /wp:heading --&gt;
+
+&lt;!-- wp:list --&gt;
+&lt;ul&gt;&lt;li&gt;Added representative samples for office documents, PDFs, ebooks, slides, and spreadsheets.&lt;/li&gt;&lt;li&gt;Published plain-language import quality notes on converted pages.&lt;/li&gt;&lt;li&gt;Confirmed retry paths for images and PDF reconstruction modes.&lt;/li&gt;&lt;/ul&gt;
+&lt;!-- /wp:list --&gt;
+
+&lt;!-- wp:heading {&quot;level&quot;:2} --&gt;
+&lt;h2 id=&quot;risks&quot; style=&quot;margin-top:8pt; margin-bottom:4pt&quot;&gt;Risks&lt;/h2&gt;
+&lt;!-- /wp:heading --&gt;
+
+&lt;!-- wp:list {&quot;ordered&quot;:true} --&gt;
+&lt;ol&gt;&lt;li&gt;Source files with scanned pages may still require OCR before import.&lt;/li&gt;&lt;li&gt;Multi-column PDF layouts need review for reading order.&lt;/li&gt;&lt;li&gt;Documents with missing sibling media files should be uploaded as folders or ZIP archives.&lt;/li&gt;&lt;/ol&gt;
+&lt;!-- /wp:list --&gt;
+
+&lt;!-- wp:heading {&quot;level&quot;:2} --&gt;
+&lt;h2 id=&quot;decision-log&quot; style=&quot;margin-top:8pt; margin-bottom:4pt&quot;&gt;Decision log&lt;/h2&gt;
+&lt;!-- /wp:heading --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p style=&quot;margin-top:9pt; margin-bottom:9pt&quot;&gt;The team will keep the default image mode set to important images, while offering retry actions for no images and all images.&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;</pre></section><section class="conversion-pane" id="docx-quarterly-operations-report-phpHtml"><div class="pane-head"><span class="pane-title">PHP HTML</span><span class="pane-status status-ok">ok</span></div><iframe class="render-frame" data-sync-group="docx-quarterly-operations-report" title="Quarterly operations report DOCX PHP HTML" src="outputs/docx-quarterly-operations-report/php.html"></iframe><pre class="source-box" data-sync-group="docx-quarterly-operations-report">&lt;!doctype html&gt;&lt;html lang=&quot;en&quot;&gt;&lt;head&gt;&lt;meta charset=&quot;utf-8&quot;&gt;&lt;meta name=&quot;viewport&quot; content=&quot;width=device-width, initial-scale=1&quot;&gt;&lt;title&gt;PHP Pandoc HTML output&lt;/title&gt;&lt;style&gt;html{line-height:1.5;font-family:Georgia,&quot;Times New Roman&quot;,serif;font-size:18px;color:#1f2933;background:#fdfdfd;}body{margin:0 auto;max-width:46em;padding:2.5em 1.25em;}h1,h2,h3,h4,h5,h6{font-family:system-ui,-apple-system,BlinkMacSystemFont,&quot;Segoe UI&quot;,sans-serif;line-height:1.25;margin:1.4em 0 .45em;}h1{font-size:2em;}h2{font-size:1.55em;}h3{font-size:1.25em;}p{margin:1em 0;}a{color:#1f6feb;}img,svg,video{max-width:100%;height:auto;}pre,code,kbd,samp{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.9em;}code{background:#eef1f5;padding:.1em .25em;border-radius:3px;}pre{overflow:auto;background:#f6f8fa;border:1px solid #d8dde3;border-radius:6px;padding:1em;}pre code{background:transparent;padding:0;}blockquote{margin:1.25em 0;padding-left:1em;border-left:4px solid #d8dde3;color:#4b5563;}table{border-collapse:collapse;margin:1.25em 0;width:100%;font-size:.92em;}th,td{border:1px solid #d8dde3;padding:.35em .55em;vertical-align:top;}th{background:#f6f8fa;}math{font-family:math,serif;}math[display=&quot;block&quot;]{display:block;margin:1em 0;overflow-x:auto;}&lt;/style&gt;&lt;/head&gt;&lt;body&gt;&lt;h1 id=&quot;quarterly-operations-report&quot;&gt;Quarterly Operations Report&lt;/h1&gt;
+&lt;h2 id=&quot;executive-summary&quot;&gt;Executive summary&lt;/h2&gt;
+&lt;p&gt;The publishing migration remains on track for the next review period. The team completed the first import-quality pass, confirmed media handling for common document packages, and identified a short list of layout-sensitive documents for manual review.&lt;/p&gt;
+&lt;h2 id=&quot;status-by-workstream&quot;&gt;Status by workstream&lt;/h2&gt;
+&lt;table data-docx-table-style=&quot;Table&quot; data-docx-table-style-name=&quot;Table&quot; data-docx-table-style-based-on=&quot;TableNormal&quot; data-docx-table-style-chain=&quot;Table&quot; style=&quot;width:85%;&quot;&gt;
+&lt;colgroup&gt;&lt;col style=&quot;width: 21%&quot; /&gt;&lt;col style=&quot;width: 21%&quot; /&gt;&lt;col style=&quot;width: 21%&quot; /&gt;&lt;col style=&quot;width: 21%&quot; /&gt;&lt;/colgroup&gt;
+&lt;thead&gt;
+&lt;tr&gt;&lt;th&gt;Workstream&lt;/th&gt;&lt;th&gt;Owner&lt;/th&gt;&lt;th&gt;Status&lt;/th&gt;&lt;th&gt;Next review&lt;/th&gt;&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;&lt;td&gt;Document inventory&lt;/td&gt;&lt;td&gt;Content operations&lt;/td&gt;&lt;td&gt;Complete&lt;/td&gt;&lt;td&gt;July 15&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;WordPress import review&lt;/td&gt;&lt;td&gt;Web platform&lt;/td&gt;&lt;td&gt;In progress&lt;/td&gt;&lt;td&gt;July 18&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;Accessibility checks&lt;/td&gt;&lt;td&gt;Design systems&lt;/td&gt;&lt;td&gt;Scheduled&lt;/td&gt;&lt;td&gt;July 22&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;Training materials&lt;/td&gt;&lt;td&gt;Enablement&lt;/td&gt;&lt;td&gt;In progress&lt;/td&gt;&lt;td&gt;July 24&lt;/td&gt;&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;h2 id=&quot;key-updates&quot;&gt;Key updates&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;Added representative samples for office documents, PDFs, ebooks, slides, and spreadsheets.&lt;/li&gt;
+&lt;li&gt;Published plain-language import quality notes on converted pages.&lt;/li&gt;
+&lt;li&gt;Confirmed retry paths for images and PDF reconstruction modes.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2 id=&quot;risks&quot;&gt;Risks&lt;/h2&gt;
+&lt;ol type=&quot;1&quot;&gt;
+&lt;li&gt;Source files with scanned pages may still require OCR before import.&lt;/li&gt;
+&lt;li&gt;Multi-column PDF layouts need review for reading order.&lt;/li&gt;
+&lt;li&gt;Documents with missing sibling media files should be uploaded as folders or ZIP archives.&lt;/li&gt;
+&lt;/ol&gt;
+&lt;h2 id=&quot;decision-log&quot;&gt;Decision log&lt;/h2&gt;
+&lt;p&gt;The team will keep the default image mode set to important images, while offering retry actions for no images and all images.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</pre></section><section class="conversion-pane" id="docx-quarterly-operations-report-haskell"><div class="pane-head"><span class="pane-title">Haskell HTML</span><span class="pane-status status-ok">ok</span></div><iframe class="render-frame" data-sync-group="docx-quarterly-operations-report" title="Quarterly operations report DOCX Haskell Pandoc HTML" src="outputs/docx-quarterly-operations-report/haskell.html"></iframe><pre class="source-box" data-sync-group="docx-quarterly-operations-report">&lt;!DOCTYPE html&gt;
+&lt;html xmlns=&quot;http://www.w3.org/1999/xhtml&quot;&gt;
+&lt;head&gt;
+  &lt;meta charset=&quot;utf-8&quot; /&gt;
+  &lt;meta name=&quot;generator&quot; content=&quot;pandoc 3.10&quot; /&gt;
+  &lt;meta name=&quot;viewport&quot; content=&quot;width=device-width, initial-scale=1.0, user-scalable=yes&quot; /&gt;
+  &lt;meta name=&quot;author&quot; content=&quot;Publishing Operations&quot; /&gt;
+  &lt;title&gt;Haskell Pandoc output&lt;/title&gt;
+  &lt;style&gt;
+    /* Default styles provided by pandoc.
+    ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+    */
+    html {
+      color: #1a1a1a;
+      background-color: #fdfdfd;
+    }
+    body {
+      margin: 0 auto;
+      max-width: 36em;
+      padding-left: 50px;
+      padding-right: 50px;
+      padding-top: 50px;
+      padding-bottom: 50px;
+      hyphens: auto;
+      overflow-wrap: break-word;
+      text-rendering: optimizeLegibility;
+      font-kerning: normal;
+    }
+    @media (max-width: 600px) {
+      body {
+        font-size: 0.9em;
+        padding: 12px;
+      }
+      h1 {
+        font-size: 1.8em;
+      }
+    }
+    @media print {
+      html {
+        background-color: white;
+      }
+      body {
+        background-color: transparent;
+        color: black;
+        font-size: 12pt;
+      }
+      p, h2, h3 {
+        orphans: 3;
+        widows: 3;
+      }
+      h2, h3, h4 {
+        page-break-after: avoid;
+      }
+    }
+    p {
+      margin: 1em 0;
+    }
+    a {
+      color: #1a1a1a;
+    }
+    a:visited {
+      color: #1a1a1a;
+    }
+    img {
+      max-width: 100%;
+    }
+    svg {
+      height: auto;
+      max-width: 100%;
+    }
+    h1, h2, h3, h4, h5, h6 {
+      margin-top: 1.4em;
+    }
+    h5, h6 {
+      font-size: 1em;
+      font-style: italic;
+    }
+    h6 {
+      font-weight: normal;
+    }
+    ol, ul {
+      padding-left: 1.7em;
+      margin-top: 1em;
+    }
+    li &gt; ol, li &gt; ul {
+      margin-top: 0;
+    }
+    blockquote {
+      margin: 1em 0 1em 1.7em;
+      padding-left: 1em;
+      border-left: 2px solid #e6e6e6;
+      color: #606060;
+    }
+    code {
+      white-space: pre-wrap;
+      font-family: Menlo, Monaco, Consolas, &#039;Lucida Console&#039;, monospace;
+      font-size: 85%;
+      margin: 0;
+      hyphens: manual;
+    }
+    pre {
+      margin: 1em 0;
+      overflow: auto;
+    }
+    pre code {
+      padding: 0;
+      overflow: visible;
+      overflow-wrap: normal;
+    }
+    .sourceCode {
+     background-color: transparent;
+     overflow: visible;
+    }
+    hr {
+      border: none;
+      border-top: 1px solid #1a1a1a;
+      height: 1px;
+      margin: 1em 0;
+    }
+    table {
+      margin: 1em 0;
+      border-collapse: collapse;
+      width: 100%;
+      overflow-x: auto;
+      display: block;
+      font-variant-numeric: lining-nums tabular-nums;
+    }
+    table caption {
+      margin-bottom: 0.75em;
+    }
+    tbody {
+      margin-top: 0.5em;
+      border-top: 1px solid #1a1a1a;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    th {
+      border-top: 1px solid #1a1a1a;
+      padding: 0.25em 0.5em 0.25em 0.5em;
+    }
+    td {
+      padding: 0.125em 0.5em 0.25em 0.5em;
+    }
+    header {
+      margin-bottom: 4em;
+      text-align: center;
+    }
+    #TOC li {
+      list-style: none;
+    }
+    #TOC ul {
+      padding-left: 1.3em;
+    }
+    #TOC &gt; ul {
+      padding-left: 0;
+    }
+    #TOC a:not(:hover) {
+      text-decoration: none;
+    }
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: 1.5em;}
+    div.column{flex: auto;}
+    @media screen {
+    div.columns{gap: min(4vw, 1.5em);}
+    div.column{overflow-x: auto;}
+    }
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type=&quot;checkbox&quot;] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  &lt;/style&gt;
+&lt;/head&gt;
+&lt;body&gt;
+&lt;header id=&quot;title-block-header&quot;&gt;
+&lt;h1 class=&quot;title&quot;&gt;Haskell Pandoc output&lt;/h1&gt;
+&lt;p class=&quot;author&quot;&gt;Publishing Operations&lt;/p&gt;
+&lt;/header&gt;
+&lt;h1 id=&quot;quarterly-operations-report&quot;&gt;Quarterly Operations Report&lt;/h1&gt;
+&lt;h2 id=&quot;executive-summary&quot;&gt;Executive summary&lt;/h2&gt;
+&lt;p&gt;The publishing migration remains on track for the next review period.
+The team completed the first import-quality pass, confirmed media
+handling for common document packages, and identified a short list of
+layout-sensitive documents for manual review.&lt;/p&gt;
+&lt;h2 id=&quot;status-by-workstream&quot;&gt;Status by workstream&lt;/h2&gt;
+&lt;table style=&quot;width:85%;&quot;&gt;
+&lt;colgroup&gt;
+&lt;col style=&quot;width: 21%&quot; /&gt;
+&lt;col style=&quot;width: 21%&quot; /&gt;
+&lt;col style=&quot;width: 21%&quot; /&gt;
+&lt;col style=&quot;width: 21%&quot; /&gt;
+&lt;/colgroup&gt;
+&lt;thead&gt;
+&lt;tr&gt;
+&lt;th&gt;Workstream&lt;/th&gt;
+&lt;th&gt;Owner&lt;/th&gt;
+&lt;th&gt;Status&lt;/th&gt;
+&lt;th&gt;Next review&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td&gt;Document inventory&lt;/td&gt;
+&lt;td&gt;Content operations&lt;/td&gt;
+&lt;td&gt;Complete&lt;/td&gt;
+&lt;td&gt;July 15&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;WordPress import review&lt;/td&gt;
+&lt;td&gt;Web platform&lt;/td&gt;
+&lt;td&gt;In progress&lt;/td&gt;
+&lt;td&gt;July 18&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;Accessibility checks&lt;/td&gt;
+&lt;td&gt;Design systems&lt;/td&gt;
+&lt;td&gt;Scheduled&lt;/td&gt;
+&lt;td&gt;July 22&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;Training materials&lt;/td&gt;
+&lt;td&gt;Enablement&lt;/td&gt;
+&lt;td&gt;In progress&lt;/td&gt;
+&lt;td&gt;July 24&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;h2 id=&quot;key-updates&quot;&gt;Key updates&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;Added representative samples for office documents, PDFs, ebooks,
+slides, and spreadsheets.&lt;/li&gt;
+&lt;li&gt;Published plain-language import quality notes on converted
+pages.&lt;/li&gt;
+&lt;li&gt;Confirmed retry paths for images and PDF reconstruction modes.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2 id=&quot;risks&quot;&gt;Risks&lt;/h2&gt;
+&lt;ol type=&quot;1&quot;&gt;
+&lt;li&gt;Source files with scanned pages may still require OCR before
+import.&lt;/li&gt;
+&lt;li&gt;Multi-column PDF layouts need review for reading order.&lt;/li&gt;
+&lt;li&gt;Documents with missing sibling media files should be uploaded as
+folders or ZIP archives.&lt;/li&gt;
+&lt;/ol&gt;
+&lt;h2 id=&quot;decision-log&quot;&gt;Decision log&lt;/h2&gt;
+&lt;p&gt;The team will keep the default image mode set to important images,
+while offering retry actions for no images and all images.&lt;/p&gt;
+&lt;/body&gt;
+&lt;/html&gt;
+</pre></section></div><div class="note">Bounded DOCX package reader parses document.xml, styles, numbering levels/start/style/delimiter attributes, relationships, notes/comments, headers/footers, media references, bookmarks, simple reference fields, OMML equations, and core properties into the shared AST. Full DOCX parity remains open.</div></section></article><article class="comparison" id="docx-support-specialist-resume"><section class="original"><div class="panel-head"><h3>Support specialist resume DOCX</h3><p class="meta">11608 bytes | Checked-in port-libs fixture at lanes/pandoc/fixtures/showcase-user-docs/support-specialist-resume.docx</p></div><div class="original-body"><div class="download-only"><p>No local thumbnail is available for this binary or packaged file.</p><p><a href="samples/docx-support-specialist-resume-support-specialist-resume.docx">Download original file</a></p></div><p class="meta">Generated normal-user resume DOCX with contact details, experience sections, bullets, and skills table.</p></div></section><section class="converted" data-sample="docx-support-specialist-resume"><div class="converted-toolbar"><span class="meta">Converted representations</span><button class="view-source" type="button" data-source-toggle>View source</button></div><div class="comparison-grid"><section class="conversion-pane" id="docx-support-specialist-resume-wpBlocks"><div class="pane-head"><span class="pane-title">WP blocks</span><span class="pane-status status-ok">ok</span></div><iframe class="render-frame" data-sync-group="docx-support-specialist-resume" title="Support specialist resume DOCX PHP WordPress blocks" src="outputs/docx-support-specialist-resume/wordpress-blocks.html"></iframe><pre class="source-box" data-sync-group="docx-support-specialist-resume">&lt;!-- wp:heading {&quot;level&quot;:1} --&gt;
+&lt;h1 id=&quot;jordan-lee&quot; style=&quot;margin-top:18pt; margin-bottom:4pt&quot;&gt;Jordan Lee&lt;/h1&gt;
+&lt;!-- /wp:heading --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p style=&quot;margin-top:9pt; margin-bottom:9pt&quot;&gt;Customer support specialist with seven years of experience helping software teams migrate documentation, triage publishing issues, and train non-technical editors.&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:heading {&quot;level&quot;:2} --&gt;
+&lt;h2 id=&quot;contact&quot; style=&quot;margin-top:8pt; margin-bottom:4pt&quot;&gt;Contact&lt;/h2&gt;
+&lt;!-- /wp:heading --&gt;
+
+&lt;!-- wp:list --&gt;
+&lt;ul&gt;&lt;li&gt;jordan.lee@example.com&lt;/li&gt;&lt;li&gt;Portland, OR&lt;/li&gt;&lt;li&gt;https://example.com/jordan-lee&lt;/li&gt;&lt;/ul&gt;
+&lt;!-- /wp:list --&gt;
+
+&lt;!-- wp:heading {&quot;level&quot;:2} --&gt;
+&lt;h2 id=&quot;experience&quot; style=&quot;margin-top:8pt; margin-bottom:4pt&quot;&gt;Experience&lt;/h2&gt;
+&lt;!-- /wp:heading --&gt;
+
+&lt;!-- wp:heading {&quot;level&quot;:3} --&gt;
+&lt;h3 id=&quot;senior-support-specialist-example-cms&quot; style=&quot;margin-top:8pt; margin-bottom:4pt&quot;&gt;Senior Support Specialist, Example CMS&lt;/h3&gt;
+&lt;!-- /wp:heading --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p style=&quot;margin-top:9pt; margin-bottom:9pt&quot;&gt;2019-2026&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:list --&gt;
+&lt;ul&gt;&lt;li&gt;Led weekly office hours for enterprise customers moving policy documents into WordPress.&lt;/li&gt;&lt;li&gt;Built reusable checklists for media import, link review, and accessibility follow-up.&lt;/li&gt;&lt;li&gt;Coordinated escalation notes between support, product, and engineering.&lt;/li&gt;&lt;/ul&gt;
+&lt;!-- /wp:list --&gt;
+
+&lt;!-- wp:heading {&quot;level&quot;:3} --&gt;
+&lt;h3 id=&quot;documentation-coordinator-city-library&quot; style=&quot;margin-top:8pt; margin-bottom:4pt&quot;&gt;Documentation Coordinator, City Library&lt;/h3&gt;
+&lt;!-- /wp:heading --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p style=&quot;margin-top:9pt; margin-bottom:9pt&quot;&gt;2016-2019&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:list --&gt;
+&lt;ul&gt;&lt;li&gt;Converted legacy manuals into structured web pages.&lt;/li&gt;&lt;li&gt;Reviewed tables, lists, and headings for public-facing accessibility.&lt;/li&gt;&lt;li&gt;Maintained release notes for staff training sessions.&lt;/li&gt;&lt;/ul&gt;
+&lt;!-- /wp:list --&gt;
+
+&lt;!-- wp:heading {&quot;level&quot;:2} --&gt;
+&lt;h2 id=&quot;skills&quot; style=&quot;margin-top:8pt; margin-bottom:4pt&quot;&gt;Skills&lt;/h2&gt;
+&lt;!-- /wp:heading --&gt;
+
+&lt;!-- wp:table --&gt;
+&lt;figure class=&quot;wp-block-table&quot;&gt;&lt;table data-docx-table-style=&quot;Table&quot; data-docx-table-style-name=&quot;Table&quot; data-docx-table-style-based-on=&quot;TableNormal&quot; data-docx-table-style-chain=&quot;Table&quot;&gt;&lt;colgroup&gt;&lt;col style=&quot;width:42.3529%&quot;/&gt;&lt;col style=&quot;width:42.3529%&quot;/&gt;&lt;/colgroup&gt;&lt;thead&gt;&lt;tr&gt;&lt;th&gt;Area&lt;/th&gt;&lt;th&gt;Tools&lt;/th&gt;&lt;/tr&gt;&lt;/thead&gt;&lt;tbody&gt;&lt;tr&gt;&lt;td&gt;Publishing&lt;/td&gt;&lt;td&gt;WordPress, Markdown, HTML&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;Review&lt;/td&gt;&lt;td&gt;Accessibility checks, link validation, table cleanup&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;Collaboration&lt;/td&gt;&lt;td&gt;Ticket queues, customer calls, training notes&lt;/td&gt;&lt;/tr&gt;&lt;/tbody&gt;&lt;/table&gt;&lt;/figure&gt;
+&lt;!-- /wp:table --&gt;
+
+&lt;!-- wp:heading {&quot;level&quot;:2} --&gt;
+&lt;h2 id=&quot;education&quot; style=&quot;margin-top:8pt; margin-bottom:4pt&quot;&gt;Education&lt;/h2&gt;
+&lt;!-- /wp:heading --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p style=&quot;margin-top:9pt; margin-bottom:9pt&quot;&gt;Bachelor of Arts, Technical Communication&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;</pre></section><section class="conversion-pane" id="docx-support-specialist-resume-phpHtml"><div class="pane-head"><span class="pane-title">PHP HTML</span><span class="pane-status status-ok">ok</span></div><iframe class="render-frame" data-sync-group="docx-support-specialist-resume" title="Support specialist resume DOCX PHP HTML" src="outputs/docx-support-specialist-resume/php.html"></iframe><pre class="source-box" data-sync-group="docx-support-specialist-resume">&lt;!doctype html&gt;&lt;html lang=&quot;en&quot;&gt;&lt;head&gt;&lt;meta charset=&quot;utf-8&quot;&gt;&lt;meta name=&quot;viewport&quot; content=&quot;width=device-width, initial-scale=1&quot;&gt;&lt;title&gt;PHP Pandoc HTML output&lt;/title&gt;&lt;style&gt;html{line-height:1.5;font-family:Georgia,&quot;Times New Roman&quot;,serif;font-size:18px;color:#1f2933;background:#fdfdfd;}body{margin:0 auto;max-width:46em;padding:2.5em 1.25em;}h1,h2,h3,h4,h5,h6{font-family:system-ui,-apple-system,BlinkMacSystemFont,&quot;Segoe UI&quot;,sans-serif;line-height:1.25;margin:1.4em 0 .45em;}h1{font-size:2em;}h2{font-size:1.55em;}h3{font-size:1.25em;}p{margin:1em 0;}a{color:#1f6feb;}img,svg,video{max-width:100%;height:auto;}pre,code,kbd,samp{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.9em;}code{background:#eef1f5;padding:.1em .25em;border-radius:3px;}pre{overflow:auto;background:#f6f8fa;border:1px solid #d8dde3;border-radius:6px;padding:1em;}pre code{background:transparent;padding:0;}blockquote{margin:1.25em 0;padding-left:1em;border-left:4px solid #d8dde3;color:#4b5563;}table{border-collapse:collapse;margin:1.25em 0;width:100%;font-size:.92em;}th,td{border:1px solid #d8dde3;padding:.35em .55em;vertical-align:top;}th{background:#f6f8fa;}math{font-family:math,serif;}math[display=&quot;block&quot;]{display:block;margin:1em 0;overflow-x:auto;}&lt;/style&gt;&lt;/head&gt;&lt;body&gt;&lt;h1 id=&quot;jordan-lee&quot;&gt;Jordan Lee&lt;/h1&gt;
+&lt;p&gt;Customer support specialist with seven years of experience helping software teams migrate documentation, triage publishing issues, and train non-technical editors.&lt;/p&gt;
+&lt;h2 id=&quot;contact&quot;&gt;Contact&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;jordan.lee@example.com&lt;/li&gt;
+&lt;li&gt;Portland, OR&lt;/li&gt;
+&lt;li&gt;https://example.com/jordan-lee&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2 id=&quot;experience&quot;&gt;Experience&lt;/h2&gt;
+&lt;h3 id=&quot;senior-support-specialist-example-cms&quot;&gt;Senior Support Specialist, Example CMS&lt;/h3&gt;
+&lt;p&gt;2019-2026&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Led weekly office hours for enterprise customers moving policy documents into WordPress.&lt;/li&gt;
+&lt;li&gt;Built reusable checklists for media import, link review, and accessibility follow-up.&lt;/li&gt;
+&lt;li&gt;Coordinated escalation notes between support, product, and engineering.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3 id=&quot;documentation-coordinator-city-library&quot;&gt;Documentation Coordinator, City Library&lt;/h3&gt;
+&lt;p&gt;2016-2019&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Converted legacy manuals into structured web pages.&lt;/li&gt;
+&lt;li&gt;Reviewed tables, lists, and headings for public-facing accessibility.&lt;/li&gt;
+&lt;li&gt;Maintained release notes for staff training sessions.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2 id=&quot;skills&quot;&gt;Skills&lt;/h2&gt;
+&lt;table data-docx-table-style=&quot;Table&quot; data-docx-table-style-name=&quot;Table&quot; data-docx-table-style-based-on=&quot;TableNormal&quot; data-docx-table-style-chain=&quot;Table&quot; style=&quot;width:85%;&quot;&gt;
+&lt;colgroup&gt;&lt;col style=&quot;width: 42%&quot; /&gt;&lt;col style=&quot;width: 42%&quot; /&gt;&lt;/colgroup&gt;
+&lt;thead&gt;
+&lt;tr&gt;&lt;th&gt;Area&lt;/th&gt;&lt;th&gt;Tools&lt;/th&gt;&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;&lt;td&gt;Publishing&lt;/td&gt;&lt;td&gt;WordPress, Markdown, HTML&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;Review&lt;/td&gt;&lt;td&gt;Accessibility checks, link validation, table cleanup&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;Collaboration&lt;/td&gt;&lt;td&gt;Ticket queues, customer calls, training notes&lt;/td&gt;&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;h2 id=&quot;education&quot;&gt;Education&lt;/h2&gt;
+&lt;p&gt;Bachelor of Arts, Technical Communication&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</pre></section><section class="conversion-pane" id="docx-support-specialist-resume-haskell"><div class="pane-head"><span class="pane-title">Haskell HTML</span><span class="pane-status status-ok">ok</span></div><iframe class="render-frame" data-sync-group="docx-support-specialist-resume" title="Support specialist resume DOCX Haskell Pandoc HTML" src="outputs/docx-support-specialist-resume/haskell.html"></iframe><pre class="source-box" data-sync-group="docx-support-specialist-resume">&lt;!DOCTYPE html&gt;
+&lt;html xmlns=&quot;http://www.w3.org/1999/xhtml&quot;&gt;
+&lt;head&gt;
+  &lt;meta charset=&quot;utf-8&quot; /&gt;
+  &lt;meta name=&quot;generator&quot; content=&quot;pandoc 3.10&quot; /&gt;
+  &lt;meta name=&quot;viewport&quot; content=&quot;width=device-width, initial-scale=1.0, user-scalable=yes&quot; /&gt;
+  &lt;title&gt;Haskell Pandoc output&lt;/title&gt;
+  &lt;style&gt;
+    /* Default styles provided by pandoc.
+    ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+    */
+    html {
+      color: #1a1a1a;
+      background-color: #fdfdfd;
+    }
+    body {
+      margin: 0 auto;
+      max-width: 36em;
+      padding-left: 50px;
+      padding-right: 50px;
+      padding-top: 50px;
+      padding-bottom: 50px;
+      hyphens: auto;
+      overflow-wrap: break-word;
+      text-rendering: optimizeLegibility;
+      font-kerning: normal;
+    }
+    @media (max-width: 600px) {
+      body {
+        font-size: 0.9em;
+        padding: 12px;
+      }
+      h1 {
+        font-size: 1.8em;
+      }
+    }
+    @media print {
+      html {
+        background-color: white;
+      }
+      body {
+        background-color: transparent;
+        color: black;
+        font-size: 12pt;
+      }
+      p, h2, h3 {
+        orphans: 3;
+        widows: 3;
+      }
+      h2, h3, h4 {
+        page-break-after: avoid;
+      }
+    }
+    p {
+      margin: 1em 0;
+    }
+    a {
+      color: #1a1a1a;
+    }
+    a:visited {
+      color: #1a1a1a;
+    }
+    img {
+      max-width: 100%;
+    }
+    svg {
+      height: auto;
+      max-width: 100%;
+    }
+    h1, h2, h3, h4, h5, h6 {
+      margin-top: 1.4em;
+    }
+    h5, h6 {
+      font-size: 1em;
+      font-style: italic;
+    }
+    h6 {
+      font-weight: normal;
+    }
+    ol, ul {
+      padding-left: 1.7em;
+      margin-top: 1em;
+    }
+    li &gt; ol, li &gt; ul {
+      margin-top: 0;
+    }
+    blockquote {
+      margin: 1em 0 1em 1.7em;
+      padding-left: 1em;
+      border-left: 2px solid #e6e6e6;
+      color: #606060;
+    }
+    code {
+      white-space: pre-wrap;
+      font-family: Menlo, Monaco, Consolas, &#039;Lucida Console&#039;, monospace;
+      font-size: 85%;
+      margin: 0;
+      hyphens: manual;
+    }
+    pre {
+      margin: 1em 0;
+      overflow: auto;
+    }
+    pre code {
+      padding: 0;
+      overflow: visible;
+      overflow-wrap: normal;
+    }
+    .sourceCode {
+     background-color: transparent;
+     overflow: visible;
+    }
+    hr {
+      border: none;
+      border-top: 1px solid #1a1a1a;
+      height: 1px;
+      margin: 1em 0;
+    }
+    table {
+      margin: 1em 0;
+      border-collapse: collapse;
+      width: 100%;
+      overflow-x: auto;
+      display: block;
+      font-variant-numeric: lining-nums tabular-nums;
+    }
+    table caption {
+      margin-bottom: 0.75em;
+    }
+    tbody {
+      margin-top: 0.5em;
+      border-top: 1px solid #1a1a1a;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    th {
+      border-top: 1px solid #1a1a1a;
+      padding: 0.25em 0.5em 0.25em 0.5em;
+    }
+    td {
+      padding: 0.125em 0.5em 0.25em 0.5em;
+    }
+    header {
+      margin-bottom: 4em;
+      text-align: center;
+    }
+    #TOC li {
+      list-style: none;
+    }
+    #TOC ul {
+      padding-left: 1.3em;
+    }
+    #TOC &gt; ul {
+      padding-left: 0;
+    }
+    #TOC a:not(:hover) {
+      text-decoration: none;
+    }
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: 1.5em;}
+    div.column{flex: auto;}
+    @media screen {
+    div.columns{gap: min(4vw, 1.5em);}
+    div.column{overflow-x: auto;}
+    }
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type=&quot;checkbox&quot;] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  &lt;/style&gt;
+&lt;/head&gt;
+&lt;body&gt;
+&lt;header id=&quot;title-block-header&quot;&gt;
+&lt;h1 class=&quot;title&quot;&gt;Haskell Pandoc output&lt;/h1&gt;
+&lt;/header&gt;
+&lt;h1 id=&quot;jordan-lee&quot;&gt;Jordan Lee&lt;/h1&gt;
+&lt;p&gt;Customer support specialist with seven years of experience helping
+software teams migrate documentation, triage publishing issues, and
+train non-technical editors.&lt;/p&gt;
+&lt;h2 id=&quot;contact&quot;&gt;Contact&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;jordan.lee@example.com&lt;/li&gt;
+&lt;li&gt;Portland, OR&lt;/li&gt;
+&lt;li&gt;https://example.com/jordan-lee&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2 id=&quot;experience&quot;&gt;Experience&lt;/h2&gt;
+&lt;h3 id=&quot;senior-support-specialist-example-cms&quot;&gt;Senior Support
+Specialist, Example CMS&lt;/h3&gt;
+&lt;p&gt;2019-2026&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Led weekly office hours for enterprise customers moving policy
+documents into WordPress.&lt;/li&gt;
+&lt;li&gt;Built reusable checklists for media import, link review, and
+accessibility follow-up.&lt;/li&gt;
+&lt;li&gt;Coordinated escalation notes between support, product, and
+engineering.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3 id=&quot;documentation-coordinator-city-library&quot;&gt;Documentation
+Coordinator, City Library&lt;/h3&gt;
+&lt;p&gt;2016-2019&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Converted legacy manuals into structured web pages.&lt;/li&gt;
+&lt;li&gt;Reviewed tables, lists, and headings for public-facing
+accessibility.&lt;/li&gt;
+&lt;li&gt;Maintained release notes for staff training sessions.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2 id=&quot;skills&quot;&gt;Skills&lt;/h2&gt;
+&lt;table style=&quot;width:85%;&quot;&gt;
+&lt;colgroup&gt;
+&lt;col style=&quot;width: 42%&quot; /&gt;
+&lt;col style=&quot;width: 42%&quot; /&gt;
+&lt;/colgroup&gt;
+&lt;thead&gt;
+&lt;tr&gt;
+&lt;th&gt;Area&lt;/th&gt;
+&lt;th&gt;Tools&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td&gt;Publishing&lt;/td&gt;
+&lt;td&gt;WordPress, Markdown, HTML&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;Review&lt;/td&gt;
+&lt;td&gt;Accessibility checks, link validation, table cleanup&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;Collaboration&lt;/td&gt;
+&lt;td&gt;Ticket queues, customer calls, training notes&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;h2 id=&quot;education&quot;&gt;Education&lt;/h2&gt;
+&lt;p&gt;Bachelor of Arts, Technical Communication&lt;/p&gt;
+&lt;/body&gt;
+&lt;/html&gt;
+</pre></section></div><div class="note">Bounded DOCX package reader parses document.xml, styles, numbering levels/start/style/delimiter attributes, relationships, notes/comments, headers/footers, media references, bookmarks, simple reference fields, OMML equations, and core properties into the shared AST. Full DOCX parity remains open.</div></section></article><article class="comparison" id="docx-remote-work-policy"><section class="original"><div class="panel-head"><h3>Remote work policy DOCX</h3><p class="meta">11757 bytes | Checked-in port-libs fixture at lanes/pandoc/fixtures/showcase-user-docs/remote-work-policy.docx</p></div><div class="original-body"><div class="download-only"><p>No local thumbnail is available for this binary or packaged file.</p><p><a href="samples/docx-remote-work-policy-remote-work-policy.docx">Download original file</a></p></div><p class="meta">Generated normal-user policy DOCX with request process, approval matrix, lists, and exception notes.</p></div></section><section class="converted" data-sample="docx-remote-work-policy"><div class="converted-toolbar"><span class="meta">Converted representations</span><button class="view-source" type="button" data-source-toggle>View source</button></div><div class="comparison-grid"><section class="conversion-pane" id="docx-remote-work-policy-wpBlocks"><div class="pane-head"><span class="pane-title">WP blocks</span><span class="pane-status status-ok">ok</span></div><iframe class="render-frame" data-sync-group="docx-remote-work-policy" title="Remote work policy DOCX PHP WordPress blocks" src="outputs/docx-remote-work-policy/wordpress-blocks.html"></iframe><pre class="source-box" data-sync-group="docx-remote-work-policy">&lt;!-- wp:heading {&quot;level&quot;:1} --&gt;
+&lt;h1 id=&quot;remote-work-policy&quot; style=&quot;margin-top:18pt; margin-bottom:4pt&quot;&gt;Remote Work Policy&lt;/h1&gt;
+&lt;!-- /wp:heading --&gt;
+
+&lt;!-- wp:heading {&quot;level&quot;:2} --&gt;
+&lt;h2 id=&quot;purpose&quot; style=&quot;margin-top:8pt; margin-bottom:4pt&quot;&gt;Purpose&lt;/h2&gt;
+&lt;!-- /wp:heading --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p style=&quot;margin-top:9pt; margin-bottom:9pt&quot;&gt;This policy explains how employees request, review, and maintain a remote or hybrid work arrangement. It is intended for repeat use by managers, people operations, and employees.&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:heading {&quot;level&quot;:2} --&gt;
+&lt;h2 id=&quot;eligibility&quot; style=&quot;margin-top:8pt; margin-bottom:4pt&quot;&gt;Eligibility&lt;/h2&gt;
+&lt;!-- /wp:heading --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p style=&quot;margin-top:9pt; margin-bottom:9pt&quot;&gt;Employees may request remote work when their role can be performed securely away from the office and when team coverage remains clear.&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:heading {&quot;level&quot;:2} --&gt;
+&lt;h2 id=&quot;request-process&quot; style=&quot;margin-top:8pt; margin-bottom:4pt&quot;&gt;Request process&lt;/h2&gt;
+&lt;!-- /wp:heading --&gt;
+
+&lt;!-- wp:list {&quot;ordered&quot;:true} --&gt;
+&lt;ol&gt;&lt;li&gt;Employee submits the requested schedule and work location.&lt;/li&gt;&lt;li&gt;Manager reviews team coverage and customer commitments.&lt;/li&gt;&lt;li&gt;People operations reviews payroll, tax, and equipment implications.&lt;/li&gt;&lt;li&gt;The approved schedule is recorded in the team handbook.&lt;/li&gt;&lt;/ol&gt;
+&lt;!-- /wp:list --&gt;
+
+&lt;!-- wp:heading {&quot;level&quot;:2} --&gt;
+&lt;h2 id=&quot;approval-matrix&quot; style=&quot;margin-top:8pt; margin-bottom:4pt&quot;&gt;Approval matrix&lt;/h2&gt;
+&lt;!-- /wp:heading --&gt;
+
+&lt;!-- wp:table --&gt;
+&lt;figure class=&quot;wp-block-table&quot;&gt;&lt;table data-docx-table-style=&quot;Table&quot; data-docx-table-style-name=&quot;Table&quot; data-docx-table-style-based-on=&quot;TableNormal&quot; data-docx-table-style-chain=&quot;Table&quot;&gt;&lt;colgroup&gt;&lt;col style=&quot;width:28.2655%&quot;/&gt;&lt;col style=&quot;width:28.2655%&quot;/&gt;&lt;col style=&quot;width:28.2655%&quot;/&gt;&lt;/colgroup&gt;&lt;thead&gt;&lt;tr&gt;&lt;th&gt;Request type&lt;/th&gt;&lt;th&gt;Approver&lt;/th&gt;&lt;th&gt;Renewal&lt;/th&gt;&lt;/tr&gt;&lt;/thead&gt;&lt;tbody&gt;&lt;tr&gt;&lt;td&gt;Occasional remote day&lt;/td&gt;&lt;td&gt;Team lead&lt;/td&gt;&lt;td&gt;None&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;Recurring hybrid schedule&lt;/td&gt;&lt;td&gt;Department manager&lt;/td&gt;&lt;td&gt;Quarterly&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;Out-of-region remote work&lt;/td&gt;&lt;td&gt;People operations&lt;/td&gt;&lt;td&gt;Before travel&lt;/td&gt;&lt;/tr&gt;&lt;/tbody&gt;&lt;/table&gt;&lt;/figure&gt;
+&lt;!-- /wp:table --&gt;
+
+&lt;!-- wp:heading {&quot;level&quot;:2} --&gt;
+&lt;h2 id=&quot;equipment-and-security&quot; style=&quot;margin-top:8pt; margin-bottom:4pt&quot;&gt;Equipment and security&lt;/h2&gt;
+&lt;!-- /wp:heading --&gt;
+
+&lt;!-- wp:list --&gt;
+&lt;ul&gt;&lt;li&gt;Employees must use approved devices for company work.&lt;/li&gt;&lt;li&gt;Confidential files must remain in approved systems.&lt;/li&gt;&lt;li&gt;Lost or stolen equipment must be reported the same day.&lt;/li&gt;&lt;/ul&gt;
+&lt;!-- /wp:list --&gt;
+
+&lt;!-- wp:heading {&quot;level&quot;:2} --&gt;
+&lt;h2 id=&quot;exceptions&quot; style=&quot;margin-top:8pt; margin-bottom:4pt&quot;&gt;Exceptions&lt;/h2&gt;
+&lt;!-- /wp:heading --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p style=&quot;margin-top:9pt; margin-bottom:9pt&quot;&gt;Exceptions should be documented with the reason, approval date, and next review date.&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;</pre></section><section class="conversion-pane" id="docx-remote-work-policy-phpHtml"><div class="pane-head"><span class="pane-title">PHP HTML</span><span class="pane-status status-ok">ok</span></div><iframe class="render-frame" data-sync-group="docx-remote-work-policy" title="Remote work policy DOCX PHP HTML" src="outputs/docx-remote-work-policy/php.html"></iframe><pre class="source-box" data-sync-group="docx-remote-work-policy">&lt;!doctype html&gt;&lt;html lang=&quot;en&quot;&gt;&lt;head&gt;&lt;meta charset=&quot;utf-8&quot;&gt;&lt;meta name=&quot;viewport&quot; content=&quot;width=device-width, initial-scale=1&quot;&gt;&lt;title&gt;PHP Pandoc HTML output&lt;/title&gt;&lt;style&gt;html{line-height:1.5;font-family:Georgia,&quot;Times New Roman&quot;,serif;font-size:18px;color:#1f2933;background:#fdfdfd;}body{margin:0 auto;max-width:46em;padding:2.5em 1.25em;}h1,h2,h3,h4,h5,h6{font-family:system-ui,-apple-system,BlinkMacSystemFont,&quot;Segoe UI&quot;,sans-serif;line-height:1.25;margin:1.4em 0 .45em;}h1{font-size:2em;}h2{font-size:1.55em;}h3{font-size:1.25em;}p{margin:1em 0;}a{color:#1f6feb;}img,svg,video{max-width:100%;height:auto;}pre,code,kbd,samp{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.9em;}code{background:#eef1f5;padding:.1em .25em;border-radius:3px;}pre{overflow:auto;background:#f6f8fa;border:1px solid #d8dde3;border-radius:6px;padding:1em;}pre code{background:transparent;padding:0;}blockquote{margin:1.25em 0;padding-left:1em;border-left:4px solid #d8dde3;color:#4b5563;}table{border-collapse:collapse;margin:1.25em 0;width:100%;font-size:.92em;}th,td{border:1px solid #d8dde3;padding:.35em .55em;vertical-align:top;}th{background:#f6f8fa;}math{font-family:math,serif;}math[display=&quot;block&quot;]{display:block;margin:1em 0;overflow-x:auto;}&lt;/style&gt;&lt;/head&gt;&lt;body&gt;&lt;h1 id=&quot;remote-work-policy&quot;&gt;Remote Work Policy&lt;/h1&gt;
+&lt;h2 id=&quot;purpose&quot;&gt;Purpose&lt;/h2&gt;
+&lt;p&gt;This policy explains how employees request, review, and maintain a remote or hybrid work arrangement. It is intended for repeat use by managers, people operations, and employees.&lt;/p&gt;
+&lt;h2 id=&quot;eligibility&quot;&gt;Eligibility&lt;/h2&gt;
+&lt;p&gt;Employees may request remote work when their role can be performed securely away from the office and when team coverage remains clear.&lt;/p&gt;
+&lt;h2 id=&quot;request-process&quot;&gt;Request process&lt;/h2&gt;
+&lt;ol type=&quot;1&quot;&gt;
+&lt;li&gt;Employee submits the requested schedule and work location.&lt;/li&gt;
+&lt;li&gt;Manager reviews team coverage and customer commitments.&lt;/li&gt;
+&lt;li&gt;People operations reviews payroll, tax, and equipment implications.&lt;/li&gt;
+&lt;li&gt;The approved schedule is recorded in the team handbook.&lt;/li&gt;
+&lt;/ol&gt;
+&lt;h2 id=&quot;approval-matrix&quot;&gt;Approval matrix&lt;/h2&gt;
+&lt;table data-docx-table-style=&quot;Table&quot; data-docx-table-style-name=&quot;Table&quot; data-docx-table-style-based-on=&quot;TableNormal&quot; data-docx-table-style-chain=&quot;Table&quot; style=&quot;width:85%;&quot;&gt;
+&lt;colgroup&gt;&lt;col style=&quot;width: 28%&quot; /&gt;&lt;col style=&quot;width: 28%&quot; /&gt;&lt;col style=&quot;width: 28%&quot; /&gt;&lt;/colgroup&gt;
+&lt;thead&gt;
+&lt;tr&gt;&lt;th&gt;Request type&lt;/th&gt;&lt;th&gt;Approver&lt;/th&gt;&lt;th&gt;Renewal&lt;/th&gt;&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;&lt;td&gt;Occasional remote day&lt;/td&gt;&lt;td&gt;Team lead&lt;/td&gt;&lt;td&gt;None&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;Recurring hybrid schedule&lt;/td&gt;&lt;td&gt;Department manager&lt;/td&gt;&lt;td&gt;Quarterly&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;Out-of-region remote work&lt;/td&gt;&lt;td&gt;People operations&lt;/td&gt;&lt;td&gt;Before travel&lt;/td&gt;&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;h2 id=&quot;equipment-and-security&quot;&gt;Equipment and security&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;Employees must use approved devices for company work.&lt;/li&gt;
+&lt;li&gt;Confidential files must remain in approved systems.&lt;/li&gt;
+&lt;li&gt;Lost or stolen equipment must be reported the same day.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2 id=&quot;exceptions&quot;&gt;Exceptions&lt;/h2&gt;
+&lt;p&gt;Exceptions should be documented with the reason, approval date, and next review date.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</pre></section><section class="conversion-pane" id="docx-remote-work-policy-haskell"><div class="pane-head"><span class="pane-title">Haskell HTML</span><span class="pane-status status-ok">ok</span></div><iframe class="render-frame" data-sync-group="docx-remote-work-policy" title="Remote work policy DOCX Haskell Pandoc HTML" src="outputs/docx-remote-work-policy/haskell.html"></iframe><pre class="source-box" data-sync-group="docx-remote-work-policy">&lt;!DOCTYPE html&gt;
+&lt;html xmlns=&quot;http://www.w3.org/1999/xhtml&quot;&gt;
+&lt;head&gt;
+  &lt;meta charset=&quot;utf-8&quot; /&gt;
+  &lt;meta name=&quot;generator&quot; content=&quot;pandoc 3.10&quot; /&gt;
+  &lt;meta name=&quot;viewport&quot; content=&quot;width=device-width, initial-scale=1.0, user-scalable=yes&quot; /&gt;
+  &lt;meta name=&quot;author&quot; content=&quot;People Operations&quot; /&gt;
+  &lt;title&gt;Haskell Pandoc output&lt;/title&gt;
+  &lt;style&gt;
+    /* Default styles provided by pandoc.
+    ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+    */
+    html {
+      color: #1a1a1a;
+      background-color: #fdfdfd;
+    }
+    body {
+      margin: 0 auto;
+      max-width: 36em;
+      padding-left: 50px;
+      padding-right: 50px;
+      padding-top: 50px;
+      padding-bottom: 50px;
+      hyphens: auto;
+      overflow-wrap: break-word;
+      text-rendering: optimizeLegibility;
+      font-kerning: normal;
+    }
+    @media (max-width: 600px) {
+      body {
+        font-size: 0.9em;
+        padding: 12px;
+      }
+      h1 {
+        font-size: 1.8em;
+      }
+    }
+    @media print {
+      html {
+        background-color: white;
+      }
+      body {
+        background-color: transparent;
+        color: black;
+        font-size: 12pt;
+      }
+      p, h2, h3 {
+        orphans: 3;
+        widows: 3;
+      }
+      h2, h3, h4 {
+        page-break-after: avoid;
+      }
+    }
+    p {
+      margin: 1em 0;
+    }
+    a {
+      color: #1a1a1a;
+    }
+    a:visited {
+      color: #1a1a1a;
+    }
+    img {
+      max-width: 100%;
+    }
+    svg {
+      height: auto;
+      max-width: 100%;
+    }
+    h1, h2, h3, h4, h5, h6 {
+      margin-top: 1.4em;
+    }
+    h5, h6 {
+      font-size: 1em;
+      font-style: italic;
+    }
+    h6 {
+      font-weight: normal;
+    }
+    ol, ul {
+      padding-left: 1.7em;
+      margin-top: 1em;
+    }
+    li &gt; ol, li &gt; ul {
+      margin-top: 0;
+    }
+    blockquote {
+      margin: 1em 0 1em 1.7em;
+      padding-left: 1em;
+      border-left: 2px solid #e6e6e6;
+      color: #606060;
+    }
+    code {
+      white-space: pre-wrap;
+      font-family: Menlo, Monaco, Consolas, &#039;Lucida Console&#039;, monospace;
+      font-size: 85%;
+      margin: 0;
+      hyphens: manual;
+    }
+    pre {
+      margin: 1em 0;
+      overflow: auto;
+    }
+    pre code {
+      padding: 0;
+      overflow: visible;
+      overflow-wrap: normal;
+    }
+    .sourceCode {
+     background-color: transparent;
+     overflow: visible;
+    }
+    hr {
+      border: none;
+      border-top: 1px solid #1a1a1a;
+      height: 1px;
+      margin: 1em 0;
+    }
+    table {
+      margin: 1em 0;
+      border-collapse: collapse;
+      width: 100%;
+      overflow-x: auto;
+      display: block;
+      font-variant-numeric: lining-nums tabular-nums;
+    }
+    table caption {
+      margin-bottom: 0.75em;
+    }
+    tbody {
+      margin-top: 0.5em;
+      border-top: 1px solid #1a1a1a;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    th {
+      border-top: 1px solid #1a1a1a;
+      padding: 0.25em 0.5em 0.25em 0.5em;
+    }
+    td {
+      padding: 0.125em 0.5em 0.25em 0.5em;
+    }
+    header {
+      margin-bottom: 4em;
+      text-align: center;
+    }
+    #TOC li {
+      list-style: none;
+    }
+    #TOC ul {
+      padding-left: 1.3em;
+    }
+    #TOC &gt; ul {
+      padding-left: 0;
+    }
+    #TOC a:not(:hover) {
+      text-decoration: none;
+    }
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: 1.5em;}
+    div.column{flex: auto;}
+    @media screen {
+    div.columns{gap: min(4vw, 1.5em);}
+    div.column{overflow-x: auto;}
+    }
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type=&quot;checkbox&quot;] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  &lt;/style&gt;
+&lt;/head&gt;
+&lt;body&gt;
+&lt;header id=&quot;title-block-header&quot;&gt;
+&lt;h1 class=&quot;title&quot;&gt;Haskell Pandoc output&lt;/h1&gt;
+&lt;p class=&quot;author&quot;&gt;People Operations&lt;/p&gt;
+&lt;/header&gt;
+&lt;h1 id=&quot;remote-work-policy&quot;&gt;Remote Work Policy&lt;/h1&gt;
+&lt;h2 id=&quot;purpose&quot;&gt;Purpose&lt;/h2&gt;
+&lt;p&gt;This policy explains how employees request, review, and maintain a
+remote or hybrid work arrangement. It is intended for repeat use by
+managers, people operations, and employees.&lt;/p&gt;
+&lt;h2 id=&quot;eligibility&quot;&gt;Eligibility&lt;/h2&gt;
+&lt;p&gt;Employees may request remote work when their role can be performed
+securely away from the office and when team coverage remains clear.&lt;/p&gt;
+&lt;h2 id=&quot;request-process&quot;&gt;Request process&lt;/h2&gt;
+&lt;ol type=&quot;1&quot;&gt;
+&lt;li&gt;Employee submits the requested schedule and work location.&lt;/li&gt;
+&lt;li&gt;Manager reviews team coverage and customer commitments.&lt;/li&gt;
+&lt;li&gt;People operations reviews payroll, tax, and equipment
+implications.&lt;/li&gt;
+&lt;li&gt;The approved schedule is recorded in the team handbook.&lt;/li&gt;
+&lt;/ol&gt;
+&lt;h2 id=&quot;approval-matrix&quot;&gt;Approval matrix&lt;/h2&gt;
+&lt;table style=&quot;width:85%;&quot;&gt;
+&lt;colgroup&gt;
+&lt;col style=&quot;width: 28%&quot; /&gt;
+&lt;col style=&quot;width: 28%&quot; /&gt;
+&lt;col style=&quot;width: 28%&quot; /&gt;
+&lt;/colgroup&gt;
+&lt;thead&gt;
+&lt;tr&gt;
+&lt;th&gt;Request type&lt;/th&gt;
+&lt;th&gt;Approver&lt;/th&gt;
+&lt;th&gt;Renewal&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td&gt;Occasional remote day&lt;/td&gt;
+&lt;td&gt;Team lead&lt;/td&gt;
+&lt;td&gt;None&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;Recurring hybrid schedule&lt;/td&gt;
+&lt;td&gt;Department manager&lt;/td&gt;
+&lt;td&gt;Quarterly&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;Out-of-region remote work&lt;/td&gt;
+&lt;td&gt;People operations&lt;/td&gt;
+&lt;td&gt;Before travel&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;h2 id=&quot;equipment-and-security&quot;&gt;Equipment and security&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;Employees must use approved devices for company work.&lt;/li&gt;
+&lt;li&gt;Confidential files must remain in approved systems.&lt;/li&gt;
+&lt;li&gt;Lost or stolen equipment must be reported the same day.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2 id=&quot;exceptions&quot;&gt;Exceptions&lt;/h2&gt;
+&lt;p&gt;Exceptions should be documented with the reason, approval date, and
+next review date.&lt;/p&gt;
+&lt;/body&gt;
+&lt;/html&gt;
+</pre></section></div><div class="note">Bounded DOCX package reader parses document.xml, styles, numbering levels/start/style/delimiter attributes, relationships, notes/comments, headers/footers, media references, bookmarks, simple reference fields, OMML equations, and core properties into the shared AST. Full DOCX parity remains open.</div></section></article><article class="comparison" id="docx-headers"><section class="original"><div class="panel-head"><h3>DOCX headers</h3><p class="meta">18926 bytes | <a href="https://raw.githubusercontent.com/jgm/pandoc/912bfa5e2e3f5c74eb125dfc19404f67c61ca58b/test/docx/headers.docx">jgm/pandoc upstream fixture at test/docx/headers.docx</a></p></div><div class="original-body"><div class="download-only"><p>No local thumbnail is available for this binary or packaged file.</p><p><a href="samples/docx-headers-headers.docx">Download original file</a></p></div><p class="meta">WordprocessingML package from upstream Pandoc DOCX reader tests.</p></div></section><section class="converted" data-sample="docx-headers"><div class="converted-toolbar"><span class="meta">Converted representations</span><button class="view-source" type="button" data-source-toggle>View source</button></div><div class="comparison-grid"><section class="conversion-pane" id="docx-headers-wpBlocks"><div class="pane-head"><span class="pane-title">WP blocks</span><span class="pane-status status-ok">ok</span></div><iframe class="render-frame" data-sync-group="docx-headers" title="DOCX headers PHP WordPress blocks" src="outputs/docx-headers/wordpress-blocks.html"></iframe><pre class="source-box" data-sync-group="docx-headers">&lt;!-- wp:heading {&quot;level&quot;:1} --&gt;
 &lt;h1 id=&quot;a-test-of-headers&quot; style=&quot;margin-top:24pt; margin-bottom:0pt&quot;&gt;A Test of Headers&lt;/h1&gt;
 &lt;!-- /wp:heading --&gt;
 
