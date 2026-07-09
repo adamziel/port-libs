@@ -225,7 +225,7 @@ final class HtmlWriter
             'blockquote' => $this->renderBlockQuote($node),
             'raw_html' => (string) $node->attr('html', $node->attr('text', '')),
             'raw_block' => $this->renderRawBlock($node),
-            'raw_tex' => '',
+            'raw_tex' => $this->renderRawTextBlock($node, 'tex'),
             default => $this->renderInlines($node->children),
         };
     }
@@ -570,11 +570,24 @@ final class HtmlWriter
     private function renderRawBlock(AstNode $node): string
     {
         $format = strtolower((string) $node->attr('format', ''));
-        if (!$this->isRawHtmlFormat($format)) {
-            return '';
+        if ($this->isRawHtmlFormat($format)) {
+            return (string) $node->attr('text', $node->attr('html', ''));
         }
 
-        return (string) $node->attr('text', $node->attr('html', ''));
+        return $this->renderRawTextBlock($node, $format);
+    }
+
+    private function renderRawTextBlock(AstNode $node, string $fallbackFormat = 'raw'): string
+    {
+        $format = strtolower((string) $node->attr('format', $fallbackFormat));
+        if ($format === '') {
+            $format = $fallbackFormat;
+        }
+        $token = $this->rawFormatToken($format);
+        $text = (string) $node->attr('text', $node->attr('tex', $node->attr('html', '')));
+
+        return '<pre class="pandoc-raw-' . $this->esc($token) . '" data-pandoc-raw-format="' . $this->esc($format) . '"><code class="language-'
+            . $this->esc($token) . '">' . $this->esc($text) . '</code></pre>';
     }
 
     private function isRawHtmlFormat(string $format): bool
@@ -592,6 +605,14 @@ final class HtmlWriter
             'dzslides',
             'revealjs',
         ], true);
+    }
+
+    private function rawFormatToken(string $format): string
+    {
+        $token = preg_replace('/[^a-z0-9_-]+/i', '-', strtolower($format)) ?? 'raw';
+        $token = trim($token, '-');
+
+        return $token === '' ? 'raw' : $token;
     }
 
     private function renderFigure(AstNode $node): string
@@ -1195,6 +1216,7 @@ final class HtmlWriter
             'math' => $this->renderMath($node),
             'raw_html_inline' => (string) $node->attr('html', $node->attr('text', '')),
             'raw_inline' => $this->renderRawInline($node),
+            'raw_tex_inline', 'raw_markdown' => $this->renderRawInline($node),
             default => $this->renderInlines($node->children),
         };
     }
@@ -1212,11 +1234,16 @@ final class HtmlWriter
     private function renderRawInline(AstNode $node): string
     {
         $format = strtolower((string) $node->attr('format', ''));
-        if (!$this->isRawHtmlFormat($format)) {
-            return '';
+        if ($this->isRawHtmlFormat($format)) {
+            return (string) $node->attr('text', $node->attr('html', ''));
         }
 
-        return (string) $node->attr('text', $node->attr('html', ''));
+        $token = $this->rawFormatToken($format === '' ? 'raw' : $format);
+        $text = (string) $node->attr('text', $node->attr('tex', $node->attr('html', '')));
+
+        return '<span class="pandoc-raw-' . $this->esc($token) . '" data-pandoc-raw-format="' . $this->esc($format) . '">'
+            . $this->esc($text)
+            . '</span>';
     }
 
     private function htmlWrapText(): string
@@ -2114,6 +2141,8 @@ final class HtmlWriter
             'math',
             'raw_html_inline',
             'raw_inline',
+            'raw_tex_inline',
+            'raw_markdown',
         ], true);
     }
 

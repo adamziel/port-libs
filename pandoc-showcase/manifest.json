@@ -1,5 +1,5 @@
 {
-    "generatedAt": "2026-07-09T22:03:24+00:00",
+    "generatedAt": "2026-07-09T22:30:44+00:00",
     "pandocVersion": "pandoc 3.10\nFeatures: +server +lua\nScripting engine: Lua 5.4\nUser data directory: $REPO\nCopyright (C) 2006-2025 John MacFarlane. Web:  https://pandoc.org\nThis is free software; see the source for copying conditions. There is no\nwarranty, not even for merchantability or fitness for a particular purpose.",
     "mediaImageMode": "important",
     "formats": [
@@ -90,8 +90,8 @@
     "conversionSummary": {
         "totalSamples": 90,
         "totalConversions": 270,
-        "successfulConversions": 258,
-        "failedConversions": 12,
+        "successfulConversions": 259,
+        "failedConversions": 11,
         "byConverter": {
             "wpBlocks": {
                 "label": "PHP WordPress blocks",
@@ -107,8 +107,8 @@
             },
             "haskell": {
                 "label": "Haskell Pandoc HTML",
-                "ok": 78,
-                "failed": 12,
+                "ok": 79,
+                "failed": 11,
                 "total": 90
             }
         },
@@ -235,8 +235,8 @@
             },
             "latex": {
                 "samples": 2,
-                "ok": 5,
-                "failed": 1,
+                "ok": 6,
+                "failed": 0,
                 "total": 6
             },
             "man": {
@@ -356,23 +356,31 @@
         }
     },
     "faithfulnessSummary": {
-        "comparisons": 147,
-        "faithfulEnough": 146,
+        "comparisons": 149,
+        "faithfulEnough": 149,
         "review": 0,
         "divergent": 0,
-        "noText": 1,
-        "visualComparisons": 147,
-        "visualFaithfulEnough": 146,
+        "noText": 0,
+        "visualComparisons": 149,
+        "visualFaithfulEnough": 149,
         "visualReview": 0,
         "visualDivergent": 0,
-        "visualNoStructure": 1
+        "visualNoStructure": 0
+    },
+    "bibliographyComparisonSummary": {
+        "samples": 10,
+        "available": 10,
+        "pass": 10,
+        "review": 0,
+        "fail": 0,
+        "unavailable": 0
     },
     "importQualitySummary": {
         "samples": 90,
-        "pass": 78,
+        "pass": 89,
         "review": 1,
         "fail": 0,
-        "unbenchmarked": 11
+        "unbenchmarked": 0
     },
     "importQualitySegmentSummary": {
         "common": {
@@ -505,28 +513,28 @@
         },
         "exotic": {
             "samples": 46,
-            "pass": 35,
+            "pass": 46,
             "review": 0,
             "fail": 0,
-            "unbenchmarked": 11,
+            "unbenchmarked": 0,
             "wpFailures": 0,
             "passReviewOrUnbenchmarked": 46,
             "formats": {
                 "biblatex": {
                     "samples": 2,
-                    "pass": 0,
+                    "pass": 2,
                     "review": 0,
                     "fail": 0,
-                    "unbenchmarked": 2,
+                    "unbenchmarked": 0,
                     "wpFailures": 0,
                     "passReviewOrUnbenchmarked": 2
                 },
                 "bibtex": {
                     "samples": 2,
-                    "pass": 0,
+                    "pass": 2,
                     "review": 0,
                     "fail": 0,
-                    "unbenchmarked": 2,
+                    "unbenchmarked": 0,
                     "wpFailures": 0,
                     "passReviewOrUnbenchmarked": 2
                 },
@@ -559,10 +567,10 @@
                 },
                 "csljson": {
                     "samples": 2,
-                    "pass": 0,
+                    "pass": 2,
                     "review": 0,
                     "fail": 0,
-                    "unbenchmarked": 2,
+                    "unbenchmarked": 0,
                     "wpFailures": 0,
                     "passReviewOrUnbenchmarked": 2
                 },
@@ -595,10 +603,10 @@
                 },
                 "endnotexml": {
                     "samples": 2,
-                    "pass": 0,
+                    "pass": 2,
                     "review": 0,
                     "fail": 0,
-                    "unbenchmarked": 2,
+                    "unbenchmarked": 0,
                     "wpFailures": 0,
                     "passReviewOrUnbenchmarked": 2
                 },
@@ -649,10 +657,10 @@
                 },
                 "latex": {
                     "samples": 2,
-                    "pass": 1,
+                    "pass": 2,
                     "review": 0,
                     "fail": 0,
-                    "unbenchmarked": 1,
+                    "unbenchmarked": 0,
                     "wpFailures": 0,
                     "passReviewOrUnbenchmarked": 2
                 },
@@ -730,10 +738,10 @@
                 },
                 "ris": {
                     "samples": 2,
-                    "pass": 0,
+                    "pass": 2,
                     "review": 0,
                     "fail": 0,
-                    "unbenchmarked": 2,
+                    "unbenchmarked": 0,
                     "wpFailures": 0,
                     "passReviewOrUnbenchmarked": 2
                 },
@@ -827,10 +835,10 @@
                 "actual": {
                     "samples": 46,
                     "wpFailures": 0,
-                    "pass": 35,
+                    "pass": 46,
                     "review": 0,
                     "fail": 0,
-                    "unbenchmarked": 11,
+                    "unbenchmarked": 0,
                     "passReviewOrUnbenchmarked": 46
                 },
                 "checks": {
@@ -847,7 +855,7 @@
                     "minPass": {
                         "status": "pass",
                         "expected": ">=18",
-                        "actual": 35
+                        "actual": 46
                     },
                     "minPassReviewOrUnbenchmarked": {
                         "status": "pass",
@@ -866,16 +874,16 @@
     },
     "blockUsage": {
         "totals": {
-            "code": 651,
+            "code": 650,
             "group": 308,
             "heading": 4181,
             "html": 51,
             "image": 244,
             "list": 1389,
-            "paragraph": 16112,
+            "paragraph": 16113,
             "quote": 54,
             "separator": 65,
-            "table": 572,
+            "table": 573,
             "verse": 2
         },
         "sampleCount": 90
@@ -898,7 +906,8 @@
             },
             "haskell": {
                 "ok": true,
-                "path": "outputs/bibtex-biblio/haskell.html"
+                "path": "outputs/bibtex-biblio/haskell.html",
+                "renderedWithCiteproc": true
             },
             "phpHtml": {
                 "ok": true,
@@ -922,60 +931,41 @@
                 "paragraph": 3
             },
             "sourceRawHtmlBlockCount": null,
+            "bibliographySource": {
+                "itemCount": 3,
+                "itemIds": [
+                    "item1",
+                    "item2",
+                    "\u043f\u0443\u043d\u043a\u04423"
+                ]
+            },
+            "bibliographyComparison": {
+                "available": true,
+                "expectedEntryCount": 3,
+                "actualEntryCount": 3,
+                "expectedTokenCount": 39,
+                "matchedTokenCount": 34,
+                "contentCoverage": 0.8718,
+                "detail": "34/39 Citeproc reference tokens present in WordPress output"
+            },
             "faithfulness": {
                 "baseline": null,
                 "comparisons": []
             },
             "importQuality": {
-                "status": "unbenchmarked",
+                "status": "pass",
                 "gates": {
-                    "text_completeness": {
-                        "status": "unbenchmarked",
-                        "expected": "comparison baseline",
-                        "actual": null,
-                        "detail": "no comparison baseline is available for visible text overlap with the baseline"
+                    "citeproc_content_coverage": {
+                        "status": "pass",
+                        "expected": ">=0.8",
+                        "actual": 0.8718,
+                        "detail": "34/39 Citeproc reference tokens present in WordPress output"
                     },
-                    "visual_structure": {
-                        "status": "unbenchmarked",
-                        "expected": "comparison baseline",
-                        "actual": null,
-                        "detail": "no comparison baseline is available for heading/list/table/image shape overlap with the baseline"
-                    },
-                    "paragraph_merge_split": {
-                        "status": "unbenchmarked",
-                        "expected": "comparison baseline",
-                        "actual": null,
-                        "detail": "no comparison baseline is available for paragraph count ratio"
-                    },
-                    "heading_count": {
-                        "status": "unbenchmarked",
-                        "expected": "comparison baseline",
-                        "actual": null,
-                        "detail": "no comparison baseline is available for heading count ratio"
-                    },
-                    "list_count": {
-                        "status": "unbenchmarked",
-                        "expected": "comparison baseline",
-                        "actual": null,
-                        "detail": "no comparison baseline is available for list count ratio"
-                    },
-                    "definition_list_count": {
-                        "status": "unbenchmarked",
-                        "expected": "comparison baseline",
-                        "actual": null,
-                        "detail": "no comparison baseline is available for definition list count ratio"
-                    },
-                    "table_count": {
-                        "status": "unbenchmarked",
-                        "expected": "comparison baseline",
-                        "actual": null,
-                        "detail": "no comparison baseline is available for table count ratio"
-                    },
-                    "image_count": {
-                        "status": "unbenchmarked",
-                        "expected": "comparison baseline",
-                        "actual": null,
-                        "detail": "no comparison baseline is available for image count ratio"
+                    "citeproc_entry_count": {
+                        "status": "pass",
+                        "expected": "0.80-1.25",
+                        "actual": 1,
+                        "detail": "Citeproc reference entry count ratio expected 3, got 3"
                     },
                     "media_imported": {
                         "status": "pass",
@@ -997,10 +987,10 @@
                     }
                 },
                 "summary": {
-                    "pass": 3,
+                    "pass": 5,
                     "review": 0,
                     "fail": 0,
-                    "unbenchmarked": 8
+                    "unbenchmarked": 0
                 }
             }
         },
@@ -1021,7 +1011,8 @@
             },
             "haskell": {
                 "ok": true,
-                "path": "outputs/bibtex-averroes/haskell.html"
+                "path": "outputs/bibtex-averroes/haskell.html",
+                "renderedWithCiteproc": true
             },
             "phpHtml": {
                 "ok": true,
@@ -1045,60 +1036,42 @@
                 "paragraph": 4
             },
             "sourceRawHtmlBlockCount": null,
+            "bibliographySource": {
+                "itemCount": 4,
+                "itemIds": [
+                    "averroes/bland",
+                    "averroes/hannes",
+                    "averroes/hercz",
+                    "cicero"
+                ]
+            },
+            "bibliographyComparison": {
+                "available": true,
+                "expectedEntryCount": 4,
+                "actualEntryCount": 4,
+                "expectedTokenCount": 121,
+                "matchedTokenCount": 116,
+                "contentCoverage": 0.9587,
+                "detail": "116/121 Citeproc reference tokens present in WordPress output"
+            },
             "faithfulness": {
                 "baseline": null,
                 "comparisons": []
             },
             "importQuality": {
-                "status": "unbenchmarked",
+                "status": "pass",
                 "gates": {
-                    "text_completeness": {
-                        "status": "unbenchmarked",
-                        "expected": "comparison baseline",
-                        "actual": null,
-                        "detail": "no comparison baseline is available for visible text overlap with the baseline"
+                    "citeproc_content_coverage": {
+                        "status": "pass",
+                        "expected": ">=0.8",
+                        "actual": 0.9587,
+                        "detail": "116/121 Citeproc reference tokens present in WordPress output"
                     },
-                    "visual_structure": {
-                        "status": "unbenchmarked",
-                        "expected": "comparison baseline",
-                        "actual": null,
-                        "detail": "no comparison baseline is available for heading/list/table/image shape overlap with the baseline"
-                    },
-                    "paragraph_merge_split": {
-                        "status": "unbenchmarked",
-                        "expected": "comparison baseline",
-                        "actual": null,
-                        "detail": "no comparison baseline is available for paragraph count ratio"
-                    },
-                    "heading_count": {
-                        "status": "unbenchmarked",
-                        "expected": "comparison baseline",
-                        "actual": null,
-                        "detail": "no comparison baseline is available for heading count ratio"
-                    },
-                    "list_count": {
-                        "status": "unbenchmarked",
-                        "expected": "comparison baseline",
-                        "actual": null,
-                        "detail": "no comparison baseline is available for list count ratio"
-                    },
-                    "definition_list_count": {
-                        "status": "unbenchmarked",
-                        "expected": "comparison baseline",
-                        "actual": null,
-                        "detail": "no comparison baseline is available for definition list count ratio"
-                    },
-                    "table_count": {
-                        "status": "unbenchmarked",
-                        "expected": "comparison baseline",
-                        "actual": null,
-                        "detail": "no comparison baseline is available for table count ratio"
-                    },
-                    "image_count": {
-                        "status": "unbenchmarked",
-                        "expected": "comparison baseline",
-                        "actual": null,
-                        "detail": "no comparison baseline is available for image count ratio"
+                    "citeproc_entry_count": {
+                        "status": "pass",
+                        "expected": "0.80-1.25",
+                        "actual": 1,
+                        "detail": "Citeproc reference entry count ratio expected 4, got 4"
                     },
                     "media_imported": {
                         "status": "pass",
@@ -1120,10 +1093,10 @@
                     }
                 },
                 "summary": {
-                    "pass": 3,
+                    "pass": 5,
                     "review": 0,
                     "fail": 0,
-                    "unbenchmarked": 8
+                    "unbenchmarked": 0
                 }
             }
         },
@@ -1144,7 +1117,8 @@
             },
             "haskell": {
                 "ok": true,
-                "path": "outputs/biblatex-biblio/haskell.html"
+                "path": "outputs/biblatex-biblio/haskell.html",
+                "renderedWithCiteproc": true
             },
             "phpHtml": {
                 "ok": true,
@@ -1168,60 +1142,41 @@
                 "paragraph": 3
             },
             "sourceRawHtmlBlockCount": null,
+            "bibliographySource": {
+                "itemCount": 3,
+                "itemIds": [
+                    "item1",
+                    "item2",
+                    "\u043f\u0443\u043d\u043a\u04423"
+                ]
+            },
+            "bibliographyComparison": {
+                "available": true,
+                "expectedEntryCount": 3,
+                "actualEntryCount": 3,
+                "expectedTokenCount": 39,
+                "matchedTokenCount": 34,
+                "contentCoverage": 0.8718,
+                "detail": "34/39 Citeproc reference tokens present in WordPress output"
+            },
             "faithfulness": {
                 "baseline": null,
                 "comparisons": []
             },
             "importQuality": {
-                "status": "unbenchmarked",
+                "status": "pass",
                 "gates": {
-                    "text_completeness": {
-                        "status": "unbenchmarked",
-                        "expected": "comparison baseline",
-                        "actual": null,
-                        "detail": "no comparison baseline is available for visible text overlap with the baseline"
+                    "citeproc_content_coverage": {
+                        "status": "pass",
+                        "expected": ">=0.8",
+                        "actual": 0.8718,
+                        "detail": "34/39 Citeproc reference tokens present in WordPress output"
                     },
-                    "visual_structure": {
-                        "status": "unbenchmarked",
-                        "expected": "comparison baseline",
-                        "actual": null,
-                        "detail": "no comparison baseline is available for heading/list/table/image shape overlap with the baseline"
-                    },
-                    "paragraph_merge_split": {
-                        "status": "unbenchmarked",
-                        "expected": "comparison baseline",
-                        "actual": null,
-                        "detail": "no comparison baseline is available for paragraph count ratio"
-                    },
-                    "heading_count": {
-                        "status": "unbenchmarked",
-                        "expected": "comparison baseline",
-                        "actual": null,
-                        "detail": "no comparison baseline is available for heading count ratio"
-                    },
-                    "list_count": {
-                        "status": "unbenchmarked",
-                        "expected": "comparison baseline",
-                        "actual": null,
-                        "detail": "no comparison baseline is available for list count ratio"
-                    },
-                    "definition_list_count": {
-                        "status": "unbenchmarked",
-                        "expected": "comparison baseline",
-                        "actual": null,
-                        "detail": "no comparison baseline is available for definition list count ratio"
-                    },
-                    "table_count": {
-                        "status": "unbenchmarked",
-                        "expected": "comparison baseline",
-                        "actual": null,
-                        "detail": "no comparison baseline is available for table count ratio"
-                    },
-                    "image_count": {
-                        "status": "unbenchmarked",
-                        "expected": "comparison baseline",
-                        "actual": null,
-                        "detail": "no comparison baseline is available for image count ratio"
+                    "citeproc_entry_count": {
+                        "status": "pass",
+                        "expected": "0.80-1.25",
+                        "actual": 1,
+                        "detail": "Citeproc reference entry count ratio expected 3, got 3"
                     },
                     "media_imported": {
                         "status": "pass",
@@ -1243,10 +1198,10 @@
                     }
                 },
                 "summary": {
-                    "pass": 3,
+                    "pass": 5,
                     "review": 0,
                     "fail": 0,
-                    "unbenchmarked": 8
+                    "unbenchmarked": 0
                 }
             }
         },
@@ -1267,7 +1222,8 @@
             },
             "haskell": {
                 "ok": true,
-                "path": "outputs/biblatex-online/haskell.html"
+                "path": "outputs/biblatex-online/haskell.html",
+                "renderedWithCiteproc": true
             },
             "phpHtml": {
                 "ok": true,
@@ -1291,60 +1247,39 @@
                 "paragraph": 1
             },
             "sourceRawHtmlBlockCount": null,
+            "bibliographySource": {
+                "itemCount": 1,
+                "itemIds": [
+                    "wp"
+                ]
+            },
+            "bibliographyComparison": {
+                "available": true,
+                "expectedEntryCount": 1,
+                "actualEntryCount": 1,
+                "expectedTokenCount": 7,
+                "matchedTokenCount": 7,
+                "contentCoverage": 1,
+                "detail": "7/7 Citeproc reference tokens present in WordPress output"
+            },
             "faithfulness": {
                 "baseline": null,
                 "comparisons": []
             },
             "importQuality": {
-                "status": "unbenchmarked",
+                "status": "pass",
                 "gates": {
-                    "text_completeness": {
-                        "status": "unbenchmarked",
-                        "expected": "comparison baseline",
-                        "actual": null,
-                        "detail": "no comparison baseline is available for visible text overlap with the baseline"
+                    "citeproc_content_coverage": {
+                        "status": "pass",
+                        "expected": ">=0.8",
+                        "actual": 1,
+                        "detail": "7/7 Citeproc reference tokens present in WordPress output"
                     },
-                    "visual_structure": {
-                        "status": "unbenchmarked",
-                        "expected": "comparison baseline",
-                        "actual": null,
-                        "detail": "no comparison baseline is available for heading/list/table/image shape overlap with the baseline"
-                    },
-                    "paragraph_merge_split": {
-                        "status": "unbenchmarked",
-                        "expected": "comparison baseline",
-                        "actual": null,
-                        "detail": "no comparison baseline is available for paragraph count ratio"
-                    },
-                    "heading_count": {
-                        "status": "unbenchmarked",
-                        "expected": "comparison baseline",
-                        "actual": null,
-                        "detail": "no comparison baseline is available for heading count ratio"
-                    },
-                    "list_count": {
-                        "status": "unbenchmarked",
-                        "expected": "comparison baseline",
-                        "actual": null,
-                        "detail": "no comparison baseline is available for list count ratio"
-                    },
-                    "definition_list_count": {
-                        "status": "unbenchmarked",
-                        "expected": "comparison baseline",
-                        "actual": null,
-                        "detail": "no comparison baseline is available for definition list count ratio"
-                    },
-                    "table_count": {
-                        "status": "unbenchmarked",
-                        "expected": "comparison baseline",
-                        "actual": null,
-                        "detail": "no comparison baseline is available for table count ratio"
-                    },
-                    "image_count": {
-                        "status": "unbenchmarked",
-                        "expected": "comparison baseline",
-                        "actual": null,
-                        "detail": "no comparison baseline is available for image count ratio"
+                    "citeproc_entry_count": {
+                        "status": "pass",
+                        "expected": "0.80-1.25",
+                        "actual": 1,
+                        "detail": "Citeproc reference entry count ratio expected 1, got 1"
                     },
                     "media_imported": {
                         "status": "pass",
@@ -1366,10 +1301,10 @@
                     }
                 },
                 "summary": {
-                    "pass": 3,
+                    "pass": 5,
                     "review": 0,
                     "fail": 0,
-                    "unbenchmarked": 8
+                    "unbenchmarked": 0
                 }
             }
         },
@@ -1390,7 +1325,8 @@
             },
             "haskell": {
                 "ok": true,
-                "path": "outputs/bits-book/haskell.html"
+                "path": "outputs/bits-book/haskell.html",
+                "renderedWithCiteproc": false
             },
             "phpHtml": {
                 "ok": true,
@@ -1413,6 +1349,10 @@
                 "paragraph": 1
             },
             "sourceRawHtmlBlockCount": null,
+            "bibliographySource": null,
+            "bibliographyComparison": {
+                "available": false
+            },
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -1531,7 +1471,8 @@
             },
             "haskell": {
                 "ok": true,
-                "path": "outputs/bits-section/haskell.html"
+                "path": "outputs/bits-section/haskell.html",
+                "renderedWithCiteproc": false
             },
             "phpHtml": {
                 "ok": true,
@@ -1554,6 +1495,10 @@
                 "paragraph": 1
             },
             "sourceRawHtmlBlockCount": null,
+            "bibliographySource": null,
+            "bibliographyComparison": {
+                "available": false
+            },
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -1672,7 +1617,8 @@
             },
             "haskell": {
                 "ok": true,
-                "path": "outputs/commonmark-js-readme/haskell.html"
+                "path": "outputs/commonmark-js-readme/haskell.html",
+                "renderedWithCiteproc": false
             },
             "phpHtml": {
                 "ok": true,
@@ -1697,6 +1643,10 @@
                 "paragraph": 37
             },
             "sourceRawHtmlBlockCount": null,
+            "bibliographySource": null,
+            "bibliographyComparison": {
+                "available": false
+            },
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -1815,7 +1765,8 @@
             },
             "haskell": {
                 "ok": true,
-                "path": "outputs/commonmarkx-markdownlint-rules/haskell.html"
+                "path": "outputs/commonmarkx-markdownlint-rules/haskell.html",
+                "renderedWithCiteproc": false
             },
             "phpHtml": {
                 "ok": true,
@@ -1841,6 +1792,10 @@
                 "paragraph": 534
             },
             "sourceRawHtmlBlockCount": 13,
+            "bibliographySource": null,
+            "bibliographyComparison": {
+                "available": false
+            },
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -1959,7 +1914,8 @@
             },
             "haskell": {
                 "ok": true,
-                "path": "outputs/csljson-book/haskell.html"
+                "path": "outputs/csljson-book/haskell.html",
+                "renderedWithCiteproc": true
             },
             "phpHtml": {
                 "ok": true,
@@ -1983,60 +1939,39 @@
                 "paragraph": 1
             },
             "sourceRawHtmlBlockCount": null,
+            "bibliographySource": {
+                "itemCount": 1,
+                "itemIds": [
+                    "knuth-1984"
+                ]
+            },
+            "bibliographyComparison": {
+                "available": true,
+                "expectedEntryCount": 1,
+                "actualEntryCount": 1,
+                "expectedTokenCount": 8,
+                "matchedTokenCount": 8,
+                "contentCoverage": 1,
+                "detail": "8/8 Citeproc reference tokens present in WordPress output"
+            },
             "faithfulness": {
                 "baseline": null,
                 "comparisons": []
             },
             "importQuality": {
-                "status": "unbenchmarked",
+                "status": "pass",
                 "gates": {
-                    "text_completeness": {
-                        "status": "unbenchmarked",
-                        "expected": "comparison baseline",
-                        "actual": null,
-                        "detail": "no comparison baseline is available for visible text overlap with the baseline"
+                    "citeproc_content_coverage": {
+                        "status": "pass",
+                        "expected": ">=0.8",
+                        "actual": 1,
+                        "detail": "8/8 Citeproc reference tokens present in WordPress output"
                     },
-                    "visual_structure": {
-                        "status": "unbenchmarked",
-                        "expected": "comparison baseline",
-                        "actual": null,
-                        "detail": "no comparison baseline is available for heading/list/table/image shape overlap with the baseline"
-                    },
-                    "paragraph_merge_split": {
-                        "status": "unbenchmarked",
-                        "expected": "comparison baseline",
-                        "actual": null,
-                        "detail": "no comparison baseline is available for paragraph count ratio"
-                    },
-                    "heading_count": {
-                        "status": "unbenchmarked",
-                        "expected": "comparison baseline",
-                        "actual": null,
-                        "detail": "no comparison baseline is available for heading count ratio"
-                    },
-                    "list_count": {
-                        "status": "unbenchmarked",
-                        "expected": "comparison baseline",
-                        "actual": null,
-                        "detail": "no comparison baseline is available for list count ratio"
-                    },
-                    "definition_list_count": {
-                        "status": "unbenchmarked",
-                        "expected": "comparison baseline",
-                        "actual": null,
-                        "detail": "no comparison baseline is available for definition list count ratio"
-                    },
-                    "table_count": {
-                        "status": "unbenchmarked",
-                        "expected": "comparison baseline",
-                        "actual": null,
-                        "detail": "no comparison baseline is available for table count ratio"
-                    },
-                    "image_count": {
-                        "status": "unbenchmarked",
-                        "expected": "comparison baseline",
-                        "actual": null,
-                        "detail": "no comparison baseline is available for image count ratio"
+                    "citeproc_entry_count": {
+                        "status": "pass",
+                        "expected": "0.80-1.25",
+                        "actual": 1,
+                        "detail": "Citeproc reference entry count ratio expected 1, got 1"
                     },
                     "media_imported": {
                         "status": "pass",
@@ -2058,10 +1993,10 @@
                     }
                 },
                 "summary": {
-                    "pass": 3,
+                    "pass": 5,
                     "review": 0,
                     "fail": 0,
-                    "unbenchmarked": 8
+                    "unbenchmarked": 0
                 }
             }
         },
@@ -2082,7 +2017,8 @@
             },
             "haskell": {
                 "ok": true,
-                "path": "outputs/csljson-article/haskell.html"
+                "path": "outputs/csljson-article/haskell.html",
+                "renderedWithCiteproc": true
             },
             "phpHtml": {
                 "ok": true,
@@ -2106,60 +2042,39 @@
                 "paragraph": 1
             },
             "sourceRawHtmlBlockCount": null,
+            "bibliographySource": {
+                "itemCount": 1,
+                "itemIds": [
+                    "berners-lee-1994"
+                ]
+            },
+            "bibliographyComparison": {
+                "available": true,
+                "expectedEntryCount": 1,
+                "actualEntryCount": 1,
+                "expectedTokenCount": 12,
+                "matchedTokenCount": 12,
+                "contentCoverage": 1,
+                "detail": "12/12 Citeproc reference tokens present in WordPress output"
+            },
             "faithfulness": {
                 "baseline": null,
                 "comparisons": []
             },
             "importQuality": {
-                "status": "unbenchmarked",
+                "status": "pass",
                 "gates": {
-                    "text_completeness": {
-                        "status": "unbenchmarked",
-                        "expected": "comparison baseline",
-                        "actual": null,
-                        "detail": "no comparison baseline is available for visible text overlap with the baseline"
+                    "citeproc_content_coverage": {
+                        "status": "pass",
+                        "expected": ">=0.8",
+                        "actual": 1,
+                        "detail": "12/12 Citeproc reference tokens present in WordPress output"
                     },
-                    "visual_structure": {
-                        "status": "unbenchmarked",
-                        "expected": "comparison baseline",
-                        "actual": null,
-                        "detail": "no comparison baseline is available for heading/list/table/image shape overlap with the baseline"
-                    },
-                    "paragraph_merge_split": {
-                        "status": "unbenchmarked",
-                        "expected": "comparison baseline",
-                        "actual": null,
-                        "detail": "no comparison baseline is available for paragraph count ratio"
-                    },
-                    "heading_count": {
-                        "status": "unbenchmarked",
-                        "expected": "comparison baseline",
-                        "actual": null,
-                        "detail": "no comparison baseline is available for heading count ratio"
-                    },
-                    "list_count": {
-                        "status": "unbenchmarked",
-                        "expected": "comparison baseline",
-                        "actual": null,
-                        "detail": "no comparison baseline is available for list count ratio"
-                    },
-                    "definition_list_count": {
-                        "status": "unbenchmarked",
-                        "expected": "comparison baseline",
-                        "actual": null,
-                        "detail": "no comparison baseline is available for definition list count ratio"
-                    },
-                    "table_count": {
-                        "status": "unbenchmarked",
-                        "expected": "comparison baseline",
-                        "actual": null,
-                        "detail": "no comparison baseline is available for table count ratio"
-                    },
-                    "image_count": {
-                        "status": "unbenchmarked",
-                        "expected": "comparison baseline",
-                        "actual": null,
-                        "detail": "no comparison baseline is available for image count ratio"
+                    "citeproc_entry_count": {
+                        "status": "pass",
+                        "expected": "0.80-1.25",
+                        "actual": 1,
+                        "detail": "Citeproc reference entry count ratio expected 1, got 1"
                     },
                     "media_imported": {
                         "status": "pass",
@@ -2181,10 +2096,10 @@
                     }
                 },
                 "summary": {
-                    "pass": 3,
+                    "pass": 5,
                     "review": 0,
                     "fail": 0,
-                    "unbenchmarked": 8
+                    "unbenchmarked": 0
                 }
             }
         },
@@ -2205,7 +2120,8 @@
             },
             "haskell": {
                 "ok": true,
-                "path": "outputs/csv-format-status/haskell.html"
+                "path": "outputs/csv-format-status/haskell.html",
+                "renderedWithCiteproc": false
             },
             "phpHtml": {
                 "ok": true,
@@ -2227,6 +2143,10 @@
                 "table": 1
             },
             "sourceRawHtmlBlockCount": null,
+            "bibliographySource": null,
+            "bibliographyComparison": {
+                "available": false
+            },
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -2345,7 +2265,8 @@
             },
             "haskell": {
                 "ok": true,
-                "path": "outputs/csv-rst-table/haskell.html"
+                "path": "outputs/csv-rst-table/haskell.html",
+                "renderedWithCiteproc": false
             },
             "phpHtml": {
                 "ok": true,
@@ -2367,6 +2288,10 @@
                 "table": 1
             },
             "sourceRawHtmlBlockCount": null,
+            "bibliographySource": null,
+            "bibliographyComparison": {
+                "available": false
+            },
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -2485,7 +2410,8 @@
             },
             "haskell": {
                 "ok": true,
-                "path": "outputs/tsv-format-status/haskell.html"
+                "path": "outputs/tsv-format-status/haskell.html",
+                "renderedWithCiteproc": false
             },
             "phpHtml": {
                 "ok": true,
@@ -2507,6 +2433,10 @@
                 "table": 1
             },
             "sourceRawHtmlBlockCount": null,
+            "bibliographySource": null,
+            "bibliographyComparison": {
+                "available": false
+            },
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -2625,7 +2555,8 @@
             },
             "haskell": {
                 "ok": true,
-                "path": "outputs/tsv-source-status/haskell.html"
+                "path": "outputs/tsv-source-status/haskell.html",
+                "renderedWithCiteproc": false
             },
             "phpHtml": {
                 "ok": true,
@@ -2647,6 +2578,10 @@
                 "table": 1
             },
             "sourceRawHtmlBlockCount": null,
+            "bibliographySource": null,
+            "bibliographyComparison": {
+                "available": false
+            },
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -2765,7 +2700,8 @@
             },
             "haskell": {
                 "ok": true,
-                "path": "outputs/docbook-article/haskell.html"
+                "path": "outputs/docbook-article/haskell.html",
+                "renderedWithCiteproc": false
             },
             "phpHtml": {
                 "ok": true,
@@ -2789,6 +2725,10 @@
                 "paragraph": 1
             },
             "sourceRawHtmlBlockCount": null,
+            "bibliographySource": null,
+            "bibliographyComparison": {
+                "available": false
+            },
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -2907,7 +2847,8 @@
             },
             "haskell": {
                 "ok": true,
-                "path": "outputs/docbook-table/haskell.html"
+                "path": "outputs/docbook-table/haskell.html",
+                "renderedWithCiteproc": false
             },
             "phpHtml": {
                 "ok": true,
@@ -2930,6 +2871,10 @@
                 "table": 1
             },
             "sourceRawHtmlBlockCount": null,
+            "bibliographySource": null,
+            "bibliographyComparison": {
+                "available": false
+            },
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -3048,7 +2993,8 @@
             },
             "haskell": {
                 "ok": true,
-                "path": "outputs/docx-quarterly-operations-report/haskell.html"
+                "path": "outputs/docx-quarterly-operations-report/haskell.html",
+                "renderedWithCiteproc": false
             },
             "phpHtml": {
                 "ok": true,
@@ -3073,6 +3019,10 @@
                 "table": 1
             },
             "sourceRawHtmlBlockCount": null,
+            "bibliographySource": null,
+            "bibliographyComparison": {
+                "available": false
+            },
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -3191,7 +3141,8 @@
             },
             "haskell": {
                 "ok": true,
-                "path": "outputs/docx-support-specialist-resume/haskell.html"
+                "path": "outputs/docx-support-specialist-resume/haskell.html",
+                "renderedWithCiteproc": false
             },
             "phpHtml": {
                 "ok": true,
@@ -3216,6 +3167,10 @@
                 "table": 1
             },
             "sourceRawHtmlBlockCount": null,
+            "bibliographySource": null,
+            "bibliographyComparison": {
+                "available": false
+            },
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -3334,7 +3289,8 @@
             },
             "haskell": {
                 "ok": true,
-                "path": "outputs/docx-remote-work-policy/haskell.html"
+                "path": "outputs/docx-remote-work-policy/haskell.html",
+                "renderedWithCiteproc": false
             },
             "phpHtml": {
                 "ok": true,
@@ -3359,6 +3315,10 @@
                 "table": 1
             },
             "sourceRawHtmlBlockCount": null,
+            "bibliographySource": null,
+            "bibliographyComparison": {
+                "available": false
+            },
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -3477,7 +3437,8 @@
             },
             "haskell": {
                 "ok": true,
-                "path": "outputs/docx-headers/haskell.html"
+                "path": "outputs/docx-headers/haskell.html",
+                "renderedWithCiteproc": false
             },
             "phpHtml": {
                 "ok": true,
@@ -3500,6 +3461,10 @@
                 "paragraph": 7
             },
             "sourceRawHtmlBlockCount": null,
+            "bibliographySource": null,
+            "bibliographyComparison": {
+                "available": false
+            },
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -3618,7 +3583,8 @@
             },
             "haskell": {
                 "ok": true,
-                "path": "outputs/docx-tables/haskell.html"
+                "path": "outputs/docx-tables/haskell.html",
+                "renderedWithCiteproc": false
             },
             "phpHtml": {
                 "ok": true,
@@ -3641,6 +3607,10 @@
                 "table": 3
             },
             "sourceRawHtmlBlockCount": null,
+            "bibliographySource": null,
+            "bibliographyComparison": {
+                "available": false
+            },
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -3759,7 +3729,8 @@
             },
             "haskell": {
                 "ok": true,
-                "path": "outputs/docx-notes/haskell.html"
+                "path": "outputs/docx-notes/haskell.html",
+                "renderedWithCiteproc": false
             },
             "phpHtml": {
                 "ok": true,
@@ -3784,6 +3755,10 @@
                 "paragraph": 1
             },
             "sourceRawHtmlBlockCount": null,
+            "bibliographySource": null,
+            "bibliographyComparison": {
+                "available": false
+            },
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -3902,7 +3877,8 @@
             },
             "haskell": {
                 "ok": true,
-                "path": "outputs/docx-inline-images/haskell.html"
+                "path": "outputs/docx-inline-images/haskell.html",
+                "renderedWithCiteproc": false
             },
             "phpHtml": {
                 "ok": true,
@@ -3994,6 +3970,10 @@
                 "paragraph": 2
             },
             "sourceRawHtmlBlockCount": null,
+            "bibliographySource": null,
+            "bibliographyComparison": {
+                "available": false
+            },
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -4112,7 +4092,8 @@
             },
             "haskell": {
                 "ok": true,
-                "path": "outputs/docx-oasis-kmip-spec/haskell.html"
+                "path": "outputs/docx-oasis-kmip-spec/haskell.html",
+                "renderedWithCiteproc": false
             },
             "phpHtml": {
                 "ok": true,
@@ -4208,6 +4189,10 @@
                 "table": 384
             },
             "sourceRawHtmlBlockCount": null,
+            "bibliographySource": null,
+            "bibliographyComparison": {
+                "available": false
+            },
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -4223,9 +4208,9 @@
                     "phpHtml": {
                         "label": "PHP HTML",
                         "status": "faithful_enough",
-                        "score": 0.9941,
+                        "score": 0.99,
                         "textStatus": "faithful_enough",
-                        "textScore": 0.9941,
+                        "textScore": 0.99,
                         "visualStatus": "faithful_enough",
                         "visualScore": 0.966
                     }
@@ -4326,7 +4311,8 @@
             },
             "haskell": {
                 "ok": true,
-                "path": "outputs/docx-microsoft-excel-migration/haskell.html"
+                "path": "outputs/docx-microsoft-excel-migration/haskell.html",
+                "renderedWithCiteproc": false
             },
             "phpHtml": {
                 "ok": true,
@@ -4350,6 +4336,10 @@
                 "paragraph": 125
             },
             "sourceRawHtmlBlockCount": null,
+            "bibliographySource": null,
+            "bibliographyComparison": {
+                "available": false
+            },
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -4468,7 +4458,8 @@
             },
             "haskell": {
                 "ok": true,
-                "path": "outputs/dokuwiki-import-packet/haskell.html"
+                "path": "outputs/dokuwiki-import-packet/haskell.html",
+                "renderedWithCiteproc": false
             },
             "phpHtml": {
                 "ok": true,
@@ -4531,6 +4522,10 @@
                 "table": 1
             },
             "sourceRawHtmlBlockCount": null,
+            "bibliographySource": null,
+            "bibliographyComparison": {
+                "available": false
+            },
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -4649,7 +4644,8 @@
             },
             "haskell": {
                 "ok": true,
-                "path": "outputs/endnotexml-reader/haskell.html"
+                "path": "outputs/endnotexml-reader/haskell.html",
+                "renderedWithCiteproc": true
             },
             "phpHtml": {
                 "ok": true,
@@ -4673,60 +4669,40 @@
                 "paragraph": 2
             },
             "sourceRawHtmlBlockCount": null,
+            "bibliographySource": {
+                "itemCount": 2,
+                "itemIds": [
+                    "ISI:000200148800007",
+                    "ISI:000200148800014"
+                ]
+            },
+            "bibliographyComparison": {
+                "available": true,
+                "expectedEntryCount": 2,
+                "actualEntryCount": 2,
+                "expectedTokenCount": 36,
+                "matchedTokenCount": 36,
+                "contentCoverage": 1,
+                "detail": "36/36 Citeproc reference tokens present in WordPress output"
+            },
             "faithfulness": {
                 "baseline": null,
                 "comparisons": []
             },
             "importQuality": {
-                "status": "unbenchmarked",
+                "status": "pass",
                 "gates": {
-                    "text_completeness": {
-                        "status": "unbenchmarked",
-                        "expected": "comparison baseline",
-                        "actual": null,
-                        "detail": "no comparison baseline is available for visible text overlap with the baseline"
+                    "citeproc_content_coverage": {
+                        "status": "pass",
+                        "expected": ">=0.8",
+                        "actual": 1,
+                        "detail": "36/36 Citeproc reference tokens present in WordPress output"
                     },
-                    "visual_structure": {
-                        "status": "unbenchmarked",
-                        "expected": "comparison baseline",
-                        "actual": null,
-                        "detail": "no comparison baseline is available for heading/list/table/image shape overlap with the baseline"
-                    },
-                    "paragraph_merge_split": {
-                        "status": "unbenchmarked",
-                        "expected": "comparison baseline",
-                        "actual": null,
-                        "detail": "no comparison baseline is available for paragraph count ratio"
-                    },
-                    "heading_count": {
-                        "status": "unbenchmarked",
-                        "expected": "comparison baseline",
-                        "actual": null,
-                        "detail": "no comparison baseline is available for heading count ratio"
-                    },
-                    "list_count": {
-                        "status": "unbenchmarked",
-                        "expected": "comparison baseline",
-                        "actual": null,
-                        "detail": "no comparison baseline is available for list count ratio"
-                    },
-                    "definition_list_count": {
-                        "status": "unbenchmarked",
-                        "expected": "comparison baseline",
-                        "actual": null,
-                        "detail": "no comparison baseline is available for definition list count ratio"
-                    },
-                    "table_count": {
-                        "status": "unbenchmarked",
-                        "expected": "comparison baseline",
-                        "actual": null,
-                        "detail": "no comparison baseline is available for table count ratio"
-                    },
-                    "image_count": {
-                        "status": "unbenchmarked",
-                        "expected": "comparison baseline",
-                        "actual": null,
-                        "detail": "no comparison baseline is available for image count ratio"
+                    "citeproc_entry_count": {
+                        "status": "pass",
+                        "expected": "0.80-1.25",
+                        "actual": 1,
+                        "detail": "Citeproc reference entry count ratio expected 2, got 2"
                     },
                     "media_imported": {
                         "status": "pass",
@@ -4748,10 +4724,10 @@
                     }
                 },
                 "summary": {
-                    "pass": 3,
+                    "pass": 5,
                     "review": 0,
                     "fail": 0,
-                    "unbenchmarked": 8
+                    "unbenchmarked": 0
                 }
             }
         },
@@ -4772,7 +4748,8 @@
             },
             "haskell": {
                 "ok": true,
-                "path": "outputs/endnotexml-book/haskell.html"
+                "path": "outputs/endnotexml-book/haskell.html",
+                "renderedWithCiteproc": true
             },
             "phpHtml": {
                 "ok": true,
@@ -4796,60 +4773,39 @@
                 "paragraph": 1
             },
             "sourceRawHtmlBlockCount": null,
+            "bibliographySource": {
+                "itemCount": 1,
+                "itemIds": [
+                    "endnote-1"
+                ]
+            },
+            "bibliographyComparison": {
+                "available": true,
+                "expectedEntryCount": 1,
+                "actualEntryCount": 1,
+                "expectedTokenCount": 8,
+                "matchedTokenCount": 8,
+                "contentCoverage": 1,
+                "detail": "8/8 Citeproc reference tokens present in WordPress output"
+            },
             "faithfulness": {
                 "baseline": null,
                 "comparisons": []
             },
             "importQuality": {
-                "status": "unbenchmarked",
+                "status": "pass",
                 "gates": {
-                    "text_completeness": {
-                        "status": "unbenchmarked",
-                        "expected": "comparison baseline",
-                        "actual": null,
-                        "detail": "no comparison baseline is available for visible text overlap with the baseline"
+                    "citeproc_content_coverage": {
+                        "status": "pass",
+                        "expected": ">=0.8",
+                        "actual": 1,
+                        "detail": "8/8 Citeproc reference tokens present in WordPress output"
                     },
-                    "visual_structure": {
-                        "status": "unbenchmarked",
-                        "expected": "comparison baseline",
-                        "actual": null,
-                        "detail": "no comparison baseline is available for heading/list/table/image shape overlap with the baseline"
-                    },
-                    "paragraph_merge_split": {
-                        "status": "unbenchmarked",
-                        "expected": "comparison baseline",
-                        "actual": null,
-                        "detail": "no comparison baseline is available for paragraph count ratio"
-                    },
-                    "heading_count": {
-                        "status": "unbenchmarked",
-                        "expected": "comparison baseline",
-                        "actual": null,
-                        "detail": "no comparison baseline is available for heading count ratio"
-                    },
-                    "list_count": {
-                        "status": "unbenchmarked",
-                        "expected": "comparison baseline",
-                        "actual": null,
-                        "detail": "no comparison baseline is available for list count ratio"
-                    },
-                    "definition_list_count": {
-                        "status": "unbenchmarked",
-                        "expected": "comparison baseline",
-                        "actual": null,
-                        "detail": "no comparison baseline is available for definition list count ratio"
-                    },
-                    "table_count": {
-                        "status": "unbenchmarked",
-                        "expected": "comparison baseline",
-                        "actual": null,
-                        "detail": "no comparison baseline is available for table count ratio"
-                    },
-                    "image_count": {
-                        "status": "unbenchmarked",
-                        "expected": "comparison baseline",
-                        "actual": null,
-                        "detail": "no comparison baseline is available for image count ratio"
+                    "citeproc_entry_count": {
+                        "status": "pass",
+                        "expected": "0.80-1.25",
+                        "actual": 1,
+                        "detail": "Citeproc reference entry count ratio expected 1, got 1"
                     },
                     "media_imported": {
                         "status": "pass",
@@ -4871,10 +4827,10 @@
                     }
                 },
                 "summary": {
-                    "pass": 3,
+                    "pass": 5,
                     "review": 0,
                     "fail": 0,
-                    "unbenchmarked": 8
+                    "unbenchmarked": 0
                 }
             }
         },
@@ -4895,7 +4851,8 @@
             },
             "haskell": {
                 "ok": true,
-                "path": "outputs/epub-wasteland/haskell.html"
+                "path": "outputs/epub-wasteland/haskell.html",
+                "renderedWithCiteproc": false
             },
             "phpHtml": {
                 "ok": true,
@@ -4958,6 +4915,10 @@
                 "quote": 1
             },
             "sourceRawHtmlBlockCount": null,
+            "bibliographySource": null,
+            "bibliographyComparison": {
+                "available": false
+            },
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -5076,7 +5037,8 @@
             },
             "haskell": {
                 "ok": true,
-                "path": "outputs/epub-features/haskell.html"
+                "path": "outputs/epub-features/haskell.html",
+                "renderedWithCiteproc": false
             },
             "phpHtml": {
                 "ok": true,
@@ -5101,6 +5063,10 @@
                 "paragraph": 50
             },
             "sourceRawHtmlBlockCount": null,
+            "bibliographySource": null,
+            "bibliographyComparison": {
+                "available": false
+            },
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -5219,7 +5185,8 @@
             },
             "haskell": {
                 "ok": true,
-                "path": "outputs/epub-picture/haskell.html"
+                "path": "outputs/epub-picture/haskell.html",
+                "renderedWithCiteproc": false
             },
             "phpHtml": {
                 "ok": true,
@@ -5279,6 +5246,10 @@
                 "paragraph": 2
             },
             "sourceRawHtmlBlockCount": null,
+            "bibliographySource": null,
+            "bibliographyComparison": {
+                "available": false
+            },
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -5397,7 +5368,8 @@
             },
             "haskell": {
                 "ok": true,
-                "path": "outputs/epub-image/haskell.html"
+                "path": "outputs/epub-image/haskell.html",
+                "renderedWithCiteproc": false
             },
             "phpHtml": {
                 "ok": true,
@@ -5560,6 +5532,10 @@
                 "paragraph": 7
             },
             "sourceRawHtmlBlockCount": null,
+            "bibliographySource": null,
+            "bibliographyComparison": {
+                "available": false
+            },
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -5678,7 +5654,8 @@
             },
             "haskell": {
                 "ok": true,
-                "path": "outputs/epub-gutenberg-alice-illustrated/haskell.html"
+                "path": "outputs/epub-gutenberg-alice-illustrated/haskell.html",
+                "renderedWithCiteproc": false
             },
             "phpHtml": {
                 "ok": true,
@@ -6934,6 +6911,10 @@
                 "table": 16
             },
             "sourceRawHtmlBlockCount": null,
+            "bibliographySource": null,
+            "bibliographyComparison": {
+                "available": false
+            },
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -7052,7 +7033,8 @@
             },
             "haskell": {
                 "ok": true,
-                "path": "outputs/fb2-basic/haskell.html"
+                "path": "outputs/fb2-basic/haskell.html",
+                "renderedWithCiteproc": false
             },
             "phpHtml": {
                 "ok": true,
@@ -7078,6 +7060,10 @@
                 "separator": 2
             },
             "sourceRawHtmlBlockCount": null,
+            "bibliographySource": null,
+            "bibliographyComparison": {
+                "available": false
+            },
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -7196,7 +7182,8 @@
             },
             "haskell": {
                 "ok": true,
-                "path": "outputs/fb2-notes/haskell.html"
+                "path": "outputs/fb2-notes/haskell.html",
+                "renderedWithCiteproc": false
             },
             "phpHtml": {
                 "ok": true,
@@ -7220,6 +7207,10 @@
                 "paragraph": 2
             },
             "sourceRawHtmlBlockCount": null,
+            "bibliographySource": null,
+            "bibliographyComparison": {
+                "available": false
+            },
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -7338,7 +7329,8 @@
             },
             "haskell": {
                 "ok": true,
-                "path": "outputs/gfm-gitlab-markdown-guide/haskell.html"
+                "path": "outputs/gfm-gitlab-markdown-guide/haskell.html",
+                "renderedWithCiteproc": false
             },
             "phpHtml": {
                 "ok": true,
@@ -7369,6 +7361,10 @@
                 "table": 3
             },
             "sourceRawHtmlBlockCount": 34,
+            "bibliographySource": null,
+            "bibliographyComparison": {
+                "available": false
+            },
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -7487,7 +7483,8 @@
             },
             "haskell": {
                 "ok": true,
-                "path": "outputs/markdown-github-rendered-syntax/haskell.html"
+                "path": "outputs/markdown-github-rendered-syntax/haskell.html",
+                "renderedWithCiteproc": false
             },
             "phpHtml": {
                 "ok": true,
@@ -7518,6 +7515,10 @@
                 "table": 3
             },
             "sourceRawHtmlBlockCount": 8,
+            "bibliographySource": null,
+            "bibliographyComparison": {
+                "available": false
+            },
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -7636,7 +7637,8 @@
             },
             "haskell": {
                 "ok": true,
-                "path": "outputs/html-reader/haskell.html"
+                "path": "outputs/html-reader/haskell.html",
+                "renderedWithCiteproc": false
             },
             "phpHtml": {
                 "ok": true,
@@ -7666,6 +7668,10 @@
                 "table": 18
             },
             "sourceRawHtmlBlockCount": null,
+            "bibliographySource": null,
+            "bibliographyComparison": {
+                "available": false
+            },
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -7784,7 +7790,8 @@
             },
             "haskell": {
                 "ok": true,
-                "path": "outputs/html-template/haskell.html"
+                "path": "outputs/html-template/haskell.html",
+                "renderedWithCiteproc": false
             },
             "phpHtml": {
                 "ok": true,
@@ -7806,6 +7813,10 @@
                 "paragraph": 1
             },
             "sourceRawHtmlBlockCount": null,
+            "bibliographySource": null,
+            "bibliographyComparison": {
+                "available": false
+            },
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -7924,7 +7935,8 @@
             },
             "haskell": {
                 "ok": true,
-                "path": "outputs/html-remote-work-policy/haskell.html"
+                "path": "outputs/html-remote-work-policy/haskell.html",
+                "renderedWithCiteproc": false
             },
             "phpHtml": {
                 "ok": true,
@@ -7949,6 +7961,10 @@
                 "table": 1
             },
             "sourceRawHtmlBlockCount": null,
+            "bibliographySource": null,
+            "bibliographyComparison": {
+                "available": false
+            },
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -8067,7 +8083,8 @@
             },
             "haskell": {
                 "ok": true,
-                "path": "outputs/html-project-status-update/haskell.html"
+                "path": "outputs/html-project-status-update/haskell.html",
+                "renderedWithCiteproc": false
             },
             "phpHtml": {
                 "ok": true,
@@ -8092,6 +8109,10 @@
                 "table": 1
             },
             "sourceRawHtmlBlockCount": null,
+            "bibliographySource": null,
+            "bibliographyComparison": {
+                "available": false
+            },
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -8210,7 +8231,8 @@
             },
             "haskell": {
                 "ok": true,
-                "path": "outputs/ipynb-simple/haskell.html"
+                "path": "outputs/ipynb-simple/haskell.html",
+                "renderedWithCiteproc": false
             },
             "phpHtml": {
                 "ok": true,
@@ -8235,6 +8257,10 @@
                 "paragraph": 2
             },
             "sourceRawHtmlBlockCount": null,
+            "bibliographySource": null,
+            "bibliographyComparison": {
+                "available": false
+            },
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -8353,7 +8379,8 @@
             },
             "haskell": {
                 "ok": true,
-                "path": "outputs/ipynb-mime/haskell.html"
+                "path": "outputs/ipynb-mime/haskell.html",
+                "renderedWithCiteproc": false
             },
             "phpHtml": {
                 "ok": true,
@@ -8377,6 +8404,10 @@
                 "paragraph": 3
             },
             "sourceRawHtmlBlockCount": null,
+            "bibliographySource": null,
+            "bibliographyComparison": {
+                "available": false
+            },
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -8495,7 +8526,8 @@
             },
             "haskell": {
                 "ok": true,
-                "path": "outputs/jats-article/haskell.html"
+                "path": "outputs/jats-article/haskell.html",
+                "renderedWithCiteproc": false
             },
             "phpHtml": {
                 "ok": true,
@@ -8518,6 +8550,10 @@
                 "paragraph": 1
             },
             "sourceRawHtmlBlockCount": null,
+            "bibliographySource": null,
+            "bibliographyComparison": {
+                "available": false
+            },
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -8636,7 +8672,8 @@
             },
             "haskell": {
                 "ok": true,
-                "path": "outputs/jats-reader/haskell.html"
+                "path": "outputs/jats-reader/haskell.html",
+                "renderedWithCiteproc": false
             },
             "phpHtml": {
                 "ok": true,
@@ -8664,6 +8701,10 @@
                 "table": 16
             },
             "sourceRawHtmlBlockCount": null,
+            "bibliographySource": null,
+            "bibliographyComparison": {
+                "available": false
+            },
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -8782,7 +8823,8 @@
             },
             "haskell": {
                 "ok": true,
-                "path": "outputs/jira-ticket/haskell.html"
+                "path": "outputs/jira-ticket/haskell.html",
+                "renderedWithCiteproc": false
             },
             "phpHtml": {
                 "ok": true,
@@ -8807,6 +8849,10 @@
                 "table": 1
             },
             "sourceRawHtmlBlockCount": null,
+            "bibliographySource": null,
+            "bibliographyComparison": {
+                "available": false
+            },
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -8925,7 +8971,8 @@
             },
             "haskell": {
                 "ok": true,
-                "path": "outputs/jira-release/haskell.html"
+                "path": "outputs/jira-release/haskell.html",
+                "renderedWithCiteproc": false
             },
             "phpHtml": {
                 "ok": true,
@@ -8948,6 +8995,10 @@
                 "list": 1
             },
             "sourceRawHtmlBlockCount": null,
+            "bibliographySource": null,
+            "bibliographyComparison": {
+                "available": false
+            },
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -9066,7 +9117,8 @@
             },
             "haskell": {
                 "ok": true,
-                "path": "outputs/json-pandoc-ast/haskell.html"
+                "path": "outputs/json-pandoc-ast/haskell.html",
+                "renderedWithCiteproc": false
             },
             "phpHtml": {
                 "ok": true,
@@ -9089,6 +9141,10 @@
                 "paragraph": 1
             },
             "sourceRawHtmlBlockCount": null,
+            "bibliographySource": null,
+            "bibliographyComparison": {
+                "available": false
+            },
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -9207,7 +9263,8 @@
             },
             "haskell": {
                 "ok": true,
-                "path": "outputs/json-pandoc-list/haskell.html"
+                "path": "outputs/json-pandoc-list/haskell.html",
+                "renderedWithCiteproc": false
             },
             "phpHtml": {
                 "ok": true,
@@ -9229,6 +9286,10 @@
                 "list": 1
             },
             "sourceRawHtmlBlockCount": null,
+            "bibliographySource": null,
+            "bibliographyComparison": {
+                "available": false
+            },
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -9333,22 +9394,22 @@
         {
             "id": "latex-table",
             "format": "latex",
-            "label": "LaTeX command fixture",
-            "description": "LaTeX fixture from upstream Pandoc command tests.",
-            "source": "jgm/pandoc upstream fixture at test/command/3971b.tex",
-            "sourceUrl": "https://raw.githubusercontent.com/jgm/pandoc/912bfa5e2e3f5c74eb125dfc19404f67c61ca58b/test/command/3971b.tex",
-            "samplePath": "samples/latex-table-3971b.tex",
-            "sampleSize": 52,
-            "preview": "\\newcommand{\\code}[1]{\\texttt{#1}}\n\\begin{document}\n",
+            "label": "LaTeX table import packet",
+            "description": "Valid LaTeX table fragment exercising paragraph, table, caption, alignment, and WordPress table-block conversion.",
+            "source": "Inline LaTeX fragment with captioned tabular data.",
+            "sourceUrl": "",
+            "samplePath": "samples/latex-table-latex-table.tex",
+            "sampleSize": 161,
+            "preview": "Before table.\n\n\\begin{table}\n\\caption{Conversion counts}\n\\begin{tabular}{lr}\nName & Value \\\\\nHTML & 1 \\\\\nWordPress & 2 \\\\\n\\end{tabular}\n\\end{table}\n\nAfter table.",
             "support": {
                 "status": "partial",
                 "implementation": "PortLibs\\Pandoc\\MarkdownReader",
                 "notes": "Raw TeX and bounded LaTeX table/math behavior are mapped; full LaTeX reader parity remains open."
             },
             "haskell": {
-                "ok": false,
-                "error": "Error at \"$REPO/pandoc-showcase/samples/latex-table-3971b.tex\" (line 3, column 2):\nunexpected end of input\nexpecting \\end{document}\n\n ^",
-                "path": "outputs/latex-table/haskell.html.error.txt"
+                "ok": true,
+                "path": "outputs/latex-table/haskell.html",
+                "renderedWithCiteproc": false
             },
             "phpHtml": {
                 "ok": true,
@@ -9367,64 +9428,87 @@
                 ]
             },
             "wpBlockCounts": {
-                "code": 1,
-                "paragraph": 1
+                "paragraph": 2,
+                "table": 1
             },
             "sourceRawHtmlBlockCount": null,
+            "bibliographySource": null,
+            "bibliographyComparison": {
+                "available": false
+            },
             "faithfulness": {
-                "baseline": null,
-                "comparisons": []
+                "baseline": "haskell",
+                "comparisons": {
+                    "wpBlocks": {
+                        "label": "PHP WordPress blocks",
+                        "status": "faithful_enough",
+                        "score": 1,
+                        "textStatus": "faithful_enough",
+                        "textScore": 1,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.8667
+                    },
+                    "phpHtml": {
+                        "label": "PHP HTML",
+                        "status": "faithful_enough",
+                        "score": 1,
+                        "textStatus": "faithful_enough",
+                        "textScore": 1,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 1
+                    }
+                }
             },
             "importQuality": {
-                "status": "unbenchmarked",
+                "status": "pass",
                 "gates": {
                     "text_completeness": {
-                        "status": "unbenchmarked",
-                        "expected": "comparison baseline",
-                        "actual": null,
-                        "detail": "no comparison baseline is available for visible text overlap with the baseline"
+                        "status": "pass",
+                        "expected": ">=0.8",
+                        "actual": 1,
+                        "detail": "visible text overlap with the baseline"
                     },
                     "visual_structure": {
-                        "status": "unbenchmarked",
-                        "expected": "comparison baseline",
-                        "actual": null,
-                        "detail": "no comparison baseline is available for heading/list/table/image shape overlap with the baseline"
+                        "status": "pass",
+                        "expected": ">=0.75",
+                        "actual": 0.8667,
+                        "detail": "heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
-                        "status": "unbenchmarked",
-                        "expected": "comparison baseline",
-                        "actual": null,
-                        "detail": "no comparison baseline is available for paragraph count ratio"
+                        "status": "pass",
+                        "expected": "0.80-1.25",
+                        "actual": 1,
+                        "detail": "paragraph count ratio expected 2, got 2"
                     },
                     "heading_count": {
-                        "status": "unbenchmarked",
-                        "expected": "comparison baseline",
-                        "actual": null,
-                        "detail": "no comparison baseline is available for heading count ratio"
+                        "status": "pass",
+                        "expected": "0",
+                        "actual": 0,
+                        "detail": "heading count ratio"
                     },
                     "list_count": {
-                        "status": "unbenchmarked",
-                        "expected": "comparison baseline",
-                        "actual": null,
-                        "detail": "no comparison baseline is available for list count ratio"
+                        "status": "pass",
+                        "expected": "0",
+                        "actual": 0,
+                        "detail": "list count ratio"
                     },
                     "definition_list_count": {
-                        "status": "unbenchmarked",
-                        "expected": "comparison baseline",
-                        "actual": null,
-                        "detail": "no comparison baseline is available for definition list count ratio"
+                        "status": "pass",
+                        "expected": "0",
+                        "actual": 0,
+                        "detail": "definition list count ratio"
                     },
                     "table_count": {
-                        "status": "unbenchmarked",
-                        "expected": "comparison baseline",
-                        "actual": null,
-                        "detail": "no comparison baseline is available for table count ratio"
+                        "status": "pass",
+                        "expected": "0.80-1.25",
+                        "actual": 1,
+                        "detail": "table count ratio expected 1, got 1"
                     },
                     "image_count": {
-                        "status": "unbenchmarked",
-                        "expected": "comparison baseline",
-                        "actual": null,
-                        "detail": "no comparison baseline is available for image count ratio"
+                        "status": "pass",
+                        "expected": "0",
+                        "actual": 0,
+                        "detail": "image count ratio"
                     },
                     "media_imported": {
                         "status": "pass",
@@ -9442,14 +9526,14 @@
                         "status": "pass",
                         "expected": "<=0.05",
                         "actual": 0,
-                        "detail": "0/2 WordPress blocks are Custom HTML"
+                        "detail": "0/3 WordPress blocks are Custom HTML"
                     }
                 },
                 "summary": {
-                    "pass": 3,
+                    "pass": 11,
                     "review": 0,
                     "fail": 0,
-                    "unbenchmarked": 8
+                    "unbenchmarked": 0
                 }
             }
         },
@@ -9470,7 +9554,8 @@
             },
             "haskell": {
                 "ok": true,
-                "path": "outputs/latex-bar/haskell.html"
+                "path": "outputs/latex-bar/haskell.html",
+                "renderedWithCiteproc": false
             },
             "phpHtml": {
                 "ok": true,
@@ -9492,6 +9577,10 @@
                 "paragraph": 1
             },
             "sourceRawHtmlBlockCount": null,
+            "bibliographySource": null,
+            "bibliographyComparison": {
+                "available": false
+            },
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -9506,12 +9595,12 @@
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
-                        "status": "no_text",
-                        "score": 0,
-                        "textStatus": "no_text",
-                        "textScore": 0,
-                        "visualStatus": "no_visual_structure",
-                        "visualScore": 0
+                        "status": "faithful_enough",
+                        "score": 0.8,
+                        "textStatus": "faithful_enough",
+                        "textScore": 0.8,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 1
                     }
                 }
             },
@@ -9610,7 +9699,8 @@
             },
             "haskell": {
                 "ok": true,
-                "path": "outputs/markdown-pandoc-manual/haskell.html"
+                "path": "outputs/markdown-pandoc-manual/haskell.html",
+                "renderedWithCiteproc": false
             },
             "phpHtml": {
                 "ok": true,
@@ -9638,6 +9728,10 @@
                 "table": 12
             },
             "sourceRawHtmlBlockCount": null,
+            "bibliographySource": null,
+            "bibliographyComparison": {
+                "available": false
+            },
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -9653,9 +9747,9 @@
                     "phpHtml": {
                         "label": "PHP HTML",
                         "status": "faithful_enough",
-                        "score": 0.9981,
+                        "score": 0.9982,
                         "textStatus": "faithful_enough",
-                        "textScore": 0.9981,
+                        "textScore": 0.9982,
                         "visualStatus": "faithful_enough",
                         "visualScore": 0.9705
                     }
@@ -9756,7 +9850,8 @@
             },
             "haskell": {
                 "ok": true,
-                "path": "outputs/markdown-mmd-quickstart/haskell.html"
+                "path": "outputs/markdown-mmd-quickstart/haskell.html",
+                "renderedWithCiteproc": false
             },
             "phpHtml": {
                 "ok": true,
@@ -9782,6 +9877,10 @@
                 "table": 1
             },
             "sourceRawHtmlBlockCount": null,
+            "bibliographySource": null,
+            "bibliographyComparison": {
+                "available": false
+            },
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -9900,7 +9999,8 @@
             },
             "haskell": {
                 "ok": true,
-                "path": "outputs/markdown-phpextra-php-markdown-readme/haskell.html"
+                "path": "outputs/markdown-phpextra-php-markdown-readme/haskell.html",
+                "renderedWithCiteproc": false
             },
             "phpHtml": {
                 "ok": true,
@@ -9926,6 +10026,10 @@
                 "paragraph": 46
             },
             "sourceRawHtmlBlockCount": null,
+            "bibliographySource": null,
+            "bibliographyComparison": {
+                "available": false
+            },
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -10044,7 +10148,8 @@
             },
             "haskell": {
                 "ok": true,
-                "path": "outputs/markdown-strict-gruber-syntax/haskell.html"
+                "path": "outputs/markdown-strict-gruber-syntax/haskell.html",
+                "renderedWithCiteproc": false
             },
             "phpHtml": {
                 "ok": true,
@@ -10070,6 +10175,10 @@
                 "separator": 4
             },
             "sourceRawHtmlBlockCount": null,
+            "bibliographySource": null,
+            "bibliographyComparison": {
+                "available": false
+            },
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -10188,7 +10297,8 @@
             },
             "haskell": {
                 "ok": true,
-                "path": "outputs/man-generated-fixture/haskell.html"
+                "path": "outputs/man-generated-fixture/haskell.html",
+                "renderedWithCiteproc": false
             },
             "phpHtml": {
                 "ok": true,
@@ -10213,6 +10323,10 @@
                 "paragraph": 4
             },
             "sourceRawHtmlBlockCount": null,
+            "bibliographySource": null,
+            "bibliographyComparison": {
+                "available": false
+            },
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -10331,7 +10445,8 @@
             },
             "haskell": {
                 "ok": true,
-                "path": "outputs/man-simple-fixture/haskell.html"
+                "path": "outputs/man-simple-fixture/haskell.html",
+                "renderedWithCiteproc": false
             },
             "phpHtml": {
                 "ok": true,
@@ -10354,6 +10469,10 @@
                 "paragraph": 2
             },
             "sourceRawHtmlBlockCount": null,
+            "bibliographySource": null,
+            "bibliographyComparison": {
+                "available": false
+            },
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -10472,7 +10591,8 @@
             },
             "haskell": {
                 "ok": true,
-                "path": "outputs/mdoc-importctl-manual/haskell.html"
+                "path": "outputs/mdoc-importctl-manual/haskell.html",
+                "renderedWithCiteproc": false
             },
             "phpHtml": {
                 "ok": true,
@@ -10498,6 +10618,10 @@
                 "verse": 1
             },
             "sourceRawHtmlBlockCount": null,
+            "bibliographySource": null,
+            "bibliographyComparison": {
+                "available": false
+            },
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -10616,7 +10740,8 @@
             },
             "haskell": {
                 "ok": true,
-                "path": "outputs/mediawiki-feature-packet/haskell.html"
+                "path": "outputs/mediawiki-feature-packet/haskell.html",
+                "renderedWithCiteproc": false
             },
             "phpHtml": {
                 "ok": true,
@@ -10644,6 +10769,10 @@
                 "table": 1
             },
             "sourceRawHtmlBlockCount": null,
+            "bibliographySource": null,
+            "bibliographyComparison": {
+                "available": false
+            },
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -10762,7 +10891,8 @@
             },
             "haskell": {
                 "ok": true,
-                "path": "outputs/mediawiki-template-math-note/haskell.html"
+                "path": "outputs/mediawiki-template-math-note/haskell.html",
+                "renderedWithCiteproc": false
             },
             "phpHtml": {
                 "ok": true,
@@ -10787,6 +10917,10 @@
                 "paragraph": 2
             },
             "sourceRawHtmlBlockCount": null,
+            "bibliographySource": null,
+            "bibliographyComparison": {
+                "available": false
+            },
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -10905,7 +11039,8 @@
             },
             "haskell": {
                 "ok": true,
-                "path": "outputs/native-basic/haskell.html"
+                "path": "outputs/native-basic/haskell.html",
+                "renderedWithCiteproc": false
             },
             "phpHtml": {
                 "ok": true,
@@ -10928,6 +11063,10 @@
                 "paragraph": 1
             },
             "sourceRawHtmlBlockCount": null,
+            "bibliographySource": null,
+            "bibliographyComparison": {
+                "available": false
+            },
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -11046,7 +11185,8 @@
             },
             "haskell": {
                 "ok": true,
-                "path": "outputs/native-markdown-more/haskell.html"
+                "path": "outputs/native-markdown-more/haskell.html",
+                "renderedWithCiteproc": false
             },
             "phpHtml": {
                 "ok": true,
@@ -11075,6 +11215,10 @@
                 "verse": 1
             },
             "sourceRawHtmlBlockCount": null,
+            "bibliographySource": null,
+            "bibliographyComparison": {
+                "available": false
+            },
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -11090,11 +11234,11 @@
                     "phpHtml": {
                         "label": "PHP HTML",
                         "status": "faithful_enough",
-                        "score": 0.9878,
+                        "score": 0.9435,
                         "textStatus": "faithful_enough",
-                        "textScore": 0.9878,
+                        "textScore": 0.9435,
                         "visualStatus": "faithful_enough",
-                        "visualScore": 0.9902
+                        "visualScore": 0.9649
                     }
                 }
             },
@@ -11193,7 +11337,8 @@
             },
             "haskell": {
                 "ok": true,
-                "path": "outputs/odt-headers/haskell.html"
+                "path": "outputs/odt-headers/haskell.html",
+                "renderedWithCiteproc": false
             },
             "phpHtml": {
                 "ok": true,
@@ -11216,6 +11361,10 @@
                 "paragraph": 2
             },
             "sourceRawHtmlBlockCount": null,
+            "bibliographySource": null,
+            "bibliographyComparison": {
+                "available": false
+            },
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -11334,7 +11483,8 @@
             },
             "haskell": {
                 "ok": true,
-                "path": "outputs/odt-table-spans/haskell.html"
+                "path": "outputs/odt-table-spans/haskell.html",
+                "renderedWithCiteproc": false
             },
             "phpHtml": {
                 "ok": true,
@@ -11356,6 +11506,10 @@
                 "table": 1
             },
             "sourceRawHtmlBlockCount": null,
+            "bibliographySource": null,
+            "bibliographyComparison": {
+                "available": false
+            },
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -13713,6 +13867,10 @@
                 "table": 27
             },
             "sourceRawHtmlBlockCount": null,
+            "bibliographySource": null,
+            "bibliographyComparison": {
+                "available": false
+            },
             "faithfulness": {
                 "baseline": "phpHtml",
                 "comparisons": {
@@ -13822,7 +13980,8 @@
             },
             "haskell": {
                 "ok": true,
-                "path": "outputs/opml-reader/haskell.html"
+                "path": "outputs/opml-reader/haskell.html",
+                "renderedWithCiteproc": false
             },
             "phpHtml": {
                 "ok": true,
@@ -13845,6 +14004,10 @@
                 "paragraph": 2
             },
             "sourceRawHtmlBlockCount": null,
+            "bibliographySource": null,
+            "bibliographyComparison": {
+                "available": false
+            },
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -13963,7 +14126,8 @@
             },
             "haskell": {
                 "ok": true,
-                "path": "outputs/opml-outline/haskell.html"
+                "path": "outputs/opml-outline/haskell.html",
+                "renderedWithCiteproc": false
             },
             "phpHtml": {
                 "ok": true,
@@ -13985,6 +14149,10 @@
                 "heading": 3
             },
             "sourceRawHtmlBlockCount": null,
+            "bibliographySource": null,
+            "bibliographyComparison": {
+                "available": false
+            },
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -14103,7 +14271,8 @@
             },
             "haskell": {
                 "ok": true,
-                "path": "outputs/pptx-basic/haskell.html"
+                "path": "outputs/pptx-basic/haskell.html",
+                "renderedWithCiteproc": false
             },
             "phpHtml": {
                 "ok": true,
@@ -14166,6 +14335,10 @@
                 "table": 1
             },
             "sourceRawHtmlBlockCount": null,
+            "bibliographySource": null,
+            "bibliographyComparison": {
+                "available": false
+            },
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -14284,7 +14457,8 @@
             },
             "haskell": {
                 "ok": true,
-                "path": "outputs/pptx-tables/haskell.html"
+                "path": "outputs/pptx-tables/haskell.html",
+                "renderedWithCiteproc": false
             },
             "phpHtml": {
                 "ok": true,
@@ -14308,6 +14482,10 @@
                 "table": 2
             },
             "sourceRawHtmlBlockCount": null,
+            "bibliographySource": null,
+            "bibliographyComparison": {
+                "available": false
+            },
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -14426,7 +14604,8 @@
             },
             "haskell": {
                 "ok": true,
-                "path": "outputs/pptx-cdc-food-safety-slides/haskell.html"
+                "path": "outputs/pptx-cdc-food-safety-slides/haskell.html",
+                "renderedWithCiteproc": false
             },
             "phpHtml": {
                 "ok": true,
@@ -15067,6 +15246,10 @@
                 "table": 1
             },
             "sourceRawHtmlBlockCount": null,
+            "bibliographySource": null,
+            "bibliographyComparison": {
+                "available": false
+            },
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -15185,7 +15368,8 @@
             },
             "haskell": {
                 "ok": true,
-                "path": "outputs/pptx-who-bfhi-session-1/haskell.html"
+                "path": "outputs/pptx-who-bfhi-session-1/haskell.html",
+                "renderedWithCiteproc": false
             },
             "phpHtml": {
                 "ok": true,
@@ -15349,6 +15533,10 @@
                 "table": 1
             },
             "sourceRawHtmlBlockCount": null,
+            "bibliographySource": null,
+            "bibliographyComparison": {
+                "available": false
+            },
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -15467,7 +15655,8 @@
             },
             "haskell": {
                 "ok": true,
-                "path": "outputs/ris-texbook/haskell.html"
+                "path": "outputs/ris-texbook/haskell.html",
+                "renderedWithCiteproc": true
             },
             "phpHtml": {
                 "ok": true,
@@ -15491,60 +15680,39 @@
                 "paragraph": 1
             },
             "sourceRawHtmlBlockCount": null,
+            "bibliographySource": {
+                "itemCount": 1,
+                "itemIds": [
+                    "ris-1"
+                ]
+            },
+            "bibliographyComparison": {
+                "available": true,
+                "expectedEntryCount": 1,
+                "actualEntryCount": 1,
+                "expectedTokenCount": 8,
+                "matchedTokenCount": 8,
+                "contentCoverage": 1,
+                "detail": "8/8 Citeproc reference tokens present in WordPress output"
+            },
             "faithfulness": {
                 "baseline": null,
                 "comparisons": []
             },
             "importQuality": {
-                "status": "unbenchmarked",
+                "status": "pass",
                 "gates": {
-                    "text_completeness": {
-                        "status": "unbenchmarked",
-                        "expected": "comparison baseline",
-                        "actual": null,
-                        "detail": "no comparison baseline is available for visible text overlap with the baseline"
+                    "citeproc_content_coverage": {
+                        "status": "pass",
+                        "expected": ">=0.8",
+                        "actual": 1,
+                        "detail": "8/8 Citeproc reference tokens present in WordPress output"
                     },
-                    "visual_structure": {
-                        "status": "unbenchmarked",
-                        "expected": "comparison baseline",
-                        "actual": null,
-                        "detail": "no comparison baseline is available for heading/list/table/image shape overlap with the baseline"
-                    },
-                    "paragraph_merge_split": {
-                        "status": "unbenchmarked",
-                        "expected": "comparison baseline",
-                        "actual": null,
-                        "detail": "no comparison baseline is available for paragraph count ratio"
-                    },
-                    "heading_count": {
-                        "status": "unbenchmarked",
-                        "expected": "comparison baseline",
-                        "actual": null,
-                        "detail": "no comparison baseline is available for heading count ratio"
-                    },
-                    "list_count": {
-                        "status": "unbenchmarked",
-                        "expected": "comparison baseline",
-                        "actual": null,
-                        "detail": "no comparison baseline is available for list count ratio"
-                    },
-                    "definition_list_count": {
-                        "status": "unbenchmarked",
-                        "expected": "comparison baseline",
-                        "actual": null,
-                        "detail": "no comparison baseline is available for definition list count ratio"
-                    },
-                    "table_count": {
-                        "status": "unbenchmarked",
-                        "expected": "comparison baseline",
-                        "actual": null,
-                        "detail": "no comparison baseline is available for table count ratio"
-                    },
-                    "image_count": {
-                        "status": "unbenchmarked",
-                        "expected": "comparison baseline",
-                        "actual": null,
-                        "detail": "no comparison baseline is available for image count ratio"
+                    "citeproc_entry_count": {
+                        "status": "pass",
+                        "expected": "0.80-1.25",
+                        "actual": 1,
+                        "detail": "Citeproc reference entry count ratio expected 1, got 1"
                     },
                     "media_imported": {
                         "status": "pass",
@@ -15566,10 +15734,10 @@
                     }
                 },
                 "summary": {
-                    "pass": 3,
+                    "pass": 5,
                     "review": 0,
                     "fail": 0,
-                    "unbenchmarked": 8
+                    "unbenchmarked": 0
                 }
             }
         },
@@ -15590,7 +15758,8 @@
             },
             "haskell": {
                 "ok": true,
-                "path": "outputs/ris-web/haskell.html"
+                "path": "outputs/ris-web/haskell.html",
+                "renderedWithCiteproc": true
             },
             "phpHtml": {
                 "ok": true,
@@ -15614,60 +15783,39 @@
                 "paragraph": 1
             },
             "sourceRawHtmlBlockCount": null,
+            "bibliographySource": {
+                "itemCount": 1,
+                "itemIds": [
+                    "https://wordpress.org/"
+                ]
+            },
+            "bibliographyComparison": {
+                "available": true,
+                "expectedEntryCount": 1,
+                "actualEntryCount": 1,
+                "expectedTokenCount": 7,
+                "matchedTokenCount": 7,
+                "contentCoverage": 1,
+                "detail": "7/7 Citeproc reference tokens present in WordPress output"
+            },
             "faithfulness": {
                 "baseline": null,
                 "comparisons": []
             },
             "importQuality": {
-                "status": "unbenchmarked",
+                "status": "pass",
                 "gates": {
-                    "text_completeness": {
-                        "status": "unbenchmarked",
-                        "expected": "comparison baseline",
-                        "actual": null,
-                        "detail": "no comparison baseline is available for visible text overlap with the baseline"
+                    "citeproc_content_coverage": {
+                        "status": "pass",
+                        "expected": ">=0.8",
+                        "actual": 1,
+                        "detail": "7/7 Citeproc reference tokens present in WordPress output"
                     },
-                    "visual_structure": {
-                        "status": "unbenchmarked",
-                        "expected": "comparison baseline",
-                        "actual": null,
-                        "detail": "no comparison baseline is available for heading/list/table/image shape overlap with the baseline"
-                    },
-                    "paragraph_merge_split": {
-                        "status": "unbenchmarked",
-                        "expected": "comparison baseline",
-                        "actual": null,
-                        "detail": "no comparison baseline is available for paragraph count ratio"
-                    },
-                    "heading_count": {
-                        "status": "unbenchmarked",
-                        "expected": "comparison baseline",
-                        "actual": null,
-                        "detail": "no comparison baseline is available for heading count ratio"
-                    },
-                    "list_count": {
-                        "status": "unbenchmarked",
-                        "expected": "comparison baseline",
-                        "actual": null,
-                        "detail": "no comparison baseline is available for list count ratio"
-                    },
-                    "definition_list_count": {
-                        "status": "unbenchmarked",
-                        "expected": "comparison baseline",
-                        "actual": null,
-                        "detail": "no comparison baseline is available for definition list count ratio"
-                    },
-                    "table_count": {
-                        "status": "unbenchmarked",
-                        "expected": "comparison baseline",
-                        "actual": null,
-                        "detail": "no comparison baseline is available for table count ratio"
-                    },
-                    "image_count": {
-                        "status": "unbenchmarked",
-                        "expected": "comparison baseline",
-                        "actual": null,
-                        "detail": "no comparison baseline is available for image count ratio"
+                    "citeproc_entry_count": {
+                        "status": "pass",
+                        "expected": "0.80-1.25",
+                        "actual": 1,
+                        "detail": "Citeproc reference entry count ratio expected 1, got 1"
                     },
                     "media_imported": {
                         "status": "pass",
@@ -15689,10 +15837,10 @@
                     }
                 },
                 "summary": {
-                    "pass": 3,
+                    "pass": 5,
                     "review": 0,
                     "fail": 0,
-                    "unbenchmarked": 8
+                    "unbenchmarked": 0
                 }
             }
         },
@@ -15713,7 +15861,8 @@
             },
             "haskell": {
                 "ok": true,
-                "path": "outputs/rst-import-packet/haskell.html"
+                "path": "outputs/rst-import-packet/haskell.html",
+                "renderedWithCiteproc": false
             },
             "phpHtml": {
                 "ok": true,
@@ -15777,6 +15926,10 @@
                 "table": 1
             },
             "sourceRawHtmlBlockCount": null,
+            "bibliographySource": null,
+            "bibliographyComparison": {
+                "available": false
+            },
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -15895,7 +16048,8 @@
             },
             "haskell": {
                 "ok": true,
-                "path": "outputs/rtf-template/haskell.html"
+                "path": "outputs/rtf-template/haskell.html",
+                "renderedWithCiteproc": false
             },
             "phpHtml": {
                 "ok": true,
@@ -15917,6 +16071,10 @@
                 "paragraph": 8
             },
             "sourceRawHtmlBlockCount": null,
+            "bibliographySource": null,
+            "bibliographyComparison": {
+                "available": false
+            },
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -16035,7 +16193,8 @@
             },
             "haskell": {
                 "ok": true,
-                "path": "outputs/rtf-simple/haskell.html"
+                "path": "outputs/rtf-simple/haskell.html",
+                "renderedWithCiteproc": false
             },
             "phpHtml": {
                 "ok": true,
@@ -16057,6 +16216,10 @@
                 "paragraph": 2
             },
             "sourceRawHtmlBlockCount": null,
+            "bibliographySource": null,
+            "bibliographyComparison": {
+                "available": false
+            },
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -16175,7 +16338,8 @@
             },
             "haskell": {
                 "ok": true,
-                "path": "outputs/rtf-meeting-notes/haskell.html"
+                "path": "outputs/rtf-meeting-notes/haskell.html",
+                "renderedWithCiteproc": false
             },
             "phpHtml": {
                 "ok": true,
@@ -16197,6 +16361,10 @@
                 "paragraph": 5
             },
             "sourceRawHtmlBlockCount": null,
+            "bibliographySource": null,
+            "bibliographyComparison": {
+                "available": false
+            },
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -16315,7 +16483,8 @@
             },
             "haskell": {
                 "ok": true,
-                "path": "outputs/xlsx-basic/haskell.html"
+                "path": "outputs/xlsx-basic/haskell.html",
+                "renderedWithCiteproc": false
             },
             "phpHtml": {
                 "ok": true,
@@ -16338,6 +16507,10 @@
                 "table": 2
             },
             "sourceRawHtmlBlockCount": null,
+            "bibliographySource": null,
+            "bibliographyComparison": {
+                "available": false
+            },
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -16456,7 +16629,8 @@
             },
             "haskell": {
                 "ok": true,
-                "path": "outputs/xlsx-conditional-access-blueprint/haskell.html"
+                "path": "outputs/xlsx-conditional-access-blueprint/haskell.html",
+                "renderedWithCiteproc": false
             },
             "phpHtml": {
                 "ok": true,
@@ -16479,6 +16653,10 @@
                 "table": 1
             },
             "sourceRawHtmlBlockCount": null,
+            "bibliographySource": null,
+            "bibliographyComparison": {
+                "available": false
+            },
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -16597,7 +16775,8 @@
             },
             "haskell": {
                 "ok": true,
-                "path": "outputs/xlsx-census-tax-parameter-workbook/haskell.html"
+                "path": "outputs/xlsx-census-tax-parameter-workbook/haskell.html",
+                "renderedWithCiteproc": false
             },
             "phpHtml": {
                 "ok": true,
@@ -16620,6 +16799,10 @@
                 "table": 51
             },
             "sourceRawHtmlBlockCount": null,
+            "bibliographySource": null,
+            "bibliographyComparison": {
+                "available": false
+            },
             "faithfulness": {
                 "baseline": "haskell",
                 "comparisons": {
@@ -16762,6 +16945,10 @@
                 "paragraph": 3
             },
             "sourceRawHtmlBlockCount": null,
+            "bibliographySource": null,
+            "bibliographyComparison": {
+                "available": false
+            },
             "faithfulness": {
                 "baseline": "phpHtml",
                 "comparisons": {
@@ -16895,6 +17082,10 @@
                 "paragraph": 2
             },
             "sourceRawHtmlBlockCount": null,
+            "bibliographySource": null,
+            "bibliographyComparison": {
+                "available": false
+            },
             "faithfulness": {
                 "baseline": "phpHtml",
                 "comparisons": {
@@ -17067,6 +17258,10 @@
                 "paragraph": 29
             },
             "sourceRawHtmlBlockCount": null,
+            "bibliographySource": null,
+            "bibliographyComparison": {
+                "available": false
+            },
             "faithfulness": {
                 "baseline": "phpHtml",
                 "comparisons": {
@@ -18462,6 +18657,10 @@
                 "table": 3
             },
             "sourceRawHtmlBlockCount": null,
+            "bibliographySource": null,
+            "bibliographyComparison": {
+                "available": false
+            },
             "faithfulness": {
                 "baseline": "phpHtml",
                 "comparisons": {
@@ -19692,6 +19891,10 @@
                 "paragraph": 116
             },
             "sourceRawHtmlBlockCount": null,
+            "bibliographySource": null,
+            "bibliographyComparison": {
+                "available": false
+            },
             "faithfulness": {
                 "baseline": "phpHtml",
                 "comparisons": {
@@ -20909,6 +21112,10 @@
                 "paragraph": 60
             },
             "sourceRawHtmlBlockCount": null,
+            "bibliographySource": null,
+            "bibliographyComparison": {
+                "available": false
+            },
             "faithfulness": {
                 "baseline": "phpHtml",
                 "comparisons": {
@@ -21864,6 +22071,10 @@
                 "paragraph": 24
             },
             "sourceRawHtmlBlockCount": null,
+            "bibliographySource": null,
+            "bibliographyComparison": {
+                "available": false
+            },
             "faithfulness": {
                 "baseline": "phpHtml",
                 "comparisons": {
@@ -22682,6 +22893,10 @@
                 "paragraph": 27
             },
             "sourceRawHtmlBlockCount": null,
+            "bibliographySource": null,
+            "bibliographyComparison": {
+                "available": false
+            },
             "faithfulness": {
                 "baseline": "phpHtml",
                 "comparisons": {
@@ -22814,6 +23029,10 @@
                 "paragraph": 1
             },
             "sourceRawHtmlBlockCount": null,
+            "bibliographySource": null,
+            "bibliographyComparison": {
+                "available": false
+            },
             "faithfulness": {
                 "baseline": "phpHtml",
                 "comparisons": {
@@ -22946,6 +23165,10 @@
                 "paragraph": 21
             },
             "sourceRawHtmlBlockCount": null,
+            "bibliographySource": null,
+            "bibliographyComparison": {
+                "available": false
+            },
             "faithfulness": {
                 "baseline": "phpHtml",
                 "comparisons": {

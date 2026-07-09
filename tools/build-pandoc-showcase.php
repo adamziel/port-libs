@@ -613,6 +613,21 @@ PB  - Addison-Wesley
 ER  -
 RIS;
 
+    $latexTable = <<<'TEX'
+Before table.
+
+\begin{table}
+\caption{Conversion counts}
+\begin{tabular}{lr}
+Name & Value \\
+HTML & 1 \\
+WordPress & 2 \\
+\end{tabular}
+\end{table}
+
+After table.
+TEX;
+
     $tsv = "name\tformat\tstatus\nDocument\tDOCX\tpartial\nNotebook\tIPYNB\tpartial\nSlides\tPPTX\tpartial\n";
 
     $dokuWikiShowcase = <<<'DOKU'
@@ -850,7 +865,7 @@ RST;
             inline_sample('json-pandoc-list', 'json', 'pandoc-list.json', 'Pandoc JSON list AST', "{\"pandoc-api-version\":[1,23,1],\"meta\":{},\"blocks\":[{\"t\":\"BulletList\",\"c\":[[{\"t\":\"Plain\",\"c\":[{\"t\":\"Str\",\"c\":\"First\"}]}],[{\"t\":\"Plain\",\"c\":[{\"t\":\"Str\",\"c\":\"Second\"}]}]]}]}\n", 'Inline Pandoc JSON AST list document.'),
         ],
         'latex' => [
-            upstream_sample('latex-table', 'latex', 'test/command/3971b.tex', 'LaTeX command fixture', 'LaTeX fixture from upstream Pandoc command tests.'),
+            inline_sample('latex-table', 'latex', 'latex-table.tex', 'LaTeX table import packet', $latexTable, 'Inline LaTeX fragment with captioned tabular data.', 'Valid LaTeX table fragment exercising paragraph, table, caption, alignment, and WordPress table-block conversion.'),
             upstream_sample('latex-bar', 'latex', 'test/command/bar.tex', 'LaTeX included file fixture', 'Small TeX file from upstream Pandoc command tests.'),
         ],
         'markdown' => [
@@ -1387,6 +1402,13 @@ function aggregate_wordpress_block_counts(array $records): array
  */
 function showcase_record_faithfulness(string $siteDir, array $record): array
 {
+    // Citeproc bibliography output is a semantic reference rendering, while
+    // the PHP port deliberately emits editable definition-list blocks. Compare
+    // that family through its own reference-aware contract below.
+    if (($record['haskell']['renderedWithCiteproc'] ?? false) === true) {
+        return ['baseline' => null, 'comparisons' => []];
+    }
+
     $baselineKey = (($record['haskell']['ok'] ?? false) === true) ? 'haskell' : ((($record['phpHtml']['ok'] ?? false) === true) ? 'phpHtml' : '');
     if ($baselineKey === '') {
         return ['baseline' => null, 'comparisons' => []];
@@ -1440,6 +1462,109 @@ function showcase_record_faithfulness(string $siteDir, array $record): array
         'baseline' => $baselineKey,
         'comparisons' => $comparisons,
     ];
+}
+
+/**
+ * @return array{itemCount:int,itemIds:list<string>}|null
+ */
+function showcase_bibliography_source_summary(string $sourcePath, string $format): ?array
+{
+    if (!showcase_bibliography_input_format($format)) {
+        return null;
+    }
+
+    try {
+        $document = PandocConverter::readFile($sourcePath, $format);
+    } catch (Throwable) {
+        return null;
+    }
+
+    $itemCount = $document->attr('cslItemCount');
+    $itemIds = $document->attr('cslItemIds');
+    if (!is_int($itemCount) && !is_numeric($itemCount)) {
+        return null;
+    }
+
+    return [
+        'itemCount' => max(0, (int) $itemCount),
+        'itemIds' => is_array($itemIds)
+            ? array_values(array_filter(array_map('strval', $itemIds), static fn (string $id): bool => $id !== ''))
+            : [],
+    ];
+}
+
+/**
+ * Compare bibliography imports against Pandoc Citeproc's rendered references.
+ * The source reader is checked by reference count and the WordPress output by
+ * baseline-token coverage, so different editable HTML wrappers do not mask a
+ * lost citation field or reference entry.
+ *
+ * @return array{available:bool,expectedEntryCount?:int,actualEntryCount?:int,expectedTokenCount?:int,matchedTokenCount?:int,contentCoverage?:float,detail?:string}
+ */
+function showcase_record_bibliography_comparison(string $siteDir, array $record): array
+{
+    if (($record['haskell']['renderedWithCiteproc'] ?? false) !== true) {
+        return ['available' => false];
+    }
+
+    $haskellPath = (string) ($record['haskell']['path'] ?? '');
+    $wpPath = (string) ($record['wpBlocks']['path'] ?? '');
+    $source = is_array($record['bibliographySource'] ?? null) ? $record['bibliographySource'] : null;
+    if ($haskellPath === '' || $wpPath === '' || $source === null) {
+        return ['available' => false];
+    }
+
+    $baselineText = showcase_output_text($siteDir, $haskellPath);
+    $wordpressText = showcase_output_text($siteDir, $wpPath);
+    $expectedEntries = showcase_citeproc_entry_count($siteDir, $haskellPath);
+    $actualEntries = (int) ($source['itemCount'] ?? -1);
+    if ($baselineText === '' || $expectedEntries === null || $actualEntries < 0) {
+        return ['available' => false];
+    }
+
+    $expectedTokens = showcase_text_tokens($baselineText);
+    $actualTokens = showcase_text_tokens($wordpressText);
+    $expectedCounts = array_count_values($expectedTokens);
+    $actualCounts = array_count_values($actualTokens);
+    $matched = 0;
+    foreach ($expectedCounts as $token => $count) {
+        $matched += min($count, $actualCounts[$token] ?? 0);
+    }
+    $coverage = $expectedTokens === [] ? 1.0 : round($matched / count($expectedTokens), 4);
+
+    return [
+        'available' => true,
+        'expectedEntryCount' => $expectedEntries,
+        'actualEntryCount' => $actualEntries,
+        'expectedTokenCount' => count($expectedTokens),
+        'matchedTokenCount' => $matched,
+        'contentCoverage' => $coverage,
+        'detail' => $matched . '/' . count($expectedTokens) . ' Citeproc reference tokens present in WordPress output',
+    ];
+}
+
+function showcase_citeproc_entry_count(string $siteDir, string $relativePath): ?int
+{
+    $html = showcase_output_html($siteDir, $relativePath);
+    if ($html === '' || !class_exists(DOMDocument::class)) {
+        return null;
+    }
+
+    $dom = new DOMDocument();
+    $previous = libxml_use_internal_errors(true);
+    try {
+        $loaded = $dom->loadHTML('<!doctype html><html><body>' . $html . '</body></html>', LIBXML_NONET);
+    } finally {
+        libxml_clear_errors();
+        libxml_use_internal_errors($previous);
+    }
+    if (!$loaded) {
+        return null;
+    }
+
+    $xpath = new DOMXPath($dom);
+
+    return $xpath->query('//*[contains(concat(" ", normalize-space(@class), " "), " csl-entry ")]')?->length;
 }
 
 function showcase_output_text(string $siteDir, string $relativePath): string
@@ -1938,6 +2063,35 @@ function showcase_faithfulness_summary(array $records): array
 }
 
 /**
+ * @param list<array<string,mixed>> $records
+ * @return array{samples:int, available:int, pass:int, review:int, fail:int, unavailable:int}
+ */
+function showcase_bibliography_comparison_summary(array $records): array
+{
+    $summary = ['samples' => 0, 'available' => 0, 'pass' => 0, 'review' => 0, 'fail' => 0, 'unavailable' => 0];
+    foreach ($records as $record) {
+        if (!showcase_bibliography_input_format((string) ($record['format'] ?? ''))) {
+            continue;
+        }
+        $summary['samples']++;
+        $comparison = is_array($record['bibliographyComparison'] ?? null) ? $record['bibliographyComparison'] : [];
+        if (($comparison['available'] ?? false) !== true) {
+            $summary['unavailable']++;
+            continue;
+        }
+        $summary['available']++;
+        $status = (string) ($record['importQuality']['status'] ?? 'fail');
+        if (isset($summary[$status])) {
+            $summary[$status]++;
+        } else {
+            $summary['fail']++;
+        }
+    }
+
+    return $summary;
+}
+
+/**
  * @return array{status:string, gates:array<string,array<string,mixed>>, summary:array<string,int>}
  */
 function showcase_record_import_quality(string $siteDir, array $record): array
@@ -1950,6 +2104,11 @@ function showcase_record_import_quality(string $siteDir, array $record): array
         ];
 
         return showcase_import_quality_result($gates);
+    }
+
+    $bibliographyQuality = showcase_bibliography_import_quality($siteDir, $record);
+    if ($bibliographyQuality !== null) {
+        return $bibliographyQuality;
     }
 
     $wpPath = (string) ($record['wpBlocks']['path'] ?? '');
@@ -2018,6 +2177,50 @@ function showcase_record_import_quality(string $siteDir, array $record): array
         $hasBaseline
     );
 
+    showcase_add_output_integrity_gates($gates, $siteDir, $record, $wpPath);
+
+    return showcase_import_quality_result($gates);
+}
+
+/**
+ * @return array{status:string, gates:array<string,array<string,mixed>>, summary:array<string,int>}|null
+ */
+function showcase_bibliography_import_quality(string $siteDir, array $record): ?array
+{
+    $comparison = is_array($record['bibliographyComparison'] ?? null)
+        ? $record['bibliographyComparison']
+        : [];
+    if (($comparison['available'] ?? false) !== true) {
+        return null;
+    }
+
+    $coverage = isset($comparison['contentCoverage']) ? (float) $comparison['contentCoverage'] : null;
+    $gates = [
+        'citeproc_content_coverage' => showcase_score_gate(
+            $coverage,
+            0.80,
+            0.55,
+            (string) ($comparison['detail'] ?? 'Citeproc reference token coverage'),
+            true
+        ),
+        'citeproc_entry_count' => showcase_count_ratio_gate(
+            (int) ($comparison['expectedEntryCount'] ?? 0),
+            (int) ($comparison['actualEntryCount'] ?? 0),
+            'Citeproc reference entry count ratio',
+            true
+        ),
+    ];
+    $wpPath = (string) ($record['wpBlocks']['path'] ?? '');
+    showcase_add_output_integrity_gates($gates, $siteDir, $record, $wpPath);
+
+    return showcase_import_quality_result($gates);
+}
+
+/**
+ * @param array<string,array<string,mixed>> $gates
+ */
+function showcase_add_output_integrity_gates(array &$gates, string $siteDir, array $record, string $wpPath): void
+{
     $mediaProblems = showcase_media_problem_diagnostics($record['wpBlocks']['mediaDiagnostics'] ?? []);
     $gates['media_imported'] = [
         'status' => $mediaProblems === [] ? 'pass' : 'review',
@@ -2057,8 +2260,6 @@ function showcase_record_import_quality(string $siteDir, array $record): array
         'actual' => $customHtmlShare,
         'detail' => $customHtmlDetail,
     ];
-
-    return showcase_import_quality_result($gates);
 }
 
 /**
@@ -2650,6 +2851,7 @@ function write_conversion_report(
     array $summary,
     array $blockUsage,
     array $faithfulnessSummary,
+    array $bibliographyComparisonSummary,
     array $importQualitySummary,
     array $importQualityGate
 ): void {
@@ -2690,6 +2892,7 @@ function write_conversion_report(
     $html .= '<div class="stat"><strong>' . h((string) $summary['failedConversions']) . '</strong><span>known failures</span></div>';
     $html .= '<div class="stat"><strong>' . h((string) ($faithfulnessSummary['faithfulEnough'] ?? 0)) . '/' . h((string) ($faithfulnessSummary['comparisons'] ?? 0)) . '</strong><span>text-faithful comparisons</span></div>';
     $html .= '<div class="stat"><strong>' . h((string) ($faithfulnessSummary['visualFaithfulEnough'] ?? 0)) . '/' . h((string) ($faithfulnessSummary['visualComparisons'] ?? 0)) . '</strong><span>visual-structure matches</span></div>';
+    $html .= '<div class="stat"><strong>' . h((string) ($bibliographyComparisonSummary['pass'] ?? 0)) . '/' . h((string) ($bibliographyComparisonSummary['available'] ?? 0)) . '</strong><span>Citeproc semantic comparisons</span></div>';
     $html .= '<div class="stat"><strong>' . h((string) ($importQualitySummary['pass'] ?? 0)) . '/' . h((string) ($importQualitySummary['samples'] ?? 0)) . '</strong><span>import-quality passes</span></div>';
     $html .= '</div><div class="hero-actions"><a href="index.html">Full showcase</a><a href="playground-converter.html">Convert in WordPress Playground</a><a href="manifest.json">Manifest JSON</a></div></div></header>';
     $html .= '<main class="content-page report-page">';
@@ -2717,8 +2920,18 @@ function write_conversion_report(
     $html .= '<div class="report-card"><h3>Divergent or empty</h3><p class="report-number">' . h((string) (($faithfulnessSummary['visualDivergent'] ?? 0) + ($faithfulnessSummary['visualNoStructure'] ?? 0))) . '</p></div>';
     $html .= '</div></section>';
 
+    if (($bibliographyComparisonSummary['samples'] ?? 0) > 0) {
+        $html .= '<section><h2>Bibliography semantics</h2>';
+        $html .= '<p>Standalone BibTeX, BibLaTeX, CSL JSON, EndNote XML, and RIS inputs are rendered by Haskell Pandoc through Citeproc. Their WordPress output is checked by exact reference count and Citeproc token coverage, not by wrapper tags, because the PHP port deliberately emits editable definition-list blocks.</p>';
+        $html .= '<div class="report-grid">';
+        $html .= '<div class="report-card"><h3>Proven</h3><p class="report-number">' . h((string) ($bibliographyComparisonSummary['pass'] ?? 0)) . '</p></div>';
+        $html .= '<div class="report-card"><h3>Needs review</h3><p class="report-number">' . h((string) ($bibliographyComparisonSummary['review'] ?? 0)) . '</p></div>';
+        $html .= '<div class="report-card"><h3>No baseline</h3><p class="report-number">' . h((string) ($bibliographyComparisonSummary['unavailable'] ?? 0)) . '</p></div>';
+        $html .= '</div></section>';
+    }
+
     $html .= '<section><h2>Import quality gates</h2>';
-    $html .= '<p>These checks evaluate the WordPress block output as an import artifact: visible text completeness, heading/list/table/image counts, paragraph merge or split drift, media extraction diagnostics, local anchor validity, and Custom HTML block share.</p>';
+    $html .= '<p>These checks evaluate the WordPress block output as an import artifact: visible text completeness, heading/list/table/image counts, paragraph merge or split drift, Citeproc reference coverage where applicable, media extraction diagnostics, local anchor validity, and Custom HTML block share.</p>';
     $html .= '<div class="report-grid">';
     $html .= '<div class="report-card"><h3>Pass</h3><p class="report-number">' . h((string) ($importQualitySummary['pass'] ?? 0)) . '</p></div>';
     $html .= '<div class="report-card"><h3>Review</h3><p class="report-number">' . h((string) ($importQualitySummary['review'] ?? 0)) . '</p></div>';
@@ -2819,13 +3032,21 @@ function write_conversion_report(
 }
 
 /**
- * @return array{ok:bool, path?:string, error?:string}
+ * @return array{ok:bool, path?:string, error?:string, renderedWithCiteproc?:bool}
  */
 function run_haskell_pandoc(string $path, string $format, string $dir): array
 {
     $out = $dir . '/haskell.html';
     $bodyPath = $dir . '/haskell.body.html';
-    $result = run_process(['pandoc', '--from=' . $format, '--to=html', '--output', $bodyPath, $path], 35);
+    $renderedWithCiteproc = showcase_bibliography_input_format($format);
+    $command = ['pandoc', '--from=' . $format, '--to=html'];
+    if ($renderedWithCiteproc) {
+        $command[] = '--citeproc';
+    }
+    $command[] = '--output';
+    $command[] = $bodyPath;
+    $command[] = $path;
+    $result = run_process($command, 35);
     if ($result['exitCode'] !== 0 || !is_file($bodyPath)) {
         $message = sanitize_generated_text(trim($result['stderr'] . "\n" . $result['stdout']));
         if ($message === '') {
@@ -2845,9 +3066,27 @@ function run_haskell_pandoc(string $path, string $format, string $dir): array
 
         return ['ok' => false, 'error' => $message, 'path' => 'outputs/' . basename($dir) . '/haskell.html.error.txt'];
     }
-    file_put_contents($out, wrap_local_html_document($body, 'Haskell Pandoc HTML output'));
+    file_put_contents($out, wrap_local_html_document(
+        $body,
+        $renderedWithCiteproc ? 'Haskell Pandoc Citeproc HTML output' : 'Haskell Pandoc HTML output'
+    ));
 
-    return ['ok' => true, 'path' => 'outputs/' . basename($dir) . '/haskell.html'];
+    return [
+        'ok' => true,
+        'path' => 'outputs/' . basename($dir) . '/haskell.html',
+        'renderedWithCiteproc' => $renderedWithCiteproc,
+    ];
+}
+
+function showcase_bibliography_input_format(string $format): bool
+{
+    return in_array(PandocConverter::canonicalInputFormat($format), [
+        'bibtex',
+        'biblatex',
+        'csljson',
+        'endnotexml',
+        'ris',
+    ], true);
 }
 
 function is_text_file(string $path): bool
@@ -3097,6 +3336,9 @@ foreach ($samples as $sample) {
     $sourceRawHtmlBlockCount = is_file($target) && (int) ($wpBlockCounts['html'] ?? 0) > 0
         ? showcase_source_raw_html_block_count($target, $format)
         : null;
+    $bibliographySource = is_file($target) && showcase_bibliography_input_format($format)
+        ? showcase_bibliography_source_summary($target, $format)
+        : null;
     $preview = is_file($target) ? sample_preview_html($target) : '';
 
     $record = [
@@ -3115,7 +3357,9 @@ foreach ($samples as $sample) {
         'wpBlocks' => $wpBlocks,
         'wpBlockCounts' => $wpBlockCounts,
         'sourceRawHtmlBlockCount' => $sourceRawHtmlBlockCount,
+        'bibliographySource' => $bibliographySource,
     ];
+    $record['bibliographyComparison'] = showcase_record_bibliography_comparison($siteDir, $record);
     $record['faithfulness'] = showcase_record_faithfulness($siteDir, $record);
     $record['importQuality'] = showcase_record_import_quality($siteDir, $record);
     $records[] = $record;
@@ -3127,6 +3371,7 @@ $missingFormats = array_values(array_diff($formats, $coveredFormats));
 $blockUsage = aggregate_wordpress_block_counts($records);
 $conversionSummary = conversion_summary($records);
 $faithfulnessSummary = showcase_faithfulness_summary($records);
+$bibliographyComparisonSummary = showcase_bibliography_comparison_summary($records);
 $importQualitySummary = showcase_import_quality_summary($records);
 $importQualitySegmentSummary = showcase_import_quality_segment_summary($records);
 $importQualityGate = showcase_import_quality_threshold_gate($importQualitySegmentSummary);
@@ -3140,6 +3385,7 @@ file_put_contents($siteDir . '/manifest.json', json_encode([
     'missingFormats' => $missingFormats,
     'conversionSummary' => $conversionSummary,
     'faithfulnessSummary' => $faithfulnessSummary,
+    'bibliographyComparisonSummary' => $bibliographyComparisonSummary,
     'importQualitySummary' => $importQualitySummary,
     'importQualitySegmentSummary' => $importQualitySegmentSummary,
     'importQualityGate' => $importQualityGate,
@@ -3774,6 +4020,7 @@ write_conversion_report(
     $conversionSummary,
     $blockUsage,
     $faithfulnessSummary,
+    $bibliographyComparisonSummary,
     $importQualitySummary,
     $importQualityGate
 );

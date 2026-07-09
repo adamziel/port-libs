@@ -2,8 +2,18 @@
 <h2 id="blank-line-before-url-in-link-reference">Blank line before URL in link reference</h2>
 <p><a href="/url">foo</a> and <a href="/url" title="title">bar</a></p>
 <h2 id="raw-context-environments">Raw ConTeXt environments</h2>
-<p>L_{1} = L_{2} </p>
+<pre class="pandoc-raw-tex" data-pandoc-raw-format="tex"><code class="language-tex">\placeformula \startformula</code></pre>
+<p>L_{1} = L_{2} <span class="pandoc-raw-tex" data-pandoc-raw-format="tex">\stopformula</span></p>
+<pre class="pandoc-raw-tex" data-pandoc-raw-format="tex"><code class="language-tex">\start[a2]
+\start[a2]
+\stop[a2]
+\stop[a2]</code></pre>
 <h2 id="raw-latex-environments">Raw LaTeX environments</h2>
+<pre class="pandoc-raw-tex" data-pandoc-raw-format="tex"><code class="language-tex">\begin{center}
+\begin{tikzpicture}[baseline={([yshift=+-.5ex]current bounding box.center)}, level distance=24pt]
+\Tree [.{S} [.NP John\index{i} ] [.VP [.V likes ] [.NP himself\index{i,*j} ]]]
+\end{tikzpicture}
+\end{center}</code></pre>
 <h2 id="urls-with-spaces-and-punctuation">URLs with spaces and punctuation</h2>
 <p><a href="/bar%20and%20baz">foo</a> <a href="/bar%20and%20baz">foo</a> <a href="/bar%20and%20baz">foo</a> <a href="bar%20baz" title="title">foo</a></p>
 <p><a href="/foo%20foo">baz</a> <a href="/foo%20fee">bam</a> <a href="/foo/zee%20zob" title="title">bork</a></p>
@@ -64,6 +74,7 @@ there</p>
 <li>Third example.</li>
 </ol>
 <h2 id="macros">Macros</h2>
+<pre class="pandoc-raw-tex" data-pandoc-raw-format="tex"><code class="language-tex">\newcommand{\tuple}[1]{\langle #1 \rangle}</code></pre>
 <p><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><semantics><mrow><mo>⟨</mo><mi>x</mi><mo>,</mo><mi>y</mi><mo>⟩</mo></mrow><annotation encoding="application/x-tex">\langle x,y \rangle</annotation></semantics></math></p>
 <h2 id="case-insensitive-references">Case-insensitive references</h2>
 <p><a href="/fum">Fum</a></p>
@@ -220,7 +231,7 @@ there</p>
 <p><a href="/hithere)">link</a></p>
 <p><a href="hi_(there_(nested))">linky</a></p>
 <h2 id="backslashes-in-link-references">Backslashes in link references</h2>
-<p><a href="b">*</a></p>
+<p><a href="b">*<span class="pandoc-raw-tex" data-pandoc-raw-format="tex">\a</span></a></p>
 <h2 id="reference-link-fallbacks">Reference link fallbacks</h2>
 <p>[<em>not a link</em>] [<em>nope</em>]…</p>
 <h2 id="reference-link-followed-by-a-citation">Reference link followed by a citation</h2>

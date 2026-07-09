@@ -108,6 +108,7 @@ return [
         $t->same(90, count($records));
         $t->same(90, $qualitySummary['samples'] ?? null);
         $t->same(0, $qualitySummary['fail'] ?? null);
+        $t->same(0, $qualitySummary['unbenchmarked'] ?? null);
         $t->same('pass', $qualityGate['status'] ?? null);
         $t->same('pass', $qualityGate['trackedStatus'] ?? null);
 
@@ -120,8 +121,8 @@ return [
             $t->same(true, $record['wpBlocks']['ok'] ?? null, "{$id} should convert to WordPress blocks.");
             $quality = is_array($record['importQuality'] ?? null) ? $record['importQuality'] : [];
             $t->true(
-                in_array($quality['status'] ?? null, ['pass', 'review', 'unbenchmarked'], true),
-                "{$id} should not have a failed import-quality result."
+                in_array($quality['status'] ?? null, ['pass', 'review'], true),
+                "{$id} should have measured import-quality evidence."
             );
             $anchor = is_array($quality['gates']['anchor_validity'] ?? null)
                 ? $quality['gates']['anchor_validity']
@@ -132,7 +133,7 @@ return [
     'showcase manifest records required import quality gates per successful sample' => static function (TestRunner $t) use ($showcaseManifest): void {
         $manifest = $showcaseManifest();
         $records = is_array($manifest['records'] ?? null) ? $manifest['records'] : [];
-        $requiredGates = [
+        $documentGates = [
             'text_completeness',
             'heading_count',
             'paragraph_merge_split',
@@ -142,6 +143,13 @@ return [
             'image_count',
             'anchor_validity',
             'media_imported',
+            'custom_html_percentage',
+        ];
+        $bibliographyGates = [
+            'citeproc_content_coverage',
+            'citeproc_entry_count',
+            'media_imported',
+            'anchor_validity',
             'custom_html_percentage',
         ];
         $validStatuses = ['pass' => true, 'review' => true, 'fail' => true, 'unbenchmarked' => true];
@@ -155,6 +163,9 @@ return [
             $id = (string) ($record['id'] ?? 'unknown');
             $quality = is_array($record['importQuality'] ?? null) ? $record['importQuality'] : [];
             $gates = is_array($quality['gates'] ?? null) ? $quality['gates'] : [];
+            $requiredGates = (($record['bibliographyComparison']['available'] ?? false) === true)
+                ? $bibliographyGates
+                : $documentGates;
             foreach ($requiredGates as $gate) {
                 $t->true(isset($gates[$gate]) && is_array($gates[$gate]), "{$id} should include {$gate} import-quality gate.");
                 $status = (string) ($gates[$gate]['status'] ?? '');
@@ -164,19 +175,36 @@ return [
 
         $t->true($successful >= 40, 'The gate check should cover a substantial successful WordPress import corpus.');
     },
-    'showcase manifest labels formats without a comparison baseline as unbenchmarked' => static function (TestRunner $t) use ($showcaseManifest, $recordsById): void {
+    'showcase manifest proves the valid LaTeX table import against Pandoc' => static function (TestRunner $t) use ($showcaseManifest, $recordsById): void {
+        $manifest = $showcaseManifest();
+        $records = is_array($manifest['records'] ?? null) ? $manifest['records'] : [];
+        $byId = $recordsById($records);
+        $record = $byId['latex-table'] ?? null;
+
+        $t->true(is_array($record), 'latex-table should be present in the showcase manifest.');
+        $quality = is_array($record['importQuality'] ?? null) ? $record['importQuality'] : [];
+        $gates = is_array($quality['gates'] ?? null) ? $quality['gates'] : [];
+        $t->same('haskell', $record['faithfulness']['baseline'] ?? null, 'The valid LaTeX table should have a Haskell baseline.');
+        $t->same('pass', $quality['status'] ?? null, 'The valid LaTeX table should have measured passing import quality.');
+        $t->same('pass', $gates['text_completeness']['status'] ?? null, 'LaTeX table text should be preserved.');
+        $t->same('pass', $gates['table_count']['status'] ?? null, 'LaTeX table structure should be preserved.');
+    },
+    'showcase manifest proves bibliography imports against Pandoc Citeproc' => static function (TestRunner $t) use ($showcaseManifest, $recordsById): void {
         $manifest = $showcaseManifest();
         $records = is_array($manifest['records'] ?? null) ? $manifest['records'] : [];
         $byId = $recordsById($records);
 
-        foreach (['bibtex-biblio', 'latex-table', 'ris-web'] as $id) {
+        foreach (['bibtex-biblio', 'biblatex-online', 'csljson-book', 'endnotexml-reader', 'ris-texbook'] as $id) {
             $record = $byId[$id] ?? null;
             $t->true(is_array($record), "{$id} should be present in the showcase manifest.");
-            $quality = is_array($record['importQuality'] ?? null) ? $record['importQuality'] : [];
-            $gates = is_array($quality['gates'] ?? null) ? $quality['gates'] : [];
-            $t->same('unbenchmarked', $quality['status'] ?? null, "{$id} should not be scored without a baseline.");
-            $t->same('unbenchmarked', $gates['text_completeness']['status'] ?? null, "{$id} text quality should remain explicitly unbenchmarked.");
-            $t->same('unbenchmarked', $gates['visual_structure']['status'] ?? null, "{$id} visual quality should remain explicitly unbenchmarked.");
+            $comparison = is_array($record['bibliographyComparison'] ?? null) ? $record['bibliographyComparison'] : [];
+            $gates = is_array($record['importQuality']['gates'] ?? null) ? $record['importQuality']['gates'] : [];
+            $t->same(true, $record['haskell']['renderedWithCiteproc'] ?? null, "{$id} should use a Citeproc Haskell baseline.");
+            $t->same(true, $comparison['available'] ?? null, "{$id} should expose an available bibliography comparison.");
+            $t->same($comparison['expectedEntryCount'] ?? null, $comparison['actualEntryCount'] ?? null, "{$id} should preserve reference count.");
+            $t->true((float) ($comparison['contentCoverage'] ?? 0.0) >= 0.80, "{$id} should preserve Citeproc reference content.");
+            $t->same('pass', $gates['citeproc_content_coverage']['status'] ?? null, "{$id} should pass Citeproc content coverage.");
+            $t->same('pass', $gates['citeproc_entry_count']['status'] ?? null, "{$id} should pass Citeproc entry count.");
         }
     },
     'showcase manifest distinguishes source raw HTML from Custom HTML fallback' => static function (TestRunner $t) use ($showcaseManifest, $recordsById): void {
