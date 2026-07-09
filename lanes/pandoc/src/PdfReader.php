@@ -817,11 +817,20 @@ final class PdfReader
     private function repairProseTextLines(array $lines, bool $repairGluedText = true, array $lineLayouts = []): array
     {
         $cleaned = [];
+        $pendingListMarker = null;
         foreach ($lines as $index => $line) {
             $layout = $lineLayouts[$index] ?? null;
             $chunks = $this->splitPdfTextLineVisualChunks($line);
             $chunkLayout = count($chunks) === 1 ? $layout : null;
             foreach ($chunks as $chunk) {
+                if ($this->lineIsStandalonePdfListMarker($chunk)) {
+                    $pendingListMarker = trim($chunk);
+                    continue;
+                }
+                if ($pendingListMarker !== null) {
+                    $chunk = $pendingListMarker . ' ' . ltrim($chunk);
+                    $pendingListMarker = null;
+                }
                 if ($this->lineIsOnlyPdfNoise($chunk)) {
                     continue;
                 }
@@ -865,6 +874,11 @@ final class PdfReader
         }
 
         return $chunks === [] ? [$line] : $chunks;
+    }
+
+    private function lineIsStandalonePdfListMarker(string $line): bool
+    {
+        return preg_match('/^\s*(?:[-*]|\x{2022}|\d{1,2}[.)])\s*$/u', $line) === 1;
     }
 
     /**

@@ -1,5 +1,5 @@
 {
-    "generatedAt": "2026-07-09T14:04:04+00:00",
+    "generatedAt": "2026-07-09T14:21:49+00:00",
     "pandocVersion": "pandoc 3.10\nFeatures: +server +lua\nScripting engine: Lua 5.4\nUser data directory: $REPO\nCopyright (C) 2006-2025 John MacFarlane. Web:  https://pandoc.org\nThis is free software; see the source for copying conditions. There is no\nwarranty, not even for merchantability or fitness for a particular purpose.",
     "mediaImageMode": "important",
     "formats": [
@@ -785,8 +785,8 @@
             "heading": 4124,
             "html": 59,
             "image": 240,
-            "list": 1356,
-            "paragraph": 15932,
+            "list": 1357,
+            "paragraph": 15931,
             "quote": 54,
             "separator": 65,
             "table": 557,
@@ -17140,8 +17140,8 @@
                 "group": 1,
                 "heading": 40,
                 "image": 28,
-                "list": 1,
-                "paragraph": 138
+                "list": 2,
+                "paragraph": 139
             },
             "faithfulness": {
                 "baseline": "phpHtml",
@@ -17153,7 +17153,7 @@
                         "textStatus": "faithful_enough",
                         "textScore": 1,
                         "visualStatus": "faithful_enough",
-                        "visualScore": 0.8131
+                        "visualScore": 0.8123
                     }
                 }
             },
@@ -17169,14 +17169,14 @@
                     "visual_structure": {
                         "status": "pass",
                         "expected": ">=0.75",
-                        "actual": 0.8131,
+                        "actual": 0.8123,
                         "detail": "heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
                         "status": "pass",
                         "expected": "0.80-1.25",
-                        "actual": 0.8263,
-                        "detail": "paragraph count ratio expected 167, got 138"
+                        "actual": 0.8225,
+                        "detail": "paragraph count ratio expected 169, got 139"
                     },
                     "heading_count": {
                         "status": "pass",
@@ -17188,7 +17188,7 @@
                         "status": "pass",
                         "expected": "0.80-1.25",
                         "actual": 1,
-                        "detail": "list count ratio expected 1, got 1"
+                        "detail": "list count ratio expected 2, got 2"
                     },
                     "table_count": {
                         "status": "pass",
@@ -17218,7 +17218,7 @@
                         "status": "pass",
                         "expected": "<=0.05",
                         "actual": 0,
-                        "detail": "0/208 WordPress blocks are Custom HTML"
+                        "detail": "0/210 WordPress blocks are Custom HTML"
                     }
                 },
                 "summary": {
@@ -18363,7 +18363,7 @@
                 "heading": 18,
                 "image": 32,
                 "list": 26,
-                "paragraph": 118
+                "paragraph": 116
             },
             "faithfulness": {
                 "baseline": "phpHtml",
@@ -18375,7 +18375,7 @@
                         "textStatus": "faithful_enough",
                         "textScore": 1,
                         "visualStatus": "review",
-                        "visualScore": 0.7229
+                        "visualScore": 0.7199
                     }
                 }
             },
@@ -18391,14 +18391,14 @@
                     "visual_structure": {
                         "status": "review",
                         "expected": ">=0.75",
-                        "actual": 0.7229,
+                        "actual": 0.7199,
                         "detail": "heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
                         "status": "review",
                         "expected": "0.80-1.25",
-                        "actual": 0.6629,
-                        "detail": "paragraph count ratio expected 178, got 118"
+                        "actual": 0.6554,
+                        "detail": "paragraph count ratio expected 177, got 116"
                     },
                     "heading_count": {
                         "status": "pass",
@@ -18440,7 +18440,7 @@
                         "status": "pass",
                         "expected": "<=0.05",
                         "actual": 0,
-                        "detail": "0/195 WordPress blocks are Custom HTML"
+                        "detail": "0/193 WordPress blocks are Custom HTML"
                     }
                 },
                 "summary": {

@@ -5319,6 +5319,8 @@ return [
         $repaired = $repair([
             "Patients should clean hands\t • Before eating food.",
             "Providers should clean hands\t • Before putting on gloves.",
+            "Hand hygiene matters\t •",
+            'After removing gloves.',
         ]);
 
         $t->same([
@@ -5326,6 +5328,8 @@ return [
             '• Before eating food.',
             'Providers should clean hands',
             '• Before putting on gloves.',
+            'Hand hygiene matters',
+            '• After removing gloves.',
         ], $repaired);
     },
     'preserves positioned pdf tables embedded between surrounding text' => static function (TestRunner $t) use ($pdfWithContent): void {
