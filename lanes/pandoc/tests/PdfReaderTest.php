@@ -5485,6 +5485,22 @@ return [
             'tual dynamic types.',
         ], [$previous, $next]));
     },
+    'normalizes winansi bytes leaked from pdf text extraction' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $normalize = (function (array $lines): array {
+            return $this->normalizeLines($lines);
+        })->bindTo($reader, PdfReader::class);
+        $runText = (function (string $text): string {
+            return $this->pdfTextRunString($text);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($normalize instanceof \Closure);
+        $t->true($runText instanceof \Closure);
+
+        $t->same(['setting the stage for the site’s return'], $normalize([
+            "setting the stage for the site\x92s return",
+        ]));
+        $t->same('“quoted”', $runText("\x93quoted\x94"));
+    },
     'repairs whitespace inserted inside pdf url text' => static function (TestRunner $t): void {
         $reader = new PdfReader();
         $repair = (function (array $lines): array {

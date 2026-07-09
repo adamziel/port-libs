@@ -311,6 +311,7 @@ final class PdfReader
     {
         $normalized = [];
         foreach ($lines as $line) {
+            $line = $this->normalizePdfTextEncoding($line);
             $line = str_replace("\0", '', $line);
             $line = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/u', ' ', $line) ?? $line;
             $line = trim($line);
@@ -320,6 +321,21 @@ final class PdfReader
         }
 
         return $normalized;
+    }
+
+    private function normalizePdfTextEncoding(string $text): string
+    {
+        if ($text === '' || preg_match('//u', $text) === 1) {
+            return $text;
+        }
+
+        $decoded = @iconv('Windows-1252', 'UTF-8//IGNORE', $text);
+        if (is_string($decoded) && $decoded !== '') {
+            return $decoded;
+        }
+
+        $decoded = @iconv('UTF-8', 'UTF-8//IGNORE', $text);
+        return is_string($decoded) ? $decoded : $text;
     }
 
     /**
@@ -1177,10 +1193,10 @@ final class PdfReader
     private function pdfTextRunString(mixed $run): string
     {
         if (is_array($run)) {
-            return isset($run['text']) ? (string) $run['text'] : '';
+            return isset($run['text']) ? $this->normalizePdfTextEncoding((string) $run['text']) : '';
         }
 
-        return (string) $run;
+        return $this->normalizePdfTextEncoding((string) $run);
     }
 
     private function splitWordHintKey(string $prefix, string $continuation): string
@@ -1761,7 +1777,7 @@ final class PdfReader
      */
     private function positionedRun(array $run): ?array
     {
-        $rawText = (string) ($run['text'] ?? '');
+        $rawText = $this->normalizePdfTextEncoding((string) ($run['text'] ?? ''));
         $text = $this->positionedCellText($rawText);
         $x1 = $this->numericValue($run['x1'] ?? null);
         $y1 = $this->numericValue($run['y1'] ?? null);
