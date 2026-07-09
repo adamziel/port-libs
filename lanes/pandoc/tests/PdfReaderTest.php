@@ -5518,18 +5518,18 @@ return [
     },
     'repairs glued pdf prose using positioned run spacing evidence' => static function (TestRunner $t): void {
         $reader = new PdfReader();
-        $run = static function (string $text, float $x1, float $x2): array {
+        $run = static function (string $text, float $x1, float $x2, float $y = 100.0): array {
             return [
                 'text' => $text,
                 'page' => 1,
                 'x1' => $x1,
                 'x2' => $x2,
-                'y1' => 100.0,
-                'y2' => 112.0,
+                'y1' => $y,
+                'y2' => $y + 12.0,
                 'textX1' => $x1,
                 'textX2' => $x2,
-                'textY1' => 100.0,
-                'textY2' => 112.0,
+                'textY1' => $y,
+                'textY2' => $y + 12.0,
                 'fontSize' => 10.0,
             ];
         };
@@ -5547,6 +5547,7 @@ return [
             'performanceofthegeneratedmachinecode. Oursystemuses mixedmode execution.',
             'Thetracetreefortheinnerloop records asideexit without duplicating theouterloop.',
             'The VM is ableto continue when Redwood remains a single word.',
+            'The recorder finishesthe outer trace.',
         ], [
             $run('performance', 10.0, 70.0),
             $run('of', 72.0, 82.0),
@@ -5577,11 +5578,18 @@ return [
             ['text' => 'Red', 'page' => 1, 'x1' => 90.0, 'x2' => 110.0, 'y1' => 60.0, 'y2' => 72.0, 'textX1' => 90.0, 'textX2' => 110.0, 'textY1' => 60.0, 'textY2' => 72.0, 'fontSize' => 10.0],
             ['text' => 'wo', 'page' => 1, 'x1' => 112.0, 'x2' => 126.0, 'y1' => 60.0, 'y2' => 72.0, 'textX1' => 112.0, 'textX2' => 126.0, 'textY1' => 60.0, 'textY2' => 72.0, 'fontSize' => 10.0],
             ['text' => 'od', 'page' => 1, 'x1' => 128.0, 'x2' => 142.0, 'y1' => 60.0, 'y2' => 72.0, 'textX1' => 128.0, 'textX2' => 142.0, 'textY1' => 60.0, 'textY2' => 72.0, 'fontSize' => 10.0],
+            $run('The', 10.0, 28.0, 40.0),
+            $run('recorder', 32.0, 76.0, 40.0),
+            $run('finishes', 80.0, 124.0, 40.0),
+            $run('the', 10.0, 28.0, 28.0),
+            $run('outer', 32.0, 62.0, 28.0),
+            $run('trace.', 66.0, 96.0, 28.0),
         ]);
 
         $t->same([
             'performance of the generated machine code. Our system uses mixed mode execution.',
             'The trace tree for the inner loop records a side exit without duplicating the outer loop. The VM is able to continue when Redwood remains a single word.',
+            'The recorder finishes the outer trace.',
         ], $repaired);
 
         $letterSpaced = $repair([

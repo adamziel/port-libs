@@ -1242,7 +1242,8 @@ final class PdfReader
             $fontSizes = array_map(static fn (array $run): float => $run['fontSize'], $pageRuns);
             $medianFontSize = max(1.0, $this->median($fontSizes));
             $rowTolerance = max(3.0, $medianFontSize * 0.55);
-            foreach ($this->clusterPositionedRows($pageRuns, $rowTolerance) as $row) {
+            $rows = $this->clusterPositionedRows($pageRuns, $rowTolerance);
+            foreach ($rows as $row) {
                 foreach ($this->positionedSpacingHintTokenSegments($row['runs']) as $tokens) {
                     $tokenCount = count($tokens);
                     for ($start = 0; $start < $tokenCount - 1; $start++) {
@@ -1265,9 +1266,92 @@ final class PdfReader
                     }
                 }
             }
+            foreach ($this->pdfPositionedRowBoundarySpacingHints($rows, $medianFontSize) as $key => $replacement) {
+                $hints[$key] = $replacement;
+            }
         }
 
         return $hints;
+    }
+
+    /**
+     * @param list<array{center: float, runs: list<array{page: int, text: string, x1: float, y1: float, x2: float, y2: float, textX1: float, textY1: float, textX2: float, textY2: float, fontSize: float}>}> $rows
+     * @return array<string, string>
+     */
+    private function pdfPositionedRowBoundarySpacingHints(array $rows, float $medianFontSize): array
+    {
+        if (count($rows) < 2) {
+            return [];
+        }
+
+        $rows = $this->mergePositionedProseRowFragments($rows, $this->positionedRowsBounds($rows));
+        $rows = $this->splitPositionedRowsIntoProseFragments($rows);
+        $rows = $this->orderPositionedProseRows($rows, $medianFontSize);
+
+        $hints = [];
+        $count = count($rows);
+        for ($index = 0; $index < $count - 1; $index++) {
+            $current = $rows[$index];
+            $next = $rows[$index + 1];
+            if (!$this->positionedRowsLookLikeSpacingHintBoundary($current, $next, $medianFontSize)) {
+                continue;
+            }
+
+            $left = $this->lastWordToken($this->positionedRowText($current));
+            $right = $this->firstWordToken($this->positionedRowText($next));
+            if (!$this->spacingHintTokenSequenceLooksUsable([$left, $right])) {
+                continue;
+            }
+
+            $hints[$this->spacingHintKey($left . $right)] = $left . ' ' . $right;
+        }
+
+        return $hints;
+    }
+
+    /**
+     * @param array{center: float, runs: list<array{page: int, text: string, x1: float, y1: float, x2: float, y2: float, textX1: float, textY1: float, textX2: float, textY2: float, fontSize: float}>} $current
+     * @param array{center: float, runs: list<array{page: int, text: string, x1: float, y1: float, x2: float, y2: float, textX1: float, textY1: float, textX2: float, textY2: float, fontSize: float}>} $next
+     */
+    private function positionedRowsLookLikeSpacingHintBoundary(array $current, array $next, float $medianFontSize): bool
+    {
+        if ($current['runs'] === [] || $next['runs'] === []) {
+            return false;
+        }
+        if ((int) $current['runs'][0]['page'] !== (int) $next['runs'][0]['page']) {
+            return false;
+        }
+        if ($this->positionedRowLooksStandaloneHeading($current, $medianFontSize)
+            || $this->positionedRowLooksStandaloneHeading($next, $medianFontSize)) {
+            return false;
+        }
+
+        $currentText = rtrim($this->positionedRowText($current));
+        $nextText = ltrim($this->positionedRowText($next));
+        if ($currentText === '' || $nextText === '') {
+            return false;
+        }
+        if (preg_match('/[-\x{2010}-\x{2015}\/\\\\]$/u', $currentText) === 1) {
+            return false;
+        }
+        if (preg_match('/^[^\p{L}\p{N}]*[\p{Lu}]/u', $nextText) === 1) {
+            return false;
+        }
+
+        $currentBounds = $this->positionedProseRowBounds($current);
+        $nextBounds = $this->positionedProseRowBounds($next);
+        $fontSize = max(
+            $this->positionedRowMaxFontSize($current),
+            $this->positionedRowMaxFontSize($next),
+            $medianFontSize,
+            1.0
+        );
+        $verticalGap = $currentBounds['y1'] - $nextBounds['y2'];
+        if ($verticalGap < -$fontSize * 0.4 || $verticalGap > $fontSize * 1.8) {
+            return false;
+        }
+
+        return abs($currentBounds['x1'] - $nextBounds['x1']) <= max(8.0, $fontSize * 1.25);
     }
 
     /**
@@ -1552,6 +1636,9 @@ final class PdfReader
     private function spacingReplacementNeedsLetterBoundary(string $replacement): bool
     {
         $tokens = array_values(array_filter(preg_split('/\s+/u', trim($replacement)) ?: []));
+        if (count($tokens) === 2) {
+            return true;
+        }
         if (count($tokens) > 2) {
             $shortTokens = 0;
             $maxTokenLength = 0;
