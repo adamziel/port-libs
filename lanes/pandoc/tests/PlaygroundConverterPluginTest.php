@@ -570,20 +570,32 @@ return [
         $t->contains('<strong>Import quality:</strong> This PDF likely needs OCR before import.', $blocks);
         $t->contains('Run OCR first, then import the searchable PDF.', $blocks);
     },
-    'playground importer treats legacy doc as unsupported in the UI' => static function (TestRunner $t): void {
+    'playground importer accepts and converts legacy doc files' => static function (TestRunner $t): void {
+        $fixture = dirname(__DIR__, 3) . '/pandoc-showcase/samples/doc-poi-47304-47304.doc';
+        $bytes = (string) file_get_contents($fixture);
         $collection = [
             'label' => 'Legacy bundle',
             'files' => [
-                ['path' => 'old.doc', 'bytes' => "DOC"],
+                ['path' => 'old.doc', 'bytes' => $bytes],
                 ['path' => 'modern.docx', 'bytes' => "PK\x03\x04"],
             ],
         ];
 
         $documents = plpc_convertible_collection_files($collection);
 
-        $t->same(['modern.docx'], array_map(static fn (array $file): string => $file['path'], $documents));
-        $t->same(true, plpc_format_is_ui_unsupported('doc'));
-        $t->contains('Save the document as .docx', plpc_unsupported_format_message('doc'));
+        $t->same(['old.doc', 'modern.docx'], array_map(static fn (array $file): string => $file['path'], $documents));
+
+        $GLOBALS['plpc_test_posts'] = [];
+        $result = plpc_convert_collection_file_to_page([
+            'path' => 'old.doc',
+            'bytes' => $bytes,
+        ], null, 'Legacy DOC import');
+        $blocks = (string) ($GLOBALS['plpc_test_posts'][$result['postId']]['post_content'] ?? '');
+
+        $t->same('doc', $result['format']);
+        $t->same('complete', $result['quality']['status']);
+        $t->contains('Just  a “test” ', $blocks);
+        $t->true(!str_contains($blocks, '&#xd;'));
     },
     'playground importer discovers rendered image sources via dom fragments' => static function (TestRunner $t): void {
         $blocks = <<<'HTML'

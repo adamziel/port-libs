@@ -2498,6 +2498,16 @@ return [
         $t->contains('<p>Harold Koplow</p>', $blocks);
         $t->contains('<p>Dear Governor Bush:</p>', $blocks);
     },
+    'preserves compressed DOC paragraph marks as controls rather than literal character references' => static function (TestRunner $t): void {
+        $fixture = dirname(__DIR__, 3) . '/pandoc-showcase/samples/doc-poi-47304-47304.doc';
+        $document = (new LegacyDocReader())->read((string) file_get_contents($fixture));
+        $blocks = PandocConverter::write($document, 'blocks');
+
+        $t->same(1, count($document->children));
+        $t->same('Just  a “test” ', $document->children[0]->children[0]->attr('text'));
+        $t->contains('<p>Just  a “test” </p>', $blocks);
+        $t->true(!str_contains($blocks, '&#xd;'), 'Compressed paragraph marks must not be emitted as literal entity text.');
+    },
     'rejects illegal CFB directory names and invalid color flags' => static function (TestRunner $t) use ($buildCfb): void {
         $t->throws(\RuntimeException::class, static fn (): CompoundFileBinary => CompoundFileBinary::fromBytes($buildCfb([
             'Bad:Name' => 'bad stream',

@@ -11827,7 +11827,26 @@ final class LegacyDocReader
 
     private static function codepointToUtf8(int $codepoint): string
     {
-        return html_entity_decode('&#x' . dechex($codepoint) . ';', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        if ($codepoint < 0 || $codepoint > 0x10ffff || ($codepoint >= 0xd800 && $codepoint <= 0xdfff)) {
+            return "\xef\xbf\xbd";
+        }
+        if ($codepoint <= 0x7f) {
+            return chr($codepoint);
+        }
+        if ($codepoint <= 0x7ff) {
+            return chr(0xc0 | ($codepoint >> 6))
+                . chr(0x80 | ($codepoint & 0x3f));
+        }
+        if ($codepoint <= 0xffff) {
+            return chr(0xe0 | ($codepoint >> 12))
+                . chr(0x80 | (($codepoint >> 6) & 0x3f))
+                . chr(0x80 | ($codepoint & 0x3f));
+        }
+
+        return chr(0xf0 | ($codepoint >> 18))
+            . chr(0x80 | (($codepoint >> 12) & 0x3f))
+            . chr(0x80 | (($codepoint >> 6) & 0x3f))
+            . chr(0x80 | ($codepoint & 0x3f));
     }
 
     private static function signed16(int $value): int

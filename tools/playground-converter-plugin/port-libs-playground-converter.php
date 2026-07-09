@@ -426,9 +426,6 @@ function plpc_convertible_collection_files(array $collection): array
         if ($format === '' || $format === 'zip') {
             continue;
         }
-        if (plpc_format_is_ui_unsupported($format)) {
-            continue;
-        }
         try {
             if (!PandocConverter::canRead($format)) {
                 continue;
@@ -459,9 +456,6 @@ function plpc_convert_collection_file_to_page(array $file, ?array $collection = 
 {
     $path = $file['path'];
     $format = (string) ($file['format'] ?? plpc_normalize_format('', $path));
-    if (plpc_format_is_ui_unsupported($format)) {
-        throw new RuntimeException(plpc_unsupported_format_message($format));
-    }
     $postTitle = $title !== null && $title !== '' ? $title : plpc_title_from_filename($path);
     $options = plpc_converter_options($format, $pdfMode);
     $document = PandocConverter::read($file['bytes'], $format, $options['readerOptions']);
@@ -537,22 +531,6 @@ function plpc_collection_index_blocks(string $title, array $posts, array $diagno
     $blocks = plpc_prepend_conversion_warning_blocks($blocks, '', $diagnostics);
 
     return plpc_prepend_import_quality_blocks($blocks, $quality);
-}
-
-function plpc_format_is_ui_unsupported(string $format): bool
-{
-    $canonical = strtolower(str_replace('-', '_', trim($format)));
-
-    return $canonical === 'doc';
-}
-
-function plpc_unsupported_format_message(string $format): string
-{
-    if (plpc_format_is_ui_unsupported($format)) {
-        return 'Legacy .doc files are not reliable in the browser importer yet. Save the document as .docx and import that file instead.';
-    }
-
-    return 'This file format is not supported by the browser importer.';
 }
 
 /**
