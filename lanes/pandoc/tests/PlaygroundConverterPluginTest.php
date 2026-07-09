@@ -221,6 +221,63 @@ if (!function_exists('esc_attr')) {
     }
 }
 
+if (!function_exists('parse_blocks')) {
+    function parse_blocks(string $content): array
+    {
+        $blocks = [];
+        $matchCount = preg_match_all('/<!--\s+wp:([a-z0-9-\/]+)(?:\s+(\{.*?\}))?\s+-->(.*?)<!--\s+\/wp:\1\s+-->/is', $content, $matches, PREG_SET_ORDER);
+        if ($matchCount === false || $matchCount === 0) {
+            $trimmed = trim($content);
+
+            return $trimmed === '' ? [] : [[
+                'blockName' => null,
+                'attrs' => [],
+                'innerBlocks' => [],
+                'innerHTML' => $content,
+                'innerContent' => [$content],
+            ]];
+        }
+        foreach ($matches as $match) {
+            $name = strtolower((string) $match[1]);
+            $attrs = isset($match[2]) && trim((string) $match[2]) !== '' ? json_decode((string) $match[2], true) : [];
+            $innerHTML = (string) $match[3];
+            $blocks[] = [
+                'blockName' => str_contains($name, '/') ? $name : 'core/' . $name,
+                'attrs' => is_array($attrs) ? $attrs : [],
+                'innerBlocks' => [],
+                'innerHTML' => $innerHTML,
+                'innerContent' => [$innerHTML],
+            ];
+        }
+
+        return $blocks;
+    }
+}
+
+if (!function_exists('serialize_blocks')) {
+    function serialize_blocks(array $blocks): string
+    {
+        return implode("\n\n", array_map('serialize_block', $blocks));
+    }
+}
+
+if (!function_exists('serialize_block')) {
+    function serialize_block(array $block): string
+    {
+        $blockName = $block['blockName'] ?? null;
+        $innerContent = $block['innerContent'] ?? [];
+        $innerHTML = is_array($innerContent) ? implode('', array_map('strval', $innerContent)) : (string) ($block['innerHTML'] ?? '');
+        if (!is_string($blockName) || $blockName === '') {
+            return $innerHTML;
+        }
+        $commentName = str_starts_with($blockName, 'core/') ? substr($blockName, 5) : $blockName;
+        $attrs = is_array($block['attrs'] ?? null) ? $block['attrs'] : [];
+        $attrsJson = $attrs === [] ? '' : ' ' . json_encode($attrs, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+
+        return '<!-- wp:' . $commentName . $attrsJson . ' -->' . $innerHTML . '<!-- /wp:' . $commentName . ' -->';
+    }
+}
+
 require_once dirname(__DIR__, 3) . '/tools/playground-converter-plugin/port-libs-playground-converter.php';
 
 return [
@@ -376,6 +433,28 @@ return [
         $t->contains('<strong>Import quality:</strong> The content imported, but some images or media files are missing.', $blocks);
         $t->contains('Try importing again with all images', $blocks);
         $t->true(strpos($blocks, 'Import quality:') < strpos($blocks, 'Imported body.'), 'Import quality should appear before imported body content.');
+    },
+    'playground importer prepends notices through parsed block data when available' => static function (TestRunner $t): void {
+        $body = '<!-- wp:paragraph {"align":"center"} -->'
+            . '<p class="has-text-align-center">Imported body.</p>'
+            . '<!-- /wp:paragraph -->';
+        $withQuality = plpc_prepend_import_quality_blocks($body, [
+            'status' => 'layout_uncertain',
+            'flags' => ['layout_uncertain'],
+            'warnings' => [],
+        ]);
+        $withWarnings = plpc_prepend_conversion_warning_blocks($withQuality, 'markdown', [
+            'image-not-resolved:media/missing.png',
+        ]);
+        $parsed = parse_blocks($withWarnings);
+
+        $t->same('core/group', $parsed[0]['blockName'] ?? null);
+        $t->same('port-libs-conversion-notice', $parsed[0]['attrs']['className'] ?? null);
+        $t->same('core/group', $parsed[1]['blockName'] ?? null);
+        $t->same('port-libs-import-quality port-libs-import-quality-layout_uncertain', $parsed[1]['attrs']['className'] ?? null);
+        $t->same('core/paragraph', $parsed[2]['blockName'] ?? null);
+        $t->same(['align' => 'center'], $parsed[2]['attrs'] ?? null);
+        $t->contains('Imported body.', $parsed[2]['innerHTML'] ?? '');
     },
     'playground importer maps pdf metadata to quality diagnostics' => static function (TestRunner $t): void {
         $document = new PortLibs\Pandoc\AstNode('document', [

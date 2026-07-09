@@ -642,7 +642,7 @@ function plpc_prepend_conversion_warning_blocks(string $blocks, string $format, 
         return $blocks;
     }
 
-    return plpc_conversion_warning_blocks($warnings) . "\n\n" . $blocks;
+    return plpc_prepend_block_markup($blocks, plpc_conversion_warning_blocks($warnings));
 }
 
 /**
@@ -653,7 +653,46 @@ function plpc_prepend_import_quality_blocks(string $blocks, array $quality): str
     $status = (string) ($quality['status'] ?? 'complete');
     $flags = is_array($quality['flags'] ?? null) ? array_values(array_map('strval', $quality['flags'])) : [];
 
-    return plpc_import_quality_blocks($status, $flags) . "\n\n" . $blocks;
+    return plpc_prepend_block_markup($blocks, plpc_import_quality_blocks($status, $flags));
+}
+
+function plpc_prepend_block_markup(string $blocks, string $prefixBlocks): string
+{
+    if (function_exists('parse_blocks') && function_exists('serialize_blocks')) {
+        $parsedPrefix = parse_blocks($prefixBlocks);
+        $parsedBody = parse_blocks($blocks);
+        if (is_array($parsedPrefix) && is_array($parsedBody)) {
+            return serialize_blocks(array_merge(
+                plpc_filter_meaningful_parsed_blocks($parsedPrefix),
+                plpc_filter_meaningful_parsed_blocks($parsedBody)
+            ));
+        }
+    }
+
+    return $prefixBlocks . "\n\n" . $blocks;
+}
+
+/**
+ * @param list<array<string, mixed>> $blocks
+ * @return list<array<string, mixed>>
+ */
+function plpc_filter_meaningful_parsed_blocks(array $blocks): array
+{
+    $filtered = [];
+    foreach ($blocks as $block) {
+        if (!is_array($block)) {
+            continue;
+        }
+        $blockName = $block['blockName'] ?? null;
+        $innerHTML = (string) ($block['innerHTML'] ?? '');
+        $innerBlocks = is_array($block['innerBlocks'] ?? null) ? $block['innerBlocks'] : [];
+        if ($blockName === null && trim($innerHTML) === '' && $innerBlocks === []) {
+            continue;
+        }
+        $filtered[] = $block;
+    }
+
+    return $filtered;
 }
 
 /**
