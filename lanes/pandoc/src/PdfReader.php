@@ -1565,7 +1565,7 @@ final class PdfReader
             return $hasLeftContext || ($isStandaloneRun && $continuationLength >= 2 && $continuationLength <= 5);
         }
 
-        return $hasLeftContext || $continuationLength >= 2;
+        return $hasLeftContext || ($prefixLength <= 4 && $continuationLength >= 2);
     }
 
     private function pdfTextRunHyphenatedSplitFragmentLooksUsable(string $prefix, string $continuation): bool

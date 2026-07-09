@@ -5525,6 +5525,43 @@ return [
             'to-treat infections',
         ]));
     },
+    'does not join complete lowercase pdf table cell words as split fragments' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $repair = (function (array $lines, array $runs): array {
+            return $this->repairProseTextLines($lines, true, [], $this->pdfTextRunSplitWordHints($runs));
+        })->bindTo($reader, PdfReader::class);
+        $t->true($repair instanceof \Closure);
+
+        $repaired = $repair([
+            'Tag',
+            'JS Type',
+            'Description',
+            '000',
+            'object',
+            'pointer to JSObject handle',
+            '110',
+            'boolean',
+            'enumeration for null, undefined, true, false',
+            'Dogs on leash all owed',
+        ], [
+            'object',
+            'pointer',
+            '',
+            'boolean',
+            'enumeration',
+            '',
+            'all',
+            'owed',
+            '',
+        ]);
+
+        $t->same([
+            'Tag',
+            'JS Type',
+            'Description',
+            '000 object pointer to JS Object handle 110 boolean enumeration for null, undefined, true, false Dogs on leash allowed',
+        ], $repaired);
+    },
     'normalizes winansi bytes leaked from pdf text extraction' => static function (TestRunner $t): void {
         $reader = new PdfReader();
         $normalize = (function (array $lines): array {

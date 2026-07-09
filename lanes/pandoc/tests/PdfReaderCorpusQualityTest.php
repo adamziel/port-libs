@@ -249,6 +249,20 @@ return [
         $t->contains('client - http://www.mozilla.com', $text);
         $t->contains('Extreme - http://webkit.org', $text);
     },
+    'pdf corpus gate does not join TraceMonkey table cell words as fragments' => static function (TestRunner $t) use ($pdfSamplePaths, $plainText): void {
+        $document = (new PdfReader([
+            'maxTextBytes' => 80000,
+            'pdfRepairProseText' => true,
+            'pdfGeometryTables' => false,
+        ]))->read(file_get_contents($pdfSamplePaths()['tracemonkey-paper']) ?: '');
+        $text = $plainText(PandocConverter::write($document, 'html'));
+
+        foreach (['objectpointer', 'numberpointer', 'stringpointer', 'booleanenumeration'] as $glued) {
+            $t->true(!str_contains($text, $glued), "TraceMonkey table cells should not contain '{$glued}'.");
+        }
+        $t->contains('object pointer to JS Object handle', $text);
+        $t->contains('boolean enumeration for null, undefined, true, false', $text);
+    },
     'pdf corpus gate does not inject TraceMonkey positioned word fragment spaces' => static function (TestRunner $t) use ($pdfSamplePaths, $plainText): void {
         $document = (new PdfReader([
             'maxTextBytes' => 80000,
