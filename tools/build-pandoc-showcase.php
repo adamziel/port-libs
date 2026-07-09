@@ -1348,6 +1348,15 @@ function showcase_output_text(string $siteDir, string $relativePath): string
     return trim($text);
 }
 
+function showcase_output_contains(string $siteDir, string $relativePath, string $needle): bool
+{
+    if ($needle === '') {
+        return true;
+    }
+
+    return str_contains(showcase_output_html($siteDir, $relativePath), $needle);
+}
+
 function showcase_visible_html(string $html): string
 {
     $html = preg_replace('/<!--.*?-->/s', '', $html) ?? $html;
@@ -1620,6 +1629,16 @@ function showcase_record_import_quality(string $siteDir, array $record): array
     $baselinePath = $baselineKey !== '' ? (string) ($record[$baselineKey]['path'] ?? '') : '';
     $wpVisual = showcase_output_visual_signature($siteDir, $wpPath);
     $baselineVisual = $baselinePath === '' ? [] : showcase_output_visual_signature($siteDir, $baselinePath);
+    $countGateWpVisual = $wpVisual;
+    $countGateDetailSuffix = '';
+    if (
+        (string) ($record['format'] ?? '') === 'xlsx'
+        && showcase_output_contains($siteDir, $wpPath, 'data-pandoc-source="xlsx-sheet-navigation"')
+    ) {
+        $countGateWpVisual['heading'] = max(0, (int) ($countGateWpVisual['heading'] ?? 0) - 1);
+        $countGateWpVisual['ul'] = max(0, (int) ($countGateWpVisual['ul'] ?? 0) - 1);
+        $countGateDetailSuffix = ' after excluding generated XLSX sheet navigation';
+    }
     $comparison = is_array($record['faithfulness']['comparisons']['wpBlocks'] ?? null)
         ? $record['faithfulness']['comparisons']['wpBlocks']
         : [];
@@ -1643,28 +1662,28 @@ function showcase_record_import_quality(string $siteDir, array $record): array
         ]
         : showcase_count_ratio_gate(
             (int) ($baselineVisual['p'] ?? 0),
-            (int) ($wpVisual['p'] ?? 0),
-            'paragraph count ratio'
+            (int) ($countGateWpVisual['p'] ?? 0),
+            'paragraph count ratio' . $countGateDetailSuffix
         );
     $gates['heading_count'] = showcase_count_ratio_gate(
         (int) ($baselineVisual['heading'] ?? 0),
-        (int) ($wpVisual['heading'] ?? 0),
-        'heading count ratio'
+        (int) ($countGateWpVisual['heading'] ?? 0),
+        'heading count ratio' . $countGateDetailSuffix
     );
     $gates['list_count'] = showcase_count_ratio_gate(
         (int) (($baselineVisual['ul'] ?? 0) + ($baselineVisual['ol'] ?? 0)),
-        (int) (($wpVisual['ul'] ?? 0) + ($wpVisual['ol'] ?? 0)),
-        'list count ratio'
+        (int) (($countGateWpVisual['ul'] ?? 0) + ($countGateWpVisual['ol'] ?? 0)),
+        'list count ratio' . $countGateDetailSuffix
     );
     $gates['table_count'] = showcase_count_ratio_gate(
         (int) ($baselineVisual['table'] ?? 0),
-        (int) ($wpVisual['table'] ?? 0),
-        'table count ratio'
+        (int) ($countGateWpVisual['table'] ?? 0),
+        'table count ratio' . $countGateDetailSuffix
     );
     $gates['image_count'] = showcase_count_ratio_gate(
         (int) ($baselineVisual['img'] ?? 0),
-        (int) ($wpVisual['img'] ?? 0),
-        'image count ratio'
+        (int) ($countGateWpVisual['img'] ?? 0),
+        'image count ratio' . $countGateDetailSuffix
     );
 
     $mediaProblems = showcase_media_problem_diagnostics($record['wpBlocks']['mediaDiagnostics'] ?? []);

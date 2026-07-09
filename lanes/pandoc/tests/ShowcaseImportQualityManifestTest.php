@@ -208,4 +208,25 @@ return [
         $t->same('pass', $gates['heading_count']['status'] ?? null, 'Generated Pandoc title chrome should not count as an imported document heading.');
         $t->same('pass', $gates['table_count']['status'] ?? null, 'DOCX table count should remain faithful.');
     },
+    'showcase manifest treats xlsx as native tables with sheet navigation' => static function (TestRunner $t) use ($showcaseManifest, $recordsById): void {
+        $manifest = $showcaseManifest();
+        $records = is_array($manifest['records'] ?? null) ? $manifest['records'] : [];
+        $byId = $recordsById($records);
+
+        foreach (['xlsx-basic', 'xlsx-census-tax-parameter-workbook'] as $id) {
+            $record = $byId[$id] ?? null;
+            $t->true(is_array($record), "{$id} should be present in the showcase manifest.");
+            $blocks = is_array($record['wpBlockCounts'] ?? null) ? $record['wpBlockCounts'] : [];
+            $gates = is_array($record['importQuality']['gates'] ?? null) ? $record['importQuality']['gates'] : [];
+
+            $t->same('pass', $record['importQuality']['status'] ?? null, "{$id} should remain a high-confidence spreadsheet import.");
+            $t->true(($blocks['table'] ?? 0) >= 1, "{$id} should produce native WordPress table blocks.");
+            $t->true(($blocks['list'] ?? 0) >= 1, "{$id} should expose workbook sheet navigation as a native list block.");
+            $t->same(0, $blocks['html'] ?? 0, "{$id} should not need Custom HTML fallback.");
+            $t->same('pass', $gates['heading_count']['status'] ?? null, "{$id} generated sheet navigation should not count as a heading regression.");
+            $t->same('pass', $gates['list_count']['status'] ?? null, "{$id} generated sheet navigation should not count as a list regression.");
+            $t->same('pass', $gates['table_count']['status'] ?? null, "{$id} table count should remain faithful.");
+            $t->same('pass', $gates['anchor_validity']['status'] ?? null, "{$id} sheet navigation anchors should resolve.");
+        }
+    },
 ];
