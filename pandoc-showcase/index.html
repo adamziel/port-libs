@@ -1,4 +1,4 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Pandoc PHP Port Conversion Showcase</title><link rel="stylesheet" href="styles.css"></head><body><header class="hero"><div class="hero-inner"><p class="eyebrow">adamziel/port-libs</p><h1>Pandoc PHP port conversion showcase</h1><p class="lede">Real public documents and upstream fixtures are converted three ways: Haskell Pandoc to HTML, the local PHP port to HTML, and the local PHP port to WordPress block markup. The stress samples are intentionally messy enough to expose timeouts, memory limits, package complexity, and block coverage.</p><div class="stats"><div class="stat"><strong>37</strong><span>covered input formats</span></div><div class="stat"><strong>81</strong><span>source files</span></div><div class="stat"><strong>227/243</strong><span>successful conversions</span></div><div class="stat"><strong>2026-07-09</strong><span>generated</span></div></div><ul class="stress-samples" aria-label="Real-world stress samples"><li><a href="#docx-oasis-kmip-spec">OASIS KMIP DOCX</a></li><li><a href="#epub-gutenberg-alice-illustrated">Illustrated Alice EPUB</a></li><li><a href="#markdown-pandoc-manual">Pandoc manual Markdown</a></li><li><a href="#odt-oasis-opendocument-schema">OASIS OpenDocument ODT</a></li><li><a href="#pdf-irs-w4">IRS Form W-4 PDF</a></li><li><a href="#pptx-cdc-food-safety-slides">CDC PPTX</a></li><li><a href="#xlsx-census-tax-parameter-workbook">Census XLSX</a></li></ul><div class="hero-actions"><a href="conversion-report.html">Conversion report</a><a href="playground-converter.html">Convert in WordPress Playground</a><a href="block-usage.html">WordPress block usage guide</a><a href="manifest.json">Manifest JSON</a></div></div></header><main class="layout"><nav class="format-nav" aria-label="Formats"><a href="#format-biblatex">biblatex</a><a href="#format-bibtex">bibtex</a><a href="#format-bits">bits</a><a href="#format-commonmark">commonmark</a><a href="#format-commonmark_x">commonmark_x</a><a href="#format-csljson">csljson</a><a href="#format-csv">csv</a><a href="#format-doc">doc</a><a href="#format-docbook">docbook</a><a href="#format-docx">docx</a><a href="#format-endnotexml">endnotexml</a><a href="#format-epub">epub</a><a href="#format-fb2">fb2</a><a href="#format-gfm">gfm</a><a href="#format-html">html</a><a href="#format-ipynb">ipynb</a><a href="#format-jats">jats</a><a href="#format-jira">jira</a><a href="#format-json">json</a><a href="#format-latex">latex</a><a href="#format-man">man</a><a href="#format-markdown">markdown</a><a href="#format-markdown_github">markdown_github</a><a href="#format-markdown_mmd">markdown_mmd</a><a href="#format-markdown_phpextra">markdown_phpextra</a><a href="#format-markdown_strict">markdown_strict</a><a href="#format-mediawiki">mediawiki</a><a href="#format-native">native</a><a href="#format-odt">odt</a><a href="#format-opml">opml</a><a href="#format-pdf">pdf</a><a href="#format-pptx">pptx</a><a href="#format-ris">ris</a><a href="#format-rtf">rtf</a><a href="#format-tsv">tsv</a><a href="#format-xlsx">xlsx</a><a href="#format-xml">xml</a></nav><p class="status-warn">Missing local support entries with no sample yet: dokuwiki, mdoc, rst</p><section class="format-section" id="format-biblatex"><div class="format-heading"><h2>biblatex</h2><span>2 samples</span></div><article class="comparison" id="biblatex-biblio"><section class="original"><div class="panel-head"><h3>BibLaTeX-style bibliography</h3><p class="meta">459 bytes | <a href="https://raw.githubusercontent.com/jgm/pandoc/912bfa5e2e3f5c74eb125dfc19404f67c61ca58b/test/command/biblio.bib">jgm/pandoc upstream fixture at test/command/biblio.bib</a></p></div><div class="original-body"><pre class="source-preview">@Book{item1,
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Pandoc PHP Port Conversion Showcase</title><link rel="stylesheet" href="styles.css"></head><body><header class="hero"><div class="hero-inner"><p class="eyebrow">adamziel/port-libs</p><h1>Pandoc PHP port conversion showcase</h1><p class="lede">Real public documents and upstream fixtures are converted three ways: Haskell Pandoc to HTML, the local PHP port to HTML, and the local PHP port to WordPress block markup. The stress samples are intentionally messy enough to expose timeouts, memory limits, package complexity, and block coverage.</p><div class="stats"><div class="stat"><strong>37</strong><span>covered input formats</span></div><div class="stat"><strong>84</strong><span>source files</span></div><div class="stat"><strong>236/252</strong><span>successful conversions</span></div><div class="stat"><strong>2026-07-09</strong><span>generated</span></div></div><ul class="stress-samples" aria-label="Real-world stress samples"><li><a href="#docx-oasis-kmip-spec">OASIS KMIP DOCX</a></li><li><a href="#epub-gutenberg-alice-illustrated">Illustrated Alice EPUB</a></li><li><a href="#markdown-pandoc-manual">Pandoc manual Markdown</a></li><li><a href="#odt-oasis-opendocument-schema">OASIS OpenDocument ODT</a></li><li><a href="#pdf-irs-w4">IRS Form W-4 PDF</a></li><li><a href="#pptx-cdc-food-safety-slides">CDC PPTX</a></li><li><a href="#xlsx-census-tax-parameter-workbook">Census XLSX</a></li></ul><div class="hero-actions"><a href="conversion-report.html">Conversion report</a><a href="playground-converter.html">Convert in WordPress Playground</a><a href="block-usage.html">WordPress block usage guide</a><a href="manifest.json">Manifest JSON</a></div></div></header><main class="layout"><nav class="format-nav" aria-label="Formats"><a href="#format-biblatex">biblatex</a><a href="#format-bibtex">bibtex</a><a href="#format-bits">bits</a><a href="#format-commonmark">commonmark</a><a href="#format-commonmark_x">commonmark_x</a><a href="#format-csljson">csljson</a><a href="#format-csv">csv</a><a href="#format-doc">doc</a><a href="#format-docbook">docbook</a><a href="#format-docx">docx</a><a href="#format-endnotexml">endnotexml</a><a href="#format-epub">epub</a><a href="#format-fb2">fb2</a><a href="#format-gfm">gfm</a><a href="#format-html">html</a><a href="#format-ipynb">ipynb</a><a href="#format-jats">jats</a><a href="#format-jira">jira</a><a href="#format-json">json</a><a href="#format-latex">latex</a><a href="#format-man">man</a><a href="#format-markdown">markdown</a><a href="#format-markdown_github">markdown_github</a><a href="#format-markdown_mmd">markdown_mmd</a><a href="#format-markdown_phpextra">markdown_phpextra</a><a href="#format-markdown_strict">markdown_strict</a><a href="#format-mediawiki">mediawiki</a><a href="#format-native">native</a><a href="#format-odt">odt</a><a href="#format-opml">opml</a><a href="#format-pdf">pdf</a><a href="#format-pptx">pptx</a><a href="#format-ris">ris</a><a href="#format-rtf">rtf</a><a href="#format-tsv">tsv</a><a href="#format-xlsx">xlsx</a><a href="#format-xml">xml</a></nav><p class="status-warn">Missing local support entries with no sample yet: dokuwiki, mdoc, rst</p><section class="format-section" id="format-biblatex"><div class="format-heading"><h2>biblatex</h2><span>2 samples</span></div><article class="comparison" id="biblatex-biblio"><section class="original"><div class="panel-head"><h3>BibLaTeX-style bibliography</h3><p class="meta">459 bytes | <a href="https://raw.githubusercontent.com/jgm/pandoc/912bfa5e2e3f5c74eb125dfc19404f67c61ca58b/test/command/biblio.bib">jgm/pandoc upstream fixture at test/command/biblio.bib</a></p></div><div class="original-body"><pre class="source-preview">@Book{item1,
 author=&quot;John Doe&quot;,
 title=&quot;First Book&quot;,
 year=&quot;2005&quot;,
@@ -84055,7 +84055,7 @@ class=&quot;footnote-back&quot; role=&quot;doc-backlink&quot;&gt;↩︎&lt;/a&gt
 &lt;/section&gt;
 &lt;/body&gt;
 &lt;/html&gt;
-</pre></section></div><div class="note">Uses the shared Markdown reader; the Markdown reader implementation-equivalence gate covers 137/137 checked-in Markdown/native pairs including GFM profile fixtures.</div></section></article></section><section class="format-section" id="format-html"><div class="format-heading"><h2>html</h2><span>2 samples</span></div><article class="comparison" id="html-reader"><section class="original"><div class="panel-head"><h3>HTML reader fixture</h3><p class="meta">17314 bytes | <a href="https://raw.githubusercontent.com/jgm/pandoc/912bfa5e2e3f5c74eb125dfc19404f67c61ca58b/test/html-reader.html">jgm/pandoc upstream fixture at test/html-reader.html</a></p></div><div class="original-body"><pre class="source-preview">&lt;html&gt;
+</pre></section></div><div class="note">Uses the shared Markdown reader; the Markdown reader implementation-equivalence gate covers 137/137 checked-in Markdown/native pairs including GFM profile fixtures.</div></section></article></section><section class="format-section" id="format-html"><div class="format-heading"><h2>html</h2><span>4 samples</span></div><article class="comparison" id="html-reader"><section class="original"><div class="panel-head"><h3>HTML reader fixture</h3><p class="meta">17314 bytes | <a href="https://raw.githubusercontent.com/jgm/pandoc/912bfa5e2e3f5c74eb125dfc19404f67c61ca58b/test/html-reader.html">jgm/pandoc upstream fixture at test/html-reader.html</a></p></div><div class="original-body"><pre class="source-preview">&lt;html&gt;
 &lt;head&gt;
 &lt;meta http-equiv=&quot;Content-Type&quot; content=&quot;text/html; charset=UTF-8&quot; /&gt;
 &lt;meta http-equiv=&quot;Content-Style-Type&quot; content=&quot;text/css&quot; /&gt;
@@ -87037,6 +87037,639 @@ $if(displaymath-css)$ .display.math{display: block; text-align: center;
 margin: 0.5rem auto;} $endif$ $if(highlighting-css)$ /* CSS for syntax
 highlighting */ $highlighting-css$ $endif$ $if(csl-css)$
 $styles.citations.html()$ $endif$
+&lt;/body&gt;
+&lt;/html&gt;
+</pre></section></div><div class="note">HTML reader implementation-equivalence gate covers 133/133 checked-in HTML/native pairs through the TagSoup-backed Pandoc HTML reader port.</div></section></article><article class="comparison" id="html-remote-work-policy"><section class="original"><div class="panel-head"><h3>Remote work policy memo HTML</h3><p class="meta">1530 bytes | Inline policy memo HTML modeled on a normal internal document.</p></div><div class="original-body"><pre class="source-preview">&lt;!doctype html&gt;
+&lt;html lang=&quot;en&quot;&gt;
+&lt;head&gt;
+  &lt;meta charset=&quot;utf-8&quot;&gt;
+  &lt;title&gt;Remote Work Policy Memo&lt;/title&gt;
+&lt;/head&gt;
+&lt;body&gt;
+  &lt;article&gt;
+    &lt;h1 id=&quot;remote-work-policy&quot;&gt;Remote Work Policy Memo&lt;/h1&gt;
+    &lt;p&gt;This internal memo describes the default expectations for teams that split work between office and remote locations.&lt;/p&gt;
+    &lt;h2 id=&quot;summary&quot;&gt;Summary&lt;/h2&gt;
+    &lt;p&gt;Managers should keep the policy simple enough for repeat use while documenting exceptions that affect payroll, security, or customer commitments.&lt;/p&gt;
+    &lt;ul&gt;
+      &lt;li&gt;Publish team availability windows.&lt;/li&gt;
+      &lt;li&gt;Keep customer-facing escalation paths current.&lt;/li&gt;
+      &lt;li&gt;Review equipment and access requests quarterly.&lt;/li&gt;
+    &lt;/ul&gt;
+    &lt;h2 id=&quot;approval-levels&quot;&gt;Approval levels&lt;/h2&gt;
+    &lt;table&gt;
+      &lt;thead&gt;
+        &lt;tr&gt;&lt;th&gt;Request&lt;/th&gt;&lt;th&gt;Approver&lt;/th&gt;&lt;th&gt;Review cycle&lt;/th&gt;&lt;/tr&gt;
+      &lt;/thead&gt;
+      &lt;tbody&gt;
+        &lt;tr&gt;&lt;td&gt;One-off remote day&lt;/td&gt;&lt;td&gt;Team lead&lt;/td&gt;&lt;td&gt;Same week&lt;/td&gt;&lt;/tr&gt;
+        &lt;tr&gt;&lt;td&gt;Hybrid schedule&lt;/td&gt;&lt;td&gt;Department manager&lt;/td&gt;&lt;td&gt;Quarterly&lt;/td&gt;&lt;/tr&gt;
+        &lt;tr&gt;&lt;td&gt;Out-of-region work&lt;/td&gt;&lt;td&gt;People operations&lt;/td&gt;&lt;td&gt;Before travel&lt;/td&gt;&lt;/tr&gt;
+      &lt;/tbody&gt;
+    &lt;/table&gt;
+    &lt;h2 id=&quot;checklist&quot;&gt;Checklist&lt;/h2&gt;
+    &lt;ol&gt;
+      &lt;li&gt;Confirm the employee has a secure workstation.&lt;/li&gt;
+      &lt;li&gt;Record the expected working region.&lt;/li&gt;
+      &lt;li&gt;Link the schedule in the team handbook.&lt;/li&gt;
+    &lt;/ol&gt;
+    &lt;p&gt;See the &lt;a href=&quot;#approval-levels&quot;&gt;approval table&lt;/a&gt; before granting a recurring exception.&lt;/p&gt;
+  &lt;/article&gt;
+&lt;/body&gt;
+&lt;/html&gt;</pre><p class="meta"><a href="samples/html-remote-work-policy-remote-work-policy.html">Download original file</a></p><p class="meta">Compact user-facing HTML article with headings, paragraphs, lists, a table, and a local anchor link.</p></div></section><section class="converted" data-sample="html-remote-work-policy"><div class="converted-toolbar"><span class="meta">Converted representations</span><button class="view-source" type="button" data-source-toggle>View source</button></div><div class="comparison-grid"><section class="conversion-pane" id="html-remote-work-policy-wpBlocks"><div class="pane-head"><span class="pane-title">WP blocks</span><span class="pane-status status-ok">ok</span></div><iframe class="render-frame" data-sync-group="html-remote-work-policy" title="Remote work policy memo HTML PHP WordPress blocks" src="outputs/html-remote-work-policy/wordpress-blocks.html"></iframe><pre class="source-box" data-sync-group="html-remote-work-policy">&lt;!-- wp:heading {&quot;level&quot;:1} --&gt;
+&lt;h1 id=&quot;remote-work-policy&quot;&gt;Remote Work Policy Memo&lt;/h1&gt;
+&lt;!-- /wp:heading --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;This internal memo describes the default expectations for teams that split work between office and remote locations.&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:heading {&quot;level&quot;:2} --&gt;
+&lt;h2 id=&quot;summary&quot;&gt;Summary&lt;/h2&gt;
+&lt;!-- /wp:heading --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;Managers should keep the policy simple enough for repeat use while documenting exceptions that affect payroll, security, or customer commitments.&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:list --&gt;
+&lt;ul&gt;&lt;li&gt;Publish team availability windows.&lt;/li&gt;&lt;li&gt;Keep customer-facing escalation paths current.&lt;/li&gt;&lt;li&gt;Review equipment and access requests quarterly.&lt;/li&gt;&lt;/ul&gt;
+&lt;!-- /wp:list --&gt;
+
+&lt;!-- wp:heading {&quot;level&quot;:2} --&gt;
+&lt;h2 id=&quot;approval-levels&quot;&gt;Approval levels&lt;/h2&gt;
+&lt;!-- /wp:heading --&gt;
+
+&lt;!-- wp:table --&gt;
+&lt;figure class=&quot;wp-block-table&quot;&gt;&lt;table&gt;&lt;thead&gt;&lt;tr&gt;&lt;th&gt;Request&lt;/th&gt;&lt;th&gt;Approver&lt;/th&gt;&lt;th&gt;Review cycle&lt;/th&gt;&lt;/tr&gt;&lt;/thead&gt;&lt;tbody&gt;&lt;tr&gt;&lt;td&gt;One-off remote day&lt;/td&gt;&lt;td&gt;Team lead&lt;/td&gt;&lt;td&gt;Same week&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;Hybrid schedule&lt;/td&gt;&lt;td&gt;Department manager&lt;/td&gt;&lt;td&gt;Quarterly&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;Out-of-region work&lt;/td&gt;&lt;td&gt;People operations&lt;/td&gt;&lt;td&gt;Before travel&lt;/td&gt;&lt;/tr&gt;&lt;/tbody&gt;&lt;/table&gt;&lt;/figure&gt;
+&lt;!-- /wp:table --&gt;
+
+&lt;!-- wp:heading {&quot;level&quot;:2} --&gt;
+&lt;h2 id=&quot;checklist&quot;&gt;Checklist&lt;/h2&gt;
+&lt;!-- /wp:heading --&gt;
+
+&lt;!-- wp:list {&quot;ordered&quot;:true} --&gt;
+&lt;ol&gt;&lt;li&gt;Confirm the employee has a secure workstation.&lt;/li&gt;&lt;li&gt;Record the expected working region.&lt;/li&gt;&lt;li&gt;Link the schedule in the team handbook.&lt;/li&gt;&lt;/ol&gt;
+&lt;!-- /wp:list --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;See the &lt;a href=&quot;#approval-levels&quot;&gt;approval table&lt;/a&gt; before granting a recurring exception.&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;</pre></section><section class="conversion-pane" id="html-remote-work-policy-phpHtml"><div class="pane-head"><span class="pane-title">PHP HTML</span><span class="pane-status status-ok">ok</span></div><iframe class="render-frame" data-sync-group="html-remote-work-policy" title="Remote work policy memo HTML PHP HTML" src="outputs/html-remote-work-policy/php.html"></iframe><pre class="source-box" data-sync-group="html-remote-work-policy">&lt;!doctype html&gt;&lt;html lang=&quot;en&quot;&gt;&lt;head&gt;&lt;meta charset=&quot;utf-8&quot;&gt;&lt;meta name=&quot;viewport&quot; content=&quot;width=device-width, initial-scale=1&quot;&gt;&lt;title&gt;PHP Pandoc HTML output&lt;/title&gt;&lt;style&gt;html{line-height:1.5;font-family:Georgia,&quot;Times New Roman&quot;,serif;font-size:18px;color:#1f2933;background:#fdfdfd;}body{margin:0 auto;max-width:46em;padding:2.5em 1.25em;}h1,h2,h3,h4,h5,h6{font-family:system-ui,-apple-system,BlinkMacSystemFont,&quot;Segoe UI&quot;,sans-serif;line-height:1.25;margin:1.4em 0 .45em;}h1{font-size:2em;}h2{font-size:1.55em;}h3{font-size:1.25em;}p{margin:1em 0;}a{color:#1f6feb;}img,svg,video{max-width:100%;height:auto;}pre,code,kbd,samp{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.9em;}code{background:#eef1f5;padding:.1em .25em;border-radius:3px;}pre{overflow:auto;background:#f6f8fa;border:1px solid #d8dde3;border-radius:6px;padding:1em;}pre code{background:transparent;padding:0;}blockquote{margin:1.25em 0;padding-left:1em;border-left:4px solid #d8dde3;color:#4b5563;}table{border-collapse:collapse;margin:1.25em 0;width:100%;font-size:.92em;}th,td{border:1px solid #d8dde3;padding:.35em .55em;vertical-align:top;}th{background:#f6f8fa;}math{font-family:math,serif;}math[display=&quot;block&quot;]{display:block;margin:1em 0;overflow-x:auto;}&lt;/style&gt;&lt;/head&gt;&lt;body&gt;&lt;h1 id=&quot;remote-work-policy-memo&quot;&gt;Remote Work Policy Memo&lt;/h1&gt;
+&lt;p&gt;This internal memo describes the default expectations for teams that split work between office and remote locations.&lt;/p&gt;
+&lt;h2 id=&quot;summary&quot;&gt;Summary&lt;/h2&gt;
+&lt;p&gt;Managers should keep the policy simple enough for repeat use while documenting exceptions that affect payroll, security, or customer commitments.&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Publish team availability windows.&lt;/li&gt;
+&lt;li&gt;Keep customer-facing escalation paths current.&lt;/li&gt;
+&lt;li&gt;Review equipment and access requests quarterly.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2 id=&quot;approval-levels&quot;&gt;Approval levels&lt;/h2&gt;
+&lt;table&gt;
+&lt;thead&gt;
+&lt;tr&gt;&lt;th&gt;Request&lt;/th&gt;&lt;th&gt;Approver&lt;/th&gt;&lt;th&gt;Review cycle&lt;/th&gt;&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;&lt;td&gt;One-off remote day&lt;/td&gt;&lt;td&gt;Team lead&lt;/td&gt;&lt;td&gt;Same week&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;Hybrid schedule&lt;/td&gt;&lt;td&gt;Department manager&lt;/td&gt;&lt;td&gt;Quarterly&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;Out-of-region work&lt;/td&gt;&lt;td&gt;People operations&lt;/td&gt;&lt;td&gt;Before travel&lt;/td&gt;&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;h2 id=&quot;checklist&quot;&gt;Checklist&lt;/h2&gt;
+&lt;ol&gt;
+&lt;li&gt;Confirm the employee has a secure workstation.&lt;/li&gt;
+&lt;li&gt;Record the expected working region.&lt;/li&gt;
+&lt;li&gt;Link the schedule in the team handbook.&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;See the &lt;a href=&quot;#approval-levels&quot;&gt;approval table&lt;/a&gt; before granting a recurring exception.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</pre></section><section class="conversion-pane" id="html-remote-work-policy-haskell"><div class="pane-head"><span class="pane-title">Haskell HTML</span><span class="pane-status status-ok">ok</span></div><iframe class="render-frame" data-sync-group="html-remote-work-policy" title="Remote work policy memo HTML Haskell Pandoc HTML" src="outputs/html-remote-work-policy/haskell.html"></iframe><pre class="source-box" data-sync-group="html-remote-work-policy">&lt;!DOCTYPE html&gt;
+&lt;html xmlns=&quot;http://www.w3.org/1999/xhtml&quot; lang=&quot;en&quot; xml:lang=&quot;en&quot;&gt;
+&lt;head&gt;
+  &lt;meta charset=&quot;utf-8&quot; /&gt;
+  &lt;meta name=&quot;generator&quot; content=&quot;pandoc 3.10&quot; /&gt;
+  &lt;meta name=&quot;viewport&quot; content=&quot;width=device-width, initial-scale=1.0, user-scalable=yes&quot; /&gt;
+  &lt;title&gt;Haskell Pandoc output&lt;/title&gt;
+  &lt;style&gt;
+    /* Default styles provided by pandoc.
+    ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+    */
+    html {
+      color: #1a1a1a;
+      background-color: #fdfdfd;
+    }
+    body {
+      margin: 0 auto;
+      max-width: 36em;
+      padding-left: 50px;
+      padding-right: 50px;
+      padding-top: 50px;
+      padding-bottom: 50px;
+      hyphens: auto;
+      overflow-wrap: break-word;
+      text-rendering: optimizeLegibility;
+      font-kerning: normal;
+    }
+    @media (max-width: 600px) {
+      body {
+        font-size: 0.9em;
+        padding: 12px;
+      }
+      h1 {
+        font-size: 1.8em;
+      }
+    }
+    @media print {
+      html {
+        background-color: white;
+      }
+      body {
+        background-color: transparent;
+        color: black;
+        font-size: 12pt;
+      }
+      p, h2, h3 {
+        orphans: 3;
+        widows: 3;
+      }
+      h2, h3, h4 {
+        page-break-after: avoid;
+      }
+    }
+    p {
+      margin: 1em 0;
+    }
+    a {
+      color: #1a1a1a;
+    }
+    a:visited {
+      color: #1a1a1a;
+    }
+    img {
+      max-width: 100%;
+    }
+    svg {
+      height: auto;
+      max-width: 100%;
+    }
+    h1, h2, h3, h4, h5, h6 {
+      margin-top: 1.4em;
+    }
+    h5, h6 {
+      font-size: 1em;
+      font-style: italic;
+    }
+    h6 {
+      font-weight: normal;
+    }
+    ol, ul {
+      padding-left: 1.7em;
+      margin-top: 1em;
+    }
+    li &gt; ol, li &gt; ul {
+      margin-top: 0;
+    }
+    blockquote {
+      margin: 1em 0 1em 1.7em;
+      padding-left: 1em;
+      border-left: 2px solid #e6e6e6;
+      color: #606060;
+    }
+    code {
+      white-space: pre-wrap;
+      font-family: Menlo, Monaco, Consolas, &#039;Lucida Console&#039;, monospace;
+      font-size: 85%;
+      margin: 0;
+      hyphens: manual;
+    }
+    pre {
+      margin: 1em 0;
+      overflow: auto;
+    }
+    pre code {
+      padding: 0;
+      overflow: visible;
+      overflow-wrap: normal;
+    }
+    .sourceCode {
+     background-color: transparent;
+     overflow: visible;
+    }
+    hr {
+      border: none;
+      border-top: 1px solid #1a1a1a;
+      height: 1px;
+      margin: 1em 0;
+    }
+    table {
+      margin: 1em 0;
+      border-collapse: collapse;
+      width: 100%;
+      overflow-x: auto;
+      display: block;
+      font-variant-numeric: lining-nums tabular-nums;
+    }
+    table caption {
+      margin-bottom: 0.75em;
+    }
+    tbody {
+      margin-top: 0.5em;
+      border-top: 1px solid #1a1a1a;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    th {
+      border-top: 1px solid #1a1a1a;
+      padding: 0.25em 0.5em 0.25em 0.5em;
+    }
+    td {
+      padding: 0.125em 0.5em 0.25em 0.5em;
+    }
+    header {
+      margin-bottom: 4em;
+      text-align: center;
+    }
+    #TOC li {
+      list-style: none;
+    }
+    #TOC ul {
+      padding-left: 1.3em;
+    }
+    #TOC &gt; ul {
+      padding-left: 0;
+    }
+    #TOC a:not(:hover) {
+      text-decoration: none;
+    }
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: 1.5em;}
+    div.column{flex: auto;}
+    @media screen {
+    div.columns{gap: min(4vw, 1.5em);}
+    div.column{overflow-x: auto;}
+    }
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type=&quot;checkbox&quot;] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  &lt;/style&gt;
+&lt;/head&gt;
+&lt;body&gt;
+&lt;header id=&quot;title-block-header&quot;&gt;
+&lt;h1 class=&quot;title&quot;&gt;Haskell Pandoc output&lt;/h1&gt;
+&lt;/header&gt;
+&lt;h1 id=&quot;remote-work-policy&quot;&gt;Remote Work Policy Memo&lt;/h1&gt;
+&lt;p&gt;This internal memo describes the default expectations for teams that
+split work between office and remote locations.&lt;/p&gt;
+&lt;h2 id=&quot;summary&quot;&gt;Summary&lt;/h2&gt;
+&lt;p&gt;Managers should keep the policy simple enough for repeat use while
+documenting exceptions that affect payroll, security, or customer
+commitments.&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Publish team availability windows.&lt;/li&gt;
+&lt;li&gt;Keep customer-facing escalation paths current.&lt;/li&gt;
+&lt;li&gt;Review equipment and access requests quarterly.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2 id=&quot;approval-levels&quot;&gt;Approval levels&lt;/h2&gt;
+&lt;table&gt;
+&lt;thead&gt;
+&lt;tr&gt;
+&lt;th&gt;Request&lt;/th&gt;
+&lt;th&gt;Approver&lt;/th&gt;
+&lt;th&gt;Review cycle&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td&gt;One-off remote day&lt;/td&gt;
+&lt;td&gt;Team lead&lt;/td&gt;
+&lt;td&gt;Same week&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;Hybrid schedule&lt;/td&gt;
+&lt;td&gt;Department manager&lt;/td&gt;
+&lt;td&gt;Quarterly&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;Out-of-region work&lt;/td&gt;
+&lt;td&gt;People operations&lt;/td&gt;
+&lt;td&gt;Before travel&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;h2 id=&quot;checklist&quot;&gt;Checklist&lt;/h2&gt;
+&lt;ol&gt;
+&lt;li&gt;Confirm the employee has a secure workstation.&lt;/li&gt;
+&lt;li&gt;Record the expected working region.&lt;/li&gt;
+&lt;li&gt;Link the schedule in the team handbook.&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;See the &lt;a href=&quot;#approval-levels&quot;&gt;approval table&lt;/a&gt; before granting
+a recurring exception.&lt;/p&gt;
+&lt;/body&gt;
+&lt;/html&gt;
+</pre></section></div><div class="note">HTML reader implementation-equivalence gate covers 133/133 checked-in HTML/native pairs through the TagSoup-backed Pandoc HTML reader port.</div></section></article><article class="comparison" id="html-project-status-update"><section class="original"><div class="panel-head"><h3>Project status update HTML</h3><p class="meta">1176 bytes | Inline project status HTML modeled on a normal internal update.</p></div><div class="original-body"><pre class="source-preview">&lt;!doctype html&gt;
+&lt;html lang=&quot;en&quot;&gt;
+&lt;head&gt;
+  &lt;meta charset=&quot;utf-8&quot;&gt;
+  &lt;title&gt;Project Status Update&lt;/title&gt;
+&lt;/head&gt;
+&lt;body&gt;
+  &lt;main&gt;
+    &lt;h1 id=&quot;project-status-update&quot;&gt;Project Status Update&lt;/h1&gt;
+    &lt;p&gt;The publishing migration remains on schedule for the July review window.&lt;/p&gt;
+    &lt;h2 id=&quot;milestones&quot;&gt;Milestones&lt;/h2&gt;
+    &lt;table&gt;
+      &lt;thead&gt;&lt;tr&gt;&lt;th&gt;Milestone&lt;/th&gt;&lt;th&gt;Owner&lt;/th&gt;&lt;th&gt;Status&lt;/th&gt;&lt;/tr&gt;&lt;/thead&gt;
+      &lt;tbody&gt;
+        &lt;tr&gt;&lt;td&gt;Sample corpus refresh&lt;/td&gt;&lt;td&gt;Content operations&lt;/td&gt;&lt;td&gt;Complete&lt;/td&gt;&lt;/tr&gt;
+        &lt;tr&gt;&lt;td&gt;Editor import review&lt;/td&gt;&lt;td&gt;Web platform&lt;/td&gt;&lt;td&gt;In progress&lt;/td&gt;&lt;/tr&gt;
+        &lt;tr&gt;&lt;td&gt;Accessibility pass&lt;/td&gt;&lt;td&gt;Design systems&lt;/td&gt;&lt;td&gt;Scheduled&lt;/td&gt;&lt;/tr&gt;
+      &lt;/tbody&gt;
+    &lt;/table&gt;
+    &lt;h2 id=&quot;risks&quot;&gt;Risks&lt;/h2&gt;
+    &lt;p&gt;The main remaining risk is inconsistent source document quality. Teams should attach the original file to each review ticket.&lt;/p&gt;
+    &lt;ul&gt;
+      &lt;li&gt;Confirm images imported when they appear in the rendered article.&lt;/li&gt;
+      &lt;li&gt;Check local links after the import.&lt;/li&gt;
+      &lt;li&gt;Flag pages that rely on Custom HTML blocks.&lt;/li&gt;
+    &lt;/ul&gt;
+    &lt;p&gt;Jump back to &lt;a href=&quot;#milestones&quot;&gt;milestones&lt;/a&gt;.&lt;/p&gt;
+  &lt;/main&gt;
+&lt;/body&gt;
+&lt;/html&gt;</pre><p class="meta"><a href="samples/html-project-status-update-project-status-update.html">Download original file</a></p><p class="meta">Compact user-facing HTML article with headings, a milestone table, a risk list, and a local anchor link.</p></div></section><section class="converted" data-sample="html-project-status-update"><div class="converted-toolbar"><span class="meta">Converted representations</span><button class="view-source" type="button" data-source-toggle>View source</button></div><div class="comparison-grid"><section class="conversion-pane" id="html-project-status-update-wpBlocks"><div class="pane-head"><span class="pane-title">WP blocks</span><span class="pane-status status-ok">ok</span></div><iframe class="render-frame" data-sync-group="html-project-status-update" title="Project status update HTML PHP WordPress blocks" src="outputs/html-project-status-update/wordpress-blocks.html"></iframe><pre class="source-box" data-sync-group="html-project-status-update">&lt;!-- wp:heading {&quot;level&quot;:1} --&gt;
+&lt;h1 id=&quot;project-status-update&quot;&gt;Project Status Update&lt;/h1&gt;
+&lt;!-- /wp:heading --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;The publishing migration remains on schedule for the July review window.&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:heading {&quot;level&quot;:2} --&gt;
+&lt;h2 id=&quot;milestones&quot;&gt;Milestones&lt;/h2&gt;
+&lt;!-- /wp:heading --&gt;
+
+&lt;!-- wp:table --&gt;
+&lt;figure class=&quot;wp-block-table&quot;&gt;&lt;table&gt;&lt;thead&gt;&lt;tr&gt;&lt;th&gt;Milestone&lt;/th&gt;&lt;th&gt;Owner&lt;/th&gt;&lt;th&gt;Status&lt;/th&gt;&lt;/tr&gt;&lt;/thead&gt;&lt;tbody&gt;&lt;tr&gt;&lt;td&gt;Sample corpus refresh&lt;/td&gt;&lt;td&gt;Content operations&lt;/td&gt;&lt;td&gt;Complete&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;Editor import review&lt;/td&gt;&lt;td&gt;Web platform&lt;/td&gt;&lt;td&gt;In progress&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;Accessibility pass&lt;/td&gt;&lt;td&gt;Design systems&lt;/td&gt;&lt;td&gt;Scheduled&lt;/td&gt;&lt;/tr&gt;&lt;/tbody&gt;&lt;/table&gt;&lt;/figure&gt;
+&lt;!-- /wp:table --&gt;
+
+&lt;!-- wp:heading {&quot;level&quot;:2} --&gt;
+&lt;h2 id=&quot;risks&quot;&gt;Risks&lt;/h2&gt;
+&lt;!-- /wp:heading --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;The main remaining risk is inconsistent source document quality. Teams should attach the original file to each review ticket.&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:list --&gt;
+&lt;ul&gt;&lt;li&gt;Confirm images imported when they appear in the rendered article.&lt;/li&gt;&lt;li&gt;Check local links after the import.&lt;/li&gt;&lt;li&gt;Flag pages that rely on Custom HTML blocks.&lt;/li&gt;&lt;/ul&gt;
+&lt;!-- /wp:list --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;Jump back to &lt;a href=&quot;#milestones&quot;&gt;milestones&lt;/a&gt;.&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;</pre></section><section class="conversion-pane" id="html-project-status-update-phpHtml"><div class="pane-head"><span class="pane-title">PHP HTML</span><span class="pane-status status-ok">ok</span></div><iframe class="render-frame" data-sync-group="html-project-status-update" title="Project status update HTML PHP HTML" src="outputs/html-project-status-update/php.html"></iframe><pre class="source-box" data-sync-group="html-project-status-update">&lt;!doctype html&gt;&lt;html lang=&quot;en&quot;&gt;&lt;head&gt;&lt;meta charset=&quot;utf-8&quot;&gt;&lt;meta name=&quot;viewport&quot; content=&quot;width=device-width, initial-scale=1&quot;&gt;&lt;title&gt;PHP Pandoc HTML output&lt;/title&gt;&lt;style&gt;html{line-height:1.5;font-family:Georgia,&quot;Times New Roman&quot;,serif;font-size:18px;color:#1f2933;background:#fdfdfd;}body{margin:0 auto;max-width:46em;padding:2.5em 1.25em;}h1,h2,h3,h4,h5,h6{font-family:system-ui,-apple-system,BlinkMacSystemFont,&quot;Segoe UI&quot;,sans-serif;line-height:1.25;margin:1.4em 0 .45em;}h1{font-size:2em;}h2{font-size:1.55em;}h3{font-size:1.25em;}p{margin:1em 0;}a{color:#1f6feb;}img,svg,video{max-width:100%;height:auto;}pre,code,kbd,samp{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.9em;}code{background:#eef1f5;padding:.1em .25em;border-radius:3px;}pre{overflow:auto;background:#f6f8fa;border:1px solid #d8dde3;border-radius:6px;padding:1em;}pre code{background:transparent;padding:0;}blockquote{margin:1.25em 0;padding-left:1em;border-left:4px solid #d8dde3;color:#4b5563;}table{border-collapse:collapse;margin:1.25em 0;width:100%;font-size:.92em;}th,td{border:1px solid #d8dde3;padding:.35em .55em;vertical-align:top;}th{background:#f6f8fa;}math{font-family:math,serif;}math[display=&quot;block&quot;]{display:block;margin:1em 0;overflow-x:auto;}&lt;/style&gt;&lt;/head&gt;&lt;body&gt;&lt;h1 id=&quot;project-status-update&quot;&gt;Project Status Update&lt;/h1&gt;
+&lt;p&gt;The publishing migration remains on schedule for the July review window.&lt;/p&gt;
+&lt;h2 id=&quot;milestones&quot;&gt;Milestones&lt;/h2&gt;
+&lt;table&gt;
+&lt;thead&gt;
+&lt;tr&gt;&lt;th&gt;Milestone&lt;/th&gt;&lt;th&gt;Owner&lt;/th&gt;&lt;th&gt;Status&lt;/th&gt;&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;&lt;td&gt;Sample corpus refresh&lt;/td&gt;&lt;td&gt;Content operations&lt;/td&gt;&lt;td&gt;Complete&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;Editor import review&lt;/td&gt;&lt;td&gt;Web platform&lt;/td&gt;&lt;td&gt;In progress&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;Accessibility pass&lt;/td&gt;&lt;td&gt;Design systems&lt;/td&gt;&lt;td&gt;Scheduled&lt;/td&gt;&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;h2 id=&quot;risks&quot;&gt;Risks&lt;/h2&gt;
+&lt;p&gt;The main remaining risk is inconsistent source document quality. Teams should attach the original file to each review ticket.&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Confirm images imported when they appear in the rendered article.&lt;/li&gt;
+&lt;li&gt;Check local links after the import.&lt;/li&gt;
+&lt;li&gt;Flag pages that rely on Custom HTML blocks.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;Jump back to &lt;a href=&quot;#milestones&quot;&gt;milestones&lt;/a&gt;.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</pre></section><section class="conversion-pane" id="html-project-status-update-haskell"><div class="pane-head"><span class="pane-title">Haskell HTML</span><span class="pane-status status-ok">ok</span></div><iframe class="render-frame" data-sync-group="html-project-status-update" title="Project status update HTML Haskell Pandoc HTML" src="outputs/html-project-status-update/haskell.html"></iframe><pre class="source-box" data-sync-group="html-project-status-update">&lt;!DOCTYPE html&gt;
+&lt;html xmlns=&quot;http://www.w3.org/1999/xhtml&quot; lang=&quot;en&quot; xml:lang=&quot;en&quot;&gt;
+&lt;head&gt;
+  &lt;meta charset=&quot;utf-8&quot; /&gt;
+  &lt;meta name=&quot;generator&quot; content=&quot;pandoc 3.10&quot; /&gt;
+  &lt;meta name=&quot;viewport&quot; content=&quot;width=device-width, initial-scale=1.0, user-scalable=yes&quot; /&gt;
+  &lt;title&gt;Haskell Pandoc output&lt;/title&gt;
+  &lt;style&gt;
+    /* Default styles provided by pandoc.
+    ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+    */
+    html {
+      color: #1a1a1a;
+      background-color: #fdfdfd;
+    }
+    body {
+      margin: 0 auto;
+      max-width: 36em;
+      padding-left: 50px;
+      padding-right: 50px;
+      padding-top: 50px;
+      padding-bottom: 50px;
+      hyphens: auto;
+      overflow-wrap: break-word;
+      text-rendering: optimizeLegibility;
+      font-kerning: normal;
+    }
+    @media (max-width: 600px) {
+      body {
+        font-size: 0.9em;
+        padding: 12px;
+      }
+      h1 {
+        font-size: 1.8em;
+      }
+    }
+    @media print {
+      html {
+        background-color: white;
+      }
+      body {
+        background-color: transparent;
+        color: black;
+        font-size: 12pt;
+      }
+      p, h2, h3 {
+        orphans: 3;
+        widows: 3;
+      }
+      h2, h3, h4 {
+        page-break-after: avoid;
+      }
+    }
+    p {
+      margin: 1em 0;
+    }
+    a {
+      color: #1a1a1a;
+    }
+    a:visited {
+      color: #1a1a1a;
+    }
+    img {
+      max-width: 100%;
+    }
+    svg {
+      height: auto;
+      max-width: 100%;
+    }
+    h1, h2, h3, h4, h5, h6 {
+      margin-top: 1.4em;
+    }
+    h5, h6 {
+      font-size: 1em;
+      font-style: italic;
+    }
+    h6 {
+      font-weight: normal;
+    }
+    ol, ul {
+      padding-left: 1.7em;
+      margin-top: 1em;
+    }
+    li &gt; ol, li &gt; ul {
+      margin-top: 0;
+    }
+    blockquote {
+      margin: 1em 0 1em 1.7em;
+      padding-left: 1em;
+      border-left: 2px solid #e6e6e6;
+      color: #606060;
+    }
+    code {
+      white-space: pre-wrap;
+      font-family: Menlo, Monaco, Consolas, &#039;Lucida Console&#039;, monospace;
+      font-size: 85%;
+      margin: 0;
+      hyphens: manual;
+    }
+    pre {
+      margin: 1em 0;
+      overflow: auto;
+    }
+    pre code {
+      padding: 0;
+      overflow: visible;
+      overflow-wrap: normal;
+    }
+    .sourceCode {
+     background-color: transparent;
+     overflow: visible;
+    }
+    hr {
+      border: none;
+      border-top: 1px solid #1a1a1a;
+      height: 1px;
+      margin: 1em 0;
+    }
+    table {
+      margin: 1em 0;
+      border-collapse: collapse;
+      width: 100%;
+      overflow-x: auto;
+      display: block;
+      font-variant-numeric: lining-nums tabular-nums;
+    }
+    table caption {
+      margin-bottom: 0.75em;
+    }
+    tbody {
+      margin-top: 0.5em;
+      border-top: 1px solid #1a1a1a;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    th {
+      border-top: 1px solid #1a1a1a;
+      padding: 0.25em 0.5em 0.25em 0.5em;
+    }
+    td {
+      padding: 0.125em 0.5em 0.25em 0.5em;
+    }
+    header {
+      margin-bottom: 4em;
+      text-align: center;
+    }
+    #TOC li {
+      list-style: none;
+    }
+    #TOC ul {
+      padding-left: 1.3em;
+    }
+    #TOC &gt; ul {
+      padding-left: 0;
+    }
+    #TOC a:not(:hover) {
+      text-decoration: none;
+    }
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: 1.5em;}
+    div.column{flex: auto;}
+    @media screen {
+    div.columns{gap: min(4vw, 1.5em);}
+    div.column{overflow-x: auto;}
+    }
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type=&quot;checkbox&quot;] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  &lt;/style&gt;
+&lt;/head&gt;
+&lt;body&gt;
+&lt;header id=&quot;title-block-header&quot;&gt;
+&lt;h1 class=&quot;title&quot;&gt;Haskell Pandoc output&lt;/h1&gt;
+&lt;/header&gt;
+&lt;h1 id=&quot;project-status-update&quot;&gt;Project Status Update&lt;/h1&gt;
+&lt;p&gt;The publishing migration remains on schedule for the July review
+window.&lt;/p&gt;
+&lt;h2 id=&quot;milestones&quot;&gt;Milestones&lt;/h2&gt;
+&lt;table&gt;
+&lt;thead&gt;
+&lt;tr&gt;
+&lt;th&gt;Milestone&lt;/th&gt;
+&lt;th&gt;Owner&lt;/th&gt;
+&lt;th&gt;Status&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td&gt;Sample corpus refresh&lt;/td&gt;
+&lt;td&gt;Content operations&lt;/td&gt;
+&lt;td&gt;Complete&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;Editor import review&lt;/td&gt;
+&lt;td&gt;Web platform&lt;/td&gt;
+&lt;td&gt;In progress&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;Accessibility pass&lt;/td&gt;
+&lt;td&gt;Design systems&lt;/td&gt;
+&lt;td&gt;Scheduled&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;h2 id=&quot;risks&quot;&gt;Risks&lt;/h2&gt;
+&lt;p&gt;The main remaining risk is inconsistent source document quality.
+Teams should attach the original file to each review ticket.&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Confirm images imported when they appear in the rendered
+article.&lt;/li&gt;
+&lt;li&gt;Check local links after the import.&lt;/li&gt;
+&lt;li&gt;Flag pages that rely on Custom HTML blocks.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;Jump back to &lt;a href=&quot;#milestones&quot;&gt;milestones&lt;/a&gt;.&lt;/p&gt;
 &lt;/body&gt;
 &lt;/html&gt;
 </pre></section></div><div class="note">HTML reader implementation-equivalence gate covers 133/133 checked-in HTML/native pairs through the TagSoup-backed Pandoc HTML reader port.</div></section></article></section><section class="format-section" id="format-ipynb"><div class="format-heading"><h2>ipynb</h2><span>2 samples</span></div><article class="comparison" id="ipynb-simple"><section class="original"><div class="panel-head"><h3>Simple notebook</h3><p class="meta">23808 bytes | <a href="https://raw.githubusercontent.com/jgm/pandoc/912bfa5e2e3f5c74eb125dfc19404f67c61ca58b/test/ipynb/simple.ipynb">jgm/pandoc upstream fixture at test/ipynb/simple.ipynb</a></p></div><div class="original-body"><pre class="source-preview">{
@@ -201864,7 +202497,7 @@ ER  -
 
 &lt;/body&gt;
 &lt;/html&gt;
-</pre></section></div><div class="note">Bibliography reader parses bounded RIS records into CSL item metadata with type aliases, field provenance, attachments, user fields, and custom diagnostics. Full Pandoc RIS reader parity remains open.</div></section></article></section><section class="format-section" id="format-rtf"><div class="format-heading"><h2>rtf</h2><span>2 samples</span></div><article class="comparison" id="rtf-template"><section class="original"><div class="panel-head"><h3>Pandoc default RTF template</h3><p class="meta">645 bytes | <a href="https://raw.githubusercontent.com/jgm/pandoc/912bfa5e2e3f5c74eb125dfc19404f67c61ca58b/data/templates/default.rtf">jgm/pandoc upstream fixture at data/templates/default.rtf</a></p></div><div class="original-body"><pre class="source-preview">{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
+</pre></section></div><div class="note">Bibliography reader parses bounded RIS records into CSL item metadata with type aliases, field provenance, attachments, user fields, and custom diagnostics. Full Pandoc RIS reader parity remains open.</div></section></article></section><section class="format-section" id="format-rtf"><div class="format-heading"><h2>rtf</h2><span>3 samples</span></div><article class="comparison" id="rtf-template"><section class="original"><div class="panel-head"><h3>Pandoc default RTF template</h3><p class="meta">645 bytes | <a href="https://raw.githubusercontent.com/jgm/pandoc/912bfa5e2e3f5c74eb125dfc19404f67c61ca58b/data/templates/default.rtf">jgm/pandoc upstream fixture at data/templates/default.rtf</a></p></div><div class="original-body"><pre class="source-preview">{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
 {\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
 $if(listtable)$
 $listtable$
@@ -202301,6 +202934,217 @@ $endfor$
 &lt;/header&gt;
 &lt;p&gt;RTF migration sample&lt;/p&gt;
 &lt;p&gt;This is a second RTF input.&lt;/p&gt;
+&lt;/body&gt;
+&lt;/html&gt;
+</pre></section></div><div class="note">Bounded RTF reader maps paragraphs, escaped characters, unicode fallbacks, tabs, and core inline styles into the shared AST. Full RTF control-word, destination, table, image, and metadata parity remains open.</div></section></article><article class="comparison" id="rtf-meeting-notes"><section class="original"><div class="panel-head"><h3>Meeting notes RTF document</h3><p class="meta">226 bytes | Inline RTF meeting notes modeled on a normal office document.</p></div><div class="original-body"><pre class="source-preview">{\rtf1\ansi\deff0 {\fonttbl {\f0 Arial;}}\f0\fs28 Meeting notes\par\fs24 Decisions\par 1. Publish the updated import guide.\par 2. Review converted tables before launch.\par Follow-up owners will report status next week.\par}
+</pre><p class="meta"><a href="samples/rtf-meeting-notes-meeting-notes.rtf">Download original file</a></p></div></section><section class="converted" data-sample="rtf-meeting-notes"><div class="converted-toolbar"><span class="meta">Converted representations</span><button class="view-source" type="button" data-source-toggle>View source</button></div><div class="comparison-grid"><section class="conversion-pane" id="rtf-meeting-notes-wpBlocks"><div class="pane-head"><span class="pane-title">WP blocks</span><span class="pane-status status-ok">ok</span></div><iframe class="render-frame" data-sync-group="rtf-meeting-notes" title="Meeting notes RTF document PHP WordPress blocks" src="outputs/rtf-meeting-notes/wordpress-blocks.html"></iframe><pre class="source-box" data-sync-group="rtf-meeting-notes">&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;Meeting notes&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;Decisions&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;1. Publish the updated import guide.&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;2. Review converted tables before launch.&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;Follow-up owners will report status next week.&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;</pre></section><section class="conversion-pane" id="rtf-meeting-notes-phpHtml"><div class="pane-head"><span class="pane-title">PHP HTML</span><span class="pane-status status-ok">ok</span></div><iframe class="render-frame" data-sync-group="rtf-meeting-notes" title="Meeting notes RTF document PHP HTML" src="outputs/rtf-meeting-notes/php.html"></iframe><pre class="source-box" data-sync-group="rtf-meeting-notes">&lt;!doctype html&gt;&lt;html lang=&quot;en&quot;&gt;&lt;head&gt;&lt;meta charset=&quot;utf-8&quot;&gt;&lt;meta name=&quot;viewport&quot; content=&quot;width=device-width, initial-scale=1&quot;&gt;&lt;title&gt;PHP Pandoc HTML output&lt;/title&gt;&lt;style&gt;html{line-height:1.5;font-family:Georgia,&quot;Times New Roman&quot;,serif;font-size:18px;color:#1f2933;background:#fdfdfd;}body{margin:0 auto;max-width:46em;padding:2.5em 1.25em;}h1,h2,h3,h4,h5,h6{font-family:system-ui,-apple-system,BlinkMacSystemFont,&quot;Segoe UI&quot;,sans-serif;line-height:1.25;margin:1.4em 0 .45em;}h1{font-size:2em;}h2{font-size:1.55em;}h3{font-size:1.25em;}p{margin:1em 0;}a{color:#1f6feb;}img,svg,video{max-width:100%;height:auto;}pre,code,kbd,samp{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.9em;}code{background:#eef1f5;padding:.1em .25em;border-radius:3px;}pre{overflow:auto;background:#f6f8fa;border:1px solid #d8dde3;border-radius:6px;padding:1em;}pre code{background:transparent;padding:0;}blockquote{margin:1.25em 0;padding-left:1em;border-left:4px solid #d8dde3;color:#4b5563;}table{border-collapse:collapse;margin:1.25em 0;width:100%;font-size:.92em;}th,td{border:1px solid #d8dde3;padding:.35em .55em;vertical-align:top;}th{background:#f6f8fa;}math{font-family:math,serif;}math[display=&quot;block&quot;]{display:block;margin:1em 0;overflow-x:auto;}&lt;/style&gt;&lt;/head&gt;&lt;body&gt;&lt;p&gt;Meeting notes&lt;/p&gt;
+&lt;p&gt;Decisions&lt;/p&gt;
+&lt;p&gt;1. Publish the updated import guide.&lt;/p&gt;
+&lt;p&gt;2. Review converted tables before launch.&lt;/p&gt;
+&lt;p&gt;Follow-up owners will report status next week.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</pre></section><section class="conversion-pane" id="rtf-meeting-notes-haskell"><div class="pane-head"><span class="pane-title">Haskell HTML</span><span class="pane-status status-ok">ok</span></div><iframe class="render-frame" data-sync-group="rtf-meeting-notes" title="Meeting notes RTF document Haskell Pandoc HTML" src="outputs/rtf-meeting-notes/haskell.html"></iframe><pre class="source-box" data-sync-group="rtf-meeting-notes">&lt;!DOCTYPE html&gt;
+&lt;html xmlns=&quot;http://www.w3.org/1999/xhtml&quot;&gt;
+&lt;head&gt;
+  &lt;meta charset=&quot;utf-8&quot; /&gt;
+  &lt;meta name=&quot;generator&quot; content=&quot;pandoc 3.10&quot; /&gt;
+  &lt;meta name=&quot;viewport&quot; content=&quot;width=device-width, initial-scale=1.0, user-scalable=yes&quot; /&gt;
+  &lt;title&gt;Haskell Pandoc output&lt;/title&gt;
+  &lt;style&gt;
+    /* Default styles provided by pandoc.
+    ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+    */
+    html {
+      color: #1a1a1a;
+      background-color: #fdfdfd;
+    }
+    body {
+      margin: 0 auto;
+      max-width: 36em;
+      padding-left: 50px;
+      padding-right: 50px;
+      padding-top: 50px;
+      padding-bottom: 50px;
+      hyphens: auto;
+      overflow-wrap: break-word;
+      text-rendering: optimizeLegibility;
+      font-kerning: normal;
+    }
+    @media (max-width: 600px) {
+      body {
+        font-size: 0.9em;
+        padding: 12px;
+      }
+      h1 {
+        font-size: 1.8em;
+      }
+    }
+    @media print {
+      html {
+        background-color: white;
+      }
+      body {
+        background-color: transparent;
+        color: black;
+        font-size: 12pt;
+      }
+      p, h2, h3 {
+        orphans: 3;
+        widows: 3;
+      }
+      h2, h3, h4 {
+        page-break-after: avoid;
+      }
+    }
+    p {
+      margin: 1em 0;
+    }
+    a {
+      color: #1a1a1a;
+    }
+    a:visited {
+      color: #1a1a1a;
+    }
+    img {
+      max-width: 100%;
+    }
+    svg {
+      height: auto;
+      max-width: 100%;
+    }
+    h1, h2, h3, h4, h5, h6 {
+      margin-top: 1.4em;
+    }
+    h5, h6 {
+      font-size: 1em;
+      font-style: italic;
+    }
+    h6 {
+      font-weight: normal;
+    }
+    ol, ul {
+      padding-left: 1.7em;
+      margin-top: 1em;
+    }
+    li &gt; ol, li &gt; ul {
+      margin-top: 0;
+    }
+    blockquote {
+      margin: 1em 0 1em 1.7em;
+      padding-left: 1em;
+      border-left: 2px solid #e6e6e6;
+      color: #606060;
+    }
+    code {
+      white-space: pre-wrap;
+      font-family: Menlo, Monaco, Consolas, &#039;Lucida Console&#039;, monospace;
+      font-size: 85%;
+      margin: 0;
+      hyphens: manual;
+    }
+    pre {
+      margin: 1em 0;
+      overflow: auto;
+    }
+    pre code {
+      padding: 0;
+      overflow: visible;
+      overflow-wrap: normal;
+    }
+    .sourceCode {
+     background-color: transparent;
+     overflow: visible;
+    }
+    hr {
+      border: none;
+      border-top: 1px solid #1a1a1a;
+      height: 1px;
+      margin: 1em 0;
+    }
+    table {
+      margin: 1em 0;
+      border-collapse: collapse;
+      width: 100%;
+      overflow-x: auto;
+      display: block;
+      font-variant-numeric: lining-nums tabular-nums;
+    }
+    table caption {
+      margin-bottom: 0.75em;
+    }
+    tbody {
+      margin-top: 0.5em;
+      border-top: 1px solid #1a1a1a;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    th {
+      border-top: 1px solid #1a1a1a;
+      padding: 0.25em 0.5em 0.25em 0.5em;
+    }
+    td {
+      padding: 0.125em 0.5em 0.25em 0.5em;
+    }
+    header {
+      margin-bottom: 4em;
+      text-align: center;
+    }
+    #TOC li {
+      list-style: none;
+    }
+    #TOC ul {
+      padding-left: 1.3em;
+    }
+    #TOC &gt; ul {
+      padding-left: 0;
+    }
+    #TOC a:not(:hover) {
+      text-decoration: none;
+    }
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: 1.5em;}
+    div.column{flex: auto;}
+    @media screen {
+    div.columns{gap: min(4vw, 1.5em);}
+    div.column{overflow-x: auto;}
+    }
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type=&quot;checkbox&quot;] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  &lt;/style&gt;
+&lt;/head&gt;
+&lt;body&gt;
+&lt;header id=&quot;title-block-header&quot;&gt;
+&lt;h1 class=&quot;title&quot;&gt;Haskell Pandoc output&lt;/h1&gt;
+&lt;/header&gt;
+&lt;p&gt;Meeting notes&lt;/p&gt;
+&lt;p&gt;Decisions&lt;/p&gt;
+&lt;p&gt;1. Publish the updated import guide.&lt;/p&gt;
+&lt;p&gt;2. Review converted tables before launch.&lt;/p&gt;
+&lt;p&gt;Follow-up owners will report status next week.&lt;/p&gt;
 &lt;/body&gt;
 &lt;/html&gt;
 </pre></section></div><div class="note">Bounded RTF reader maps paragraphs, escaped characters, unicode fallbacks, tabs, and core inline styles into the shared AST. Full RTF control-word, destination, table, image, and metadata parity remains open.</div></section></article></section><section class="format-section" id="format-tsv"><div class="format-heading"><h2>tsv</h2><span>2 samples</span></div><article class="comparison" id="tsv-format-status"><section class="original"><div class="panel-head"><h3>Format status TSV</h3><p class="meta">84 bytes | Inline tabular inventory data for this showcase.</p></div><div class="original-body"><pre class="source-preview">name	format	status

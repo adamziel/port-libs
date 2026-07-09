@@ -45,13 +45,15 @@ jobs:
           php -l tools/playground-converter-plugin/port-libs-playground-converter.php
           php -l lanes/pandoc/tests/PlaygroundConverterPluginTest.php
           php -l lanes/pandoc/tests/PdfReaderCorpusQualityTest.php
+          php -l lanes/pandoc/tests/ShowcaseImportQualityManifestTest.php
           node --check pandoc-showcase/playground-converter.js
 
       - name: Run converter tests
         run: |
           php tools/run-tests.php \
             lanes/pandoc/tests/PlaygroundConverterPluginTest.php \
-            lanes/pandoc/tests/PdfReaderCorpusQualityTest.php
+            lanes/pandoc/tests/PdfReaderCorpusQualityTest.php \
+            lanes/pandoc/tests/ShowcaseImportQualityManifestTest.php
 
       - name: Build plugin archive
         run: |

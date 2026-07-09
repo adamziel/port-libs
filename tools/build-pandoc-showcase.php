@@ -222,6 +222,80 @@ This is a Jira wiki markup page from a migration ticket.
 |DOCX|partial|
 JIRA;
 
+    $policyMemoHtml = <<<'HTML'
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Remote Work Policy Memo</title>
+</head>
+<body>
+  <article>
+    <h1 id="remote-work-policy">Remote Work Policy Memo</h1>
+    <p>This internal memo describes the default expectations for teams that split work between office and remote locations.</p>
+    <h2 id="summary">Summary</h2>
+    <p>Managers should keep the policy simple enough for repeat use while documenting exceptions that affect payroll, security, or customer commitments.</p>
+    <ul>
+      <li>Publish team availability windows.</li>
+      <li>Keep customer-facing escalation paths current.</li>
+      <li>Review equipment and access requests quarterly.</li>
+    </ul>
+    <h2 id="approval-levels">Approval levels</h2>
+    <table>
+      <thead>
+        <tr><th>Request</th><th>Approver</th><th>Review cycle</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>One-off remote day</td><td>Team lead</td><td>Same week</td></tr>
+        <tr><td>Hybrid schedule</td><td>Department manager</td><td>Quarterly</td></tr>
+        <tr><td>Out-of-region work</td><td>People operations</td><td>Before travel</td></tr>
+      </tbody>
+    </table>
+    <h2 id="checklist">Checklist</h2>
+    <ol>
+      <li>Confirm the employee has a secure workstation.</li>
+      <li>Record the expected working region.</li>
+      <li>Link the schedule in the team handbook.</li>
+    </ol>
+    <p>See the <a href="#approval-levels">approval table</a> before granting a recurring exception.</p>
+  </article>
+</body>
+</html>
+HTML;
+
+    $projectStatusHtml = <<<'HTML'
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Project Status Update</title>
+</head>
+<body>
+  <main>
+    <h1 id="project-status-update">Project Status Update</h1>
+    <p>The publishing migration remains on schedule for the July review window.</p>
+    <h2 id="milestones">Milestones</h2>
+    <table>
+      <thead><tr><th>Milestone</th><th>Owner</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr><td>Sample corpus refresh</td><td>Content operations</td><td>Complete</td></tr>
+        <tr><td>Editor import review</td><td>Web platform</td><td>In progress</td></tr>
+        <tr><td>Accessibility pass</td><td>Design systems</td><td>Scheduled</td></tr>
+      </tbody>
+    </table>
+    <h2 id="risks">Risks</h2>
+    <p>The main remaining risk is inconsistent source document quality. Teams should attach the original file to each review ticket.</p>
+    <ul>
+      <li>Confirm images imported when they appear in the rendered article.</li>
+      <li>Check local links after the import.</li>
+      <li>Flag pages that rely on Custom HTML blocks.</li>
+    </ul>
+    <p>Jump back to <a href="#milestones">milestones</a>.</p>
+  </main>
+</body>
+</html>
+HTML;
+
     $githubMarkdown = <<<'GFM'
 # GitHub Flavored Markdown full syntax packet
 
@@ -664,6 +738,8 @@ RIS;
         'html' => [
             upstream_sample('html-reader', 'html', 'test/html-reader.html', 'HTML reader fixture', 'HTML fixture from upstream Pandoc tests.'),
             upstream_sample('html-template', 'html', 'data/templates/styles.html', 'Pandoc HTML template fragment', 'Real Pandoc project HTML template asset.'),
+            inline_sample('html-remote-work-policy', 'html', 'remote-work-policy.html', 'Remote work policy memo HTML', $policyMemoHtml, 'Inline policy memo HTML modeled on a normal internal document.', 'Compact user-facing HTML article with headings, paragraphs, lists, a table, and a local anchor link.'),
+            inline_sample('html-project-status-update', 'html', 'project-status-update.html', 'Project status update HTML', $projectStatusHtml, 'Inline project status HTML modeled on a normal internal update.', 'Compact user-facing HTML article with headings, a milestone table, a risk list, and a local anchor link.'),
         ],
         'ipynb' => [
             upstream_sample('ipynb-simple', 'ipynb', 'test/ipynb/simple.ipynb', 'Simple notebook', 'Jupyter notebook fixture from upstream Pandoc tests.'),
@@ -787,6 +863,7 @@ RIS;
         'rtf' => [
             upstream_sample('rtf-template', 'rtf', 'data/templates/default.rtf', 'Pandoc default RTF template', 'Real RTF template from Pandoc project data.'),
             inline_sample('rtf-simple', 'rtf', 'simple.rtf', 'Simple RTF document', "{\\rtf1\\ansi\\deff0 {\\fonttbl {\\f0 Arial;}}\\f0\\fs24 RTF migration sample\\par This is a second RTF input.\\par}\n", 'Inline RTF document sample.'),
+            inline_sample('rtf-meeting-notes', 'rtf', 'meeting-notes.rtf', 'Meeting notes RTF document', "{\\rtf1\\ansi\\deff0 {\\fonttbl {\\f0 Arial;}}\\f0\\fs28 Meeting notes\\par\\fs24 Decisions\\par 1. Publish the updated import guide.\\par 2. Review converted tables before launch.\\par Follow-up owners will report status next week.\\par}\n", 'Inline RTF meeting notes modeled on a normal office document.'),
         ],
         'xlsx' => [
             upstream_sample('xlsx-basic', 'xlsx', 'test/xlsx-reader/basic.xlsx', 'Basic XLSX workbook', 'Spreadsheet fixture from upstream Pandoc tests.'),
@@ -1234,6 +1311,32 @@ function showcase_output_text(string $siteDir, string $relativePath): string
     if ($html === '') {
         return '';
     }
+    if (class_exists(DOMDocument::class)) {
+        $dom = new DOMDocument();
+        $previous = libxml_use_internal_errors(true);
+        try {
+            $loaded = $dom->loadHTML('<!doctype html><html><body>' . $html . '</body></html>', LIBXML_NONET);
+        } finally {
+            libxml_clear_errors();
+            libxml_use_internal_errors($previous);
+        }
+        if ($loaded) {
+            $xpath = new DOMXPath($dom);
+            foreach ($xpath->query('//head|//script|//style|//noscript|//template|//*[@id="title-block-header"]') ?: [] as $node) {
+                if ($node->parentNode !== null) {
+                    $node->parentNode->removeChild($node);
+                }
+            }
+            $body = $dom->getElementsByTagName('body')->item(0);
+            $text = $body instanceof DOMElement ? $body->textContent : $dom->textContent;
+            $text = preg_replace('/\s+/u', ' ', $text) ?? $text;
+
+            return trim($text);
+        }
+    }
+    $html = preg_replace('/<!--.*?-->/s', '', $html) ?? $html;
+    $html = preg_replace('/<(head|script|style|noscript|template)\b[^>]*>.*?<\/\1>/is', '', $html) ?? $html;
+    $html = preg_replace('/<[^>]*\bid=["\']title-block-header["\'][^>]*>.*?<\/[^>]+>/is', '', $html) ?? $html;
     $text = html_entity_decode(strip_tags($html), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
     $text = preg_replace('/\s+/u', ' ', $text) ?? $text;
 
