@@ -201,9 +201,12 @@ return [
         $t->same($jpeg, $result['entries'][0]['contents'] ?? null);
         $t->true(in_array('extract-media-image-mode:all', $result['diagnostics'], true));
         $t->true(in_array('extract-media-pdf-image-loaded:1:tiny', $result['diagnostics'], true));
-        $t->same('paragraph', $result['document']->children[0]->type ?? null);
-        $t->same('image', $result['document']->children[0]->children[0]->type ?? null);
-        $t->same('media/pdf/image-1.jpg', $result['document']->children[0]->children[0]->attr('url'));
+        $t->same('div', $result['document']->children[0]->type ?? null);
+        $t->same(['pandoc-pdf-extracted-images'], $result['document']->children[0]->attr('classes'));
+        $t->same('paragraph', $result['document']->children[0]->children[2]->type ?? null);
+        $t->same(['pandoc-pdf-image-block'], $result['document']->children[0]->children[2]->attr('classes'));
+        $t->same('image', $result['document']->children[0]->children[2]->children[0]->type ?? null);
+        $t->same('media/pdf/image-1.jpg', $result['document']->children[0]->children[2]->children[0]->attr('url'));
         $html = PandocConverter::write($result['document'], 'html');
         $t->contains('<img src="media/pdf/image-1.jpg"', $html);
 
