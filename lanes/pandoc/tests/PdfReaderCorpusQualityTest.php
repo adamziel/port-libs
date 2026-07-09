@@ -217,6 +217,22 @@ return [
         $t->contains('of values', $text);
         $t->contains('the fastest', $text);
     },
+    'pdf corpus gate does not inject TraceMonkey positioned word fragment spaces' => static function (TestRunner $t) use ($pdfSamplePaths, $plainText): void {
+        $document = (new PdfReader([
+            'maxTextBytes' => 80000,
+            'pdfRepairProseText' => true,
+            'pdfGeometryTables' => false,
+        ]))->read(file_get_contents($pdfSamplePaths()['tracemonkey-paper']) ?: '');
+        $text = $plainText(PandocConverter::write($document, 'html'));
+
+        foreach (['tra ce', 'ca ll', 'recordi ng', 'int erpreter', 'ef ficient', 'dif ferent', 'sim ply'] as $splitWord) {
+            $t->true(!str_contains($text, $splitWord), "TraceMonkey text-only retry should not contain '{$splitWord}'.");
+        }
+        $t->contains('trace', $text);
+        $t->contains('call', $text);
+        $t->contains('recording', $text);
+        $t->contains('interpreter', $text);
+    },
     'pdf corpus gate rejects damaged positioned prose streams' => static function (TestRunner $t) use ($pdfSamplePaths, $readPdfSample): void {
         $muir = $readPdfSample($pdfSamplePaths()['muir-brochure'], ['pdfGeometryTables' => false]);
         $meta = $muir['meta'];

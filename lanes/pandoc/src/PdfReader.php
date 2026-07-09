@@ -1414,7 +1414,7 @@ final class PdfReader
         $fontSize = max($left['fontSize'], $right['fontSize'], 1.0);
         $gap = $right['textX1'] - $left['textX2'];
 
-        return $gap >= -max(1.5, $fontSize * 0.15)
+        return $gap >= max(1.2, $fontSize * 0.18)
             && $gap <= max(18.0, $fontSize * 2.6);
     }
 

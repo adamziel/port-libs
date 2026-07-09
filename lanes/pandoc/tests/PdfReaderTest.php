@@ -5580,6 +5580,7 @@ return [
             'Thetracetreefortheinnerloop records asideexit without duplicating theouterloop.',
             'The VM is ableto continue when Redwood remains a single word.',
             'The recorder finishesthe outer trace.',
+            'The compiler keeps trace calls readable while nativecode is repaired.',
         ], [
             $run('performance', 10.0, 70.0),
             $run('of', 72.0, 82.0),
@@ -5616,12 +5617,17 @@ return [
             $run('the', 10.0, 28.0, 28.0),
             $run('outer', 32.0, 62.0, 28.0),
             $run('trace.', 66.0, 96.0, 28.0),
+            $run('tra', 10.0, 28.0, 12.0),
+            $run('ce', 28.0, 40.0, 12.0),
+            $run('native', 80.0, 116.0, 12.0),
+            $run('code', 119.0, 143.0, 12.0),
         ]);
 
         $t->same([
             'performance of the generated machine code. Our system uses mixed mode execution.',
             'The trace tree for the inner loop records a side exit without duplicating the outer loop. The VM is able to continue when Redwood remains a single word.',
             'The recorder finishes the outer trace.',
+            'The compiler keeps trace calls readable while native code is repaired.',
         ], $repaired);
 
         $letterSpaced = $repair([
