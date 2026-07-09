@@ -338,6 +338,39 @@ return [
         $t->contains('<span style="color:#c2410c; font-size:10pt"><mark style="background-color:#00ffff">Inherited</mark></span>', $wordpress);
         $t->true(!str_contains($wordpress, 'w:highlight'), 'WordprocessingML styling should not leak into WordPress markup.');
     },
+    'preserves docx paragraph indentation spacing and page breaks for wordpress imports' => static function (TestRunner $t) use ($buildDocxReaderPackagePartsBytes): void {
+        $bytes = $buildDocxReaderPackagePartsBytes([
+            '[Content_Types].xml' => '<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/></Types>',
+            'word/styles.xml' => '<?xml version="1.0"?><w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:style w:type="paragraph" w:styleId="IndentedBody"><w:name w:val="Indented Body"/><w:pPr><w:ind w:left="720" w:right="360" w:firstLine="240"/><w:spacing w:before="120" w:after="240" w:line="360" w:lineRule="auto"/></w:pPr></w:style></w:styles>',
+            'word/document.xml' => '<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:pPr><w:pStyle w:val="IndentedBody"/></w:pPr><w:r><w:t>Styled layout.</w:t></w:r></w:p><w:p><w:pPr><w:pStyle w:val="IndentedBody"/><w:ind w:left="1440" w:hanging="360"/><w:spacing w:after="0" w:line="480" w:lineRule="exact"/><w:pageBreakBefore/></w:pPr><w:r><w:t>Direct layout.</w:t></w:r></w:p></w:body></w:document>',
+        ]);
+
+        $document = (new DocxReader(['preserveRunStyles' => true]))->read($bytes);
+        $wordpress = (new WordPressBlockWriter())->write($document);
+
+        $t->same(['style' => 'margin-left:36pt; margin-right:18pt; text-indent:12pt; margin-top:6pt; margin-bottom:12pt; line-height:1.5'], $document->children[0]->attr('htmlAttributes'));
+        $t->same(['style' => 'margin-left:72pt; margin-right:18pt; text-indent:-18pt; margin-top:6pt; margin-bottom:0pt; line-height:24pt; break-before:page; page-break-before:always'], $document->children[1]->attr('htmlAttributes'));
+        $t->contains('<p style="margin-left:36pt; margin-right:18pt; margin-top:6pt; margin-bottom:12pt; text-indent:12pt; line-height:1.5">Styled layout.</p>', $wordpress);
+        $t->contains('<p style="margin-left:72pt; margin-right:18pt; margin-top:6pt; margin-bottom:0pt; text-indent:-18pt; line-height:24pt; break-before:page; page-break-before:always">Direct layout.</p>', $wordpress);
+    },
+    'preserves docx table width alignment fill and borders for wordpress imports' => static function (TestRunner $t) use ($buildDocxReaderPackagePartsBytes): void {
+        $bytes = $buildDocxReaderPackagePartsBytes([
+            '[Content_Types].xml' => '<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/></Types>',
+            'word/styles.xml' => '<?xml version="1.0"?><w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:style w:type="table" w:styleId="DataTable"><w:name w:val="Data Table"/><w:tblPr><w:shd w:fill="E2F0D9"/><w:jc w:val="center"/></w:tblPr></w:style></w:styles>',
+            'word/document.xml' => '<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:tbl><w:tblPr><w:tblStyle w:val="DataTable"/><w:tblW w:w="5000" w:type="pct"/><w:jc w:val="right"/><w:shd w:fill="FFF2CC"/><w:tblBorders><w:top w:val="single" w:sz="16" w:color="4472C4"/></w:tblBorders></w:tblPr><w:tblGrid><w:gridCol w:w="2400"/><w:gridCol w:w="2400"/></w:tblGrid><w:tr><w:tc><w:p><w:r><w:t>A</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>B</w:t></w:r></w:p></w:tc></w:tr></w:tbl></w:body></w:document>',
+        ]);
+
+        $document = (new DocxReader(['preserveRunStyles' => true]))->read($bytes);
+        $table = $document->children[0];
+        $wordpress = (new WordPressBlockWriter())->write($document);
+
+        $t->same('table', $table->type);
+        $t->same('right', $table->attr('htmlAttributes')['align']);
+        $t->same('100%', $table->attr('htmlAttributes')['width']);
+        $t->same('background-color:#FFF2CC; border-style:solid; border-width:2pt; border-color:#4472C4', $table->attr('htmlAttributes')['style']);
+        $t->contains('<table align="right" width="100%" style="background-color:#fff2cc; border-color:#4472c4; border-style:solid; border-width:2pt"', $wordpress);
+        $t->contains('data-docx-table-style="DataTable"', $wordpress);
+    },
     'preserves docx paragraph and heading alignment for wordpress native attrs' => static function (TestRunner $t) use ($buildDocxReaderPackagePartsBytes): void {
         $bytes = $buildDocxReaderPackagePartsBytes([
             '[Content_Types].xml' => '<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/></Types>',

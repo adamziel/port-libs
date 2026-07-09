@@ -960,6 +960,7 @@ function showcase_converter_options(string $from, string $to): array
     }
     if ($canonicalInput === 'docx' && in_array($canonicalOutput, ['html', 'wordpress'], true)) {
         $readerOptions['preserveRunStyles'] = true;
+        $readerOptions['preserveImportStyles'] = true;
     }
     if (in_array($canonicalOutput, ['html', 'wordpress'], true)) {
         $writerOptions['writerHTMLMathMethod'] = 'mathml';

@@ -861,6 +861,7 @@ function plpc_converter_options(string $format): array
     }
     if ($canonicalFormat === 'docx') {
         $readerOptions['preserveRunStyles'] = true;
+        $readerOptions['preserveImportStyles'] = true;
     }
     if ($canonicalFormat === 'csv' || $canonicalFormat === 'tsv') {
         $readerOptions['allowBlankRecords'] = true;

@@ -741,17 +741,26 @@ final class WordPressBlockWriter
 
     private function blockColorHtmlAttr(AstNode $node): string
     {
-        $styles = [];
+        $styles = $this->blockStyleDeclarations((string) ($this->inlineHtmlAttributes($node)['style'] ?? ''));
         $text = $this->blockCssColor((string) $node->attr('textColor', ''));
         if ($text !== '') {
-            $styles[] = 'color:' . $text;
+            $styles['color'] = $text;
         }
         $background = $this->blockCssColor((string) $node->attr('backgroundColor', ''));
         if ($background !== '') {
-            $styles[] = 'background-color:' . $background;
+            $styles['background-color'] = $background;
         }
 
-        return $styles === [] ? '' : ' style="' . $this->esc(implode('; ', $styles)) . '"';
+        if ($styles === []) {
+            return '';
+        }
+
+        $declarations = [];
+        foreach ($styles as $property => $value) {
+            $declarations[] = $property . ':' . $value;
+        }
+
+        return ' style="' . $this->esc(implode('; ', $declarations)) . '"';
     }
 
     private function blockCssColor(string $color): string
@@ -762,6 +771,42 @@ final class WordPressBlockWriter
         }
 
         return '';
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function blockStyleDeclarations(string $style): array
+    {
+        $declarations = [];
+        foreach (['margin-left', 'margin-right', 'margin-top', 'margin-bottom'] as $property) {
+            $length = $this->normalizeBlockCssLength($this->styleDeclarationValue($style, $property), false);
+            if ($length !== '') {
+                $declarations[$property] = $length;
+            }
+        }
+
+        $textIndent = $this->normalizeBlockCssLength($this->styleDeclarationValue($style, 'text-indent'), true);
+        if ($textIndent !== '') {
+            $declarations['text-indent'] = $textIndent;
+        }
+
+        $lineHeight = $this->normalizeBlockLineHeight($this->styleDeclarationValue($style, 'line-height'));
+        if ($lineHeight !== '') {
+            $declarations['line-height'] = $lineHeight;
+        }
+
+        $breakBefore = strtolower(trim($this->styleDeclarationValue($style, 'break-before')));
+        if (in_array($breakBefore, ['auto', 'avoid', 'page'], true)) {
+            $declarations['break-before'] = $breakBefore;
+        }
+
+        $pageBreakBefore = strtolower(trim($this->styleDeclarationValue($style, 'page-break-before')));
+        if (in_array($pageBreakBefore, ['auto', 'always', 'avoid'], true)) {
+            $declarations['page-break-before'] = $pageBreakBefore;
+        }
+
+        return $declarations;
     }
 
     private function orderedListHtmlType(string $style): string
@@ -2251,6 +2296,11 @@ final class WordPressBlockWriter
             $declarations[] = 'background-color:' . $backgroundColor;
         }
 
+        $width = $this->safeCssDimension($this->styleDeclarationValue($style, 'width'));
+        if ($width !== '') {
+            $declarations[] = 'width:' . $width;
+        }
+
         $tableLayout = strtolower(trim($this->styleDeclarationValue($style, 'table-layout')));
         if (in_array($tableLayout, ['auto', 'fixed'], true)) {
             $declarations[] = 'table-layout:' . $tableLayout;
@@ -3509,6 +3559,49 @@ final class WordPressBlockWriter
         }
 
         return '';
+    }
+
+    private function normalizeBlockCssLength(string $value, bool $allowNegative): string
+    {
+        $value = trim($value);
+        if ($value === '0') {
+            return '0';
+        }
+        if (preg_match('/^(-?)(\d+(?:\.\d+)?|\.\d+)(px|pt|pc|in|cm|mm|em|rem|%)$/i', $value, $match) !== 1) {
+            return '';
+        }
+
+        $negative = $match[1] === '-';
+        if ($negative && !$allowNegative) {
+            return '';
+        }
+
+        $number = (float) $match[2];
+        if ($number < 0.0 || $number > 10000.0) {
+            return '';
+        }
+
+        $formatted = rtrim(rtrim(number_format($number, 4, '.', ''), '0'), '.');
+        if ($formatted === '') {
+            $formatted = '0';
+        }
+
+        return ($negative ? '-' : '') . $formatted . strtolower($match[3]);
+    }
+
+    private function normalizeBlockLineHeight(string $value): string
+    {
+        $value = trim($value);
+        if (preg_match('/^(\d+(?:\.\d+)?|\.\d+)$/', $value, $match) === 1) {
+            $number = (float) $match[1];
+            if ($number > 0.0 && $number <= 20.0) {
+                return rtrim(rtrim(number_format($number, 4, '.', ''), '0'), '.');
+            }
+
+            return '';
+        }
+
+        return $this->normalizeBlockCssLength($value, false);
     }
 
     private function renderBlockQuote(AstNode $node): string

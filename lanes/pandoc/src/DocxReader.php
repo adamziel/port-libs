@@ -74,8 +74,10 @@ final class DocxReader
 
     private bool $preserveRunStyles;
 
+    private bool $preserveImportStyles;
+
     /**
-     * @param array{revisionMode?: string, commentsMode?: string, collectWarnings?: bool, stylesExtension?: bool, preserveRunStyles?: bool} $options
+     * @param array{revisionMode?: string, commentsMode?: string, collectWarnings?: bool, stylesExtension?: bool, preserveRunStyles?: bool, preserveImportStyles?: bool} $options
      */
     public function __construct(array $options = [])
     {
@@ -84,6 +86,7 @@ final class DocxReader
         $this->collectWarnings = (bool) ($options['collectWarnings'] ?? false);
         $this->stylesExtension = (bool) ($options['stylesExtension'] ?? false);
         $this->preserveRunStyles = (bool) ($options['preserveRunStyles'] ?? false);
+        $this->preserveImportStyles = (bool) ($options['preserveImportStyles'] ?? $this->preserveRunStyles);
     }
 
     public function read(string $bytes): AstNode
@@ -1564,6 +1567,10 @@ final class DocxReader
         if ($backgroundColor !== '') {
             $attrs['backgroundColor'] = $backgroundColor;
         }
+        $layoutStyle = $this->paragraphLayoutCssStyle($paragraph);
+        if ($layoutStyle !== '') {
+            $attrs['htmlAttributes'] = ['style' => $layoutStyle];
+        }
 
         return new AstNode('paragraph', $attrs, $inlines);
     }
@@ -1586,6 +1593,10 @@ final class DocxReader
         $backgroundColor = $this->paragraphBackgroundColor($paragraph);
         if ($backgroundColor !== '') {
             $attrs['backgroundColor'] = $backgroundColor;
+        }
+        $layoutStyle = $this->paragraphLayoutCssStyle($paragraph);
+        if ($layoutStyle !== '') {
+            $attrs['htmlAttributes'] = ['style' => $layoutStyle];
         }
 
         $styleId = $this->paragraphStyleId($paragraph);
@@ -1649,6 +1660,131 @@ final class DocxReader
         }
 
         return preg_match('/^[0-9A-F]{6}$/', $value) === 1 ? '#' . $value : '';
+    }
+
+    private function paragraphLayoutCssStyle(\DOMElement $paragraph): string
+    {
+        if (!$this->preserveImportStyles) {
+            return '';
+        }
+
+        $declarations = [];
+        $styleId = $this->paragraphStyleId($paragraph);
+        if ($styleId !== '') {
+            $styleCss = (string) ($this->styles[$styleId]['paragraphCssStyle'] ?? '');
+            $declarations = $this->cssDeclarationMap($styleCss);
+        }
+
+        $pPr = $this->directChild($paragraph, 'pPr');
+        if ($pPr instanceof \DOMElement) {
+            $declarations = array_replace($declarations, $this->paragraphPropertiesCssDeclarations($pPr));
+        }
+
+        return $this->cssStyleFromDeclarations($declarations);
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function paragraphPropertiesCssDeclarations(\DOMElement $pPr): array
+    {
+        $declarations = [];
+
+        $ind = $this->directChild($pPr, 'ind');
+        if ($ind instanceof \DOMElement) {
+            $left = $this->docxFirstAttr($ind, ['left', 'start']);
+            if ($left !== '') {
+                $length = $this->docxTwipsCssLength($left);
+                if ($length !== '') {
+                    $declarations['margin-left'] = $length;
+                }
+            }
+
+            $right = $this->docxFirstAttr($ind, ['right', 'end']);
+            if ($right !== '') {
+                $length = $this->docxTwipsCssLength($right);
+                if ($length !== '') {
+                    $declarations['margin-right'] = $length;
+                }
+            }
+
+            $firstLine = $this->attr($ind, self::W_NS, 'firstLine');
+            $hanging = $this->attr($ind, self::W_NS, 'hanging');
+            if ($firstLine !== '') {
+                $length = $this->docxTwipsCssLength($firstLine);
+                if ($length !== '') {
+                    $declarations['text-indent'] = $length;
+                }
+            } elseif ($hanging !== '') {
+                $length = $this->docxTwipsCssLength($hanging, true);
+                if ($length !== '') {
+                    $declarations['text-indent'] = '-' . $length;
+                }
+            }
+        }
+
+        $spacing = $this->directChild($pPr, 'spacing');
+        if ($spacing instanceof \DOMElement) {
+            $before = $this->attr($spacing, self::W_NS, 'before');
+            if ($before !== '') {
+                $length = $this->docxTwipsCssLength($before);
+                if ($length !== '') {
+                    $declarations['margin-top'] = $length;
+                }
+            }
+
+            $after = $this->attr($spacing, self::W_NS, 'after');
+            if ($after !== '') {
+                $length = $this->docxTwipsCssLength($after);
+                if ($length !== '') {
+                    $declarations['margin-bottom'] = $length;
+                }
+            }
+
+            $lineHeight = $this->docxLineHeightCssValue(
+                $this->attr($spacing, self::W_NS, 'line'),
+                strtolower($this->attr($spacing, self::W_NS, 'lineRule'))
+            );
+            if ($lineHeight !== '') {
+                $declarations['line-height'] = $lineHeight;
+            }
+        }
+
+        $pageBreakBefore = $this->directChild($pPr, 'pageBreakBefore');
+        if ($pageBreakBefore instanceof \DOMElement && $this->truthyOnOff($pageBreakBefore)) {
+            $declarations['break-before'] = 'page';
+            $declarations['page-break-before'] = 'always';
+        }
+
+        return $declarations;
+    }
+
+    private function docxLineHeightCssValue(string $value, string $rule): string
+    {
+        $value = trim($value);
+        if ($value === '' || !is_numeric($value)) {
+            return '';
+        }
+
+        $number = (float) $value;
+        if ($number <= 0.0 || $number > 10000.0) {
+            return '';
+        }
+
+        if ($rule === '' || $rule === 'auto') {
+            $ratio = $number / 240.0;
+            if ($ratio <= 0.0 || $ratio > 20.0) {
+                return '';
+            }
+
+            return $this->formatDecimal($ratio, 4);
+        }
+
+        if (!in_array($rule, ['exact', 'atleast', 'at_least'], true)) {
+            return '';
+        }
+
+        return $this->docxTwipsCssLength($value);
     }
 
     private function wordJustificationAlignment(string $value): string
@@ -1978,6 +2114,10 @@ final class DocxReader
 
     private function isIndentedBlockQuoteParagraph(\DOMElement $paragraph, string $styleId, bool $listOrQuoteContext = false): bool
     {
+        if ($this->preserveImportStyles) {
+            return false;
+        }
+
         $pPr = $this->directChild($paragraph, 'pPr');
         $ind = $pPr instanceof \DOMElement ? $this->directChild($pPr, 'ind') : null;
         if (!$ind instanceof \DOMElement) {
@@ -4814,6 +4954,9 @@ final class DocxReader
         }
 
         $htmlAttributes = [];
+        if ($this->preserveImportStyles) {
+            $htmlAttributes = array_replace($htmlAttributes, $this->tableLayoutHtmlAttributes($tblPr));
+        }
         foreach ($tblPr->childNodes as $child) {
             if (!$child instanceof \DOMElement) {
                 continue;
@@ -4847,6 +4990,165 @@ final class DocxReader
         }
 
         return $attrs;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function tableLayoutHtmlAttributes(\DOMElement $tblPr): array
+    {
+        $attrs = [];
+        $styleDeclarations = [];
+
+        $tableStyle = $this->directChild($tblPr, 'tblStyle');
+        if ($tableStyle instanceof \DOMElement) {
+            $styleId = $this->attr($tableStyle, self::W_NS, 'val');
+            $styleEntry = $styleId !== '' ? ($this->styles[$styleId] ?? []) : [];
+            if (is_array($styleEntry)) {
+                $fill = $this->docxHexCssColor((string) ($styleEntry['tableFill'] ?? ''));
+                if ($fill !== '') {
+                    $styleDeclarations['background-color'] = $fill;
+                }
+                $alignment = $this->docxTableAlignment((string) ($styleEntry['tableAlignment'] ?? ''));
+                if ($alignment !== '') {
+                    $attrs['align'] = $alignment;
+                }
+            }
+        }
+
+        foreach ($tblPr->childNodes as $child) {
+            if (!$child instanceof \DOMElement) {
+                continue;
+            }
+            if ($child->localName === 'tblW') {
+                $width = $this->docxTableWidth($this->attr($child, self::W_NS, 'w'), strtolower($this->attr($child, self::W_NS, 'type')));
+                if ($width !== '') {
+                    if (str_ends_with($width, '%')) {
+                        $attrs['width'] = $width;
+                    } else {
+                        $styleDeclarations['width'] = $width;
+                    }
+                }
+            } elseif ($child->localName === 'jc') {
+                $alignment = $this->docxTableAlignment($this->attr($child, self::W_NS, 'val'));
+                if ($alignment !== '') {
+                    $attrs['align'] = $alignment;
+                }
+            } elseif ($child->localName === 'shd') {
+                $fill = $this->docxHexCssColor($this->attr($child, self::W_NS, 'fill'));
+                if ($fill !== '') {
+                    $styleDeclarations['background-color'] = $fill;
+                }
+            } elseif ($child->localName === 'tblBorders') {
+                $border = $this->docxTableBorderCssDeclarations($child);
+                if ($border !== []) {
+                    $styleDeclarations = array_replace($styleDeclarations, $border);
+                }
+            }
+        }
+
+        if ($styleDeclarations !== []) {
+            $attrs['style'] = $this->cssStyleFromDeclarations($styleDeclarations);
+        }
+
+        return $attrs;
+    }
+
+    private function docxTableWidth(string $value, string $type): string
+    {
+        $value = trim($value);
+        if ($value === '' || !is_numeric($value)) {
+            return '';
+        }
+
+        $number = (float) $value;
+        if ($number <= 0.0) {
+            return '';
+        }
+
+        if ($type === 'pct') {
+            $percent = $number / 50.0;
+            if ($percent <= 0.0 || $percent > 100.0) {
+                return '';
+            }
+
+            return $this->formatDecimal($percent, 4) . '%';
+        }
+
+        if ($type === '' || $type === 'dxa') {
+            return $this->docxTwipsCssLength($value);
+        }
+
+        return '';
+    }
+
+    private function docxTableAlignment(string $value): string
+    {
+        return match (strtolower(trim($value))) {
+            'center' => 'center',
+            'right', 'end' => 'right',
+            'left', 'start' => 'left',
+            default => '',
+        };
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function docxTableBorderCssDeclarations(\DOMElement $borders): array
+    {
+        foreach (['top', 'left', 'bottom', 'right', 'insideH', 'insideV'] as $edge) {
+            $border = $this->directChild($borders, $edge);
+            if (!$border instanceof \DOMElement) {
+                continue;
+            }
+            $style = strtolower($this->attr($border, self::W_NS, 'val'));
+            if ($style === '' || in_array($style, ['nil', 'none'], true)) {
+                continue;
+            }
+
+            $declarations = [
+                'border-style' => $this->docxBorderStyle($style),
+            ];
+            $width = $this->docxBorderWidth($this->attr($border, self::W_NS, 'sz'));
+            if ($width !== '') {
+                $declarations['border-width'] = $width;
+            }
+            $color = $this->docxHexCssColor($this->attr($border, self::W_NS, 'color'));
+            if ($color !== '') {
+                $declarations['border-color'] = $color;
+            }
+
+            return $declarations;
+        }
+
+        return [];
+    }
+
+    private function docxBorderStyle(string $style): string
+    {
+        return match ($style) {
+            'dashed', 'dashsmallgap', 'dashdotstroked', 'dashdot', 'dashdotdot' => 'dashed',
+            'dotted' => 'dotted',
+            'double', 'thickthinlargegap', 'thickthinmediumgap', 'thickthinsmallgap',
+            'thinthicklargegap', 'thinthickmediumgap', 'thinthicksmallgap' => 'double',
+            default => 'solid',
+        };
+    }
+
+    private function docxBorderWidth(string $value): string
+    {
+        $value = trim($value);
+        if ($value === '' || !is_numeric($value)) {
+            return '';
+        }
+
+        $eighthPoints = (float) $value;
+        if ($eighthPoints <= 0.0 || $eighthPoints > 768.0) {
+            return '';
+        }
+
+        return $this->formatDecimal($eighthPoints / 8.0, 3) . 'pt';
     }
 
     /**
@@ -5475,6 +5777,84 @@ final class DocxReader
     }
 
     /**
+     * @param list<string> $names
+     */
+    private function docxFirstAttr(\DOMElement $element, array $names): string
+    {
+        foreach ($names as $name) {
+            $value = $this->attr($element, self::W_NS, $name);
+            if ($value !== '') {
+                return $value;
+            }
+        }
+
+        return '';
+    }
+
+    private function docxTwipsCssLength(string $value, bool $positiveOnly = false): string
+    {
+        $value = trim($value);
+        if ($value === '' || !is_numeric($value)) {
+            return '';
+        }
+
+        $twips = (float) $value;
+        if ($positiveOnly && $twips < 0.0) {
+            return '';
+        }
+        if (abs($twips) > 63360.0) {
+            return '';
+        }
+
+        $points = $twips / 20.0;
+
+        return $this->formatDecimal($points, 3) . 'pt';
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function cssDeclarationMap(string $style): array
+    {
+        $declarations = [];
+        foreach (explode(';', $style) as $declaration) {
+            [$name, $value] = array_pad(explode(':', $declaration, 2), 2, '');
+            $name = strtolower(trim($name));
+            $value = trim($value);
+            if ($name !== '' && $value !== '') {
+                $declarations[$name] = $value;
+            }
+        }
+
+        return $declarations;
+    }
+
+    /**
+     * @param array<string, string> $declarations
+     */
+    private function cssStyleFromDeclarations(array $declarations): string
+    {
+        $parts = [];
+        foreach ($declarations as $property => $value) {
+            $property = strtolower(trim((string) $property));
+            $value = trim((string) $value);
+            if ($property === '' || $value === '') {
+                continue;
+            }
+            $parts[] = $property . ':' . $value;
+        }
+
+        return implode('; ', $parts);
+    }
+
+    private function formatDecimal(float $value, int $precision): string
+    {
+        $formatted = rtrim(rtrim(number_format($value, $precision, '.', ''), '0'), '.');
+
+        return $formatted === '-0' || $formatted === '' ? '0' : $formatted;
+    }
+
+    /**
      * @param array<string, mixed> $style
      * @return array<string, bool>
      */
@@ -5725,6 +6105,10 @@ final class DocxReader
                     $paragraphBackgroundColor = $this->paragraphPropertiesBackgroundColor($child);
                     if ($paragraphBackgroundColor !== '') {
                         $entry['paragraphBackgroundColor'] = $paragraphBackgroundColor;
+                    }
+                    $paragraphCssStyle = $this->cssStyleFromDeclarations($this->paragraphPropertiesCssDeclarations($child));
+                    if ($paragraphCssStyle !== '') {
+                        $entry['paragraphCssStyle'] = $paragraphCssStyle;
                     }
                     $ind = $this->directChild($child, 'ind');
                     if ($ind instanceof \DOMElement) {
