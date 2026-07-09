@@ -140,9 +140,9 @@ return [
         $t->true($exotic !== [], 'Manifest should still summarize exotic formats without mixing them into common import quality.');
         $t->true(($common['samples'] ?? 0) >= 44, 'Common import segment should cover the current normal-user corpus size.');
         $t->same(0, $common['wpFailures'] ?? null, 'Common import formats should not have WordPress block conversion failures.');
-        $t->true(($common['pass'] ?? 0) >= 7, 'Common import pass count should not regress from the current baseline.');
-        $t->true(($common['passOrReview'] ?? 0) >= 23, 'Common import pass-or-review count should not regress from the current baseline.');
-        $t->true(($common['fail'] ?? PHP_INT_MAX) <= 21, 'Common import fail count should not regress from the current baseline.');
+        $t->true(($common['pass'] ?? 0) >= 28, 'Common import pass count should not regress from the current baseline.');
+        $t->true(($common['passOrReview'] ?? 0) >= 38, 'Common import pass-or-review count should not regress from the current baseline.');
+        $t->true(($common['fail'] ?? PHP_INT_MAX) <= 6, 'Common import fail count should not regress from the current baseline.');
 
         $formats = is_array($common['formats'] ?? null) ? $common['formats'] : [];
         foreach (['docx', 'pdf', 'html', 'xlsx'] as $format) {
@@ -158,9 +158,13 @@ return [
         $t->same(true, $commonGate['required'] ?? null, 'Common import threshold gate should be blocking.');
         $t->same('pass', $exoticGate['status'] ?? null, 'Exotic import threshold gate should be evaluated separately.');
         $t->same(false, $exoticGate['required'] ?? null, 'Exotic import threshold gate should be tracked without blocking common-format progress.');
-        $t->same(24, $commonGate['thresholds']['minPassOrReview'] ?? null, 'Common pass-or-review threshold should be explicit and ratchetable.');
+        $t->same(28, $commonGate['thresholds']['minPass'] ?? null, 'Common pass threshold should be explicit and ratchetable.');
+        $t->same(38, $commonGate['thresholds']['minPassOrReview'] ?? null, 'Common pass-or-review threshold should be explicit and ratchetable.');
+        $t->same(6, $commonGate['thresholds']['maxFail'] ?? null, 'Common fail threshold should be explicit and ratchetable.');
         $t->same(0, $commonGate['thresholds']['maxWpFailures'] ?? null, 'Common WordPress conversion failures should be a blocking threshold.');
-        $t->same(22, $exoticGate['thresholds']['minPassOrReview'] ?? null, 'Exotic pass-or-review threshold should be explicit but separate.');
+        $t->same(18, $exoticGate['thresholds']['minPass'] ?? null, 'Exotic pass threshold should be explicit but separate.');
+        $t->same(39, $exoticGate['thresholds']['minPassOrReview'] ?? null, 'Exotic pass-or-review threshold should be explicit but separate.');
+        $t->same(2, $exoticGate['thresholds']['maxFail'] ?? null, 'Exotic fail threshold should be explicit but separate.');
     },
     'showcase manifest compares simple html samples against visible body text' => static function (TestRunner $t) use ($showcaseManifest, $recordsById): void {
         $manifest = $showcaseManifest();
@@ -174,5 +178,18 @@ return [
             $t->same('pass', $gates['anchor_validity']['status'] ?? null, "{$id} should keep local fragment links valid.");
             $t->same('pass', $gates['custom_html_percentage']['status'] ?? null, "{$id} should not require Custom HTML fallback blocks.");
         }
+    },
+    'showcase manifest scores docx table imports by table content not html chrome' => static function (TestRunner $t) use ($showcaseManifest, $recordsById): void {
+        $manifest = $showcaseManifest();
+        $records = is_array($manifest['records'] ?? null) ? $manifest['records'] : [];
+        $byId = $recordsById($records);
+        $record = $byId['docx-tables'] ?? null;
+        $t->true(is_array($record), 'docx-tables should be present in the showcase manifest.');
+
+        $gates = is_array($record['importQuality']['gates'] ?? null) ? $record['importQuality']['gates'] : [];
+        $t->same('pass', $record['importQuality']['status'] ?? null, 'DOCX table fixture should be a high-confidence WordPress import.');
+        $t->same('pass', $gates['text_completeness']['status'] ?? null, 'DOCX table text should preserve cell boundaries when scored.');
+        $t->same('pass', $gates['heading_count']['status'] ?? null, 'Generated Pandoc title chrome should not count as an imported document heading.');
+        $t->same('pass', $gates['table_count']['status'] ?? null, 'DOCX table count should remain faithful.');
     },
 ];

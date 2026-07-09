@@ -1314,6 +1314,7 @@ function showcase_output_text(string $siteDir, string $relativePath): string
     if ($html === '') {
         return '';
     }
+    $html = showcase_visible_html($html);
     if (class_exists(DOMDocument::class)) {
         $dom = new DOMDocument();
         $previous = libxml_use_internal_errors(true);
@@ -1331,19 +1332,96 @@ function showcase_output_text(string $siteDir, string $relativePath): string
                 }
             }
             $body = $dom->getElementsByTagName('body')->item(0);
-            $text = $body instanceof DOMElement ? $body->textContent : $dom->textContent;
+            $text = $body instanceof DOMElement ? showcase_dom_visible_text($body) : showcase_dom_visible_text($dom);
             $text = preg_replace('/\s+/u', ' ', $text) ?? $text;
 
             return trim($text);
         }
     }
-    $html = preg_replace('/<!--.*?-->/s', '', $html) ?? $html;
-    $html = preg_replace('/<(head|script|style|noscript|template)\b[^>]*>.*?<\/\1>/is', '', $html) ?? $html;
-    $html = preg_replace('/<[^>]*\bid=["\']title-block-header["\'][^>]*>.*?<\/[^>]+>/is', '', $html) ?? $html;
     $text = html_entity_decode(strip_tags($html), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
     $text = preg_replace('/\s+/u', ' ', $text) ?? $text;
 
     return trim($text);
+}
+
+function showcase_visible_html(string $html): string
+{
+    $html = preg_replace('/<!--.*?-->/s', '', $html) ?? $html;
+    $html = preg_replace('/<(head|script|style|noscript|template)\b[^>]*>.*?<\/\1>/is', '', $html) ?? $html;
+    $html = preg_replace('/<header\b[^>]*\bid=["\']title-block-header["\'][^>]*>.*?<\/header>/is', '', $html) ?? $html;
+
+    return $html;
+}
+
+function showcase_dom_visible_text(DOMNode $node): string
+{
+    if ($node instanceof DOMText) {
+        return $node->wholeText;
+    }
+    if ($node instanceof DOMComment || $node instanceof DOMProcessingInstruction) {
+        return '';
+    }
+    $name = $node instanceof DOMElement ? strtolower($node->tagName) : '';
+    if (in_array($name, ['head', 'script', 'style', 'noscript', 'template'], true)) {
+        return '';
+    }
+    if ($node instanceof DOMElement && $node->getAttribute('id') === 'title-block-header') {
+        return '';
+    }
+
+    $text = '';
+    foreach ($node->childNodes as $child) {
+        $text .= showcase_dom_visible_text($child);
+        if ($child instanceof DOMElement && showcase_dom_text_separator_after(strtolower($child->tagName))) {
+            $text .= ' ';
+        }
+    }
+
+    return showcase_dom_text_separator_around($name) ? ' ' . $text . ' ' : $text;
+}
+
+function showcase_dom_text_separator_after(string $tagName): bool
+{
+    return in_array($tagName, ['br', 'td', 'th', 'tr', 'li', 'dt', 'dd'], true);
+}
+
+function showcase_dom_text_separator_around(string $tagName): bool
+{
+    return in_array($tagName, [
+        'address',
+        'article',
+        'aside',
+        'blockquote',
+        'body',
+        'caption',
+        'div',
+        'figcaption',
+        'figure',
+        'footer',
+        'form',
+        'h1',
+        'h2',
+        'h3',
+        'h4',
+        'h5',
+        'h6',
+        'header',
+        'hr',
+        'main',
+        'nav',
+        'ol',
+        'p',
+        'pre',
+        'section',
+        'table',
+        'tbody',
+        'td',
+        'tfoot',
+        'th',
+        'thead',
+        'tr',
+        'ul',
+    ], true);
 }
 
 function showcase_output_html(string $siteDir, string $relativePath): string
@@ -1369,8 +1447,7 @@ function showcase_output_visual_signature(string $siteDir, string $relativePath)
     if ($html === '') {
         return [];
     }
-    $html = preg_replace('/<!--.*?-->/s', '', $html) ?? $html;
-    $html = preg_replace('/<(script|style)\b[^>]*>.*?<\/\1>/is', '', $html) ?? $html;
+    $html = showcase_visible_html($html);
     preg_match_all('/<\s*(h[1-6]|p|li|ul|ol|table|thead|tbody|tr|th|td|img|figure|figcaption|pre|code|blockquote|math|svg)\b/i', $html, $matches);
 
     $counts = [];
@@ -1847,17 +1924,17 @@ function showcase_import_quality_thresholds(): array
             'required' => true,
             'minSamples' => 44,
             'maxWpFailures' => 0,
-            'minPass' => 7,
-            'minPassOrReview' => 24,
-            'maxFail' => 20,
+            'minPass' => 28,
+            'minPassOrReview' => 38,
+            'maxFail' => 6,
         ],
         'exotic' => [
             'required' => false,
             'minSamples' => 43,
             'maxWpFailures' => 2,
-            'minPass' => 7,
-            'minPassOrReview' => 22,
-            'maxFail' => 19,
+            'minPass' => 18,
+            'minPassOrReview' => 39,
+            'maxFail' => 2,
         ],
     ];
 }
