@@ -1,5 +1,5 @@
 {
-    "generatedAt": "2026-07-09T13:50:51+00:00",
+    "generatedAt": "2026-07-09T14:04:04+00:00",
     "pandocVersion": "pandoc 3.10\nFeatures: +server +lua\nScripting engine: Lua 5.4\nUser data directory: $REPO\nCopyright (C) 2006-2025 John MacFarlane. Web:  https://pandoc.org\nThis is free software; see the source for copying conditions. There is no\nwarranty, not even for merchantability or fitness for a particular purpose.",
     "mediaImageMode": "important",
     "formats": [
@@ -785,8 +785,8 @@
             "heading": 4124,
             "html": 59,
             "image": 240,
-            "list": 1351,
-            "paragraph": 15929,
+            "list": 1356,
+            "paragraph": 15932,
             "quote": 54,
             "separator": 65,
             "table": 557,
@@ -18362,8 +18362,8 @@
                 "group": 1,
                 "heading": 18,
                 "image": 32,
-                "list": 21,
-                "paragraph": 115
+                "list": 26,
+                "paragraph": 118
             },
             "faithfulness": {
                 "baseline": "phpHtml",
@@ -18397,8 +18397,8 @@
                     "paragraph_merge_split": {
                         "status": "review",
                         "expected": "0.80-1.25",
-                        "actual": 0.6765,
-                        "detail": "paragraph count ratio expected 170, got 115"
+                        "actual": 0.6629,
+                        "detail": "paragraph count ratio expected 178, got 118"
                     },
                     "heading_count": {
                         "status": "pass",
@@ -18410,7 +18410,7 @@
                         "status": "pass",
                         "expected": "0.80-1.25",
                         "actual": 1,
-                        "detail": "list count ratio expected 21, got 21"
+                        "detail": "list count ratio expected 26, got 26"
                     },
                     "table_count": {
                         "status": "pass",
@@ -18440,7 +18440,7 @@
                         "status": "pass",
                         "expected": "<=0.05",
                         "actual": 0,
-                        "detail": "0/187 WordPress blocks are Custom HTML"
+                        "detail": "0/195 WordPress blocks are Custom HTML"
                     }
                 },
                 "summary": {

@@ -5309,6 +5309,25 @@ return [
         $t->true(!str_contains($html, '</p><p>answered by'));
         $t->true(!str_contains($html, '</p><p>research journals'));
     },
+    'splits tab separated pdf text columns before prose repair' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $repair = (function (array $lines): array {
+            return $this->repairProseTextLines($lines, true);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($repair instanceof \Closure);
+
+        $repaired = $repair([
+            "Patients should clean hands\t • Before eating food.",
+            "Providers should clean hands\t • Before putting on gloves.",
+        ]);
+
+        $t->same([
+            'Patients should clean hands',
+            '• Before eating food.',
+            'Providers should clean hands',
+            '• Before putting on gloves.',
+        ], $repaired);
+    },
     'preserves positioned pdf tables embedded between surrounding text' => static function (TestRunner $t) use ($pdfWithContent): void {
         $pdf = $pdfWithContent(
             'BT /F1 12 Tf '

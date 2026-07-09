@@ -818,13 +818,18 @@ final class PdfReader
     {
         $cleaned = [];
         foreach ($lines as $index => $line) {
-            if ($this->lineIsOnlyPdfNoise($line)) {
-                continue;
+            $layout = $lineLayouts[$index] ?? null;
+            $chunks = $this->splitPdfTextLineVisualChunks($line);
+            $chunkLayout = count($chunks) === 1 ? $layout : null;
+            foreach ($chunks as $chunk) {
+                if ($this->lineIsOnlyPdfNoise($chunk)) {
+                    continue;
+                }
+                $cleaned[] = [
+                    'text' => $chunk,
+                    'layout' => $chunkLayout,
+                ];
             }
-            $cleaned[] = [
-                'text' => $line,
-                'layout' => $lineLayouts[$index] ?? null,
-            ];
         }
         $cleaned = $this->removeLowCoherencePdfMapRegions($cleaned);
 
@@ -840,6 +845,26 @@ final class PdfReader
         }
 
         return $repaired;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function splitPdfTextLineVisualChunks(string $line): array
+    {
+        if (!str_contains($line, "\t")) {
+            return [$line];
+        }
+
+        $chunks = [];
+        foreach (preg_split('/\t+/u', $line) ?: [] as $chunk) {
+            $chunk = trim($chunk);
+            if ($chunk !== '') {
+                $chunks[] = $chunk;
+            }
+        }
+
+        return $chunks === [] ? [$line] : $chunks;
     }
 
     /**
@@ -1208,6 +1233,9 @@ final class PdfReader
         if ($this->lineHasPdfListBlockEvidence($previous) && !$this->lineHasPdfListBlockEvidence($line)) {
             if (preg_match('/[.!?]\s*$/u', $previous) !== 1 && preg_match('/^\p{Ll}/u', $line) === 1) {
                 return false;
+            }
+            if ($previousLayout === null && $lineLayout === null && preg_match('/[.!?]\s*$/u', $previous) === 1 && preg_match('/^\p{Lu}/u', $line) === 1) {
+                return true;
             }
             if ($this->repairedPdfLayoutLeavesListItem($previousLayout, $lineLayout)) {
                 return true;
