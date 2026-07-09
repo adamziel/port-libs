@@ -125,26 +125,19 @@ final class XmlReader
         $packet = XmlHtmlDom::summarizeJatsFrontMatter($dom, $format);
         $blocks = [];
         $title = $this->cleanText($packet['title'] ?? '');
-        if ($title !== '') {
-            $blocks[] = $this->heading($title, 1);
-        }
-        $subtitle = $this->cleanText($packet['subtitle'] ?? '');
-        if ($subtitle !== '') {
-            $blocks[] = $this->paragraph($subtitle);
-        }
         $abstractText = $this->cleanText($packet['abstractText'] ?? '');
-        if ($abstractText !== '') {
-            $blocks[] = $this->heading('Abstract', 2);
-            $blocks[] = $this->paragraph($abstractText);
-        }
+
+        // Pandoc maps JATS/BITS front matter to document metadata. It does
+        // not duplicate titles, subtitles, or abstracts into the body AST.
+        $bodyHeadingLevel = $root->localName === 'book' ? 2 : 1;
 
         $body = $this->firstJatsBodyElement($root);
         if ($body instanceof \DOMElement) {
-            array_push($blocks, ...$this->blocksFromElement($body, 2, true));
+            array_push($blocks, ...$this->blocksFromElement($body, $bodyHeadingLevel, true));
         }
         $backMatter = $this->firstJatsBackMatterElement($root);
         if ($backMatter instanceof \DOMElement) {
-            array_push($blocks, ...$this->blocksFromElement($backMatter, 2, true));
+            array_push($blocks, ...$this->blocksFromElement($backMatter, $bodyHeadingLevel, true));
         }
 
         if ($blocks === []) {

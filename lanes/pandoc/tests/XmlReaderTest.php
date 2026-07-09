@@ -99,11 +99,10 @@ XML;
         $t->same(1, $meta['jatsSectionCount']);
         $t->same(1, $meta['jatsTableWrapCount']);
         $t->same(1, $meta['xmlDetectedTables']);
-        $t->contains('<h1>JATS Reader Demo</h1>', $blocks);
-        $t->contains('<p>Structured XML to AST</p>', $blocks);
-        $t->contains('<h2>Abstract</h2>', $blocks);
-        $t->contains('<p>This abstract becomes body content.</p>', $blocks);
-        $t->contains('<h2 id="intro">Introduction</h2>', $blocks);
+        $t->true(!str_contains($blocks, 'JATS Reader Demo'));
+        $t->true(!str_contains($blocks, 'Structured XML to AST'));
+        $t->true(!str_contains($blocks, 'This abstract becomes body content.'));
+        $t->contains('<h1 id="intro">Introduction</h1>', $blocks);
         $t->contains('<a href="https://example.test">external link</a>', $blocks);
         $t->contains('<th>Scope</th><th>Status</th>', $blocks);
         $t->contains('<td>Parser</td><td>Ready</td>', $blocks);
@@ -125,7 +124,7 @@ XML;
         $document = PandocConverter::read($jats, 'jats');
         $blocks = PandocConverter::write($document, 'blocks', ['writerHTMLMathMethod' => 'mathml']);
 
-        $t->contains('<h2 id="material">Material</h2>', $blocks);
+        $t->contains('<h1 id="material">Material</h1>', $blocks);
         $t->contains('<a href="#note-1">the note</a>', $blocks);
         $t->contains('<p id="note-1">Referenced note.</p>', $blocks);
         $t->contains('src="diagram.png" alt="Diagram description" title="Diagram title" id="graphic-1"', $blocks);
@@ -175,7 +174,7 @@ XML;
   <book-body>
     <book-part>
       <book-part-meta><title-group><title>Part One</title></title-group></book-part-meta>
-      <body><p>Book part body.</p></body>
+      <body><sec><title>Book chapter</title><p>Book part body.</p></sec></body>
     </book-part>
   </book-body>
 </book>
@@ -189,9 +188,25 @@ XML;
         $t->same('bits', $document->attr('sourceFormat'));
         $t->same('BITS Book Demo', $meta['title']);
         $t->same('book', $meta['rootName']);
-        $t->contains('<h1>BITS Book Demo</h1>', $blocks);
-        $t->contains('<p>Book abstract.</p>', $blocks);
+        $t->true(!str_contains($blocks, 'BITS Book Demo'));
+        $t->true(!str_contains($blocks, 'Book abstract.'));
+        $t->contains('<h2>Book chapter</h2>', $blocks);
         $t->contains('<p>Book part body.</p>', $blocks);
+    },
+    'uses level one sections for BITS book-part roots while retaining front matter as metadata' => static function (TestRunner $t): void {
+        $bits = <<<'XML'
+<book-part>
+  <book-part-meta><title-group><title>Standalone part</title></title-group></book-part-meta>
+  <body><sec><title>Part section</title><p>Body text.</p></sec></body>
+</book-part>
+XML;
+
+        $document = PandocConverter::read($bits, 'bits');
+        $blocks = PandocConverter::write($document, 'blocks');
+
+        $t->same('Standalone part', $document->attr('meta')['title']);
+        $t->contains('<h1>Part section</h1>', $blocks);
+        $t->true(!str_contains($blocks, 'Standalone part'));
     },
     'recovers JATS documents with duplicate namespaced metadata attributes' => static function (TestRunner $t): void {
         $jats = <<<'XML'
@@ -207,7 +222,7 @@ XML;
         $document = PandocConverter::read($jats, 'jats');
         $blocks = PandocConverter::write($document, 'blocks');
 
-        $t->contains('<h1>Recovered JATS</h1>', $blocks);
+        $t->true(!str_contains($blocks, 'Recovered JATS'));
         $t->contains('<p>Readable body text survives the malformed graphic metadata.</p>', $blocks);
     },
     'rejects malformed xml instead of falling back to text extraction' => static function (TestRunner $t): void {

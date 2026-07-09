@@ -1,49 +1,37 @@
-<!-- wp:heading {"level":1} -->
-<h1>Pandoc Test Suite</h1>
-<!-- /wp:heading -->
-
 <!-- wp:paragraph -->
 <p>This is a set of tests for pandoc. Most of them are adapted from John Gruber&#039;s markdown test suite.</p>
 <!-- /wp:paragraph -->
 
+<!-- wp:heading {"level":1} -->
+<h1 id="headers">Headers</h1>
+<!-- /wp:heading -->
+
 <!-- wp:heading {"level":2} -->
-<h2 id="headers">Headers</h2>
+<h2 id="level-2-with-an-embedded-link">Level 2 with an embedded link</h2>
 <!-- /wp:heading -->
 
 <!-- wp:heading {"level":3} -->
-<h3 id="level-2-with-an-embedded-link">Level 2 with an embedded link</h3>
+<h3 id="level-3-with-emphasis">Level 3 with emphasis</h3>
 <!-- /wp:heading -->
 
 <!-- wp:heading {"level":4} -->
-<h4 id="level-3-with-emphasis">Level 3 with emphasis</h4>
+<h4 id="level-4">Level 4</h4>
 <!-- /wp:heading -->
 
 <!-- wp:heading {"level":5} -->
-<h5 id="level-4">Level 4</h5>
+<h5 id="level-5">Level 5</h5>
 <!-- /wp:heading -->
 
-<!-- wp:heading {"level":6} -->
-<h6 id="level-5">Level 5</h6>
+<!-- wp:heading {"level":1} -->
+<h1 id="level-1">Level 1</h1>
 <!-- /wp:heading -->
 
 <!-- wp:heading {"level":2} -->
-<h2 id="level-1">Level 1</h2>
+<h2 id="level-2-with-emphasis">Level 2 with emphasis</h2>
 <!-- /wp:heading -->
 
 <!-- wp:heading {"level":3} -->
-<h3 id="level-2-with-emphasis">Level 2 with emphasis</h3>
-<!-- /wp:heading -->
-
-<!-- wp:heading {"level":4} -->
-<h4 id="level-3">Level 3</h4>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
-<p>with no blank line</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":3} -->
-<h3 id="level-2">Level 2</h3>
+<h3 id="level-3">Level 3</h3>
 <!-- /wp:heading -->
 
 <!-- wp:paragraph -->
@@ -51,7 +39,15 @@
 <!-- /wp:paragraph -->
 
 <!-- wp:heading {"level":2} -->
-<h2 id="paragraphs">Paragraphs</h2>
+<h2 id="level-2">Level 2</h2>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>with no blank line</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading {"level":1} -->
+<h1 id="paragraphs">Paragraphs</h1>
 <!-- /wp:heading -->
 
 <!-- wp:paragraph -->
@@ -70,24 +66,24 @@
 <p>There should be a <strong>hard line break</strong>here.</p>
 <!-- /wp:paragraph -->
 
-<!-- wp:heading {"level":2} -->
-<h2 id="statements">Statements</h2>
+<!-- wp:heading {"level":1} -->
+<h1 id="statements">Statements</h1>
 <!-- /wp:heading -->
 
 <!-- wp:paragraph -->
 <p>A label for a statement</p>
 <!-- /wp:paragraph -->
 
-<!-- wp:heading {"level":2} -->
-<h2>CAP TITLE</h2>
+<!-- wp:heading {"level":1} -->
+<h1>CAP TITLE</h1>
 <!-- /wp:heading -->
 
 <!-- wp:paragraph -->
 <p>Some text to make this regular</p>
 <!-- /wp:paragraph -->
 
-<!-- wp:heading {"level":2} -->
-<h2 id="block-quotes">Block Quotes</h2>
+<!-- wp:heading {"level":1} -->
+<h1 id="block-quotes">Block Quotes</h1>
 <!-- /wp:heading -->
 
 <!-- wp:paragraph -->
@@ -170,12 +166,12 @@
 <p>Here is a block quote inside a paragraph. Start of a paragraph is here, and the quote is below: My block quote End of a paragraph</p>
 <!-- /wp:paragraph -->
 
-<!-- wp:heading {"level":2} -->
-<h2 id="formulae">Formulae</h2>
+<!-- wp:heading {"level":1} -->
+<h1 id="formulae">Formulae</h1>
 <!-- /wp:heading -->
 
-<!-- wp:heading {"level":3} -->
-<h3 id="inline-formulae">Inline formulae with inline-formula</h3>
+<!-- wp:heading {"level":2} -->
+<h2 id="inline-formulae">Inline formulae with inline-formula</h2>
 <!-- /wp:heading -->
 
 <!-- wp:paragraph -->
@@ -186,8 +182,8 @@
 <p>Einstein showed that <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>e</mi><mo>=</mo><mi>m</mi><msup><mi>c</mi><mn>2</mn></msup></mrow></math>. This formula is important because…</p>
 <!-- /wp:paragraph -->
 
-<!-- wp:heading {"level":3} -->
-<h3 id="disp-formulae">Block formulae with disp-formula</h3>
+<!-- wp:heading {"level":2} -->
+<h2 id="disp-formulae">Block formulae with disp-formula</h2>
 <!-- /wp:heading -->
 
 <!-- wp:paragraph -->
@@ -214,8 +210,8 @@
 <p>This formula is important because…</p>
 <!-- /wp:paragraph -->
 
-<!-- wp:heading {"level":3} -->
-<h3 id="no-formula-wrapper">Without a formula wrapper</h3>
+<!-- wp:heading {"level":2} -->
+<h2 id="no-formula-wrapper">Without a formula wrapper</h2>
 <!-- /wp:heading -->
 
 <!-- wp:paragraph -->
@@ -242,8 +238,8 @@
 <p>This formula is important because…</p>
 <!-- /wp:paragraph -->
 
-<!-- wp:heading {"level":3} -->
-<h3 id="misc-formulae">Formulae with miscelaneus elements</h3>
+<!-- wp:heading {"level":2} -->
+<h2 id="misc-formulae">Formulae with miscelaneus elements</h2>
 <!-- /wp:heading -->
 
 <!-- wp:paragraph -->
@@ -278,8 +274,8 @@
 <figure class="wp-block-image" id="fig-1"><img src="foo.png" alt="baz"/><figcaption>bar</figcaption></figure>
 <!-- /wp:image -->
 
-<!-- wp:heading {"level":2} -->
-<h2 id="code-blocks">Code Blocks</h2>
+<!-- wp:heading {"level":1} -->
+<h1 id="code-blocks">Code Blocks</h1>
 <!-- /wp:heading -->
 
 <!-- wp:paragraph -->
@@ -306,12 +302,12 @@ this code block is indented by one tab</code></pre>
 These should not be escaped:  \$ \\ \ \[ \{</code></pre>
 <!-- /wp:code -->
 
-<!-- wp:heading {"level":2} -->
-<h2 id="lists">Lists</h2>
+<!-- wp:heading {"level":1} -->
+<h1 id="lists">Lists</h1>
 <!-- /wp:heading -->
 
-<!-- wp:heading {"level":3} -->
-<h3 id="unordered">Unordered</h3>
+<!-- wp:heading {"level":2} -->
+<h2 id="unordered">Unordered</h2>
 <!-- /wp:heading -->
 
 <!-- wp:paragraph -->
@@ -362,8 +358,8 @@ These should not be escaped:  \$ \\ \ \[ \{</code></pre>
 <ul><li>Minus 1</li><li>Minus 2</li><li>Minus 3</li></ul>
 <!-- /wp:list -->
 
-<!-- wp:heading {"level":3} -->
-<h3 id="ordered">Ordered</h3>
+<!-- wp:heading {"level":2} -->
+<h2 id="ordered">Ordered</h2>
 <!-- /wp:heading -->
 
 <!-- wp:paragraph -->
@@ -418,8 +414,8 @@ These should not be escaped:  \$ \\ \ \[ \{</code></pre>
 <ol><li>one</li><li>two</li><li>three</li></ol>
 <!-- /wp:list -->
 
-<!-- wp:heading {"level":3} -->
-<h3 id="nested">Nested</h3>
+<!-- wp:heading {"level":2} -->
+<h2 id="nested">Nested</h2>
 <!-- /wp:heading -->
 
 <!-- wp:list -->
@@ -442,16 +438,16 @@ These should not be escaped:  \$ \\ \ \[ \{</code></pre>
 <ol><li>First</li><li>Second:<ul><li>Fee</li><li>Fie</li><li>Foe</li></ul></li><li>Third</li></ol>
 <!-- /wp:list -->
 
-<!-- wp:heading {"level":3} -->
-<h3 id="tabs-and-spaces">Tabs and spaces</h3>
+<!-- wp:heading {"level":2} -->
+<h2 id="tabs-and-spaces">Tabs and spaces</h2>
 <!-- /wp:heading -->
 
 <!-- wp:list -->
 <ul><li>this is a list item indented with tabs</li><li>this is a list item indented with spaces<ul><li>this is an example list item indented with tabs</li><li>this is an example list item indented with spaces</li></ul></li></ul>
 <!-- /wp:list -->
 
-<!-- wp:heading {"level":3} -->
-<h3 id="fancy-list-markers">Fancy list markers</h3>
+<!-- wp:heading {"level":2} -->
+<h2 id="fancy-list-markers">Fancy list markers</h2>
 <!-- /wp:heading -->
 
 <!-- wp:paragraph -->
@@ -462,8 +458,8 @@ These should not be escaped:  \$ \\ \ \[ \{</code></pre>
 <ol><li>Autonumber.</li><li>More.<ol><li>Nested.</li></ol></li></ol>
 <!-- /wp:list -->
 
-<!-- wp:heading {"level":3} -->
-<h3 id="definition">Definition</h3>
+<!-- wp:heading {"level":2} -->
+<h2 id="definition">Definition</h2>
 <!-- /wp:heading -->
 
 <!-- wp:group -->
@@ -486,16 +482,16 @@ These should not be escaped:  \$ \\ \ \[ \{</code></pre>
 </div>
 <!-- /wp:group -->
 
-<!-- wp:heading {"level":3} -->
-<h3 id="list-inside-paragraph">List inside a paragraph</h3>
+<!-- wp:heading {"level":2} -->
+<h2 id="list-inside-paragraph">List inside a paragraph</h2>
 <!-- /wp:heading -->
 
 <!-- wp:paragraph -->
 <p>Start of a paragraph. •Red•Blue End of paragraph.</p>
 <!-- /wp:paragraph -->
 
-<!-- wp:heading {"level":2} -->
-<h2 id="inline-markup">Inline Markup</h2>
+<!-- wp:heading {"level":1} -->
+<h1 id="inline-markup">Inline Markup</h1>
 <!-- /wp:heading -->
 
 <!-- wp:paragraph -->
@@ -546,8 +542,8 @@ These should not be escaped:  \$ \\ \ \[ \{</code></pre>
 <p>These are all strikethrough: foo, bar, and baz.</p>
 <!-- /wp:paragraph -->
 
-<!-- wp:heading {"level":2} -->
-<h2 id="smart-quotes-ellipses-dashes">Smart quotes, ellipses, dashes</h2>
+<!-- wp:heading {"level":1} -->
+<h1 id="smart-quotes-ellipses-dashes">Smart quotes, ellipses, dashes</h1>
 <!-- /wp:heading -->
 
 <!-- wp:paragraph -->
@@ -582,8 +578,8 @@ These should not be escaped:  \$ \\ \ \[ \{</code></pre>
 <p>Ellipses...and. . .and . . . .</p>
 <!-- /wp:paragraph -->
 
-<!-- wp:heading {"level":2} -->
-<h2 id="latex">LaTeX</h2>
+<!-- wp:heading {"level":1} -->
+<h1 id="latex">LaTeX</h1>
 <!-- /wp:heading -->
 
 <!-- wp:list -->
@@ -606,8 +602,8 @@ These should not be escaped:  \$ \\ \ \[ \{</code></pre>
 <p>\begin{tabular}{|l|l|}\hline Animal Number \\ \hline Dog 2 \\ Cat 1 \\ \hline \end{tabular}</p>
 <!-- /wp:paragraph -->
 
-<!-- wp:heading {"level":2} -->
-<h2 id="special-characters">Special Characters</h2>
+<!-- wp:heading {"level":1} -->
+<h1 id="special-characters">Special Characters</h1>
 <!-- /wp:heading -->
 
 <!-- wp:paragraph -->
@@ -702,12 +698,12 @@ These should not be escaped:  \$ \\ \ \[ \{</code></pre>
 <p>Minus: -</p>
 <!-- /wp:paragraph -->
 
-<!-- wp:heading {"level":2} -->
-<h2 id="links">Links</h2>
+<!-- wp:heading {"level":1} -->
+<h1 id="links">Links</h1>
 <!-- /wp:heading -->
 
-<!-- wp:heading {"level":3} -->
-<h3 id="explicit">Explicit</h3>
+<!-- wp:heading {"level":2} -->
+<h2 id="explicit">Explicit</h2>
 <!-- /wp:heading -->
 
 <!-- wp:paragraph -->
@@ -742,8 +738,8 @@ These should not be escaped:  \$ \\ \ \[ \{</code></pre>
 <p><a href="#">Empty</a>.</p>
 <!-- /wp:paragraph -->
 
-<!-- wp:heading {"level":3} -->
-<h3 id="reference">Reference</h3>
+<!-- wp:heading {"level":2} -->
+<h2 id="reference">Reference</h2>
 <!-- /wp:heading -->
 
 <!-- wp:paragraph -->
@@ -794,8 +790,8 @@ These should not be escaped:  \$ \\ \ \[ \{</code></pre>
 <p>Foo <a href="/url/">biz</a>.</p>
 <!-- /wp:paragraph -->
 
-<!-- wp:heading {"level":3} -->
-<h3 id="with-ampersands">With ampersands</h3>
+<!-- wp:heading {"level":2} -->
+<h2 id="with-ampersands">With ampersands</h2>
 <!-- /wp:heading -->
 
 <!-- wp:paragraph -->
@@ -814,8 +810,8 @@ These should not be escaped:  \$ \\ \ \[ \{</code></pre>
 <p>Here&#039;s an <a href="/script?foo=1&amp;bar=2">inline link in pointy braces</a>.</p>
 <!-- /wp:paragraph -->
 
-<!-- wp:heading {"level":3} -->
-<h3 id="autolinks">Autolinks</h3>
+<!-- wp:heading {"level":2} -->
+<h2 id="autolinks">Autolinks</h2>
 <!-- /wp:heading -->
 
 <!-- wp:paragraph -->
@@ -842,8 +838,8 @@ These should not be escaped:  \$ \\ \ \[ \{</code></pre>
 <pre class="wp-block-code"><code>or here: http://example.com/</code></pre>
 <!-- /wp:code -->
 
-<!-- wp:heading {"level":2} -->
-<h2 id="images">Images</h2>
+<!-- wp:heading {"level":1} -->
+<h1 id="images">Images</h1>
 <!-- /wp:heading -->
 
 <!-- wp:paragraph -->
@@ -858,8 +854,8 @@ These should not be escaped:  \$ \\ \ \[ \{</code></pre>
 <p>Here is a movie <img src="movie.jpg" alt=""/> icon.</p>
 <!-- /wp:paragraph -->
 
-<!-- wp:heading {"level":2} -->
-<h2 id="footnotes">Footnotes</h2>
+<!-- wp:heading {"level":1} -->
+<h1 id="footnotes">Footnotes</h1>
 <!-- /wp:heading -->
 
 <!-- wp:paragraph -->
@@ -902,12 +898,12 @@ These should not be escaped:  \$ \\ \ \[ \{</code></pre>
 <p><em>Trailing spaces</em> text</p>
 <!-- /wp:paragraph -->
 
-<!-- wp:heading {"level":2} -->
-<h2 id="tables">Tables</h2>
+<!-- wp:heading {"level":1} -->
+<h1 id="tables">Tables</h1>
 <!-- /wp:heading -->
 
-<!-- wp:heading {"level":3} -->
-<h3 id="tables-with-headers">Tables with Headers</h3>
+<!-- wp:heading {"level":2} -->
+<h2 id="tables-with-headers">Tables with Headers</h2>
 <!-- /wp:heading -->
 
 <!-- wp:table -->
@@ -946,8 +942,8 @@ These should not be escaped:  \$ \\ \ \[ \{</code></pre>
 <figure class="wp-block-table"><table><thead><tr><th>X</th><th>Y</th><th>Z</th></tr></thead><tbody><tr><td>1</td><td>2</td><td>3</td></tr><tr><td>4</td><td>5</td><td>6</td></tr></tbody></table></figure>
 <!-- /wp:table -->
 
-<!-- wp:heading {"level":3} -->
-<h3 id="tables-without-headers">Tables without Headers</h3>
+<!-- wp:heading {"level":2} -->
+<h2 id="tables-without-headers">Tables without Headers</h2>
 <!-- /wp:heading -->
 
 <!-- wp:table -->
@@ -966,40 +962,40 @@ These should not be escaped:  \$ \\ \ \[ \{</code></pre>
 <figure class="wp-block-table"><table><thead><tr><th>1</th><th>2</th><th>3</th></tr></thead><tbody><tr><td>4</td><td>5</td><td>6</td></tr></tbody></table></figure>
 <!-- /wp:table -->
 
-<!-- wp:heading {"level":3} -->
-<h3 id="table-with-spans-and-alignments">Tables with spans and alignments</h3>
+<!-- wp:heading {"level":2} -->
+<h2 id="table-with-spans-and-alignments">Tables with spans and alignments</h2>
 <!-- /wp:heading -->
 
 <!-- wp:table -->
 <figure class="wp-block-table"><table><thead><tr><th colspan="2">1</th><th>2</th></tr></thead><tbody><tr><td colspan="2">1</td><td>2</td></tr><tr><td rowspan="2">4</td><td>5</td><td>6</td></tr><tr><td colspan="2">7</td></tr></tbody></table></figure>
 <!-- /wp:table -->
 
-<!-- wp:heading {"level":3} -->
-<h3 id="table-with-footer">Table with footer</h3>
+<!-- wp:heading {"level":2} -->
+<h2 id="table-with-footer">Table with footer</h2>
 <!-- /wp:heading -->
 
 <!-- wp:table -->
 <figure class="wp-block-table"><table><thead><tr><th>1</th><th>2</th><th>3</th></tr></thead><tbody></tbody><tfoot><tr><td>f1</td><td>f2</td><td>f3</td></tr><tr><td>f4</td><td>f5</td><td>f6</td></tr></tfoot></table></figure>
 <!-- /wp:table -->
 
-<!-- wp:heading {"level":3} -->
-<h3 id="table-with-multiple-bodies">Table With Multiple Bodies</h3>
+<!-- wp:heading {"level":2} -->
+<h2 id="table-with-multiple-bodies">Table With Multiple Bodies</h2>
 <!-- /wp:heading -->
 
 <!-- wp:table -->
 <figure class="wp-block-table"><table><thead><tr><th>a1</th><th>a2</th><th>a3</th></tr></thead><tbody><tr><td>b1</td><td>b2</td><td>b3</td></tr></tbody></table></figure>
 <!-- /wp:table -->
 
-<!-- wp:heading {"level":3} -->
-<h3 id="empty-tables">Empty Tables</h3>
+<!-- wp:heading {"level":2} -->
+<h2 id="empty-tables">Empty Tables</h2>
 <!-- /wp:heading -->
 
 <!-- wp:paragraph -->
 <p>This section should be empty.</p>
 <!-- /wp:paragraph -->
 
-<!-- wp:heading {"level":2} -->
-<h2>References</h2>
+<!-- wp:heading {"level":1} -->
+<h1>References</h1>
 <!-- /wp:heading -->
 
 <!-- wp:paragraph -->
@@ -1010,8 +1006,8 @@ These should not be escaped:  \$ \\ \ \[ \{</code></pre>
 <p id="ref_longnote">This is a long note</p>
 <!-- /wp:paragraph -->
 
-<!-- wp:heading {"level":2} -->
-<h2>Notes</h2>
+<!-- wp:heading {"level":1} -->
+<h1>Notes</h1>
 <!-- /wp:heading -->
 
 <!-- wp:paragraph -->
