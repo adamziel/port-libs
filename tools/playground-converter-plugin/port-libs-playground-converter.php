@@ -18,6 +18,9 @@ if (!defined('ABSPATH')) {
 const PLPC_MAX_COLLECTION_FILES = 200;
 const PLPC_MAX_COLLECTION_TOTAL_BYTES = 90000000;
 const PLPC_MAX_COLLECTION_FILE_BYTES = 25000000;
+const PLPC_MAX_PDF_RASTER_IMAGES = 96;
+const PLPC_MAX_PDF_RASTER_BYTES = 24000000;
+const PLPC_MAX_PDF_RASTER_IMAGE_BYTES = 16777216;
 
 spl_autoload_register(static function (string $class): void {
     $prefixes = [
@@ -142,6 +145,7 @@ function plpc_convert_uploaded_document(WP_REST_Request $request): WP_REST_Respo
         $result = plpc_convert_collection_file_to_page([
             'path' => $filename,
             'bytes' => $bytes,
+            'pdfRasterImages' => plpc_pdf_raster_images_from_payload($payload['pdfRasterImages'] ?? []),
         ], null, $title, $imageMode, $pdfMode);
 
         return new WP_REST_Response([
@@ -179,6 +183,7 @@ function plpc_collection_from_payload(array $payload, string $fallbackTitle): ar
 {
     $files = [];
     $totalBytes = 0;
+    $rasterImagesByPath = plpc_pdf_raster_images_by_path($payload['pdfRasterImages'] ?? []);
     foreach ($payload['files'] ?? [] as $index => $file) {
         if (!is_array($file)) {
             continue;
@@ -199,10 +204,14 @@ function plpc_collection_from_payload(array $payload, string $fallbackTitle): ar
         if ($totalBytes > PLPC_MAX_COLLECTION_TOTAL_BYTES) {
             throw new RuntimeException('The selected files are too large to import together.');
         }
-        $files[] = [
+        $entry = [
             'path' => $path,
             'bytes' => $bytes,
         ];
+        if (isset($rasterImagesByPath[$path])) {
+            $entry['pdfRasterImages'] = $rasterImagesByPath[$path];
+        }
+        $files[] = $entry;
         if (count($files) >= PLPC_MAX_COLLECTION_FILES) {
             break;
         }
@@ -273,8 +282,8 @@ function plpc_collection_from_zip(string $bytes, string $filename, string $fallb
 }
 
 /**
- * @param list<array{path: string, bytes: string}> $files
- * @return list<array{path: string, bytes: string}>
+ * @param list<array{path: string, bytes: string, pdfRasterImages?: list<array{object:string,contents:string,mimeType:string,width:int,height:int}>}> $files
+ * @return list<array{path: string, bytes: string, pdfRasterImages?: list<array{object:string,contents:string,mimeType:string,width:int,height:int}>}>
  */
 function plpc_sort_collection_files(array $files): array
 {
@@ -321,7 +330,7 @@ function plpc_collection_path_is_ignored(string $path): bool
 }
 
 /**
- * @param array{label: string, files: list<array{path: string, bytes: string}>} $collection
+ * @param array{label: string, files: list<array{path: string, bytes: string, pdfRasterImages?: list<array{object:string,contents:string,mimeType:string,width:int,height:int}>}>} $collection
  */
 function plpc_collection_response(array $collection, string $title, string $imageMode = 'important', string $pdfMode = 'layout'): WP_REST_Response
 {
@@ -402,8 +411,8 @@ function plpc_collection_response(array $collection, string $title, string $imag
 }
 
 /**
- * @param array{label: string, files: list<array{path: string, bytes: string}>} $collection
- * @return list<array{path: string, bytes: string, format: string}>
+ * @param array{label: string, files: list<array{path: string, bytes: string, pdfRasterImages?: list<array{object:string,contents:string,mimeType:string,width:int,height:int}>}>} $collection
+ * @return list<array{path: string, bytes: string, format: string, pdfRasterImages?: list<array{object:string,contents:string,mimeType:string,width:int,height:int}>}>
  */
 function plpc_convertible_collection_files(array $collection): array
 {
@@ -427,18 +436,22 @@ function plpc_convertible_collection_files(array $collection): array
         } catch (Throwable) {
             continue;
         }
-        $documents[] = [
+        $document = [
             'path' => $path,
             'bytes' => $file['bytes'],
             'format' => $format,
         ];
+        if (isset($file['pdfRasterImages']) && is_array($file['pdfRasterImages'])) {
+            $document['pdfRasterImages'] = $file['pdfRasterImages'];
+        }
+        $documents[] = $document;
     }
 
     return $documents;
 }
 
 /**
- * @param array{path: string, bytes: string, format?: string} $file
+ * @param array{path: string, bytes: string, format?: string, pdfRasterImages?: list<array{object:string,contents:string,mimeType:string,width:int,height:int}>} $file
  * @param array{label: string, files: list<array{path: string, bytes: string}>}|null $collection
  * @return array{postId: int, pageUrl: string, editUrl: string, format: string, title: string, path: string, imageTagCount: int, imagesImported: int, diagnostics: list<string>, quality: array{status:string, flags:list<string>, warnings:list<string>}}
  */
@@ -455,6 +468,7 @@ function plpc_convert_collection_file_to_page(array $file, ?array $collection = 
     $media = (new PandocMediaExtractor())->extract($document, $file['bytes'], $format, [
         'destination' => 'media',
         'imageMode' => $imageMode,
+        'pdfRasterImages' => is_array($file['pdfRasterImages'] ?? null) ? $file['pdfRasterImages'] : [],
     ]);
     $document = $media['document'];
     $blocks = PandocConverter::write($document, 'wordpress', $options['writerOptions']);
@@ -978,6 +992,85 @@ function plpc_normalize_image_mode(mixed $mode): string
         'all', 'yes', 'on', 'true', '1', 'all-images' => 'all',
         default => 'important',
     };
+}
+
+/**
+ * Decode browser-produced PNG rasters for PDF image objects. The core media
+ * extractor validates their PNG headers and PDF dimensions before use.
+ *
+ * @return list<array{object:string,contents:string,mimeType:string,width:int,height:int}>
+ */
+function plpc_pdf_raster_images_from_payload(mixed $images): array
+{
+    if (!is_array($images)) {
+        return [];
+    }
+
+    $rasters = [];
+    $totalBytes = 0;
+    foreach ($images as $key => $image) {
+        if (!is_array($image) || count($rasters) >= PLPC_MAX_PDF_RASTER_IMAGES) {
+            continue;
+        }
+        $object = (string) ($image['object'] ?? $key);
+        if (preg_match('/^\d+$/', $object) !== 1) {
+            continue;
+        }
+        $contents = base64_decode((string) ($image['bytes'] ?? ''), true);
+        $mimeType = strtolower(trim((string) ($image['mimeType'] ?? '')));
+        $width = $image['width'] ?? null;
+        $height = $image['height'] ?? null;
+        if (!is_string($contents) || $contents === '' || strlen($contents) > PLPC_MAX_PDF_RASTER_IMAGE_BYTES
+            || $mimeType !== 'image/png' || !is_numeric($width) || !is_numeric($height)) {
+            continue;
+        }
+        $width = (int) $width;
+        $height = (int) $height;
+        if ($width <= 0 || $height <= 0) {
+            continue;
+        }
+        $totalBytes += strlen($contents);
+        if ($totalBytes > PLPC_MAX_PDF_RASTER_BYTES) {
+            break;
+        }
+
+        $rasters[] = [
+            'object' => $object,
+            'contents' => $contents,
+            'mimeType' => $mimeType,
+            'width' => $width,
+            'height' => $height,
+        ];
+    }
+
+    return $rasters;
+}
+
+/**
+ * @return array<string,list<array{object:string,contents:string,mimeType:string,width:int,height:int}>>
+ */
+function plpc_pdf_raster_images_by_path(mixed $images): array
+{
+    if (!is_array($images)) {
+        return [];
+    }
+
+    $byPath = [];
+    foreach ($images as $path => $records) {
+        if (!is_string($path)) {
+            continue;
+        }
+        $path = plpc_normalize_collection_path($path);
+        if ($path === '') {
+            continue;
+        }
+        $decoded = plpc_pdf_raster_images_from_payload($records);
+        if ($decoded !== []) {
+            $byPath[$path] = $decoded;
+        }
+    }
+
+    return $byPath;
 }
 
 function plpc_normalize_pdf_mode(mixed $mode): string

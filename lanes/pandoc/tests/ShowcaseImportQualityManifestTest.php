@@ -107,6 +107,8 @@ return [
         $t->same($formats, $coveredFormats);
         $t->same(90, count($records));
         $t->same(90, $qualitySummary['samples'] ?? null);
+        $t->same(90, $qualitySummary['pass'] ?? null);
+        $t->same(0, $qualitySummary['review'] ?? null);
         $t->same(0, $qualitySummary['fail'] ?? null);
         $t->same(0, $qualitySummary['unbenchmarked'] ?? null);
         $t->same('pass', $qualityGate['status'] ?? null);
@@ -120,10 +122,7 @@ return [
             $t->same(true, $record['phpHtml']['ok'] ?? null, "{$id} should convert to PHP HTML.");
             $t->same(true, $record['wpBlocks']['ok'] ?? null, "{$id} should convert to WordPress blocks.");
             $quality = is_array($record['importQuality'] ?? null) ? $record['importQuality'] : [];
-            $t->true(
-                in_array($quality['status'] ?? null, ['pass', 'review'], true),
-                "{$id} should have measured import-quality evidence."
-            );
+            $t->same('pass', $quality['status'] ?? null, "{$id} should have passing measured import-quality evidence.");
             $anchor = is_array($quality['gates']['anchor_validity'] ?? null)
                 ? $quality['gates']['anchor_validity']
                 : [];
@@ -206,6 +205,26 @@ return [
             $t->same('pass', $gates['citeproc_content_coverage']['status'] ?? null, "{$id} should pass Citeproc content coverage.");
             $t->same('pass', $gates['citeproc_entry_count']['status'] ?? null, "{$id} should pass Citeproc entry count.");
         }
+    },
+    'showcase uses validated PNG rasters for JBIG2 PDF image objects' => static function (TestRunner $t) use ($showcaseManifest, $recordsById): void {
+        $manifest = $showcaseManifest();
+        $records = is_array($manifest['records'] ?? null) ? $manifest['records'] : [];
+        $byId = $recordsById($records);
+        $record = $byId['pdf-archive-motograph-book'] ?? null;
+
+        $t->true(is_array($record), 'The scanned PDF media fixture should be present in the showcase manifest.');
+        $quality = is_array($record['importQuality'] ?? null) ? $record['importQuality'] : [];
+        $mediaGate = is_array($quality['gates']['media_imported'] ?? null) ? $quality['gates']['media_imported'] : [];
+        $diagnostics = is_array($record['wpBlocks']['mediaDiagnostics'] ?? null) ? $record['wpBlocks']['mediaDiagnostics'] : [];
+        $pngMedia = array_values(array_filter($record['wpBlocks']['media'] ?? [], static function (mixed $media): bool {
+            return is_array($media) && str_ends_with((string) ($media['path'] ?? ''), '.png');
+        }));
+
+        $t->same('pass', $quality['status'] ?? null, 'The scanned PDF should no longer remain a review-only import.');
+        $t->same('pass', $mediaGate['status'] ?? null, 'Browser-compatible raster media should satisfy the media gate.');
+        $t->same(42, count($pngMedia), 'The important JBIG2 image objects should be represented as extracted PNG media.');
+        $t->true(in_array('extract-media-pdf-image-raster-loaded:00017:important', $diagnostics, true), 'A JBIG2Globals-backed page image should be recorded as a raster media import.');
+        $t->same(false, in_array('extract-media-pdf-image-skipped:JBIG2Decode', $diagnostics, true), 'No supported JBIG2 image should be silently skipped.');
     },
     'showcase manifest distinguishes source raw HTML from Custom HTML fallback' => static function (TestRunner $t) use ($showcaseManifest, $recordsById): void {
         $manifest = $showcaseManifest();

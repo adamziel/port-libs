@@ -1,4 +1,4 @@
-const pluginBuild = '57f8623f23d0';
+const pluginBuild = 'jbig2-raster-20260709';
 const playgroundClientModuleUrl = 'https://playground.wordpress.net/client/index.js';
 
 const iframe = document.getElementById('wp-playground');
@@ -80,6 +80,7 @@ let playgroundClient = null;
 let playgroundReady = false;
 let playgroundBootPromise = null;
 let startPlaygroundWeb = null;
+let decodePdfJbig2Rasters = null;
 let selectedUpload = null;
 let conversionActive = false;
 let dragDepth = 0;
@@ -174,14 +175,16 @@ async function convertSelectedFile() {
   setBusy(true);
   setQualityPanel(null);
   conversionActive = true;
-  setProgressStatus('Starting WordPress Playground...');
-  setPlaygroundState(playgroundReady ? 'ready' : 'loading');
+  setProgressStatus('Preparing document...');
+  setStatus('loading', 'Preparing document for import...');
+  setPlaygroundState(playgroundReady ? 'ready' : 'idle');
   try {
-    await bootPlayground();
-    setProgressStatus('Reading document...');
     log(`Reading ${selectedUpload.displayName} (${formatBytes(selectedUpload.totalSize)})`);
-    const payload = await payloadFromUpload(selectedUpload);
+    const payload = await payloadFromUpload(selectedUpload, setProgressStatus);
 
+    setProgressStatus('Starting WordPress Playground...');
+    setPlaygroundState(playgroundReady ? 'ready' : 'loading');
+    await bootPlayground();
     setStatus('loading', 'Converting in WordPress Playground...');
     setProgressStatus('Converting document in WordPress...');
     setPlaygroundState('ready');
@@ -480,31 +483,95 @@ function readDirectoryEntries(reader) {
   });
 }
 
-async function payloadFromUpload(upload) {
+async function payloadFromUpload(upload, reportProgress = () => {}) {
+  const imageMode = selectedImageMode();
   if (upload.kind === 'single') {
     const entry = upload.entries[0];
+    const prepared = await payloadFileEntry(entry, imageMode, reportProgress);
 
     return {
       filename: entry.file.name,
       format: upload.format,
       title: upload.title,
-      imageMode: selectedImageMode(),
+      imageMode,
       pdfMode: selectedPdfMode(),
-      bytes: await readFileAsBase64(entry.file),
+      bytes: prepared.bytes,
+      ...(prepared.pdfRasterImages.length > 0 ? { pdfRasterImages: prepared.pdfRasterImages } : {}),
     };
+  }
+
+  const files = [];
+  const pdfRasterImages = {};
+  for (let index = 0; index < upload.entries.length; index += 1) {
+    const entry = upload.entries[index];
+    reportProgress(`Preparing document ${index + 1} of ${upload.entries.length}...`);
+    const prepared = await payloadFileEntry(entry, imageMode, reportProgress);
+    files.push({
+      path: entry.path,
+      filename: entry.file.name,
+      bytes: prepared.bytes,
+    });
+    if (prepared.pdfRasterImages.length > 0) {
+      pdfRasterImages[entry.path] = prepared.pdfRasterImages;
+    }
   }
 
   return {
     filename: upload.displayName,
     title: upload.title,
-    imageMode: selectedImageMode(),
+    imageMode,
     pdfMode: selectedPdfMode(),
-    files: await Promise.all(upload.entries.map(async (entry) => ({
-      path: entry.path,
-      filename: entry.file.name,
-      bytes: await readFileAsBase64(entry.file),
-    }))),
+    files,
+    ...(Object.keys(pdfRasterImages).length > 0 ? { pdfRasterImages } : {}),
   };
+}
+
+async function payloadFileEntry(entry, imageMode, reportProgress) {
+  if (formatByExtension.get(extensionFromName(entry.file.name)) !== 'pdf') {
+    return { bytes: await readFileAsBase64(entry.file), pdfRasterImages: [] };
+  }
+
+  const bytes = new Uint8Array(await entry.file.arrayBuffer());
+  const pdfRasterImages = imageMode === 'none'
+    ? []
+    : await browserPdfRasterImages(bytes, imageMode, reportProgress);
+
+  return {
+    bytes: base64FromBytes(bytes),
+    pdfRasterImages,
+  };
+}
+
+async function browserPdfRasterImages(bytes, imageMode, reportProgress) {
+  try {
+    if (!decodePdfJbig2Rasters) {
+      const moduleUrl = new URL('pdf-jbig2-rasterizer.mjs?v=jbig2-raster-20260709', window.location.href).href;
+      ({ decodePdfJbig2Rasters } = await import(moduleUrl));
+    }
+    const result = await decodePdfJbig2Rasters(bytes, {
+      imageMode,
+      onProgress({ completed, total }) {
+        reportProgress(total > 0
+          ? `Preparing PDF images (${completed} of ${total})...`
+          : 'Preparing PDF images...');
+      },
+    });
+    if (result.rasters.length > 0) {
+      log(`Prepared ${result.rasters.length} browser-decoded PDF image${result.rasters.length === 1 ? '' : 's'}.`);
+    }
+
+    return result.rasters.map((raster) => ({
+      object: raster.object,
+      bytes: base64FromBytes(raster.bytes),
+      mimeType: raster.mimeType,
+      width: raster.width,
+      height: raster.height,
+    }));
+  } catch (error) {
+    log(`Browser PDF image preparation was unavailable: ${error instanceof Error ? error.message : String(error)}`);
+
+    return [];
+  }
 }
 
 function selectedImageMode() {
@@ -703,6 +770,16 @@ function readFileAsBase64(file) {
     });
     reader.readAsDataURL(file);
   });
+}
+
+function base64FromBytes(bytes) {
+  let binary = '';
+  const chunkSize = 0x8000;
+  for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(offset, Math.min(offset + chunkSize, bytes.length)));
+  }
+
+  return btoa(binary);
 }
 
 function isLikelyIOS() {

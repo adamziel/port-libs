@@ -21,4 +21,6 @@ assert(js.includes('log(qualityLogMessage(quality));'), 'Expected conversion log
 assert(js.includes('setStatus(\'ready\', quality ? `Page created and opened. ${qualityMessageForStatus(String(quality.status || \'complete\'))}`'), 'Expected final status text to include the plain-language quality message.');
 assert(!js.includes('Import quality: ${data.quality.status}'), 'Raw import-quality status codes must not be shown in the visible log.');
 assert(!js.includes('log(`Import quality: ${'), 'Visible quality logging should not interpolate raw status codes.');
-assert(html.includes('playground-converter.js?v=ocr-quality-20260709'), 'Expected cache-busted Playground converter script URL.');
+assert(html.includes('playground-converter.js?v=jbig2-raster-20260709'), 'Expected cache-busted Playground converter script URL.');
+assert(js.includes('pdf-jbig2-rasterizer.mjs'), 'Expected the browser JBIG2 rasterizer to be loaded for PDF imports.');
+assert(js.includes('pdfRasterImages'), 'Expected browser-decoded PDF rasters to be included in the import payload.');

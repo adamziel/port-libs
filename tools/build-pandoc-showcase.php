@@ -18,8 +18,9 @@ if (($argv[1] ?? '') === '--convert-local') {
     $mediaOutputDir = $argv[5] ?? '';
     $mediaDestination = $argv[6] ?? '';
     $mediaManifest = $argv[7] ?? '';
+    $pdfRasterManifest = $argv[8] ?? '';
     if ($path === '' || $format === '' || $to === '') {
-        fwrite(STDERR, "Usage: php tools/build-pandoc-showcase.php --convert-local <path> <from> <to> [media-output-dir media-destination media-manifest]\n");
+        fwrite(STDERR, "Usage: php tools/build-pandoc-showcase.php --convert-local <path> <from> <to> [media-output-dir media-destination media-manifest pdf-raster-manifest]\n");
         exit(2);
     }
     $options = showcase_converter_options($format, $to);
@@ -29,6 +30,10 @@ if (($argv[1] ?? '') === '--convert-local') {
             'outputDirectory' => $mediaOutputDir,
             'imageMode' => 'important',
         ];
+        $pdfRasterImages = showcase_pdf_raster_images_from_manifest($pdfRasterManifest);
+        if ($pdfRasterImages !== []) {
+            $options['extractMedia']['pdfRasterImages'] = $pdfRasterImages;
+        }
         $converted = PandocConverter::convertFileWithMedia($path, $format, $to, $options);
         file_put_contents($mediaManifest, json_encode([
             'media' => $converted['media'],
@@ -1276,13 +1281,36 @@ function run_process(array $cmd, int $timeoutSeconds = 0): array
  */
 function write_output_from_process(string $dir, string $name, string $sourcePath, string $from, string $to): array
 {
+    global $root;
+
     $timeout = PandocConverter::canonicalInputFormat($from) === 'pdf' || (is_file($sourcePath) && filesize($sourcePath) > 262144) ? 75 : 25;
     $mediaDir = $dir . '/media';
     $manifestPath = tempnam(sys_get_temp_dir(), 'pandoc-media-manifest-');
+    $pdfRasterManifest = '';
     if (!is_string($manifestPath)) {
         $manifestPath = $dir . '/' . $name . '.media.json';
     }
-    $result = run_process([PHP_BINARY, __FILE__, '--convert-local', $sourcePath, $from, $to, $mediaDir, 'media', $manifestPath], $timeout);
+    if (PandocConverter::canonicalInputFormat($from) === 'pdf') {
+        $candidate = tempnam(sys_get_temp_dir(), 'pandoc-pdf-raster-manifest-');
+        if (is_string($candidate)) {
+            $rasterResult = run_process([
+                'node',
+                $root . '/tools/decode-pdf-jbig2-media.mjs',
+                '--input',
+                $sourcePath,
+                '--output',
+                $candidate,
+                '--image-mode',
+                'important',
+            ], $timeout);
+            if ($rasterResult['exitCode'] === 0 && is_file($candidate) && filesize($candidate) > 0) {
+                $pdfRasterManifest = $candidate;
+            } elseif (is_file($candidate)) {
+                unlink($candidate);
+            }
+        }
+    }
+    $result = run_process([PHP_BINARY, __FILE__, '--convert-local', $sourcePath, $from, $to, $mediaDir, 'media', $manifestPath, $pdfRasterManifest], $timeout);
     if ($result['exitCode'] === 0) {
         $stdout = $to === 'html'
             ? wrap_local_html_document($result['stdout'], 'PHP Pandoc HTML output')
@@ -1292,6 +1320,9 @@ function write_output_from_process(string $dir, string $name, string $sourcePath
         $manifest = read_media_manifest($manifestPath, basename($dir));
         if (is_file($manifestPath)) {
             unlink($manifestPath);
+        }
+        if ($pdfRasterManifest !== '' && is_file($pdfRasterManifest)) {
+            unlink($pdfRasterManifest);
         }
 
         return [
@@ -1309,9 +1340,51 @@ function write_output_from_process(string $dir, string $name, string $sourcePath
     if (is_file($manifestPath)) {
         unlink($manifestPath);
     }
+    if ($pdfRasterManifest !== '' && is_file($pdfRasterManifest)) {
+        unlink($pdfRasterManifest);
+    }
     file_put_contents($dir . '/' . $name . '.error.txt', $message);
 
     return ['ok' => false, 'error' => $message, 'path' => 'outputs/' . basename($dir) . '/' . $name . '.error.txt'];
+}
+
+/**
+ * @return list<array{object:string,contents:string,mimeType:string,width:int,height:int}>
+ */
+function showcase_pdf_raster_images_from_manifest(string $path): array
+{
+    if ($path === '' || !is_file($path)) {
+        return [];
+    }
+    $manifest = json_decode((string) file_get_contents($path), true);
+    if (!is_array($manifest) || !is_array($manifest['rasters'] ?? null)) {
+        return [];
+    }
+
+    $rasters = [];
+    foreach ($manifest['rasters'] as $raster) {
+        if (!is_array($raster)) {
+            continue;
+        }
+        $object = (string) ($raster['object'] ?? '');
+        $contents = base64_decode((string) ($raster['bytes'] ?? ''), true);
+        $mimeType = strtolower(trim((string) ($raster['mimeType'] ?? '')));
+        $width = $raster['width'] ?? null;
+        $height = $raster['height'] ?? null;
+        if (preg_match('/^\d+$/', $object) !== 1 || !is_string($contents) || $contents === ''
+            || $mimeType !== 'image/png' || !is_numeric($width) || !is_numeric($height)) {
+            continue;
+        }
+        $rasters[] = [
+            'object' => $object,
+            'contents' => $contents,
+            'mimeType' => $mimeType,
+            'width' => (int) $width,
+            'height' => (int) $height,
+        ];
+    }
+
+    return $rasters;
 }
 
 /**
@@ -2993,7 +3066,7 @@ function write_conversion_report(
 
     $mediaPreview = extracted_media_preview($records);
     $html .= '<section><h2>Extracted media preview</h2>';
-    $html .= '<p>The PHP path now runs an <code>--extract-media</code>-style pass in <strong>images we thought were important</strong> mode. Referenced package images are written beside the converted output and their <code>&lt;img&gt;</code> URLs are rewritten to hosted files; PDF image streams are copied out when their intrinsic metadata suggests they are document content rather than tiny masks or decorative fragments.</p>';
+    $html .= '<p>The PHP path now runs an <code>--extract-media</code>-style pass in <strong>images we thought were important</strong> mode. Referenced package images are written beside the converted output and their <code>&lt;img&gt;</code> URLs are rewritten to hosted files; directly embeddable PDF streams are copied out, while JBIG2 streams are decoded through the bundled browser-compatible PDF.js/PDFium raster path into validated 1-bit PNG media.</p>';
     $html .= '<p class="meta">' . h((string) $mediaPreview['total']) . ' image media entr' . ($mediaPreview['total'] === 1 ? 'y' : 'ies') . ' extracted across ' . h((string) $mediaPreview['samples']) . ' source file' . ($mediaPreview['samples'] === 1 ? '' : 's') . '.</p>';
     if ($mediaPreview['previews'] !== []) {
         $html .= '<div class="media-gallery">';

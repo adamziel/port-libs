@@ -276,6 +276,49 @@ return [
         $t->same('media/pdf/image-1.png', $result['document']->children[0]->children[2]->children[0]->attr('url'));
         $t->same('media/pdf/image-2.png', $result['document']->children[0]->children[3]->children[0]->attr('url'));
     },
+    'uses validated supplemental rasters for otherwise non-embeddable pdf image streams' => static function (TestRunner $t): void {
+        $png = "\x89PNG\r\n\x1a\n"
+            . pack('N', 13) . 'IHDR' . pack('NNCCCCC', 100, 100, 1, 0, 0, 0, 0)
+            . pack('N', 0);
+        $pdf = "%PDF-1.4\n"
+            . "00017 0 obj\n"
+            . "<< /Type /XObject /Subtype /Image /Width 100 /Height 100 /BitsPerComponent 1 /Filter /JBIG2Decode /Length 3 >>\n"
+            . "stream\nabc\nendstream\nendobj\n%%EOF\n";
+
+        $extractor = new \PortLibs\Pandoc\PandocMediaExtractor();
+        $result = $extractor->extract(new AstNode('document'), $pdf, 'pdf', [
+            'destination' => 'media',
+            'imageMode' => 'important',
+            'pdfRasterImages' => [[
+                'object' => '17',
+                'contents' => $png,
+                'mimeType' => 'image/png',
+                'width' => 100,
+                'height' => 100,
+            ]],
+        ]);
+
+        $t->same(1, count($result['entries']));
+        $t->same('media/pdf/image-00017.png', $result['entries'][0]['path'] ?? null);
+        $t->same('image/png', $result['entries'][0]['mimeType'] ?? null);
+        $t->same($png, $result['entries'][0]['contents'] ?? null);
+        $t->true(in_array('extract-media-pdf-image-raster-loaded:00017:important', $result['diagnostics'], true));
+        $t->same('media/pdf/image-00017.png', $result['document']->children[0]->children[2]->children[0]->attr('url'));
+
+        $mismatched = $extractor->extract(new AstNode('document'), $pdf, 'pdf', [
+            'destination' => 'media',
+            'imageMode' => 'important',
+            'pdfRasterImages' => [[
+                'object' => '17',
+                'contents' => $png,
+                'mimeType' => 'image/png',
+                'width' => 99,
+                'height' => 100,
+            ]],
+        ]);
+        $t->same(0, count($mismatched['entries']));
+        $t->true(in_array('extract-media-pdf-image-skipped:JBIG2Decode', $mismatched['diagnostics'], true));
+    },
     'fails explicitly for unsupported registry formats' => static function (TestRunner $t): void {
         $t->throws(\InvalidArgumentException::class, static function (): void {
             PandocConverter::read('unsupported input', 'asciidoc');

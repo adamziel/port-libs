@@ -400,6 +400,81 @@ return [
         $t->same('all', plpc_normalize_image_mode('all-images'));
         $t->same('all', plpc_normalize_image_mode(true));
     },
+    'playground importer accepts bounded browser decoded pdf rasters' => static function (TestRunner $t): void {
+        $png = "\x89PNG\r\n\x1a\n"
+            . pack('N', 13) . 'IHDR' . pack('NNCCCCC', 100, 100, 1, 0, 0, 0, 0)
+            . pack('N', 0);
+        $rasters = plpc_pdf_raster_images_from_payload([
+            [
+                'object' => '00017',
+                'bytes' => base64_encode($png),
+                'mimeType' => 'image/png',
+                'width' => 100,
+                'height' => 100,
+            ],
+            [
+                'object' => '../bad',
+                'bytes' => base64_encode($png),
+                'mimeType' => 'image/png',
+                'width' => 100,
+                'height' => 100,
+            ],
+            [
+                'object' => '18',
+                'bytes' => 'not base64',
+                'mimeType' => 'image/png',
+                'width' => 100,
+                'height' => 100,
+            ],
+        ]);
+
+        $t->same(1, count($rasters));
+        $t->same('00017', $rasters[0]['object'] ?? null);
+        $t->same($png, $rasters[0]['contents'] ?? null);
+
+        $byPath = plpc_pdf_raster_images_by_path([
+            'docs/../docs/book.pdf' => [[
+                'object' => '00017',
+                'bytes' => base64_encode($png),
+                'mimeType' => 'image/png',
+                'width' => 100,
+                'height' => 100,
+            ]],
+        ]);
+        $t->same(['docs/book.pdf'], array_keys($byPath));
+        $t->same('00017', $byPath['docs/book.pdf'][0]['object'] ?? null);
+    },
+    'playground importer turns browser PDF rasters into WordPress media' => static function (TestRunner $t): void {
+        $GLOBALS['plpc_imported_media_by_hash'] = [];
+        $GLOBALS['plpc_test_uploads'] = [];
+        $GLOBALS['plpc_test_attachments'] = [];
+        $GLOBALS['plpc_test_posts'] = [];
+        $png = "\x89PNG\r\n\x1a\n"
+            . pack('N', 13) . 'IHDR' . pack('NNCCCCC', 100, 100, 1, 0, 0, 0, 0)
+            . pack('N', 0);
+        $pdf = "%PDF-1.4\n"
+            . "00017 0 obj\n"
+            . "<< /Type /XObject /Subtype /Image /Width 100 /Height 100 /BitsPerComponent 1 /Filter /JBIG2Decode /Length 3 >>\n"
+            . "stream\nabc\nendstream\nendobj\n%%EOF\n";
+
+        $result = plpc_convert_collection_file_to_page([
+            'path' => 'scan.pdf',
+            'bytes' => $pdf,
+            'pdfRasterImages' => [[
+                'object' => '17',
+                'contents' => $png,
+                'mimeType' => 'image/png',
+                'width' => 100,
+                'height' => 100,
+            ]],
+        ], null, 'Scanned import', 'important');
+
+        $t->same(1, $result['imageTagCount'] ?? null);
+        $t->same(1, $result['imagesImported'] ?? null);
+        $t->true(in_array('extract-media-pdf-image-raster-loaded:00017:important', $result['diagnostics'] ?? [], true));
+        $t->same(1, count($GLOBALS['plpc_test_attachments']));
+        $t->contains('https://playground.test/uploads/attachment-1.png', $GLOBALS['plpc_test_posts'][1]['post_content'] ?? '');
+    },
     'playground importer normalizes pdf retry modes' => static function (TestRunner $t): void {
         $t->same('layout', plpc_normalize_pdf_mode(''));
         $t->same('layout', plpc_normalize_pdf_mode('layout-aware'));

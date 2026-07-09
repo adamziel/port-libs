@@ -9,6 +9,8 @@ final class PandocMediaExtractor
     private const MAX_PACKAGE_MEDIA_BYTES = 33554432;
     private const MAX_PDF_SCAN_BYTES = 67108864;
     private const MAX_PDF_IMAGE_BYTES = 33554432;
+    private const MAX_PDF_RASTER_IMAGE_BYTES = 16777216;
+    private const MAX_PDF_RASTER_IMAGE_PIXELS = 48000000;
     private const MAX_PDF_IMAGES = 96;
 
     /**
@@ -24,6 +26,7 @@ final class PandocMediaExtractor
         $destination = (string) ($options['destination'] ?? $options['extractMedia'] ?? $options['extract-media'] ?? 'media');
         $sourcePath = isset($options['sourcePath']) && is_string($options['sourcePath']) ? $options['sourcePath'] : null;
         $imageMode = $this->normalizeImageMode($options['imageMode'] ?? $options['image-mode'] ?? $options['pdfImageMode'] ?? $options['pdf-image-mode'] ?? 'all');
+        $pdfRasterImages = $this->normalizePdfRasterImages($options['pdfRasterImages'] ?? $options['pdf-raster-images'] ?? []);
         $format = PandocConverter::canonicalInputFormat($format);
         $bag = new MediaBag();
         $diagnostics = ['extract-media-image-mode:' . $imageMode];
@@ -43,7 +46,7 @@ final class PandocMediaExtractor
 
         $pdfImagePlacements = [];
         if ($format === 'pdf' && $imageMode !== 'none') {
-            $pdfImagePlacements = $this->loadPdfImages($bag, $bytes, $diagnostics, $imageMode);
+            $pdfImagePlacements = $this->loadPdfImages($bag, $bytes, $diagnostics, $imageMode, $pdfRasterImages);
             if ($pdfImagePlacements !== []) {
                 $document = $this->documentWithPdfImageBlocks($document, $pdfImagePlacements);
             }
@@ -71,6 +74,54 @@ final class PandocMediaExtractor
             'important', 'auto', 'selected', 'significant' => 'important',
             default => 'all',
         };
+    }
+
+    /**
+     * Accept browser or host supplied PNG rasters for PDF image XObjects.
+     * A decoder remains outside this class, but the PDF object and intrinsic
+     * dimensions are checked again before a raster can become document media.
+     *
+     * @return array<string,array{contents:string,mimeType:string,width:int,height:int}>
+     */
+    private function normalizePdfRasterImages(mixed $images): array
+    {
+        if (!is_array($images)) {
+            return [];
+        }
+
+        $normalized = [];
+        foreach ($images as $key => $image) {
+            if (!is_array($image)) {
+                continue;
+            }
+            $object = (string) ($image['object'] ?? $key);
+            if (preg_match('/^\d+$/', $object) !== 1) {
+                continue;
+            }
+            $contents = $image['contents'] ?? $image['bytes'] ?? '';
+            $mimeType = strtolower(trim((string) ($image['mimeType'] ?? $image['mime'] ?? '')));
+            $width = $image['width'] ?? null;
+            $height = $image['height'] ?? null;
+            if (!is_string($contents) || $contents === '' || strlen($contents) > self::MAX_PDF_RASTER_IMAGE_BYTES
+                || $mimeType !== 'image/png' || !is_numeric($width) || !is_numeric($height)) {
+                continue;
+            }
+            $width = (int) $width;
+            $height = (int) $height;
+            if ($width <= 0 || $height <= 0 || $width * $height > self::MAX_PDF_RASTER_IMAGE_PIXELS
+                || !$this->pngHasDimensions($contents, $width, $height)) {
+                continue;
+            }
+
+            $normalized[$object] = [
+                'contents' => $contents,
+                'mimeType' => $mimeType,
+                'width' => $width,
+                'height' => $height,
+            ];
+        }
+
+        return $normalized;
     }
 
     private function documentWithoutImages(AstNode $document): AstNode
@@ -266,9 +317,10 @@ final class PandocMediaExtractor
 
     /**
      * @param list<string> $diagnostics
+     * @param array<string,array{contents:string,mimeType:string,width:int,height:int}> $rasterImages
      * @return list<array{source:string, page:int|null, object:string, mimeType:string, byteLength:int, width:int|null, height:int|null, imageMask:bool, importance:string}>
      */
-    private function loadPdfImages(MediaBag $bag, string $bytes, array &$diagnostics, string $imageMode): array
+    private function loadPdfImages(MediaBag $bag, string $bytes, array &$diagnostics, string $imageMode, array $rasterImages = []): array
     {
         if (strlen($bytes) > self::MAX_PDF_SCAN_BYTES) {
             $diagnostics[] = 'extract-media-pdf-scan-skipped:too-large';
@@ -304,22 +356,34 @@ final class PandocMediaExtractor
             }
 
             $filters = $this->pdfFilterNames($body);
-            $mimeType = $this->pdfEmbeddableMimeType($filters);
-            $extension = $mimeType === 'image/jpeg' ? '.jpg' : '.jp2';
-            $imageBytes = $stream;
-            if ($mimeType === null) {
-                $flateImage = $this->pdfFlateImagePng($body, $filters, $stream, $width, $height, $imageMask);
-                if ($flateImage === null) {
-                    $diagnostics[] = 'extract-media-pdf-image-skipped:' . ($filters === [] ? 'unfiltered' : implode('+', $filters));
-                    continue;
-                }
-                [$mimeType, $extension, $imageBytes] = $flateImage;
+            $raster = $rasterImages[$objectNumber] ?? $rasterImages[(string) (int) $objectNumber] ?? null;
+            if ($raster !== null && ($raster['width'] !== $width || $raster['height'] !== $height)) {
+                $diagnostics[] = 'extract-media-pdf-image-raster-skipped:dimensions:' . $objectNumber;
+                $raster = null;
             }
-
-            $importance = $this->pdfImageImportance($width, $height, strlen($imageBytes), $imageMask);
+            $importance = $this->pdfImageImportance($width, $height, $raster === null ? strlen($stream) : strlen($raster['contents']), $imageMask);
             if ($imageMode === 'important' && $importance !== 'important') {
                 $diagnostics[] = 'extract-media-pdf-image-unimportant:' . $objectNumber . ':' . $importance;
                 continue;
+            }
+
+            if ($raster !== null) {
+                $mimeType = $raster['mimeType'];
+                $extension = '.png';
+                $imageBytes = $raster['contents'];
+                $diagnostics[] = 'extract-media-pdf-image-raster-loaded:' . $objectNumber . ':' . $importance;
+            } else {
+                $mimeType = $this->pdfEmbeddableMimeType($filters);
+                $extension = $mimeType === 'image/jpeg' ? '.jpg' : '.jp2';
+                $imageBytes = $stream;
+                if ($mimeType === null) {
+                    $flateImage = $this->pdfFlateImagePng($body, $filters, $stream, $width, $height, $imageMask);
+                    if ($flateImage === null) {
+                        $diagnostics[] = 'extract-media-pdf-image-skipped:' . ($filters === [] ? 'unfiltered' : implode('+', $filters));
+                        continue;
+                    }
+                    [$mimeType, $extension, $imageBytes] = $flateImage;
+                }
             }
 
             $source = 'pdf/image-' . $objectNumber . $extension;
@@ -570,6 +634,18 @@ final class PandocMediaExtractor
         }
 
         return $pixels;
+    }
+
+    private function pngHasDimensions(string $bytes, int $width, int $height): bool
+    {
+        if (strlen($bytes) < 24 || substr($bytes, 0, 8) !== "\x89PNG\r\n\x1a\n" || substr($bytes, 12, 4) !== 'IHDR') {
+            return false;
+        }
+        $dimensions = unpack('Nwidth/Nheight', substr($bytes, 16, 8));
+
+        return is_array($dimensions)
+            && (int) ($dimensions['width'] ?? 0) === $width
+            && (int) ($dimensions['height'] ?? 0) === $height;
     }
 
     private function pngEncodeGrayscale8(int $width, int $height, string $pixels): string

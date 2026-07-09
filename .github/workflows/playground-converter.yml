@@ -7,7 +7,11 @@ on:
       - 'lanes/pandoc/**'
       - 'lanes/markerpdf/**'
       - 'pandoc-showcase/playground-converter.*'
+      - 'pandoc-showcase/pdf-jbig2-rasterizer.mjs'
+      - 'pandoc-showcase/vendor/pdfjs-jbig2/**'
       - 'pandoc-showcase/playground/**'
+      - 'tools/decode-pdf-jbig2-media.mjs'
+      - 'tools/check-pdf-jbig2-rasterizer.mjs'
       - 'tools/build-playground-converter-plugin.php'
       - 'tools/playground-converter-plugin/**'
   push:
@@ -18,7 +22,11 @@ on:
       - 'lanes/pandoc/**'
       - 'lanes/markerpdf/**'
       - 'pandoc-showcase/playground-converter.*'
+      - 'pandoc-showcase/pdf-jbig2-rasterizer.mjs'
+      - 'pandoc-showcase/vendor/pdfjs-jbig2/**'
       - 'pandoc-showcase/playground/**'
+      - 'tools/decode-pdf-jbig2-media.mjs'
+      - 'tools/check-pdf-jbig2-rasterizer.mjs'
       - 'tools/build-playground-converter-plugin.php'
       - 'tools/playground-converter-plugin/**'
   workflow_dispatch:
@@ -47,7 +55,10 @@ jobs:
           php -l lanes/pandoc/tests/PdfReaderCorpusQualityTest.php
           php -l lanes/pandoc/tests/ShowcaseImportQualityManifestTest.php
           node --check pandoc-showcase/playground-converter.js
+          node --check pandoc-showcase/pdf-jbig2-rasterizer.mjs
+          node --check tools/decode-pdf-jbig2-media.mjs
           node tools/check-playground-converter-ui.js
+          node tools/check-pdf-jbig2-rasterizer.mjs
 
       - name: Run converter tests
         run: |
