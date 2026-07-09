@@ -5355,6 +5355,45 @@ return [
             'explain the method without joining real short words.',
         ], $repaired);
     },
+    'merges single-letter pdf word prefixes only with raw run evidence' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $repair = (function (array $lines, array $runs): array {
+            return $this->repairProseTextLines($lines, true, [], $this->pdfTextRunSplitWordHints($runs));
+        })->bindTo($reader, PdfReader::class);
+        $t->true($repair instanceof \Closure);
+
+        $withHint = $repair([
+            'W',
+            'eekend visitors catch a few fish',
+            '(photos from the source)',
+        ], [
+            'W',
+            'eekend visitors catch a few fish',
+            ' ',
+        ]);
+        $withoutHint = $repair([
+            'A',
+            'winding scenic drive to diverse viewpoints.',
+            'Next sentence.',
+        ], [
+            'A',
+            'winding scenic drive to diverse viewpoints.',
+            'Next sentence.',
+        ]);
+        $flowchartLabel = $repair([
+            'T',
+            'race',
+            'Execute',
+        ], [
+            'T',
+            'race',
+            'Execute',
+        ]);
+
+        $t->same(['Weekend visitors catch a few fish (photos from the source)'], $withHint);
+        $t->same(['A', 'winding scenic drive to diverse viewpoints.', 'Next sentence.'], $withoutHint);
+        $t->same(['T', 'race', 'Execute'], $flowchartLabel);
+    },
     'repairs whitespace inserted inside pdf url text' => static function (TestRunner $t): void {
         $reader = new PdfReader();
         $repair = (function (array $lines): array {

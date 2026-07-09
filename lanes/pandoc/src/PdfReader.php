@@ -81,6 +81,7 @@ final class PdfReader
         $repairSourceLines = $limitedLines;
         $repairSourceLayouts = [];
         $repairSource = 'text';
+        $repairSplitWordHints = [];
         if ($taggedBlocks === [] && $geometryTableBlocks === [] && $proseRepairEnabled) {
             $positionedLineItems = $this->positionedProseLineItemsFromTextRuns($limitedPositionedRuns);
             $positionedLines = $this->positionedLineItemTexts($positionedLineItems);
@@ -88,10 +89,12 @@ final class PdfReader
                 $repairSourceLines = $positionedLines;
                 $repairSourceLayouts = $positionedLineItems;
                 $repairSource = 'positioned';
+            } else {
+                $repairSplitWordHints = $this->pdfTextRunSplitWordHints($runs);
             }
         }
         $repairedLines = $taggedBlocks === [] && $geometryTableBlocks === [] && $proseRepairEnabled
-            ? $this->repairProseTextLines($repairSourceLines, $this->looksLikeProseRepairCandidate($repairSourceLines), $repairSourceLayouts)
+            ? $this->repairProseTextLines($repairSourceLines, $this->looksLikeProseRepairCandidate($repairSourceLines), $repairSourceLayouts, $repairSplitWordHints)
             : $limitedLines;
         $blocks = $taggedBlocks !== [] ? $taggedBlocks : ($geometryTableBlocks !== [] ? $geometryTableBlocks : $this->blocksFromLines($repairedLines));
         $blocks = $appliedLinkAnnotations === [] ? $blocks : $this->applyLinkAnnotationsToBlocks($blocks, $appliedLinkAnnotations);
@@ -812,9 +815,10 @@ final class PdfReader
     /**
      * @param list<string> $lines
      * @param list<array{text: string, page: int, x1: float, y1: float, x2: float, y2: float, fontSize: float}> $lineLayouts
+     * @param array<string, true> $splitWordHints
      * @return list<string>
      */
-    private function repairProseTextLines(array $lines, bool $repairGluedText = true, array $lineLayouts = []): array
+    private function repairProseTextLines(array $lines, bool $repairGluedText = true, array $lineLayouts = [], array $splitWordHints = []): array
     {
         $cleaned = [];
         $pendingListMarker = null;
@@ -844,7 +848,7 @@ final class PdfReader
 
         $merged = $this->pdfLinesLookLikeDenseListLayout($cleaned) || $this->pdfLinesLookLikeSparseLongTextChunks($cleaned)
             ? array_map(static fn (array $record): string => $record['text'], $cleaned)
-            : $this->mergeRepairedProseLines($cleaned);
+            : $this->mergeRepairedProseLines($cleaned, $splitWordHints);
         $repaired = [];
         foreach ($merged as $line) {
             $line = $repairGluedText ? $this->repairGluedProseLine($line) : trim($line);
@@ -1133,6 +1137,42 @@ final class PdfReader
         return preg_match('/^(?:https?:\/\/|www\.)\S+$/i', trim($line)) === 1;
     }
 
+    /**
+     * @param list<mixed> $runs
+     * @return array<string, true>
+     */
+    private function pdfTextRunSplitWordHints(array $runs): array
+    {
+        $hints = [];
+        $count = count($runs);
+        for ($index = 0; $index < $count - 2; $index++) {
+            $prefix = trim($this->pdfTextRunString($runs[$index]));
+            $continuation = trim($this->pdfTextRunString($runs[$index + 1]));
+            $after = trim($this->pdfTextRunString($runs[$index + 2]));
+            if ($after !== '' || preg_match('/^\p{Lu}$/u', $prefix) !== 1 || preg_match('/^\p{Ll}{2,}\b/u', $continuation) !== 1) {
+                continue;
+            }
+
+            $hints[$this->splitWordHintKey($prefix, $continuation)] = true;
+        }
+
+        return $hints;
+    }
+
+    private function pdfTextRunString(mixed $run): string
+    {
+        if (is_array($run)) {
+            return isset($run['text']) ? (string) $run['text'] : '';
+        }
+
+        return (string) $run;
+    }
+
+    private function splitWordHintKey(string $prefix, string $continuation): string
+    {
+        return trim($prefix) . "\n" . ltrim($continuation);
+    }
+
     private function repairGluedProseLine(string $line): string
     {
         $line = trim($line);
@@ -1200,9 +1240,10 @@ final class PdfReader
 
     /**
      * @param list<array{text: string, layout: array{text: string, page: int, x1: float, y1: float, x2: float, y2: float, fontSize: float}|null}> $records
+     * @param array<string, true> $splitWordHints
      * @return list<string>
      */
-    private function mergeRepairedProseLines(array $records): array
+    private function mergeRepairedProseLines(array $records, array $splitWordHints = []): array
     {
         $merged = [];
         $pending = '';
@@ -1218,7 +1259,7 @@ final class PdfReader
                 $pendingLayout = $layout;
                 continue;
             }
-            if ($this->repairedLineLooksLikeSplitWordPrefix($pending, $line)) {
+            if ($this->repairedLineLooksLikeSplitWordPrefix($pending, $line, $splitWordHints)) {
                 $pending .= ltrim($line);
                 $pendingLayout = $layout;
                 continue;
@@ -1244,7 +1285,10 @@ final class PdfReader
         return $merged;
     }
 
-    private function repairedLineLooksLikeSplitWordPrefix(string $previous, string $line): bool
+    /**
+     * @param array<string, true> $splitWordHints
+     */
+    private function repairedLineLooksLikeSplitWordPrefix(string $previous, string $line, array $splitWordHints = []): bool
     {
         $previous = trim($previous);
         $line = ltrim($line);
@@ -1256,12 +1300,15 @@ final class PdfReader
         $previousLength = $this->length($previous);
         $continuationLength = $this->length($continuation);
 
-        return $previousLength <= 3
-            && preg_match('/^\p{L}+$/u', $previous) === 1
-            && $previousLength >= 2
-            && $continuationLength >= 1
-            && $continuationLength <= 3
-            && preg_match('/^\p{Ll}/u', $line) === 1;
+        if (preg_match('/^\p{L}+$/u', $previous) !== 1 || preg_match('/^\p{Ll}/u', $line) !== 1 || $continuationLength < 1) {
+            return false;
+        }
+
+        if ($previousLength === 1) {
+            return isset($splitWordHints[$this->splitWordHintKey($previous, $line)]);
+        }
+
+        return $previousLength <= 3 && $continuationLength <= 3;
     }
 
     /**
