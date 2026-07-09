@@ -5516,6 +5516,38 @@ return [
             'TraceMonkey and HTMLParser remain readable.',
         ]));
     },
+    'keeps full pdf line endings as word boundaries when split fragment hints are built' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $repair = (function (array $lines, array $runs): array {
+            return $this->repairProseTextLines(
+                $lines,
+                true,
+                [],
+                $this->pdfTextRunSplitWordHints($runs)
+            );
+        })->bindTo($reader, PdfReader::class);
+        $t->true($repair instanceof \Closure);
+
+        $t->same([
+            'choice is based on the expectation that programs spend most of their time in hot loops.',
+            'The result is computed using trace trees.',
+            'The recorder observed recording in one line.',
+        ], $repair([
+            'choice is based on the expectation that programs spend most of',
+            'their time in hot loops.',
+            'The result is computed using',
+            'trace trees.',
+            'The recorder observed recor',
+            'ding in one line.',
+        ], [
+            'choice is based on the expectation that programs spend most of',
+            'their time in hot loops.',
+            'The result is computed using',
+            'trace trees.',
+            'observed recor',
+            'ding in one line.',
+        ]));
+    },
     'repairs glued pdf prose using positioned run spacing evidence' => static function (TestRunner $t): void {
         $reader = new PdfReader();
         $run = static function (string $text, float $x1, float $x2, float $y = 100.0): array {

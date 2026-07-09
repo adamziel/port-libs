@@ -1536,6 +1536,9 @@ final class PdfReader
         if (!$hasLeftContext && !$isStandaloneRun) {
             return false;
         }
+        if ($hasLeftContext && count($this->pdfLineWordTokens($text)) >= 3) {
+            return false;
+        }
 
         if ($prefixLength === 1) {
             return $hasLeftContext || ($isStandaloneRun && $continuationLength >= 2 && $continuationLength <= 5);
