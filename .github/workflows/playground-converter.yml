@@ -47,6 +47,7 @@ jobs:
           php -l lanes/pandoc/tests/PdfReaderCorpusQualityTest.php
           php -l lanes/pandoc/tests/ShowcaseImportQualityManifestTest.php
           node --check pandoc-showcase/playground-converter.js
+          node tools/check-playground-converter-ui.js
 
       - name: Run converter tests
         run: |

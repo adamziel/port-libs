@@ -206,16 +206,17 @@ async function convertSelectedFile() {
       log(`Created page #${data.postId}: ${data.title}`);
     }
     log(`Rendered image tags: ${data.imageTagCount}; imported media files: ${data.imagesImported}`);
-    setQualityPanel(data.quality || null);
-    if (data.quality?.status) {
-      log(`Import quality: ${data.quality.status}`);
+    const quality = data.quality || null;
+    setQualityPanel(quality);
+    if (quality?.status) {
+      log(qualityLogMessage(quality));
     }
     const pagePath = playgroundPath(data.pageUrl);
     setProgressStatus('Opening converted page...');
     await playgroundClient.goTo(pagePath);
     conversionActive = false;
     setPlaygroundState('ready');
-    setStatus('ready', 'Page created and opened in Playground.');
+    setStatus('ready', quality ? `Page created and opened. ${qualityMessageForStatus(String(quality.status || 'complete'))}` : 'Page created and opened in Playground.');
   } catch (error) {
     conversionActive = false;
     setPlaygroundState(playgroundReady ? 'ready' : 'idle');
@@ -612,6 +613,12 @@ function qualityMessageForStatus(status) {
     default:
       return 'The document imported successfully.';
   }
+}
+
+function qualityLogMessage(quality) {
+  const status = String(quality?.status || 'complete');
+
+  return `${qualityTitleForStatus(status)}: ${qualityMessageForStatus(status)}`;
 }
 
 function qualityDetailItems(status, flags, warnings) {
