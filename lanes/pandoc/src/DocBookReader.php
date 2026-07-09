@@ -363,21 +363,24 @@ final class DocBookReader
     private function documentBlocks(\DOMElement $root, array $structure): array
     {
         $blocks = [];
-        $title = $this->cleanText($structure['title'] ?? $this->firstChildText($root, ['title']));
-        if ($title === '' && $this->name($root) === 'refentry') {
-            $title = $this->firstDescendantText($root, ['refname']);
-        }
-        if ($title !== '') {
-            $blocks[] = $this->heading($title, 1, $this->nodeAttrs($root));
-        }
-        $subtitle = $this->cleanText($structure['subtitle'] ?? $this->firstChildText($root, ['subtitle']));
-        if ($subtitle !== '') {
-            $blocks[] = $this->paragraph($subtitle);
-        }
-        $abstract = $this->cleanText($structure['abstractText'] ?? '');
-        if ($abstract !== '') {
-            $blocks[] = $this->heading('Abstract', 2);
-            $blocks[] = $this->paragraph($abstract);
+        $documentRoot = in_array($this->name($root), ['article', 'book', 'reference', 'set'], true);
+        if (!$documentRoot) {
+            $title = $this->cleanText($structure['title'] ?? $this->firstChildText($root, ['title']));
+            if ($title === '' && $this->name($root) === 'refentry') {
+                $title = $this->firstDescendantText($root, ['refname']);
+            }
+            if ($title !== '') {
+                $blocks[] = $this->heading($title, 1, $this->nodeAttrs($root));
+            }
+            $subtitle = $this->cleanText($structure['subtitle'] ?? $this->firstChildText($root, ['subtitle']));
+            if ($subtitle !== '') {
+                $blocks[] = $this->paragraph($subtitle);
+            }
+            $abstract = $this->cleanText($structure['abstractText'] ?? '');
+            if ($abstract !== '') {
+                $blocks[] = $this->heading('Abstract', 2);
+                $blocks[] = $this->paragraph($abstract);
+            }
         }
 
         foreach (XmlHtmlDom::childElements($root) as $child) {
@@ -385,7 +388,7 @@ final class DocBookReader
                 continue;
             }
 
-            array_push($blocks, ...$this->blocksFromElement($child, 2));
+            array_push($blocks, ...$this->blocksFromElement($child, $documentRoot ? 1 : 2));
         }
 
         return $blocks;

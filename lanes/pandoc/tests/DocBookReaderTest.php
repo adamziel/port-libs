@@ -69,9 +69,9 @@ XML;
         $t->same('docbook-structure-review-only', $meta['docbookStructure']['reviewPolicy']);
         $t->same('docbook-structural-media-review-only', $meta['docbookReviewPacket']['reviewPolicy']);
         $t->same('docbook-bibliography-reference-review-only', $meta['docbookBibliography']['reviewPolicy']);
-        $t->contains('<h1>DocBook Reader Demo</h1>', $blocks);
-        $t->contains('<h2>Abstract</h2>', $blocks);
-        $t->contains('<h2>Introduction</h2>', $blocks);
+        $t->true(!str_contains($blocks, 'DocBook Reader Demo'));
+        $t->true(!str_contains($blocks, 'This abstract becomes metadata and body content.'));
+        $t->contains('<h1>Introduction</h1>', $blocks);
         $t->contains('<strong>strong text</strong>', $blocks);
         $t->contains('<code>inline_code</code>', $blocks);
         $t->contains('<a href="#table-1">a table link</a>', $blocks);
@@ -85,7 +85,7 @@ XML;
         $t->contains('pandoc-definition-list docbook-bibliography', $blocks);
         $t->contains('<p class="pandoc-definition-term"><strong>ref-a</strong></p>', $blocks);
         $t->contains('<ul class="pandoc-definition-values"><li>DocBook Source. Smith. 2026</li></ul>', $blocks);
-        $t->contains('# DocBook Reader Demo', $markdown);
+        $t->contains('# Introduction', $markdown);
         $t->contains('Field             Status', $markdown);
         $t->contains('Parser            Ready', $markdown);
     },
@@ -119,7 +119,7 @@ XML;
         ]);
         $blocks = PandocConverter::write($document, 'blocks');
         $meta = $document->attr('meta');
-        $missingPlaceholder = $document->children[3]->children[1];
+        $missingPlaceholder = $document->children[2]->children[1];
         $mediaPath = sha1($svgBytes) . '.svg';
         $mappedPath = 'docbook-media/' . $mediaPath;
 
@@ -173,10 +173,10 @@ XML;
 
         $document = PandocConverter::read($docbook, 'docbook');
         $blocks = PandocConverter::write($document, 'blocks');
-        $textFallback = $document->children[2];
-        $videoFallback = $document->children[3];
-        $inlineParagraph = $document->children[4];
-        $imageFigure = $document->children[5];
+        $textFallback = $document->children[1];
+        $videoFallback = $document->children[2];
+        $inlineParagraph = $document->children[3];
+        $imageFigure = $document->children[4];
 
         $t->same('div', $textFallback->type);
         $t->same('docbook-media-fallback', $textFallback->attr('classes')[0]);
@@ -216,7 +216,7 @@ XML;
 
         $document = PandocConverter::read($docbook, 'docbook');
         $blocks = PandocConverter::write($document, 'blocks');
-        $paragraph = $document->children[2];
+        $paragraph = $document->children[1];
 
         $t->same('API contract', $paragraph->children[1]->children[0]->attr('text'));
         $t->same('API contract', $paragraph->children[1]->attr('attributes')['data-docbook-xref-target-label']);
@@ -247,7 +247,7 @@ XML;
 
         $document = PandocConverter::read($docbook, 'docbook');
         $blocks = PandocConverter::write($document, 'blocks');
-        $paragraph = $document->children[2];
+        $paragraph = $document->children[1];
 
         $t->same('paragraph', $paragraph->type);
         $t->same(['text', 'link', 'text', 'link', 'text', 'link', 'text', 'link', 'text', 'link', 'text'], array_map(static fn ($node): string => $node->type, $paragraph->children));
@@ -288,7 +288,7 @@ XML;
         $document = PandocConverter::read($docbook, 'docbook');
         $blocks = PandocConverter::write($document, 'blocks');
         $markdown = PandocConverter::write($document, 'markdown');
-        $paragraph = $document->children[2];
+        $paragraph = $document->children[1];
 
         $t->same('paragraph', $paragraph->type);
         $t->same(['text', 'citation', 'text', 'span', 'text', 'citation', 'text', 'citation', 'text', 'link', 'text'], array_map(static fn ($node): string => $node->type, $paragraph->children));
@@ -326,7 +326,7 @@ XML;
         $document = PandocConverter::read($docbook, 'docbook');
         $blocks = PandocConverter::write($document, 'blocks');
         $markdown = PandocConverter::write($document, 'markdown');
-        $paragraph = $document->children[2];
+        $paragraph = $document->children[1];
         $citation = $paragraph->children[1];
 
         $t->same('paragraph', $paragraph->type);
@@ -414,16 +414,16 @@ XML;
         $blocks = PandocConverter::write($document, 'blocks');
         $markdown = PandocConverter::write($document, 'markdown');
         $meta = $document->attr('meta');
-        $code = $document->children[4];
+        $code = $document->children[3];
         $areas = $code->attr('docbookAreas');
 
         $t->same('set', $meta['rootName']);
         $t->same('Documentation Set', $meta['title']);
         $t->same('heading', $document->children[0]->type);
-        $t->same('Operator Guide', $document->children[1]->attr('text'));
+        $t->same('Operator Guide', $document->children[0]->attr('text'));
+        $t->same(1, $document->children[0]->attr('level'));
+        $t->same('Install', $document->children[1]->attr('text'));
         $t->same(2, $document->children[1]->attr('level'));
-        $t->same('Install', $document->children[2]->attr('text'));
-        $t->same(3, $document->children[2]->attr('level'));
         $t->same('code_block', $code->type);
         $t->same('1', $code->attr('attributes')['data-docbook-area-count'] ?? null);
         $t->same([[
@@ -433,9 +433,9 @@ XML;
             'units' => 'line',
             'label' => '2',
         ]], $areas);
-        $t->contains('<h1>Documentation Set</h1>', $blocks);
-        $t->contains('<h2>Operator Guide</h2>', $blocks);
-        $t->contains('<h3>Install</h3>', $blocks);
+        $t->true(!str_contains($blocks, 'Documentation Set'));
+        $t->contains('<h1>Operator Guide</h1>', $blocks);
+        $t->contains('<h2>Install</h2>', $blocks);
         $t->contains('<span id="install-anchor" class="anchor docbook-anchor" data-docbook-anchor="true" data-docbook-anchor-id="install-anchor" data-pandoc-anchor="empty-target"></span>', $blocks);
         $t->contains('<span class="indexref docbook-indexterm" data-pandoc-index-entry="Install; CLI"></span>', $blocks);
         $t->contains('<span id="inline-co" class="docbook-callout" data-docbook-callout="true" data-docbook-callout-id="inline-co" data-docbook-callout-linkends="call-install" data-docbook-callout-label="1">1</span>', $blocks);
@@ -470,8 +470,8 @@ XML;
 
         $document = PandocConverter::read($docbook, 'docbook');
         $blocks = PandocConverter::write($document, 'blocks');
-        $paragraph = $document->children[2];
-        $code = $document->children[4];
+        $paragraph = $document->children[1];
+        $code = $document->children[3];
         $areas = $code->attr('docbookAreas');
 
         $t->same('paragraph', $paragraph->type);
@@ -563,9 +563,10 @@ XML;
         $blocks = PandocConverter::write($document, 'blocks');
 
         $t->same('docbook', $document->attr('sourceFormat'));
-        $t->same('Recovered DocBook', $document->children[0]->attr('text'));
-        $t->contains('<h1>Recovered DocBook</h1>', $blocks);
-        $t->contains('<h2>Body</h2>', $blocks);
+        $t->same('Recovered DocBook', $document->attr('meta')['title']);
+        $t->same('Body', $document->children[0]->attr('text'));
+        $t->true(!str_contains($blocks, 'Recovered DocBook'));
+        $t->contains('<h1>Body</h1>', $blocks);
         $t->contains('Producer emitted mismatched tags.', $blocks);
     },
     'rejects non docbook xml instead of treating it as markdown' => static function (TestRunner $t): void {

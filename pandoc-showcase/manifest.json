@@ -1,5 +1,5 @@
 {
-    "generatedAt": "2026-07-09T20:46:59+00:00",
+    "generatedAt": "2026-07-09T20:52:04+00:00",
     "pandocVersion": "pandoc 3.10\nFeatures: +server +lua\nScripting engine: Lua 5.4\nUser data directory: $REPO\nCopyright (C) 2006-2025 John MacFarlane. Web:  https://pandoc.org\nThis is free software; see the source for copying conditions. There is no\nwarranty, not even for merchantability or fitness for a particular purpose.",
     "mediaImageMode": "important",
     "formats": [
@@ -369,8 +369,8 @@
     },
     "importQualitySummary": {
         "samples": 90,
-        "pass": 65,
-        "review": 25,
+        "pass": 67,
+        "review": 23,
         "fail": 0
     },
     "importQualitySegmentSummary": {
@@ -490,8 +490,8 @@
         },
         "exotic": {
             "samples": 46,
-            "pass": 31,
-            "review": 15,
+            "pass": 33,
+            "review": 13,
             "fail": 0,
             "wpFailures": 0,
             "passOrReview": 46,
@@ -554,8 +554,8 @@
                 },
                 "docbook": {
                     "samples": 2,
-                    "pass": 0,
-                    "review": 2,
+                    "pass": 2,
+                    "review": 0,
                     "fail": 0,
                     "wpFailures": 0,
                     "passOrReview": 2
@@ -783,8 +783,8 @@
                 "actual": {
                     "samples": 46,
                     "wpFailures": 0,
-                    "pass": 31,
-                    "review": 15,
+                    "pass": 33,
+                    "review": 13,
                     "fail": 0,
                     "passOrReview": 46
                 },
@@ -802,7 +802,7 @@
                     "minPass": {
                         "status": "pass",
                         "expected": ">=18",
-                        "actual": 31
+                        "actual": 33
                     },
                     "minPassOrReview": {
                         "status": "pass",
@@ -823,7 +823,7 @@
         "totals": {
             "code": 649,
             "group": 308,
-            "heading": 4183,
+            "heading": 4181,
             "html": 51,
             "image": 244,
             "list": 1392,
@@ -2711,7 +2711,7 @@
                 ]
             },
             "wpBlockCounts": {
-                "heading": 2,
+                "heading": 1,
                 "list": 1,
                 "paragraph": 1
             },
@@ -2721,36 +2721,36 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "faithful_enough",
-                        "score": 0.9091,
+                        "score": 1,
                         "textStatus": "faithful_enough",
-                        "textScore": 0.9091,
+                        "textScore": 1,
                         "visualStatus": "faithful_enough",
-                        "visualScore": 0.75
+                        "visualScore": 1
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
                         "status": "faithful_enough",
-                        "score": 0.9091,
+                        "score": 1,
                         "textStatus": "faithful_enough",
-                        "textScore": 0.9091,
+                        "textScore": 1,
                         "visualStatus": "faithful_enough",
-                        "visualScore": 0.75
+                        "visualScore": 1
                     }
                 }
             },
             "importQuality": {
-                "status": "review",
+                "status": "pass",
                 "gates": {
                     "text_completeness": {
                         "status": "pass",
                         "expected": ">=0.8",
-                        "actual": 0.9091,
+                        "actual": 1,
                         "detail": "visible text overlap with the baseline"
                     },
                     "visual_structure": {
                         "status": "pass",
                         "expected": ">=0.75",
-                        "actual": 0.75,
+                        "actual": 1,
                         "detail": "heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
@@ -2760,10 +2760,10 @@
                         "detail": "paragraph count ratio expected 1, got 1"
                     },
                     "heading_count": {
-                        "status": "review",
+                        "status": "pass",
                         "expected": "0.80-1.25",
-                        "actual": 2,
-                        "detail": "heading count ratio expected 1, got 2"
+                        "actual": 1,
+                        "detail": "heading count ratio expected 1, got 1"
                     },
                     "list_count": {
                         "status": "pass",
@@ -2805,12 +2805,12 @@
                         "status": "pass",
                         "expected": "<=0.05",
                         "actual": 0,
-                        "detail": "0/4 WordPress blocks are Custom HTML"
+                        "detail": "0/3 WordPress blocks are Custom HTML"
                     }
                 },
                 "summary": {
-                    "pass": 10,
-                    "review": 1,
+                    "pass": 11,
+                    "review": 0,
                     "fail": 0
                 }
             }
@@ -2851,7 +2851,7 @@
                 ]
             },
             "wpBlockCounts": {
-                "heading": 2,
+                "heading": 1,
                 "table": 1
             },
             "faithfulness": {
@@ -2860,36 +2860,36 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "faithful_enough",
-                        "score": 0.8333,
+                        "score": 1,
                         "textStatus": "faithful_enough",
-                        "textScore": 0.8333,
+                        "textScore": 1,
                         "visualStatus": "faithful_enough",
-                        "visualScore": 0.7692
+                        "visualScore": 0.9091
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
                         "status": "faithful_enough",
-                        "score": 0.8333,
+                        "score": 1,
                         "textStatus": "faithful_enough",
-                        "textScore": 0.8333,
+                        "textScore": 1,
                         "visualStatus": "faithful_enough",
-                        "visualScore": 0.8333
+                        "visualScore": 1
                     }
                 }
             },
             "importQuality": {
-                "status": "review",
+                "status": "pass",
                 "gates": {
                     "text_completeness": {
                         "status": "pass",
                         "expected": ">=0.8",
-                        "actual": 0.8333,
+                        "actual": 1,
                         "detail": "visible text overlap with the baseline"
                     },
                     "visual_structure": {
                         "status": "pass",
                         "expected": ">=0.75",
-                        "actual": 0.7692,
+                        "actual": 0.9091,
                         "detail": "heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
@@ -2899,10 +2899,10 @@
                         "detail": "paragraph count ratio"
                     },
                     "heading_count": {
-                        "status": "review",
+                        "status": "pass",
                         "expected": "0.80-1.25",
-                        "actual": 2,
-                        "detail": "heading count ratio expected 1, got 2"
+                        "actual": 1,
+                        "detail": "heading count ratio expected 1, got 1"
                     },
                     "list_count": {
                         "status": "pass",
@@ -2944,12 +2944,12 @@
                         "status": "pass",
                         "expected": "<=0.05",
                         "actual": 0,
-                        "detail": "0/3 WordPress blocks are Custom HTML"
+                        "detail": "0/2 WordPress blocks are Custom HTML"
                     }
                 },
                 "summary": {
-                    "pass": 10,
-                    "review": 1,
+                    "pass": 11,
+                    "review": 0,
                     "fail": 0
                 }
             }
