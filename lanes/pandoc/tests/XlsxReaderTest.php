@@ -1586,17 +1586,18 @@ XML);
         $t->same('emph', $inlineRichInlines[2]->type);
         $t->same(' value', $inlineRichInlines[2]->children[0]->attr('text'));
         $t->same('link', $internalLink->type);
-        $t->same("#'Lookup'!A1", $internalLink->attr('url'));
+        $t->same('#sheet-2', $internalLink->attr('url'));
         $t->same('Jump to lookup', $internalLink->attr('title'));
         $t->same('15:30', $row2[7]->attr('text'));
         $t->same('date', $row2[7]->attr('xlsxValueType'));
 
         $t->contains('Strong [ Str "Rich" ]', $native);
         $t->contains('Underline [ Emph [ Space , Str "string" ] ]', $native);
-        $t->contains('Link ( "" , [  ] , [  ] ) [ Str "Jump" ] ( "#\'Lookup\'!A1" , "Jump to lookup" )', $native);
+        $t->contains('Link ( "" , [  ] , [  ] ) [ Str "Jump" ] ( "#sheet-2" , "Jump to lookup" )', $native);
         $t->contains('<td><strong>Rich</strong> shared<u><em> string</em></u></td>', $html);
         $t->contains('<td><strong>Inline</strong> rich<em> value</em></td>', $html);
-        $t->contains('<a href="#&#039;Lookup&#039;!A1" title="Jump to lookup">Jump</a>', $html);
+        $t->contains('<h2 id="sheet-2">Lookup</h2>', $html);
+        $t->contains('<a href="#sheet-2" title="Jump to lookup">Jump</a>', $html);
     },
 
     'reports hidden sheets workbook metadata formulas errors and table filters without evaluation' => static function (TestRunner $t) use ($buildReviewXlsxPackage): void {

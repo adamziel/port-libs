@@ -1751,6 +1751,93 @@ function showcase_import_quality_summary(array $records): array
 }
 
 /**
+ * @return array<string, true>
+ */
+function showcase_common_import_format_set(): array
+{
+    return array_fill_keys([
+        'csv',
+        'docx',
+        'epub',
+        'gfm',
+        'html',
+        'markdown',
+        'markdown_github',
+        'odt',
+        'pdf',
+        'pptx',
+        'rtf',
+        'tsv',
+        'xlsx',
+    ], true);
+}
+
+/**
+ * @param list<array<string,mixed>> $records
+ * @return array{
+ *     common:array{samples:int, pass:int, review:int, fail:int, wpFailures:int, passOrReview:int, formats:array<string,array{samples:int, pass:int, review:int, fail:int, wpFailures:int, passOrReview:int}>},
+ *     exotic:array{samples:int, pass:int, review:int, fail:int, wpFailures:int, passOrReview:int, formats:array<string,array{samples:int, pass:int, review:int, fail:int, wpFailures:int, passOrReview:int}>}
+ * }
+ */
+function showcase_import_quality_segment_summary(array $records): array
+{
+    $commonFormats = showcase_common_import_format_set();
+    $empty = static fn (): array => [
+        'samples' => 0,
+        'pass' => 0,
+        'review' => 0,
+        'fail' => 0,
+        'wpFailures' => 0,
+        'passOrReview' => 0,
+        'formats' => [],
+    ];
+    $emptyFormat = static fn (): array => [
+        'samples' => 0,
+        'pass' => 0,
+        'review' => 0,
+        'fail' => 0,
+        'wpFailures' => 0,
+        'passOrReview' => 0,
+    ];
+    $summary = [
+        'common' => $empty(),
+        'exotic' => $empty(),
+    ];
+
+    foreach ($records as $record) {
+        $format = (string) ($record['format'] ?? '');
+        $segment = isset($commonFormats[$format]) ? 'common' : 'exotic';
+        $summary[$segment]['samples']++;
+        $summary[$segment]['formats'][$format] ??= $emptyFormat();
+        $summary[$segment]['formats'][$format]['samples']++;
+
+        if (($record['wpBlocks']['ok'] ?? false) !== true) {
+            $summary[$segment]['wpFailures']++;
+            $summary[$segment]['formats'][$format]['wpFailures']++;
+            continue;
+        }
+
+        $quality = is_array($record['importQuality'] ?? null) ? $record['importQuality'] : [];
+        $status = (string) ($quality['status'] ?? 'fail');
+        if (!in_array($status, ['pass', 'review', 'fail'], true)) {
+            $status = 'fail';
+        }
+        $summary[$segment][$status]++;
+        $summary[$segment]['formats'][$format][$status]++;
+        if ($status === 'pass' || $status === 'review') {
+            $summary[$segment]['passOrReview']++;
+            $summary[$segment]['formats'][$format]['passOrReview']++;
+        }
+    }
+
+    foreach (['common', 'exotic'] as $segment) {
+        ksort($summary[$segment]['formats']);
+    }
+
+    return $summary;
+}
+
+/**
  * @param list<array<string, mixed>> $records
  * @return array{
  *   totalSamples:int,
@@ -2279,6 +2366,7 @@ $blockUsage = aggregate_wordpress_block_counts($records);
 $conversionSummary = conversion_summary($records);
 $faithfulnessSummary = showcase_faithfulness_summary($records);
 $importQualitySummary = showcase_import_quality_summary($records);
+$importQualitySegmentSummary = showcase_import_quality_segment_summary($records);
 
 file_put_contents($siteDir . '/manifest.json', json_encode([
     'generatedAt' => gmdate('c'),
@@ -2290,6 +2378,7 @@ file_put_contents($siteDir . '/manifest.json', json_encode([
     'conversionSummary' => $conversionSummary,
     'faithfulnessSummary' => $faithfulnessSummary,
     'importQualitySummary' => $importQualitySummary,
+    'importQualitySegmentSummary' => $importQualitySegmentSummary,
     'blockUsage' => $blockUsage,
     'records' => $records,
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));

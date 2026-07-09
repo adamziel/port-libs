@@ -175,6 +175,10 @@ final class XlsxReader
         $dataValidationSheetCount = 0;
         $dataValidationRangeCount = 0;
         $failedSheetCount = 0;
+        $sheetAnchorIds = [];
+        foreach ($sheets as $sheet) {
+            $sheetAnchorIds[(string) $sheet['name']] = 'sheet-' . $sheet['index'];
+        }
         foreach ($sheets as $sheet) {
             $sheetPart = null;
             try {
@@ -194,7 +198,7 @@ final class XlsxReader
                 $sheetDiagnostics = $this->parseSheetDiagnostics($sheetDocument);
                 $sheetDataValidations = $this->parseSheetDataValidations($sheetDocument);
                 $sheetTableMetadata = $this->parseSheetTableMetadata($package, $sheetPart, $sheetDocument, $sheetRelationships);
-                $cells = $this->parseSheetCells($sheetDocument, $sharedStrings, $styles, $workbookInfo['date1904'], $sheetRelationships, $sheetComments['commentsByCell'], $sheetLayout);
+                $cells = $this->parseSheetCells($sheetDocument, $sharedStrings, $styles, $workbookInfo['date1904'], $sheetRelationships, $sheetComments['commentsByCell'], $sheetLayout, (string) $sheet['name'], $sheetAnchorIds);
                 $table = $this->cellsToTable($sheet['name'], $cells);
                 $blocks[] = new AstNode('heading', [
                     'level' => 2,
@@ -2589,14 +2593,14 @@ final class XlsxReader
      *     covered:bool
      * }>
      */
-    private function parseSheetCells(\DOMDocument $document, array $sharedStrings, array $styles, bool $date1904, OpcRelationships $relationships, array $commentsByCell, array $sheetLayout): array
+    private function parseSheetCells(\DOMDocument $document, array $sharedStrings, array $styles, bool $date1904, OpcRelationships $relationships, array $commentsByCell, array $sheetLayout, string $sheetName = '', array $sheetAnchorIds = []): array
     {
         $root = XmlHtmlDom::rootElement($document, 'worksheet');
         if (!$root instanceof \DOMElement) {
             throw new \RuntimeException('XLSX worksheet XML must have a worksheet root');
         }
 
-        $hyperlinks = $this->parseHyperlinks($root, $relationships);
+        $hyperlinks = $this->parseHyperlinks($root, $relationships, $sheetName, $sheetAnchorIds);
         $mergeRegions = $this->parseMergeRegions($root);
         $sheetData = $this->firstChildElement($root, 'sheetData');
         if (!$sheetData instanceof \DOMElement) {
@@ -4917,7 +4921,7 @@ final class XlsxReader
     /**
      * @return array<string, array{url:string, title:string}>
      */
-    private function parseHyperlinks(\DOMElement $worksheet, OpcRelationships $relationships): array
+    private function parseHyperlinks(\DOMElement $worksheet, OpcRelationships $relationships, string $sheetName = '', array $sheetAnchorIds = []): array
     {
         $hyperlinksElement = $this->firstChildElement($worksheet, 'hyperlinks');
         if (!$hyperlinksElement instanceof \DOMElement) {
@@ -4963,7 +4967,7 @@ final class XlsxReader
 
             $location = trim($hyperlinkElement->getAttribute('location'));
             if ($url === '' && $location !== '') {
-                $url = '#' . $location;
+                $url = $this->workbookLocationUrl($location, $sheetName, $sheetAnchorIds);
             }
             if ($url === '') {
                 continue;
@@ -4978,6 +4982,25 @@ final class XlsxReader
         }
 
         return $hyperlinks;
+    }
+
+    /**
+     * @param array<string,string> $sheetAnchorIds
+     */
+    private function workbookLocationUrl(string $location, string $currentSheetName, array $sheetAnchorIds): string
+    {
+        $reference = $this->parseDefinedNameReference($location);
+        if ($reference !== null) {
+            $targetSheetName = (string) ($reference['sheetName'] ?? '');
+            if ($targetSheetName === '') {
+                $targetSheetName = $currentSheetName;
+            }
+            if ($targetSheetName !== '' && isset($sheetAnchorIds[$targetSheetName])) {
+                return '#' . $sheetAnchorIds[$targetSheetName];
+            }
+        }
+
+        return '#' . $location;
     }
 
     /**

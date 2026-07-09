@@ -1,5 +1,5 @@
 {
-    "generatedAt": "2026-07-09T02:37:45+00:00",
+    "generatedAt": "2026-07-09T10:50:14+00:00",
     "pandocVersion": "pandoc 3.10\nFeatures: +server +lua\nScripting engine: Lua 5.4\nUser data directory: $REPO\nCopyright (C) 2006-2025 John MacFarlane. Web:  https://pandoc.org\nThis is free software; see the source for copying conditions. There is no\nwarranty, not even for merchantability or fitness for a particular purpose.",
     "mediaImageMode": "important",
     "formats": [
@@ -353,8 +353,326 @@
     "importQualitySummary": {
         "samples": 87,
         "pass": 14,
-        "review": 31,
-        "fail": 42
+        "review": 32,
+        "fail": 41
+    },
+    "importQualitySegmentSummary": {
+        "common": {
+            "samples": 44,
+            "pass": 7,
+            "review": 17,
+            "fail": 20,
+            "wpFailures": 0,
+            "passOrReview": 24,
+            "formats": {
+                "csv": {
+                    "samples": 2,
+                    "pass": 0,
+                    "review": 0,
+                    "fail": 2,
+                    "wpFailures": 0,
+                    "passOrReview": 0
+                },
+                "docx": {
+                    "samples": 9,
+                    "pass": 3,
+                    "review": 3,
+                    "fail": 3,
+                    "wpFailures": 0,
+                    "passOrReview": 6
+                },
+                "epub": {
+                    "samples": 5,
+                    "pass": 0,
+                    "review": 3,
+                    "fail": 2,
+                    "wpFailures": 0,
+                    "passOrReview": 3
+                },
+                "gfm": {
+                    "samples": 1,
+                    "pass": 1,
+                    "review": 0,
+                    "fail": 0,
+                    "wpFailures": 0,
+                    "passOrReview": 1
+                },
+                "html": {
+                    "samples": 4,
+                    "pass": 1,
+                    "review": 1,
+                    "fail": 2,
+                    "wpFailures": 0,
+                    "passOrReview": 2
+                },
+                "markdown": {
+                    "samples": 1,
+                    "pass": 0,
+                    "review": 0,
+                    "fail": 1,
+                    "wpFailures": 0,
+                    "passOrReview": 0
+                },
+                "markdown_github": {
+                    "samples": 1,
+                    "pass": 0,
+                    "review": 1,
+                    "fail": 0,
+                    "wpFailures": 0,
+                    "passOrReview": 1
+                },
+                "odt": {
+                    "samples": 3,
+                    "pass": 1,
+                    "review": 1,
+                    "fail": 1,
+                    "wpFailures": 0,
+                    "passOrReview": 2
+                },
+                "pdf": {
+                    "samples": 6,
+                    "pass": 0,
+                    "review": 4,
+                    "fail": 2,
+                    "wpFailures": 0,
+                    "passOrReview": 4
+                },
+                "pptx": {
+                    "samples": 4,
+                    "pass": 1,
+                    "review": 2,
+                    "fail": 1,
+                    "wpFailures": 0,
+                    "passOrReview": 3
+                },
+                "rtf": {
+                    "samples": 3,
+                    "pass": 0,
+                    "review": 0,
+                    "fail": 3,
+                    "wpFailures": 0,
+                    "passOrReview": 0
+                },
+                "tsv": {
+                    "samples": 2,
+                    "pass": 0,
+                    "review": 0,
+                    "fail": 2,
+                    "wpFailures": 0,
+                    "passOrReview": 0
+                },
+                "xlsx": {
+                    "samples": 3,
+                    "pass": 0,
+                    "review": 2,
+                    "fail": 1,
+                    "wpFailures": 0,
+                    "passOrReview": 2
+                }
+            }
+        },
+        "exotic": {
+            "samples": 43,
+            "pass": 7,
+            "review": 15,
+            "fail": 19,
+            "wpFailures": 2,
+            "passOrReview": 22,
+            "formats": {
+                "biblatex": {
+                    "samples": 2,
+                    "pass": 0,
+                    "review": 0,
+                    "fail": 2,
+                    "wpFailures": 0,
+                    "passOrReview": 0
+                },
+                "bibtex": {
+                    "samples": 2,
+                    "pass": 0,
+                    "review": 0,
+                    "fail": 2,
+                    "wpFailures": 0,
+                    "passOrReview": 0
+                },
+                "bits": {
+                    "samples": 2,
+                    "pass": 0,
+                    "review": 2,
+                    "fail": 0,
+                    "wpFailures": 0,
+                    "passOrReview": 2
+                },
+                "commonmark": {
+                    "samples": 1,
+                    "pass": 1,
+                    "review": 0,
+                    "fail": 0,
+                    "wpFailures": 0,
+                    "passOrReview": 1
+                },
+                "commonmark_x": {
+                    "samples": 1,
+                    "pass": 1,
+                    "review": 0,
+                    "fail": 0,
+                    "wpFailures": 0,
+                    "passOrReview": 1
+                },
+                "csljson": {
+                    "samples": 2,
+                    "pass": 0,
+                    "review": 0,
+                    "fail": 2,
+                    "wpFailures": 0,
+                    "passOrReview": 0
+                },
+                "doc": {
+                    "samples": 2,
+                    "pass": 0,
+                    "review": 0,
+                    "fail": 1,
+                    "wpFailures": 1,
+                    "passOrReview": 0
+                },
+                "docbook": {
+                    "samples": 2,
+                    "pass": 0,
+                    "review": 0,
+                    "fail": 2,
+                    "wpFailures": 0,
+                    "passOrReview": 0
+                },
+                "endnotexml": {
+                    "samples": 2,
+                    "pass": 0,
+                    "review": 0,
+                    "fail": 2,
+                    "wpFailures": 0,
+                    "passOrReview": 0
+                },
+                "fb2": {
+                    "samples": 2,
+                    "pass": 1,
+                    "review": 0,
+                    "fail": 1,
+                    "wpFailures": 0,
+                    "passOrReview": 1
+                },
+                "ipynb": {
+                    "samples": 2,
+                    "pass": 0,
+                    "review": 1,
+                    "fail": 1,
+                    "wpFailures": 0,
+                    "passOrReview": 1
+                },
+                "jats": {
+                    "samples": 2,
+                    "pass": 0,
+                    "review": 1,
+                    "fail": 0,
+                    "wpFailures": 1,
+                    "passOrReview": 1
+                },
+                "jira": {
+                    "samples": 2,
+                    "pass": 0,
+                    "review": 1,
+                    "fail": 1,
+                    "wpFailures": 0,
+                    "passOrReview": 1
+                },
+                "json": {
+                    "samples": 2,
+                    "pass": 0,
+                    "review": 1,
+                    "fail": 1,
+                    "wpFailures": 0,
+                    "passOrReview": 1
+                },
+                "latex": {
+                    "samples": 2,
+                    "pass": 0,
+                    "review": 0,
+                    "fail": 2,
+                    "wpFailures": 0,
+                    "passOrReview": 0
+                },
+                "man": {
+                    "samples": 2,
+                    "pass": 0,
+                    "review": 2,
+                    "fail": 0,
+                    "wpFailures": 0,
+                    "passOrReview": 2
+                },
+                "markdown_mmd": {
+                    "samples": 1,
+                    "pass": 1,
+                    "review": 0,
+                    "fail": 0,
+                    "wpFailures": 0,
+                    "passOrReview": 1
+                },
+                "markdown_phpextra": {
+                    "samples": 1,
+                    "pass": 1,
+                    "review": 0,
+                    "fail": 0,
+                    "wpFailures": 0,
+                    "passOrReview": 1
+                },
+                "markdown_strict": {
+                    "samples": 1,
+                    "pass": 0,
+                    "review": 1,
+                    "fail": 0,
+                    "wpFailures": 0,
+                    "passOrReview": 1
+                },
+                "mediawiki": {
+                    "samples": 2,
+                    "pass": 0,
+                    "review": 2,
+                    "fail": 0,
+                    "wpFailures": 0,
+                    "passOrReview": 2
+                },
+                "native": {
+                    "samples": 2,
+                    "pass": 0,
+                    "review": 2,
+                    "fail": 0,
+                    "wpFailures": 0,
+                    "passOrReview": 2
+                },
+                "opml": {
+                    "samples": 2,
+                    "pass": 0,
+                    "review": 2,
+                    "fail": 0,
+                    "wpFailures": 0,
+                    "passOrReview": 2
+                },
+                "ris": {
+                    "samples": 2,
+                    "pass": 0,
+                    "review": 0,
+                    "fail": 2,
+                    "wpFailures": 0,
+                    "passOrReview": 0
+                },
+                "xml": {
+                    "samples": 2,
+                    "pass": 2,
+                    "review": 0,
+                    "fail": 0,
+                    "wpFailures": 0,
+                    "passOrReview": 2
+                }
+            }
+        }
     },
     "blockUsage": {
         "totals": {
@@ -7757,12 +8075,12 @@
             },
             "phpHtml": {
                 "ok": false,
-                "error": "PHP Fatal error:  Uncaught InvalidArgumentException: Unable to parse JATS input at line 229, column 27: Attribute xlink:href redefined in $REPO/lanes/pandoc/src/XmlHtmlDom.php:705\nStack trace:\n#0 $REPO/lanes/pandoc/src/XmlReader.php(69): PortLibs\\Pandoc\\XmlHtmlDom::loadXmlDocument('<?xml version=\"...', 'JATS input', false)\n#1 $REPO/lanes/pandoc/src/PandocConverter.php(37): PortLibs\\Pandoc\\XmlReader->read('<?xml version=\"...')\n#2 $REPO/lanes/pandoc/src/PandocConverter.php(93): PortLibs\\Pandoc\\PandocConverter::read('<?xml version=\"...', 'jats', Array)\n#3 $REPO/lanes/pandoc/src/PandocConverter.php(152): PortLibs\\Pandoc\\PandocConverter::convertWithMedia('<?xml version=\"...', 'jats', 'html', Array)\n#4 $REPO/tools/build-pandoc-showcase.php(32): PortLibs\\Pandoc\\PandocConverter::convertFileWithMedia('$TMP', 'jats', 'html', Array)\n#5 {main}\n  thrown in $REPO/lanes/pandoc/src/XmlHtmlDom.php on line 705\nFatal error: Uncaught InvalidArgumentException: Unable to parse JATS input at line 229, column 27: Attribute xlink:href redefined in $REPO/lanes/pandoc/src/XmlHtmlDom.php:705\nStack trace:\n#0 $REPO/lanes/pandoc/src/XmlReader.php(69): PortLibs\\Pandoc\\XmlHtmlDom::loadXmlDocument('<?xml version=\"...', 'JATS input', false)\n#1 $REPO/lanes/pandoc/src/PandocConverter.php(37): PortLibs\\Pandoc\\XmlReader->read('<?xml version=\"...')\n#2 $REPO/lanes/pandoc/src/PandocConverter.php(93): PortLibs\\Pandoc\\PandocConverter::read('<?xml version=\"...', 'jats', Array)\n#3 $REPO/lanes/pandoc/src/PandocConverter.php(152): PortLibs\\Pandoc\\PandocConverter::convertWithMedia('<?xml version=\"...', 'jats', 'html', Array)\n#4 $REPO/tools/build-pandoc-showcase.php(32): PortLibs\\Pandoc\\PandocConverter::convertFileWithMedia('$TMP', 'jats', 'html', Array)\n#5 {main}\n  thrown in $REPO/lanes/pandoc/src/XmlHtmlDom.php on line 705",
+                "error": "PHP Fatal error:  Uncaught InvalidArgumentException: Unable to parse JATS input at line 229, column 27: Attribute xlink:href redefined in $REPO/lanes/pandoc/src/XmlHtmlDom.php:705\nStack trace:\n#0 $REPO/lanes/pandoc/src/XmlReader.php(69): PortLibs\\Pandoc\\XmlHtmlDom::loadXmlDocument('<?xml version=\"...', 'JATS input', false)\n#1 $REPO/lanes/pandoc/src/PandocConverter.php(37): PortLibs\\Pandoc\\XmlReader->read('<?xml version=\"...')\n#2 $REPO/lanes/pandoc/src/PandocConverter.php(93): PortLibs\\Pandoc\\PandocConverter::read('<?xml version=\"...', 'jats', Array)\n#3 $REPO/lanes/pandoc/src/PandocConverter.php(152): PortLibs\\Pandoc\\PandocConverter::convertWithMedia('<?xml version=\"...', 'jats', 'html', Array)\n#4 $REPO/tools/build-pandoc-showcase.php(32): PortLibs\\Pandoc\\PandocConverter::convertFileWithMedia('$REPO', 'jats', 'html', Array)\n#5 {main}\n  thrown in $REPO/lanes/pandoc/src/XmlHtmlDom.php on line 705\nFatal error: Uncaught InvalidArgumentException: Unable to parse JATS input at line 229, column 27: Attribute xlink:href redefined in $REPO/lanes/pandoc/src/XmlHtmlDom.php:705\nStack trace:\n#0 $REPO/lanes/pandoc/src/XmlReader.php(69): PortLibs\\Pandoc\\XmlHtmlDom::loadXmlDocument('<?xml version=\"...', 'JATS input', false)\n#1 $REPO/lanes/pandoc/src/PandocConverter.php(37): PortLibs\\Pandoc\\XmlReader->read('<?xml version=\"...')\n#2 $REPO/lanes/pandoc/src/PandocConverter.php(93): PortLibs\\Pandoc\\PandocConverter::read('<?xml version=\"...', 'jats', Array)\n#3 $REPO/lanes/pandoc/src/PandocConverter.php(152): PortLibs\\Pandoc\\PandocConverter::convertWithMedia('<?xml version=\"...', 'jats', 'html', Array)\n#4 $REPO/tools/build-pandoc-showcase.php(32): PortLibs\\Pandoc\\PandocConverter::convertFileWithMedia('$REPO', 'jats', 'html', Array)\n#5 {main}\n  thrown in $REPO/lanes/pandoc/src/XmlHtmlDom.php on line 705",
                 "path": "outputs/jats-reader/php.html.error.txt"
             },
             "wpBlocks": {
                 "ok": false,
-                "error": "PHP Fatal error:  Uncaught InvalidArgumentException: Unable to parse JATS input at line 229, column 27: Attribute xlink:href redefined in $REPO/lanes/pandoc/src/XmlHtmlDom.php:705\nStack trace:\n#0 $REPO/lanes/pandoc/src/XmlReader.php(69): PortLibs\\Pandoc\\XmlHtmlDom::loadXmlDocument('<?xml version=\"...', 'JATS input', false)\n#1 $REPO/lanes/pandoc/src/PandocConverter.php(37): PortLibs\\Pandoc\\XmlReader->read('<?xml version=\"...')\n#2 $REPO/lanes/pandoc/src/PandocConverter.php(93): PortLibs\\Pandoc\\PandocConverter::read('<?xml version=\"...', 'jats', Array)\n#3 $REPO/lanes/pandoc/src/PandocConverter.php(152): PortLibs\\Pandoc\\PandocConverter::convertWithMedia('<?xml version=\"...', 'jats', 'wordpress', Array)\n#4 $REPO/tools/build-pandoc-showcase.php(32): PortLibs\\Pandoc\\PandocConverter::convertFileWithMedia('$TMP', 'jats', 'wordpress', Array)\n#5 {main}\n  thrown in $REPO/lanes/pandoc/src/XmlHtmlDom.php on line 705\nFatal error: Uncaught InvalidArgumentException: Unable to parse JATS input at line 229, column 27: Attribute xlink:href redefined in $REPO/lanes/pandoc/src/XmlHtmlDom.php:705\nStack trace:\n#0 $REPO/lanes/pandoc/src/XmlReader.php(69): PortLibs\\Pandoc\\XmlHtmlDom::loadXmlDocument('<?xml version=\"...', 'JATS input', false)\n#1 $REPO/lanes/pandoc/src/PandocConverter.php(37): PortLibs\\Pandoc\\XmlReader->read('<?xml version=\"...')\n#2 $REPO/lanes/pandoc/src/PandocConverter.php(93): PortLibs\\Pandoc\\PandocConverter::read('<?xml version=\"...', 'jats', Array)\n#3 $REPO/lanes/pandoc/src/PandocConverter.php(152): PortLibs\\Pandoc\\PandocConverter::convertWithMedia('<?xml version=\"...', 'jats', 'wordpress', Array)\n#4 $REPO/tools/build-pandoc-showcase.php(32): PortLibs\\Pandoc\\PandocConverter::convertFileWithMedia('$TMP', 'jats', 'wordpress', Array)\n#5 {main}\n  thrown in $REPO/lanes/pandoc/src/XmlHtmlDom.php on line 705",
+                "error": "PHP Fatal error:  Uncaught InvalidArgumentException: Unable to parse JATS input at line 229, column 27: Attribute xlink:href redefined in $REPO/lanes/pandoc/src/XmlHtmlDom.php:705\nStack trace:\n#0 $REPO/lanes/pandoc/src/XmlReader.php(69): PortLibs\\Pandoc\\XmlHtmlDom::loadXmlDocument('<?xml version=\"...', 'JATS input', false)\n#1 $REPO/lanes/pandoc/src/PandocConverter.php(37): PortLibs\\Pandoc\\XmlReader->read('<?xml version=\"...')\n#2 $REPO/lanes/pandoc/src/PandocConverter.php(93): PortLibs\\Pandoc\\PandocConverter::read('<?xml version=\"...', 'jats', Array)\n#3 $REPO/lanes/pandoc/src/PandocConverter.php(152): PortLibs\\Pandoc\\PandocConverter::convertWithMedia('<?xml version=\"...', 'jats', 'wordpress', Array)\n#4 $REPO/tools/build-pandoc-showcase.php(32): PortLibs\\Pandoc\\PandocConverter::convertFileWithMedia('$REPO', 'jats', 'wordpress', Array)\n#5 {main}\n  thrown in $REPO/lanes/pandoc/src/XmlHtmlDom.php on line 705\nFatal error: Uncaught InvalidArgumentException: Unable to parse JATS input at line 229, column 27: Attribute xlink:href redefined in $REPO/lanes/pandoc/src/XmlHtmlDom.php:705\nStack trace:\n#0 $REPO/lanes/pandoc/src/XmlReader.php(69): PortLibs\\Pandoc\\XmlHtmlDom::loadXmlDocument('<?xml version=\"...', 'JATS input', false)\n#1 $REPO/lanes/pandoc/src/PandocConverter.php(37): PortLibs\\Pandoc\\XmlReader->read('<?xml version=\"...')\n#2 $REPO/lanes/pandoc/src/PandocConverter.php(93): PortLibs\\Pandoc\\PandocConverter::read('<?xml version=\"...', 'jats', Array)\n#3 $REPO/lanes/pandoc/src/PandocConverter.php(152): PortLibs\\Pandoc\\PandocConverter::convertWithMedia('<?xml version=\"...', 'jats', 'wordpress', Array)\n#4 $REPO/tools/build-pandoc-showcase.php(32): PortLibs\\Pandoc\\PandocConverter::convertFileWithMedia('$REPO', 'jats', 'wordpress', Array)\n#5 {main}\n  thrown in $REPO/lanes/pandoc/src/XmlHtmlDom.php on line 705",
                 "path": "outputs/jats-reader/wordpress-blocks.html.error.txt"
             },
             "wpBlockCounts": [],
@@ -7775,7 +8093,7 @@
                 "gates": {
                     "conversion": {
                         "status": "fail",
-                        "detail": "PHP Fatal error:  Uncaught InvalidArgumentException: Unable to parse JATS input at line 229, column 27: Attribute xlink:href redefined in $REPO/lanes/pandoc/src/XmlHtmlDom.php:705\nStack trace:\n#0 $REPO/lanes/pandoc/src/XmlReader.php(69): PortLibs\\Pandoc\\XmlHtmlDom::loadXmlDocument('<?xml version=\"...', 'JATS input', false)\n#1 $REPO/lanes/pandoc/src/PandocConverter.php(37): PortLibs\\Pandoc\\XmlReader->read('<?xml version=\"...')\n#2 $REPO/lanes/pandoc/src/PandocConverter.php(93): PortLibs\\Pandoc\\PandocConverter::read('<?xml version=\"...', 'jats', Array)\n#3 $REPO/lanes/pandoc/src/PandocConverter.php(152): PortLibs\\Pandoc\\PandocConverter::convertWithMedia('<?xml version=\"...', 'jats', 'wordpress', Array)\n#4 $REPO/tools/build-pandoc-showcase.php(32): PortLibs\\Pandoc\\PandocConverter::convertFileWithMedia('$TMP', 'jats', 'wordpress', Array)\n#5 {main}\n  thrown in $REPO/lanes/pandoc/src/XmlHtmlDom.php on line 705\nFatal error: Uncaught InvalidArgumentException: Unable to parse JATS input at line 229, column 27: Attribute xlink:href redefined in $REPO/lanes/pandoc/src/XmlHtmlDom.php:705\nStack trace:\n#0 $REPO/lanes/pandoc/src/XmlReader.php(69): PortLibs\\Pandoc\\XmlHtmlDom::loadXmlDocument('<?xml version=\"...', 'JATS input', false)\n#1 $REPO/lanes/pandoc/src/PandocConverter.php(37): PortLibs\\Pandoc\\XmlReader->read('<?xml version=\"...')\n#2 $REPO/lanes/pandoc/src/PandocConverter.php(93): PortLibs\\Pandoc\\PandocConverter::read('<?xml version=\"...', 'jats', Array)\n#3 $REPO/lanes/pandoc/src/PandocConverter.php(152): PortLibs\\Pandoc\\PandocConverter::convertWithMedia('<?xml version=\"...', 'jats', 'wordpress', Array)\n#4 $REPO/tools/build-pandoc-showcase.php(32): PortLibs\\Pandoc\\PandocConverter::convertFileWithMedia('$TMP', 'jats', 'wordpress', Array)\n#5 {main}\n  thrown in $REPO/lanes/pandoc/src/XmlHtmlDom.php on line 705"
+                        "detail": "PHP Fatal error:  Uncaught InvalidArgumentException: Unable to parse JATS input at line 229, column 27: Attribute xlink:href redefined in $REPO/lanes/pandoc/src/XmlHtmlDom.php:705\nStack trace:\n#0 $REPO/lanes/pandoc/src/XmlReader.php(69): PortLibs\\Pandoc\\XmlHtmlDom::loadXmlDocument('<?xml version=\"...', 'JATS input', false)\n#1 $REPO/lanes/pandoc/src/PandocConverter.php(37): PortLibs\\Pandoc\\XmlReader->read('<?xml version=\"...')\n#2 $REPO/lanes/pandoc/src/PandocConverter.php(93): PortLibs\\Pandoc\\PandocConverter::read('<?xml version=\"...', 'jats', Array)\n#3 $REPO/lanes/pandoc/src/PandocConverter.php(152): PortLibs\\Pandoc\\PandocConverter::convertWithMedia('<?xml version=\"...', 'jats', 'wordpress', Array)\n#4 $REPO/tools/build-pandoc-showcase.php(32): PortLibs\\Pandoc\\PandocConverter::convertFileWithMedia('$REPO', 'jats', 'wordpress', Array)\n#5 {main}\n  thrown in $REPO/lanes/pandoc/src/XmlHtmlDom.php on line 705\nFatal error: Uncaught InvalidArgumentException: Unable to parse JATS input at line 229, column 27: Attribute xlink:href redefined in $REPO/lanes/pandoc/src/XmlHtmlDom.php:705\nStack trace:\n#0 $REPO/lanes/pandoc/src/XmlReader.php(69): PortLibs\\Pandoc\\XmlHtmlDom::loadXmlDocument('<?xml version=\"...', 'JATS input', false)\n#1 $REPO/lanes/pandoc/src/PandocConverter.php(37): PortLibs\\Pandoc\\XmlReader->read('<?xml version=\"...')\n#2 $REPO/lanes/pandoc/src/PandocConverter.php(93): PortLibs\\Pandoc\\PandocConverter::read('<?xml version=\"...', 'jats', Array)\n#3 $REPO/lanes/pandoc/src/PandocConverter.php(152): PortLibs\\Pandoc\\PandocConverter::convertWithMedia('<?xml version=\"...', 'jats', 'wordpress', Array)\n#4 $REPO/tools/build-pandoc-showcase.php(32): PortLibs\\Pandoc\\PandocConverter::convertFileWithMedia('$REPO', 'jats', 'wordpress', Array)\n#5 {main}\n  thrown in $REPO/lanes/pandoc/src/XmlHtmlDom.php on line 705"
                     }
                 },
                 "summary": {
@@ -15133,7 +15451,7 @@
                 }
             },
             "importQuality": {
-                "status": "fail",
+                "status": "review",
                 "gates": {
                     "text_completeness": {
                         "status": "review",
@@ -15184,10 +15502,10 @@
                         "detail": "no media extraction problems reported"
                     },
                     "anchor_validity": {
-                        "status": "fail",
+                        "status": "pass",
                         "expected": 0,
-                        "actual": 50,
-                        "detail": "#Federal!A1, #AL!A1, #AZ!A1, #AR!A1, #CA!A1"
+                        "actual": 0,
+                        "detail": "all local fragment links resolve"
                     },
                     "custom_html_percentage": {
                         "status": "pass",
@@ -15197,9 +15515,9 @@
                     }
                 },
                 "summary": {
-                    "pass": 8,
+                    "pass": 9,
                     "review": 1,
-                    "fail": 1
+                    "fail": 0
                 }
             }
         },
@@ -19628,12 +19946,12 @@
             },
             "phpHtml": {
                 "ok": false,
-                "error": "PHP Fatal error:  Uncaught RuntimeException: CFB root storage entry must be black in $REPO/lanes/pandoc/src/CompoundFileBinary.php:765\nStack trace:\n#0 $REPO/lanes/pandoc/src/CompoundFileBinary.php(239): PortLibs\\Pandoc\\CompoundFileBinary::parseDirectory('R\\x00o\\x00o\\x00t\\x00 \\x00E\\x00n\\x00t...', 3)\n#1 $REPO/lanes/pandoc/src/LegacyDocReader.php(228): PortLibs\\Pandoc\\CompoundFileBinary::fromBytes('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#2 $REPO/lanes/pandoc/src/LegacyDocReader.php(220): PortLibs\\Pandoc\\LegacyDocReader->readBytes('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#3 $REPO/lanes/pandoc/src/PandocConverter.php(37): PortLibs\\Pandoc\\LegacyDocReader->read('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#4 $REPO/lanes/pandoc/src/PandocConverter.php(93): PortLibs\\Pandoc\\PandocConverter::read('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...', 'doc', Array)\n#5 $REPO/lanes/pandoc/src/PandocConverter.php(152): PortLibs\\Pandoc\\PandocConverter::convertWithMedia('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...', 'doc', 'html', Array)\n#6 $REPO/tools/build-pandoc-showcase.php(32): PortLibs\\Pandoc\\PandocConverter::convertFileWithMedia('$TMP', 'doc', 'html', Array)\n#7 {main}\n  thrown in $REPO/lanes/pandoc/src/CompoundFileBinary.php on line 765\nFatal error: Uncaught RuntimeException: CFB root storage entry must be black in $REPO/lanes/pandoc/src/CompoundFileBinary.php:765\nStack trace:\n#0 $REPO/lanes/pandoc/src/CompoundFileBinary.php(239): PortLibs\\Pandoc\\CompoundFileBinary::parseDirectory('R\\x00o\\x00o\\x00t\\x00 \\x00E\\x00n\\x00t...', 3)\n#1 $REPO/lanes/pandoc/src/LegacyDocReader.php(228): PortLibs\\Pandoc\\CompoundFileBinary::fromBytes('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#2 $REPO/lanes/pandoc/src/LegacyDocReader.php(220): PortLibs\\Pandoc\\LegacyDocReader->readBytes('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#3 $REPO/lanes/pandoc/src/PandocConverter.php(37): PortLibs\\Pandoc\\LegacyDocReader->read('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#4 $REPO/lanes/pandoc/src/PandocConverter.php(93): PortLibs\\Pandoc\\PandocConverter::read('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...', 'doc', Array)\n#5 $REPO/lanes/pandoc/src/PandocConverter.php(152): PortLibs\\Pandoc\\PandocConverter::convertWithMedia('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...', 'doc', 'html', Array)\n#6 $REPO/tools/build-pandoc-showcase.php(32): PortLibs\\Pandoc\\PandocConverter::convertFileWithMedia('$TMP', 'doc', 'html', Array)\n#7 {main}\n  thrown in $REPO/lanes/pandoc/src/CompoundFileBinary.php on line 765",
+                "error": "PHP Fatal error:  Uncaught RuntimeException: CFB root storage entry must be black in $REPO/lanes/pandoc/src/CompoundFileBinary.php:765\nStack trace:\n#0 $REPO/lanes/pandoc/src/CompoundFileBinary.php(239): PortLibs\\Pandoc\\CompoundFileBinary::parseDirectory('R\\x00o\\x00o\\x00t\\x00 \\x00E\\x00n\\x00t...', 3)\n#1 $REPO/lanes/pandoc/src/LegacyDocReader.php(228): PortLibs\\Pandoc\\CompoundFileBinary::fromBytes('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#2 $REPO/lanes/pandoc/src/LegacyDocReader.php(220): PortLibs\\Pandoc\\LegacyDocReader->readBytes('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#3 $REPO/lanes/pandoc/src/PandocConverter.php(37): PortLibs\\Pandoc\\LegacyDocReader->read('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#4 $REPO/lanes/pandoc/src/PandocConverter.php(93): PortLibs\\Pandoc\\PandocConverter::read('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...', 'doc', Array)\n#5 $REPO/lanes/pandoc/src/PandocConverter.php(152): PortLibs\\Pandoc\\PandocConverter::convertWithMedia('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...', 'doc', 'html', Array)\n#6 $REPO/tools/build-pandoc-showcase.php(32): PortLibs\\Pandoc\\PandocConverter::convertFileWithMedia('$REPO', 'doc', 'html', Array)\n#7 {main}\n  thrown in $REPO/lanes/pandoc/src/CompoundFileBinary.php on line 765\nFatal error: Uncaught RuntimeException: CFB root storage entry must be black in $REPO/lanes/pandoc/src/CompoundFileBinary.php:765\nStack trace:\n#0 $REPO/lanes/pandoc/src/CompoundFileBinary.php(239): PortLibs\\Pandoc\\CompoundFileBinary::parseDirectory('R\\x00o\\x00o\\x00t\\x00 \\x00E\\x00n\\x00t...', 3)\n#1 $REPO/lanes/pandoc/src/LegacyDocReader.php(228): PortLibs\\Pandoc\\CompoundFileBinary::fromBytes('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#2 $REPO/lanes/pandoc/src/LegacyDocReader.php(220): PortLibs\\Pandoc\\LegacyDocReader->readBytes('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#3 $REPO/lanes/pandoc/src/PandocConverter.php(37): PortLibs\\Pandoc\\LegacyDocReader->read('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#4 $REPO/lanes/pandoc/src/PandocConverter.php(93): PortLibs\\Pandoc\\PandocConverter::read('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...', 'doc', Array)\n#5 $REPO/lanes/pandoc/src/PandocConverter.php(152): PortLibs\\Pandoc\\PandocConverter::convertWithMedia('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...', 'doc', 'html', Array)\n#6 $REPO/tools/build-pandoc-showcase.php(32): PortLibs\\Pandoc\\PandocConverter::convertFileWithMedia('$REPO', 'doc', 'html', Array)\n#7 {main}\n  thrown in $REPO/lanes/pandoc/src/CompoundFileBinary.php on line 765",
                 "path": "outputs/doc-poi-57843/php.html.error.txt"
             },
             "wpBlocks": {
                 "ok": false,
-                "error": "PHP Fatal error:  Uncaught RuntimeException: CFB root storage entry must be black in $REPO/lanes/pandoc/src/CompoundFileBinary.php:765\nStack trace:\n#0 $REPO/lanes/pandoc/src/CompoundFileBinary.php(239): PortLibs\\Pandoc\\CompoundFileBinary::parseDirectory('R\\x00o\\x00o\\x00t\\x00 \\x00E\\x00n\\x00t...', 3)\n#1 $REPO/lanes/pandoc/src/LegacyDocReader.php(228): PortLibs\\Pandoc\\CompoundFileBinary::fromBytes('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#2 $REPO/lanes/pandoc/src/LegacyDocReader.php(220): PortLibs\\Pandoc\\LegacyDocReader->readBytes('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#3 $REPO/lanes/pandoc/src/PandocConverter.php(37): PortLibs\\Pandoc\\LegacyDocReader->read('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#4 $REPO/lanes/pandoc/src/PandocConverter.php(93): PortLibs\\Pandoc\\PandocConverter::read('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...', 'doc', Array)\n#5 $REPO/lanes/pandoc/src/PandocConverter.php(152): PortLibs\\Pandoc\\PandocConverter::convertWithMedia('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...', 'doc', 'wordpress', Array)\n#6 $REPO/tools/build-pandoc-showcase.php(32): PortLibs\\Pandoc\\PandocConverter::convertFileWithMedia('$TMP', 'doc', 'wordpress', Array)\n#7 {main}\n  thrown in $REPO/lanes/pandoc/src/CompoundFileBinary.php on line 765\nFatal error: Uncaught RuntimeException: CFB root storage entry must be black in $REPO/lanes/pandoc/src/CompoundFileBinary.php:765\nStack trace:\n#0 $REPO/lanes/pandoc/src/CompoundFileBinary.php(239): PortLibs\\Pandoc\\CompoundFileBinary::parseDirectory('R\\x00o\\x00o\\x00t\\x00 \\x00E\\x00n\\x00t...', 3)\n#1 $REPO/lanes/pandoc/src/LegacyDocReader.php(228): PortLibs\\Pandoc\\CompoundFileBinary::fromBytes('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#2 $REPO/lanes/pandoc/src/LegacyDocReader.php(220): PortLibs\\Pandoc\\LegacyDocReader->readBytes('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#3 $REPO/lanes/pandoc/src/PandocConverter.php(37): PortLibs\\Pandoc\\LegacyDocReader->read('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#4 $REPO/lanes/pandoc/src/PandocConverter.php(93): PortLibs\\Pandoc\\PandocConverter::read('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...', 'doc', Array)\n#5 $REPO/lanes/pandoc/src/PandocConverter.php(152): PortLibs\\Pandoc\\PandocConverter::convertWithMedia('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...', 'doc', 'wordpress', Array)\n#6 $REPO/tools/build-pandoc-showcase.php(32): PortLibs\\Pandoc\\PandocConverter::convertFileWithMedia('$TMP', 'doc', 'wordpress', Array)\n#7 {main}\n  thrown in $REPO/lanes/pandoc/src/CompoundFileBinary.php on line 765",
+                "error": "PHP Fatal error:  Uncaught RuntimeException: CFB root storage entry must be black in $REPO/lanes/pandoc/src/CompoundFileBinary.php:765\nStack trace:\n#0 $REPO/lanes/pandoc/src/CompoundFileBinary.php(239): PortLibs\\Pandoc\\CompoundFileBinary::parseDirectory('R\\x00o\\x00o\\x00t\\x00 \\x00E\\x00n\\x00t...', 3)\n#1 $REPO/lanes/pandoc/src/LegacyDocReader.php(228): PortLibs\\Pandoc\\CompoundFileBinary::fromBytes('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#2 $REPO/lanes/pandoc/src/LegacyDocReader.php(220): PortLibs\\Pandoc\\LegacyDocReader->readBytes('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#3 $REPO/lanes/pandoc/src/PandocConverter.php(37): PortLibs\\Pandoc\\LegacyDocReader->read('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#4 $REPO/lanes/pandoc/src/PandocConverter.php(93): PortLibs\\Pandoc\\PandocConverter::read('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...', 'doc', Array)\n#5 $REPO/lanes/pandoc/src/PandocConverter.php(152): PortLibs\\Pandoc\\PandocConverter::convertWithMedia('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...', 'doc', 'wordpress', Array)\n#6 $REPO/tools/build-pandoc-showcase.php(32): PortLibs\\Pandoc\\PandocConverter::convertFileWithMedia('$REPO', 'doc', 'wordpress', Array)\n#7 {main}\n  thrown in $REPO/lanes/pandoc/src/CompoundFileBinary.php on line 765\nFatal error: Uncaught RuntimeException: CFB root storage entry must be black in $REPO/lanes/pandoc/src/CompoundFileBinary.php:765\nStack trace:\n#0 $REPO/lanes/pandoc/src/CompoundFileBinary.php(239): PortLibs\\Pandoc\\CompoundFileBinary::parseDirectory('R\\x00o\\x00o\\x00t\\x00 \\x00E\\x00n\\x00t...', 3)\n#1 $REPO/lanes/pandoc/src/LegacyDocReader.php(228): PortLibs\\Pandoc\\CompoundFileBinary::fromBytes('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#2 $REPO/lanes/pandoc/src/LegacyDocReader.php(220): PortLibs\\Pandoc\\LegacyDocReader->readBytes('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#3 $REPO/lanes/pandoc/src/PandocConverter.php(37): PortLibs\\Pandoc\\LegacyDocReader->read('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#4 $REPO/lanes/pandoc/src/PandocConverter.php(93): PortLibs\\Pandoc\\PandocConverter::read('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...', 'doc', Array)\n#5 $REPO/lanes/pandoc/src/PandocConverter.php(152): PortLibs\\Pandoc\\PandocConverter::convertWithMedia('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...', 'doc', 'wordpress', Array)\n#6 $REPO/tools/build-pandoc-showcase.php(32): PortLibs\\Pandoc\\PandocConverter::convertFileWithMedia('$REPO', 'doc', 'wordpress', Array)\n#7 {main}\n  thrown in $REPO/lanes/pandoc/src/CompoundFileBinary.php on line 765",
                 "path": "outputs/doc-poi-57843/wordpress-blocks.html.error.txt"
             },
             "wpBlockCounts": [],
@@ -19646,7 +19964,7 @@
                 "gates": {
                     "conversion": {
                         "status": "fail",
-                        "detail": "PHP Fatal error:  Uncaught RuntimeException: CFB root storage entry must be black in $REPO/lanes/pandoc/src/CompoundFileBinary.php:765\nStack trace:\n#0 $REPO/lanes/pandoc/src/CompoundFileBinary.php(239): PortLibs\\Pandoc\\CompoundFileBinary::parseDirectory('R\\x00o\\x00o\\x00t\\x00 \\x00E\\x00n\\x00t...', 3)\n#1 $REPO/lanes/pandoc/src/LegacyDocReader.php(228): PortLibs\\Pandoc\\CompoundFileBinary::fromBytes('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#2 $REPO/lanes/pandoc/src/LegacyDocReader.php(220): PortLibs\\Pandoc\\LegacyDocReader->readBytes('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#3 $REPO/lanes/pandoc/src/PandocConverter.php(37): PortLibs\\Pandoc\\LegacyDocReader->read('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#4 $REPO/lanes/pandoc/src/PandocConverter.php(93): PortLibs\\Pandoc\\PandocConverter::read('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...', 'doc', Array)\n#5 $REPO/lanes/pandoc/src/PandocConverter.php(152): PortLibs\\Pandoc\\PandocConverter::convertWithMedia('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...', 'doc', 'wordpress', Array)\n#6 $REPO/tools/build-pandoc-showcase.php(32): PortLibs\\Pandoc\\PandocConverter::convertFileWithMedia('$TMP', 'doc', 'wordpress', Array)\n#7 {main}\n  thrown in $REPO/lanes/pandoc/src/CompoundFileBinary.php on line 765\nFatal error: Uncaught RuntimeException: CFB root storage entry must be black in $REPO/lanes/pandoc/src/CompoundFileBinary.php:765\nStack trace:\n#0 $REPO/lanes/pandoc/src/CompoundFileBinary.php(239): PortLibs\\Pandoc\\CompoundFileBinary::parseDirectory('R\\x00o\\x00o\\x00t\\x00 \\x00E\\x00n\\x00t...', 3)\n#1 $REPO/lanes/pandoc/src/LegacyDocReader.php(228): PortLibs\\Pandoc\\CompoundFileBinary::fromBytes('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#2 $REPO/lanes/pandoc/src/LegacyDocReader.php(220): PortLibs\\Pandoc\\LegacyDocReader->readBytes('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#3 $REPO/lanes/pandoc/src/PandocConverter.php(37): PortLibs\\Pandoc\\LegacyDocReader->read('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#4 $REPO/lanes/pandoc/src/PandocConverter.php(93): PortLibs\\Pandoc\\PandocConverter::read('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...', 'doc', Array)\n#5 $REPO/lanes/pandoc/src/PandocConverter.php(152): PortLibs\\Pandoc\\PandocConverter::convertWithMedia('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...', 'doc', 'wordpress', Array)\n#6 $REPO/tools/build-pandoc-showcase.php(32): PortLibs\\Pandoc\\PandocConverter::convertFileWithMedia('$TMP', 'doc', 'wordpress', Array)\n#7 {main}\n  thrown in $REPO/lanes/pandoc/src/CompoundFileBinary.php on line 765"
+                        "detail": "PHP Fatal error:  Uncaught RuntimeException: CFB root storage entry must be black in $REPO/lanes/pandoc/src/CompoundFileBinary.php:765\nStack trace:\n#0 $REPO/lanes/pandoc/src/CompoundFileBinary.php(239): PortLibs\\Pandoc\\CompoundFileBinary::parseDirectory('R\\x00o\\x00o\\x00t\\x00 \\x00E\\x00n\\x00t...', 3)\n#1 $REPO/lanes/pandoc/src/LegacyDocReader.php(228): PortLibs\\Pandoc\\CompoundFileBinary::fromBytes('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#2 $REPO/lanes/pandoc/src/LegacyDocReader.php(220): PortLibs\\Pandoc\\LegacyDocReader->readBytes('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#3 $REPO/lanes/pandoc/src/PandocConverter.php(37): PortLibs\\Pandoc\\LegacyDocReader->read('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#4 $REPO/lanes/pandoc/src/PandocConverter.php(93): PortLibs\\Pandoc\\PandocConverter::read('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...', 'doc', Array)\n#5 $REPO/lanes/pandoc/src/PandocConverter.php(152): PortLibs\\Pandoc\\PandocConverter::convertWithMedia('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...', 'doc', 'wordpress', Array)\n#6 $REPO/tools/build-pandoc-showcase.php(32): PortLibs\\Pandoc\\PandocConverter::convertFileWithMedia('$REPO', 'doc', 'wordpress', Array)\n#7 {main}\n  thrown in $REPO/lanes/pandoc/src/CompoundFileBinary.php on line 765\nFatal error: Uncaught RuntimeException: CFB root storage entry must be black in $REPO/lanes/pandoc/src/CompoundFileBinary.php:765\nStack trace:\n#0 $REPO/lanes/pandoc/src/CompoundFileBinary.php(239): PortLibs\\Pandoc\\CompoundFileBinary::parseDirectory('R\\x00o\\x00o\\x00t\\x00 \\x00E\\x00n\\x00t...', 3)\n#1 $REPO/lanes/pandoc/src/LegacyDocReader.php(228): PortLibs\\Pandoc\\CompoundFileBinary::fromBytes('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#2 $REPO/lanes/pandoc/src/LegacyDocReader.php(220): PortLibs\\Pandoc\\LegacyDocReader->readBytes('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#3 $REPO/lanes/pandoc/src/PandocConverter.php(37): PortLibs\\Pandoc\\LegacyDocReader->read('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#4 $REPO/lanes/pandoc/src/PandocConverter.php(93): PortLibs\\Pandoc\\PandocConverter::read('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...', 'doc', Array)\n#5 $REPO/lanes/pandoc/src/PandocConverter.php(152): PortLibs\\Pandoc\\PandocConverter::convertWithMedia('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...', 'doc', 'wordpress', Array)\n#6 $REPO/tools/build-pandoc-showcase.php(32): PortLibs\\Pandoc\\PandocConverter::convertFileWithMedia('$REPO', 'doc', 'wordpress', Array)\n#7 {main}\n  thrown in $REPO/lanes/pandoc/src/CompoundFileBinary.php on line 765"
                     }
                 },
                 "summary": {

@@ -4,7 +4,7 @@ Stack trace:
 #1 $REPO/lanes/pandoc/src/PandocConverter.php(37): PortLibs\Pandoc\XmlReader->read('<?xml version="...')
 #2 $REPO/lanes/pandoc/src/PandocConverter.php(93): PortLibs\Pandoc\PandocConverter::read('<?xml version="...', 'jats', Array)
 #3 $REPO/lanes/pandoc/src/PandocConverter.php(152): PortLibs\Pandoc\PandocConverter::convertWithMedia('<?xml version="...', 'jats', 'wordpress', Array)
-#4 $REPO/tools/build-pandoc-showcase.php(32): PortLibs\Pandoc\PandocConverter::convertFileWithMedia('$TMP', 'jats', 'wordpress', Array)
+#4 $REPO/tools/build-pandoc-showcase.php(32): PortLibs\Pandoc\PandocConverter::convertFileWithMedia('$REPO', 'jats', 'wordpress', Array)
 #5 {main}
   thrown in $REPO/lanes/pandoc/src/XmlHtmlDom.php on line 705
 Fatal error: Uncaught InvalidArgumentException: Unable to parse JATS input at line 229, column 27: Attribute xlink:href redefined in $REPO/lanes/pandoc/src/XmlHtmlDom.php:705
@@ -13,6 +13,6 @@ Stack trace:
 #1 $REPO/lanes/pandoc/src/PandocConverter.php(37): PortLibs\Pandoc\XmlReader->read('<?xml version="...')
 #2 $REPO/lanes/pandoc/src/PandocConverter.php(93): PortLibs\Pandoc\PandocConverter::read('<?xml version="...', 'jats', Array)
 #3 $REPO/lanes/pandoc/src/PandocConverter.php(152): PortLibs\Pandoc\PandocConverter::convertWithMedia('<?xml version="...', 'jats', 'wordpress', Array)
-#4 $REPO/tools/build-pandoc-showcase.php(32): PortLibs\Pandoc\PandocConverter::convertFileWithMedia('$TMP', 'jats', 'wordpress', Array)
+#4 $REPO/tools/build-pandoc-showcase.php(32): PortLibs\Pandoc\PandocConverter::convertFileWithMedia('$REPO', 'jats', 'wordpress', Array)
 #5 {main}
   thrown in $REPO/lanes/pandoc/src/XmlHtmlDom.php on line 705

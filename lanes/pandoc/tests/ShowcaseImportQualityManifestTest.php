@@ -129,6 +129,25 @@ return [
 
         $t->true($successful >= 40, 'The gate check should cover a substantial successful WordPress import corpus.');
     },
+    'showcase manifest gates common import quality separately from exotic formats' => static function (TestRunner $t) use ($showcaseManifest): void {
+        $manifest = $showcaseManifest();
+        $summary = is_array($manifest['importQualitySegmentSummary'] ?? null) ? $manifest['importQualitySegmentSummary'] : [];
+        $common = is_array($summary['common'] ?? null) ? $summary['common'] : [];
+        $exotic = is_array($summary['exotic'] ?? null) ? $summary['exotic'] : [];
+
+        $t->true($common !== [], 'Manifest should summarize common WordPress import formats separately.');
+        $t->true($exotic !== [], 'Manifest should still summarize exotic formats without mixing them into common import quality.');
+        $t->true(($common['samples'] ?? 0) >= 44, 'Common import segment should cover the current normal-user corpus size.');
+        $t->same(0, $common['wpFailures'] ?? null, 'Common import formats should not have WordPress block conversion failures.');
+        $t->true(($common['pass'] ?? 0) >= 7, 'Common import pass count should not regress from the current baseline.');
+        $t->true(($common['passOrReview'] ?? 0) >= 23, 'Common import pass-or-review count should not regress from the current baseline.');
+        $t->true(($common['fail'] ?? PHP_INT_MAX) <= 21, 'Common import fail count should not regress from the current baseline.');
+
+        $formats = is_array($common['formats'] ?? null) ? $common['formats'] : [];
+        foreach (['docx', 'pdf', 'html', 'xlsx'] as $format) {
+            $t->true(isset($formats[$format]), "Common import quality summary should include {$format}.");
+        }
+    },
     'showcase manifest compares simple html samples against visible body text' => static function (TestRunner $t) use ($showcaseManifest, $recordsById): void {
         $manifest = $showcaseManifest();
         $records = is_array($manifest['records'] ?? null) ? $manifest['records'] : [];
