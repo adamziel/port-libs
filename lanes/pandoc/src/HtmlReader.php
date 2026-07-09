@@ -31,8 +31,10 @@ final class HtmlReader
     {
         $backend = $this->options['htmlReaderBackend'] ?? self::BACKEND_TAGSOUP_PANDOC_PORT;
         if ($backend === self::BACKEND_TAGSOUP_PANDOC_PORT) {
+            $document = (new PandocHtmlTagSoupReader($this->options))->read($bytes);
+
             return $this->repairHtmlLocalFragmentLinks(
-                (new PandocHtmlTagSoupReader($this->options))->read($bytes)
+                $this->restoreStandaloneTextHtmlFallback($document, $bytes)
             );
         }
         if ($backend !== self::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE) {
@@ -114,6 +116,91 @@ final class HtmlReader
         ], $this->microdataMetadata($bytes));
 
         return $this->repairHtmlLocalFragmentLinks(new AstNode('document', $attrs, $children));
+    }
+
+    private function restoreStandaloneTextHtmlFallback(AstNode $document, string $bytes): AstNode
+    {
+        if (!$this->htmlSourceIsStandaloneText($bytes)) {
+            return $document;
+        }
+        if ($document->children !== [] && $this->htmlNodesAreStandaloneInlines($document->children)) {
+            $text = $this->collapseHtmlImportWhitespace($this->plainTextFromAstNodes($document->children));
+            if ($text !== '') {
+                return new AstNode($document->type, $document->attrs, [
+                    new AstNode('paragraph', ['text' => $text], $document->children),
+                ]);
+            }
+        }
+        if ($document->children !== []) {
+            return $document;
+        }
+
+        $fallback = $this->reader->read($bytes);
+        if ($fallback->children === []) {
+            return $document;
+        }
+
+        $attrs = $document->attrs;
+        $meta = $attrs['meta'] ?? [];
+        if (!is_array($meta)) {
+            $meta = [];
+        }
+        $attrs['meta'] = array_replace($meta, [
+            'htmlStandaloneTextFallback' => true,
+            'htmlStandaloneTextFallbackReader' => MarkdownReader::class,
+        ]);
+
+        return new AstNode($document->type, $attrs, $fallback->children);
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     */
+    private function htmlNodesAreStandaloneInlines(array $nodes): bool
+    {
+        foreach ($nodes as $node) {
+            if (!in_array($node->type, [
+                'text',
+                'space',
+                'softbreak',
+                'linebreak',
+                'emph',
+                'strong',
+                'strikeout',
+                'superscript',
+                'subscript',
+                'smallcaps',
+                'code',
+                'link',
+                'image',
+                'span',
+                'math',
+                'raw_html_inline',
+            ], true)) {
+                return false;
+            }
+        }
+
+        return $nodes !== [];
+    }
+
+    private function htmlSourceIsStandaloneText(string $bytes): bool
+    {
+        $tokens = (new PandocHtmlTagSoupReader($this->options))->tokenize($bytes);
+        $hasText = false;
+        foreach ($tokens as $token) {
+            if (!$token instanceof TagSoupTag) {
+                continue;
+            }
+            if ($token->type !== TagSoupTag::TEXT) {
+                return false;
+            }
+            if (trim($token->text) !== '') {
+                $hasText = true;
+            }
+        }
+
+        return $hasText;
     }
 
     private function repairHtmlLocalFragmentLinks(AstNode $document): AstNode

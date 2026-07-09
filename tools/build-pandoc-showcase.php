@@ -1287,10 +1287,14 @@ function showcase_record_faithfulness(string $siteDir, array $record): array
             continue;
         }
         $textScore = showcase_text_similarity($baselineText, $text);
+        $actualVisual = showcase_output_visual_signature($siteDir, (string) ($record[$key]['path'] ?? ''));
         $visualScore = showcase_visual_signature_similarity(
             $baselineVisual,
-            showcase_output_visual_signature($siteDir, (string) ($record[$key]['path'] ?? ''))
+            $actualVisual
         );
+        if ($textScore >= 0.80 && $baselineVisual === [] && showcase_text_only_visual_signature($actualVisual)) {
+            $visualScore = 1.0;
+        }
         $comparisons[$key] = [
             'label' => $label,
             'status' => $textScore >= 0.80 ? 'faithful_enough' : ($textScore >= 0.55 ? 'review' : 'divergent'),
@@ -1489,6 +1493,26 @@ function showcase_visual_signature_similarity(array $expected, array $actual): f
     return $total === 0 ? 1.0 : round($overlap / $total, 4);
 }
 
+/**
+ * @param array<string, int> $signature
+ */
+function showcase_text_only_visual_signature(array $signature): bool
+{
+    if ($signature === []) {
+        return true;
+    }
+    foreach ($signature as $key => $count) {
+        if ((int) $count <= 0) {
+            continue;
+        }
+        if (!in_array($key, ['p'], true)) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 function showcase_text_similarity(string $expected, string $actual): float
 {
     $expectedTokens = showcase_text_tokens($expected);
@@ -1601,16 +1625,27 @@ function showcase_record_import_quality(string $siteDir, array $record): array
         : [];
 
     $textScore = isset($comparison['textScore']) ? (float) $comparison['textScore'] : null;
+    $textOnlyBaseline = $textScore !== null
+        && $textScore >= 0.80
+        && $baselineVisual === []
+        && showcase_text_only_visual_signature($wpVisual);
     $gates['text_completeness'] = showcase_score_gate($textScore, 0.80, 0.55, 'visible text overlap with the baseline');
 
     $visualScore = isset($comparison['visualScore']) ? (float) $comparison['visualScore'] : null;
     $gates['visual_structure'] = showcase_score_gate($visualScore, 0.75, 0.50, 'heading/list/table/image shape overlap with the baseline');
 
-    $gates['paragraph_merge_split'] = showcase_count_ratio_gate(
-        (int) ($baselineVisual['p'] ?? 0),
-        (int) ($wpVisual['p'] ?? 0),
-        'paragraph count ratio'
-    );
+    $gates['paragraph_merge_split'] = $textOnlyBaseline
+        ? [
+            'status' => 'pass',
+            'expected' => 'text-only baseline',
+            'actual' => (int) ($wpVisual['p'] ?? 0),
+            'detail' => 'text-only baseline represented as WordPress paragraph content',
+        ]
+        : showcase_count_ratio_gate(
+            (int) ($baselineVisual['p'] ?? 0),
+            (int) ($wpVisual['p'] ?? 0),
+            'paragraph count ratio'
+        );
     $gates['heading_count'] = showcase_count_ratio_gate(
         (int) ($baselineVisual['heading'] ?? 0),
         (int) ($wpVisual['heading'] ?? 0),
@@ -1924,9 +1959,9 @@ function showcase_import_quality_thresholds(): array
             'required' => true,
             'minSamples' => 44,
             'maxWpFailures' => 0,
-            'minPass' => 28,
-            'minPassOrReview' => 38,
-            'maxFail' => 6,
+            'minPass' => 29,
+            'minPassOrReview' => 39,
+            'maxFail' => 5,
         ],
         'exotic' => [
             'required' => false,

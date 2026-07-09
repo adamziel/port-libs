@@ -1398,6 +1398,27 @@ $tests['imports direct pandoc html template content as visible blocks'] =
         $t->same('After template.', $after->attr('text'));
     };
 
+$tests['imports standalone text html assets as visible paragraphs'] =
+    static function (TestRunner $t): void {
+        $source = <<<'HTML'
+/* Template styles */
+$if(document-css)$
+body { max-width: 36em; }
+$endif$
+HTML;
+        $document = (new HtmlReader())->read($source);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $html = (new HtmlWriter())->write($document);
+
+        $t->same('html', $document->attr('sourceFormat'));
+        $t->same(['paragraph'], array_map(static fn ($node): string => $node->type, $document->children));
+        $t->contains('Template styles', $document->children[0]->attr('text'));
+        $t->contains('body { max-width: 36em; }', $document->children[0]->attr('text'));
+        $t->contains('<!-- wp:paragraph -->', $blocks);
+        $t->true(!str_contains($blocks, '<!-- wp:html -->'), 'Standalone text fallback should not require a Custom HTML block.');
+        $t->contains('<p>/* Template styles */', $html);
+    };
+
 $tests['imports direct pandoc html xmp rawtext fallback as parsed blocks'] =
     static function (TestRunner $t) use ($fixture): void {
         $document = (new HtmlReader(['htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE]))->read($fixture('upstream-html-xmp-rawtext-fallback.html'));
