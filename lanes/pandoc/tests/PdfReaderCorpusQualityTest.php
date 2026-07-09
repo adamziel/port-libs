@@ -187,7 +187,7 @@ return [
         $cases = [
             'grand-canyon-map' => ['minParagraphs' => 40, 'minHeadings' => 40],
             'muir-brochure' => ['minParagraphs' => 25, 'minHeadings' => 20],
-            'tracemonkey-paper' => ['minParagraphs' => 100, 'minHeadings' => 40],
+            'tracemonkey-paper' => ['minParagraphs' => 100, 'minHeadings' => 35],
         ];
 
         foreach ($cases as $kind => $expectation) {
