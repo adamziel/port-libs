@@ -209084,15 +209084,27 @@ $include-after$
 $endfor$
 }
 </pre><p class="meta"><a href="samples/rtf-template-default.rtf">Download original file</a></p><p class="meta">Real RTF template from Pandoc project data.</p></div></section><section class="converted" data-sample="rtf-template"><div class="converted-toolbar"><span class="meta">Converted representations</span><button class="view-source" type="button" data-source-toggle>View source</button></div><div class="comparison-grid"><section class="conversion-pane" id="rtf-template-wpBlocks"><div class="pane-head"><span class="pane-title">WP blocks</span><span class="pane-status status-ok">ok</span></div><iframe class="render-frame" data-sync-group="rtf-template" title="Pandoc default RTF template PHP WordPress blocks" src="outputs/rtf-template/wordpress-blocks.html"></iframe><pre class="source-box" data-sync-group="rtf-template">&lt;!-- wp:paragraph --&gt;
-&lt;p&gt;$if(listtable)$$listtable$$endif$$for(header-includes)$$header-includes$$endfor$$if(title)$&lt;strong&gt;$title$&lt;/strong&gt;&lt;/p&gt;
+&lt;p&gt;$if(listtable)$$listtable$$endif$$for(header-includes)$$header-includes$$endfor$$if(title)$&lt;/p&gt;
 &lt;!-- /wp:paragraph --&gt;
 
 &lt;!-- wp:paragraph --&gt;
-&lt;p&gt;$endif$$for(author)$ $author$&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;$title$&lt;/strong&gt;&lt;/p&gt;
 &lt;!-- /wp:paragraph --&gt;
 
 &lt;!-- wp:paragraph --&gt;
-&lt;p&gt;$endfor$$if(date)$ $date$&lt;/p&gt;
+&lt;p&gt;$endif$$for(author)$&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt; $author$&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt;$endfor$$if(date)$&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;
+
+&lt;!-- wp:paragraph --&gt;
+&lt;p&gt; $date$&lt;/p&gt;
 &lt;!-- /wp:paragraph --&gt;
 
 &lt;!-- wp:paragraph --&gt;
@@ -209101,9 +209113,12 @@ $endfor$
 
 &lt;!-- wp:paragraph --&gt;
 &lt;p&gt;$endif$$if(toc)$$table-of-contents$$endif$$for(include-before)$$include-before$$endfor$$body$$for(include-after)$$include-after$$endfor$&lt;/p&gt;
-&lt;!-- /wp:paragraph --&gt;</pre></section><section class="conversion-pane" id="rtf-template-phpHtml"><div class="pane-head"><span class="pane-title">PHP HTML</span><span class="pane-status status-ok">ok</span></div><iframe class="render-frame" data-sync-group="rtf-template" title="Pandoc default RTF template PHP HTML" src="outputs/rtf-template/php.html"></iframe><pre class="source-box" data-sync-group="rtf-template">&lt;!doctype html&gt;&lt;html lang=&quot;en&quot;&gt;&lt;head&gt;&lt;meta charset=&quot;utf-8&quot;&gt;&lt;meta name=&quot;viewport&quot; content=&quot;width=device-width, initial-scale=1&quot;&gt;&lt;title&gt;PHP Pandoc HTML output&lt;/title&gt;&lt;style&gt;html{line-height:1.5;font-family:Georgia,&quot;Times New Roman&quot;,serif;font-size:18px;color:#1f2933;background:#fdfdfd;}body{margin:0 auto;max-width:46em;padding:2.5em 1.25em;}h1,h2,h3,h4,h5,h6{font-family:system-ui,-apple-system,BlinkMacSystemFont,&quot;Segoe UI&quot;,sans-serif;line-height:1.25;margin:1.4em 0 .45em;}h1{font-size:2em;}h2{font-size:1.55em;}h3{font-size:1.25em;}p{margin:1em 0;}a{color:#1f6feb;}img,svg,video{max-width:100%;height:auto;}pre,code,kbd,samp{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.9em;}code{background:#eef1f5;padding:.1em .25em;border-radius:3px;}pre{overflow:auto;background:#f6f8fa;border:1px solid #d8dde3;border-radius:6px;padding:1em;}pre code{background:transparent;padding:0;}blockquote{margin:1.25em 0;padding-left:1em;border-left:4px solid #d8dde3;color:#4b5563;}table{border-collapse:collapse;margin:1.25em 0;width:100%;font-size:.92em;}th,td{border:1px solid #d8dde3;padding:.35em .55em;vertical-align:top;}th{background:#f6f8fa;}math{font-family:math,serif;}math[display=&quot;block&quot;]{display:block;margin:1em 0;overflow-x:auto;}&lt;/style&gt;&lt;/head&gt;&lt;body&gt;&lt;p&gt;$if(listtable)$$listtable$$endif$$for(header-includes)$$header-includes$$endfor$$if(title)$&lt;strong&gt;$title$&lt;/strong&gt;&lt;/p&gt;
-&lt;p&gt;$endif$$for(author)$ $author$&lt;/p&gt;
-&lt;p&gt;$endfor$$if(date)$ $date$&lt;/p&gt;
+&lt;!-- /wp:paragraph --&gt;</pre></section><section class="conversion-pane" id="rtf-template-phpHtml"><div class="pane-head"><span class="pane-title">PHP HTML</span><span class="pane-status status-ok">ok</span></div><iframe class="render-frame" data-sync-group="rtf-template" title="Pandoc default RTF template PHP HTML" src="outputs/rtf-template/php.html"></iframe><pre class="source-box" data-sync-group="rtf-template">&lt;!doctype html&gt;&lt;html lang=&quot;en&quot;&gt;&lt;head&gt;&lt;meta charset=&quot;utf-8&quot;&gt;&lt;meta name=&quot;viewport&quot; content=&quot;width=device-width, initial-scale=1&quot;&gt;&lt;title&gt;PHP Pandoc HTML output&lt;/title&gt;&lt;style&gt;html{line-height:1.5;font-family:Georgia,&quot;Times New Roman&quot;,serif;font-size:18px;color:#1f2933;background:#fdfdfd;}body{margin:0 auto;max-width:46em;padding:2.5em 1.25em;}h1,h2,h3,h4,h5,h6{font-family:system-ui,-apple-system,BlinkMacSystemFont,&quot;Segoe UI&quot;,sans-serif;line-height:1.25;margin:1.4em 0 .45em;}h1{font-size:2em;}h2{font-size:1.55em;}h3{font-size:1.25em;}p{margin:1em 0;}a{color:#1f6feb;}img,svg,video{max-width:100%;height:auto;}pre,code,kbd,samp{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.9em;}code{background:#eef1f5;padding:.1em .25em;border-radius:3px;}pre{overflow:auto;background:#f6f8fa;border:1px solid #d8dde3;border-radius:6px;padding:1em;}pre code{background:transparent;padding:0;}blockquote{margin:1.25em 0;padding-left:1em;border-left:4px solid #d8dde3;color:#4b5563;}table{border-collapse:collapse;margin:1.25em 0;width:100%;font-size:.92em;}th,td{border:1px solid #d8dde3;padding:.35em .55em;vertical-align:top;}th{background:#f6f8fa;}math{font-family:math,serif;}math[display=&quot;block&quot;]{display:block;margin:1em 0;overflow-x:auto;}&lt;/style&gt;&lt;/head&gt;&lt;body&gt;&lt;p&gt;$if(listtable)$$listtable$$endif$$for(header-includes)$$header-includes$$endfor$$if(title)$&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;$title$&lt;/strong&gt;&lt;/p&gt;
+&lt;p&gt;$endif$$for(author)$&lt;/p&gt;
+&lt;p&gt; $author$&lt;/p&gt;
+&lt;p&gt;$endfor$$if(date)$&lt;/p&gt;
+&lt;p&gt; $date$&lt;/p&gt;
 &lt;p&gt;$endif$$if(spacer)$&lt;/p&gt;
 &lt;p&gt;$endif$$if(toc)$$table-of-contents$$endif$$for(include-before)$$include-before$$endfor$$body$$for(include-after)$$include-after$$endfor$&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</pre></section><section class="conversion-pane" id="rtf-template-haskell"><div class="pane-head"><span class="pane-title">Haskell HTML</span><span class="pane-status status-ok">ok</span></div><iframe class="render-frame" data-sync-group="rtf-template" title="Pandoc default RTF template Haskell Pandoc HTML" src="outputs/rtf-template/haskell.html"></iframe><pre class="source-box" data-sync-group="rtf-template">&lt;!DOCTYPE html&gt;
 &lt;html xmlns=&quot;http://www.w3.org/1999/xhtml&quot;&gt;

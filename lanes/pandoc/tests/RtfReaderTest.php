@@ -11,6 +11,9 @@ $plainText = static function (AstNode $node) use (&$plainText): string {
     if ($node->type === 'text') {
         return (string) $node->attr('text', '');
     }
+    if ($node->type === 'linebreak') {
+        return "\n";
+    }
 
     $text = '';
     foreach ($node->children as $child) {
@@ -69,5 +72,19 @@ RTF;
         $t->contains('<!-- wp:paragraph -->', $blocks);
         $t->contains('<p>First <strong>bold</strong> and <em>italic</em> plus <u>under</u>.</p>', $blocks);
         $t->contains('<p>Second <del>removed</del>.</p>', $blocks);
+    },
+    'treats pard as a paragraph boundary and line as an inline break' => static function (TestRunner $t) use ($plainText): void {
+        $rtf = <<<'RTF'
+{\rtf1\ansi Before\pard After\line Again\par}
+RTF;
+
+        $document = (new RtfReader())->read($rtf);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(2, count($document->children));
+        $t->same('Before', $plainText($document->children[0]));
+        $t->same(['text', 'linebreak', 'text'], array_map(static fn (AstNode $node): string => $node->type, $document->children[1]->children));
+        $t->same("After\nAgain", $plainText($document->children[1]));
+        $t->contains('<p>After<br/>Again</p>', $blocks);
     },
 ];

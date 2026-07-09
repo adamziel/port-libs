@@ -242,7 +242,6 @@ final class RtfReader
             case 'deflang':
             case 'f':
             case 'fs':
-            case 'pard':
             case 'plain':
             case 'ql':
             case 'qr':
@@ -259,6 +258,10 @@ final class RtfReader
                     $this->state['underline'] = false;
                     $this->state['strike'] = false;
                 }
+                return;
+
+            case 'pard':
+                $this->flushParagraph();
                 return;
 
             case 'b':
@@ -282,8 +285,11 @@ final class RtfReader
                 return;
 
             case 'par':
-            case 'line':
                 $this->flushParagraph();
+                return;
+
+            case 'line':
+                $this->appendLineBreak();
                 return;
 
             case 'tab':
@@ -358,6 +364,13 @@ final class RtfReader
         $this->inlines[] = $node;
     }
 
+    private function appendLineBreak(): void
+    {
+        if (!$this->state['skip']) {
+            $this->inlines[] = new AstNode('linebreak');
+        }
+    }
+
     private function flushParagraph(): void
     {
         if ($this->inlines === []) {
@@ -382,6 +395,10 @@ final class RtfReader
         foreach ($nodes as $node) {
             if ($node->type === 'text') {
                 $text .= (string) $node->attr('text', '');
+                continue;
+            }
+            if ($node->type === 'linebreak') {
+                $text .= "\n";
                 continue;
             }
             $text .= $this->plainText($node->children);

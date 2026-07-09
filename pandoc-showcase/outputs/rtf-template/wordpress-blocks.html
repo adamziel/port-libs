@@ -1,13 +1,25 @@
 <!-- wp:paragraph -->
-<p>$if(listtable)$$listtable$$endif$$for(header-includes)$$header-includes$$endfor$$if(title)$<strong>$title$</strong></p>
+<p>$if(listtable)$$listtable$$endif$$for(header-includes)$$header-includes$$endfor$$if(title)$</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p>$endif$$for(author)$ $author$</p>
+<p><strong>$title$</strong></p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p>$endfor$$if(date)$ $date$</p>
+<p>$endif$$for(author)$</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p> $author$</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>$endfor$$if(date)$</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p> $date$</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
