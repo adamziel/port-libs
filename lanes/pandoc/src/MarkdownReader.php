@@ -1233,6 +1233,22 @@ final class MarkdownReader
     }
 
     /**
+     * @param array<string, mixed> $overrides
+     * @return array<string, mixed>
+     */
+    private function nestedMarkdownReaderOptions(array $overrides = []): array
+    {
+        return array_replace(
+            $this->options,
+            [
+                'yamlMetadata' => false,
+                'titleBlock' => false,
+            ],
+            $overrides
+        );
+    }
+
+    /**
      * @param list<string> $lines
      * @return array{0:list<string>, 1:array<string, array{url:string, title:string, attrs?:array<string, mixed>}>, 2:array<string, string>, 3:array<string, string>}
      */
@@ -3291,7 +3307,7 @@ final class MarkdownReader
             $opening = $this->removeHtmlOpeningTagAttribute($opening, 'markdown');
         }
         $closing = strtolower($closingSource);
-        $innerDocument = (new self($this->options))->read(trim($inner, "\r\n"));
+        $innerDocument = (new self($this->nestedMarkdownReaderOptions()))->read(trim($inner, "\r\n"));
 
         $blocks = [];
         if ($this->htmlRawHtmlEnabled()) {
@@ -4044,7 +4060,7 @@ final class MarkdownReader
 
         $body = trim($body, "\r\n");
         if ($body !== '') {
-            $bodyDocument = (new self($this->options))->read($body);
+            $bodyDocument = (new self($this->nestedMarkdownReaderOptions()))->read($body);
             array_push($blocks, ...$bodyDocument->children);
         }
 
@@ -12460,7 +12476,12 @@ final class MarkdownReader
             return null;
         }
 
-        [$caption, $next, $captionSource] = $this->readTableCaption($lines, $cursor);
+        $captionCursor = $cursor;
+        if ($cursor < $count && $this->parseSimpleTableDelimiter($lines[$cursor]) !== null) {
+            $captionCursor = $cursor + 1;
+        }
+
+        [$caption, $next, $captionSource] = $this->readTableCaption($lines, $captionCursor);
         $index = $next - 1;
 
         return $this->buildSimpleTable(
@@ -14518,7 +14539,7 @@ final class MarkdownReader
         }
 
         return [
-            'parts' => (new self($this->options + ['suppressStandaloneButtonInline' => true]))
+            'parts' => (new self($this->nestedMarkdownReaderOptions(['suppressStandaloneButtonInline' => true])))
                 ->read(implode("\n", $content))
                 ->children,
             'next' => $cursor,
@@ -15558,7 +15579,7 @@ final class MarkdownReader
             return [];
         }
 
-        $children = $this->read(implode("\n", $content))->children;
+        $children = (new self($this->nestedMarkdownReaderOptions()))->read(implode("\n", $content))->children;
 
         return $loose ? $children : $this->tightDefinitionChildren($children);
     }

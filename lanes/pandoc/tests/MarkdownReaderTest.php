@@ -1698,6 +1698,31 @@ return [
         $t->contains('<p>But can a bee be said to be<br/>' . str_repeat($nbsp, 4) . 'or not to be an entire bee,', $blocks);
         $t->contains('<br/><br/>Continuation line<br/>' . str_repeat($nbsp, 2) . 'and another</p>', $blocks);
     },
+    'consumes simple table closing delimiter before following heading' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            'See [Defaults](#defaults-files).',
+            '',
+            ' Code Error',
+            '----- ------------------------------------',
+            '    1 PandocIOError',
+            '   99 PandocResourceNotFound',
+            '----- ------------------------------------',
+            '',
+            '# Defaults files',
+            '',
+            'The defaults section stays outside the table.',
+        ]));
+        $types = array_map(static fn (AstNode $node): string => $node->type, $document->children);
+        $html = (new HtmlWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(['paragraph', 'table', 'heading', 'paragraph'], $types);
+        $t->same('Defaults files', $document->children[2]->attr('text'));
+        $t->same('defaults-files', $document->children[2]->attr('id'));
+        $t->true(!str_contains($html, '<hr'), 'The closing delimiter belongs to the simple table, not a horizontal rule.');
+        $t->contains('<a href="#defaults-files">Defaults</a>', $blocks);
+        $t->contains('<h1 id="defaults-files">Defaults files</h1>', $blocks);
+    },
     'maps upstream markdown reader more rectangular grid tables' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '## Grid Tables',
@@ -9506,6 +9531,30 @@ TPL;
         $t->same(2, count($definition->children));
         $t->same('bar', $definition->children[0]->attr('text'));
         $t->same('baz', $definition->children[1]->attr('text'));
+    },
+    'keeps yaml-looking examples inside definition continuations as nested content' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '`defaults`',
+            ':   Example:',
+            '',
+            '        ---',
+            '        classoption:',
+            '        - twocolumn',
+            '        ...',
+            '',
+            '# After',
+        ]));
+        $definition = $document->children[0]->children[0]->children[1];
+        $html = (new HtmlWriter())->write($document);
+
+        $t->same('definition_list', $document->children[0]->type);
+        $t->same('definition', $definition->type);
+        $t->same('plain', $definition->children[0]->type);
+        $t->same('code_block', $definition->children[1]->type);
+        $t->contains("classoption:\n- twocolumn", $definition->children[1]->attr('text'));
+        $t->same('heading', $document->children[1]->type);
+        $t->same('after', $document->children[1]->attr('id'));
+        $t->true(!str_contains($html, '<meta'), 'Nested YAML-looking content should not become document metadata.');
     },
     'maps upstream markdown blank before second definition' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read("foo1\n  :  bar\n\nfoo2\n  : bar2\n\n  : bar3\n");
