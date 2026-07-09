@@ -226,6 +226,40 @@ return [
         $t->same(0, count($withoutImages['document']->children));
         $t->true(in_array('extract-media-image-mode:none', $withoutImages['diagnostics'], true));
     },
+    'transcodes simple flate encoded pdf image streams to png media' => static function (TestRunner $t): void {
+        $grayPixels = "\x00\xff";
+        $grayStream = gzcompress($grayPixels);
+        $oneBitPixels = "\x80";
+        $oneBitStream = gzcompress($oneBitPixels);
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n"
+            . '<< /Type /XObject /Subtype /Image /Width 2 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /FlateDecode /Length ' . strlen($grayStream) . " >>\n"
+            . "stream\n"
+            . $grayStream . "\n"
+            . "endstream\n"
+            . "endobj\n"
+            . "2 0 obj\n"
+            . '<< /Type /XObject /Subtype /Image /Width 2 /Height 1 /ImageMask true /BitsPerComponent 1 /Filter /FlateDecode /Length ' . strlen($oneBitStream) . " >>\n"
+            . "stream\n"
+            . $oneBitStream . "\n"
+            . "endstream\n"
+            . "endobj\n"
+            . "%%EOF\n";
+
+        $extractor = new \PortLibs\Pandoc\PandocMediaExtractor();
+        $result = $extractor->extract(new AstNode('document'), $pdf, 'pdf', ['destination' => 'media', 'imageMode' => 'all']);
+
+        $t->same(2, count($result['entries']));
+        $t->same('media/pdf/image-1.png', $result['entries'][0]['path'] ?? null);
+        $t->same('image/png', $result['entries'][0]['mimeType'] ?? null);
+        $t->same("\x89PNG\r\n\x1a\n", substr((string) ($result['entries'][0]['contents'] ?? ''), 0, 8));
+        $t->same('media/pdf/image-2.png', $result['entries'][1]['path'] ?? null);
+        $t->same('image/png', $result['entries'][1]['mimeType'] ?? null);
+        $t->true(in_array('extract-media-pdf-image-loaded:1:tiny', $result['diagnostics'], true));
+        $t->true(in_array('extract-media-pdf-image-loaded:2:mask', $result['diagnostics'], true));
+        $t->same('media/pdf/image-1.png', $result['document']->children[0]->children[2]->children[0]->attr('url'));
+        $t->same('media/pdf/image-2.png', $result['document']->children[0]->children[3]->children[0]->attr('url'));
+    },
     'fails explicitly for unsupported registry formats' => static function (TestRunner $t): void {
         $t->throws(\InvalidArgumentException::class, static function (): void {
             PandocConverter::read('unsupported input', 'asciidoc');

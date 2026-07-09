@@ -297,34 +297,39 @@ final class PandocMediaExtractor
             $height = $this->pdfIntegerEntry($body, 'Height');
             $imageMask = $this->pdfBooleanEntry($body, 'ImageMask');
 
-            $filters = $this->pdfFilterNames($body);
-            $mimeType = $this->pdfEmbeddableMimeType($filters);
-            if ($mimeType === null) {
-                $diagnostics[] = 'extract-media-pdf-image-skipped:' . ($filters === [] ? 'unfiltered' : implode('+', $filters));
-                continue;
-            }
-
             $stream = $this->pdfStreamBytes($body);
             if ($stream === null || $stream === '' || strlen($stream) > self::MAX_PDF_IMAGE_BYTES) {
                 $diagnostics[] = 'extract-media-pdf-image-skipped:stream';
                 continue;
             }
 
-            $importance = $this->pdfImageImportance($width, $height, strlen($stream), $imageMask);
+            $filters = $this->pdfFilterNames($body);
+            $mimeType = $this->pdfEmbeddableMimeType($filters);
+            $extension = $mimeType === 'image/jpeg' ? '.jpg' : '.jp2';
+            $imageBytes = $stream;
+            if ($mimeType === null) {
+                $flateImage = $this->pdfFlateImagePng($body, $filters, $stream, $width, $height, $imageMask);
+                if ($flateImage === null) {
+                    $diagnostics[] = 'extract-media-pdf-image-skipped:' . ($filters === [] ? 'unfiltered' : implode('+', $filters));
+                    continue;
+                }
+                [$mimeType, $extension, $imageBytes] = $flateImage;
+            }
+
+            $importance = $this->pdfImageImportance($width, $height, strlen($imageBytes), $imageMask);
             if ($imageMode === 'important' && $importance !== 'important') {
                 $diagnostics[] = 'extract-media-pdf-image-unimportant:' . $objectNumber . ':' . $importance;
                 continue;
             }
 
-            $extension = $mimeType === 'image/jpeg' ? '.jpg' : '.jp2';
             $source = 'pdf/image-' . $objectNumber . $extension;
-            $bag->insertMedia($source, $mimeType, $stream);
+            $bag->insertMedia($source, $mimeType, $imageBytes);
             $placements[] = [
                 'source' => $source,
                 'page' => null,
                 'object' => $objectNumber,
                 'mimeType' => $mimeType,
-                'byteLength' => strlen($stream),
+                'byteLength' => strlen($imageBytes),
                 'width' => $width,
                 'height' => $height,
                 'imageMask' => $imageMask,
@@ -479,6 +484,130 @@ final class PandocMediaExtractor
         $stream = substr($objectBody, $start, $end - $start);
 
         return preg_replace("/(?:\r\n|\n|\r)\z/", '', $stream) ?? $stream;
+    }
+
+    /**
+     * @param list<string> $filters
+     * @return array{0:string, 1:string, 2:string}|null
+     */
+    private function pdfFlateImagePng(string $objectBody, array $filters, string $stream, ?int $width, ?int $height, bool $imageMask): ?array
+    {
+        if ($filters !== ['FlateDecode'] && $filters !== ['Fl']) {
+            return null;
+        }
+        if ($width === null || $height === null || $width <= 0 || $height <= 0 || $width * $height > 8000000) {
+            return null;
+        }
+
+        $bitsPerComponent = $this->pdfIntegerEntry($objectBody, 'BitsPerComponent') ?? ($imageMask ? 1 : 8);
+        $decoded = $this->pdfFlateDecode($stream);
+        if ($decoded === null || $decoded === '') {
+            return null;
+        }
+
+        $pixelCount = $width * $height;
+        if ($bitsPerComponent === 8) {
+            $decodedLength = strlen($decoded);
+            if ($decodedLength === $pixelCount) {
+                return ['image/png', '.png', $this->pngEncodeGrayscale8($width, $height, $decoded)];
+            }
+            if ($decodedLength === $pixelCount * 3) {
+                return ['image/png', '.png', $this->pngEncodeRgb8($width, $height, $decoded)];
+            }
+            if ($decodedLength === $pixelCount * 4) {
+                return ['image/png', '.png', $this->pngEncodeRgba8($width, $height, $decoded)];
+            }
+        }
+
+        if ($bitsPerComponent === 1) {
+            $rowBytes = (int) ceil($width / 8);
+            if (strlen($decoded) !== $rowBytes * $height) {
+                return null;
+            }
+
+            return ['image/png', '.png', $this->pngEncodeGrayscale8(
+                $width,
+                $height,
+                $this->unpackOneBitImageRows($decoded, $width, $height, $rowBytes)
+            )];
+        }
+
+        return null;
+    }
+
+    private function pdfFlateDecode(string $stream): ?string
+    {
+        $decoded = @gzuncompress($stream);
+        if (is_string($decoded)) {
+            return $decoded;
+        }
+
+        $decoded = @gzdecode($stream);
+        if (is_string($decoded)) {
+            return $decoded;
+        }
+
+        if (strlen($stream) > 2) {
+            $decoded = @gzinflate(substr($stream, 2));
+            if (is_string($decoded)) {
+                return $decoded;
+            }
+        }
+
+        return null;
+    }
+
+    private function unpackOneBitImageRows(string $bytes, int $width, int $height, int $rowBytes): string
+    {
+        $pixels = '';
+        for ($y = 0; $y < $height; $y++) {
+            $rowOffset = $y * $rowBytes;
+            for ($x = 0; $x < $width; $x++) {
+                $byte = ord($bytes[$rowOffset + intdiv($x, 8)]);
+                $bit = ($byte >> (7 - ($x % 8))) & 1;
+                $pixels .= $bit === 1 ? "\xff" : "\x00";
+            }
+        }
+
+        return $pixels;
+    }
+
+    private function pngEncodeGrayscale8(int $width, int $height, string $pixels): string
+    {
+        return $this->pngEncode($width, $height, 0, $this->pngScanlines($pixels, $height, $width));
+    }
+
+    private function pngEncodeRgb8(int $width, int $height, string $pixels): string
+    {
+        return $this->pngEncode($width, $height, 2, $this->pngScanlines($pixels, $height, $width * 3));
+    }
+
+    private function pngEncodeRgba8(int $width, int $height, string $pixels): string
+    {
+        return $this->pngEncode($width, $height, 6, $this->pngScanlines($pixels, $height, $width * 4));
+    }
+
+    private function pngScanlines(string $pixels, int $height, int $rowLength): string
+    {
+        $scanlines = '';
+        for ($y = 0; $y < $height; $y++) {
+            $scanlines .= "\x00" . substr($pixels, $y * $rowLength, $rowLength);
+        }
+
+        return $scanlines;
+    }
+
+    private function pngEncode(int $width, int $height, int $colorType, string $scanlines): string
+    {
+        return "\x89PNG\r\n\x1a\n"
+            . $this->pngChunk('IHDR', pack('NNCCCCC', $width, $height, 8, $colorType, 0, 0, 0))
+            . $this->pngChunk('IDAT', gzcompress($scanlines))
+            . $this->pngChunk('IEND', '');
+    }
+
+    private function pngChunk(string $type, string $data): string
+    {
+        return pack('N', strlen($data)) . $type . $data . pack('N', crc32($type . $data));
     }
 
     private function isUri(string $source): bool
