@@ -2728,16 +2728,28 @@ function write_conversion_report(
 function run_haskell_pandoc(string $path, string $format, string $dir): array
 {
     $out = $dir . '/haskell.html';
-    $result = run_process(['pandoc', '--from=' . $format, '--to=html', '--standalone', '--metadata', 'title=Haskell Pandoc output', '--output', $out, $path], 35);
-    if ($result['exitCode'] !== 0 || !is_file($out)) {
+    $bodyPath = $dir . '/haskell.body.html';
+    $result = run_process(['pandoc', '--from=' . $format, '--to=html', '--output', $bodyPath, $path], 35);
+    if ($result['exitCode'] !== 0 || !is_file($bodyPath)) {
         $message = sanitize_generated_text(trim($result['stderr'] . "\n" . $result['stdout']));
         if ($message === '') {
             $message = 'pandoc exited with code ' . $result['exitCode'];
         }
+        @unlink($bodyPath);
         file_put_contents($dir . '/haskell.html.error.txt', $message);
 
         return ['ok' => false, 'error' => $message, 'path' => 'outputs/' . basename($dir) . '/haskell.html.error.txt'];
     }
+
+    $body = file_get_contents($bodyPath);
+    @unlink($bodyPath);
+    if (!is_string($body)) {
+        $message = 'pandoc produced unreadable HTML output';
+        file_put_contents($dir . '/haskell.html.error.txt', $message);
+
+        return ['ok' => false, 'error' => $message, 'path' => 'outputs/' . basename($dir) . '/haskell.html.error.txt'];
+    }
+    file_put_contents($out, wrap_local_html_document($body, 'Haskell Pandoc HTML output'));
 
     return ['ok' => true, 'path' => 'outputs/' . basename($dir) . '/haskell.html'];
 }
