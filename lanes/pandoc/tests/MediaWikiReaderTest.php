@@ -138,22 +138,23 @@ Before <!-- hidden ''markup'' --> after &amp;.
 <nowiki>''raw'' [[x]] &amp;</nowiki> <math>E=mc^2</math> <ref>Note ''body''</ref> A<br />B {{tmpl|x}} {{#if:y|a|b}}
 
 {{CURRENTYEAR}}
+
+Unexpanded {{outer|{{inner}}}} {{{parameter|fallback}}}.
 WIKI);
 
             $blocks = $document->children;
-            $t->same(['heading', 'heading', 'paragraph', 'paragraph', 'paragraph', 'raw_block'], $types($document));
+            $t->same(['heading', 'heading', 'paragraph', 'paragraph', 'paragraph', 'paragraph'], $types($document));
             $t->same('title', $blocks[0]->attr('id'));
             $t->same('deep', $blocks[1]->attr('id'));
             $t->same($notHeading, $plainText($blocks[2]));
             $t->same('Before after &.', $plainText($blocks[3]));
-            $t->same('raw_inline', $nodesOfType($blocks[4], 'raw_inline')[0]->type);
-            $t->same('{{tmpl|x}}', $nodesOfType($blocks[4], 'raw_inline')[0]->attr('text'));
             $t->same('E=mc^2', $nodesOfType($blocks[4], 'math')[0]->attr('text'));
             $t->same('Note body', $plainText($nodesOfType($blocks[4], 'note')[0]));
             $t->same(1, count($nodesOfType($blocks[4], 'linebreak')));
-            $t->same("''raw'' [[x]] & E=mc^2 Note body A B {{tmpl|x}} {{#if:y|a|b}}", $plainText($blocks[4]));
-            $t->same('mediawiki', $blocks[5]->attr('format'));
-            $t->same('{{CURRENTYEAR}}', $blocks[5]->attr('text'));
+            $t->same("''raw'' [[x]] & E=mc^2 Note body A B {{#if:y|a|b}}", $plainText($blocks[4]));
+            $t->same([], $nodesOfType($document, 'raw_inline'));
+            $t->same([], $nodesOfType($document, 'raw_block'));
+            $t->same('Unexpanded .', $plainText($blocks[5]));
         },
 
     'maps mediawiki table attributes and multiline rows' =>

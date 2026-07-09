@@ -1,5 +1,5 @@
 {
-    "generatedAt": "2026-07-09T20:17:03+00:00",
+    "generatedAt": "2026-07-09T20:36:00+00:00",
     "pandocVersion": "pandoc 3.10\nFeatures: +server +lua\nScripting engine: Lua 5.4\nUser data directory: $REPO\nCopyright (C) 2006-2025 John MacFarlane. Web:  https://pandoc.org\nThis is free software; see the source for copying conditions. There is no\nwarranty, not even for merchantability or fitness for a particular purpose.",
     "mediaImageMode": "important",
     "formats": [
@@ -357,20 +357,20 @@
     },
     "faithfulnessSummary": {
         "comparisons": 147,
-        "faithfulEnough": 141,
-        "review": 5,
+        "faithfulEnough": 144,
+        "review": 2,
         "divergent": 0,
         "noText": 1,
         "visualComparisons": 147,
-        "visualFaithfulEnough": 131,
-        "visualReview": 15,
+        "visualFaithfulEnough": 132,
+        "visualReview": 14,
         "visualDivergent": 0,
         "visualNoStructure": 1
     },
     "importQualitySummary": {
         "samples": 90,
-        "pass": 59,
-        "review": 31,
+        "pass": 61,
+        "review": 29,
         "fail": 0
     },
     "importQualitySegmentSummary": {
@@ -490,8 +490,8 @@
         },
         "exotic": {
             "samples": 46,
-            "pass": 26,
-            "review": 20,
+            "pass": 28,
+            "review": 18,
             "fail": 0,
             "wpFailures": 0,
             "passOrReview": 46,
@@ -578,8 +578,8 @@
                 },
                 "fb2": {
                     "samples": 2,
-                    "pass": 1,
-                    "review": 1,
+                    "pass": 2,
+                    "review": 0,
                     "fail": 0,
                     "wpFailures": 0,
                     "passOrReview": 2
@@ -666,8 +666,8 @@
                 },
                 "mediawiki": {
                     "samples": 2,
-                    "pass": 1,
-                    "review": 1,
+                    "pass": 2,
+                    "review": 0,
                     "fail": 0,
                     "wpFailures": 0,
                     "passOrReview": 2
@@ -783,8 +783,8 @@
                 "actual": {
                     "samples": 46,
                     "wpFailures": 0,
-                    "pass": 26,
-                    "review": 20,
+                    "pass": 28,
+                    "review": 18,
                     "fail": 0,
                     "passOrReview": 46
                 },
@@ -802,7 +802,7 @@
                     "minPass": {
                         "status": "pass",
                         "expected": ">=18",
-                        "actual": 26
+                        "actual": 28
                     },
                     "minPassOrReview": {
                         "status": "pass",
@@ -821,7 +821,7 @@
     },
     "blockUsage": {
         "totals": {
-            "code": 650,
+            "code": 649,
             "group": 308,
             "heading": 4187,
             "html": 51,
@@ -3702,9 +3702,9 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "faithful_enough",
-                        "score": 0.8696,
+                        "score": 0.9524,
                         "textStatus": "faithful_enough",
-                        "textScore": 0.8696,
+                        "textScore": 0.9524,
                         "visualStatus": "faithful_enough",
                         "visualScore": 1
                     },
@@ -3725,7 +3725,7 @@
                     "text_completeness": {
                         "status": "pass",
                         "expected": ">=0.8",
-                        "actual": 0.8696,
+                        "actual": 0.9524,
                         "detail": "visible text overlap with the baseline"
                     },
                     "visual_structure": {
@@ -4122,18 +4122,18 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "faithful_enough",
-                        "score": 0.9942,
+                        "score": 0.9941,
                         "textStatus": "faithful_enough",
-                        "textScore": 0.9942,
+                        "textScore": 0.9941,
                         "visualStatus": "faithful_enough",
                         "visualScore": 0.9204
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
                         "status": "faithful_enough",
-                        "score": 0.9942,
+                        "score": 0.9941,
                         "textStatus": "faithful_enough",
-                        "textScore": 0.9942,
+                        "textScore": 0.9941,
                         "visualStatus": "faithful_enough",
                         "visualScore": 0.966
                     }
@@ -4145,7 +4145,7 @@
                     "text_completeness": {
                         "status": "pass",
                         "expected": ">=0.8",
-                        "actual": 0.9942,
+                        "actual": 0.9941,
                         "detail": "visible text overlap with the baseline"
                     },
                     "visual_structure": {
@@ -4862,9 +4862,9 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "faithful_enough",
-                        "score": 0.9842,
+                        "score": 0.9947,
                         "textStatus": "faithful_enough",
-                        "textScore": 0.9842,
+                        "textScore": 0.9947,
                         "visualStatus": "faithful_enough",
                         "visualScore": 0.9643
                     },
@@ -4885,7 +4885,7 @@
                     "text_completeness": {
                         "status": "pass",
                         "expected": ">=0.8",
-                        "actual": 0.9842,
+                        "actual": 0.9947,
                         "detail": "visible text overlap with the baseline"
                     },
                     "visual_structure": {
@@ -5003,18 +5003,18 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "faithful_enough",
-                        "score": 0.9327,
+                        "score": 0.9679,
                         "textStatus": "faithful_enough",
-                        "textScore": 0.9327,
+                        "textScore": 0.9679,
                         "visualStatus": "faithful_enough",
                         "visualScore": 0.8413
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
                         "status": "faithful_enough",
-                        "score": 0.9327,
+                        "score": 0.9679,
                         "textStatus": "faithful_enough",
-                        "textScore": 0.9327,
+                        "textScore": 0.9679,
                         "visualStatus": "faithful_enough",
                         "visualScore": 0.906
                     }
@@ -5026,7 +5026,7 @@
                     "text_completeness": {
                         "status": "pass",
                         "expected": ">=0.8",
-                        "actual": 0.9327,
+                        "actual": 0.9679,
                         "detail": "visible text overlap with the baseline"
                     },
                     "visual_structure": {
@@ -6972,18 +6972,18 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "faithful_enough",
-                        "score": 0.9402,
+                        "score": 0.9541,
                         "textStatus": "faithful_enough",
-                        "textScore": 0.9402,
+                        "textScore": 0.9541,
                         "visualStatus": "faithful_enough",
                         "visualScore": 0.9355
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
                         "status": "faithful_enough",
-                        "score": 0.9661,
+                        "score": 0.963,
                         "textStatus": "faithful_enough",
-                        "textScore": 0.9661,
+                        "textScore": 0.963,
                         "visualStatus": "faithful_enough",
                         "visualScore": 0.9355
                     }
@@ -6995,7 +6995,7 @@
                     "text_completeness": {
                         "status": "pass",
                         "expected": ">=0.8",
-                        "actual": 0.9402,
+                        "actual": 0.9541,
                         "detail": "visible text overlap with the baseline"
                     },
                     "visual_structure": {
@@ -7111,10 +7111,10 @@
                 "comparisons": {
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
-                        "status": "review",
-                        "score": 0.72,
-                        "textStatus": "review",
-                        "textScore": 0.72,
+                        "status": "faithful_enough",
+                        "score": 0.9091,
+                        "textStatus": "faithful_enough",
+                        "textScore": 0.9091,
                         "visualStatus": "faithful_enough",
                         "visualScore": 1
                     },
@@ -7130,12 +7130,12 @@
                 }
             },
             "importQuality": {
-                "status": "review",
+                "status": "pass",
                 "gates": {
                     "text_completeness": {
-                        "status": "review",
+                        "status": "pass",
                         "expected": ">=0.8",
-                        "actual": 0.72,
+                        "actual": 0.9091,
                         "detail": "visible text overlap with the baseline"
                     },
                     "visual_structure": {
@@ -7200,8 +7200,8 @@
                     }
                 },
                 "summary": {
-                    "pass": 10,
-                    "review": 1,
+                    "pass": 11,
+                    "review": 0,
                     "fail": 0
                 }
             }
@@ -7259,9 +7259,9 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "faithful_enough",
-                        "score": 0.9988,
+                        "score": 0.9991,
                         "textStatus": "faithful_enough",
-                        "textScore": 0.9988,
+                        "textScore": 0.9991,
                         "visualStatus": "faithful_enough",
                         "visualScore": 0.9874
                     },
@@ -7282,7 +7282,7 @@
                     "text_completeness": {
                         "status": "pass",
                         "expected": ">=0.8",
-                        "actual": 0.9988,
+                        "actual": 0.9991,
                         "detail": "visible text overlap with the baseline"
                     },
                     "visual_structure": {
@@ -7406,18 +7406,18 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "faithful_enough",
-                        "score": 0.9966,
+                        "score": 0.9973,
                         "textStatus": "faithful_enough",
-                        "textScore": 0.9966,
+                        "textScore": 0.9973,
                         "visualStatus": "faithful_enough",
                         "visualScore": 0.9223
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
                         "status": "faithful_enough",
-                        "score": 0.9973,
+                        "score": 0.998,
                         "textStatus": "faithful_enough",
-                        "textScore": 0.9973,
+                        "textScore": 0.998,
                         "visualStatus": "faithful_enough",
                         "visualScore": 0.9455
                     }
@@ -7429,7 +7429,7 @@
                     "text_completeness": {
                         "status": "pass",
                         "expected": ">=0.8",
-                        "actual": 0.9966,
+                        "actual": 0.9973,
                         "detail": "visible text overlap with the baseline"
                     },
                     "visual_structure": {
@@ -8253,18 +8253,18 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "faithful_enough",
-                        "score": 0.9119,
+                        "score": 0.9179,
                         "textStatus": "faithful_enough",
-                        "textScore": 0.9119,
+                        "textScore": 0.9179,
                         "visualStatus": "faithful_enough",
                         "visualScore": 0.7895
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
                         "status": "faithful_enough",
-                        "score": 0.9119,
+                        "score": 0.9179,
                         "textStatus": "faithful_enough",
-                        "textScore": 0.9119,
+                        "textScore": 0.9179,
                         "visualStatus": "faithful_enough",
                         "visualScore": 0.7895
                     }
@@ -8276,7 +8276,7 @@
                     "text_completeness": {
                         "status": "pass",
                         "expected": ">=0.8",
-                        "actual": 0.9119,
+                        "actual": 0.9179,
                         "detail": "visible text overlap with the baseline"
                     },
                     "visual_structure": {
@@ -8536,18 +8536,18 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "faithful_enough",
-                        "score": 0.9753,
+                        "score": 0.9818,
                         "textStatus": "faithful_enough",
-                        "textScore": 0.9753,
+                        "textScore": 0.9818,
                         "visualStatus": "faithful_enough",
                         "visualScore": 0.808
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
                         "status": "faithful_enough",
-                        "score": 0.9753,
+                        "score": 0.9818,
                         "textStatus": "faithful_enough",
-                        "textScore": 0.9753,
+                        "textScore": 0.9818,
                         "visualStatus": "faithful_enough",
                         "visualScore": 0.8294
                     }
@@ -8559,7 +8559,7 @@
                     "text_completeness": {
                         "status": "pass",
                         "expected": ">=0.8",
-                        "actual": 0.9753,
+                        "actual": 0.9818,
                         "detail": "visible text overlap with the baseline"
                     },
                     "visual_structure": {
@@ -9496,18 +9496,18 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "faithful_enough",
-                        "score": 0.9951,
+                        "score": 0.9957,
                         "textStatus": "faithful_enough",
-                        "textScore": 0.9951,
+                        "textScore": 0.9957,
                         "visualStatus": "faithful_enough",
                         "visualScore": 0.9163
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
                         "status": "faithful_enough",
-                        "score": 0.9976,
+                        "score": 0.9981,
                         "textStatus": "faithful_enough",
-                        "textScore": 0.9976,
+                        "textScore": 0.9981,
                         "visualStatus": "faithful_enough",
                         "visualScore": 0.9521
                     }
@@ -9519,7 +9519,7 @@
                     "text_completeness": {
                         "status": "pass",
                         "expected": ">=0.8",
-                        "actual": 0.9951,
+                        "actual": 0.9957,
                         "detail": "visible text overlap with the baseline"
                     },
                     "visual_structure": {
@@ -9638,18 +9638,18 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "faithful_enough",
-                        "score": 0.9814,
+                        "score": 0.9968,
                         "textStatus": "faithful_enough",
-                        "textScore": 0.9814,
+                        "textScore": 0.9968,
                         "visualStatus": "faithful_enough",
                         "visualScore": 0.9939
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
                         "status": "faithful_enough",
-                        "score": 0.9814,
+                        "score": 0.9968,
                         "textStatus": "faithful_enough",
-                        "textScore": 0.9814,
+                        "textScore": 0.9968,
                         "visualStatus": "faithful_enough",
                         "visualScore": 0.9969
                     }
@@ -9661,7 +9661,7 @@
                     "text_completeness": {
                         "status": "pass",
                         "expected": ">=0.8",
-                        "actual": 0.9814,
+                        "actual": 0.9968,
                         "detail": "visible text overlap with the baseline"
                     },
                     "visual_structure": {
@@ -9922,18 +9922,18 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "faithful_enough",
-                        "score": 0.9998,
+                        "score": 1,
                         "textStatus": "faithful_enough",
-                        "textScore": 0.9998,
+                        "textScore": 1,
                         "visualStatus": "faithful_enough",
                         "visualScore": 1
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
                         "status": "faithful_enough",
-                        "score": 0.9998,
+                        "score": 1,
                         "textStatus": "faithful_enough",
-                        "textScore": 0.9998,
+                        "textScore": 1,
                         "visualStatus": "faithful_enough",
                         "visualScore": 1
                     }
@@ -9945,7 +9945,7 @@
                     "text_completeness": {
                         "status": "pass",
                         "expected": ">=0.8",
-                        "actual": 0.9998,
+                        "actual": 1,
                         "detail": "visible text overlap with the baseline"
                     },
                     "visual_structure": {
@@ -10618,7 +10618,6 @@
                 ]
             },
             "wpBlockCounts": {
-                "code": 1,
                 "group": 1,
                 "heading": 1,
                 "list": 1,
@@ -10629,37 +10628,37 @@
                 "comparisons": {
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
-                        "status": "review",
-                        "score": 0.5882,
-                        "textStatus": "review",
-                        "textScore": 0.5882,
-                        "visualStatus": "review",
-                        "visualScore": 0.6667
+                        "status": "faithful_enough",
+                        "score": 0.8276,
+                        "textStatus": "faithful_enough",
+                        "textScore": 0.8276,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.8571
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
-                        "status": "review",
-                        "score": 0.7742,
-                        "textStatus": "review",
-                        "textScore": 0.7742,
+                        "status": "faithful_enough",
+                        "score": 0.8571,
+                        "textStatus": "faithful_enough",
+                        "textScore": 0.8571,
                         "visualStatus": "faithful_enough",
                         "visualScore": 0.8571
                     }
                 }
             },
             "importQuality": {
-                "status": "review",
+                "status": "pass",
                 "gates": {
                     "text_completeness": {
-                        "status": "review",
+                        "status": "pass",
                         "expected": ">=0.8",
-                        "actual": 0.5882,
+                        "actual": 0.8276,
                         "detail": "visible text overlap with the baseline"
                     },
                     "visual_structure": {
-                        "status": "review",
+                        "status": "pass",
                         "expected": ">=0.75",
-                        "actual": 0.6667,
+                        "actual": 0.8571,
                         "detail": "heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
@@ -10714,12 +10713,12 @@
                         "status": "pass",
                         "expected": "<=0.05",
                         "actual": 0,
-                        "detail": "0/6 WordPress blocks are Custom HTML"
+                        "detail": "0/5 WordPress blocks are Custom HTML"
                     }
                 },
                 "summary": {
-                    "pass": 9,
-                    "review": 2,
+                    "pass": 11,
+                    "review": 0,
                     "fail": 0
                 }
             }
@@ -10914,18 +10913,18 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "faithful_enough",
-                        "score": 0.942,
+                        "score": 0.9435,
                         "textStatus": "faithful_enough",
-                        "textScore": 0.942,
+                        "textScore": 0.9435,
                         "visualStatus": "faithful_enough",
                         "visualScore": 0.9264
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
                         "status": "faithful_enough",
-                        "score": 0.9827,
+                        "score": 0.9878,
                         "textStatus": "faithful_enough",
-                        "textScore": 0.9827,
+                        "textScore": 0.9878,
                         "visualStatus": "faithful_enough",
                         "visualScore": 0.9902
                     }
@@ -10937,7 +10936,7 @@
                     "text_completeness": {
                         "status": "pass",
                         "expected": ">=0.8",
-                        "actual": 0.942,
+                        "actual": 0.9435,
                         "detail": "visible text overlap with the baseline"
                     },
                     "visual_structure": {

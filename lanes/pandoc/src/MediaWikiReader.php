@@ -41,9 +41,9 @@ final class MediaWikiReader
                         'bullet ordered and definition lists',
                         'preformatted and syntax-highlight code blocks',
                         'simple tables with captions header rows and cell attributes',
-                        'comments entities nowiki math references line breaks and raw MediaWiki template fallbacks',
+                        'comments entities nowiki math references line breaks and unexpanded template omission',
                     ],
-                    'fixtureStatus' => 'Expanded native PHP reader slice; full template expansion, parser-function evaluation, transclusion, and full table geometry parity remain open.',
+                    'fixtureStatus' => 'Expanded native PHP reader slice; unexpanded templates and variables follow Pandoc by being omitted, while parser functions remain literal. Full template expansion, parser-function evaluation, transclusion, and full table geometry parity remain open.',
                 ],
             ],
         ], $this->parseBlocks());
@@ -72,11 +72,6 @@ final class MediaWikiReader
                 $blocks[] = new AstNode('raw_html', ['format' => 'html', 'text' => $trimmed]);
                 continue;
             }
-            if ($this->isRawMediaWikiTemplateBlock($trimmed)) {
-                ++$this->index;
-                $blocks[] = new AstNode('raw_block', ['format' => 'mediawiki', 'text' => $trimmed]);
-                continue;
-            }
             if (str_starts_with($trimmed, '{|')) {
                 $blocks[] = $this->parseTable();
                 continue;
@@ -103,7 +98,10 @@ final class MediaWikiReader
                 continue;
             }
 
-            $blocks[] = $this->parseParagraph();
+            $paragraph = $this->parseParagraph();
+            if (!$this->isEmptyParagraph($paragraph)) {
+                $blocks[] = $paragraph;
+            }
         }
 
         return $blocks;
@@ -154,7 +152,6 @@ final class MediaWikiReader
         return str_starts_with($trimmed, '{|')
             || $this->isDelimitedCodeBlockStart($trimmed)
             || $this->isRawHtmlBlockLine($trimmed)
-            || $this->isRawMediaWikiTemplateBlock($trimmed)
             || preg_match('/^(={1,6})(?!\=)\\s*.*?\\s*\\1$/u', $trimmed) === 1
             || $trimmed === '----'
             || str_starts_with($line, ' ')
@@ -224,15 +221,11 @@ final class MediaWikiReader
         return preg_match('/^<hr\\b[^>]*\\/?>$/iu', $trimmed) === 1;
     }
 
-    private function isRawMediaWikiTemplateBlock(string $trimmed): bool
+    private function isEmptyParagraph(AstNode $paragraph): bool
     {
-        if (preg_match('/^\\{\\{(.+)\\}\\}$/su', $trimmed, $match) !== 1) {
-            return false;
-        }
-
-        $name = ltrim(trim($match[1]));
-
-        return $name !== '' && !str_starts_with($name, '#') && $name !== '!';
+        return count($paragraph->children) === 1
+            && $paragraph->children[0]->type === 'text'
+            && (string) $paragraph->children[0]->attr('text', '') === '';
     }
 
     private function headingId(string $text): string
@@ -772,20 +765,29 @@ final class MediaWikiReader
                 continue;
             }
 
-            if (str_starts_with($tail, '{{')) {
-                $end = strpos($text, '}}', $offset + 2);
-                if ($end !== false) {
-                    $template = substr($text, $offset, $end - $offset + 2);
-                    $name = ltrim(substr($template, 2, -2));
+            $template = $this->parseMediaWikiTemplateAt($text, $offset);
+            if ($template !== null) {
+                if ($template['literal']) {
                     $this->flushText($nodes, $buffer);
-                    if (str_starts_with($name, '#') || trim($name) === '!') {
-                        $nodes[] = new AstNode('text', ['text' => $template]);
-                    } else {
-                        $nodes[] = new AstNode('raw_inline', ['format' => 'mediawiki', 'text' => $template]);
+                    $nodes[] = new AstNode('text', ['text' => $template['source']]);
+                } elseif ($buffer === '' && $nodes === []) {
+                    $nextOffset = $template['end'];
+                    while ($nextOffset < $length && ctype_space($text[$nextOffset])) {
+                        ++$nextOffset;
                     }
-                    $offset = $end + 1;
+                    $offset = $nextOffset - 1;
+                    continue;
+                } elseif ($this->endsWithWhitespace($buffer)) {
+                    $nextOffset = $template['end'];
+                    while ($nextOffset < $length && ctype_space($text[$nextOffset])) {
+                        ++$nextOffset;
+                    }
+                    $offset = $nextOffset - 1;
                     continue;
                 }
+
+                $offset = $template['end'] - 1;
+                continue;
             }
 
             if (preg_match('/^https?:\\/\\/[^\\s<]+/u', $tail, $match) === 1) {
@@ -816,6 +818,54 @@ final class MediaWikiReader
         $this->flushText($nodes, $buffer);
 
         return $nodes === [] ? [new AstNode('text', ['text' => ''])] : $nodes;
+    }
+
+    /**
+     * @return array{end:int,literal:bool,source:string}|null
+     */
+    private function parseMediaWikiTemplateAt(string $text, int $offset): ?array
+    {
+        if (!str_starts_with(substr($text, $offset), '{{')) {
+            return null;
+        }
+
+        $length = strlen($text);
+        $stack = [str_starts_with(substr($text, $offset), '{{{') ? 3 : 2];
+        $cursor = $offset + $stack[0];
+
+        while ($cursor < $length) {
+            if (str_starts_with(substr($text, $cursor), '{{{')) {
+                $stack[] = 3;
+                $cursor += 3;
+                continue;
+            }
+            if (str_starts_with(substr($text, $cursor), '{{')) {
+                $stack[] = 2;
+                $cursor += 2;
+                continue;
+            }
+
+            $closingLength = $stack[count($stack) - 1];
+            if (substr($text, $cursor, $closingLength) === str_repeat('}', $closingLength)) {
+                array_pop($stack);
+                $cursor += $closingLength;
+                if ($stack === []) {
+                    $source = substr($text, $offset, $cursor - $offset);
+                    $name = ltrim(substr($source, 2, -2));
+
+                    return [
+                        'end' => $cursor,
+                        'literal' => str_starts_with($name, '#') || trim($name) === '!',
+                        'source' => $source,
+                    ];
+                }
+                continue;
+            }
+
+            ++$cursor;
+        }
+
+        return null;
     }
 
     private function endsWithWhitespace(string $text): bool

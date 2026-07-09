@@ -1418,7 +1418,7 @@ function showcase_output_text(string $siteDir, string $relativePath): string
         $dom = new DOMDocument();
         $previous = libxml_use_internal_errors(true);
         try {
-            $loaded = $dom->loadHTML('<!doctype html><html><body>' . $html . '</body></html>', LIBXML_NONET);
+            $loaded = $dom->loadHTML('<!doctype html><html><head><meta charset="utf-8"></head><body>' . $html . '</body></html>', LIBXML_NONET);
         } finally {
             libxml_clear_errors();
             libxml_use_internal_errors($previous);
@@ -1594,7 +1594,7 @@ function showcase_html_visual_signature(string $html): ?array
     $dom = new DOMDocument();
     $previous = libxml_use_internal_errors(true);
     try {
-        $loaded = $dom->loadHTML('<!doctype html><html><body>' . $html . '</body></html>', LIBXML_NONET);
+        $loaded = $dom->loadHTML('<!doctype html><html><head><meta charset="utf-8"></head><body>' . $html . '</body></html>', LIBXML_NONET);
     } finally {
         libxml_clear_errors();
         libxml_use_internal_errors($previous);
@@ -2819,12 +2819,23 @@ HTML));
     $score = is_array($baseline) && is_array($wordpress)
         ? showcase_visual_signature_similarity($baseline, $wordpress)
         : 0.0;
-    $ok = $baseline === $expected && $wordpress === $expected && $score === 1.0;
+    $unicodeProbe = tempnam(sys_get_temp_dir(), 'pandoc-showcase-unicode-');
+    $unicodeText = '';
+    if (is_string($unicodeProbe)) {
+        file_put_contents($unicodeProbe, '<p>Państwo E=mc²</p>');
+        $unicodeText = showcase_output_text(dirname($unicodeProbe), basename($unicodeProbe));
+        unlink($unicodeProbe);
+    }
+    $ok = $baseline === $expected
+        && $wordpress === $expected
+        && $score === 1.0
+        && $unicodeText === 'Państwo E=mc²';
     fwrite(STDOUT, json_encode([
         'ok' => $ok,
         'baseline' => $baseline,
         'wordpress' => $wordpress,
         'score' => $score,
+        'unicodeText' => $unicodeText,
     ], JSON_UNESCAPED_SLASHES) . PHP_EOL);
     exit($ok ? 0 : 1);
 }
@@ -2832,8 +2843,8 @@ HTML));
 $existingSamples = existing_showcase_samples($samplesDir);
 
 ensure_dir($siteDir);
-ensure_clean_dir($samplesDir);
-ensure_clean_dir($outputsDir);
+ensure_dir($samplesDir);
+ensure_dir($outputsDir);
 
 $records = [];
 $support = array_replace(PandocFormatRegistry::phpInputSupport(), PandocFormatRegistry::phpLocalInputSupport());
@@ -2852,6 +2863,12 @@ foreach ($samples as $sample) {
     $filename = (string) $sample['filename'];
     $target = $samplesDir . '/' . $id . '-' . $filename;
     $downloadError = null;
+    if (is_file($target)) {
+        unlink($target);
+    }
+    if (is_file($target . '.download-error.txt')) {
+        unlink($target . '.download-error.txt');
+    }
     if (isset($sample['content'])) {
         file_put_contents($target, (string) $sample['content']);
     } elseif (isset($sample['localPath'])) {
@@ -2874,7 +2891,7 @@ foreach ($samples as $sample) {
     }
     $sourcePath = is_file($target) ? $target : $target . '.download-error.txt';
     $outDir = $outputsDir . '/' . $id;
-    ensure_dir($outDir);
+    ensure_clean_dir($outDir);
 
     $haskell = is_file($target) ? run_haskell_pandoc($target, $format, $outDir) : ['ok' => false, 'error' => $downloadError ?? 'missing source file'];
     $phpHtml = is_file($target) ? write_output_from_process($outDir, 'php.html', $target, $format, 'html') : ['ok' => false, 'error' => $downloadError ?? 'missing source file'];
