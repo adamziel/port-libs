@@ -5546,6 +5546,7 @@ return [
         $repaired = $repair([
             'performanceofthegeneratedmachinecode. Oursystemuses mixedmode execution.',
             'Thetracetreefortheinnerloop records asideexit without duplicating theouterloop.',
+            'The VM is ableto continue when Redwood remains a single word.',
         ], [
             $run('performance', 10.0, 70.0),
             $run('of', 72.0, 82.0),
@@ -5571,11 +5572,16 @@ return [
             ['text' => 'the', 'page' => 1, 'x1' => 316.0, 'x2' => 334.0, 'y1' => 80.0, 'y2' => 92.0, 'textX1' => 316.0, 'textX2' => 334.0, 'textY1' => 80.0, 'textY2' => 92.0, 'fontSize' => 10.0],
             ['text' => 'outer', 'page' => 1, 'x1' => 336.0, 'x2' => 364.0, 'y1' => 80.0, 'y2' => 92.0, 'textX1' => 336.0, 'textX2' => 364.0, 'textY1' => 80.0, 'textY2' => 92.0, 'fontSize' => 10.0],
             ['text' => 'loop.', 'page' => 1, 'x1' => 366.0, 'x2' => 394.0, 'y1' => 80.0, 'y2' => 92.0, 'textX1' => 366.0, 'textX2' => 394.0, 'textY1' => 80.0, 'textY2' => 92.0, 'fontSize' => 10.0],
+            ['text' => 'able', 'page' => 1, 'x1' => 10.0, 'x2' => 36.0, 'y1' => 60.0, 'y2' => 72.0, 'textX1' => 10.0, 'textX2' => 36.0, 'textY1' => 60.0, 'textY2' => 72.0, 'fontSize' => 10.0],
+            ['text' => 'to', 'page' => 1, 'x1' => 39.0, 'x2' => 51.0, 'y1' => 60.0, 'y2' => 72.0, 'textX1' => 39.0, 'textX2' => 51.0, 'textY1' => 60.0, 'textY2' => 72.0, 'fontSize' => 10.0],
+            ['text' => 'Red', 'page' => 1, 'x1' => 90.0, 'x2' => 110.0, 'y1' => 60.0, 'y2' => 72.0, 'textX1' => 90.0, 'textX2' => 110.0, 'textY1' => 60.0, 'textY2' => 72.0, 'fontSize' => 10.0],
+            ['text' => 'wo', 'page' => 1, 'x1' => 112.0, 'x2' => 126.0, 'y1' => 60.0, 'y2' => 72.0, 'textX1' => 112.0, 'textX2' => 126.0, 'textY1' => 60.0, 'textY2' => 72.0, 'fontSize' => 10.0],
+            ['text' => 'od', 'page' => 1, 'x1' => 128.0, 'x2' => 142.0, 'y1' => 60.0, 'y2' => 72.0, 'textX1' => 128.0, 'textX2' => 142.0, 'textY1' => 60.0, 'textY2' => 72.0, 'fontSize' => 10.0],
         ]);
 
         $t->same([
             'performance of the generated machine code. Our system uses mixed mode execution.',
-            'The trace tree for the inner loop records a side exit without duplicating the outer loop.',
+            'The trace tree for the inner loop records a side exit without duplicating the outer loop. The VM is able to continue when Redwood remains a single word.',
         ], $repaired);
 
         $letterSpaced = $repair([

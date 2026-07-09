@@ -1344,13 +1344,19 @@ final class PdfReader
         }
         $letters = 0;
         $singleGlyphTokens = 0;
+        $shortTokens = 0;
+        $maxTokenLength = 0;
         foreach ($tokens as $token) {
             $length = $this->length($token);
+            $maxTokenLength = max($maxTokenLength, $length);
             if ($length > 24 || preg_match('/^[\p{L}\p{N}]+$/u', $token) !== 1) {
                 return false;
             }
             if ($length === 1) {
                 $singleGlyphTokens++;
+            }
+            if ($length <= 2) {
+                $shortTokens++;
             }
             if (preg_match('/\p{L}/u', $token) === 1) {
                 $letters++;
@@ -1369,15 +1375,22 @@ final class PdfReader
                 }
             }
         }
+        if (count($tokens) > 2) {
+            if ($shortTokens > 0 && ($maxTokenLength < 4 || $shortTokens / count($tokens) > 0.5)) {
+                return false;
+            }
+            foreach ($tokens as $index => $token) {
+                if ($index > 0 && $this->length($token) === 1) {
+                    return false;
+                }
+            }
+        }
 
         if (count($tokens) === 2) {
             [$left, $right] = $tokens;
             $leftLength = $this->length($left);
             $rightLength = $this->length($right);
             if ($leftLength < 2 || $rightLength < 2) {
-                return false;
-            }
-            if ($rightLength === 2 && preg_match('/^\p{Lu}{2}$/u', $right) !== 1) {
                 return false;
             }
         }
@@ -1538,7 +1551,29 @@ final class PdfReader
 
     private function spacingReplacementNeedsLetterBoundary(string $replacement): bool
     {
-        return preg_match('/^\p{Ll}{1,3}\s+\p{Ll}{1,3}$/u', $replacement) === 1;
+        $tokens = array_values(array_filter(preg_split('/\s+/u', trim($replacement)) ?: []));
+        if (count($tokens) > 2) {
+            $shortTokens = 0;
+            $maxTokenLength = 0;
+            foreach ($tokens as $token) {
+                $length = $this->length($token);
+                $maxTokenLength = max($maxTokenLength, $length);
+                if ($length <= 2) {
+                    $shortTokens++;
+                }
+            }
+            if ($maxTokenLength >= 4 && $shortTokens / count($tokens) <= 0.5) {
+                return false;
+            }
+        }
+
+        foreach ($tokens as $token) {
+            if ($this->length($token) <= 2) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function repairSplitUrlWhitespace(string $line): string
