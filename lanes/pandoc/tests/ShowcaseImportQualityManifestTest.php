@@ -132,6 +132,7 @@ return [
     'showcase manifest gates common import quality separately from exotic formats' => static function (TestRunner $t) use ($showcaseManifest): void {
         $manifest = $showcaseManifest();
         $summary = is_array($manifest['importQualitySegmentSummary'] ?? null) ? $manifest['importQualitySegmentSummary'] : [];
+        $gate = is_array($manifest['importQualityGate'] ?? null) ? $manifest['importQualityGate'] : [];
         $common = is_array($summary['common'] ?? null) ? $summary['common'] : [];
         $exotic = is_array($summary['exotic'] ?? null) ? $summary['exotic'] : [];
 
@@ -147,6 +148,19 @@ return [
         foreach (['docx', 'pdf', 'html', 'xlsx'] as $format) {
             $t->true(isset($formats[$format]), "Common import quality summary should include {$format}.");
         }
+
+        $segments = is_array($gate['segments'] ?? null) ? $gate['segments'] : [];
+        $commonGate = is_array($segments['common'] ?? null) ? $segments['common'] : [];
+        $exoticGate = is_array($segments['exotic'] ?? null) ? $segments['exotic'] : [];
+        $t->same('pass', $gate['status'] ?? null, 'Blocking import quality gate should pass for the current checked-in common corpus.');
+        $t->same([], $gate['blockingSegments'] ?? null, 'No common-format segment should be below its blocking threshold.');
+        $t->same('pass', $commonGate['status'] ?? null, 'Common import threshold gate should pass separately.');
+        $t->same(true, $commonGate['required'] ?? null, 'Common import threshold gate should be blocking.');
+        $t->same('pass', $exoticGate['status'] ?? null, 'Exotic import threshold gate should be evaluated separately.');
+        $t->same(false, $exoticGate['required'] ?? null, 'Exotic import threshold gate should be tracked without blocking common-format progress.');
+        $t->same(24, $commonGate['thresholds']['minPassOrReview'] ?? null, 'Common pass-or-review threshold should be explicit and ratchetable.');
+        $t->same(0, $commonGate['thresholds']['maxWpFailures'] ?? null, 'Common WordPress conversion failures should be a blocking threshold.');
+        $t->same(22, $exoticGate['thresholds']['minPassOrReview'] ?? null, 'Exotic pass-or-review threshold should be explicit but separate.');
     },
     'showcase manifest compares simple html samples against visible body text' => static function (TestRunner $t) use ($showcaseManifest, $recordsById): void {
         $manifest = $showcaseManifest();

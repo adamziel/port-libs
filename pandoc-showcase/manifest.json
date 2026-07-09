@@ -1,5 +1,5 @@
 {
-    "generatedAt": "2026-07-09T11:06:28+00:00",
+    "generatedAt": "2026-07-09T11:13:28+00:00",
     "pandocVersion": "pandoc 3.10\nFeatures: +server +lua\nScripting engine: Lua 5.4\nUser data directory: $REPO\nCopyright (C) 2006-2025 John MacFarlane. Web:  https://pandoc.org\nThis is free software; see the source for copying conditions. There is no\nwarranty, not even for merchantability or fitness for a particular purpose.",
     "mediaImageMode": "important",
     "formats": [
@@ -671,6 +671,110 @@
                     "wpFailures": 0,
                     "passOrReview": 2
                 }
+            }
+        }
+    },
+    "importQualityGate": {
+        "status": "pass",
+        "trackedStatus": "pass",
+        "blockingSegments": [],
+        "trackedFailureSegments": [],
+        "segments": {
+            "common": {
+                "status": "pass",
+                "required": true,
+                "thresholds": {
+                    "required": true,
+                    "minSamples": 44,
+                    "maxWpFailures": 0,
+                    "minPass": 7,
+                    "minPassOrReview": 24,
+                    "maxFail": 20
+                },
+                "actual": {
+                    "samples": 44,
+                    "wpFailures": 0,
+                    "pass": 7,
+                    "review": 17,
+                    "fail": 20,
+                    "passOrReview": 24
+                },
+                "checks": {
+                    "minSamples": {
+                        "status": "pass",
+                        "expected": ">=44",
+                        "actual": 44
+                    },
+                    "maxWpFailures": {
+                        "status": "pass",
+                        "expected": "<=0",
+                        "actual": 0
+                    },
+                    "minPass": {
+                        "status": "pass",
+                        "expected": ">=7",
+                        "actual": 7
+                    },
+                    "minPassOrReview": {
+                        "status": "pass",
+                        "expected": ">=24",
+                        "actual": 24
+                    },
+                    "maxFail": {
+                        "status": "pass",
+                        "expected": "<=20",
+                        "actual": 20
+                    }
+                },
+                "failedChecks": []
+            },
+            "exotic": {
+                "status": "pass",
+                "required": false,
+                "thresholds": {
+                    "required": false,
+                    "minSamples": 43,
+                    "maxWpFailures": 2,
+                    "minPass": 7,
+                    "minPassOrReview": 22,
+                    "maxFail": 19
+                },
+                "actual": {
+                    "samples": 43,
+                    "wpFailures": 2,
+                    "pass": 7,
+                    "review": 15,
+                    "fail": 19,
+                    "passOrReview": 22
+                },
+                "checks": {
+                    "minSamples": {
+                        "status": "pass",
+                        "expected": ">=43",
+                        "actual": 43
+                    },
+                    "maxWpFailures": {
+                        "status": "pass",
+                        "expected": "<=2",
+                        "actual": 2
+                    },
+                    "minPass": {
+                        "status": "pass",
+                        "expected": ">=7",
+                        "actual": 7
+                    },
+                    "minPassOrReview": {
+                        "status": "pass",
+                        "expected": ">=22",
+                        "actual": 22
+                    },
+                    "maxFail": {
+                        "status": "pass",
+                        "expected": "<=19",
+                        "actual": 19
+                    }
+                },
+                "failedChecks": []
             }
         }
     },

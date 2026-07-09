@@ -1838,6 +1838,111 @@ function showcase_import_quality_segment_summary(array $records): array
 }
 
 /**
+ * @return array<string, array<string, mixed>>
+ */
+function showcase_import_quality_thresholds(): array
+{
+    return [
+        'common' => [
+            'required' => true,
+            'minSamples' => 44,
+            'maxWpFailures' => 0,
+            'minPass' => 7,
+            'minPassOrReview' => 24,
+            'maxFail' => 20,
+        ],
+        'exotic' => [
+            'required' => false,
+            'minSamples' => 43,
+            'maxWpFailures' => 2,
+            'minPass' => 7,
+            'minPassOrReview' => 22,
+            'maxFail' => 19,
+        ],
+    ];
+}
+
+/**
+ * @param array<string, mixed> $summary
+ * @return array<string, mixed>
+ */
+function showcase_import_quality_threshold_gate(array $summary): array
+{
+    $thresholds = showcase_import_quality_thresholds();
+    $segments = [];
+    $blockingFailures = [];
+    $trackedFailures = [];
+
+    foreach ($thresholds as $segment => $threshold) {
+        $actual = is_array($summary[$segment] ?? null) ? $summary[$segment] : [];
+        $checks = [
+            'minSamples' => [
+                'status' => (int) ($actual['samples'] ?? 0) >= (int) $threshold['minSamples'] ? 'pass' : 'fail',
+                'expected' => '>=' . (string) $threshold['minSamples'],
+                'actual' => (int) ($actual['samples'] ?? 0),
+            ],
+            'maxWpFailures' => [
+                'status' => (int) ($actual['wpFailures'] ?? 0) <= (int) $threshold['maxWpFailures'] ? 'pass' : 'fail',
+                'expected' => '<=' . (string) $threshold['maxWpFailures'],
+                'actual' => (int) ($actual['wpFailures'] ?? 0),
+            ],
+            'minPass' => [
+                'status' => (int) ($actual['pass'] ?? 0) >= (int) $threshold['minPass'] ? 'pass' : 'fail',
+                'expected' => '>=' . (string) $threshold['minPass'],
+                'actual' => (int) ($actual['pass'] ?? 0),
+            ],
+            'minPassOrReview' => [
+                'status' => (int) ($actual['passOrReview'] ?? 0) >= (int) $threshold['minPassOrReview'] ? 'pass' : 'fail',
+                'expected' => '>=' . (string) $threshold['minPassOrReview'],
+                'actual' => (int) ($actual['passOrReview'] ?? 0),
+            ],
+            'maxFail' => [
+                'status' => (int) ($actual['fail'] ?? 0) <= (int) $threshold['maxFail'] ? 'pass' : 'fail',
+                'expected' => '<=' . (string) $threshold['maxFail'],
+                'actual' => (int) ($actual['fail'] ?? 0),
+            ],
+        ];
+
+        $failedChecks = array_keys(array_filter(
+            $checks,
+            static fn (array $check): bool => ($check['status'] ?? '') === 'fail'
+        ));
+        $status = $failedChecks === [] ? 'pass' : 'fail';
+        $required = (bool) ($threshold['required'] ?? false);
+        if ($status === 'fail') {
+            if ($required) {
+                $blockingFailures[] = $segment;
+            }
+            $trackedFailures[] = $segment;
+        }
+
+        $segments[$segment] = [
+            'status' => $status,
+            'required' => $required,
+            'thresholds' => $threshold,
+            'actual' => [
+                'samples' => (int) ($actual['samples'] ?? 0),
+                'wpFailures' => (int) ($actual['wpFailures'] ?? 0),
+                'pass' => (int) ($actual['pass'] ?? 0),
+                'review' => (int) ($actual['review'] ?? 0),
+                'fail' => (int) ($actual['fail'] ?? 0),
+                'passOrReview' => (int) ($actual['passOrReview'] ?? 0),
+            ],
+            'checks' => $checks,
+            'failedChecks' => $failedChecks,
+        ];
+    }
+
+    return [
+        'status' => $blockingFailures === [] ? 'pass' : 'fail',
+        'trackedStatus' => $trackedFailures === [] ? 'pass' : 'fail',
+        'blockingSegments' => $blockingFailures,
+        'trackedFailureSegments' => $trackedFailures,
+        'segments' => $segments,
+    ];
+}
+
+/**
  * @param list<array<string, mixed>> $records
  * @return array{
  *   totalSamples:int,
@@ -2046,7 +2151,8 @@ function write_conversion_report(
     array $summary,
     array $blockUsage,
     array $faithfulnessSummary,
-    array $importQualitySummary
+    array $importQualitySummary,
+    array $importQualityGate
 ): void {
     $recordsById = [];
     foreach ($records as $record) {
@@ -2119,6 +2225,29 @@ function write_conversion_report(
     $html .= '<div class="report-card"><h3>Review</h3><p class="report-number">' . h((string) ($importQualitySummary['review'] ?? 0)) . '</p></div>';
     $html .= '<div class="report-card"><h3>Fail</h3><p class="report-number">' . h((string) ($importQualitySummary['fail'] ?? 0)) . '</p></div>';
     $html .= '</div>';
+    $segments = is_array($importQualityGate['segments'] ?? null) ? $importQualityGate['segments'] : [];
+    if ($segments !== []) {
+        $html .= '<h3>Actionable thresholds</h3>';
+        $html .= '<p>The common-format gate is blocking and covers normal WordPress import formats. Exotic formats are tracked separately so they stay visible without diluting the common-format release signal.</p>';
+        $html .= '<table class="report-table compact-table"><thead><tr><th>Segment</th><th>Status</th><th>Pass or review</th><th>Failures</th><th>Conversion failures</th><th>Policy</th></tr></thead><tbody>';
+        foreach ($segments as $segment => $gate) {
+            if (!is_array($gate)) {
+                continue;
+            }
+            $actual = is_array($gate['actual'] ?? null) ? $gate['actual'] : [];
+            $thresholds = is_array($gate['thresholds'] ?? null) ? $gate['thresholds'] : [];
+            $status = (string) ($gate['status'] ?? 'fail');
+            $required = (bool) ($gate['required'] ?? false);
+            $statusClass = $status === 'pass' ? 'status-ok' : 'status-fail';
+            $html .= '<tr><td><strong>' . h((string) $segment) . '</strong></td>';
+            $html .= '<td><span class="' . $statusClass . '">' . h($status) . '</span></td>';
+            $html .= '<td>' . h((string) ($actual['passOrReview'] ?? 0)) . '/' . h((string) ($actual['samples'] ?? 0)) . ' <span class="meta">min ' . h((string) ($thresholds['minPassOrReview'] ?? '')) . '</span></td>';
+            $html .= '<td>' . h((string) ($actual['fail'] ?? 0)) . ' <span class="meta">max ' . h((string) ($thresholds['maxFail'] ?? '')) . '</span></td>';
+            $html .= '<td>' . h((string) ($actual['wpFailures'] ?? 0)) . ' <span class="meta">max ' . h((string) ($thresholds['maxWpFailures'] ?? '')) . '</span></td>';
+            $html .= '<td>' . ($required ? 'blocking' : 'tracked') . '</td></tr>';
+        }
+        $html .= '</tbody></table>';
+    }
     $html .= '<table class="report-table compact-table"><thead><tr><th>Sample</th><th>Status</th><th>Gate summary</th></tr></thead><tbody>';
     foreach ($records as $record) {
         $quality = is_array($record['importQuality'] ?? null) ? $record['importQuality'] : [];
@@ -2367,6 +2496,7 @@ $conversionSummary = conversion_summary($records);
 $faithfulnessSummary = showcase_faithfulness_summary($records);
 $importQualitySummary = showcase_import_quality_summary($records);
 $importQualitySegmentSummary = showcase_import_quality_segment_summary($records);
+$importQualityGate = showcase_import_quality_threshold_gate($importQualitySegmentSummary);
 
 file_put_contents($siteDir . '/manifest.json', json_encode([
     'generatedAt' => gmdate('c'),
@@ -2379,6 +2509,7 @@ file_put_contents($siteDir . '/manifest.json', json_encode([
     'faithfulnessSummary' => $faithfulnessSummary,
     'importQualitySummary' => $importQualitySummary,
     'importQualitySegmentSummary' => $importQualitySegmentSummary,
+    'importQualityGate' => $importQualityGate,
     'blockUsage' => $blockUsage,
     'records' => $records,
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
@@ -3002,7 +3133,17 @@ foreach ($byFormat as $format => $formatRecords) {
 $html .= '</main><script src="showcase.js"></script></body></html>';
 
 file_put_contents($siteDir . '/index.html', $html);
-write_conversion_report($siteDir, $records, $coveredFormats, $missingFormats, $conversionSummary, $blockUsage, $faithfulnessSummary, $importQualitySummary);
+write_conversion_report(
+    $siteDir,
+    $records,
+    $coveredFormats,
+    $missingFormats,
+    $conversionSummary,
+    $blockUsage,
+    $faithfulnessSummary,
+    $importQualitySummary,
+    $importQualityGate
+);
 
 $knownBlockRows = [
     'group' => [
