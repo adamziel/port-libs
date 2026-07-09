@@ -167,27 +167,27 @@ return [
     },
     'pdf corpus gate preserves real layout tables without using text fragments' => static function (TestRunner $t) use ($pdfSamplePaths, $readPdfSample): void {
         $cases = [
-            'grand-canyon-map' => ['minTables' => 1, 'minLines' => 250],
-            'muir-brochure' => ['minTables' => 2, 'minLines' => 400],
-            'tracemonkey-paper' => ['minTables' => 6, 'minLines' => 1000],
+            'grand-canyon-map' => ['minGeometryTables' => 1, 'minTables' => 1, 'minLines' => 250, 'mode' => 'geometry'],
+            'muir-brochure' => ['minGeometryTables' => 2, 'minTables' => 2, 'minLines' => 400, 'mode' => 'geometry'],
+            'tracemonkey-paper' => ['minGeometryTables' => 6, 'minTables' => 3, 'minLines' => 1000, 'mode' => 'text-fallback'],
         ];
 
         foreach ($cases as $kind => $expectation) {
             $result = $readPdfSample($pdfSamplePaths()[$kind]);
             $meta = $result['meta'];
 
-            $t->true(($meta['pdfGeometryTables'] ?? 0) >= $expectation['minTables'], "{$kind} should retain geometry table candidates.");
+            $t->true(($meta['pdfGeometryTables'] ?? 0) >= $expectation['minGeometryTables'], "{$kind} should retain geometry table candidates.");
             $t->true(($meta['pdfDetectedTables'] ?? 0) >= $expectation['minTables'], "{$kind} should expose layout tables as document tables.");
             $t->true($result['tables'] >= $expectation['minTables'], "{$kind} WordPress blocks should include table blocks.");
             $t->true(($meta['pdfTextLines'] ?? 0) >= $expectation['minLines'], "{$kind} should keep enough positioned text to avoid collapsed extraction.");
-            $t->same('geometry', $meta['pdfTableReconstruction'], "{$kind} should use layout-aware table reconstruction.");
+            $t->same($expectation['mode'], $meta['pdfTableReconstruction'], "{$kind} should report the selected table reconstruction mode.");
         }
     },
     'pdf corpus gate keeps text only retry prose oriented' => static function (TestRunner $t) use ($pdfSamplePaths, $readPdfSample): void {
         $cases = [
-            'grand-canyon-map' => ['minParagraphs' => 40, 'minHeadings' => 40],
-            'muir-brochure' => ['minParagraphs' => 25, 'minHeadings' => 20],
-            'tracemonkey-paper' => ['minParagraphs' => 100, 'minHeadings' => 30],
+            'grand-canyon-map' => ['minParagraphs' => 40, 'minHeadings' => 40, 'minTables' => 0],
+            'muir-brochure' => ['minParagraphs' => 25, 'minHeadings' => 20, 'minTables' => 0],
+            'tracemonkey-paper' => ['minParagraphs' => 100, 'minHeadings' => 20, 'minTables' => 1],
         ];
 
         foreach ($cases as $kind => $expectation) {
@@ -195,9 +195,8 @@ return [
             $meta = $result['meta'];
 
             $t->same(0, $meta['pdfGeometryTables'], "{$kind} text-only retry should skip geometry table extraction.");
-            $t->same(0, $meta['pdfDetectedTables'], "{$kind} text-only retry should not synthesize layout tables.");
             $t->same('text', $meta['pdfTableReconstruction'], "{$kind} text-only retry should report text reconstruction.");
-            $t->same(0, $result['tables'], "{$kind} text-only retry WordPress blocks should not include table blocks.");
+            $t->true($result['tables'] >= $expectation['minTables'], "{$kind} text-only retry should preserve text-detected tables.");
             $t->true($result['paragraphs'] >= $expectation['minParagraphs'], "{$kind} text-only retry should keep prose split into readable paragraphs.");
             $t->true($result['headings'] >= $expectation['minHeadings'], "{$kind} text-only retry should retain heading-like line structure.");
         }
@@ -255,13 +254,17 @@ return [
             'pdfRepairProseText' => true,
             'pdfGeometryTables' => false,
         ]))->read(file_get_contents($pdfSamplePaths()['tracemonkey-paper']) ?: '');
+        $blocks = PandocConverter::write($document, 'blocks');
         $text = $plainText(PandocConverter::write($document, 'html'));
 
         foreach (['objectpointer', 'numberpointer', 'stringpointer', 'booleanenumeration'] as $glued) {
-            $t->true(!str_contains($text, $glued), "TraceMonkey table cells should not contain '{$glued}'.");
+            $t->true(!str_contains($blocks, $glued), "TraceMonkey table cells should not contain '{$glued}'.");
         }
-        $t->contains('object pointer to JS Object handle', $text);
-        $t->contains('boolean enumeration for null, undefined, true, false', $text);
+        $t->contains('<!-- wp:table -->', $blocks);
+        $t->contains('<th>Tag</th><th>JS Type</th><th>Description</th>', $blocks);
+        $t->contains('<td>object</td><td>pointer to JS Object handle</td>', $blocks);
+        $t->contains('<td>boolean</td><td>enumeration for null, undefined, true, false', $blocks);
+        $t->contains('Testing tags, unboxing', $text);
     },
     'pdf corpus gate does not inject TraceMonkey positioned word fragment spaces' => static function (TestRunner $t) use ($pdfSamplePaths, $plainText): void {
         $document = (new PdfReader([

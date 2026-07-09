@@ -5562,6 +5562,42 @@ return [
             '000 object pointer to JS Object handle 110 boolean enumeration for null, undefined, true, false Dogs on leash allowed',
         ], $repaired);
     },
+    'preserves stacked pdf text cells as tables without merging surrounding prose' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $repair = (function (array $lines): array {
+            return $this->repairProseTextLines($lines, true);
+        })->bindTo($reader, PdfReader::class);
+        $blocksFromLines = (function (array $lines): array {
+            return $this->blocksFromLines($lines);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($repair instanceof \Closure);
+        $t->true($blocksFromLines instanceof \Closure);
+
+        $repaired = $repair([
+            'Before the table starts.',
+            'Code',
+            'Type',
+            'Meaning',
+            'A1',
+            'alpha',
+            'first compact entry',
+            'B2',
+            'beta',
+            'second compact entry',
+            'C3',
+            'gamma',
+            'third compact entry',
+            'After the table ends.',
+        ]);
+        $blocks = PandocConverter::write(new AstNode('document', [], $blocksFromLines($repaired)), 'blocks');
+
+        $t->contains('<p>Before the table starts.</p>', $blocks);
+        $t->contains('<!-- wp:table -->', $blocks);
+        $t->contains('<th>Code</th><th>Type</th><th>Meaning</th>', $blocks);
+        $t->contains('<td>A1</td><td>alpha</td><td>first compact entry</td>', $blocks);
+        $t->contains('<td>C3</td><td>gamma</td><td>third compact entry</td>', $blocks);
+        $t->contains('<p>After the table ends.</p>', $blocks);
+    },
     'normalizes winansi bytes leaked from pdf text extraction' => static function (TestRunner $t): void {
         $reader = new PdfReader();
         $normalize = (function (array $lines): array {

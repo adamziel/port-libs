@@ -81,16 +81,16 @@
 <p>anch T race</p>
 <h2>Guar</h2>
 <p>d Side Exit A tree with two traces, a trunk trace and one branch trace. The trunk trace contains a guard to which a branch trace was attached. The branch trace contain a guard that may fail and trigger a side exit. Both the trunk and the branch trace loop back to the tree anchor, which is the beginning of the trace tree.</p>
-<p>T</p>
-<p>race 2</p>
-<p>T</p>
-<p>race 1</p>
-<p>T</p>
-<p>race 2</p>
-<p>T</p>
-<p>race 1</p>
-<h2>Closed</h2>
-<h2>Link</h2>
+<table>
+<thead>
+<tr><th>T</th><th>r</th><th>ace 2</th></tr>
+</thead>
+<tbody>
+<tr><td>T</td><td>r</td><td>ace 1</td></tr>
+<tr><td>T</td><td>r</td><td>ace 2</td></tr>
+<tr><td>T</td><td>r</td><td>ace 1 Closed Link</td></tr>
+</tbody>
+</table>
 <p>ed</p>
 <h2>Link</h2>
 <p>ed</p>
@@ -100,15 +100,17 @@
 <h2>Number</h2>
 <h2>String</h2>
 <h2>String</h2>
-<h2>String</h2>
-<h2>String</h2>
-<h2>Boolean</h2>
-<p>T</p>
-<p>race 2</p>
-<p>T</p>
-<p>race 1</p>
-<p>T</p>
-<p>race 3 We handle type-unstable loops by allowing traces to compile that cannot loop back to themselves due to a type mismatch. As such traces accumulate, we attempt to connect their loop edges to form groups of trace trees that can execute without having to side-exit to the interpreter to cover odd type cases. This is particularly important for nested trace trees where an outer tree tries to call an inner tree (or in this case a forest of inner trees), since inner loops frequently have initially undefined values which change type to a concrete value after the first iteration. symbol is used to indicate that the trace loops back the tree anchor. When execution leaves the inner loop, the basic design has two choices. First, the system can stop tracing and give up on compiling the outer loop, clearly an undesirable solution. The other choice is to continue tracing, compiling traces for the outer loop inside the inner loop’s trace tree. and record a branch and then . Thus, the outer loop is recorded and compiled twice, and both copies must be retained in the trace cache. ee Call</p>
+<table>
+<thead>
+<tr><th>String</th><th>String</th><th>Boolean</th></tr>
+</thead>
+<tbody>
+<tr><td>T</td><td>r</td><td>ace 2</td></tr>
+<tr><td>T</td><td>r</td><td>ace 1</td></tr>
+<tr><td>T</td><td>r</td><td>ace 3</td></tr>
+</tbody>
+</table>
+<p>We handle type-unstable loops by allowing traces to compile that cannot loop back to themselves due to a type mismatch. As such traces accumulate, we attempt to connect their loop edges to form groups of trace trees that can execute without having to side-exit to the interpreter to cover odd type cases. This is particularly important for nested trace trees where an outer tree tries to call an inner tree (or in this case a forest of inner trees), since inner loops frequently have initially undefined values which change type to a concrete value after the first iteration. symbol is used to indicate that the trace loops back the tree anchor. When execution leaves the inner loop, the basic design has two choices. First, the system can stop tracing and give up on compiling the outer loop, clearly an undesirable solution. The other choice is to continue tracing, compiling traces for the outer loop inside the inner loop’s trace tree. and record a branch and then . Thus, the outer loop is recorded and compiled twice, and both copies must be retained in the trace cache. ee Call</p>
 <h2>Outer T r</h2>
 <p>ee</p>
 <h2>Nest</h2>
@@ -123,11 +125,22 @@
 <p>Every time the trace recorder emits a LIR instruction, the instruction is immediately passed to the first filter in the forward pipeline. Thus, forward filter optimizations are performed as the trace is recorded. Each filter may pass each instruction to the next filter unchanged, write a different instruction to the next filter, or write no instruction at all. For example, the constant folding filter with a On IS As without floating-point instructions, a soft-float filter converts floating-point LIR instructions to sequences of integer expression simplification, including constant folding and a few source language semantic-specific expression simplification, to be replaced and then back again would be removed by this filter.</p>
 <p>When trace recording is completed, nanojit runs the backward optimization filters. These are used for optimizations that require backward program analysis. When running the backward filters, nanojit reads one LIR instruction at a time, and the reads are passed through the pipeline.</p>
 <p>Dead data-stack store elimination. The LIR trace encodes many stores to locations in the interpreter stack. But these values are never read back before exiting the trace (by the interpreter or another trace). Thus, stores to the stack that are overwritten before the next exit are dead. Stores to locations that are off Dead call-stack store elimination. This is the same optimization as above, except applied to the interpreter’s call stack used for Dead code elimination. This eliminates any operation that stores to a value that is never used.</p>
-<p>After a LIR instruction is successfully read (“pulled”) from the backward filter pipeline, nanojit’s code generator emits native We use a simple greedy register allocator that makes a single backward pass over the trace (it is integrated with the code genhave not yet been assigned registers, the allocator assigns a free register to each. If there are no free registers, a value is selected for spilling. We use a class heuristic that selects the “oldest” register-carried value (6). in registers imme-be the last is referred to. Then the</p>
-<h2>Tag</h2>
-<h2>JS Type</h2>
-<h2>Description</h2>
-<p>xx1 number 31-bit integer representation 000 object pointer to JS Object handle 010 number pointer to double handle 100 string pointer to JS String handle 110 boolean enumeration for null, undefined, true, false null, or undefined Testing tags, unboxing (extracting the untagged value) and boxing (creating tagged values) are significant costs. Avoiding these costs is a key benefit of tracing. . The motivation is that this frees up a register for as long as possible given a single spill. at this point, we generate the restore code just after the code for the current instruction. The is marked free for the preceding code, because that register can now be used freely To demonstrate the effectiveness of our approach, we have implemented a trace-based dynamic compiler for the Spider Monkey Java Script Virtual Machine (4). Spider Monkey is the Java Script VM embedded in Mozilla’s Firefox open-source web browser (2), which is used by more than 200 million users world-wide. The core of Spider Monkey is a bytecode interpreter implemented in C++.</p>
+<p>After a LIR instruction is successfully read (“pulled”) from the backward filter pipeline, nanojit’s code generator emits native We use a simple greedy register allocator that makes a single backward pass over the trace (it is integrated with the code genhave not yet been assigned registers, the allocator assigns a free register to each. If there are no free registers, a value is selected for spilling. We use a class heuristic that selects the “oldest” register-carried value (6). in registers imme-</p>
+<p>be the last</p>
+<p>is referred to. Then the</p>
+<table>
+<thead>
+<tr><th>Tag</th><th>JS Type</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td>xx1</td><td>number</td><td>31-bit integer representation</td></tr>
+<tr><td>000</td><td>object</td><td>pointer to JS Object handle</td></tr>
+<tr><td>010</td><td>number</td><td>pointer to double handle</td></tr>
+<tr><td>100</td><td>string</td><td>pointer to JS String handle</td></tr>
+<tr><td>110</td><td>boolean</td><td>enumeration for null, undefined, true, false null, or undefined</td></tr>
+</tbody>
+</table>
+<p>Testing tags, unboxing (extracting the untagged value) and boxing (creating tagged values) are significant costs. Avoiding these costs is a key benefit of tracing. . The motivation is that this frees up a register for as long as possible given a single spill. at this point, we generate the restore code just after the code for the current instruction. The is marked free for the preceding code, because that register can now be used freely To demonstrate the effectiveness of our approach, we have implemented a trace-based dynamic compiler for the Spider Monkey Java Script Virtual Machine (4). Spider Monkey is the Java Script VM embedded in Mozilla’s Firefox open-source web browser (2), which is used by more than 200 million users world-wide. The core of Spider Monkey is a bytecode interpreter implemented in C++.</p>
 <p>In Spider Monkey, all Java Script values are represented by the is machine word in which up to the 3 of the least significant bits are a type tag, and the remaining bits are data. point to GC-controlled blocks aligned on 8-byte boundaries. values are mappings of string-valued property names to arbitrary values. They are represented in one of two ways in Spider Monkey. Most objects are represented by a shared struc- , that maps property names to array indexes using a hash table. The object stores a pointer to the shape and the array of its own property values. Objects with large, unique sets of property names store their properties directly in a hash table.</p>
 <p>The garbage collector is an exact, non-generational, stop-theworld mark-and-sweep collector. In the rest of this section we discuss key areas of the Trace Mon- , indexed by intepreter PC and type map. Traces are compiled so that they may be on x 86). The interpreter must hit a loop edge and enter the monitor in order to call a native trace for the first time. The monitor computes the current type map, checks the trace cache for a trace for the current PC and type map, and if it finds one, executes the trace. To execute a trace, the monitor must build a trace activation record containing imported local and global variables, temporary stack space, and space for arguments to native calls. The local and global values are then copied from the interpreter state to the trace activation record. Then, the trace is called like a normal C function pointer.</p>
 <p>When a trace call returns, the monitor restores the interpreter state. First, the monitor checks the reason for the trace exit and applies blacklisting if needed. Then, it pops or synthesizes inter-preter Java Script call stack frames as needed. Finally, it copies the imported variables back from the trace activation record to the interpreter state. At least in the current implementation, these steps have a nonnegligible run time cost, so minimizing the number of interpreter-to-trace and trace-to-interpreter transitions is essential for perfor-mance. (see also Section 3.3). Our experiments (see Figure 12) show that for programs we can trace well such transitions happen infrequently and hence do not contribute significantly to total run time. In a few programs, where the system is prevented from recording branch traces for hot side exits by aborts, this cost can Transitions from a trace to a branch trace at a side exit avoid the trace . At a side exit, the exiting trace only needs to write live register-carried values back to its trace activation record. In our implementation, identical type maps yield identical activation record layouts, so the trace activation record can be reused immediately by the branch trace.</p>

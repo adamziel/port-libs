@@ -69,7 +69,15 @@ final class PdfReader
         $geometryTableCount = $this->countNodesOfType($geometryTableBlocks, 'table');
         $geometryTableFallback = false;
         if ($geometryTableBlocks !== [] && $this->blocksHaveSuspiciousPdfTableText($geometryTableBlocks)) {
-            $textTableBlocks = $this->blocksFromLines($limitedLines);
+            $textFallbackLines = $proseRepairEnabled
+                ? $this->repairProseTextLines(
+                    $limitedLines,
+                    $this->looksLikeProseRepairCandidate($limitedLines),
+                    [],
+                    array_replace($this->pdfTextRunSplitWordHints($runs), $this->pdfPositionedRunSpacingHints($limitedPositionedRuns))
+                )
+                : $limitedLines;
+            $textTableBlocks = $this->blocksFromLines($textFallbackLines);
             if ($this->countNodesOfType($textTableBlocks, 'table') === 0 || $this->blocksHaveSuspiciousPdfTableText($textTableBlocks)) {
                 $textTableBlocks = $this->blocksFromCurrencyRecordLines($limitedLines);
             }
@@ -867,7 +875,7 @@ final class PdfReader
 
         $merged = $this->pdfLinesLookLikeDenseListLayout($cleaned) || $this->pdfLinesLookLikeSparseLongTextChunks($cleaned)
             ? array_map(static fn (array $record): string => $record['text'], $cleaned)
-            : $this->mergeRepairedProseLines($cleaned, $splitWordHints);
+            : $this->mergeRepairedProseLinesPreservingStackedTables($cleaned, $splitWordHints);
         $repaired = [];
         foreach ($merged as $line) {
             $line = $repairGluedText ? $this->repairGluedProseLine($line, $splitWordHints) : trim($line);
@@ -1769,6 +1777,44 @@ final class PdfReader
      * @param array<string, true|string> $splitWordHints
      * @return list<string>
      */
+    private function mergeRepairedProseLinesPreservingStackedTables(array $records, array $splitWordHints = []): array
+    {
+        $merged = [];
+        $pending = [];
+        $texts = array_map(static fn (array $record): string => $record['text'], $records);
+        for ($index = 0, $count = count($records); $index < $count;) {
+            $stackedTable = $this->stackedTableRowsAt($texts, $index);
+            if ($stackedTable['rows'] === []) {
+                $pending[] = $records[$index];
+                $index++;
+                continue;
+            }
+
+            if ($pending !== []) {
+                foreach ($this->mergeRepairedProseLines($pending, $splitWordHints) as $line) {
+                    $merged[] = $line;
+                }
+                $pending = [];
+            }
+            for ($offset = 0; $offset < $stackedTable['consumed']; $offset++) {
+                $merged[] = $records[$index + $offset]['text'];
+            }
+            $index += $stackedTable['consumed'];
+        }
+        if ($pending !== []) {
+            foreach ($this->mergeRepairedProseLines($pending, $splitWordHints) as $line) {
+                $merged[] = $line;
+            }
+        }
+
+        return $merged;
+    }
+
+    /**
+     * @param list<array{text: string, layout: array{text: string, page: int, x1: float, y1: float, x2: float, y2: float, fontSize: float}|null}> $records
+     * @param array<string, true|string> $splitWordHints
+     * @return list<string>
+     */
     private function mergeRepairedProseLines(array $records, array $splitWordHints = []): array
     {
         $merged = [];
@@ -2080,6 +2126,13 @@ final class PdfReader
                 $flushList();
                 $blocks[] = $this->table($tableRun['rows']);
                 $index += $tableRun['consumed'];
+                continue;
+            }
+            $stackedTableRun = $this->stackedTableRowsAt($lines, $index);
+            if ($stackedTableRun['rows'] !== []) {
+                $flushList();
+                $blocks[] = $this->table($stackedTableRun['rows']);
+                $index += $stackedTableRun['consumed'];
                 continue;
             }
 
@@ -4357,6 +4410,120 @@ final class PdfReader
         }
 
         return count($rows) >= 2 ? ['rows' => $rows, 'consumed' => $consumed] : ['rows' => [], 'consumed' => 0];
+    }
+
+    /**
+     * Detects tables whose cells were extracted as one line per visual cell.
+     *
+     * @param list<string> $lines
+     * @return array{rows: list<list<string>>, consumed: int}
+     */
+    private function stackedTableRowsAt(array $lines, int $start): array
+    {
+        $lineCount = count($lines);
+        foreach ([3, 4, 5] as $columnCount) {
+            if ($start + ($columnCount * 4) > $lineCount) {
+                continue;
+            }
+            $header = [];
+            for ($offset = 0; $offset < $columnCount; $offset++) {
+                $headerLine = trim($lines[$start + $offset] ?? '');
+                if (!$this->stackedTableHeaderCell($headerLine)) {
+                    $header = [];
+                    break;
+                }
+                $header[] = $headerLine;
+            }
+            if ($header === []) {
+                continue;
+            }
+
+            $rows = [$header];
+            $index = $start + $columnCount;
+            while ($index + $columnCount - 1 < $lineCount && $this->stackedTableRowKeyCell((string) ($lines[$index] ?? ''))) {
+                $row = [];
+                for ($column = 0; $column < $columnCount; $column++) {
+                    $cell = trim((string) ($lines[$index + $column] ?? ''));
+                    if ($cell === '' || ($column > 0 && !$this->stackedTableBodyCell($cell))) {
+                        break 2;
+                    }
+                    $row[] = $cell;
+                }
+                $index += $columnCount;
+
+                $continuations = 0;
+                while (
+                    $index < $lineCount
+                    && !$this->stackedTableRowKeyCell((string) ($lines[$index] ?? ''))
+                    && $this->stackedTableContinuationCell((string) ($lines[$index] ?? ''))
+                ) {
+                    $row[$columnCount - 1] .= ' ' . trim((string) $lines[$index]);
+                    $index++;
+                    $continuations++;
+                    if ($continuations >= 2) {
+                        break;
+                    }
+                }
+
+                $rows[] = $row;
+            }
+
+            if (count($rows) >= 4) {
+                return ['rows' => $rows, 'consumed' => $index - $start];
+            }
+        }
+
+        return ['rows' => [], 'consumed' => 0];
+    }
+
+    private function stackedTableHeaderCell(string $line): bool
+    {
+        $line = trim($line);
+        if ($line === '' || $this->listItem($line) !== null || $this->length($line) > 40) {
+            return false;
+        }
+        if (preg_match('/[.!?]\s*$/u', $line) === 1 || preg_match('/^\d+$/u', $line) === 1) {
+            return false;
+        }
+
+        return preg_match('/\p{L}/u', $line) === 1;
+    }
+
+    private function stackedTableRowKeyCell(string $line): bool
+    {
+        $line = trim($line);
+        if ($line === '' || str_contains($line, ' ') || $this->length($line) > 10) {
+            return false;
+        }
+        if (preg_match('/[.!?,:;]$/u', $line) === 1) {
+            return false;
+        }
+
+        return preg_match('/\d/u', $line) === 1 || preg_match('/^[\p{Lu}]{1,4}$/u', $line) === 1;
+    }
+
+    private function stackedTableBodyCell(string $line): bool
+    {
+        $line = trim($line);
+        if ($line === '' || $this->listItem($line) !== null || $this->length($line) > 120) {
+            return false;
+        }
+
+        return preg_match('/[.!?]\s*$/u', $line) !== 1;
+    }
+
+    private function stackedTableContinuationCell(string $line): bool
+    {
+        $line = trim($line);
+        if ($line === '' || $this->listItem($line) !== null || $this->length($line) > 50) {
+            return false;
+        }
+        if (preg_match('/[.!?]\s*$/u', $line) === 1) {
+            return false;
+        }
+        $tokens = preg_split('/\s+/u', $line) ?: [];
+
+        return count($tokens) <= 4;
     }
 
     /**
