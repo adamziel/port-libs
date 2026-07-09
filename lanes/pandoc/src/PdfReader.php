@@ -336,17 +336,27 @@ final class PdfReader
 
     private function normalizePdfTextEncoding(string $text): string
     {
+        $text = $this->repairPdfControlLigatures($text);
         if ($text === '' || preg_match('//u', $text) === 1) {
             return $text;
         }
 
         $decoded = @iconv('Windows-1252', 'UTF-8//IGNORE', $text);
         if (is_string($decoded) && $decoded !== '') {
-            return $decoded;
+            return $this->repairPdfControlLigatures($decoded);
         }
 
         $decoded = @iconv('UTF-8', 'UTF-8//IGNORE', $text);
-        return is_string($decoded) ? $decoded : $text;
+        return is_string($decoded) ? $this->repairPdfControlLigatures($decoded) : $text;
+    }
+
+    private function repairPdfControlLigatures(string $text): string
+    {
+        if (!str_contains($text, "\x02")) {
+            return $text;
+        }
+
+        return preg_replace('/((?<=\p{L})\x02(?=\p{Ll})|\x02(?=\p{Ll}))/u', 'fi', $text) ?? $text;
     }
 
     /**

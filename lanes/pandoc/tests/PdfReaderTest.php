@@ -5614,6 +5614,21 @@ return [
         ]));
         $t->same('“quoted”', $runText("\x93quoted\x94"));
     },
+    'repairs pdf control glyphs used for fi ligatures in extracted text' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $normalize = (function (array $lines): array {
+            return $this->normalizeLines($lines);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($normalize instanceof \Closure);
+
+        $t->same([
+            'difficult file files find specific',
+            'Keep non-word control marks spaced',
+        ], $normalize([
+            "dif\x02cult \x02le \x02les \x02nd speci\x02c",
+            "Keep\x03non-word control marks spaced",
+        ]));
+    },
     'repairs pdf acronym boundaries in glued prose' => static function (TestRunner $t): void {
         $reader = new PdfReader();
         $repair = (function (array $lines): array {

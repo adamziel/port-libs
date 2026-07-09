@@ -321,14 +321,21 @@ return [
         $t->true(($w4Meta['pdfTextBytes'] ?? 0) >= 300, 'IRS W-4 form should retain a baseline amount of text.');
         $t->true($w4['headings'] >= 2, 'IRS W-4 form should retain heading-like form labels.');
     },
-    'pdf corpus gate keeps scanned book bounded but readable' => static function (TestRunner $t) use ($pdfSamplePaths, $readPdfSample): void {
+    'pdf corpus gate keeps scanned book bounded but readable' => static function (TestRunner $t) use ($pdfSamplePaths, $readPdfSample, $plainText): void {
         $result = $readPdfSample($pdfSamplePaths()['archive-book']);
         $meta = $result['meta'];
+        $text = $plainText(PandocConverter::write($result['document'], 'html'));
 
         $t->true(($meta['pdfEstimatedPages'] ?? 0) >= 40, 'Archive book should report the multi-page source.');
         $t->true(($meta['pdfTextLines'] ?? 0) >= 20, 'Archive book should keep available OCR/search text lines.');
         $t->true(($meta['pdfTextBytes'] ?? 0) >= 2000, 'Archive book should keep available OCR/search text.');
         $t->same(0, $meta['pdfDetectedTables'], 'Archive book prose should not become a table.');
         $t->true($result['paragraphs'] >= 20, 'Archive book should keep sparse long OCR chunks reviewable.');
+        $t->contains('difficult to discover', $text);
+        $t->contains('this file - a reminder', $text);
+        $t->contains('these files for personal', $text);
+        $t->contains('find additional materials', $text);
+        $t->true(!str_contains($text, 'dif cult'), 'Archive book fi ligatures should not be lost as spaces.');
+        $t->true(!str_contains($text, ' le - a reminder'), 'Archive book fi ligatures should not leave bare word fragments.');
     },
 ];
