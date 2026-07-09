@@ -241,6 +241,20 @@ return [
         $t->true($muir['paragraphs'] >= 25, 'Muir brochure text-only retry should keep readable prose blocks.');
         $t->true($muir['headings'] >= 20, 'Muir brochure text-only retry should retain heading-like line structure.');
     },
+    'pdf corpus gate repairs Muir wrapped hyphen word fragments' => static function (TestRunner $t) use ($pdfSamplePaths, $plainText): void {
+        $document = (new PdfReader([
+            'maxTextBytes' => 80000,
+            'pdfRepairProseText' => true,
+            'pdfGeometryTables' => false,
+        ]))->read(file_get_contents($pdfSamplePaths()['muir-brochure']) ?: '');
+        $text = $plainText(PandocConverter::write($document, 'html'));
+
+        foreach (['includ -ing', 'red -wood'] as $artifact) {
+            $t->true(!str_contains($text, $artifact), "Muir brochure should not contain '{$artifact}'.");
+        }
+        $t->contains('including the Muir Beach floodplain', $text);
+        $t->contains('redwood forest', $text);
+    },
     'pdf corpus gate preserves brochure lists and form baseline extraction' => static function (TestRunner $t) use ($pdfSamplePaths, $readPdfSample): void {
         $cdc = $readPdfSample($pdfSamplePaths()['cdc-brochure']);
         $cdcMeta = $cdc['meta'];

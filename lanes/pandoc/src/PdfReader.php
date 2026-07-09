@@ -1189,6 +1189,22 @@ final class PdfReader
             $spaced = $prefix . ' ' . $continuation;
             $hints[$this->splitFragmentHintKey($spaced)] = $prefix . $continuation;
         }
+        for ($index = 0; $index < $count - 2; $index++) {
+            $text = $this->pdfTextRunString($runs[$index]);
+            $hyphen = trim($this->pdfTextRunString($runs[$index + 1]));
+            if (!in_array($hyphen, ['-', "\u{2010}", "\u{2011}", "\u{2012}", "\u{2013}", "\u{2014}"], true)) {
+                continue;
+            }
+
+            $prefix = $this->pdfTextRunTrailingSplitFragment($text);
+            $continuation = $this->pdfTextRunFollowingSplitFragment($runs, $index + 2);
+            if ($prefix === '' || $continuation === '' || !$this->pdfTextRunHyphenatedSplitFragmentLooksUsable($prefix, $continuation)) {
+                continue;
+            }
+
+            $hints[$this->splitHyphenFragmentHintKey($prefix . ' -' . $continuation)] = $prefix . $continuation;
+            $hints[$this->splitHyphenFragmentHintKey($prefix . ' - ' . $continuation)] = $prefix . $continuation;
+        }
 
         return $hints;
     }
@@ -1210,6 +1226,11 @@ final class PdfReader
     private function splitFragmentHintKey(string $spacedFragment): string
     {
         return "fragment\0" . $spacedFragment;
+    }
+
+    private function splitHyphenFragmentHintKey(string $hyphenatedFragment): string
+    {
+        return "hyphen-fragment\0" . $hyphenatedFragment;
     }
 
     private function spacingHintKey(string $gluedText): string
@@ -1547,6 +1568,18 @@ final class PdfReader
         return $hasLeftContext || $continuationLength >= 2;
     }
 
+    private function pdfTextRunHyphenatedSplitFragmentLooksUsable(string $prefix, string $continuation): bool
+    {
+        $prefixLength = $this->length($prefix);
+        $continuationLength = $this->length($continuation);
+        if ($prefixLength < 2 || $continuationLength < 3 || $prefixLength + $continuationLength > 24) {
+            return false;
+        }
+
+        return preg_match('/^\p{Ll}+$/u', $prefix) === 1
+            && preg_match('/^\p{Ll}+$/u', $continuation) === 1;
+    }
+
     /**
      * @param array<string, true|string> $splitWordHints
      */
@@ -1560,6 +1593,7 @@ final class PdfReader
         $line = $this->removeStandaloneBraceArtifacts($line);
         $line = $this->repairSplitUrlWhitespace($line);
         $line = $this->repairSplitFragmentWhitespace($line, $splitWordHints);
+        $line = $this->repairSplitHyphenFragmentWhitespace($line, $splitWordHints);
         $line = $this->repairPositionedSpacingWhitespace($line, $splitWordHints);
         $lineHasWordSpacing = preg_match('/\p{L}\s+\p{L}/u', $line) === 1;
         $line = preg_replace('/([,;:!?])(?=\S)/u', '$1 ', $line) ?? $line;
@@ -1597,6 +1631,28 @@ final class PdfReader
             }
 
             $pattern = '/(?<!\p{L})' . preg_quote($spaced, '/') . '(?!\p{L})/u';
+            $line = preg_replace($pattern, $replacement, $line) ?? $line;
+        }
+
+        return $line;
+    }
+
+    /**
+     * @param array<string, true|string> $splitWordHints
+     */
+    private function repairSplitHyphenFragmentWhitespace(string $line, array $splitWordHints): string
+    {
+        foreach ($splitWordHints as $key => $replacement) {
+            if (!is_string($replacement) || !str_starts_with($key, "hyphen-fragment\0")) {
+                continue;
+            }
+
+            $hyphenated = substr($key, strlen("hyphen-fragment\0"));
+            if ($hyphenated === '' || !str_contains($line, $hyphenated)) {
+                continue;
+            }
+
+            $pattern = '/(?<!\p{L})' . preg_quote($hyphenated, '/') . '(?!\p{L})/u';
             $line = preg_replace($pattern, $replacement, $line) ?? $line;
         }
 

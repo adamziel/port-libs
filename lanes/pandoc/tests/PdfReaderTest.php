@@ -5485,6 +5485,46 @@ return [
             'tual dynamic types.',
         ], [$previous, $next]));
     },
+    'repairs pdf hyphen fragments only with raw run evidence' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $repair = (function (array $lines, array $runs): array {
+            return $this->repairProseTextLines($lines, true, [], $this->pdfTextRunSplitWordHints($runs));
+        })->bindTo($reader, PdfReader::class);
+        $t->true($repair instanceof \Closure);
+
+        $t->same([
+            'resources were most abundant, including the floodplain.',
+            'They bring deep-ocean nutrients to the redwood forest.',
+        ], $repair([
+            'resources were most abundant, includ -',
+            'ing the floodplain.',
+            'They bring deep-ocean nutrients to the red -',
+            'wood forest.',
+        ], [
+            'resources were most abundant, includ',
+            '-',
+            'ing the floodplain.',
+            'nutrients to the red',
+            '-',
+            'wood forest.',
+        ]));
+
+        $t->same([
+            'efficient type-specialized machine code hard-to-treat infections',
+        ], $repair([
+            'efficient type-',
+            'specialized machine code',
+            'hard-',
+            'to-treat infections',
+        ], [
+            'efficient type',
+            '-',
+            'specialized machine code',
+            'hard',
+            '-',
+            'to-treat infections',
+        ]));
+    },
     'normalizes winansi bytes leaked from pdf text extraction' => static function (TestRunner $t): void {
         $reader = new PdfReader();
         $normalize = (function (array $lines): array {
