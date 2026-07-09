@@ -1790,6 +1790,11 @@ final class PdfReader
                 $pendingLayout = $layout;
                 continue;
             }
+            if (preg_match('/-\s*$/', $pending) === 1 && $this->lineLooksLikeUrlOnly($line)) {
+                $pending = rtrim($pending) . ' ' . ltrim($line);
+                $pendingLayout = $layout;
+                continue;
+            }
             if (preg_match('/-\s*$/', $pending) === 1 && preg_match('/^\p{Ll}/u', $line) === 1) {
                 $pending = $this->repairedLineShouldRemoveHyphenatedBreak($pending, $line, $pendingLayout, $layout)
                     ? (preg_replace('/-\s*$/u', '', $pending) ?? rtrim(substr($pending, 0, -1))) . ltrim($line)

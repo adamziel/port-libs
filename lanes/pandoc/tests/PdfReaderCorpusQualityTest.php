@@ -235,6 +235,20 @@ return [
             $t->true(!str_contains($text, $splitWord), "TraceMonkey text-only retry should not introduce '{$splitWord}'.");
         }
     },
+    'pdf corpus gate preserves TraceMonkey bibliography dash url separators' => static function (TestRunner $t) use ($pdfSamplePaths, $plainText): void {
+        $document = (new PdfReader([
+            'maxTextBytes' => 80000,
+            'pdfRepairProseText' => true,
+            'pdfGeometryTables' => false,
+        ]))->read(file_get_contents($pdfSamplePaths()['tracemonkey-paper']) ?: '');
+        $text = $plainText(PandocConverter::write($document, 'html'));
+
+        foreach (['client -http', 'Extreme -http'] as $glued) {
+            $t->true(!str_contains($text, $glued), "TraceMonkey bibliography URLs should not contain '{$glued}'.");
+        }
+        $t->contains('client - http://www.mozilla.com', $text);
+        $t->contains('Extreme - http://webkit.org', $text);
+    },
     'pdf corpus gate does not inject TraceMonkey positioned word fragment spaces' => static function (TestRunner $t) use ($pdfSamplePaths, $plainText): void {
         $document = (new PdfReader([
             'maxTextBytes' => 80000,

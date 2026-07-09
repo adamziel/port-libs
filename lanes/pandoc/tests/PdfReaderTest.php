@@ -5708,6 +5708,28 @@ return [
             'Alternates: www.first.example www.second.example',
         ], $repaired);
     },
+    'preserves bibliography dash before pdf url continuation lines' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $repair = (function (array $lines): array {
+            return $this->repairProseTextLines($lines, true);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($repair instanceof \Closure);
+
+        $repaired = $repair([
+            'Mozilla browser and Thunderbird email client -',
+            'http://www.mozilla.com.',
+            'efficient type-',
+            'specialized machine code',
+            'More information -',
+            'www.example.org/path',
+        ]);
+
+        $t->same([
+            'Mozilla browser and Thunderbird email client - http://www.mozilla.com.',
+            'efficient type-specialized machine code',
+            'More information - www.example.org/path',
+        ], $repaired);
+    },
     'preserves positioned pdf tables embedded between surrounding text' => static function (TestRunner $t) use ($pdfWithContent): void {
         $pdf = $pdfWithContent(
             'BT /F1 12 Tf '
