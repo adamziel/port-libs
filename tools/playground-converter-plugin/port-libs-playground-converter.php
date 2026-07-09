@@ -473,6 +473,7 @@ function plpc_convert_collection_file_to_page(array $file, ?array $collection = 
     ));
     $quality = plpc_import_quality_report($format, $diagnostics, count($imageSources), $mediaResult['imported'] + $fallbackMediaResult['imported']);
     $blocks = plpc_prepend_conversion_warning_blocks($blocks, $format, $diagnostics);
+    $blocks = plpc_prepend_import_quality_blocks($blocks, $quality);
 
     $postId = wp_insert_post([
         'post_type' => 'page',
@@ -517,7 +518,10 @@ function plpc_collection_index_blocks(string $title, array $posts, array $diagno
         . "\n" . '<ul class="wp-block-list">' . $items . '</ul>'
         . "\n" . '<!-- /wp:list -->';
 
-    return plpc_prepend_conversion_warning_blocks($blocks, '', $diagnostics);
+    $quality = plpc_import_quality_report('', $diagnostics);
+    $blocks = plpc_prepend_conversion_warning_blocks($blocks, '', $diagnostics);
+
+    return plpc_prepend_import_quality_blocks($blocks, $quality);
 }
 
 function plpc_format_is_ui_unsupported(string $format): bool
@@ -638,6 +642,97 @@ function plpc_prepend_conversion_warning_blocks(string $blocks, string $format, 
     }
 
     return plpc_conversion_warning_blocks($warnings) . "\n\n" . $blocks;
+}
+
+/**
+ * @param array{status:string, flags:list<string>, warnings:list<string>} $quality
+ */
+function plpc_prepend_import_quality_blocks(string $blocks, array $quality): string
+{
+    $status = (string) ($quality['status'] ?? 'complete');
+    $flags = is_array($quality['flags'] ?? null) ? array_values(array_map('strval', $quality['flags'])) : [];
+
+    return plpc_import_quality_blocks($status, $flags) . "\n\n" . $blocks;
+}
+
+/**
+ * @param list<string> $flags
+ */
+function plpc_import_quality_blocks(string $status, array $flags): string
+{
+    $summary = plpc_import_quality_summary($status, $flags);
+    $details = plpc_import_quality_detail_items($status, $flags);
+    $items = '';
+    foreach ($details as $detail) {
+        $items .= '<li>' . esc_html($detail) . '</li>';
+    }
+
+    $classes = 'port-libs-import-quality port-libs-import-quality-' . plpc_html_class_suffix($status === '' ? 'complete' : $status);
+
+    return '<!-- wp:group {"className":"' . esc_attr($classes) . '"} -->'
+        . "\n" . '<div class="wp-block-group ' . esc_attr($classes) . '">'
+        . "\n" . '<!-- wp:paragraph -->'
+        . "\n" . '<p><strong>Import quality:</strong> ' . esc_html($summary) . '</p>'
+        . "\n" . '<!-- /wp:paragraph -->'
+        . ($items === '' ? '' : "\n\n" . '<!-- wp:list -->'
+            . "\n" . '<ul class="wp-block-list">' . $items . '</ul>'
+            . "\n" . '<!-- /wp:list -->')
+        . "\n" . '</div>'
+        . "\n" . '<!-- /wp:group -->';
+}
+
+function plpc_html_class_suffix(string $value): string
+{
+    $value = strtolower(trim($value));
+    $value = preg_replace('/[^a-z0-9_-]+/', '-', $value) ?? $value;
+    $value = trim($value, '-_');
+
+    return $value === '' ? 'complete' : $value;
+}
+
+/**
+ * @param list<string> $flags
+ */
+function plpc_import_quality_summary(string $status, array $flags = []): string
+{
+    $status = strtolower(trim($status));
+
+    return match ($status) {
+        'truncated' => 'Only part of this document was imported.',
+        'partial' => 'Some content could not be imported automatically.',
+        'media_missing' => 'The content imported, but some images or media files are missing.',
+        'layout_uncertain' => 'The content imported, but the layout needs review.',
+        'best_effort' => 'The document was imported using best-effort reconstruction.',
+        default => 'The document imported successfully.',
+    };
+}
+
+/**
+ * @param list<string> $flags
+ * @return list<string>
+ */
+function plpc_import_quality_detail_items(string $status, array $flags): array
+{
+    $details = [];
+    $flags = array_values(array_unique(array_map(static fn (string $flag): string => strtolower(trim($flag)), $flags)));
+
+    if (in_array('truncated', $flags, true)) {
+        $details[] = 'The browser safety limit was reached, so later content may be missing.';
+    }
+    if (in_array('partial', $flags, true)) {
+        $details[] = 'Review the page before publishing; at least one part of the import was incomplete.';
+    }
+    if (in_array('media_missing', $flags, true)) {
+        $details[] = 'Try importing again with all images, or upload the source folder/ZIP that contains the missing media.';
+    }
+    if (in_array('layout_uncertain', $flags, true)) {
+        $details[] = 'Check headings, reading order, columns, tables, and image placement.';
+    }
+    if (in_array('best_effort', $flags, true)) {
+        $details[] = 'This format may not preserve the original document layout exactly.';
+    }
+
+    return $details;
 }
 
 /**

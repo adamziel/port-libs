@@ -1,4 +1,4 @@
-const pluginBuild = '15b26a6049363ed7';
+const pluginBuild = '7ffa8fb156613a65';
 const playgroundClientModuleUrl = 'https://playground.wordpress.net/client/index.js';
 
 const iframe = document.getElementById('wp-playground');
@@ -17,6 +17,12 @@ const statusDot = document.getElementById('playground-status');
 const logOutput = document.getElementById('log-output');
 const conversionProgressText = document.getElementById('conversion-progress-text');
 const pageDropOverlay = document.getElementById('page-drop-overlay');
+const qualityPanel = document.getElementById('quality-panel');
+const qualityTitle = document.getElementById('quality-title');
+const qualityMessage = document.getElementById('quality-message');
+const qualityDetails = document.getElementById('quality-details');
+const retryActions = document.getElementById('retry-actions');
+const retryButtons = Array.from(document.querySelectorAll('[data-retry-image-mode]'));
 
 const formatByExtension = new Map(Object.entries({
   bib: 'bibtex',
@@ -137,6 +143,14 @@ form.addEventListener('submit', async (event) => {
   await convertSelectedFile();
 });
 
+for (const button of retryButtons) {
+  button.addEventListener('click', async () => {
+    const mode = button.dataset.retryImageMode || 'important';
+    setSelectedImageMode(mode);
+    await convertSelectedFile();
+  });
+}
+
 async function convertSelectedFile() {
   if (!selectedUpload) {
     return;
@@ -152,6 +166,7 @@ async function convertSelectedFile() {
   }
 
   setBusy(true);
+  setQualityPanel(null);
   conversionActive = true;
   setProgressStatus('Starting WordPress Playground...');
   setPlaygroundState(playgroundReady ? 'ready' : 'loading');
@@ -185,6 +200,7 @@ async function convertSelectedFile() {
       log(`Created page #${data.postId}: ${data.title}`);
     }
     log(`Rendered image tags: ${data.imageTagCount}; imported media files: ${data.imagesImported}`);
+    setQualityPanel(data.quality || null);
     for (const diagnostic of data.diagnostics || []) {
       log(diagnostic);
     }
@@ -276,6 +292,7 @@ async function startPlayground() {
 
 function setSelectedUpload(upload) {
   selectedUpload = upload;
+  setQualityPanel(null);
   if (!upload) {
     fileName.textContent = 'No file selected';
     titleInput.value = '';
@@ -478,6 +495,123 @@ async function payloadFromUpload(upload) {
 
 function selectedImageMode() {
   return imageModeInputs.find((input) => input.checked)?.value || 'important';
+}
+
+function setSelectedImageMode(mode) {
+  for (const input of imageModeInputs) {
+    input.checked = input.value === mode;
+  }
+}
+
+function setQualityPanel(quality) {
+  if (!qualityPanel || !qualityTitle || !qualityMessage || !qualityDetails) {
+    return;
+  }
+  if (!quality) {
+    qualityPanel.hidden = true;
+    qualityPanel.dataset.status = '';
+    qualityTitle.textContent = 'Import quality';
+    qualityMessage.textContent = '';
+    qualityDetails.replaceChildren();
+    if (retryActions) {
+      retryActions.hidden = true;
+    }
+    return;
+  }
+
+  const status = String(quality.status || 'complete');
+  const flags = Array.isArray(quality.flags) ? quality.flags.map(String) : [];
+  const warnings = Array.isArray(quality.warnings) ? quality.warnings.map(String).filter(Boolean) : [];
+  qualityPanel.hidden = false;
+  qualityPanel.dataset.status = status;
+  qualityTitle.textContent = qualityTitleForStatus(status);
+  qualityMessage.textContent = qualityMessageForStatus(status);
+  qualityDetails.replaceChildren(...qualityDetailItems(status, flags, warnings).map((detail) => {
+    const item = document.createElement('li');
+    item.textContent = detail;
+    return item;
+  }));
+
+  updateRetryActions(flags);
+}
+
+function qualityTitleForStatus(status) {
+  switch (status) {
+    case 'truncated':
+      return 'Import quality: partial import';
+    case 'partial':
+      return 'Import quality: review needed';
+    case 'media_missing':
+      return 'Import quality: missing media';
+    case 'layout_uncertain':
+      return 'Import quality: layout review needed';
+    case 'best_effort':
+      return 'Import quality: best effort';
+    default:
+      return 'Import quality: complete';
+  }
+}
+
+function qualityMessageForStatus(status) {
+  switch (status) {
+    case 'truncated':
+      return 'Only part of this document was imported.';
+    case 'partial':
+      return 'Some content could not be imported automatically.';
+    case 'media_missing':
+      return 'The content imported, but some images or media files are missing.';
+    case 'layout_uncertain':
+      return 'The content imported, but the layout needs review.';
+    case 'best_effort':
+      return 'The document was imported using best-effort reconstruction.';
+    default:
+      return 'The document imported successfully.';
+  }
+}
+
+function qualityDetailItems(status, flags, warnings) {
+  const details = [];
+  const flagSet = new Set(flags);
+  if (flagSet.has('truncated')) {
+    details.push('Later content may be missing because the browser safety limit was reached.');
+  }
+  if (flagSet.has('media_missing')) {
+    details.push('Try importing again with all images, or upload the source folder/ZIP that contains the missing media.');
+  }
+  if (flagSet.has('layout_uncertain')) {
+    details.push('Check headings, reading order, columns, tables, and image placement.');
+  }
+  if (flagSet.has('best_effort')) {
+    details.push('This format may not preserve the original document layout exactly.');
+  }
+  if (flagSet.has('partial') && details.length === 0) {
+    details.push('Review the page before publishing; at least one part of the import was incomplete.');
+  }
+  for (const warning of warnings.slice(0, 3)) {
+    if (!details.includes(warning)) {
+      details.push(warning);
+    }
+  }
+
+  return details;
+}
+
+function updateRetryActions(flags) {
+  if (!retryActions) {
+    return;
+  }
+  const flagSet = new Set(flags);
+  const shouldOfferRetry = selectedUpload && (
+    flagSet.has('media_missing')
+    || flagSet.has('layout_uncertain')
+    || flagSet.has('best_effort')
+  );
+  retryActions.hidden = !shouldOfferRetry;
+  const currentMode = selectedImageMode();
+  for (const button of retryButtons) {
+    const mode = button.dataset.retryImageMode || '';
+    button.hidden = !shouldOfferRetry || mode === currentMode;
+  }
 }
 
 function readFileAsBase64(file) {

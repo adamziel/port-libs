@@ -347,6 +347,21 @@ return [
         $t->same(['best_effort', 'layout_uncertain', 'media_missing', 'truncated', 'partial'], $quality['flags']);
         $t->contains('Only part of the document text was imported because the browser importer reached its safety limit.', implode("\n", $quality['warnings']));
     },
+    'playground importer renders plain language import quality blocks' => static function (TestRunner $t): void {
+        $blocks = plpc_prepend_import_quality_blocks(
+            '<!-- wp:paragraph -->' . "\n" . '<p>Imported body.</p>' . "\n" . '<!-- /wp:paragraph -->',
+            [
+                'status' => 'media_missing',
+                'flags' => ['media_missing', 'layout_uncertain'],
+                'warnings' => [],
+            ]
+        );
+
+        $t->contains('<!-- wp:group {"className":"port-libs-import-quality port-libs-import-quality-media_missing"} -->', $blocks);
+        $t->contains('<strong>Import quality:</strong> The content imported, but some images or media files are missing.', $blocks);
+        $t->contains('Try importing again with all images', $blocks);
+        $t->true(strpos($blocks, 'Import quality:') < strpos($blocks, 'Imported body.'), 'Import quality should appear before imported body content.');
+    },
     'playground importer maps pdf metadata to quality diagnostics' => static function (TestRunner $t): void {
         $document = new PortLibs\Pandoc\AstNode('document', [
             'meta' => [

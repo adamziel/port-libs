@@ -1388,6 +1388,257 @@ function showcase_faithfulness_summary(array $records): array
 }
 
 /**
+ * @return array{status:string, gates:array<string,array<string,mixed>>, summary:array<string,int>}
+ */
+function showcase_record_import_quality(string $siteDir, array $record): array
+{
+    $gates = [];
+    if (($record['wpBlocks']['ok'] ?? false) !== true) {
+        $gates['conversion'] = [
+            'status' => 'fail',
+            'detail' => (string) ($record['wpBlocks']['error'] ?? 'WordPress block conversion failed.'),
+        ];
+
+        return showcase_import_quality_result($gates);
+    }
+
+    $wpPath = (string) ($record['wpBlocks']['path'] ?? '');
+    $baselineKey = (string) (($record['faithfulness']['baseline'] ?? '') ?: '');
+    $baselinePath = $baselineKey !== '' ? (string) ($record[$baselineKey]['path'] ?? '') : '';
+    $wpVisual = showcase_output_visual_signature($siteDir, $wpPath);
+    $baselineVisual = $baselinePath === '' ? [] : showcase_output_visual_signature($siteDir, $baselinePath);
+    $comparison = is_array($record['faithfulness']['comparisons']['wpBlocks'] ?? null)
+        ? $record['faithfulness']['comparisons']['wpBlocks']
+        : [];
+
+    $textScore = isset($comparison['textScore']) ? (float) $comparison['textScore'] : null;
+    $gates['text_completeness'] = showcase_score_gate($textScore, 0.80, 0.55, 'visible text overlap with the baseline');
+
+    $visualScore = isset($comparison['visualScore']) ? (float) $comparison['visualScore'] : null;
+    $gates['visual_structure'] = showcase_score_gate($visualScore, 0.75, 0.50, 'heading/list/table/image shape overlap with the baseline');
+
+    $gates['paragraph_merge_split'] = showcase_count_ratio_gate(
+        (int) ($baselineVisual['p'] ?? 0),
+        (int) ($wpVisual['p'] ?? 0),
+        'paragraph count ratio'
+    );
+    $gates['heading_count'] = showcase_count_ratio_gate(
+        (int) ($baselineVisual['heading'] ?? 0),
+        (int) ($wpVisual['heading'] ?? 0),
+        'heading count ratio'
+    );
+    $gates['list_count'] = showcase_count_ratio_gate(
+        (int) (($baselineVisual['ul'] ?? 0) + ($baselineVisual['ol'] ?? 0)),
+        (int) (($wpVisual['ul'] ?? 0) + ($wpVisual['ol'] ?? 0)),
+        'list count ratio'
+    );
+    $gates['table_count'] = showcase_count_ratio_gate(
+        (int) ($baselineVisual['table'] ?? 0),
+        (int) ($wpVisual['table'] ?? 0),
+        'table count ratio'
+    );
+    $gates['image_count'] = showcase_count_ratio_gate(
+        (int) ($baselineVisual['img'] ?? 0),
+        (int) ($wpVisual['img'] ?? 0),
+        'image count ratio'
+    );
+
+    $mediaProblems = showcase_media_problem_diagnostics($record['wpBlocks']['mediaDiagnostics'] ?? []);
+    $gates['media_imported'] = [
+        'status' => $mediaProblems === [] ? 'pass' : 'review',
+        'expected' => 0,
+        'actual' => count($mediaProblems),
+        'detail' => $mediaProblems === [] ? 'no media extraction problems reported' : implode('; ', array_slice($mediaProblems, 0, 3)),
+    ];
+
+    $anchorIssues = showcase_output_anchor_issues($siteDir, $wpPath);
+    $gates['anchor_validity'] = [
+        'status' => $anchorIssues === [] ? 'pass' : 'fail',
+        'expected' => 0,
+        'actual' => count($anchorIssues),
+        'detail' => $anchorIssues === [] ? 'all local fragment links resolve' : implode(', ', array_slice($anchorIssues, 0, 5)),
+    ];
+
+    $counts = is_array($record['wpBlockCounts'] ?? null) ? $record['wpBlockCounts'] : [];
+    $totalBlocks = array_sum(array_map('intval', $counts));
+    $customHtmlBlocks = (int) ($counts['html'] ?? 0);
+    $customHtmlShare = $totalBlocks <= 0 ? 0.0 : round($customHtmlBlocks / $totalBlocks, 4);
+    $gates['custom_html_percentage'] = [
+        'status' => $customHtmlShare <= 0.05 ? 'pass' : ($customHtmlShare <= 0.15 ? 'review' : 'fail'),
+        'expected' => '<=0.05',
+        'actual' => $customHtmlShare,
+        'detail' => $customHtmlBlocks . '/' . $totalBlocks . ' WordPress blocks are Custom HTML',
+    ];
+
+    return showcase_import_quality_result($gates);
+}
+
+/**
+ * @param array<string,array<string,mixed>> $gates
+ * @return array{status:string, gates:array<string,array<string,mixed>>, summary:array<string,int>}
+ */
+function showcase_import_quality_result(array $gates): array
+{
+    $summary = ['pass' => 0, 'review' => 0, 'fail' => 0];
+    foreach ($gates as $gate) {
+        $status = (string) ($gate['status'] ?? 'review');
+        if (!isset($summary[$status])) {
+            $status = 'review';
+        }
+        $summary[$status]++;
+    }
+    $status = $summary['fail'] > 0 ? 'fail' : ($summary['review'] > 0 ? 'review' : 'pass');
+
+    return [
+        'status' => $status,
+        'gates' => $gates,
+        'summary' => $summary,
+    ];
+}
+
+/**
+ * @return array{status:string, expected:mixed, actual:mixed, detail:string}
+ */
+function showcase_score_gate(?float $score, float $passThreshold, float $reviewThreshold, string $detail): array
+{
+    if ($score === null) {
+        return [
+            'status' => 'review',
+            'expected' => '>=' . $passThreshold,
+            'actual' => null,
+            'detail' => 'no baseline comparison available for ' . $detail,
+        ];
+    }
+
+    return [
+        'status' => $score >= $passThreshold ? 'pass' : ($score >= $reviewThreshold ? 'review' : 'fail'),
+        'expected' => '>=' . $passThreshold,
+        'actual' => round($score, 4),
+        'detail' => $detail,
+    ];
+}
+
+/**
+ * @return array{status:string, expected:string, actual:mixed, detail:string}
+ */
+function showcase_count_ratio_gate(int $expected, int $actual, string $detail): array
+{
+    if ($expected === 0 && $actual === 0) {
+        return ['status' => 'pass', 'expected' => '0', 'actual' => 0, 'detail' => $detail];
+    }
+    if ($expected === 0) {
+        return ['status' => 'review', 'expected' => '0', 'actual' => $actual, 'detail' => $detail . ' has no baseline count'];
+    }
+    $ratio = round($actual / max(1, $expected), 4);
+
+    return [
+        'status' => ($ratio >= 0.80 && $ratio <= 1.25) ? 'pass' : (($ratio >= 0.50 && $ratio <= 2.00) ? 'review' : 'fail'),
+        'expected' => '0.80-1.25',
+        'actual' => $ratio,
+        'detail' => $detail . ' expected ' . $expected . ', got ' . $actual,
+    ];
+}
+
+/**
+ * @param mixed $diagnostics
+ * @return list<string>
+ */
+function showcase_media_problem_diagnostics(mixed $diagnostics): array
+{
+    if (!is_array($diagnostics)) {
+        return [];
+    }
+    $problems = [];
+    foreach ($diagnostics as $diagnostic) {
+        $diagnostic = (string) $diagnostic;
+        if ($diagnostic === '' || str_starts_with($diagnostic, 'extract-media-pdf-image-unimportant:')) {
+            continue;
+        }
+        if (preg_match('/(?:missing|failed|unreadable|invalid|skipped|too-large|limit|conflict)/i', $diagnostic) === 1) {
+            $problems[] = $diagnostic;
+        }
+    }
+
+    return array_values(array_unique($problems));
+}
+
+/**
+ * @return list<string>
+ */
+function showcase_output_anchor_issues(string $siteDir, string $relativePath): array
+{
+    $html = showcase_output_html($siteDir, $relativePath);
+    if ($html === '' || !class_exists(DOMDocument::class)) {
+        return [];
+    }
+
+    $dom = new DOMDocument();
+    $previous = libxml_use_internal_errors(true);
+    try {
+        $loaded = $dom->loadHTML('<!doctype html><html><body>' . $html . '</body></html>', LIBXML_NONET);
+    } finally {
+        libxml_clear_errors();
+        libxml_use_internal_errors($previous);
+    }
+    if (!$loaded) {
+        return ['html-parse-failed'];
+    }
+
+    $targets = [];
+    foreach ($dom->getElementsByTagName('*') as $element) {
+        if (!$element instanceof DOMElement) {
+            continue;
+        }
+        foreach (['id', 'name'] as $attr) {
+            $value = trim($element->getAttribute($attr));
+            if ($value !== '') {
+                $targets[$value] = true;
+            }
+        }
+    }
+
+    $issues = [];
+    foreach ($dom->getElementsByTagName('a') as $anchor) {
+        if (!$anchor instanceof DOMElement) {
+            continue;
+        }
+        $href = trim($anchor->getAttribute('href'));
+        if ($href === '' || $href === '#' || !str_starts_with($href, '#')) {
+            continue;
+        }
+        $fragment = rawurldecode(substr($href, 1));
+        if ($fragment !== '' && !isset($targets[$fragment])) {
+            $issues[] = $href;
+        }
+    }
+
+    return array_values(array_unique($issues));
+}
+
+/**
+ * @param list<array<string,mixed>> $records
+ * @return array{samples:int, pass:int, review:int, fail:int}
+ */
+function showcase_import_quality_summary(array $records): array
+{
+    $summary = ['samples' => 0, 'pass' => 0, 'review' => 0, 'fail' => 0];
+    foreach ($records as $record) {
+        $quality = $record['importQuality'] ?? null;
+        if (!is_array($quality)) {
+            continue;
+        }
+        $summary['samples']++;
+        $status = (string) ($quality['status'] ?? 'review');
+        if (!isset($summary[$status])) {
+            $status = 'review';
+        }
+        $summary[$status]++;
+    }
+
+    return $summary;
+}
+
+/**
  * @param list<array<string, mixed>> $records
  * @return array{
  *   totalSamples:int,
@@ -1595,7 +1846,8 @@ function write_conversion_report(
     array $missingFormats,
     array $summary,
     array $blockUsage,
-    array $faithfulnessSummary
+    array $faithfulnessSummary,
+    array $importQualitySummary
 ): void {
     $recordsById = [];
     foreach ($records as $record) {
@@ -1634,6 +1886,7 @@ function write_conversion_report(
     $html .= '<div class="stat"><strong>' . h((string) $summary['failedConversions']) . '</strong><span>known failures</span></div>';
     $html .= '<div class="stat"><strong>' . h((string) ($faithfulnessSummary['faithfulEnough'] ?? 0)) . '/' . h((string) ($faithfulnessSummary['comparisons'] ?? 0)) . '</strong><span>text-faithful comparisons</span></div>';
     $html .= '<div class="stat"><strong>' . h((string) ($faithfulnessSummary['visualFaithfulEnough'] ?? 0)) . '/' . h((string) ($faithfulnessSummary['visualComparisons'] ?? 0)) . '</strong><span>visual-structure matches</span></div>';
+    $html .= '<div class="stat"><strong>' . h((string) ($importQualitySummary['pass'] ?? 0)) . '/' . h((string) ($importQualitySummary['samples'] ?? 0)) . '</strong><span>import-quality passes</span></div>';
     $html .= '</div><div class="hero-actions"><a href="index.html">Full showcase</a><a href="playground-converter.html">Convert in WordPress Playground</a><a href="manifest.json">Manifest JSON</a></div></div></header>';
     $html .= '<main class="content-page report-page">';
 
@@ -1659,6 +1912,27 @@ function write_conversion_report(
     $html .= '<div class="report-card"><h3>Needs review</h3><p class="report-number">' . h((string) ($faithfulnessSummary['visualReview'] ?? 0)) . '</p></div>';
     $html .= '<div class="report-card"><h3>Divergent or empty</h3><p class="report-number">' . h((string) (($faithfulnessSummary['visualDivergent'] ?? 0) + ($faithfulnessSummary['visualNoStructure'] ?? 0))) . '</p></div>';
     $html .= '</div></section>';
+
+    $html .= '<section><h2>Import quality gates</h2>';
+    $html .= '<p>These checks evaluate the WordPress block output as an import artifact: visible text completeness, heading/list/table/image counts, paragraph merge or split drift, media extraction diagnostics, local anchor validity, and Custom HTML block share.</p>';
+    $html .= '<div class="report-grid">';
+    $html .= '<div class="report-card"><h3>Pass</h3><p class="report-number">' . h((string) ($importQualitySummary['pass'] ?? 0)) . '</p></div>';
+    $html .= '<div class="report-card"><h3>Review</h3><p class="report-number">' . h((string) ($importQualitySummary['review'] ?? 0)) . '</p></div>';
+    $html .= '<div class="report-card"><h3>Fail</h3><p class="report-number">' . h((string) ($importQualitySummary['fail'] ?? 0)) . '</p></div>';
+    $html .= '</div>';
+    $html .= '<table class="report-table compact-table"><thead><tr><th>Sample</th><th>Status</th><th>Gate summary</th></tr></thead><tbody>';
+    foreach ($records as $record) {
+        $quality = is_array($record['importQuality'] ?? null) ? $record['importQuality'] : [];
+        $status = (string) ($quality['status'] ?? 'review');
+        $gateSummary = is_array($quality['summary'] ?? null) ? $quality['summary'] : [];
+        if ($status === 'pass') {
+            continue;
+        }
+        $html .= '<tr><td><a href="index.html#' . h((string) $record['id']) . '">' . h((string) $record['label']) . '</a><br><code>' . h((string) $record['format']) . '</code></td>';
+        $html .= '<td><span class="' . ($status === 'fail' ? 'status-fail' : 'status-warn') . '">' . h($status) . '</span></td>';
+        $html .= '<td>' . h((string) ($gateSummary['pass'] ?? 0)) . ' pass, ' . h((string) ($gateSummary['review'] ?? 0)) . ' review, ' . h((string) ($gateSummary['fail'] ?? 0)) . ' fail</td></tr>';
+    }
+    $html .= '</tbody></table></section>';
 
     $html .= '<section><h2>Curated stress showcase</h2><p>These are representative real-world files from the pulled corpus: leaflets, brochures, a scanned book, image-heavy packages, table-heavy office documents, and rich markup fixtures.</p>';
     $html .= '<table class="report-table"><thead><tr><th>Sample</th><th>Format</th><th>Size</th><th>PHP WordPress blocks</th><th>PHP HTML</th><th>Haskell HTML</th></tr></thead><tbody>';
@@ -1882,6 +2156,7 @@ foreach ($samples as $sample) {
         'wpBlockCounts' => $wpBlockCounts,
     ];
     $record['faithfulness'] = showcase_record_faithfulness($siteDir, $record);
+    $record['importQuality'] = showcase_record_import_quality($siteDir, $record);
     $records[] = $record;
 }
 
@@ -1891,6 +2166,7 @@ $missingFormats = array_values(array_diff($formats, $coveredFormats));
 $blockUsage = aggregate_wordpress_block_counts($records);
 $conversionSummary = conversion_summary($records);
 $faithfulnessSummary = showcase_faithfulness_summary($records);
+$importQualitySummary = showcase_import_quality_summary($records);
 
 file_put_contents($siteDir . '/manifest.json', json_encode([
     'generatedAt' => gmdate('c'),
@@ -1901,6 +2177,7 @@ file_put_contents($siteDir . '/manifest.json', json_encode([
     'missingFormats' => $missingFormats,
     'conversionSummary' => $conversionSummary,
     'faithfulnessSummary' => $faithfulnessSummary,
+    'importQualitySummary' => $importQualitySummary,
     'blockUsage' => $blockUsage,
     'records' => $records,
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
@@ -2524,7 +2801,7 @@ foreach ($byFormat as $format => $formatRecords) {
 $html .= '</main><script src="showcase.js"></script></body></html>';
 
 file_put_contents($siteDir . '/index.html', $html);
-write_conversion_report($siteDir, $records, $coveredFormats, $missingFormats, $conversionSummary, $blockUsage, $faithfulnessSummary);
+write_conversion_report($siteDir, $records, $coveredFormats, $missingFormats, $conversionSummary, $blockUsage, $faithfulnessSummary, $importQualitySummary);
 
 $knownBlockRows = [
     'group' => [

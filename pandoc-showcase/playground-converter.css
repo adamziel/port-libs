@@ -333,6 +333,88 @@ body[data-dragging="true"] {
   display: flex;
 }
 
+.quality-panel {
+  box-sizing: border-box;
+  width: min(100%, 440px);
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid #d8d2c5;
+  border-left: 4px solid #0f6b4f;
+  border-radius: 6px;
+  background: #f7fbf8;
+  color: #27303a;
+  text-align: left;
+}
+
+.quality-panel[hidden] {
+  display: none;
+}
+
+.quality-panel[data-status="truncated"],
+.quality-panel[data-status="partial"],
+.quality-panel[data-status="media_missing"] {
+  border-left-color: #8b2c34;
+  background: #fff6f5;
+}
+
+.quality-panel[data-status="layout_uncertain"],
+.quality-panel[data-status="best_effort"] {
+  border-left-color: #d8a942;
+  background: #fffaf0;
+}
+
+.quality-panel strong {
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.quality-panel p {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 750;
+  line-height: 1.35;
+}
+
+.quality-panel ul {
+  margin: 0;
+  padding-left: 18px;
+  color: #515b66;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.quality-panel ul:empty {
+  display: none;
+}
+
+.retry-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.retry-actions[hidden] {
+  display: none;
+}
+
+.retry-actions button {
+  min-height: 34px;
+  padding: 0 10px;
+  border: 1px solid #202833;
+  border-radius: 6px;
+  background: #fffdf8;
+  color: #202833;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.retry-actions button:hover {
+  background: #f3f8f5;
+}
+
 .progress-spinner {
   width: 18px;
   height: 18px;

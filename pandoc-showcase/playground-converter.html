@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Import any document into WordPress</title>
   <link rel="stylesheet" href="styles.css">
-  <link rel="stylesheet" href="playground-converter.css?v=image-modes-doc-policy-20260708">
+  <link rel="stylesheet" href="playground-converter.css?v=quality-retry-20260709">
 </head>
 <body>
   <main class="playground-tool">
@@ -104,6 +104,17 @@
           <span id="conversion-progress-text">Preparing conversion...</span>
         </div>
 
+        <section id="quality-panel" class="quality-panel" aria-live="polite" hidden>
+          <strong id="quality-title">Import quality</strong>
+          <p id="quality-message"></p>
+          <ul id="quality-details"></ul>
+          <div id="retry-actions" class="retry-actions" hidden>
+            <button type="button" data-retry-image-mode="none">Retry with no images</button>
+            <button type="button" data-retry-image-mode="important">Retry with important images</button>
+            <button type="button" data-retry-image-mode="all">Retry with all images</button>
+          </div>
+        </section>
+
         <button id="convert-button" type="submit" disabled>Start WordPress and convert</button>
       </form>
 
@@ -128,6 +139,6 @@
     <strong>Drop to import</strong>
   </div>
 
-  <script type="module" src="playground-converter.js?v=image-modes-doc-policy-20260708"></script>
+  <script type="module" src="playground-converter.js?v=quality-retry-20260709"></script>
 </body>
 </html>
