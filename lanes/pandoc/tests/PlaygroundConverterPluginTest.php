@@ -477,7 +477,23 @@ return [
             'pdf-layout-uncertain:geometry-tables',
         ], $diagnostics);
         $t->same('truncated', $quality['status']);
+        $t->same(['best_effort', 'layout_uncertain', 'truncated', 'partial', 'ocr_needed'], $quality['flags']);
         $t->contains('Scanned pages may need OCR before import.', implode("\n", $quality['warnings']));
+    },
+    'playground importer reports scanned pdfs as needing ocr' => static function (TestRunner $t): void {
+        $quality = plpc_import_quality_report('pdf', ['pdf-scanned-or-image-only']);
+
+        $t->same('ocr_needed', $quality['status']);
+        $t->same(['best_effort', 'layout_uncertain', 'ocr_needed', 'partial'], $quality['flags']);
+
+        $blocks = plpc_prepend_import_quality_blocks(
+            '<!-- wp:paragraph -->' . "\n" . '<p>Imported body.</p>' . "\n" . '<!-- /wp:paragraph -->',
+            $quality
+        );
+
+        $t->contains('port-libs-import-quality-ocr_needed', $blocks);
+        $t->contains('<strong>Import quality:</strong> This PDF likely needs OCR before import.', $blocks);
+        $t->contains('Run OCR first, then import the searchable PDF.', $blocks);
     },
     'playground importer treats legacy doc as unsupported in the UI' => static function (TestRunner $t): void {
         $collection = [

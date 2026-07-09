@@ -606,6 +606,7 @@ function plpc_import_quality_report(string $format, array $diagnostics, int $ima
             $flags[] = 'layout_uncertain';
             $flags[] = 'best_effort';
         } elseif ($unscoped === 'pdf-scanned-or-image-only') {
+            $flags[] = 'ocr_needed';
             $flags[] = 'partial';
             $flags[] = 'layout_uncertain';
         } elseif (str_starts_with($unscoped, 'image-not-resolved:') || str_starts_with($unscoped, 'image-upload-failed:')) {
@@ -616,7 +617,7 @@ function plpc_import_quality_report(string $format, array $diagnostics, int $ima
     }
 
     $flags = array_values(array_unique($flags));
-    $rank = ['truncated', 'partial', 'media_missing', 'layout_uncertain', 'best_effort'];
+    $rank = ['truncated', 'ocr_needed', 'partial', 'media_missing', 'layout_uncertain', 'best_effort'];
     $status = 'complete';
     foreach ($rank as $candidate) {
         if (in_array($candidate, $flags, true)) {
@@ -739,6 +740,7 @@ function plpc_import_quality_summary(string $status, array $flags = []): string
 
     return match ($status) {
         'truncated' => 'Only part of this document was imported.',
+        'ocr_needed' => 'This PDF likely needs OCR before import.',
         'partial' => 'Some content could not be imported automatically.',
         'media_missing' => 'The content imported, but some images or media files are missing.',
         'layout_uncertain' => 'The content imported, but the layout needs review.',
@@ -758,6 +760,9 @@ function plpc_import_quality_detail_items(string $status, array $flags): array
 
     if (in_array('truncated', $flags, true)) {
         $details[] = 'The browser safety limit was reached, so later content may be missing.';
+    }
+    if (in_array('ocr_needed', $flags, true)) {
+        $details[] = 'This PDF appears to have little or no extractable text. Run OCR first, then import the searchable PDF.';
     }
     if (in_array('partial', $flags, true)) {
         $details[] = 'Review the page before publishing; at least one part of the import was incomplete.';

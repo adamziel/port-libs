@@ -1,4 +1,4 @@
-const pluginBuild = '2039f1ca8bf8';
+const pluginBuild = 'c73baad5aef9';
 const playgroundClientModuleUrl = 'https://playground.wordpress.net/client/index.js';
 
 const iframe = document.getElementById('wp-playground');
@@ -578,13 +578,15 @@ function setQualityPanel(quality) {
     return item;
   }));
 
-  updateRetryActions(flags);
+  updateRetryActions(status, flags);
 }
 
 function qualityTitleForStatus(status) {
   switch (status) {
     case 'truncated':
       return 'Import quality: partial import';
+    case 'ocr_needed':
+      return 'Import quality: OCR needed';
     case 'partial':
       return 'Import quality: review needed';
     case 'media_missing':
@@ -602,6 +604,8 @@ function qualityMessageForStatus(status) {
   switch (status) {
     case 'truncated':
       return 'Only part of this document was imported.';
+    case 'ocr_needed':
+      return 'This PDF likely needs OCR before import.';
     case 'partial':
       return 'Some content could not be imported automatically.';
     case 'media_missing':
@@ -627,6 +631,12 @@ function qualityDetailItems(status, flags, warnings) {
   if (flagSet.has('truncated')) {
     details.push('Later content may be missing because the browser safety limit was reached.');
   }
+  if (flagSet.has('ocr_needed')) {
+    details.push('This PDF appears to have little or no extractable text. Run OCR first, then import the searchable PDF.');
+  }
+  if (flagSet.has('partial')) {
+    details.push('Review the page before publishing; at least one part of the import was incomplete.');
+  }
   if (flagSet.has('media_missing')) {
     details.push('Try importing again with all images, or upload the source folder/ZIP that contains the missing media.');
   }
@@ -635,9 +645,6 @@ function qualityDetailItems(status, flags, warnings) {
   }
   if (flagSet.has('best_effort')) {
     details.push('This format may not preserve the original document layout exactly.');
-  }
-  if (flagSet.has('partial') && details.length === 0) {
-    details.push('Review the page before publishing; at least one part of the import was incomplete.');
   }
   for (const warning of warnings.slice(0, 3)) {
     if (!details.includes(warning)) {
@@ -648,14 +655,19 @@ function qualityDetailItems(status, flags, warnings) {
   return details;
 }
 
-function updateRetryActions(flags) {
+function updateRetryActions(status, flags) {
   if (!retryActions) {
     return;
   }
+  const qualityStatus = String(status || 'complete');
   const flagSet = new Set(flags);
   const shouldOfferImageRetry = Boolean(selectedUpload && flagSet.has('media_missing'));
   const shouldOfferPdfRetry = Boolean(selectedUpload && uploadContainsPdf(selectedUpload) && (
-    flagSet.has('layout_uncertain')
+    qualityStatus !== 'complete'
+    || flagSet.has('truncated')
+    || flagSet.has('partial')
+    || flagSet.has('ocr_needed')
+    || flagSet.has('layout_uncertain')
     || flagSet.has('best_effort')
   ));
   retryActions.hidden = !(shouldOfferImageRetry || shouldOfferPdfRetry);
