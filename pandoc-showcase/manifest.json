@@ -1,5 +1,5 @@
 {
-    "generatedAt": "2026-07-09T01:02:20+00:00",
+    "generatedAt": "2026-07-09T01:18:48+00:00",
     "pandocVersion": "pandoc 3.10\nFeatures: +server +lua\nScripting engine: Lua 5.4\nUser data directory: $REPO\nCopyright (C) 2006-2025 John MacFarlane. Web:  https://pandoc.org\nThis is free software; see the source for copying conditions. There is no\nwarranty, not even for merchantability or fitness for a particular purpose.",
     "mediaImageMode": "important",
     "formats": [
@@ -3231,9 +3231,9 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "faithful_enough",
-                        "score": 0.8614,
+                        "score": 0.8615,
                         "textStatus": "faithful_enough",
-                        "textScore": 0.8614,
+                        "textScore": 0.8615,
                         "visualStatus": "faithful_enough",
                         "visualScore": 0.8839
                     },
@@ -3254,7 +3254,7 @@
                     "text_completeness": {
                         "status": "pass",
                         "expected": ">=0.8",
-                        "actual": 0.8614,
+                        "actual": 0.8615,
                         "detail": "visible text overlap with the baseline"
                     },
                     "visual_structure": {
@@ -3365,18 +3365,18 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "faithful_enough",
-                        "score": 0.975,
+                        "score": 0.9749,
                         "textStatus": "faithful_enough",
-                        "textScore": 0.975,
+                        "textScore": 0.9749,
                         "visualStatus": "faithful_enough",
                         "visualScore": 0.9498
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
                         "status": "faithful_enough",
-                        "score": 0.9793,
+                        "score": 0.9791,
                         "textStatus": "faithful_enough",
-                        "textScore": 0.9793,
+                        "textScore": 0.9791,
                         "visualStatus": "faithful_enough",
                         "visualScore": 0.9904
                     }
@@ -3388,7 +3388,7 @@
                     "text_completeness": {
                         "status": "pass",
                         "expected": ">=0.8",
-                        "actual": 0.975,
+                        "actual": 0.9749,
                         "detail": "visible text overlap with the baseline"
                     },
                     "visual_structure": {

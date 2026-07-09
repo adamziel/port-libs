@@ -72,8 +72,10 @@ final class DocxReader
 
     private bool $stylesExtension;
 
+    private bool $preserveRunStyles;
+
     /**
-     * @param array{revisionMode?: string, commentsMode?: string, collectWarnings?: bool, stylesExtension?: bool} $options
+     * @param array{revisionMode?: string, commentsMode?: string, collectWarnings?: bool, stylesExtension?: bool, preserveRunStyles?: bool} $options
      */
     public function __construct(array $options = [])
     {
@@ -81,6 +83,7 @@ final class DocxReader
         $this->commentsMode = $this->normalizeCommentsMode((string) ($options['commentsMode'] ?? 'preserve'));
         $this->collectWarnings = (bool) ($options['collectWarnings'] ?? false);
         $this->stylesExtension = (bool) ($options['stylesExtension'] ?? false);
+        $this->preserveRunStyles = (bool) ($options['preserveRunStyles'] ?? false);
     }
 
     public function read(string $bytes): AstNode
@@ -5240,6 +5243,11 @@ final class DocxReader
         }
 
         $flags = $this->runStyleFlags($style);
+        foreach (['textColor', 'fontSize'] as $inlineStyleKey) {
+            if (is_string($style[$inlineStyleKey] ?? null) && $style[$inlineStyleKey] !== '') {
+                $flags[$inlineStyleKey] = $style[$inlineStyleKey];
+            }
+        }
         if ($layers !== []) {
             $flags['__layers'] = $layers;
         }
@@ -5351,7 +5359,7 @@ final class DocxReader
     }
 
     /**
-     * @return array<string, bool>
+     * @return array<string, mixed>
      */
     private function runPropertyStyle(\DOMElement $rPr): array
     {
@@ -5372,7 +5380,31 @@ final class DocxReader
                 $style['small_caps'] = $this->truthyOnOff($prop);
             } elseif ($prop->localName === 'highlight') {
                 $value = strtolower($this->attr($prop, self::W_NS, 'val'));
-                $style['mark'] = !in_array($value, ['', 'none'], true);
+                if ($this->preserveRunStyles) {
+                    $highlightColor = $this->docxHighlightCssColor($value);
+                    $style['mark'] = $highlightColor !== '';
+                    if ($highlightColor !== '') {
+                        $style['markBackgroundColor'] = $highlightColor;
+                    } elseif (in_array($value, ['none', ''], true)) {
+                        unset($style['markBackgroundColor']);
+                    }
+                } else {
+                    $style['mark'] = !in_array($value, ['', 'none'], true);
+                }
+            } elseif ($prop->localName === 'color') {
+                if ($this->preserveRunStyles) {
+                    $color = $this->docxHexCssColor($this->attr($prop, self::W_NS, 'val'));
+                    if ($color !== '') {
+                        $style['textColor'] = $color;
+                    }
+                }
+            } elseif ($prop->localName === 'sz') {
+                if ($this->preserveRunStyles) {
+                    $fontSize = $this->docxHalfPointFontSize($this->attr($prop, self::W_NS, 'val'));
+                    if ($fontSize !== '') {
+                        $style['fontSize'] = $fontSize;
+                    }
+                }
             } elseif ($prop->localName === 'vertAlign') {
                 $value = strtolower($this->attr($prop, self::W_NS, 'val'));
                 if ($value === 'superscript') {
@@ -5391,6 +5423,57 @@ final class DocxReader
         return $style;
     }
 
+    private function docxHexCssColor(string $value): string
+    {
+        $value = trim($value);
+        if (preg_match('/^[0-9a-f]{6}$/i', $value) !== 1) {
+            return '';
+        }
+
+        return '#' . strtoupper($value);
+    }
+
+    private function docxHighlightCssColor(string $value): string
+    {
+        return match (strtolower(trim($value))) {
+            'black' => '#000000',
+            'blue' => '#0000FF',
+            'cyan' => '#00FFFF',
+            'green' => '#008000',
+            'magenta' => '#FF00FF',
+            'red' => '#FF0000',
+            'yellow' => '#FFFF00',
+            'white' => '#FFFFFF',
+            'darkblue' => '#00008B',
+            'darkcyan' => '#008B8B',
+            'darkgreen' => '#006400',
+            'darkmagenta' => '#8B008B',
+            'darkred' => '#8B0000',
+            'darkyellow' => '#808000',
+            'darkgray', 'darkgrey' => '#A9A9A9',
+            'lightgray', 'lightgrey' => '#D3D3D3',
+            default => '',
+        };
+    }
+
+    private function docxHalfPointFontSize(string $value): string
+    {
+        $value = trim($value);
+        if (!is_numeric($value)) {
+            return '';
+        }
+
+        $halfPoints = (float) $value;
+        if ($halfPoints <= 0.0 || $halfPoints > 400.0) {
+            return '';
+        }
+
+        $points = $halfPoints / 2.0;
+        $formatted = rtrim(rtrim(number_format($points, 2, '.', ''), '0'), '.');
+
+        return ($formatted === '' ? '0' : $formatted) . 'pt';
+    }
+
     /**
      * @param array<string, mixed> $style
      * @return array<string, bool>
@@ -5402,6 +5485,9 @@ final class DocxReader
             if (array_key_exists($flag, $style) && is_bool($style[$flag])) {
                 $flags[$flag] = $style[$flag];
             }
+        }
+        if (($flags['mark'] ?? false) === true && is_string($style['markBackgroundColor'] ?? null)) {
+            $flags['markBackgroundColor'] = $style['markBackgroundColor'];
         }
 
         return $flags;
@@ -5418,6 +5504,9 @@ final class DocxReader
             if (($style[$flag] ?? false) === true) {
                 $flags[$flag] = true;
             }
+        }
+        if (($flags['mark'] ?? false) === true && is_string($style['markBackgroundColor'] ?? null)) {
+            $flags['markBackgroundColor'] = $style['markBackgroundColor'];
         }
 
         return $flags;
@@ -5489,10 +5578,12 @@ final class DocxReader
                 $nodes = $this->styledRunNodesForLayer($nodes, $layerStyle, $origin);
             }
 
-            return $nodes;
+            return $this->styledRunInlineStyleNodes($nodes, $style);
         }
 
-        return $this->styledRunNodesForLayer($nodes, $style, 'direct');
+        $nodes = $this->styledRunNodesForLayer($nodes, $style, 'direct');
+
+        return $this->styledRunInlineStyleNodes($nodes, $style);
     }
 
     /**
@@ -5504,7 +5595,7 @@ final class DocxReader
     {
         foreach ($this->runStyleNodeTypes() as $styleKey => $nodeType) {
             if (($style[$styleKey] ?? false) && $nodes !== []) {
-                $nodes = [new AstNode($nodeType, $this->runStyleNodeAttrs($styleKey, $origin), $nodes)];
+                $nodes = [new AstNode($nodeType, $this->runStyleNodeAttrs($styleKey, $origin, $style), $nodes)];
             }
         }
 
@@ -5512,13 +5603,50 @@ final class DocxReader
     }
 
     /**
+     * @param list<AstNode> $nodes
+     * @param array<string, mixed> $style
+     * @return list<AstNode>
+     */
+    private function styledRunInlineStyleNodes(array $nodes, array $style): array
+    {
+        $css = $this->runInlineCssStyle($style);
+        if ($css === '' || $nodes === []) {
+            return $nodes;
+        }
+
+        return [new AstNode('span', ['attributes' => ['style' => $css]], $nodes)];
+    }
+
+    /**
+     * @param array<string, mixed> $style
+     */
+    private function runInlineCssStyle(array $style): string
+    {
+        $declarations = [];
+        $textColor = is_string($style['textColor'] ?? null) ? $style['textColor'] : '';
+        if ($textColor !== '') {
+            $declarations[] = 'color:' . $textColor;
+        }
+        $fontSize = is_string($style['fontSize'] ?? null) ? $style['fontSize'] : '';
+        if ($fontSize !== '') {
+            $declarations[] = 'font-size:' . $fontSize;
+        }
+
+        return implode('; ', $declarations);
+    }
+
+    /**
      * @return array<string, mixed>
      */
-    private function runStyleNodeAttrs(string $styleKey, string $origin): array
+    private function runStyleNodeAttrs(string $styleKey, string $origin, array $style = []): array
     {
         $attrs = [self::INTERNAL_STYLE_ORIGIN_ATTR => $origin];
         if ($styleKey === 'mark') {
             $attrs['classes'] = ['mark'];
+            $background = is_string($style['markBackgroundColor'] ?? null) ? $style['markBackgroundColor'] : '';
+            if ($background !== '') {
+                $attrs['attributes'] = ['style' => 'background-color:' . $background];
+            }
         }
 
         return $attrs;

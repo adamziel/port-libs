@@ -2301,6 +2301,11 @@ final class WordPressBlockWriter
             $declarations[] = 'background-color:' . $backgroundColor;
         }
 
+        $fontSize = $this->normalizeInlineFontSize($this->styleDeclarationValue($style, 'font-size'));
+        if ($fontSize !== '') {
+            $declarations[] = 'font-size:' . $fontSize;
+        }
+
         $fontVariant = strtolower(trim($this->styleDeclarationValue($style, 'font-variant')));
         if ($fontVariant === 'small-caps') {
             $declarations[] = 'font-variant:small-caps';
@@ -2322,6 +2327,27 @@ final class WordPressBlockWriter
         }
 
         return $declarations;
+    }
+
+    private function normalizeInlineFontSize(string $value): string
+    {
+        $value = trim($value);
+        $keyword = strtolower($value);
+        if (in_array($keyword, ['xx-small', 'x-small', 'small', 'medium', 'large', 'x-large', 'xx-large', 'smaller', 'larger'], true)) {
+            return $keyword;
+        }
+        if (preg_match('/^(\d+(?:\.\d+)?|\.\d+)(px|pt|pc|in|cm|mm|em|rem|%)$/i', $value, $match) !== 1) {
+            return '';
+        }
+
+        $number = (float) $match[1];
+        if ($number <= 0.0 || $number > 10000.0) {
+            return '';
+        }
+
+        $formatted = rtrim(rtrim(number_format($number, 4, '.', ''), '0'), '.');
+
+        return ($formatted === '' ? '0' : $formatted) . strtolower($match[2]);
     }
 
     private function normalizeInlineTextDecoration(string $value): string

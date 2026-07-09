@@ -859,6 +859,9 @@ function plpc_converter_options(string $format): array
         $readerOptions['pdfGeometryTables'] = true;
         $readerOptions['pdfRepairProseText'] = true;
     }
+    if ($canonicalFormat === 'docx') {
+        $readerOptions['preserveRunStyles'] = true;
+    }
     if ($canonicalFormat === 'csv' || $canonicalFormat === 'tsv') {
         $readerOptions['allowBlankRecords'] = true;
     }

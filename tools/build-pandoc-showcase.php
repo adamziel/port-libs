@@ -951,12 +951,17 @@ function showcase_converter_options(string $from, string $to): array
 {
     $readerOptions = [];
     $writerOptions = [];
-    if (PandocConverter::canonicalInputFormat($from) === 'pdf') {
+    $canonicalInput = PandocConverter::canonicalInputFormat($from);
+    $canonicalOutput = PandocConverter::canonicalOutputFormat($to);
+    if ($canonicalInput === 'pdf') {
         $readerOptions['maxTextBytes'] = 80000;
         $readerOptions['pdfGeometryTables'] = false;
         $readerOptions['pdfRepairProseText'] = true;
     }
-    if (in_array(PandocConverter::canonicalOutputFormat($to), ['html', 'wordpress'], true)) {
+    if ($canonicalInput === 'docx' && in_array($canonicalOutput, ['html', 'wordpress'], true)) {
+        $readerOptions['preserveRunStyles'] = true;
+    }
+    if (in_array($canonicalOutput, ['html', 'wordpress'], true)) {
         $writerOptions['writerHTMLMathMethod'] = 'mathml';
     }
 

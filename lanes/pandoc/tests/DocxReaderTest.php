@@ -158,7 +158,7 @@ return [
             'word/document.xml' => '<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:pPr><w:pStyle w:val="Title"/></w:pPr><w:r><w:t>Leading Title</w:t></w:r></w:p><w:p><w:pPr><w:pStyle w:val="Author"/></w:pPr><w:r><w:t>Mary Ann Evans</w:t></w:r></w:p><w:p><w:pPr><w:pStyle w:val="Author"/></w:pPr><w:r><w:t>Aurore Dupin</w:t></w:r></w:p><w:p><w:pPr><w:pStyle w:val="Date"/></w:pPr><w:r><w:t>July 28, 2014</w:t></w:r></w:p><w:p><w:pPr><w:pStyle w:val="Abstract"/></w:pPr><w:r><w:t>Leading abstract text.</w:t></w:r></w:p><w:p><w:r><w:t>Normal body.</w:t></w:r></w:p><w:p><w:pPr><w:pStyle w:val="Title"/></w:pPr><w:r><w:t>Visible After Title</w:t></w:r></w:p><w:p><w:pPr><w:pStyle w:val="Author"/></w:pPr><w:r><w:t>Visible After Author</w:t></w:r></w:p><w:p><w:pPr><w:pStyle w:val="Date"/></w:pPr><w:r><w:t>Visible After Date</w:t></w:r></w:p><w:p><w:pPr><w:pStyle w:val="Abstract"/></w:pPr><w:r><w:t>Visible after abstract.</w:t></w:r></w:p></w:body></w:document>',
         ]);
 
-        $document = (new DocxReader())->read($bytes);
+        $document = (new DocxReader(['preserveRunStyles' => true]))->read($bytes);
         $meta = $document->attr('meta');
 
         $t->same('Leading Title', $meta['title']);
@@ -292,7 +292,7 @@ return [
     'reads docx soft and non-breaking hyphen run markers' => static function (TestRunner $t) use ($buildDocxReaderPackageBytes): void {
         $bytes = $buildDocxReaderPackageBytes('<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>Soft hyphen: [</w:t><w:softHyphen/><w:t>]</w:t></w:r></w:p><w:p><w:r><w:t>Non-breaking hyphen: [</w:t><w:noBreakHyphen/><w:t>]</w:t></w:r></w:p></w:body></w:document>');
 
-        $document = (new DocxReader())->read($bytes);
+        $document = (new DocxReader(['preserveRunStyles' => true]))->read($bytes);
         $softHyphen = "\u{00AD}";
         $nonBreakingHyphen = "\u{2011}";
 
@@ -321,6 +321,22 @@ return [
         $t->same('Use inline code here.', $paragraph->attr('text'));
         $t->same(['text', 'code', 'text'], array_map(static fn ($node): string => $node->type, $paragraph->children));
         $t->same('inline   code', $paragraph->children[1]->attr('text'));
+    },
+    'preserves docx run colors highlights and font sizes as wordpress inline styles' => static function (TestRunner $t) use ($buildDocxReaderPackagePartsBytes): void {
+        $bytes = $buildDocxReaderPackagePartsBytes([
+            '[Content_Types].xml' => '<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/></Types>',
+            'word/styles.xml' => '<?xml version="1.0"?><w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:style w:type="character" w:styleId="AlertRun"><w:name w:val="Alert Run"/><w:rPr><w:color w:val="C2410C"/><w:highlight w:val="cyan"/><w:sz w:val="20"/></w:rPr></w:style></w:styles>',
+            'word/document.xml' => '<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t xml:space="preserve">Before </w:t></w:r><w:r><w:rPr><w:color w:val="1F2937"/><w:highlight w:val="yellow"/><w:sz w:val="28"/></w:rPr><w:t>Direct</w:t></w:r><w:r><w:t xml:space="preserve"> and </w:t></w:r><w:r><w:rPr><w:rStyle w:val="AlertRun"/></w:rPr><w:t>Inherited</w:t></w:r><w:r><w:t>.</w:t></w:r></w:p></w:body></w:document>',
+        ]);
+
+        $document = (new DocxReader(['preserveRunStyles' => true]))->read($bytes);
+        $paragraph = $document->children[0];
+        $wordpress = (new WordPressBlockWriter())->write($document);
+
+        $t->same('Before Direct and Inherited.', $paragraph->attr('text'));
+        $t->contains('<span style="color:#1f2937; font-size:14pt"><mark style="background-color:#ffff00">Direct</mark></span>', $wordpress);
+        $t->contains('<span style="color:#c2410c; font-size:10pt"><mark style="background-color:#00ffff">Inherited</mark></span>', $wordpress);
+        $t->true(!str_contains($wordpress, 'w:highlight'), 'WordprocessingML styling should not leak into WordPress markup.');
     },
     'preserves docx paragraph and heading alignment for wordpress native attrs' => static function (TestRunner $t) use ($buildDocxReaderPackagePartsBytes): void {
         $bytes = $buildDocxReaderPackagePartsBytes([
