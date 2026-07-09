@@ -5332,6 +5332,50 @@ return [
             '• After removing gloves.',
         ], $repaired);
     },
+    'merges pdf word prefixes split onto separate text lines' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $repair = (function (array $lines): array {
+            return $this->repairProseTextLines($lines, true);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($repair instanceof \Closure);
+
+        $repaired = $repair([
+            'Cl',
+            'ick the link for more information.',
+            'Le',
+            'ft, top and bottom images show a ceremony.',
+            'We',
+            'explain the method without joining real short words.',
+        ]);
+
+        $t->same([
+            'Click the link for more information.',
+            'Left, top and bottom images show a ceremony.',
+            'We',
+            'explain the method without joining real short words.',
+        ], $repaired);
+    },
+    'repairs whitespace inserted inside pdf url text' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $repair = (function (array $lines): array {
+            return $this->repairProseTextLines($lines, true);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($repair instanceof \Closure);
+
+        $repaired = $repair([
+            'Visit www .example.org for details.',
+            'Mirror: www.e xample.org/path.',
+            'Secure: https://docs.ex ample.org/page.',
+            'Alternates: www.first.example www.second.example',
+        ]);
+
+        $t->same([
+            'Visit www.example.org for details.',
+            'Mirror: www.example.org/path.',
+            'Secure: https://docs.example.org/page.',
+            'Alternates: www.first.example www.second.example',
+        ], $repaired);
+    },
     'preserves positioned pdf tables embedded between surrounding text' => static function (TestRunner $t) use ($pdfWithContent): void {
         $pdf = $pdfWithContent(
             'BT /F1 12 Tf '

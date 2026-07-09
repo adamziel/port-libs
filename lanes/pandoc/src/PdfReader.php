@@ -1141,17 +1141,27 @@ final class PdfReader
         }
 
         $line = $this->removeStandaloneBraceArtifacts($line);
+        $line = $this->repairSplitUrlWhitespace($line);
         $line = preg_replace('/([,;:!?])(?=\S)/u', '$1 ', $line) ?? $line;
         $line = preg_replace('/(?<!\d)\.(?=\p{Lu})/u', '. ', $line) ?? $line;
         $line = preg_replace('/([\p{Ll}])([\p{Lu}][\p{Ll}])/u', '$1 $2', $line) ?? $line;
         $line = preg_replace('/([\p{L}])(\d{2,})/u', '$1 $2', $line) ?? $line;
         $line = preg_replace('/(\d)([\p{L}]{2,})/u', '$1 $2', $line) ?? $line;
         $line = preg_replace('/\/\/(?=[A-Za-z])/', '// ', $line) ?? $line;
+        $line = $this->repairSplitUrlWhitespace($line);
         $line = preg_replace('/([\x{2019}\']t)(?=[A-Za-z])/u', '$1 ', $line) ?? $line;
 
         $line = preg_replace('/\s+/u', ' ', $line) ?? $line;
 
         return trim($line);
+    }
+
+    private function repairSplitUrlWhitespace(string $line): string
+    {
+        $line = preg_replace('/\b(https?):\s*\/\/\s*/iu', '$1://', $line) ?? $line;
+        $line = preg_replace('/\b(www)\s+\.(?=[A-Za-z0-9-])/iu', '$1.', $line) ?? $line;
+
+        return preg_replace('/\b((?:https?:\/\/|www\.)[A-Za-z0-9.-]*[A-Za-z0-9])\s+((?!www(?=\.))[A-Za-z0-9-]{1,24})(?=\.)/iu', '$1$2', $line) ?? $line;
     }
 
     private function removeStandaloneBraceArtifacts(string $line): string
@@ -1208,6 +1218,11 @@ final class PdfReader
                 $pendingLayout = $layout;
                 continue;
             }
+            if ($this->repairedLineLooksLikeSplitWordPrefix($pending, $line)) {
+                $pending .= ltrim($line);
+                $pendingLayout = $layout;
+                continue;
+            }
             if (preg_match('/-\s*$/', $pending) === 1 && preg_match('/^\p{Ll}/u', $line) === 1) {
                 $pending = rtrim(substr($pending, 0, -1)) . $line;
                 $pendingLayout = $layout;
@@ -1227,6 +1242,26 @@ final class PdfReader
         }
 
         return $merged;
+    }
+
+    private function repairedLineLooksLikeSplitWordPrefix(string $previous, string $line): bool
+    {
+        $previous = trim($previous);
+        $line = ltrim($line);
+        if ($previous === '' || $line === '') {
+            return false;
+        }
+
+        $continuation = $this->firstWordToken($line);
+        $previousLength = $this->length($previous);
+        $continuationLength = $this->length($continuation);
+
+        return $previousLength <= 3
+            && preg_match('/^\p{L}+$/u', $previous) === 1
+            && $previousLength >= 2
+            && $continuationLength >= 1
+            && $continuationLength <= 3
+            && preg_match('/^\p{Ll}/u', $line) === 1;
     }
 
     /**
