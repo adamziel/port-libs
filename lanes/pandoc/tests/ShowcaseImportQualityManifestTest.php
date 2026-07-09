@@ -188,6 +188,20 @@ return [
         $t->same('pass', $gates['text_completeness']['status'] ?? null, 'LaTeX table text should be preserved.');
         $t->same('pass', $gates['table_count']['status'] ?? null, 'LaTeX table structure should be preserved.');
     },
+    'showcase retains a Haskell baseline for the large ODT schema document' => static function (TestRunner $t) use ($showcaseManifest, $recordsById): void {
+        $manifest = $showcaseManifest();
+        $records = is_array($manifest['records'] ?? null) ? $manifest['records'] : [];
+        $byId = $recordsById($records);
+        $record = $byId['odt-oasis-opendocument-schema'] ?? null;
+
+        $t->true(is_array($record), 'The large ODT schema document should be present in the showcase manifest.');
+        $quality = is_array($record['importQuality'] ?? null) ? $record['importQuality'] : [];
+        $gates = is_array($quality['gates'] ?? null) ? $quality['gates'] : [];
+        $t->same(true, $record['haskell']['ok'] ?? null, 'Large ODT documents should not lose their external baseline to a fixed short timeout.');
+        $t->same('haskell', $record['faithfulness']['baseline'] ?? null, 'The large ODT import should be compared to Haskell Pandoc.');
+        $t->same('pass', $gates['text_completeness']['status'] ?? null, 'Large ODT text should remain externally measured.');
+        $t->same('pass', $gates['visual_structure']['status'] ?? null, 'Large ODT structure should remain externally measured.');
+    },
     'showcase manifest proves bibliography imports against Pandoc Citeproc' => static function (TestRunner $t) use ($showcaseManifest, $recordsById): void {
         $manifest = $showcaseManifest();
         $records = is_array($manifest['records'] ?? null) ? $manifest['records'] : [];

@@ -15308,11 +15308,6 @@ final class OdfReader
                     $nodes[] = $textBoxCaptionImage;
                     continue;
                 }
-                $image = $this->frameImageNode($child, $package);
-                if ($image instanceof AstNode) {
-                    $nodes[] = $image;
-                    continue;
-                }
                 $math = $this->frameObjectMathNode($child, $package);
                 if ($math instanceof AstNode) {
                     $nodes[] = $math;
@@ -15326,6 +15321,11 @@ final class OdfReader
                 $object = $this->frameObjectNode($child, $package, true);
                 if ($object instanceof AstNode) {
                     $nodes[] = $object;
+                    continue;
+                }
+                $image = $this->frameImageNode($child, $package);
+                if ($image instanceof AstNode) {
+                    $nodes[] = $image;
                 }
                 continue;
             }

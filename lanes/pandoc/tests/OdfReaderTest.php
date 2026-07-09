@@ -8031,7 +8031,7 @@ XML;
   xmlns:xlink="http://www.w3.org/1999/xlink">
   <office:body>
     <office:text>
-      <text:p>Inline formula <draw:frame draw:name="Inline formula"><draw:object xlink:href="./Object 1"/></draw:frame> preserved.</text:p>
+      <text:p>Inline formula <draw:frame draw:name="Inline formula"><draw:object xlink:href="./Object 1"/><draw:image xlink:href="./ObjectReplacements/Object 1"/></draw:frame> preserved.</text:p>
       <draw:frame draw:name="Display formula"><draw:object xlink:href="Object 2"/></draw:frame>
     </office:text>
   </office:body>
@@ -8061,6 +8061,7 @@ XML;
             '</manifest:manifest>',
             '<manifest:file-entry manifest:full-path="Object 1/" manifest:media-type="application/vnd.oasis.opendocument.formula"/>'
             . '<manifest:file-entry manifest:full-path="Object 1/content.xml" manifest:media-type="text/xml"/>'
+            . '<manifest:file-entry manifest:full-path="ObjectReplacements/Object 1" manifest:media-type="application/x-openoffice-gdimetafile;windows_formatname=&quot;GDIMetaFile&quot;"/>'
             . '<manifest:file-entry manifest:full-path="Object 2/" manifest:media-type="application/vnd.oasis.opendocument.formula"/>'
             . '<manifest:file-entry manifest:full-path="Object 2/content.xml" manifest:media-type="text/xml"/>'
             . '</manifest:manifest>',
@@ -8074,6 +8075,7 @@ XML;
             null,
             [
                 ['name' => 'Object 1/content.xml', 'data' => $mathObjectOne],
+                ['name' => 'ObjectReplacements/Object 1', 'data' => 'MATH-PREVIEW'],
                 ['name' => 'Object 2/content.xml', 'data' => $mathObjectTwo],
             ]
         ));
@@ -8112,6 +8114,7 @@ XML;
         $t->contains('$$a+b$$', $markdown);
         $t->contains('<span class="math display">\[x=1\]</span>', $blocksHtml);
         $t->contains('<span class="math display">\[a+b\]</span>', $blocksHtml);
+        $t->same(false, str_contains($blocksHtml, 'ObjectReplacements/Object 1'));
     },
     'maps ODT chart draw objects into embedded object review placeholders' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $manifestWithChartObjects = <<<'XML'

@@ -304,4 +304,62 @@ XML);
         $t->contains('ODT footnote body with inline text.', $blocks);
         $t->contains('ODT endnote body.', $blocks);
     },
+    'prefers embedded ODT MathML objects over replacement previews through the converter input path' => static function (TestRunner $t): void {
+        $path = tempnam(sys_get_temp_dir(), 'pandoc-odt-');
+        if ($path === false) {
+            throw new RuntimeException('Unable to create temporary ODT path');
+        }
+
+        $zip = new ZipArchive();
+        if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+            throw new RuntimeException('Unable to create temporary ODT package');
+        }
+        $zip->addFromString('mimetype', 'application/vnd.oasis.opendocument.text');
+        $zip->addFromString('content.xml', <<<'XML'
+<?xml version="1.0"?>
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:draw="urn:oasis:names:tc:opendocument:xmlns:drawing:1.0"
+  xmlns:xlink="http://www.w3.org/1999/xlink">
+  <office:body>
+    <office:text>
+      <text:p>Before <draw:frame text:anchor-type="as-char"><draw:object xlink:href="./Object 1"/><draw:image xlink:href="./ObjectReplacements/Object 1"/></draw:frame> after.</text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML);
+        $zip->addFromString('Object 1/content.xml', <<<'XML'
+<math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>k</mi><mo>&gt;</mo><mn>1</mn></mrow><annotation encoding="StarMath 5.0">k &gt; 1</annotation></semantics></math>
+XML);
+        $zip->addFromString('ObjectReplacements/Object 1', 'MATH-PREVIEW');
+        $zip->close();
+
+        try {
+            $bytes = file_get_contents($path);
+            if (!is_string($bytes)) {
+                throw new RuntimeException('Unable to read temporary ODT package');
+            }
+            $document = PandocConverter::read($bytes, 'odt');
+        } finally {
+            @unlink($path);
+        }
+
+        $paragraph = $document->children[0];
+        $math = $paragraph->children[1];
+        $blocks = (new WordPressBlockWriter(['writerHTMLMathMethod' => 'mathml']))->write($document);
+
+        $t->same('Before k>1 after.', $paragraph->attr('text'));
+        $t->same('math', $math->type);
+        $t->same(false, $math->attr('display'));
+        $t->same('odt-mathml', $math->attr('sourceFormat'));
+        $t->same('Object 1', $math->attr('objectPath'));
+        $t->same('Object 1/content.xml', $math->attr('sourcePart'));
+        $t->same('k>1', $math->attr('text'));
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML">', $math->attr('mathml'));
+        $t->same([], $document->attr('meta')['odtReferencedResources']);
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML">', $blocks);
+        $t->same(false, str_contains($blocks, 'ObjectReplacements/Object 1'));
+        $t->same(0, substr_count($blocks, '<img'));
+    },
 ];

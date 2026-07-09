@@ -3107,6 +3107,22 @@ function write_conversion_report(
 /**
  * @return array{ok:bool, path?:string, error?:string, renderedWithCiteproc?:bool}
  */
+function haskell_pandoc_timeout_seconds(string $path): int
+{
+    $size = is_file($path) ? filesize($path) : false;
+    if (!is_int($size) || $size <= 131072) {
+        return 35;
+    }
+    if ($size <= 524288) {
+        return 90;
+    }
+
+    // Large office packages can expand into multi-megabyte XML trees inside
+    // Pandoc. Keep their reference conversion bounded, but do not silently
+    // downgrade a normal large document to a PHP-only comparison at 35s.
+    return 300;
+}
+
 function run_haskell_pandoc(string $path, string $format, string $dir): array
 {
     $out = $dir . '/haskell.html';
@@ -3119,7 +3135,7 @@ function run_haskell_pandoc(string $path, string $format, string $dir): array
     $command[] = '--output';
     $command[] = $bodyPath;
     $command[] = $path;
-    $result = run_process($command, 35);
+    $result = run_process($command, haskell_pandoc_timeout_seconds($path));
     if ($result['exitCode'] !== 0 || !is_file($bodyPath)) {
         $message = sanitize_generated_text(trim($result['stderr'] . "\n" . $result['stdout']));
         if ($message === '') {

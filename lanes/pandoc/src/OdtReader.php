@@ -11,8 +11,10 @@ final class OdtReader
     private const TABLE_NS = 'urn:oasis:names:tc:opendocument:xmlns:table:1.0';
     private const STYLE_NS = 'urn:oasis:names:tc:opendocument:xmlns:style:1.0';
     private const FO_NS = 'urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0';
+    private const DRAW_NS = 'urn:oasis:names:tc:opendocument:xmlns:drawing:1.0';
     private const XLINK_NS = 'http://www.w3.org/1999/xlink';
     private const MANIFEST_NS = 'urn:oasis:names:tc:opendocument:xmlns:manifest:1.0';
+    private const MATH_NS = 'http://www.w3.org/1998/Math/MathML';
 
     /** @var array<string, array{strong?: bool, emph?: bool}> */
     private array $textStyles = [];
@@ -22,6 +24,9 @@ final class OdtReader
 
     /** @var list<string> */
     private array $referencedResources = [];
+
+    /** @var array<string, string> */
+    private array $embeddedObjectContentXml = [];
 
     public function read(string $bytes): AstNode
     {
@@ -78,6 +83,7 @@ final class OdtReader
                 }
             }
             $manifest = is_string($manifest_xml) ? $this->manifestMetadata($manifest_xml, $entries) : [];
+            $embeddedObjectContentXml = $this->embeddedObjectContentParts($content_xml, $zip);
         } finally {
             $zip->close();
         }
@@ -89,6 +95,7 @@ final class OdtReader
             $entries,
             array_values(array_unique($image_resources)),
             $manifest,
+            $embeddedObjectContentXml,
         );
     }
 
@@ -96,6 +103,7 @@ final class OdtReader
      * @param list<string> $entries
      * @param list<string> $image_resources
      * @param array<string, mixed> $manifest
+     * @param array<string, string> $embeddedObjectContentXml
      */
     private function readPackage(
         string $content_xml,
@@ -104,6 +112,7 @@ final class OdtReader
         array $entries = [],
         array $image_resources = [],
         array $manifest = [],
+        array $embeddedObjectContentXml = [],
     ): AstNode
     {
         $content = $this->loadXml($content_xml, 'ODT content.xml');
@@ -124,6 +133,7 @@ final class OdtReader
         }
 
         $this->referencedResources = [];
+        $this->embeddedObjectContentXml = $embeddedObjectContentXml;
         $children = $text instanceof \DOMElement ? $this->parseBlockChildren($text) : [];
         if ($children === []) {
             $children[] = new AstNode('paragraph', ['text' => 'No readable ODT body content was found.'], [
@@ -150,6 +160,31 @@ final class OdtReader
         }
 
         return new AstNode('document', ['meta' => $metadata], $children);
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function embeddedObjectContentParts(string $contentXml, \ZipArchive $zip): array
+    {
+        $content = $this->loadXml($contentXml, 'ODT content.xml');
+        $parts = [];
+
+        foreach ($content->getElementsByTagNameNS(self::DRAW_NS, 'object') as $object) {
+            if (!$object instanceof \DOMElement) {
+                continue;
+            }
+            $contentPart = $this->objectContentPart($this->attr($object, self::XLINK_NS, 'href'));
+            if ($contentPart === null || isset($parts[$contentPart])) {
+                continue;
+            }
+            $objectXml = $zip->getFromName($contentPart);
+            if (is_string($objectXml)) {
+                $parts[$contentPart] = $objectXml;
+            }
+        }
+
+        return $parts;
     }
 
     /**
@@ -584,6 +619,11 @@ final class OdtReader
      */
     private function frame(\DOMElement $element): array
     {
+        $math = $this->frameMath($element);
+        if ($math instanceof AstNode) {
+            return [$math];
+        }
+
         foreach ($element->childNodes as $child) {
             if (!$child instanceof \DOMElement || $child->localName !== 'image') {
                 continue;
@@ -605,6 +645,88 @@ final class OdtReader
         }
 
         return $this->parseInlines($element);
+    }
+
+    private function frameMath(\DOMElement $frame): ?AstNode
+    {
+        foreach ($frame->childNodes as $child) {
+            if (!$child instanceof \DOMElement || $child->namespaceURI !== self::DRAW_NS || $child->localName !== 'object') {
+                continue;
+            }
+
+            $contentPart = $this->objectContentPart($this->attr($child, self::XLINK_NS, 'href'));
+            if ($contentPart === null || !isset($this->embeddedObjectContentXml[$contentPart])) {
+                continue;
+            }
+
+            try {
+                $dom = $this->loadXml($this->embeddedObjectContentXml[$contentPart], 'ODT embedded object ' . $contentPart);
+            } catch (\InvalidArgumentException) {
+                continue;
+            }
+            $math = $dom->getElementsByTagNameNS(self::MATH_NS, 'math')->item(0);
+            if (!$math instanceof \DOMElement) {
+                continue;
+            }
+
+            $mathml = $math->ownerDocument instanceof \DOMDocument ? trim((string) $math->ownerDocument->saveXML($math)) : '';
+            if ($mathml === '') {
+                continue;
+            }
+
+            return new AstNode('math', [
+                'sourceFormat' => 'odt-mathml',
+                'display' => false,
+                'text' => $this->mathPlainText($math),
+                'mathml' => $mathml,
+                'objectPath' => substr($contentPart, 0, -strlen('/content.xml')),
+                'sourcePart' => $contentPart,
+            ]);
+        }
+
+        return null;
+    }
+
+    private function objectContentPart(string $href): ?string
+    {
+        if (!$this->isPackageRelativeResourceUrl($href)) {
+            return null;
+        }
+
+        $part = $this->normalizePackagePath($href);
+        if ($part === '') {
+            return null;
+        }
+
+        return str_ends_with($part, '/content.xml') ? $part : rtrim($part, '/') . '/content.xml';
+    }
+
+    private function mathPlainText(\DOMElement $math): string
+    {
+        $parts = [];
+        $this->collectMathText($math, $parts);
+        $text = implode('', $parts);
+
+        return trim(preg_replace('/\s+/u', ' ', $text) ?? $text);
+    }
+
+    /**
+     * @param list<string> $parts
+     */
+    private function collectMathText(\DOMNode $node, array &$parts): void
+    {
+        if ($node instanceof \DOMElement && $node->namespaceURI === self::MATH_NS && in_array($node->localName, ['annotation', 'annotation-xml'], true)) {
+            return;
+        }
+        if ($node instanceof \DOMText || $node instanceof \DOMCdataSection) {
+            $parts[] = $node->textContent;
+
+            return;
+        }
+
+        foreach ($node->childNodes as $child) {
+            $this->collectMathText($child, $parts);
+        }
     }
 
     /**
