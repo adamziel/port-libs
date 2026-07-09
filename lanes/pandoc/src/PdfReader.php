@@ -815,7 +815,7 @@ final class PdfReader
     /**
      * @param list<string> $lines
      * @param list<array{text: string, page: int, x1: float, y1: float, x2: float, y2: float, fontSize: float}> $lineLayouts
-     * @param array<string, true> $splitWordHints
+     * @param array<string, true|string> $splitWordHints
      * @return list<string>
      */
     private function repairProseTextLines(array $lines, bool $repairGluedText = true, array $lineLayouts = [], array $splitWordHints = []): array
@@ -851,7 +851,7 @@ final class PdfReader
             : $this->mergeRepairedProseLines($cleaned, $splitWordHints);
         $repaired = [];
         foreach ($merged as $line) {
-            $line = $repairGluedText ? $this->repairGluedProseLine($line) : trim($line);
+            $line = $repairGluedText ? $this->repairGluedProseLine($line, $splitWordHints) : trim($line);
             if ($line !== '') {
                 $repaired[] = $line;
             }
@@ -1139,7 +1139,7 @@ final class PdfReader
 
     /**
      * @param list<mixed> $runs
-     * @return array<string, true>
+     * @return array<string, true|string>
      */
     private function pdfTextRunSplitWordHints(array $runs): array
     {
@@ -1154,6 +1154,21 @@ final class PdfReader
             }
 
             $hints[$this->splitWordHintKey($prefix, $continuation)] = true;
+        }
+        for ($index = 0; $index < $count - 1; $index++) {
+            $text = $this->pdfTextRunString($runs[$index]);
+            $prefix = $this->pdfTextRunTrailingSplitFragment($text);
+            if ($prefix === '') {
+                continue;
+            }
+
+            $continuation = $this->pdfTextRunFollowingSplitFragment($runs, $index + 1);
+            if ($continuation === '' || !$this->pdfTextRunSplitFragmentLooksUsable($text, $prefix, $continuation)) {
+                continue;
+            }
+
+            $spaced = $prefix . ' ' . $continuation;
+            $hints[$this->splitFragmentHintKey($spaced)] = $prefix . $continuation;
         }
 
         return $hints;
@@ -1173,7 +1188,77 @@ final class PdfReader
         return trim($prefix) . "\n" . ltrim($continuation);
     }
 
-    private function repairGluedProseLine(string $line): string
+    private function splitFragmentHintKey(string $spacedFragment): string
+    {
+        return "fragment\0" . $spacedFragment;
+    }
+
+    private function pdfTextRunTrailingSplitFragment(string $text): string
+    {
+        if ($text === '' || preg_match('/\s$/u', $text) === 1) {
+            return '';
+        }
+        if (preg_match('/(^|[^\p{L}])(\p{Ll}{1,8})$/u', $text, $matches) !== 1) {
+            return '';
+        }
+
+        return $matches[2];
+    }
+
+    /**
+     * @param list<mixed> $runs
+     */
+    private function pdfTextRunFollowingSplitFragment(array $runs, int $start): string
+    {
+        $fragment = '';
+        $count = count($runs);
+        for ($index = $start; $index < $count && $index < $start + 4; $index++) {
+            $text = $this->pdfTextRunString($runs[$index]);
+            if ($text === '' || preg_match('/^\s/u', $text) === 1) {
+                break;
+            }
+            if (preg_match('/^(\p{Ll}{1,12})/u', $text, $matches) !== 1) {
+                break;
+            }
+
+            $fragment .= $matches[1];
+            if ($this->length($fragment) > 12) {
+                return '';
+            }
+            if ($matches[1] !== $text) {
+                break;
+            }
+        }
+
+        return $fragment;
+    }
+
+    private function pdfTextRunSplitFragmentLooksUsable(string $text, string $prefix, string $continuation): bool
+    {
+        $prefixLength = $this->length($prefix);
+        $continuationLength = $this->length($continuation);
+        $wordLength = $prefixLength + $continuationLength;
+        if ($wordLength < 2 || $wordLength > 20) {
+            return false;
+        }
+
+        $hasLeftContext = preg_match('/\p{Ll}\s+\p{Ll}{1,8}$/u', $text) === 1;
+        $isStandaloneRun = preg_match('/^\p{Ll}{1,8}$/u', $text) === 1;
+        if (!$hasLeftContext && !$isStandaloneRun) {
+            return false;
+        }
+
+        if ($prefixLength === 1) {
+            return $hasLeftContext || ($isStandaloneRun && $continuationLength >= 2 && $continuationLength <= 5);
+        }
+
+        return $hasLeftContext || $continuationLength >= 2;
+    }
+
+    /**
+     * @param array<string, true|string> $splitWordHints
+     */
+    private function repairGluedProseLine(string $line, array $splitWordHints = []): string
     {
         $line = trim($line);
         if ($line === '') {
@@ -1182,6 +1267,7 @@ final class PdfReader
 
         $line = $this->removeStandaloneBraceArtifacts($line);
         $line = $this->repairSplitUrlWhitespace($line);
+        $line = $this->repairSplitFragmentWhitespace($line, $splitWordHints);
         $line = preg_replace('/([,;:!?])(?=\S)/u', '$1 ', $line) ?? $line;
         $line = preg_replace('/(?<!\d)\.(?=\p{Lu})/u', '. ', $line) ?? $line;
         $line = preg_replace('/([\p{Ll}])([\p{Lu}][\p{Ll}])/u', '$1 $2', $line) ?? $line;
@@ -1194,6 +1280,28 @@ final class PdfReader
         $line = preg_replace('/\s+/u', ' ', $line) ?? $line;
 
         return trim($line);
+    }
+
+    /**
+     * @param array<string, true|string> $splitWordHints
+     */
+    private function repairSplitFragmentWhitespace(string $line, array $splitWordHints): string
+    {
+        foreach ($splitWordHints as $key => $replacement) {
+            if (!is_string($replacement) || !str_starts_with($key, "fragment\0")) {
+                continue;
+            }
+
+            $spaced = substr($key, strlen("fragment\0"));
+            if ($spaced === '' || !str_contains($line, $spaced)) {
+                continue;
+            }
+
+            $pattern = '/(?<!\p{L})' . preg_quote($spaced, '/') . '(?!\p{L})/u';
+            $line = preg_replace($pattern, $replacement, $line) ?? $line;
+        }
+
+        return $line;
     }
 
     private function repairSplitUrlWhitespace(string $line): string
@@ -1240,7 +1348,7 @@ final class PdfReader
 
     /**
      * @param list<array{text: string, layout: array{text: string, page: int, x1: float, y1: float, x2: float, y2: float, fontSize: float}|null}> $records
-     * @param array<string, true> $splitWordHints
+     * @param array<string, true|string> $splitWordHints
      * @return list<string>
      */
     private function mergeRepairedProseLines(array $records, array $splitWordHints = []): array
@@ -1286,7 +1394,7 @@ final class PdfReader
     }
 
     /**
-     * @param array<string, true> $splitWordHints
+     * @param array<string, true|string> $splitWordHints
      */
     private function repairedLineLooksLikeSplitWordPrefix(string $previous, string $line, array $splitWordHints = []): bool
     {

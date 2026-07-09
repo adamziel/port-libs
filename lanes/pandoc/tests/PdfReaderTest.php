@@ -5394,6 +5394,55 @@ return [
         $t->same(['A', 'winding scenic drive to diverse viewpoints.', 'Next sentence.'], $withoutHint);
         $t->same(['T', 'race', 'Execute'], $flowchartLabel);
     },
+    'repairs pdf spaces inserted inside words only with raw run evidence' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $repair = (function (array $lines, array $runs): array {
+            return $this->repairProseTextLines($lines, true, [], $this->pdfTextRunSplitWordHints($runs));
+        })->bindTo($reader, PdfReader::class);
+        $t->true($repair instanceof \Closure);
+
+        $repaired = $repair([
+            'This brochure was developed w ith support.',
+            'Traditional prayer led b y a representative.',
+            'Horses and Hiking o nly',
+            'Dogs on leash all owed',
+            'A normal phrase in a sentence stays spaced.',
+        ], [
+            'developed',
+            ' ',
+            'w',
+            'ith',
+            ' ',
+            'support.',
+            'd b',
+            'y a representative.',
+            'g o',
+            'nl',
+            'y',
+            'Hi',
+            'h all',
+            'owe',
+            'd',
+        ]);
+
+        $withoutHint = $repair([
+            'A normal phrase in a sentence stays spaced.',
+            'Use soap and water when hands look dirty.',
+        ], [
+            'normal phrase',
+            'soap and water',
+        ]);
+
+        $t->same([
+            'This brochure was developed with support.',
+            'Traditional prayer led by a representative.',
+            'Horses and Hiking only Dogs on leash allowed A normal phrase in a sentence stays spaced.',
+        ], $repaired);
+        $t->same([
+            'A normal phrase in a sentence stays spaced.',
+            'Use soap and water when hands look dirty.',
+        ], $withoutHint);
+    },
     'repairs whitespace inserted inside pdf url text' => static function (TestRunner $t): void {
         $reader = new PdfReader();
         $repair = (function (array $lines): array {
