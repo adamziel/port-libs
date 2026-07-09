@@ -144,8 +144,8 @@ return [
         $t->same('bullet_list', $tasks->type);
         $t->same(true, $tasks->attr('taskList'));
 
-        $t->contains('class="ipynb-cell ipynb-markdown-cell"', $html);
-        $t->contains('class="ipynb-cell ipynb-markdown-cell"', $converterHtml);
+        $t->contains('class="wp-block-group ipynb-cell ipynb-markdown-cell"', $html);
+        $t->contains('class="wp-block-group ipynb-cell ipynb-markdown-cell"', $converterHtml);
         $t->contains('data-ipynb-attachment-count="1"', $html);
         $t->contains('data-ipynb-cell-tags="review"', $html);
         $t->contains('data-ipynb-diagnostics="attachment-bytes-blocked"', $html);

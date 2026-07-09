@@ -92,6 +92,7 @@ DOKU;
         $t->contains('Link ( "" , [  ] , [  ] ) [ Str "https://example.com" ] ( "https://example.com" , "" )', $native);
         $t->contains('<h1>Media</h1>', $html);
         $t->contains('<img', $html);
+        $t->contains('alt="Alt"', $html);
         $t->contains('<a href="https://example.com">https://example.com</a>', $html);
     },
 ];

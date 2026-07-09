@@ -125,6 +125,9 @@ final class PdfTextExtractor
 
     /** @var array<string, list<array{body: string, objectNumber: int|null}>> */
     private array $parentTreeRootNodesCache = [];
+
+    /** @var array<string, array<string, mixed>|null> */
+    private array $authenticatedEncryptionContexts = [];
     private const ZAPF_DINGBATS_ENCODING_GLYPHS = [
         0x20 => 'space', 0x21 => 'a1', 0x22 => 'a2', 0x23 => 'a202',
         0x24 => 'a3', 0x25 => 'a4', 0x26 => 'a5', 0x27 => 'a119',
@@ -565,12 +568,38 @@ final class PdfTextExtractor
         return (string) ($this->options['password'] ?? $this->options['pdfPassword'] ?? '');
     }
 
+    private function canExtractEncryptedContent(string $pdfBytes): bool
+    {
+        return !$this->isEncrypted($pdfBytes)
+            || $this->authenticatedEncryptionContext($pdfBytes) !== null;
+    }
+
+    /**
+     * An empty password is a real Standard Security password candidate. Cache
+     * the authenticated result because import asks several extraction paths
+     * about the same PDF.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function authenticatedEncryptionContext(string $pdfBytes): ?array
+    {
+        $cacheKey = hash('sha256', $pdfBytes) . "\0" . $this->pdfPassword();
+        if (!array_key_exists($cacheKey, $this->authenticatedEncryptionContexts)) {
+            $this->authenticatedEncryptionContexts[$cacheKey] = $this->pdfEncryptionContextForBytes(
+                $pdfBytes,
+                $this->pdfPassword()
+            );
+        }
+
+        return $this->authenticatedEncryptionContexts[$cacheKey];
+    }
+
     /**
      * @return list<string>
      */
     public function extractTextRuns(string $pdfBytes): array
     {
-        if ($this->isEncrypted($pdfBytes) && $this->pdfPassword() === '') {
+        if (!$this->canExtractEncryptedContent($pdfBytes)) {
             return [];
         }
 
@@ -591,7 +620,7 @@ final class PdfTextExtractor
      */
     public function extractPositionedTextRuns(string $pdfBytes): array
     {
-        if ($this->isEncrypted($pdfBytes) && $this->pdfPassword() === '') {
+        if (!$this->canExtractEncryptedContent($pdfBytes)) {
             return [];
         }
 
@@ -629,7 +658,7 @@ final class PdfTextExtractor
      */
     public function extractFilledRectangles(string $pdfBytes): array
     {
-        if ($this->isEncrypted($pdfBytes) && $this->pdfPassword() === '') {
+        if (!$this->canExtractEncryptedContent($pdfBytes)) {
             return [];
         }
 
@@ -774,7 +803,7 @@ final class PdfTextExtractor
      */
     public function extractTaggedContent(string $pdfBytes): array
     {
-        if ($this->isEncrypted($pdfBytes) && $this->pdfPassword() === '') {
+        if (!$this->canExtractEncryptedContent($pdfBytes)) {
             return [];
         }
 
@@ -854,7 +883,7 @@ final class PdfTextExtractor
      */
     public function naiveGetText(string $pdfBytes): string
     {
-        if ($this->isEncrypted($pdfBytes) && $this->pdfPassword() === '') {
+        if (!$this->canExtractEncryptedContent($pdfBytes)) {
             return '';
         }
 
@@ -920,7 +949,7 @@ final class PdfTextExtractor
     public function diagnostics(string $pdfBytes): array
     {
         $objects = $this->pdfObjects($pdfBytes);
-        $encryptionContext = $this->pdfEncryptionContextForBytes($pdfBytes, $this->pdfPassword());
+        $encryptionContext = $this->authenticatedEncryptionContext($pdfBytes);
         $encrypted = str_contains($pdfBytes, '/Encrypt');
         $encryptionDecrypted = $encrypted && $encryptionContext !== null;
         $encryptionPasswordType = is_string($encryptionContext['passwordType'] ?? null) ? $encryptionContext['passwordType'] : null;
@@ -4583,7 +4612,7 @@ final class PdfTextExtractor
      */
     public function extractTextLines(string $pdfBytes): array
     {
-        if ($this->isEncrypted($pdfBytes) && $this->pdfPassword() === '') {
+        if (!$this->canExtractEncryptedContent($pdfBytes)) {
             return [];
         }
 
@@ -4604,7 +4633,7 @@ final class PdfTextExtractor
      */
     private function extractPageTexts(string $pdfBytes): array
     {
-        if ($this->isEncrypted($pdfBytes) && $this->pdfPassword() === '') {
+        if (!$this->canExtractEncryptedContent($pdfBytes)) {
             return [];
         }
 
@@ -8449,7 +8478,7 @@ final class PdfTextExtractor
                     if ($this->isType3FontWithSafeDeclaredEncoding($objectBody, $encoding['base'])) {
                         $encoding['suppressUnmapped'] = false;
                     }
-                    if ($this->isSimpleTrueTypeFontWithSafeDeclaredEncoding(
+                    if ($this->isSimpleWidthEncodedFontWithSafeDeclaredEncoding(
                         $objectBody,
                         $encoding['base'],
                         $this->fontWidthsFromObject($objectBody, $objects)
@@ -8510,7 +8539,7 @@ final class PdfTextExtractor
         if ($suppressUnmapped && $this->isType3FontWithSafeDeclaredEncoding($objectBody, $baseEncoding)) {
             $suppressUnmapped = false;
         }
-        if ($suppressUnmapped && $this->isSimpleTrueTypeFontWithSafeDeclaredEncoding($objectBody, $baseEncoding, $widths)) {
+        if ($suppressUnmapped && $this->isSimpleWidthEncodedFontWithSafeDeclaredEncoding($objectBody, $baseEncoding, $widths)) {
             $suppressUnmapped = false;
         }
 
@@ -8731,9 +8760,9 @@ final class PdfTextExtractor
     /**
      * @param array<int, float> $widths
      */
-    private function isSimpleTrueTypeFontWithSafeDeclaredEncoding(string $objectBody, string $baseEncoding, array $widths): bool
+    private function isSimpleWidthEncodedFontWithSafeDeclaredEncoding(string $objectBody, string $baseEncoding, array $widths): bool
     {
-        if (preg_match('/\/Subtype\s*\/TrueType\b/', $objectBody) !== 1) {
+        if (preg_match('/\/Subtype\s*\/(?:TrueType|Type1)\b/', $objectBody) !== 1) {
             return false;
         }
 
@@ -12548,7 +12577,7 @@ final class PdfTextExtractor
             $xrefStreamSection = $this->xrefStreamSectionAtOffset($pdfBytes, $xrefStreamOffset, $encryptionContext);
             if ($xrefStreamSection !== null) {
                 $repairBoundaryOffset = min($repairBoundaryOffset, $xrefStreamOffset);
-                $entries = array_merge($xrefStreamSection['entries'], $entries);
+                $entries = $this->xrefEntriesWithHybridStreamPrecedence($entries, $xrefStreamSection['entries']);
                 if ($xrefStreamSection['prev'] !== null) {
                     $prevOffsets[] = $xrefStreamSection['prev'];
                 }
@@ -12641,6 +12670,29 @@ final class PdfTextExtractor
         }
 
         return $entries;
+    }
+
+    /**
+     * A hybrid xref stream supplements the table and is authoritative for an
+     * object even when the table carries an older generation of that object.
+     *
+     * @param array<string, array{status: string, offset?: int, objectStreamNumber?: int, objectStreamIndex?: int}> $tableEntries
+     * @param array<string, array{status: string, offset?: int, objectStreamNumber?: int, objectStreamIndex?: int}> $streamEntries
+     * @return array<string, array{status: string, offset?: int, objectStreamNumber?: int, objectStreamIndex?: int}>
+     */
+    private function xrefEntriesWithHybridStreamPrecedence(array $tableEntries, array $streamEntries): array
+    {
+        $streamObjectNumbers = [];
+        foreach (array_keys($streamEntries) as $referenceKey) {
+            $streamObjectNumbers[explode(':', $referenceKey, 2)[0]] = true;
+        }
+        foreach (array_keys($tableEntries) as $referenceKey) {
+            if (isset($streamObjectNumbers[explode(':', $referenceKey, 2)[0]])) {
+                unset($tableEntries[$referenceKey]);
+            }
+        }
+
+        return array_replace($tableEntries, $streamEntries);
     }
 
     /**
@@ -12910,17 +12962,6 @@ final class PdfTextExtractor
                     'offset' => $offsetOwner['offset'],
                 ];
             }
-        }
-
-        foreach ($currentObjectsByReference as $referenceKey => $rawObject) {
-            if (($entries[$referenceKey]['status'] ?? null) === 'f') {
-                continue;
-            }
-
-            $entries[$referenceKey] = [
-                'status' => 'n',
-                'offset' => $rawObject['offset'],
-            ];
         }
 
         return $entries;

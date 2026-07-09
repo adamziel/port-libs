@@ -179,10 +179,6 @@ final class XlsxReader
         foreach ($sheets as $sheet) {
             $sheetAnchorIds[(string) $sheet['name']] = 'sheet-' . $sheet['index'];
         }
-        $sheetNavigation = $this->sheetNavigationBlocks($sheets, $sheetAnchorIds);
-        if ($sheetNavigation !== []) {
-            array_push($blocks, ...$sheetNavigation);
-        }
         foreach ($sheets as $sheet) {
             $sheetPart = null;
             try {
@@ -321,7 +317,7 @@ final class XlsxReader
                 'entryCount' => count($package->names()),
                 'workbookPart' => ltrim($workbookPart, '/'),
                 'sheetCount' => count($sheets),
-                'sheetNavigationEmitted' => $sheetNavigation !== [],
+                'sheetNavigationEmitted' => false,
                 'failedSheetCount' => $failedSheetCount,
                 'tableCount' => $tableCount,
                 'hiddenSheetPolicy' => 'emit-all-sheets-record-visibility',
@@ -389,58 +385,6 @@ final class XlsxReader
                 ],
             ],
         ], $blocks);
-    }
-
-    /**
-     * @param list<array{index:int, name:string, relationshipId:string, state:string, hidden:bool, veryHidden:bool}> $sheets
-     * @param array<string,string> $sheetAnchorIds
-     * @return list<AstNode>
-     */
-    private function sheetNavigationBlocks(array $sheets, array $sheetAnchorIds): array
-    {
-        if (count($sheets) <= 1) {
-            return [];
-        }
-
-        $items = [];
-        foreach ($sheets as $sheet) {
-            $name = (string) $sheet['name'];
-            $anchor = (string) ($sheetAnchorIds[$name] ?? '');
-            if ($name === '' || $anchor === '') {
-                continue;
-            }
-
-            $items[] = new AstNode('list_item', [
-                'text' => $name,
-            ], [
-                new AstNode('plain', [], [
-                    new AstNode('link', [
-                        'url' => '#' . $anchor,
-                        'title' => '',
-                    ], [
-                        new AstNode('text', ['text' => $name]),
-                    ]),
-                ]),
-            ]);
-        }
-
-        if ($items === []) {
-            return [];
-        }
-
-        return [
-            new AstNode('heading', [
-                'level' => 2,
-                'id' => 'sheets',
-                'text' => 'Sheets',
-            ], [
-                new AstNode('text', ['text' => 'Sheets']),
-            ]),
-            new AstNode('bullet_list', [
-                'classes' => ['xlsx-sheet-navigation'],
-                'htmlAttributes' => ['data-pandoc-source' => 'xlsx-sheet-navigation'],
-            ], $items),
-        ];
     }
 
     private function workbookRelationship(OpcRelationships $relationships): OpcRelationship

@@ -5796,6 +5796,26 @@ return [
             'Alternates: www.first.example www.second.example',
         ], $repaired);
     },
+    'preserves pdf acronym digits and url path digits during prose repair' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $repair = (function (array $lines): array {
+            return $this->repairProseTextLines($lines, true);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($repair instanceof \Closure);
+
+        $repaired = $repair([
+            '[3] SPECJVM98 - http://www.spec.org/jvm98/.',
+            '[1] LuaJIT roadmap 2008 - http://lua-users.org/lists/lua-l/2008-',
+            '02/msg00051.html.',
+            'The report section20 remained readable.',
+        ]);
+
+        $t->same([
+            '[3] SPECJVM98 - http://www.spec.org/jvm98/.',
+            '[1] LuaJIT roadmap 2008 - http://lua-users.org/lists/lua-l/2008-02/msg00051.html.',
+            'The report section 20 remained readable.',
+        ], $repaired);
+    },
     'preserves bibliography dash before pdf url continuation lines' => static function (TestRunner $t): void {
         $reader = new PdfReader();
         $repair = (function (array $lines): array {

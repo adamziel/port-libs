@@ -871,6 +871,7 @@ $tests['repairs paired unresolved html fragment links by visible label'] =
             $blocks = (new WordPressBlockWriter())->write($document);
 
             $t->same(4, $document->attr('htmlLocalFragmentLinkRepairCount'), "{$label} should repair both paired links.");
+            $t->same(true, $document->children[1]->children[1]->attr('htmlLocalFragmentLinkRepair'));
             $t->contains('<a href="#target-a" id="return-a">(1)</a>', $htmlOutput);
             $t->contains('<a href="#return-a" id="target-a">(1)</a>', $htmlOutput);
             $t->contains('<a href="#target-long" id="return-long">(long)</a>', $blocks);

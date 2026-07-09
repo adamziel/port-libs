@@ -761,8 +761,10 @@ final class CompoundFileBinary
         if ($root['name'] !== 'Root Entry') {
             throw new \RuntimeException('CFB root storage name must be Root Entry');
         }
-        if ($root['colorFlag'] !== 1) {
-            throw new \RuntimeException('CFB root storage entry must be black');
+        // The root directory has no siblings, so its red-black color does not
+        // participate in a tree. Only reject values outside the CFB enum.
+        if (!in_array($root['colorFlag'], [0, 1], true)) {
+            throw new \RuntimeException('CFB root storage entry has an invalid red-black color flag');
         }
 
         $root['path'] = '';

@@ -7640,6 +7640,25 @@ return [
         $t->same([], $diagnostics['missingUnicodeFontEncodings']);
         $t->same(0, $diagnostics['suppressedGlyphRuns']);
     },
+    'decodes standard encoded subset Type1 fonts with widths without ToUnicode maps' => static function (TestRunner $t): void {
+        $content = "BT /F1 12 Tf 72 720 Td (STANDARD TYPE1) Tj T* (FORM TEXT) Tj ET";
+        $widthArray = trim(str_repeat('500 ', 59));
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /ABCDEF+HelveticaNeue /Encoding /WinAnsiEncoding /FirstChar 32 /LastChar 90 /Widths [{$widthArray}] >>\nendobj\n"
+            . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n%%EOF";
+        $extractor = new PdfTextExtractor();
+        $diagnostics = $extractor->diagnostics($pdf);
+
+        $t->same(['STANDARD TYPE1', 'FORM TEXT'], $extractor->extractTextLines($pdf));
+        $t->same(['STANDARD TYPE1', 'FORM TEXT'], $extractor->extractTextRuns($pdf));
+        $t->contains('STANDARD TYPE1', $extractor->extractPlainText($pdf));
+        $t->same([], $diagnostics['missingUnicodeFonts']);
+        $t->same([], $diagnostics['missingUnicodeFontEncodings']);
+        $t->same(0, $diagnostics['suppressedGlyphRuns']);
+    },
     'extracts text from form XObjects invoked by page content streams' => static function (TestRunner $t): void {
         $pageContent = 'BT /Fpage 12 Tf 72 720 Td (Before form) Tj ET q /Fm1 Do Q q /Im1 Do Q BT /Fpage 12 Tf 72 680 Td (After form) Tj ET';
         $formContent = 'BT /Fform 12 Tf 20 20 Td (Form XObject text) Tj ET';

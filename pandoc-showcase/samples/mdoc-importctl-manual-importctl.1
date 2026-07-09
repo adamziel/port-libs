@@ -1,0 +1,33 @@
+.Dd July 9, 2026
+.Dt IMPORTCTL 1
+.Os
+.Sh NAME
+.Nm importctl
+.Nd import a document into a WordPress page
+.Sh SYNOPSIS
+.Nm
+.Op Fl f Ar format
+.Op Fl n
+.Ar input
+.Sh DESCRIPTION
+The
+.Nm importctl
+command converts
+.Ar input
+into portable blocks and writes media beside the document.
+.Bl -bullet
+.It
+Use
+.Fl f
+to select a source format.
+.It
+Use
+.Fl n
+to omit images.
+.El
+.Bl -tag -width Ds
+.It Cm verify
+Check the generated HTML and block markup.
+.It Pa /tmp/imports
+Default directory for conversion artifacts.
+.El

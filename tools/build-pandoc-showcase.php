@@ -615,6 +615,92 @@ RIS;
 
     $tsv = "name\tformat\tstatus\nDocument\tDOCX\tpartial\nNotebook\tIPYNB\tpartial\nSlides\tPPTX\tpartial\n";
 
+    $dokuWikiShowcase = <<<'DOKU'
+====== DokuWiki import packet ======
+
+This paragraph has **strong text**, //emphasis//, __underline__, ''literal code'', and [[https://example.org|an external link]].
+
+{{data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9JJR0AAAAASUVORK5CYII=?240x120|Hosted import diagram}}
+
+  * Review the converted page
+    * Confirm the nested item
+  - Publish the result
+
+^ Source ^ Status ^
+| DokuWiki | Imported |
+| WordPress | Blocks |
+
+<code php>
+echo 'portable import';
+</code>
+DOKU;
+
+    $mdocShowcase = <<<'MDOC'
+.Dd July 9, 2026
+.Dt IMPORTCTL 1
+.Os
+.Sh NAME
+.Nm importctl
+.Nd import a document into a WordPress page
+.Sh SYNOPSIS
+.Nm
+.Op Fl f Ar format
+.Op Fl n
+.Ar input
+.Sh DESCRIPTION
+The
+.Nm importctl
+command converts
+.Ar input
+into portable blocks and writes media beside the document.
+.Bl -bullet
+.It
+Use
+.Fl f
+to select a source format.
+.It
+Use
+.Fl n
+to omit images.
+.El
+.Bl -tag -width Ds
+.It Cm verify
+Check the generated HTML and block markup.
+.It Pa /tmp/imports
+Default directory for conversion artifacts.
+.El
+MDOC;
+
+    $rstShowcase = <<<'RST'
+reStructuredText import packet
+==============================
+
+Intro with *emphasis*, **strong text**, ``literal code``, and `a link <https://example.org>`_.
+
+- First source note
+- Second source note
+
+1. Convert the document
+2. Review the block markup
+
+:Owner: Content operations
+:Status: Ready
+
+.. image:: data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9JJR0AAAAASUVORK5CYII=
+   :alt: Hosted RST diagram
+   :width: 240px
+
+.. csv-table:: Format coverage
+   :header: "Format", "Output"
+
+   "RST", "WordPress blocks"
+   "HTML", "Rendered page"
+
+.. code:: php
+
+   echo "import";
+RST;
+
     $groups = [
         'bibtex' => [
             upstream_sample('bibtex-biblio', 'bibtex', 'test/command/biblio.bib', 'Pandoc bibliography fixture', 'BibTeX entries used by Pandoc command tests.'),
@@ -692,6 +778,9 @@ RIS;
                 'source' => 'Microsoft Download Center Migrating to Excel 2010.docx',
                 'filename' => 'Migrating-to-Excel-2010.docx',
             ],
+        ],
+        'dokuwiki' => [
+            inline_sample('dokuwiki-import-packet', 'dokuwiki', 'dokuwiki-import-packet.dokuwiki', 'DokuWiki import packet', $dokuWikiShowcase, 'Feature-rich DokuWiki input with inline styles, links, an embedded image, nested lists, a table, and a code block.'),
         ],
         'endnotexml' => [
             upstream_sample('endnotexml-reader', 'endnotexml', 'test/endnotexml-reader.xml', 'EndNote XML reader fixture', 'Bibliography XML fixture from upstream Pandoc tests.'),
@@ -812,6 +901,9 @@ RIS;
             local_sample('man-generated-fixture', 'man', 'lanes/pandoc/fixtures/man-corpus-smoke/generated.5', 'Generated roff manpage fixture', 'Checked-in roff manpage exercising TH/SH, font escapes, tagged paragraphs, indentation, no-fill code, and generated-man requests.'),
             local_sample('man-simple-fixture', 'man', 'lanes/pandoc/fixtures/man-corpus-smoke/simple.1', 'Simple roff manpage fixture', 'Checked-in compact roff manpage with title, section, name, and description macros.'),
         ],
+        'mdoc' => [
+            inline_sample('mdoc-importctl-manual', 'mdoc', 'importctl.1', 'mdoc importctl manual', $mdocShowcase, 'Feature-rich BSD mdoc manual with metadata, name/description, synopsis, callable inline macros, bullet items, and tagged options.'),
+        ],
         'mediawiki' => [
             inline_sample('mediawiki-feature-packet', 'mediawiki', 'mediawiki-feature-packet.wiki', 'MediaWiki feature packet', $mediaWikiFeature, 'Inline MediaWiki packet covering headings, emphasis, links, lists, definitions, syntaxhighlight code, horizontal rules, tables, and images.'),
             inline_sample('mediawiki-template-math-note', 'mediawiki', 'mediawiki-template-math-note.wiki', 'MediaWiki templates math and notes', "= Parser features =\n\nBefore <!-- hidden markup --> after &amp;.\n\n<nowiki>''raw'' [[x]] &amp;</nowiki> <math>E=mc^2</math> <ref>Note ''body''</ref> A<br />B {{tmpl|x}}\n\n{{CURRENTYEAR}}\n", 'Inline MediaWiki packet covering comments, nowiki, math, references, line breaks, templates, and raw parser-function fallback.'),
@@ -862,6 +954,9 @@ RIS;
         'ris' => [
             inline_sample('ris-texbook', 'ris', 'texbook.ris', 'RIS book record', $ris, 'Inline RIS record for a real published book.'),
             inline_sample('ris-web', 'ris', 'wordpress.ris', 'RIS website record', "TY  - ELEC\nAU  - WordPress Contributors\nTI  - WordPress\nPY  - 2026\nUR  - https://wordpress.org/\nER  -\n", 'Inline RIS record assembled from real WordPress project metadata.'),
+        ],
+        'rst' => [
+            inline_sample('rst-import-packet', 'rst', 'rst-import-packet.rst', 'reStructuredText import packet', $rstShowcase, 'Feature-rich reStructuredText input with inlines, bullet and ordered lists, field lists, an embedded image, a CSV table directive, and a code directive.'),
         ],
         'rtf' => [
             upstream_sample('rtf-template', 'rtf', 'data/templates/default.rtf', 'Pandoc default RTF template', 'Real RTF template from Pandoc project data.'),
@@ -1461,6 +1556,11 @@ function showcase_output_visual_signature(string $siteDir, string $relativePath)
         return [];
     }
     $html = showcase_visible_html($html);
+
+    $semanticSignature = showcase_html_visual_signature($html);
+    if ($semanticSignature !== null) {
+        return $semanticSignature;
+    }
     preg_match_all('/<\s*(h[1-6]|p|li|ul|ol|table|thead|tbody|tr|th|td|img|figure|figcaption|pre|code|blockquote|math|svg)\b/i', $html, $matches);
 
     $counts = [];
@@ -1474,6 +1574,148 @@ function showcase_output_visual_signature(string $siteDir, string $relativePath)
     ksort($counts);
 
     return $counts;
+}
+
+/**
+ * Build a document-level structural signature rather than counting incidental
+ * HTML wrappers. Pandoc HTML commonly puts paragraphs inside list/table/
+ * definition-list items, while WordPress blocks use the container semantics
+ * directly. Treating those wrappers as document paragraphs falsely reports a
+ * loss of structure on otherwise equivalent conversions.
+ *
+ * @return array<string, int>|null
+ */
+function showcase_html_visual_signature(string $html): ?array
+{
+    if (!class_exists(DOMDocument::class)) {
+        return null;
+    }
+
+    $dom = new DOMDocument();
+    $previous = libxml_use_internal_errors(true);
+    try {
+        $loaded = $dom->loadHTML('<!doctype html><html><body>' . $html . '</body></html>', LIBXML_NONET);
+    } finally {
+        libxml_clear_errors();
+        libxml_use_internal_errors($previous);
+    }
+    if (!$loaded) {
+        return null;
+    }
+
+    $body = $dom->getElementsByTagName('body')->item(0);
+    if (!$body instanceof DOMElement) {
+        return null;
+    }
+
+    $counts = [];
+    foreach ($body->getElementsByTagName('*') as $element) {
+        if (!$element instanceof DOMElement) {
+            continue;
+        }
+
+        $tag = strtolower($element->tagName);
+        if (preg_match('/^h[1-6]$/', $tag) === 1) {
+            showcase_increment_visual_signature($counts, 'heading');
+            showcase_increment_visual_signature($counts, $tag);
+            continue;
+        }
+
+        if ($tag === 'p') {
+            if (showcase_element_has_class($element, 'linegroup')) {
+                showcase_increment_visual_signature($counts, 'linegroup');
+            } elseif (showcase_is_document_paragraph($element)) {
+                showcase_increment_visual_signature($counts, 'p');
+            }
+            continue;
+        }
+
+        if ($tag === 'div' && showcase_element_has_class($element, 'linegroup')) {
+            showcase_increment_visual_signature($counts, 'linegroup');
+            continue;
+        }
+
+        if ($tag === 'dl') {
+            showcase_increment_visual_signature($counts, 'dl');
+            continue;
+        }
+        if ($tag === 'div' && showcase_element_has_class($element, 'pandoc-definition-list')) {
+            showcase_increment_visual_signature($counts, 'dl');
+            continue;
+        }
+
+        if ($tag === 'ul' || $tag === 'ol') {
+            if (!showcase_element_has_class($element, 'pandoc-definition-values')) {
+                showcase_increment_visual_signature($counts, $tag);
+            }
+            continue;
+        }
+        if ($tag === 'li') {
+            if (!showcase_element_has_ancestor_class($element, 'pandoc-definition-values')) {
+                showcase_increment_visual_signature($counts, 'li');
+            }
+            continue;
+        }
+
+        if (in_array($tag, ['table', 'thead', 'tbody', 'tfoot', 'tr', 'th', 'td', 'img', 'figure', 'figcaption', 'pre', 'code', 'blockquote', 'math', 'svg'], true)) {
+            showcase_increment_visual_signature($counts, $tag);
+        }
+    }
+    ksort($counts);
+
+    return $counts;
+}
+
+/**
+ * @param array<string, int> $counts
+ */
+function showcase_increment_visual_signature(array &$counts, string $name): void
+{
+    $counts[$name] = ($counts[$name] ?? 0) + 1;
+}
+
+function showcase_is_document_paragraph(DOMElement $element): bool
+{
+    if (showcase_element_has_class($element, 'pandoc-definition-term')) {
+        return false;
+    }
+
+    return !showcase_element_has_ancestor_tag($element, ['caption', 'dd', 'dt', 'figcaption', 'li', 'td', 'th'])
+        && !showcase_element_has_ancestor_class($element, 'pandoc-definition-list')
+        && !showcase_element_has_ancestor_class($element, 'linegroup');
+}
+
+/**
+ * @param list<string> $tags
+ */
+function showcase_element_has_ancestor_tag(DOMElement $element, array $tags): bool
+{
+    $lookup = array_fill_keys($tags, true);
+    for ($node = $element->parentNode; $node !== null; $node = $node->parentNode) {
+        if ($node instanceof DOMElement && isset($lookup[strtolower($node->tagName)])) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+function showcase_element_has_ancestor_class(DOMElement $element, string $class): bool
+{
+    for ($node = $element->parentNode; $node !== null; $node = $node->parentNode) {
+        if ($node instanceof DOMElement && showcase_element_has_class($node, $class)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+function showcase_element_has_class(DOMElement $element, string $class): bool
+{
+    $classes = preg_split('/\s+/', trim($element->getAttribute('class'))) ?: [];
+
+    return in_array($class, $classes, true);
 }
 
 /**
@@ -1631,14 +1873,6 @@ function showcase_record_import_quality(string $siteDir, array $record): array
     $baselineVisual = $baselinePath === '' ? [] : showcase_output_visual_signature($siteDir, $baselinePath);
     $countGateWpVisual = $wpVisual;
     $countGateDetailSuffix = '';
-    if (
-        (string) ($record['format'] ?? '') === 'xlsx'
-        && showcase_output_contains($siteDir, $wpPath, 'data-pandoc-source="xlsx-sheet-navigation"')
-    ) {
-        $countGateWpVisual['heading'] = max(0, (int) ($countGateWpVisual['heading'] ?? 0) - 1);
-        $countGateWpVisual['ul'] = max(0, (int) ($countGateWpVisual['ul'] ?? 0) - 1);
-        $countGateDetailSuffix = ' after excluding generated XLSX sheet navigation';
-    }
     $comparison = is_array($record['faithfulness']['comparisons']['wpBlocks'] ?? null)
         ? $record['faithfulness']['comparisons']['wpBlocks']
         : [];
@@ -1674,6 +1908,11 @@ function showcase_record_import_quality(string $siteDir, array $record): array
         (int) (($baselineVisual['ul'] ?? 0) + ($baselineVisual['ol'] ?? 0)),
         (int) (($countGateWpVisual['ul'] ?? 0) + ($countGateWpVisual['ol'] ?? 0)),
         'list count ratio' . $countGateDetailSuffix
+    );
+    $gates['definition_list_count'] = showcase_count_ratio_gate(
+        (int) ($baselineVisual['dl'] ?? 0),
+        (int) ($countGateWpVisual['dl'] ?? 0),
+        'definition list count ratio' . $countGateDetailSuffix
     );
     $gates['table_count'] = showcase_count_ratio_gate(
         (int) ($baselineVisual['table'] ?? 0),
@@ -2541,6 +2780,53 @@ function existing_showcase_samples(string $samplesDir): array
     }
 
     return $samples;
+}
+
+if (($argv[1] ?? '') === '--verify-quality-signature') {
+    $baseline = showcase_html_visual_signature(showcase_visible_html(<<<'HTML'
+<header id="title-block-header"><h1>Generated title</h1><p>July 9, 2026</p></header>
+<h2>Release</h2>
+<p>Introductory prose.</p>
+<div class="linegroup"><div>First line.</div><div>Second line.</div></div>
+<ol><li><p>Convert</p></li><li><p>Review</p></li></ol>
+<dl><dt>verify</dt><dd><p>Check the output.</p></dd></dl>
+<table><tbody><tr><td><p>Cell</p></td></tr></tbody></table>
+HTML));
+    $wordpress = showcase_html_visual_signature(showcase_visible_html(<<<'HTML'
+<h2>Release</h2>
+<p>Introductory prose.</p>
+<p class="linegroup">First line.<br/>Second line.</p>
+<ol><li>Convert</li><li>Review</li></ol>
+<div class="wp-block-group pandoc-definition-list">
+<p class="pandoc-definition-term"><strong>verify</strong></p>
+<ul class="pandoc-definition-values"><li>Check the output.</li></ul>
+</div>
+<table><tbody><tr><td>Cell</td></tr></tbody></table>
+HTML));
+    $expected = [
+        'dl' => 1,
+        'h2' => 1,
+        'heading' => 1,
+        'li' => 2,
+        'linegroup' => 1,
+        'ol' => 1,
+        'p' => 1,
+        'table' => 1,
+        'tbody' => 1,
+        'td' => 1,
+        'tr' => 1,
+    ];
+    $score = is_array($baseline) && is_array($wordpress)
+        ? showcase_visual_signature_similarity($baseline, $wordpress)
+        : 0.0;
+    $ok = $baseline === $expected && $wordpress === $expected && $score === 1.0;
+    fwrite(STDOUT, json_encode([
+        'ok' => $ok,
+        'baseline' => $baseline,
+        'wordpress' => $wordpress,
+        'score' => $score,
+    ], JSON_UNESCAPED_SLASHES) . PHP_EOL);
+    exit($ok ? 0 : 1);
 }
 
 $existingSamples = existing_showcase_samples($samplesDir);

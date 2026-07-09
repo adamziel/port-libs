@@ -2462,6 +2462,42 @@ return [
 
         $t->throws(\RuntimeException::class, static fn (): CompoundFileBinary => CompoundFileBinary::fromBytes($redTree));
     },
+    'accepts legacy CFB root storage color flags outside sibling trees' => static function (TestRunner $t) use ($buildCfb): void {
+        $bytes = $buildCfb([
+            'WordDocument' => 'root stream bytes',
+        ]);
+        $directorySectorOffset = 512 + 512;
+        $rootColorOffset = $directorySectorOffset + 67;
+        $legacyRootColor = substr_replace($bytes, "\0", $rootColorOffset, 1);
+
+        $compoundFile = CompoundFileBinary::fromBytes($legacyRootColor);
+
+        $t->same('root stream bytes', $compoundFile->readStream('WordDocument'));
+    },
+    'reads Word 6 FIB text ranges as paragraph blocks' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument, $u16): void {
+        $wordDocument = $buildSimpleWordDocument("Word 6 first paragraph\rWord 6 second paragraph\r");
+        $wordDocument = substr_replace($wordDocument, $u16(0xa5dc), 0, 2);
+        $wordDocument = substr_replace($wordDocument, $u16(0x0065), 2, 2);
+
+        $result = (new LegacyDocReader())->readBytes($buildCfb([
+            'WordDocument' => $wordDocument,
+        ]));
+        $blocks = (new WordPressBlockWriter())->write($result['document']);
+
+        $t->same('6.0', $result['fib']['oldWordVersion']);
+        $t->same('word6-95-basic-text', $result['metadata']['legacyDocReaderMode']);
+        $t->same('Word 6 first paragraph', $result['document']->children[0]->children[0]->attr('text'));
+        $t->contains('<p>Word 6 second paragraph</p>', $blocks);
+    },
+    'reads the compact Apache POI Word 6 fixture without a special-case parser' => static function (TestRunner $t): void {
+        $fixture = dirname(__DIR__, 3) . '/pandoc-showcase/samples/doc-poi-57843-57843.doc';
+        $result = (new LegacyDocReader())->readBytes((string) file_get_contents($fixture));
+        $blocks = PandocConverter::write($result['document'], 'blocks');
+
+        $t->same('6.0', $result['fib']['oldWordVersion']);
+        $t->contains('<p>Harold Koplow</p>', $blocks);
+        $t->contains('<p>Dear Governor Bush:</p>', $blocks);
+    },
     'rejects illegal CFB directory names and invalid color flags' => static function (TestRunner $t) use ($buildCfb): void {
         $t->throws(\RuntimeException::class, static fn (): CompoundFileBinary => CompoundFileBinary::fromBytes($buildCfb([
             'Bad:Name' => 'bad stream',
@@ -2959,14 +2995,17 @@ return [
 
         $t->throws(\RuntimeException::class, static fn (): CompoundFileBinary => CompoundFileBinary::fromBytes($redRoot));
     },
-    'rejects red CFB root storage entries before stream lookup' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument): void {
+    'accepts red CFB root storage entries outside sibling trees through the DOC reader' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument): void {
         $bytes = $buildCfb([
             'WordDocument' => $buildSimpleWordDocument("Root color guard packet\r"),
         ]);
         $directorySectorOffset = 512 + 512;
         $redRootStorage = substr_replace($bytes, "\0", $directorySectorOffset + 67, 1);
 
-        $t->throws(\RuntimeException::class, static fn (): array => (new LegacyDocReader())->readBytes($redRootStorage));
+        $result = (new LegacyDocReader())->readBytes($redRootStorage);
+        $blocks = PandocConverter::write($result['document'], 'blocks');
+
+        $t->contains('<p>Root color guard packet</p>', $blocks);
     },
     'rejects CFB root storage creation timestamps before stream lookup' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument): void {
         $bytes = $buildCfb([

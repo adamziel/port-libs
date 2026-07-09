@@ -33,6 +33,12 @@ final class PandocConverter
         }
 
         $reader = self::reader($entry['implementation'], $canonical, $options);
+        if ($reader instanceof MarkdownReader) {
+            $encoding = self::stringReaderOption($options, ['sourceEncoding', 'inputEncoding', 'encoding']);
+            $normalization = self::stringReaderOption($options, ['unicodeNormalization', 'normalizationForm']);
+
+            return $reader->readBytes($bytes, $encoding, $normalization);
+        }
 
         return $reader->read($bytes);
     }
@@ -313,6 +319,22 @@ final class PandocConverter
             XlsxReader::class => new XlsxReader(),
             default => throw new \InvalidArgumentException("Unsupported Pandoc reader implementation '{$implementation}'."),
         };
+    }
+
+    /**
+     * @param array<string, mixed> $options
+     * @param list<string> $names
+     */
+    private static function stringReaderOption(array $options, array $names): ?string
+    {
+        foreach ($names as $name) {
+            $value = $options[$name] ?? null;
+            if (is_string($value) && trim($value) !== '') {
+                return $value;
+            }
+        }
+
+        return null;
     }
 
     /**

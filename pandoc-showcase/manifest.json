@@ -1,5 +1,5 @@
 {
-    "generatedAt": "2026-07-09T17:56:23+00:00",
+    "generatedAt": "2026-07-09T20:17:03+00:00",
     "pandocVersion": "pandoc 3.10\nFeatures: +server +lua\nScripting engine: Lua 5.4\nUser data directory: $REPO\nCopyright (C) 2006-2025 John MacFarlane. Web:  https://pandoc.org\nThis is free software; see the source for copying conditions. There is no\nwarranty, not even for merchantability or fitness for a particular purpose.",
     "mediaImageMode": "important",
     "formats": [
@@ -55,6 +55,7 @@
         "doc",
         "docbook",
         "docx",
+        "dokuwiki",
         "endnotexml",
         "epub",
         "fb2",
@@ -71,6 +72,7 @@
         "markdown_mmd",
         "markdown_phpextra",
         "markdown_strict",
+        "mdoc",
         "mediawiki",
         "native",
         "odt",
@@ -78,39 +80,36 @@
         "pdf",
         "pptx",
         "ris",
+        "rst",
         "rtf",
         "tsv",
         "xlsx",
         "xml"
     ],
-    "missingFormats": [
-        "dokuwiki",
-        "mdoc",
-        "rst"
-    ],
+    "missingFormats": [],
     "conversionSummary": {
-        "totalSamples": 87,
-        "totalConversions": 261,
-        "successfulConversions": 245,
-        "failedConversions": 16,
+        "totalSamples": 90,
+        "totalConversions": 270,
+        "successfulConversions": 258,
+        "failedConversions": 12,
         "byConverter": {
             "wpBlocks": {
                 "label": "PHP WordPress blocks",
-                "ok": 85,
-                "failed": 2,
-                "total": 87
+                "ok": 90,
+                "failed": 0,
+                "total": 90
             },
             "phpHtml": {
                 "label": "PHP HTML",
-                "ok": 85,
-                "failed": 2,
-                "total": 87
+                "ok": 90,
+                "failed": 0,
+                "total": 90
             },
             "haskell": {
                 "label": "Haskell Pandoc HTML",
-                "ok": 75,
+                "ok": 78,
                 "failed": 12,
-                "total": 87
+                "total": 90
             }
         },
         "byFormat": {
@@ -158,8 +157,8 @@
             },
             "doc": {
                 "samples": 2,
-                "ok": 2,
-                "failed": 4,
+                "ok": 4,
+                "failed": 2,
                 "total": 6
             },
             "docbook": {
@@ -173,6 +172,12 @@
                 "ok": 27,
                 "failed": 0,
                 "total": 27
+            },
+            "dokuwiki": {
+                "samples": 1,
+                "ok": 3,
+                "failed": 0,
+                "total": 3
             },
             "endnotexml": {
                 "samples": 2,
@@ -212,8 +217,8 @@
             },
             "jats": {
                 "samples": 2,
-                "ok": 4,
-                "failed": 2,
+                "ok": 6,
+                "failed": 0,
                 "total": 6
             },
             "jira": {
@@ -270,6 +275,12 @@
                 "failed": 0,
                 "total": 3
             },
+            "mdoc": {
+                "samples": 1,
+                "ok": 3,
+                "failed": 0,
+                "total": 3
+            },
             "mediawiki": {
                 "samples": 2,
                 "ok": 6,
@@ -312,6 +323,12 @@
                 "failed": 0,
                 "total": 6
             },
+            "rst": {
+                "samples": 1,
+                "ok": 3,
+                "failed": 0,
+                "total": 3
+            },
             "rtf": {
                 "samples": 3,
                 "ok": 9,
@@ -339,31 +356,31 @@
         }
     },
     "faithfulnessSummary": {
-        "comparisons": 138,
-        "faithfulEnough": 132,
+        "comparisons": 147,
+        "faithfulEnough": 141,
         "review": 5,
         "divergent": 0,
         "noText": 1,
-        "visualComparisons": 138,
-        "visualFaithfulEnough": 119,
-        "visualReview": 17,
-        "visualDivergent": 1,
+        "visualComparisons": 147,
+        "visualFaithfulEnough": 131,
+        "visualReview": 15,
+        "visualDivergent": 0,
         "visualNoStructure": 1
     },
     "importQualitySummary": {
-        "samples": 87,
-        "pass": 48,
-        "review": 32,
-        "fail": 7
+        "samples": 90,
+        "pass": 59,
+        "review": 31,
+        "fail": 0
     },
     "importQualitySegmentSummary": {
         "common": {
             "samples": 44,
-            "pass": 30,
+            "pass": 33,
             "review": 11,
-            "fail": 3,
+            "fail": 0,
             "wpFailures": 0,
-            "passOrReview": 41,
+            "passOrReview": 44,
             "formats": {
                 "csv": {
                     "samples": 2,
@@ -375,19 +392,19 @@
                 },
                 "docx": {
                     "samples": 9,
-                    "pass": 8,
-                    "review": 1,
+                    "pass": 9,
+                    "review": 0,
                     "fail": 0,
                     "wpFailures": 0,
                     "passOrReview": 9
                 },
                 "epub": {
                     "samples": 5,
-                    "pass": 2,
+                    "pass": 3,
                     "review": 2,
-                    "fail": 1,
+                    "fail": 0,
                     "wpFailures": 0,
-                    "passOrReview": 4
+                    "passOrReview": 5
                 },
                 "gfm": {
                     "samples": 1,
@@ -408,10 +425,10 @@
                 "markdown": {
                     "samples": 1,
                     "pass": 0,
-                    "review": 0,
-                    "fail": 1,
+                    "review": 1,
+                    "fail": 0,
                     "wpFailures": 0,
-                    "passOrReview": 0
+                    "passOrReview": 1
                 },
                 "markdown_github": {
                     "samples": 1,
@@ -424,15 +441,15 @@
                 "odt": {
                     "samples": 3,
                     "pass": 2,
-                    "review": 0,
-                    "fail": 1,
+                    "review": 1,
+                    "fail": 0,
                     "wpFailures": 0,
-                    "passOrReview": 2
+                    "passOrReview": 3
                 },
                 "pdf": {
                     "samples": 6,
-                    "pass": 1,
-                    "review": 5,
+                    "pass": 2,
+                    "review": 4,
                     "fail": 0,
                     "wpFailures": 0,
                     "passOrReview": 6
@@ -472,12 +489,12 @@
             }
         },
         "exotic": {
-            "samples": 43,
-            "pass": 18,
-            "review": 21,
-            "fail": 2,
-            "wpFailures": 2,
-            "passOrReview": 39,
+            "samples": 46,
+            "pass": 26,
+            "review": 20,
+            "fail": 0,
+            "wpFailures": 0,
+            "passOrReview": 46,
             "formats": {
                 "biblatex": {
                     "samples": 2,
@@ -529,17 +546,25 @@
                 },
                 "doc": {
                     "samples": 2,
-                    "pass": 1,
+                    "pass": 2,
                     "review": 0,
                     "fail": 0,
-                    "wpFailures": 1,
-                    "passOrReview": 1
+                    "wpFailures": 0,
+                    "passOrReview": 2
                 },
                 "docbook": {
                     "samples": 2,
                     "pass": 0,
+                    "review": 2,
+                    "fail": 0,
+                    "wpFailures": 0,
+                    "passOrReview": 2
+                },
+                "dokuwiki": {
+                    "samples": 1,
+                    "pass": 0,
                     "review": 1,
-                    "fail": 1,
+                    "fail": 0,
                     "wpFailures": 0,
                     "passOrReview": 1
                 },
@@ -569,19 +594,19 @@
                 },
                 "jats": {
                     "samples": 2,
-                    "pass": 0,
+                    "pass": 1,
                     "review": 1,
                     "fail": 0,
-                    "wpFailures": 1,
-                    "passOrReview": 1
+                    "wpFailures": 0,
+                    "passOrReview": 2
                 },
                 "jira": {
                     "samples": 2,
-                    "pass": 0,
-                    "review": 1,
-                    "fail": 1,
+                    "pass": 2,
+                    "review": 0,
+                    "fail": 0,
                     "wpFailures": 0,
-                    "passOrReview": 1
+                    "passOrReview": 2
                 },
                 "json": {
                     "samples": 2,
@@ -601,8 +626,8 @@
                 },
                 "man": {
                     "samples": 2,
-                    "pass": 1,
-                    "review": 1,
+                    "pass": 2,
+                    "review": 0,
                     "fail": 0,
                     "wpFailures": 0,
                     "passOrReview": 2
@@ -625,16 +650,24 @@
                 },
                 "markdown_strict": {
                     "samples": 1,
-                    "pass": 0,
-                    "review": 1,
+                    "pass": 1,
+                    "review": 0,
+                    "fail": 0,
+                    "wpFailures": 0,
+                    "passOrReview": 1
+                },
+                "mdoc": {
+                    "samples": 1,
+                    "pass": 1,
+                    "review": 0,
                     "fail": 0,
                     "wpFailures": 0,
                     "passOrReview": 1
                 },
                 "mediawiki": {
                     "samples": 2,
-                    "pass": 0,
-                    "review": 2,
+                    "pass": 1,
+                    "review": 1,
                     "fail": 0,
                     "wpFailures": 0,
                     "passOrReview": 2
@@ -662,6 +695,14 @@
                     "fail": 0,
                     "wpFailures": 0,
                     "passOrReview": 2
+                },
+                "rst": {
+                    "samples": 1,
+                    "pass": 0,
+                    "review": 1,
+                    "fail": 0,
+                    "wpFailures": 0,
+                    "passOrReview": 1
                 },
                 "xml": {
                     "samples": 2,
@@ -694,10 +735,10 @@
                 "actual": {
                     "samples": 44,
                     "wpFailures": 0,
-                    "pass": 30,
+                    "pass": 33,
                     "review": 11,
-                    "fail": 3,
-                    "passOrReview": 41
+                    "fail": 0,
+                    "passOrReview": 44
                 },
                 "checks": {
                     "minSamples": {
@@ -713,17 +754,17 @@
                     "minPass": {
                         "status": "pass",
                         "expected": ">=29",
-                        "actual": 30
+                        "actual": 33
                     },
                     "minPassOrReview": {
                         "status": "pass",
                         "expected": ">=39",
-                        "actual": 41
+                        "actual": 44
                     },
                     "maxFail": {
                         "status": "pass",
                         "expected": "<=5",
-                        "actual": 3
+                        "actual": 0
                     }
                 },
                 "failedChecks": []
@@ -740,38 +781,38 @@
                     "maxFail": 2
                 },
                 "actual": {
-                    "samples": 43,
-                    "wpFailures": 2,
-                    "pass": 18,
-                    "review": 21,
-                    "fail": 2,
-                    "passOrReview": 39
+                    "samples": 46,
+                    "wpFailures": 0,
+                    "pass": 26,
+                    "review": 20,
+                    "fail": 0,
+                    "passOrReview": 46
                 },
                 "checks": {
                     "minSamples": {
                         "status": "pass",
                         "expected": ">=43",
-                        "actual": 43
+                        "actual": 46
                     },
                     "maxWpFailures": {
                         "status": "pass",
                         "expected": "<=2",
-                        "actual": 2
+                        "actual": 0
                     },
                     "minPass": {
                         "status": "pass",
                         "expected": ">=18",
-                        "actual": 18
+                        "actual": 26
                     },
                     "minPassOrReview": {
                         "status": "pass",
                         "expected": ">=39",
-                        "actual": 39
+                        "actual": 46
                     },
                     "maxFail": {
                         "status": "pass",
                         "expected": "<=2",
-                        "actual": 2
+                        "actual": 0
                     }
                 },
                 "failedChecks": []
@@ -780,19 +821,19 @@
     },
     "blockUsage": {
         "totals": {
-            "code": 641,
-            "group": 307,
-            "heading": 4109,
-            "html": 59,
-            "image": 240,
-            "list": 1357,
-            "paragraph": 15907,
+            "code": 650,
+            "group": 308,
+            "heading": 4187,
+            "html": 51,
+            "image": 244,
+            "list": 1392,
+            "paragraph": 16109,
             "quote": 54,
             "separator": 65,
-            "table": 560,
-            "verse": 1
+            "table": 578,
+            "verse": 2
         },
-        "sampleCount": 85
+        "sampleCount": 90
     },
     "records": [
         {
@@ -855,10 +896,10 @@
                         "detail": "no baseline comparison available for heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
-                        "status": "review",
+                        "status": "pass",
                         "expected": "0",
-                        "actual": 3,
-                        "detail": "paragraph count ratio has no baseline count"
+                        "actual": 0,
+                        "detail": "paragraph count ratio"
                     },
                     "heading_count": {
                         "status": "pass",
@@ -867,10 +908,16 @@
                         "detail": "heading count ratio"
                     },
                     "list_count": {
+                        "status": "pass",
+                        "expected": "0",
+                        "actual": 0,
+                        "detail": "list count ratio"
+                    },
+                    "definition_list_count": {
                         "status": "review",
                         "expected": "0",
-                        "actual": 3,
-                        "detail": "list count ratio has no baseline count"
+                        "actual": 1,
+                        "detail": "definition list count ratio has no baseline count"
                     },
                     "table_count": {
                         "status": "pass",
@@ -904,8 +951,8 @@
                     }
                 },
                 "summary": {
-                    "pass": 6,
-                    "review": 4,
+                    "pass": 8,
+                    "review": 3,
                     "fail": 0
                 }
             }
@@ -970,10 +1017,10 @@
                         "detail": "no baseline comparison available for heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
-                        "status": "review",
+                        "status": "pass",
                         "expected": "0",
-                        "actual": 4,
-                        "detail": "paragraph count ratio has no baseline count"
+                        "actual": 0,
+                        "detail": "paragraph count ratio"
                     },
                     "heading_count": {
                         "status": "pass",
@@ -982,10 +1029,16 @@
                         "detail": "heading count ratio"
                     },
                     "list_count": {
+                        "status": "pass",
+                        "expected": "0",
+                        "actual": 0,
+                        "detail": "list count ratio"
+                    },
+                    "definition_list_count": {
                         "status": "review",
                         "expected": "0",
-                        "actual": 4,
-                        "detail": "list count ratio has no baseline count"
+                        "actual": 1,
+                        "detail": "definition list count ratio has no baseline count"
                     },
                     "table_count": {
                         "status": "pass",
@@ -1019,8 +1072,8 @@
                     }
                 },
                 "summary": {
-                    "pass": 6,
-                    "review": 4,
+                    "pass": 8,
+                    "review": 3,
                     "fail": 0
                 }
             }
@@ -1085,10 +1138,10 @@
                         "detail": "no baseline comparison available for heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
-                        "status": "review",
+                        "status": "pass",
                         "expected": "0",
-                        "actual": 3,
-                        "detail": "paragraph count ratio has no baseline count"
+                        "actual": 0,
+                        "detail": "paragraph count ratio"
                     },
                     "heading_count": {
                         "status": "pass",
@@ -1097,10 +1150,16 @@
                         "detail": "heading count ratio"
                     },
                     "list_count": {
+                        "status": "pass",
+                        "expected": "0",
+                        "actual": 0,
+                        "detail": "list count ratio"
+                    },
+                    "definition_list_count": {
                         "status": "review",
                         "expected": "0",
-                        "actual": 3,
-                        "detail": "list count ratio has no baseline count"
+                        "actual": 1,
+                        "detail": "definition list count ratio has no baseline count"
                     },
                     "table_count": {
                         "status": "pass",
@@ -1134,8 +1193,8 @@
                     }
                 },
                 "summary": {
-                    "pass": 6,
-                    "review": 4,
+                    "pass": 8,
+                    "review": 3,
                     "fail": 0
                 }
             }
@@ -1200,10 +1259,10 @@
                         "detail": "no baseline comparison available for heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
-                        "status": "review",
+                        "status": "pass",
                         "expected": "0",
-                        "actual": 1,
-                        "detail": "paragraph count ratio has no baseline count"
+                        "actual": 0,
+                        "detail": "paragraph count ratio"
                     },
                     "heading_count": {
                         "status": "pass",
@@ -1212,10 +1271,16 @@
                         "detail": "heading count ratio"
                     },
                     "list_count": {
+                        "status": "pass",
+                        "expected": "0",
+                        "actual": 0,
+                        "detail": "list count ratio"
+                    },
+                    "definition_list_count": {
                         "status": "review",
                         "expected": "0",
                         "actual": 1,
-                        "detail": "list count ratio has no baseline count"
+                        "detail": "definition list count ratio has no baseline count"
                     },
                     "table_count": {
                         "status": "pass",
@@ -1249,8 +1314,8 @@
                     }
                 },
                 "summary": {
-                    "pass": 6,
-                    "review": 4,
+                    "pass": 8,
+                    "review": 3,
                     "fail": 0
                 }
             }
@@ -1350,6 +1415,12 @@
                         "actual": 0,
                         "detail": "list count ratio"
                     },
+                    "definition_list_count": {
+                        "status": "pass",
+                        "expected": "0",
+                        "actual": 0,
+                        "detail": "definition list count ratio"
+                    },
                     "table_count": {
                         "status": "pass",
                         "expected": "0",
@@ -1382,7 +1453,7 @@
                     }
                 },
                 "summary": {
-                    "pass": 8,
+                    "pass": 9,
                     "review": 2,
                     "fail": 0
                 }
@@ -1483,6 +1554,12 @@
                         "actual": 0,
                         "detail": "list count ratio"
                     },
+                    "definition_list_count": {
+                        "status": "pass",
+                        "expected": "0",
+                        "actual": 0,
+                        "detail": "definition list count ratio"
+                    },
                     "table_count": {
                         "status": "pass",
                         "expected": "0",
@@ -1515,7 +1592,7 @@
                     }
                 },
                 "summary": {
-                    "pass": 8,
+                    "pass": 9,
                     "review": 2,
                     "fail": 0
                 }
@@ -1618,6 +1695,12 @@
                         "actual": 1,
                         "detail": "list count ratio expected 6, got 6"
                     },
+                    "definition_list_count": {
+                        "status": "pass",
+                        "expected": "0",
+                        "actual": 0,
+                        "detail": "definition list count ratio"
+                    },
                     "table_count": {
                         "status": "pass",
                         "expected": "0",
@@ -1650,7 +1733,7 @@
                     }
                 },
                 "summary": {
-                    "pass": 10,
+                    "pass": 11,
                     "review": 0,
                     "fail": 0
                 }
@@ -1754,6 +1837,12 @@
                         "actual": 1,
                         "detail": "list count ratio expected 38, got 38"
                     },
+                    "definition_list_count": {
+                        "status": "pass",
+                        "expected": "0",
+                        "actual": 0,
+                        "detail": "definition list count ratio"
+                    },
                     "table_count": {
                         "status": "pass",
                         "expected": "0",
@@ -1786,7 +1875,7 @@
                     }
                 },
                 "summary": {
-                    "pass": 10,
+                    "pass": 11,
                     "review": 0,
                     "fail": 0
                 }
@@ -1852,10 +1941,10 @@
                         "detail": "no baseline comparison available for heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
-                        "status": "review",
+                        "status": "pass",
                         "expected": "0",
-                        "actual": 1,
-                        "detail": "paragraph count ratio has no baseline count"
+                        "actual": 0,
+                        "detail": "paragraph count ratio"
                     },
                     "heading_count": {
                         "status": "pass",
@@ -1864,10 +1953,16 @@
                         "detail": "heading count ratio"
                     },
                     "list_count": {
+                        "status": "pass",
+                        "expected": "0",
+                        "actual": 0,
+                        "detail": "list count ratio"
+                    },
+                    "definition_list_count": {
                         "status": "review",
                         "expected": "0",
                         "actual": 1,
-                        "detail": "list count ratio has no baseline count"
+                        "detail": "definition list count ratio has no baseline count"
                     },
                     "table_count": {
                         "status": "pass",
@@ -1901,8 +1996,8 @@
                     }
                 },
                 "summary": {
-                    "pass": 6,
-                    "review": 4,
+                    "pass": 8,
+                    "review": 3,
                     "fail": 0
                 }
             }
@@ -1967,10 +2062,10 @@
                         "detail": "no baseline comparison available for heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
-                        "status": "review",
+                        "status": "pass",
                         "expected": "0",
-                        "actual": 1,
-                        "detail": "paragraph count ratio has no baseline count"
+                        "actual": 0,
+                        "detail": "paragraph count ratio"
                     },
                     "heading_count": {
                         "status": "pass",
@@ -1979,10 +2074,16 @@
                         "detail": "heading count ratio"
                     },
                     "list_count": {
+                        "status": "pass",
+                        "expected": "0",
+                        "actual": 0,
+                        "detail": "list count ratio"
+                    },
+                    "definition_list_count": {
                         "status": "review",
                         "expected": "0",
                         "actual": 1,
-                        "detail": "list count ratio has no baseline count"
+                        "detail": "definition list count ratio has no baseline count"
                     },
                     "table_count": {
                         "status": "pass",
@@ -2016,8 +2117,8 @@
                     }
                 },
                 "summary": {
-                    "pass": 6,
-                    "review": 4,
+                    "pass": 8,
+                    "review": 3,
                     "fail": 0
                 }
             }
@@ -2116,6 +2217,12 @@
                         "actual": 0,
                         "detail": "list count ratio"
                     },
+                    "definition_list_count": {
+                        "status": "pass",
+                        "expected": "0",
+                        "actual": 0,
+                        "detail": "definition list count ratio"
+                    },
                     "table_count": {
                         "status": "pass",
                         "expected": "0.80-1.25",
@@ -2148,7 +2255,7 @@
                     }
                 },
                 "summary": {
-                    "pass": 10,
+                    "pass": 11,
                     "review": 0,
                     "fail": 0
                 }
@@ -2248,6 +2355,12 @@
                         "actual": 0,
                         "detail": "list count ratio"
                     },
+                    "definition_list_count": {
+                        "status": "pass",
+                        "expected": "0",
+                        "actual": 0,
+                        "detail": "definition list count ratio"
+                    },
                     "table_count": {
                         "status": "pass",
                         "expected": "0.80-1.25",
@@ -2280,7 +2393,7 @@
                     }
                 },
                 "summary": {
-                    "pass": 10,
+                    "pass": 11,
                     "review": 0,
                     "fail": 0
                 }
@@ -2380,6 +2493,12 @@
                         "actual": 0,
                         "detail": "list count ratio"
                     },
+                    "definition_list_count": {
+                        "status": "pass",
+                        "expected": "0",
+                        "actual": 0,
+                        "detail": "definition list count ratio"
+                    },
                     "table_count": {
                         "status": "pass",
                         "expected": "0.80-1.25",
@@ -2412,7 +2531,7 @@
                     }
                 },
                 "summary": {
-                    "pass": 10,
+                    "pass": 11,
                     "review": 0,
                     "fail": 0
                 }
@@ -2512,6 +2631,12 @@
                         "actual": 0,
                         "detail": "list count ratio"
                     },
+                    "definition_list_count": {
+                        "status": "pass",
+                        "expected": "0",
+                        "actual": 0,
+                        "detail": "definition list count ratio"
+                    },
                     "table_count": {
                         "status": "pass",
                         "expected": "0.80-1.25",
@@ -2544,7 +2669,7 @@
                     }
                 },
                 "summary": {
-                    "pass": 10,
+                    "pass": 11,
                     "review": 0,
                     "fail": 0
                 }
@@ -2599,8 +2724,8 @@
                         "score": 0.9091,
                         "textStatus": "faithful_enough",
                         "textScore": 0.9091,
-                        "visualStatus": "review",
-                        "visualScore": 0.6
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.75
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
@@ -2609,12 +2734,12 @@
                         "textStatus": "faithful_enough",
                         "textScore": 0.9091,
                         "visualStatus": "faithful_enough",
-                        "visualScore": 0.8
+                        "visualScore": 0.75
                     }
                 }
             },
             "importQuality": {
-                "status": "fail",
+                "status": "review",
                 "gates": {
                     "text_completeness": {
                         "status": "pass",
@@ -2623,16 +2748,16 @@
                         "detail": "visible text overlap with the baseline"
                     },
                     "visual_structure": {
-                        "status": "review",
+                        "status": "pass",
                         "expected": ">=0.75",
-                        "actual": 0.6,
+                        "actual": 0.75,
                         "detail": "heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
-                        "status": "fail",
+                        "status": "pass",
                         "expected": "0.80-1.25",
-                        "actual": 0.3333,
-                        "detail": "paragraph count ratio expected 3, got 1"
+                        "actual": 1,
+                        "detail": "paragraph count ratio expected 1, got 1"
                     },
                     "heading_count": {
                         "status": "review",
@@ -2645,6 +2770,12 @@
                         "expected": "0.80-1.25",
                         "actual": 1,
                         "detail": "list count ratio expected 1, got 1"
+                    },
+                    "definition_list_count": {
+                        "status": "pass",
+                        "expected": "0",
+                        "actual": 0,
+                        "detail": "definition list count ratio"
                     },
                     "table_count": {
                         "status": "pass",
@@ -2678,9 +2809,9 @@
                     }
                 },
                 "summary": {
-                    "pass": 7,
-                    "review": 2,
-                    "fail": 1
+                    "pass": 10,
+                    "review": 1,
+                    "fail": 0
                 }
             }
         },
@@ -2779,6 +2910,12 @@
                         "actual": 0,
                         "detail": "list count ratio"
                     },
+                    "definition_list_count": {
+                        "status": "pass",
+                        "expected": "0",
+                        "actual": 0,
+                        "detail": "definition list count ratio"
+                    },
                     "table_count": {
                         "status": "pass",
                         "expected": "0.80-1.25",
@@ -2811,7 +2948,7 @@
                     }
                 },
                 "summary": {
-                    "pass": 9,
+                    "pass": 10,
                     "review": 1,
                     "fail": 0
                 }
@@ -2914,6 +3051,12 @@
                         "actual": 1,
                         "detail": "list count ratio expected 2, got 2"
                     },
+                    "definition_list_count": {
+                        "status": "pass",
+                        "expected": "0",
+                        "actual": 0,
+                        "detail": "definition list count ratio"
+                    },
                     "table_count": {
                         "status": "pass",
                         "expected": "0.80-1.25",
@@ -2946,7 +3089,7 @@
                     }
                 },
                 "summary": {
-                    "pass": 10,
+                    "pass": 11,
                     "review": 0,
                     "fail": 0
                 }
@@ -3049,6 +3192,12 @@
                         "actual": 1,
                         "detail": "list count ratio expected 3, got 3"
                     },
+                    "definition_list_count": {
+                        "status": "pass",
+                        "expected": "0",
+                        "actual": 0,
+                        "detail": "definition list count ratio"
+                    },
                     "table_count": {
                         "status": "pass",
                         "expected": "0.80-1.25",
@@ -3081,7 +3230,7 @@
                     }
                 },
                 "summary": {
-                    "pass": 10,
+                    "pass": 11,
                     "review": 0,
                     "fail": 0
                 }
@@ -3184,6 +3333,12 @@
                         "actual": 1,
                         "detail": "list count ratio expected 2, got 2"
                     },
+                    "definition_list_count": {
+                        "status": "pass",
+                        "expected": "0",
+                        "actual": 0,
+                        "detail": "definition list count ratio"
+                    },
                     "table_count": {
                         "status": "pass",
                         "expected": "0.80-1.25",
@@ -3216,7 +3371,7 @@
                     }
                 },
                 "summary": {
-                    "pass": 10,
+                    "pass": 11,
                     "review": 0,
                     "fail": 0
                 }
@@ -3317,6 +3472,12 @@
                         "actual": 0,
                         "detail": "list count ratio"
                     },
+                    "definition_list_count": {
+                        "status": "pass",
+                        "expected": "0",
+                        "actual": 0,
+                        "detail": "definition list count ratio"
+                    },
                     "table_count": {
                         "status": "pass",
                         "expected": "0",
@@ -3349,7 +3510,7 @@
                     }
                 },
                 "summary": {
-                    "pass": 10,
+                    "pass": 11,
                     "review": 0,
                     "fail": 0
                 }
@@ -3404,7 +3565,7 @@
                         "textStatus": "faithful_enough",
                         "textScore": 1,
                         "visualStatus": "faithful_enough",
-                        "visualScore": 0.9423
+                        "visualScore": 0.9318
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
@@ -3429,14 +3590,14 @@
                     "visual_structure": {
                         "status": "pass",
                         "expected": ">=0.75",
-                        "actual": 0.9423,
+                        "actual": 0.9318,
                         "detail": "heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
                         "status": "pass",
-                        "expected": "0.80-1.25",
-                        "actual": 1,
-                        "detail": "paragraph count ratio expected 8, got 8"
+                        "expected": "0",
+                        "actual": 0,
+                        "detail": "paragraph count ratio"
                     },
                     "heading_count": {
                         "status": "pass",
@@ -3449,6 +3610,12 @@
                         "expected": "0",
                         "actual": 0,
                         "detail": "list count ratio"
+                    },
+                    "definition_list_count": {
+                        "status": "pass",
+                        "expected": "0",
+                        "actual": 0,
+                        "detail": "definition list count ratio"
                     },
                     "table_count": {
                         "status": "pass",
@@ -3482,7 +3649,7 @@
                     }
                 },
                 "summary": {
-                    "pass": 10,
+                    "pass": 11,
                     "review": 0,
                     "fail": 0
                 }
@@ -3571,7 +3738,7 @@
                         "status": "pass",
                         "expected": "0.80-1.25",
                         "actual": 1,
-                        "detail": "paragraph count ratio expected 3, got 3"
+                        "detail": "paragraph count ratio expected 1, got 1"
                     },
                     "heading_count": {
                         "status": "pass",
@@ -3584,6 +3751,12 @@
                         "expected": "0.80-1.25",
                         "actual": 1,
                         "detail": "list count ratio expected 1, got 1"
+                    },
+                    "definition_list_count": {
+                        "status": "pass",
+                        "expected": "0",
+                        "actual": 0,
+                        "detail": "definition list count ratio"
                     },
                     "table_count": {
                         "status": "pass",
@@ -3617,7 +3790,7 @@
                     }
                 },
                 "summary": {
-                    "pass": 10,
+                    "pass": 11,
                     "review": 0,
                     "fail": 0
                 }
@@ -3787,6 +3960,12 @@
                         "actual": 0,
                         "detail": "list count ratio"
                     },
+                    "definition_list_count": {
+                        "status": "pass",
+                        "expected": "0",
+                        "actual": 0,
+                        "detail": "definition list count ratio"
+                    },
                     "table_count": {
                         "status": "pass",
                         "expected": "0",
@@ -3819,7 +3998,7 @@
                     }
                 },
                 "summary": {
-                    "pass": 10,
+                    "pass": 11,
                     "review": 0,
                     "fail": 0
                 }
@@ -3947,7 +4126,7 @@
                         "textStatus": "faithful_enough",
                         "textScore": 0.9942,
                         "visualStatus": "faithful_enough",
-                        "visualScore": 0.8834
+                        "visualScore": 0.9204
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
@@ -3956,12 +4135,12 @@
                         "textStatus": "faithful_enough",
                         "textScore": 0.9942,
                         "visualStatus": "faithful_enough",
-                        "visualScore": 0.9156
+                        "visualScore": 0.966
                     }
                 }
             },
             "importQuality": {
-                "status": "review",
+                "status": "pass",
                 "gates": {
                     "text_completeness": {
                         "status": "pass",
@@ -3972,14 +4151,14 @@
                     "visual_structure": {
                         "status": "pass",
                         "expected": ">=0.75",
-                        "actual": 0.8834,
+                        "actual": 0.9204,
                         "detail": "heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
-                        "status": "review",
+                        "status": "pass",
                         "expected": "0.80-1.25",
-                        "actual": 0.7119,
-                        "detail": "paragraph count ratio expected 2555, got 1819"
+                        "actual": 0.9992,
+                        "detail": "paragraph count ratio expected 1321, got 1320"
                     },
                     "heading_count": {
                         "status": "pass",
@@ -3992,6 +4171,12 @@
                         "expected": "0.80-1.25",
                         "actual": 1,
                         "detail": "list count ratio expected 54, got 54"
+                    },
+                    "definition_list_count": {
+                        "status": "pass",
+                        "expected": "0",
+                        "actual": 0,
+                        "detail": "definition list count ratio"
                     },
                     "table_count": {
                         "status": "pass",
@@ -4025,8 +4210,8 @@
                     }
                 },
                 "summary": {
-                    "pass": 9,
-                    "review": 1,
+                    "pass": 11,
+                    "review": 0,
                     "fail": 0
                 }
             }
@@ -4081,7 +4266,7 @@
                         "textStatus": "faithful_enough",
                         "textScore": 0.9996,
                         "visualStatus": "faithful_enough",
-                        "visualScore": 0.9496
+                        "visualScore": 0.99
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
@@ -4090,7 +4275,7 @@
                         "textStatus": "faithful_enough",
                         "textScore": 0.9996,
                         "visualStatus": "faithful_enough",
-                        "visualScore": 0.9904
+                        "visualScore": 0.99
                     }
                 }
             },
@@ -4106,14 +4291,14 @@
                     "visual_structure": {
                         "status": "pass",
                         "expected": ">=0.75",
-                        "actual": 0.9496,
+                        "actual": 0.99,
                         "detail": "heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
                         "status": "pass",
                         "expected": "0.80-1.25",
-                        "actual": 0.8741,
-                        "detail": "paragraph count ratio expected 143, got 125"
+                        "actual": 0.9921,
+                        "detail": "paragraph count ratio expected 126, got 125"
                     },
                     "heading_count": {
                         "status": "pass",
@@ -4126,6 +4311,12 @@
                         "expected": "0.80-1.25",
                         "actual": 1,
                         "detail": "list count ratio expected 6, got 6"
+                    },
+                    "definition_list_count": {
+                        "status": "pass",
+                        "expected": "0",
+                        "actual": 0,
+                        "detail": "definition list count ratio"
                     },
                     "table_count": {
                         "status": "pass",
@@ -4159,8 +4350,187 @@
                     }
                 },
                 "summary": {
-                    "pass": 10,
+                    "pass": 11,
                     "review": 0,
+                    "fail": 0
+                }
+            }
+        },
+        {
+            "id": "dokuwiki-import-packet",
+            "format": "dokuwiki",
+            "label": "DokuWiki import packet",
+            "description": "",
+            "source": "Feature-rich DokuWiki input with inline styles, links, an embedded image, nested lists, a table, and a code block.",
+            "sourceUrl": "",
+            "samplePath": "samples/dokuwiki-import-packet-dokuwiki-import-packet.dokuwiki",
+            "sampleSize": 512,
+            "preview": "====== DokuWiki import packet ======\n\nThis paragraph has **strong text**, //emphasis//, __underline__, ''literal code'', and [[https://example.org|an external link]].\n\n{{data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9JJR0AAAAASUVORK5CYII=?240x120|Hosted import diagram}}\n\n  * Review the converted page\n    * Confirm the nested item\n  - Publish the result\n\n^ Source ^ Status ^\n| DokuWiki | Imported |\n| WordPress | Blocks |\n\n<code php>\necho 'portable import';\n</code>",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\DokuWikiReader",
+                "notes": "Bounded DokuWiki reader maps headings, paragraphs, core inline styles, links, images, lists, tables, and code/file blocks into the shared AST. Full DokuWiki reader parity remains open."
+            },
+            "haskell": {
+                "ok": true,
+                "path": "outputs/dokuwiki-import-packet/haskell.html"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/dokuwiki-import-packet/php.html",
+                "media": [
+                    {
+                        "path": "outputs/dokuwiki-import-packet/media/bac187a7c86d691ecc6d34841319cd3d2649f08e.png",
+                        "mediaPath": "bac187a7c86d691ecc6d34841319cd3d2649f08e.png",
+                        "mimeType": "image/png",
+                        "byteLength": 68,
+                        "sha1": "bac187a7c86d691ecc6d34841319cd3d2649f08e",
+                        "source": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9JJR0AAAAASUVORK5CYII=",
+                        "canonicalSource": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9JJR0AAAAASUVORK5CYII=",
+                        "sourcePath": "data-uri",
+                        "pathRepairSummary": "data-uri-hash-path",
+                        "extractionPathRepairSummary": "data-uri-hash-path",
+                        "mimeTypeSource": "declared",
+                        "inferredMimeType": "application/octet-stream",
+                        "mimeRepairSummary": "data-uri-mime"
+                    }
+                ],
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important",
+                    "extract-media-data-uri-loaded",
+                    "media-resource-mapped:data-uri"
+                ]
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/dokuwiki-import-packet/wordpress-blocks.html",
+                "media": [
+                    {
+                        "path": "outputs/dokuwiki-import-packet/media/bac187a7c86d691ecc6d34841319cd3d2649f08e.png",
+                        "mediaPath": "bac187a7c86d691ecc6d34841319cd3d2649f08e.png",
+                        "mimeType": "image/png",
+                        "byteLength": 68,
+                        "sha1": "bac187a7c86d691ecc6d34841319cd3d2649f08e",
+                        "source": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9JJR0AAAAASUVORK5CYII=",
+                        "canonicalSource": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9JJR0AAAAASUVORK5CYII=",
+                        "sourcePath": "data-uri",
+                        "pathRepairSummary": "data-uri-hash-path",
+                        "extractionPathRepairSummary": "data-uri-hash-path",
+                        "mimeTypeSource": "declared",
+                        "inferredMimeType": "application/octet-stream",
+                        "mimeRepairSummary": "data-uri-mime"
+                    }
+                ],
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important",
+                    "extract-media-data-uri-loaded",
+                    "media-resource-mapped:data-uri"
+                ]
+            },
+            "wpBlockCounts": {
+                "code": 1,
+                "heading": 1,
+                "image": 1,
+                "list": 2,
+                "paragraph": 1,
+                "table": 1
+            },
+            "faithfulness": {
+                "baseline": "haskell",
+                "comparisons": {
+                    "wpBlocks": {
+                        "label": "PHP WordPress blocks",
+                        "status": "faithful_enough",
+                        "score": 1,
+                        "textStatus": "faithful_enough",
+                        "textScore": 1,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.8929
+                    },
+                    "phpHtml": {
+                        "label": "PHP HTML",
+                        "status": "faithful_enough",
+                        "score": 1,
+                        "textStatus": "faithful_enough",
+                        "textScore": 1,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 1
+                    }
+                }
+            },
+            "importQuality": {
+                "status": "review",
+                "gates": {
+                    "text_completeness": {
+                        "status": "pass",
+                        "expected": ">=0.8",
+                        "actual": 1,
+                        "detail": "visible text overlap with the baseline"
+                    },
+                    "visual_structure": {
+                        "status": "pass",
+                        "expected": ">=0.75",
+                        "actual": 0.8929,
+                        "detail": "heading/list/table/image shape overlap with the baseline"
+                    },
+                    "paragraph_merge_split": {
+                        "status": "review",
+                        "expected": "0.80-1.25",
+                        "actual": 0.5,
+                        "detail": "paragraph count ratio expected 2, got 1"
+                    },
+                    "heading_count": {
+                        "status": "pass",
+                        "expected": "0.80-1.25",
+                        "actual": 1,
+                        "detail": "heading count ratio expected 1, got 1"
+                    },
+                    "list_count": {
+                        "status": "pass",
+                        "expected": "0.80-1.25",
+                        "actual": 1,
+                        "detail": "list count ratio expected 3, got 3"
+                    },
+                    "definition_list_count": {
+                        "status": "pass",
+                        "expected": "0",
+                        "actual": 0,
+                        "detail": "definition list count ratio"
+                    },
+                    "table_count": {
+                        "status": "pass",
+                        "expected": "0.80-1.25",
+                        "actual": 1,
+                        "detail": "table count ratio expected 1, got 1"
+                    },
+                    "image_count": {
+                        "status": "pass",
+                        "expected": "0.80-1.25",
+                        "actual": 1,
+                        "detail": "image count ratio expected 1, got 1"
+                    },
+                    "media_imported": {
+                        "status": "pass",
+                        "expected": 0,
+                        "actual": 0,
+                        "detail": "no media extraction problems reported"
+                    },
+                    "anchor_validity": {
+                        "status": "pass",
+                        "expected": 0,
+                        "actual": 0,
+                        "detail": "all local fragment links resolve"
+                    },
+                    "custom_html_percentage": {
+                        "status": "pass",
+                        "expected": "<=0.05",
+                        "actual": 0,
+                        "detail": "0/7 WordPress blocks are Custom HTML"
+                    }
+                },
+                "summary": {
+                    "pass": 10,
+                    "review": 1,
                     "fail": 0
                 }
             }
@@ -4225,10 +4595,10 @@
                         "detail": "no baseline comparison available for heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
-                        "status": "review",
+                        "status": "pass",
                         "expected": "0",
-                        "actual": 2,
-                        "detail": "paragraph count ratio has no baseline count"
+                        "actual": 0,
+                        "detail": "paragraph count ratio"
                     },
                     "heading_count": {
                         "status": "pass",
@@ -4237,10 +4607,16 @@
                         "detail": "heading count ratio"
                     },
                     "list_count": {
+                        "status": "pass",
+                        "expected": "0",
+                        "actual": 0,
+                        "detail": "list count ratio"
+                    },
+                    "definition_list_count": {
                         "status": "review",
                         "expected": "0",
-                        "actual": 2,
-                        "detail": "list count ratio has no baseline count"
+                        "actual": 1,
+                        "detail": "definition list count ratio has no baseline count"
                     },
                     "table_count": {
                         "status": "pass",
@@ -4274,8 +4650,8 @@
                     }
                 },
                 "summary": {
-                    "pass": 6,
-                    "review": 4,
+                    "pass": 8,
+                    "review": 3,
                     "fail": 0
                 }
             }
@@ -4340,10 +4716,10 @@
                         "detail": "no baseline comparison available for heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
-                        "status": "review",
+                        "status": "pass",
                         "expected": "0",
-                        "actual": 1,
-                        "detail": "paragraph count ratio has no baseline count"
+                        "actual": 0,
+                        "detail": "paragraph count ratio"
                     },
                     "heading_count": {
                         "status": "pass",
@@ -4352,10 +4728,16 @@
                         "detail": "heading count ratio"
                     },
                     "list_count": {
+                        "status": "pass",
+                        "expected": "0",
+                        "actual": 0,
+                        "detail": "list count ratio"
+                    },
+                    "definition_list_count": {
                         "status": "review",
                         "expected": "0",
                         "actual": 1,
-                        "detail": "list count ratio has no baseline count"
+                        "detail": "definition list count ratio has no baseline count"
                     },
                     "table_count": {
                         "status": "pass",
@@ -4389,8 +4771,8 @@
                     }
                 },
                 "summary": {
-                    "pass": 6,
-                    "review": 4,
+                    "pass": 8,
+                    "review": 3,
                     "fail": 0
                 }
             }
@@ -4484,7 +4866,7 @@
                         "textStatus": "faithful_enough",
                         "textScore": 0.9842,
                         "visualStatus": "faithful_enough",
-                        "visualScore": 0.7976
+                        "visualScore": 0.9643
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
@@ -4509,14 +4891,14 @@
                     "visual_structure": {
                         "status": "pass",
                         "expected": ">=0.75",
-                        "actual": 0.7976,
+                        "actual": 0.9643,
                         "detail": "heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
                         "status": "review",
                         "expected": "0.80-1.25",
-                        "actual": 1.5517,
-                        "detail": "paragraph count ratio expected 29, got 45"
+                        "actual": 0.75,
+                        "detail": "paragraph count ratio expected 4, got 3"
                     },
                     "heading_count": {
                         "status": "pass",
@@ -4529,6 +4911,12 @@
                         "expected": "0.80-1.25",
                         "actual": 1,
                         "detail": "list count ratio expected 1, got 1"
+                    },
+                    "definition_list_count": {
+                        "status": "pass",
+                        "expected": "0",
+                        "actual": 0,
+                        "detail": "definition list count ratio"
                     },
                     "table_count": {
                         "status": "pass",
@@ -4562,7 +4950,7 @@
                     }
                 },
                 "summary": {
-                    "pass": 9,
+                    "pass": 10,
                     "review": 1,
                     "fail": 0
                 }
@@ -4619,7 +5007,7 @@
                         "textStatus": "faithful_enough",
                         "textScore": 0.9327,
                         "visualStatus": "faithful_enough",
-                        "visualScore": 0.7868
+                        "visualScore": 0.8413
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
@@ -4628,12 +5016,12 @@
                         "textStatus": "faithful_enough",
                         "textScore": 0.9327,
                         "visualStatus": "faithful_enough",
-                        "visualScore": 0.9068
+                        "visualScore": 0.906
                     }
                 }
             },
             "importQuality": {
-                "status": "fail",
+                "status": "pass",
                 "gates": {
                     "text_completeness": {
                         "status": "pass",
@@ -4644,14 +5032,14 @@
                     "visual_structure": {
                         "status": "pass",
                         "expected": ">=0.75",
-                        "actual": 0.7868,
+                        "actual": 0.8413,
                         "detail": "heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
-                        "status": "review",
+                        "status": "pass",
                         "expected": "0.80-1.25",
-                        "actual": 1.3,
-                        "detail": "paragraph count ratio expected 40, got 52"
+                        "actual": 1.2368,
+                        "detail": "paragraph count ratio expected 38, got 47"
                     },
                     "heading_count": {
                         "status": "pass",
@@ -4660,10 +5048,16 @@
                         "detail": "heading count ratio expected 17, got 17"
                     },
                     "list_count": {
-                        "status": "fail",
+                        "status": "pass",
                         "expected": "0.80-1.25",
-                        "actual": 4,
-                        "detail": "list count ratio expected 1, got 4"
+                        "actual": 1,
+                        "detail": "list count ratio expected 1, got 1"
+                    },
+                    "definition_list_count": {
+                        "status": "pass",
+                        "expected": "0.80-1.25",
+                        "actual": 1,
+                        "detail": "definition list count ratio expected 1, got 1"
                     },
                     "table_count": {
                         "status": "pass",
@@ -4697,9 +5091,9 @@
                     }
                 },
                 "summary": {
-                    "pass": 8,
-                    "review": 1,
-                    "fail": 1
+                    "pass": 11,
+                    "review": 0,
+                    "fail": 0
                 }
             }
         },
@@ -4835,6 +5229,12 @@
                         "actual": 0,
                         "detail": "list count ratio"
                     },
+                    "definition_list_count": {
+                        "status": "pass",
+                        "expected": "0",
+                        "actual": 0,
+                        "detail": "definition list count ratio"
+                    },
                     "table_count": {
                         "status": "pass",
                         "expected": "0",
@@ -4867,7 +5267,7 @@
                     }
                 },
                 "summary": {
-                    "pass": 8,
+                    "pass": 9,
                     "review": 2,
                     "fail": 0
                 }
@@ -5108,6 +5508,12 @@
                         "actual": 0,
                         "detail": "list count ratio"
                     },
+                    "definition_list_count": {
+                        "status": "pass",
+                        "expected": "0",
+                        "actual": 0,
+                        "detail": "definition list count ratio"
+                    },
                     "table_count": {
                         "status": "pass",
                         "expected": "0",
@@ -5140,7 +5546,7 @@
                     }
                 },
                 "summary": {
-                    "pass": 10,
+                    "pass": 11,
                     "review": 0,
                     "fail": 0
                 }
@@ -6428,7 +6834,7 @@
                         "textStatus": "faithful_enough",
                         "textScore": 0.9994,
                         "visualStatus": "faithful_enough",
-                        "visualScore": 0.8593
+                        "visualScore": 0.8684
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
@@ -6453,14 +6859,14 @@
                     "visual_structure": {
                         "status": "pass",
                         "expected": ">=0.75",
-                        "actual": 0.8593,
+                        "actual": 0.8684,
                         "detail": "heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
                         "status": "pass",
                         "expected": "0.80-1.25",
-                        "actual": 1.1574,
-                        "detail": "paragraph count ratio expected 794, got 919"
+                        "actual": 1.1414,
+                        "detail": "paragraph count ratio expected 792, got 904"
                     },
                     "heading_count": {
                         "status": "pass",
@@ -6473,6 +6879,12 @@
                         "expected": "0.80-1.25",
                         "actual": 1,
                         "detail": "list count ratio expected 1, got 1"
+                    },
+                    "definition_list_count": {
+                        "status": "pass",
+                        "expected": "0",
+                        "actual": 0,
+                        "detail": "definition list count ratio"
                     },
                     "table_count": {
                         "status": "pass",
@@ -6506,7 +6918,7 @@
                     }
                 },
                 "summary": {
-                    "pass": 10,
+                    "pass": 11,
                     "review": 0,
                     "fail": 0
                 }
@@ -6564,7 +6976,7 @@
                         "textStatus": "faithful_enough",
                         "textScore": 0.9402,
                         "visualStatus": "faithful_enough",
-                        "visualScore": 0.9375
+                        "visualScore": 0.9355
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
@@ -6573,7 +6985,7 @@
                         "textStatus": "faithful_enough",
                         "textScore": 0.9661,
                         "visualStatus": "faithful_enough",
-                        "visualScore": 0.9375
+                        "visualScore": 0.9355
                     }
                 }
             },
@@ -6589,14 +7001,14 @@
                     "visual_structure": {
                         "status": "pass",
                         "expected": ">=0.75",
-                        "actual": 0.9375,
+                        "actual": 0.9355,
                         "detail": "heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
                         "status": "pass",
                         "expected": "0.80-1.25",
-                        "actual": 0.9286,
-                        "detail": "paragraph count ratio expected 14, got 13"
+                        "actual": 0.9231,
+                        "detail": "paragraph count ratio expected 13, got 12"
                     },
                     "heading_count": {
                         "status": "pass",
@@ -6609,6 +7021,12 @@
                         "expected": "0.80-1.25",
                         "actual": 1,
                         "detail": "list count ratio expected 1, got 1"
+                    },
+                    "definition_list_count": {
+                        "status": "pass",
+                        "expected": "0",
+                        "actual": 0,
+                        "detail": "definition list count ratio"
                     },
                     "table_count": {
                         "status": "pass",
@@ -6642,7 +7060,7 @@
                     }
                 },
                 "summary": {
-                    "pass": 10,
+                    "pass": 11,
                     "review": 0,
                     "fail": 0
                 }
@@ -6730,7 +7148,7 @@
                         "status": "pass",
                         "expected": "0.80-1.25",
                         "actual": 1,
-                        "detail": "paragraph count ratio expected 4, got 4"
+                        "detail": "paragraph count ratio expected 2, got 2"
                     },
                     "heading_count": {
                         "status": "pass",
@@ -6743,6 +7161,12 @@
                         "expected": "0.80-1.25",
                         "actual": 1,
                         "detail": "list count ratio expected 1, got 1"
+                    },
+                    "definition_list_count": {
+                        "status": "pass",
+                        "expected": "0",
+                        "actual": 0,
+                        "detail": "definition list count ratio"
                     },
                     "table_count": {
                         "status": "pass",
@@ -6776,7 +7200,7 @@
                     }
                 },
                 "summary": {
-                    "pass": 9,
+                    "pass": 10,
                     "review": 1,
                     "fail": 0
                 }
@@ -6821,7 +7245,7 @@
                 "code": 85,
                 "group": 20,
                 "heading": 66,
-                "html": 31,
+                "html": 30,
                 "image": 9,
                 "list": 49,
                 "paragraph": 310,
@@ -6835,20 +7259,20 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "faithful_enough",
-                        "score": 0.9987,
+                        "score": 0.9988,
                         "textStatus": "faithful_enough",
-                        "textScore": 0.9987,
+                        "textScore": 0.9988,
                         "visualStatus": "faithful_enough",
-                        "visualScore": 0.9857
+                        "visualScore": 0.9874
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
                         "status": "faithful_enough",
-                        "score": 0.9992,
+                        "score": 0.9994,
                         "textStatus": "faithful_enough",
-                        "textScore": 0.9992,
+                        "textScore": 0.9994,
                         "visualStatus": "faithful_enough",
-                        "visualScore": 0.9928
+                        "visualScore": 0.9964
                     }
                 }
             },
@@ -6858,20 +7282,20 @@
                     "text_completeness": {
                         "status": "pass",
                         "expected": ">=0.8",
-                        "actual": 0.9987,
+                        "actual": 0.9988,
                         "detail": "visible text overlap with the baseline"
                     },
                     "visual_structure": {
                         "status": "pass",
                         "expected": ">=0.75",
-                        "actual": 0.9857,
+                        "actual": 0.9874,
                         "detail": "heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
                         "status": "pass",
                         "expected": "0.80-1.25",
-                        "actual": 0.9974,
-                        "detail": "paragraph count ratio expected 382, got 381"
+                        "actual": 0.9862,
+                        "detail": "paragraph count ratio expected 363, got 358"
                     },
                     "heading_count": {
                         "status": "pass",
@@ -6882,8 +7306,14 @@
                     "list_count": {
                         "status": "pass",
                         "expected": "0.80-1.25",
-                        "actual": 1.0435,
-                        "detail": "list count ratio expected 69, got 72"
+                        "actual": 1.0145,
+                        "detail": "list count ratio expected 69, got 70"
+                    },
+                    "definition_list_count": {
+                        "status": "pass",
+                        "expected": "0.80-1.25",
+                        "actual": 1,
+                        "detail": "definition list count ratio expected 2, got 2"
                     },
                     "table_count": {
                         "status": "pass",
@@ -6912,12 +7342,12 @@
                     "custom_html_percentage": {
                         "status": "pass",
                         "expected": "<=0.05",
-                        "actual": 0.0498,
-                        "detail": "31/622 WordPress blocks are Custom HTML"
+                        "actual": 0.0483,
+                        "detail": "30/621 WordPress blocks are Custom HTML"
                     }
                 },
                 "summary": {
-                    "pass": 10,
+                    "pass": 11,
                     "review": 0,
                     "fail": 0
                 }
@@ -6980,7 +7410,7 @@
                         "textStatus": "faithful_enough",
                         "textScore": 0.9966,
                         "visualStatus": "faithful_enough",
-                        "visualScore": 0.9273
+                        "visualScore": 0.9223
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
@@ -6989,7 +7419,7 @@
                         "textStatus": "faithful_enough",
                         "textScore": 0.9973,
                         "visualStatus": "faithful_enough",
-                        "visualScore": 0.9491
+                        "visualScore": 0.9455
                     }
                 }
             },
@@ -7005,14 +7435,14 @@
                     "visual_structure": {
                         "status": "pass",
                         "expected": ">=0.75",
-                        "actual": 0.9273,
+                        "actual": 0.9223,
                         "detail": "heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
                         "status": "pass",
                         "expected": "0.80-1.25",
-                        "actual": 0.9815,
-                        "detail": "paragraph count ratio expected 54, got 53"
+                        "actual": 0.975,
+                        "detail": "paragraph count ratio expected 40, got 39"
                     },
                     "heading_count": {
                         "status": "pass",
@@ -7025,6 +7455,12 @@
                         "expected": "0.80-1.25",
                         "actual": 1.4,
                         "detail": "list count ratio expected 10, got 14"
+                    },
+                    "definition_list_count": {
+                        "status": "pass",
+                        "expected": "0",
+                        "actual": 0,
+                        "detail": "definition list count ratio"
                     },
                     "table_count": {
                         "status": "pass",
@@ -7058,7 +7494,7 @@
                     }
                 },
                 "summary": {
-                    "pass": 8,
+                    "pass": 9,
                     "review": 2,
                     "fail": 0
                 }
@@ -7120,7 +7556,7 @@
                         "textStatus": "faithful_enough",
                         "textScore": 1,
                         "visualStatus": "faithful_enough",
-                        "visualScore": 0.9208
+                        "visualScore": 0.9594
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
@@ -7129,7 +7565,7 @@
                         "textStatus": "faithful_enough",
                         "textScore": 1,
                         "visualStatus": "faithful_enough",
-                        "visualScore": 0.9907
+                        "visualScore": 0.9904
                     }
                 }
             },
@@ -7145,14 +7581,14 @@
                     "visual_structure": {
                         "status": "pass",
                         "expected": ">=0.75",
-                        "actual": 0.9208,
+                        "actual": 0.9594,
                         "detail": "heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
                         "status": "pass",
                         "expected": "0.80-1.25",
-                        "actual": 0.8563,
-                        "detail": "paragraph count ratio expected 160, got 137"
+                        "actual": 0.9924,
+                        "detail": "paragraph count ratio expected 131, got 130"
                     },
                     "heading_count": {
                         "status": "pass",
@@ -7163,8 +7599,14 @@
                     "list_count": {
                         "status": "pass",
                         "expected": "0.80-1.25",
-                        "actual": 1.0488,
-                        "detail": "list count ratio expected 41, got 43"
+                        "actual": 1,
+                        "detail": "list count ratio expected 41, got 41"
+                    },
+                    "definition_list_count": {
+                        "status": "pass",
+                        "expected": "0.80-1.25",
+                        "actual": 1,
+                        "detail": "definition list count ratio expected 1, got 1"
                     },
                     "table_count": {
                         "status": "pass",
@@ -7198,7 +7640,7 @@
                     }
                 },
                 "summary": {
-                    "pass": 10,
+                    "pass": 11,
                     "review": 0,
                     "fail": 0
                 }
@@ -7298,6 +7740,12 @@
                         "actual": 0,
                         "detail": "list count ratio"
                     },
+                    "definition_list_count": {
+                        "status": "pass",
+                        "expected": "0",
+                        "actual": 0,
+                        "detail": "definition list count ratio"
+                    },
                     "table_count": {
                         "status": "pass",
                         "expected": "0",
@@ -7330,7 +7778,7 @@
                     }
                 },
                 "summary": {
-                    "pass": 10,
+                    "pass": 11,
                     "review": 0,
                     "fail": 0
                 }
@@ -7433,6 +7881,12 @@
                         "actual": 1,
                         "detail": "list count ratio expected 2, got 2"
                     },
+                    "definition_list_count": {
+                        "status": "pass",
+                        "expected": "0",
+                        "actual": 0,
+                        "detail": "definition list count ratio"
+                    },
                     "table_count": {
                         "status": "pass",
                         "expected": "0.80-1.25",
@@ -7465,7 +7919,7 @@
                     }
                 },
                 "summary": {
-                    "pass": 10,
+                    "pass": 11,
                     "review": 0,
                     "fail": 0
                 }
@@ -7568,6 +8022,12 @@
                         "actual": 1,
                         "detail": "list count ratio expected 1, got 1"
                     },
+                    "definition_list_count": {
+                        "status": "pass",
+                        "expected": "0",
+                        "actual": 0,
+                        "detail": "definition list count ratio"
+                    },
                     "table_count": {
                         "status": "pass",
                         "expected": "0.80-1.25",
@@ -7600,7 +8060,7 @@
                     }
                 },
                 "summary": {
-                    "pass": 10,
+                    "pass": 11,
                     "review": 0,
                     "fail": 0
                 }
@@ -7703,6 +8163,12 @@
                         "actual": 0,
                         "detail": "list count ratio"
                     },
+                    "definition_list_count": {
+                        "status": "pass",
+                        "expected": "0",
+                        "actual": 0,
+                        "detail": "definition list count ratio"
+                    },
                     "table_count": {
                         "status": "pass",
                         "expected": "0",
@@ -7735,7 +8201,7 @@
                     }
                 },
                 "summary": {
-                    "pass": 10,
+                    "pass": 11,
                     "review": 0,
                     "fail": 0
                 }
@@ -7837,6 +8303,12 @@
                         "actual": 0,
                         "detail": "list count ratio"
                     },
+                    "definition_list_count": {
+                        "status": "pass",
+                        "expected": "0",
+                        "actual": 0,
+                        "detail": "definition list count ratio"
+                    },
                     "table_count": {
                         "status": "pass",
                         "expected": "0",
@@ -7869,7 +8341,7 @@
                     }
                 },
                 "summary": {
-                    "pass": 10,
+                    "pass": 11,
                     "review": 0,
                     "fail": 0
                 }
@@ -7970,6 +8442,12 @@
                         "actual": 0,
                         "detail": "list count ratio"
                     },
+                    "definition_list_count": {
+                        "status": "pass",
+                        "expected": "0",
+                        "actual": 0,
+                        "detail": "definition list count ratio"
+                    },
                     "table_count": {
                         "status": "pass",
                         "expected": "0",
@@ -8002,7 +8480,7 @@
                     }
                 },
                 "summary": {
-                    "pass": 8,
+                    "pass": 9,
                     "review": 2,
                     "fail": 0
                 }
@@ -8028,32 +8506,127 @@
                 "path": "outputs/jats-reader/haskell.html"
             },
             "phpHtml": {
-                "ok": false,
-                "error": "PHP Fatal error:  Uncaught InvalidArgumentException: Unable to parse JATS input at line 229, column 27: Attribute xlink:href redefined in $REPO/lanes/pandoc/src/XmlHtmlDom.php:705\nStack trace:\n#0 $REPO/lanes/pandoc/src/XmlReader.php(69): PortLibs\\Pandoc\\XmlHtmlDom::loadXmlDocument('<?xml version=\"...', 'JATS input', false)\n#1 $REPO/lanes/pandoc/src/PandocConverter.php(37): PortLibs\\Pandoc\\XmlReader->read('<?xml version=\"...')\n#2 $REPO/lanes/pandoc/src/PandocConverter.php(93): PortLibs\\Pandoc\\PandocConverter::read('<?xml version=\"...', 'jats', Array)\n#3 $REPO/lanes/pandoc/src/PandocConverter.php(152): PortLibs\\Pandoc\\PandocConverter::convertWithMedia('<?xml version=\"...', 'jats', 'html', Array)\n#4 $REPO/tools/build-pandoc-showcase.php(32): PortLibs\\Pandoc\\PandocConverter::convertFileWithMedia('$REPO', 'jats', 'html', Array)\n#5 {main}\n  thrown in $REPO/lanes/pandoc/src/XmlHtmlDom.php on line 705\nFatal error: Uncaught InvalidArgumentException: Unable to parse JATS input at line 229, column 27: Attribute xlink:href redefined in $REPO/lanes/pandoc/src/XmlHtmlDom.php:705\nStack trace:\n#0 $REPO/lanes/pandoc/src/XmlReader.php(69): PortLibs\\Pandoc\\XmlHtmlDom::loadXmlDocument('<?xml version=\"...', 'JATS input', false)\n#1 $REPO/lanes/pandoc/src/PandocConverter.php(37): PortLibs\\Pandoc\\XmlReader->read('<?xml version=\"...')\n#2 $REPO/lanes/pandoc/src/PandocConverter.php(93): PortLibs\\Pandoc\\PandocConverter::read('<?xml version=\"...', 'jats', Array)\n#3 $REPO/lanes/pandoc/src/PandocConverter.php(152): PortLibs\\Pandoc\\PandocConverter::convertWithMedia('<?xml version=\"...', 'jats', 'html', Array)\n#4 $REPO/tools/build-pandoc-showcase.php(32): PortLibs\\Pandoc\\PandocConverter::convertFileWithMedia('$REPO', 'jats', 'html', Array)\n#5 {main}\n  thrown in $REPO/lanes/pandoc/src/XmlHtmlDom.php on line 705",
-                "path": "outputs/jats-reader/php.html.error.txt"
+                "ok": true,
+                "path": "outputs/jats-reader/php.html",
+                "media": [],
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlocks": {
-                "ok": false,
-                "error": "PHP Fatal error:  Uncaught InvalidArgumentException: Unable to parse JATS input at line 229, column 27: Attribute xlink:href redefined in $REPO/lanes/pandoc/src/XmlHtmlDom.php:705\nStack trace:\n#0 $REPO/lanes/pandoc/src/XmlReader.php(69): PortLibs\\Pandoc\\XmlHtmlDom::loadXmlDocument('<?xml version=\"...', 'JATS input', false)\n#1 $REPO/lanes/pandoc/src/PandocConverter.php(37): PortLibs\\Pandoc\\XmlReader->read('<?xml version=\"...')\n#2 $REPO/lanes/pandoc/src/PandocConverter.php(93): PortLibs\\Pandoc\\PandocConverter::read('<?xml version=\"...', 'jats', Array)\n#3 $REPO/lanes/pandoc/src/PandocConverter.php(152): PortLibs\\Pandoc\\PandocConverter::convertWithMedia('<?xml version=\"...', 'jats', 'wordpress', Array)\n#4 $REPO/tools/build-pandoc-showcase.php(32): PortLibs\\Pandoc\\PandocConverter::convertFileWithMedia('$REPO', 'jats', 'wordpress', Array)\n#5 {main}\n  thrown in $REPO/lanes/pandoc/src/XmlHtmlDom.php on line 705\nFatal error: Uncaught InvalidArgumentException: Unable to parse JATS input at line 229, column 27: Attribute xlink:href redefined in $REPO/lanes/pandoc/src/XmlHtmlDom.php:705\nStack trace:\n#0 $REPO/lanes/pandoc/src/XmlReader.php(69): PortLibs\\Pandoc\\XmlHtmlDom::loadXmlDocument('<?xml version=\"...', 'JATS input', false)\n#1 $REPO/lanes/pandoc/src/PandocConverter.php(37): PortLibs\\Pandoc\\XmlReader->read('<?xml version=\"...')\n#2 $REPO/lanes/pandoc/src/PandocConverter.php(93): PortLibs\\Pandoc\\PandocConverter::read('<?xml version=\"...', 'jats', Array)\n#3 $REPO/lanes/pandoc/src/PandocConverter.php(152): PortLibs\\Pandoc\\PandocConverter::convertWithMedia('<?xml version=\"...', 'jats', 'wordpress', Array)\n#4 $REPO/tools/build-pandoc-showcase.php(32): PortLibs\\Pandoc\\PandocConverter::convertFileWithMedia('$REPO', 'jats', 'wordpress', Array)\n#5 {main}\n  thrown in $REPO/lanes/pandoc/src/XmlHtmlDom.php on line 705",
-                "path": "outputs/jats-reader/wordpress-blocks.html.error.txt"
+                "ok": true,
+                "path": "outputs/jats-reader/wordpress-blocks.html",
+                "media": [],
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
-            "wpBlockCounts": [],
+            "wpBlockCounts": {
+                "code": 7,
+                "group": 1,
+                "heading": 48,
+                "image": 2,
+                "list": 26,
+                "paragraph": 153,
+                "table": 16
+            },
             "faithfulness": {
                 "baseline": "haskell",
-                "comparisons": []
+                "comparisons": {
+                    "wpBlocks": {
+                        "label": "PHP WordPress blocks",
+                        "status": "faithful_enough",
+                        "score": 0.9753,
+                        "textStatus": "faithful_enough",
+                        "textScore": 0.9753,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.808
+                    },
+                    "phpHtml": {
+                        "label": "PHP HTML",
+                        "status": "faithful_enough",
+                        "score": 0.9753,
+                        "textStatus": "faithful_enough",
+                        "textScore": 0.9753,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.8294
+                    }
+                }
             },
             "importQuality": {
-                "status": "fail",
+                "status": "pass",
                 "gates": {
-                    "conversion": {
-                        "status": "fail",
-                        "detail": "PHP Fatal error:  Uncaught InvalidArgumentException: Unable to parse JATS input at line 229, column 27: Attribute xlink:href redefined in $REPO/lanes/pandoc/src/XmlHtmlDom.php:705\nStack trace:\n#0 $REPO/lanes/pandoc/src/XmlReader.php(69): PortLibs\\Pandoc\\XmlHtmlDom::loadXmlDocument('<?xml version=\"...', 'JATS input', false)\n#1 $REPO/lanes/pandoc/src/PandocConverter.php(37): PortLibs\\Pandoc\\XmlReader->read('<?xml version=\"...')\n#2 $REPO/lanes/pandoc/src/PandocConverter.php(93): PortLibs\\Pandoc\\PandocConverter::read('<?xml version=\"...', 'jats', Array)\n#3 $REPO/lanes/pandoc/src/PandocConverter.php(152): PortLibs\\Pandoc\\PandocConverter::convertWithMedia('<?xml version=\"...', 'jats', 'wordpress', Array)\n#4 $REPO/tools/build-pandoc-showcase.php(32): PortLibs\\Pandoc\\PandocConverter::convertFileWithMedia('$REPO', 'jats', 'wordpress', Array)\n#5 {main}\n  thrown in $REPO/lanes/pandoc/src/XmlHtmlDom.php on line 705\nFatal error: Uncaught InvalidArgumentException: Unable to parse JATS input at line 229, column 27: Attribute xlink:href redefined in $REPO/lanes/pandoc/src/XmlHtmlDom.php:705\nStack trace:\n#0 $REPO/lanes/pandoc/src/XmlReader.php(69): PortLibs\\Pandoc\\XmlHtmlDom::loadXmlDocument('<?xml version=\"...', 'JATS input', false)\n#1 $REPO/lanes/pandoc/src/PandocConverter.php(37): PortLibs\\Pandoc\\XmlReader->read('<?xml version=\"...')\n#2 $REPO/lanes/pandoc/src/PandocConverter.php(93): PortLibs\\Pandoc\\PandocConverter::read('<?xml version=\"...', 'jats', Array)\n#3 $REPO/lanes/pandoc/src/PandocConverter.php(152): PortLibs\\Pandoc\\PandocConverter::convertWithMedia('<?xml version=\"...', 'jats', 'wordpress', Array)\n#4 $REPO/tools/build-pandoc-showcase.php(32): PortLibs\\Pandoc\\PandocConverter::convertFileWithMedia('$REPO', 'jats', 'wordpress', Array)\n#5 {main}\n  thrown in $REPO/lanes/pandoc/src/XmlHtmlDom.php on line 705"
+                    "text_completeness": {
+                        "status": "pass",
+                        "expected": ">=0.8",
+                        "actual": 0.9753,
+                        "detail": "visible text overlap with the baseline"
+                    },
+                    "visual_structure": {
+                        "status": "pass",
+                        "expected": ">=0.75",
+                        "actual": 0.808,
+                        "detail": "heading/list/table/image shape overlap with the baseline"
+                    },
+                    "paragraph_merge_split": {
+                        "status": "pass",
+                        "expected": "0.80-1.25",
+                        "actual": 0.9618,
+                        "detail": "paragraph count ratio expected 157, got 151"
+                    },
+                    "heading_count": {
+                        "status": "pass",
+                        "expected": "0.80-1.25",
+                        "actual": 1.0213,
+                        "detail": "heading count ratio expected 47, got 48"
+                    },
+                    "list_count": {
+                        "status": "pass",
+                        "expected": "0.80-1.25",
+                        "actual": 0.9677,
+                        "detail": "list count ratio expected 31, got 30"
+                    },
+                    "definition_list_count": {
+                        "status": "pass",
+                        "expected": "0.80-1.25",
+                        "actual": 1,
+                        "detail": "definition list count ratio expected 1, got 1"
+                    },
+                    "table_count": {
+                        "status": "pass",
+                        "expected": "0.80-1.25",
+                        "actual": 1,
+                        "detail": "table count ratio expected 16, got 16"
+                    },
+                    "image_count": {
+                        "status": "pass",
+                        "expected": "0.80-1.25",
+                        "actual": 1,
+                        "detail": "image count ratio expected 5, got 5"
+                    },
+                    "media_imported": {
+                        "status": "pass",
+                        "expected": 0,
+                        "actual": 0,
+                        "detail": "no media extraction problems reported"
+                    },
+                    "anchor_validity": {
+                        "status": "pass",
+                        "expected": 0,
+                        "actual": 0,
+                        "detail": "all local fragment links resolve"
+                    },
+                    "custom_html_percentage": {
+                        "status": "pass",
+                        "expected": "<=0.05",
+                        "actual": 0,
+                        "detail": "0/253 WordPress blocks are Custom HTML"
                     }
                 },
                 "summary": {
-                    "pass": 0,
+                    "pass": 11,
                     "review": 0,
-                    "fail": 1
+                    "fail": 0
                 }
             }
         },
@@ -8108,7 +8681,7 @@
                         "textStatus": "faithful_enough",
                         "textScore": 1,
                         "visualStatus": "faithful_enough",
-                        "visualScore": 0.8621
+                        "visualScore": 0.95
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
@@ -8122,7 +8695,7 @@
                 }
             },
             "importQuality": {
-                "status": "review",
+                "status": "pass",
                 "gates": {
                     "text_completeness": {
                         "status": "pass",
@@ -8133,14 +8706,14 @@
                     "visual_structure": {
                         "status": "pass",
                         "expected": ">=0.75",
-                        "actual": 0.8621,
+                        "actual": 0.95,
                         "detail": "heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
-                        "status": "review",
+                        "status": "pass",
                         "expected": "0.80-1.25",
-                        "actual": 0.7,
-                        "detail": "paragraph count ratio expected 10, got 7"
+                        "actual": 1,
+                        "detail": "paragraph count ratio expected 1, got 1"
                     },
                     "heading_count": {
                         "status": "pass",
@@ -8153,6 +8726,12 @@
                         "expected": "0.80-1.25",
                         "actual": 1,
                         "detail": "list count ratio expected 1, got 1"
+                    },
+                    "definition_list_count": {
+                        "status": "pass",
+                        "expected": "0",
+                        "actual": 0,
+                        "detail": "definition list count ratio"
                     },
                     "table_count": {
                         "status": "pass",
@@ -8186,8 +8765,8 @@
                     }
                 },
                 "summary": {
-                    "pass": 9,
-                    "review": 1,
+                    "pass": 11,
+                    "review": 0,
                     "fail": 0
                 }
             }
@@ -8240,8 +8819,8 @@
                         "score": 1,
                         "textStatus": "faithful_enough",
                         "textScore": 1,
-                        "visualStatus": "review",
-                        "visualScore": 0.6667
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 1
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
@@ -8255,7 +8834,7 @@
                 }
             },
             "importQuality": {
-                "status": "fail",
+                "status": "pass",
                 "gates": {
                     "text_completeness": {
                         "status": "pass",
@@ -8264,16 +8843,16 @@
                         "detail": "visible text overlap with the baseline"
                     },
                     "visual_structure": {
-                        "status": "review",
+                        "status": "pass",
                         "expected": ">=0.75",
-                        "actual": 0.6667,
+                        "actual": 1,
                         "detail": "heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
-                        "status": "fail",
-                        "expected": "0.80-1.25",
+                        "status": "pass",
+                        "expected": "0",
                         "actual": 0,
-                        "detail": "paragraph count ratio expected 3, got 0"
+                        "detail": "paragraph count ratio"
                     },
                     "heading_count": {
                         "status": "pass",
@@ -8286,6 +8865,12 @@
                         "expected": "0.80-1.25",
                         "actual": 1,
                         "detail": "list count ratio expected 1, got 1"
+                    },
+                    "definition_list_count": {
+                        "status": "pass",
+                        "expected": "0",
+                        "actual": 0,
+                        "detail": "definition list count ratio"
                     },
                     "table_count": {
                         "status": "pass",
@@ -8319,9 +8904,9 @@
                     }
                 },
                 "summary": {
-                    "pass": 8,
-                    "review": 1,
-                    "fail": 1
+                    "pass": 11,
+                    "review": 0,
+                    "fail": 0
                 }
             }
         },
@@ -8420,6 +9005,12 @@
                         "actual": 0,
                         "detail": "list count ratio"
                     },
+                    "definition_list_count": {
+                        "status": "pass",
+                        "expected": "0",
+                        "actual": 0,
+                        "detail": "definition list count ratio"
+                    },
                     "table_count": {
                         "status": "pass",
                         "expected": "0",
@@ -8452,7 +9043,7 @@
                     }
                 },
                 "summary": {
-                    "pass": 10,
+                    "pass": 11,
                     "review": 0,
                     "fail": 0
                 }
@@ -8552,6 +9143,12 @@
                         "actual": 1,
                         "detail": "list count ratio expected 1, got 1"
                     },
+                    "definition_list_count": {
+                        "status": "pass",
+                        "expected": "0",
+                        "actual": 0,
+                        "detail": "definition list count ratio"
+                    },
                     "table_count": {
                         "status": "pass",
                         "expected": "0",
@@ -8584,7 +9181,7 @@
                     }
                 },
                 "summary": {
-                    "pass": 10,
+                    "pass": 11,
                     "review": 0,
                     "fail": 0
                 }
@@ -8667,6 +9264,12 @@
                         "actual": 0,
                         "detail": "list count ratio"
                     },
+                    "definition_list_count": {
+                        "status": "pass",
+                        "expected": "0",
+                        "actual": 0,
+                        "detail": "definition list count ratio"
+                    },
                     "table_count": {
                         "status": "pass",
                         "expected": "0",
@@ -8699,7 +9302,7 @@
                     }
                 },
                 "summary": {
-                    "pass": 7,
+                    "pass": 8,
                     "review": 3,
                     "fail": 0
                 }
@@ -8799,6 +9402,12 @@
                         "actual": 0,
                         "detail": "list count ratio"
                     },
+                    "definition_list_count": {
+                        "status": "pass",
+                        "expected": "0",
+                        "actual": 0,
+                        "detail": "definition list count ratio"
+                    },
                     "table_count": {
                         "status": "pass",
                         "expected": "0",
@@ -8831,7 +9440,7 @@
                     }
                 },
                 "summary": {
-                    "pass": 10,
+                    "pass": 11,
                     "review": 0,
                     "fail": 0
                 }
@@ -8874,11 +9483,10 @@
             },
             "wpBlockCounts": {
                 "code": 253,
-                "group": 42,
+                "group": 41,
                 "heading": 252,
-                "html": 3,
                 "list": 340,
-                "paragraph": 937,
+                "paragraph": 936,
                 "quote": 1,
                 "table": 18
             },
@@ -8888,43 +9496,43 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "faithful_enough",
-                        "score": 0.995,
+                        "score": 0.9951,
                         "textStatus": "faithful_enough",
-                        "textScore": 0.995,
+                        "textScore": 0.9951,
                         "visualStatus": "faithful_enough",
-                        "visualScore": 0.806
+                        "visualScore": 0.9163
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
                         "status": "faithful_enough",
-                        "score": 0.9975,
+                        "score": 0.9976,
                         "textStatus": "faithful_enough",
-                        "textScore": 0.9975,
+                        "textScore": 0.9976,
                         "visualStatus": "faithful_enough",
-                        "visualScore": 0.9371
+                        "visualScore": 0.9521
                     }
                 }
             },
             "importQuality": {
-                "status": "fail",
+                "status": "review",
                 "gates": {
                     "text_completeness": {
                         "status": "pass",
                         "expected": ">=0.8",
-                        "actual": 0.995,
+                        "actual": 0.9951,
                         "detail": "visible text overlap with the baseline"
                     },
                     "visual_structure": {
                         "status": "pass",
                         "expected": ">=0.75",
-                        "actual": 0.806,
+                        "actual": 0.9163,
                         "detail": "heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
-                        "status": "review",
+                        "status": "pass",
                         "expected": "0.80-1.25",
-                        "actual": 1.5012,
-                        "detail": "paragraph count ratio expected 834, got 1252"
+                        "actual": 1,
+                        "detail": "paragraph count ratio expected 618, got 618"
                     },
                     "heading_count": {
                         "status": "pass",
@@ -8933,10 +9541,16 @@
                         "detail": "heading count ratio expected 252, got 252"
                     },
                     "list_count": {
-                        "status": "fail",
+                        "status": "pass",
                         "expected": "0.80-1.25",
-                        "actual": 10.6667,
-                        "detail": "list count ratio expected 33, got 352"
+                        "actual": 1,
+                        "detail": "list count ratio expected 33, got 33"
+                    },
+                    "definition_list_count": {
+                        "status": "pass",
+                        "expected": "0.80-1.25",
+                        "actual": 1,
+                        "detail": "definition list count ratio expected 42, got 42"
                     },
                     "table_count": {
                         "status": "review",
@@ -8965,14 +9579,14 @@
                     "custom_html_percentage": {
                         "status": "pass",
                         "expected": "<=0.05",
-                        "actual": 0.0016,
-                        "detail": "3/1846 WordPress blocks are Custom HTML"
+                        "actual": 0,
+                        "detail": "0/1841 WordPress blocks are Custom HTML"
                     }
                 },
                 "summary": {
-                    "pass": 7,
-                    "review": 2,
-                    "fail": 1
+                    "pass": 10,
+                    "review": 1,
+                    "fail": 0
                 }
             }
         },
@@ -9028,7 +9642,7 @@
                         "textStatus": "faithful_enough",
                         "textScore": 0.9814,
                         "visualStatus": "faithful_enough",
-                        "visualScore": 0.9943
+                        "visualScore": 0.9939
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
@@ -9037,7 +9651,7 @@
                         "textStatus": "faithful_enough",
                         "textScore": 0.9814,
                         "visualStatus": "faithful_enough",
-                        "visualScore": 0.9971
+                        "visualScore": 0.9969
                     }
                 }
             },
@@ -9053,14 +9667,14 @@
                     "visual_structure": {
                         "status": "pass",
                         "expected": ">=0.75",
-                        "actual": 0.9943,
+                        "actual": 0.9939,
                         "detail": "heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
                         "status": "pass",
                         "expected": "0.80-1.25",
-                        "actual": 1.011,
-                        "detail": "paragraph count ratio expected 91, got 92"
+                        "actual": 1.0145,
+                        "detail": "paragraph count ratio expected 69, got 70"
                     },
                     "heading_count": {
                         "status": "pass",
@@ -9073,6 +9687,12 @@
                         "expected": "0.80-1.25",
                         "actual": 1,
                         "detail": "list count ratio expected 14, got 14"
+                    },
+                    "definition_list_count": {
+                        "status": "pass",
+                        "expected": "0",
+                        "actual": 0,
+                        "detail": "definition list count ratio"
                     },
                     "table_count": {
                         "status": "pass",
@@ -9106,7 +9726,7 @@
                     }
                 },
                 "summary": {
-                    "pass": 10,
+                    "pass": 11,
                     "review": 0,
                     "fail": 0
                 }
@@ -9164,7 +9784,7 @@
                         "textStatus": "faithful_enough",
                         "textScore": 0.9996,
                         "visualStatus": "faithful_enough",
-                        "visualScore": 0.9816
+                        "visualScore": 0.9776
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
@@ -9173,7 +9793,7 @@
                         "textStatus": "faithful_enough",
                         "textScore": 0.9996,
                         "visualStatus": "faithful_enough",
-                        "visualScore": 0.9816
+                        "visualScore": 0.9776
                     }
                 }
             },
@@ -9189,14 +9809,14 @@
                     "visual_structure": {
                         "status": "pass",
                         "expected": ">=0.75",
-                        "actual": 0.9816,
+                        "actual": 0.9776,
                         "detail": "heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
                         "status": "pass",
                         "expected": "0.80-1.25",
-                        "actual": 0.9896,
-                        "detail": "paragraph count ratio expected 96, got 95"
+                        "actual": 0.9787,
+                        "detail": "paragraph count ratio expected 47, got 46"
                     },
                     "heading_count": {
                         "status": "pass",
@@ -9209,6 +9829,12 @@
                         "expected": "0.80-1.25",
                         "actual": 1,
                         "detail": "list count ratio expected 12, got 12"
+                    },
+                    "definition_list_count": {
+                        "status": "pass",
+                        "expected": "0",
+                        "actual": 0,
+                        "detail": "definition list count ratio"
                     },
                     "table_count": {
                         "status": "pass",
@@ -9242,7 +9868,7 @@
                     }
                 },
                 "summary": {
-                    "pass": 10,
+                    "pass": 11,
                     "review": 0,
                     "fail": 0
                 }
@@ -9285,11 +9911,9 @@
             },
             "wpBlockCounts": {
                 "code": 82,
-                "group": 1,
                 "heading": 20,
-                "html": 4,
                 "list": 4,
-                "paragraph": 129,
+                "paragraph": 128,
                 "separator": 4
             },
             "faithfulness": {
@@ -9298,43 +9922,43 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "faithful_enough",
-                        "score": 0.9987,
+                        "score": 0.9998,
                         "textStatus": "faithful_enough",
-                        "textScore": 0.9987,
+                        "textScore": 0.9998,
                         "visualStatus": "faithful_enough",
-                        "visualScore": 0.9565
+                        "visualScore": 1
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
                         "status": "faithful_enough",
-                        "score": 0.9987,
+                        "score": 0.9998,
                         "textStatus": "faithful_enough",
-                        "textScore": 0.9987,
+                        "textScore": 0.9998,
                         "visualStatus": "faithful_enough",
-                        "visualScore": 0.9565
+                        "visualScore": 1
                     }
                 }
             },
             "importQuality": {
-                "status": "review",
+                "status": "pass",
                 "gates": {
                     "text_completeness": {
                         "status": "pass",
                         "expected": ">=0.8",
-                        "actual": 0.9987,
+                        "actual": 0.9998,
                         "detail": "visible text overlap with the baseline"
                     },
                     "visual_structure": {
                         "status": "pass",
                         "expected": ">=0.75",
-                        "actual": 0.9565,
+                        "actual": 1,
                         "detail": "heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
                         "status": "pass",
                         "expected": "0.80-1.25",
-                        "actual": 1.0625,
-                        "detail": "paragraph count ratio expected 128, got 136"
+                        "actual": 1,
+                        "detail": "paragraph count ratio expected 128, got 128"
                     },
                     "heading_count": {
                         "status": "pass",
@@ -9348,11 +9972,17 @@
                         "actual": 1,
                         "detail": "list count ratio expected 8, got 8"
                     },
-                    "table_count": {
-                        "status": "review",
+                    "definition_list_count": {
+                        "status": "pass",
                         "expected": "0",
-                        "actual": 1,
-                        "detail": "table count ratio has no baseline count"
+                        "actual": 0,
+                        "detail": "definition list count ratio"
+                    },
+                    "table_count": {
+                        "status": "pass",
+                        "expected": "0",
+                        "actual": 0,
+                        "detail": "table count ratio"
                     },
                     "image_count": {
                         "status": "pass",
@@ -9375,13 +10005,13 @@
                     "custom_html_percentage": {
                         "status": "pass",
                         "expected": "<=0.05",
-                        "actual": 0.0164,
-                        "detail": "4/244 WordPress blocks are Custom HTML"
+                        "actual": 0,
+                        "detail": "0/238 WordPress blocks are Custom HTML"
                     }
                 },
                 "summary": {
-                    "pass": 9,
-                    "review": 1,
+                    "pass": 11,
+                    "review": 0,
                     "fail": 0
                 }
             }
@@ -9437,7 +10067,7 @@
                         "textStatus": "faithful_enough",
                         "textScore": 1,
                         "visualStatus": "faithful_enough",
-                        "visualScore": 0.8333
+                        "visualScore": 1
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
@@ -9451,7 +10081,7 @@
                 }
             },
             "importQuality": {
-                "status": "review",
+                "status": "pass",
                 "gates": {
                     "text_completeness": {
                         "status": "pass",
@@ -9462,14 +10092,14 @@
                     "visual_structure": {
                         "status": "pass",
                         "expected": ">=0.75",
-                        "actual": 0.8333,
+                        "actual": 1,
                         "detail": "heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
                         "status": "pass",
                         "expected": "0.80-1.25",
                         "actual": 1,
-                        "detail": "paragraph count ratio expected 4, got 4"
+                        "detail": "paragraph count ratio expected 3, got 3"
                     },
                     "heading_count": {
                         "status": "pass",
@@ -9478,10 +10108,16 @@
                         "detail": "heading count ratio expected 2, got 2"
                     },
                     "list_count": {
-                        "status": "review",
+                        "status": "pass",
                         "expected": "0",
+                        "actual": 0,
+                        "detail": "list count ratio"
+                    },
+                    "definition_list_count": {
+                        "status": "pass",
+                        "expected": "0.80-1.25",
                         "actual": 1,
-                        "detail": "list count ratio has no baseline count"
+                        "detail": "definition list count ratio expected 1, got 1"
                     },
                     "table_count": {
                         "status": "pass",
@@ -9515,8 +10151,8 @@
                     }
                 },
                 "summary": {
-                    "pass": 9,
-                    "review": 1,
+                    "pass": 11,
+                    "review": 0,
                     "fail": 0
                 }
             }
@@ -9616,6 +10252,12 @@
                         "actual": 0,
                         "detail": "list count ratio"
                     },
+                    "definition_list_count": {
+                        "status": "pass",
+                        "expected": "0",
+                        "actual": 0,
+                        "detail": "definition list count ratio"
+                    },
                     "table_count": {
                         "status": "pass",
                         "expected": "0",
@@ -9648,7 +10290,149 @@
                     }
                 },
                 "summary": {
-                    "pass": 10,
+                    "pass": 11,
+                    "review": 0,
+                    "fail": 0
+                }
+            }
+        },
+        {
+            "id": "mdoc-importctl-manual",
+            "format": "mdoc",
+            "label": "mdoc importctl manual",
+            "description": "",
+            "source": "Feature-rich BSD mdoc manual with metadata, name/description, synopsis, callable inline macros, bullet items, and tagged options.",
+            "sourceUrl": "",
+            "samplePath": "samples/mdoc-importctl-manual-importctl.1",
+            "sampleSize": 509,
+            "preview": ".Dd July 9, 2026\n.Dt IMPORTCTL 1\n.Os\n.Sh NAME\n.Nm importctl\n.Nd import a document into a WordPress page\n.Sh SYNOPSIS\n.Nm\n.Op Fl f Ar format\n.Op Fl n\n.Ar input\n.Sh DESCRIPTION\nThe\n.Nm importctl\ncommand converts\n.Ar input\ninto portable blocks and writes media beside the document.\n.Bl -bullet\n.It\nUse\n.Fl f\nto select a source format.\n.It\nUse\n.Fl n\nto omit images.\n.El\n.Bl -tag -width Ds\n.It Cm verify\nCheck the generated HTML and block markup.\n.It Pa /tmp/imports\nDefault directory for conversion artifacts.\n.El",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\MdocReader",
+                "notes": "Bounded mdoc reader maps BSD manual metadata, section, name/description, callable inline macro, synopsis, and list semantics into the shared AST with an executable mdoc corpus lane. Full mdoc parity remains open."
+            },
+            "haskell": {
+                "ok": true,
+                "path": "outputs/mdoc-importctl-manual/haskell.html"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/mdoc-importctl-manual/php.html",
+                "media": [],
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/mdoc-importctl-manual/wordpress-blocks.html",
+                "media": [],
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
+            },
+            "wpBlockCounts": {
+                "group": 1,
+                "heading": 3,
+                "list": 3,
+                "paragraph": 4,
+                "verse": 1
+            },
+            "faithfulness": {
+                "baseline": "haskell",
+                "comparisons": {
+                    "wpBlocks": {
+                        "label": "PHP WordPress blocks",
+                        "status": "faithful_enough",
+                        "score": 1,
+                        "textStatus": "faithful_enough",
+                        "textScore": 1,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.8333
+                    },
+                    "phpHtml": {
+                        "label": "PHP HTML",
+                        "status": "faithful_enough",
+                        "score": 1,
+                        "textStatus": "faithful_enough",
+                        "textScore": 1,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 1
+                    }
+                }
+            },
+            "importQuality": {
+                "status": "pass",
+                "gates": {
+                    "text_completeness": {
+                        "status": "pass",
+                        "expected": ">=0.8",
+                        "actual": 1,
+                        "detail": "visible text overlap with the baseline"
+                    },
+                    "visual_structure": {
+                        "status": "pass",
+                        "expected": ">=0.75",
+                        "actual": 0.8333,
+                        "detail": "heading/list/table/image shape overlap with the baseline"
+                    },
+                    "paragraph_merge_split": {
+                        "status": "pass",
+                        "expected": "0.80-1.25",
+                        "actual": 1,
+                        "detail": "paragraph count ratio expected 2, got 2"
+                    },
+                    "heading_count": {
+                        "status": "pass",
+                        "expected": "0.80-1.25",
+                        "actual": 1,
+                        "detail": "heading count ratio expected 3, got 3"
+                    },
+                    "list_count": {
+                        "status": "pass",
+                        "expected": "0.80-1.25",
+                        "actual": 1,
+                        "detail": "list count ratio expected 1, got 1"
+                    },
+                    "definition_list_count": {
+                        "status": "pass",
+                        "expected": "0.80-1.25",
+                        "actual": 1,
+                        "detail": "definition list count ratio expected 1, got 1"
+                    },
+                    "table_count": {
+                        "status": "pass",
+                        "expected": "0",
+                        "actual": 0,
+                        "detail": "table count ratio"
+                    },
+                    "image_count": {
+                        "status": "pass",
+                        "expected": "0",
+                        "actual": 0,
+                        "detail": "image count ratio"
+                    },
+                    "media_imported": {
+                        "status": "pass",
+                        "expected": 0,
+                        "actual": 0,
+                        "detail": "no media extraction problems reported"
+                    },
+                    "anchor_validity": {
+                        "status": "pass",
+                        "expected": 0,
+                        "actual": 0,
+                        "detail": "all local fragment links resolve"
+                    },
+                    "custom_html_percentage": {
+                        "status": "pass",
+                        "expected": "<=0.05",
+                        "actual": 0,
+                        "detail": "0/12 WordPress blocks are Custom HTML"
+                    }
+                },
+                "summary": {
+                    "pass": 11,
                     "review": 0,
                     "fail": 0
                 }
@@ -9708,7 +10492,7 @@
                         "textStatus": "faithful_enough",
                         "textScore": 1,
                         "visualStatus": "faithful_enough",
-                        "visualScore": 0.8421
+                        "visualScore": 0.931
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
@@ -9722,7 +10506,7 @@
                 }
             },
             "importQuality": {
-                "status": "review",
+                "status": "pass",
                 "gates": {
                     "text_completeness": {
                         "status": "pass",
@@ -9733,14 +10517,14 @@
                     "visual_structure": {
                         "status": "pass",
                         "expected": ">=0.75",
-                        "actual": 0.8421,
+                        "actual": 0.931,
                         "detail": "heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
                         "status": "pass",
                         "expected": "0.80-1.25",
-                        "actual": 1.125,
-                        "detail": "paragraph count ratio expected 8, got 9"
+                        "actual": 1,
+                        "detail": "paragraph count ratio expected 2, got 2"
                     },
                     "heading_count": {
                         "status": "pass",
@@ -9749,10 +10533,16 @@
                         "detail": "heading count ratio expected 1, got 1"
                     },
                     "list_count": {
-                        "status": "review",
+                        "status": "pass",
                         "expected": "0.80-1.25",
-                        "actual": 1.5,
-                        "detail": "list count ratio expected 2, got 3"
+                        "actual": 1,
+                        "detail": "list count ratio expected 2, got 2"
+                    },
+                    "definition_list_count": {
+                        "status": "pass",
+                        "expected": "0.80-1.25",
+                        "actual": 1,
+                        "detail": "definition list count ratio expected 1, got 1"
                     },
                     "table_count": {
                         "status": "pass",
@@ -9786,8 +10576,8 @@
                     }
                 },
                 "summary": {
-                    "pass": 9,
-                    "review": 1,
+                    "pass": 11,
+                    "review": 0,
                     "fail": 0
                 }
             }
@@ -9890,6 +10680,12 @@
                         "actual": 1,
                         "detail": "list count ratio expected 1, got 1"
                     },
+                    "definition_list_count": {
+                        "status": "pass",
+                        "expected": "0",
+                        "actual": 0,
+                        "detail": "definition list count ratio"
+                    },
                     "table_count": {
                         "status": "pass",
                         "expected": "0",
@@ -9922,7 +10718,7 @@
                     }
                 },
                 "summary": {
-                    "pass": 8,
+                    "pass": 9,
                     "review": 2,
                     "fail": 0
                 }
@@ -10023,6 +10819,12 @@
                         "actual": 0,
                         "detail": "list count ratio"
                     },
+                    "definition_list_count": {
+                        "status": "pass",
+                        "expected": "0",
+                        "actual": 0,
+                        "detail": "definition list count ratio"
+                    },
                     "table_count": {
                         "status": "pass",
                         "expected": "0",
@@ -10055,7 +10857,7 @@
                     }
                 },
                 "summary": {
-                    "pass": 10,
+                    "pass": 11,
                     "review": 0,
                     "fail": 0
                 }
@@ -10116,7 +10918,7 @@
                         "textStatus": "faithful_enough",
                         "textScore": 0.942,
                         "visualStatus": "faithful_enough",
-                        "visualScore": 0.9275
+                        "visualScore": 0.9264
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
@@ -10125,7 +10927,7 @@
                         "textStatus": "faithful_enough",
                         "textScore": 0.9827,
                         "visualStatus": "faithful_enough",
-                        "visualScore": 0.9903
+                        "visualScore": 0.9902
                     }
                 }
             },
@@ -10141,14 +10943,14 @@
                     "visual_structure": {
                         "status": "pass",
                         "expected": ">=0.75",
-                        "actual": 0.9275,
+                        "actual": 0.9264,
                         "detail": "heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
                         "status": "pass",
                         "expected": "0.80-1.25",
                         "actual": 1,
-                        "detail": "paragraph count ratio expected 60, got 60"
+                        "detail": "paragraph count ratio expected 55, got 55"
                     },
                     "heading_count": {
                         "status": "pass",
@@ -10161,6 +10963,12 @@
                         "expected": "0.80-1.25",
                         "actual": 1,
                         "detail": "list count ratio expected 11, got 11"
+                    },
+                    "definition_list_count": {
+                        "status": "pass",
+                        "expected": "0",
+                        "actual": 0,
+                        "detail": "definition list count ratio"
                     },
                     "table_count": {
                         "status": "pass",
@@ -10194,7 +11002,7 @@
                     }
                 },
                 "summary": {
-                    "pass": 10,
+                    "pass": 11,
                     "review": 0,
                     "fail": 0
                 }
@@ -10295,6 +11103,12 @@
                         "actual": 0,
                         "detail": "list count ratio"
                     },
+                    "definition_list_count": {
+                        "status": "pass",
+                        "expected": "0",
+                        "actual": 0,
+                        "detail": "definition list count ratio"
+                    },
                     "table_count": {
                         "status": "pass",
                         "expected": "0",
@@ -10327,7 +11141,7 @@
                     }
                 },
                 "summary": {
-                    "pass": 10,
+                    "pass": 11,
                     "review": 0,
                     "fail": 0
                 }
@@ -10380,8 +11194,8 @@
                         "score": 0.7917,
                         "textStatus": "review",
                         "textScore": 0.7917,
-                        "visualStatus": "divergent",
-                        "visualScore": 0.4848
+                        "visualStatus": "review",
+                        "visualScore": 0.6667
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
@@ -10390,12 +11204,12 @@
                         "textStatus": "review",
                         "textScore": 0.7917,
                         "visualStatus": "review",
-                        "visualScore": 0.5
+                        "visualScore": 0.6957
                     }
                 }
             },
             "importQuality": {
-                "status": "fail",
+                "status": "review",
                 "gates": {
                     "text_completeness": {
                         "status": "review",
@@ -10404,16 +11218,16 @@
                         "detail": "visible text overlap with the baseline"
                     },
                     "visual_structure": {
-                        "status": "fail",
+                        "status": "review",
                         "expected": ">=0.75",
-                        "actual": 0.4848,
+                        "actual": 0.6667,
                         "detail": "heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
-                        "status": "review",
+                        "status": "pass",
                         "expected": "0",
-                        "actual": 9,
-                        "detail": "paragraph count ratio has no baseline count"
+                        "actual": 0,
+                        "detail": "paragraph count ratio"
                     },
                     "heading_count": {
                         "status": "pass",
@@ -10426,6 +11240,12 @@
                         "expected": "0",
                         "actual": 0,
                         "detail": "list count ratio"
+                    },
+                    "definition_list_count": {
+                        "status": "pass",
+                        "expected": "0",
+                        "actual": 0,
+                        "detail": "definition list count ratio"
                     },
                     "table_count": {
                         "status": "pass",
@@ -10459,9 +11279,9 @@
                     }
                 },
                 "summary": {
-                    "pass": 7,
+                    "pass": 9,
                     "review": 2,
-                    "fail": 1
+                    "fail": 0
                 }
             }
         },
@@ -12730,7 +13550,7 @@
                         "textStatus": "faithful_enough",
                         "textScore": 1,
                         "visualStatus": "faithful_enough",
-                        "visualScore": 0.9017
+                        "visualScore": 0.9986
                     }
                 }
             },
@@ -12746,14 +13566,14 @@
                     "visual_structure": {
                         "status": "pass",
                         "expected": ">=0.75",
-                        "actual": 0.9017,
+                        "actual": 0.9986,
                         "detail": "heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
                         "status": "pass",
                         "expected": "0.80-1.25",
-                        "actual": 0.834,
-                        "detail": "paragraph count ratio expected 13528, got 11282"
+                        "actual": 0.9999,
+                        "detail": "paragraph count ratio expected 10589, got 10588"
                     },
                     "heading_count": {
                         "status": "pass",
@@ -12766,6 +13586,12 @@
                         "expected": "0.80-1.25",
                         "actual": 1,
                         "detail": "list count ratio expected 731, got 731"
+                    },
+                    "definition_list_count": {
+                        "status": "pass",
+                        "expected": "0",
+                        "actual": 0,
+                        "detail": "definition list count ratio"
                     },
                     "table_count": {
                         "status": "pass",
@@ -12799,7 +13625,7 @@
                     }
                 },
                 "summary": {
-                    "pass": 10,
+                    "pass": 11,
                     "review": 0,
                     "fail": 0
                 }
@@ -12900,6 +13726,12 @@
                         "actual": 0,
                         "detail": "list count ratio"
                     },
+                    "definition_list_count": {
+                        "status": "pass",
+                        "expected": "0",
+                        "actual": 0,
+                        "detail": "definition list count ratio"
+                    },
                     "table_count": {
                         "status": "pass",
                         "expected": "0",
@@ -12932,7 +13764,7 @@
                     }
                 },
                 "summary": {
-                    "pass": 10,
+                    "pass": 11,
                     "review": 0,
                     "fail": 0
                 }
@@ -13032,6 +13864,12 @@
                         "actual": 0,
                         "detail": "list count ratio"
                     },
+                    "definition_list_count": {
+                        "status": "pass",
+                        "expected": "0",
+                        "actual": 0,
+                        "detail": "definition list count ratio"
+                    },
                     "table_count": {
                         "status": "pass",
                         "expected": "0",
@@ -13064,7 +13902,7 @@
                     }
                 },
                 "summary": {
-                    "pass": 10,
+                    "pass": 11,
                     "review": 0,
                     "fail": 0
                 }
@@ -13205,6 +14043,12 @@
                         "actual": 1,
                         "detail": "list count ratio expected 3, got 3"
                     },
+                    "definition_list_count": {
+                        "status": "pass",
+                        "expected": "0",
+                        "actual": 0,
+                        "detail": "definition list count ratio"
+                    },
                     "table_count": {
                         "status": "pass",
                         "expected": "0.80-1.25",
@@ -13237,7 +14081,7 @@
                     }
                 },
                 "summary": {
-                    "pass": 10,
+                    "pass": 11,
                     "review": 0,
                     "fail": 0
                 }
@@ -13339,6 +14183,12 @@
                         "actual": 0,
                         "detail": "list count ratio"
                     },
+                    "definition_list_count": {
+                        "status": "pass",
+                        "expected": "0",
+                        "actual": 0,
+                        "detail": "definition list count ratio"
+                    },
                     "table_count": {
                         "status": "pass",
                         "expected": "0.80-1.25",
@@ -13371,7 +14221,7 @@
                     }
                 },
                 "summary": {
-                    "pass": 10,
+                    "pass": 11,
                     "review": 0,
                     "fail": 0
                 }
@@ -14090,6 +14940,12 @@
                         "actual": 1,
                         "detail": "list count ratio expected 13, got 13"
                     },
+                    "definition_list_count": {
+                        "status": "pass",
+                        "expected": "0",
+                        "actual": 0,
+                        "detail": "definition list count ratio"
+                    },
                     "table_count": {
                         "status": "pass",
                         "expected": "0.80-1.25",
@@ -14122,7 +14978,7 @@
                     }
                 },
                 "summary": {
-                    "pass": 8,
+                    "pass": 9,
                     "review": 2,
                     "fail": 0
                 }
@@ -14364,6 +15220,12 @@
                         "actual": 1,
                         "detail": "list count ratio expected 2, got 2"
                     },
+                    "definition_list_count": {
+                        "status": "pass",
+                        "expected": "0",
+                        "actual": 0,
+                        "detail": "definition list count ratio"
+                    },
                     "table_count": {
                         "status": "pass",
                         "expected": "0.80-1.25",
@@ -14396,7 +15258,7 @@
                     }
                 },
                 "summary": {
-                    "pass": 10,
+                    "pass": 11,
                     "review": 0,
                     "fail": 0
                 }
@@ -14462,10 +15324,10 @@
                         "detail": "no baseline comparison available for heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
-                        "status": "review",
+                        "status": "pass",
                         "expected": "0",
-                        "actual": 1,
-                        "detail": "paragraph count ratio has no baseline count"
+                        "actual": 0,
+                        "detail": "paragraph count ratio"
                     },
                     "heading_count": {
                         "status": "pass",
@@ -14474,10 +15336,16 @@
                         "detail": "heading count ratio"
                     },
                     "list_count": {
+                        "status": "pass",
+                        "expected": "0",
+                        "actual": 0,
+                        "detail": "list count ratio"
+                    },
+                    "definition_list_count": {
                         "status": "review",
                         "expected": "0",
                         "actual": 1,
-                        "detail": "list count ratio has no baseline count"
+                        "detail": "definition list count ratio has no baseline count"
                     },
                     "table_count": {
                         "status": "pass",
@@ -14511,8 +15379,8 @@
                     }
                 },
                 "summary": {
-                    "pass": 6,
-                    "review": 4,
+                    "pass": 8,
+                    "review": 3,
                     "fail": 0
                 }
             }
@@ -14577,10 +15445,10 @@
                         "detail": "no baseline comparison available for heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
-                        "status": "review",
+                        "status": "pass",
                         "expected": "0",
-                        "actual": 1,
-                        "detail": "paragraph count ratio has no baseline count"
+                        "actual": 0,
+                        "detail": "paragraph count ratio"
                     },
                     "heading_count": {
                         "status": "pass",
@@ -14589,10 +15457,16 @@
                         "detail": "heading count ratio"
                     },
                     "list_count": {
+                        "status": "pass",
+                        "expected": "0",
+                        "actual": 0,
+                        "detail": "list count ratio"
+                    },
+                    "definition_list_count": {
                         "status": "review",
                         "expected": "0",
                         "actual": 1,
-                        "detail": "list count ratio has no baseline count"
+                        "detail": "definition list count ratio has no baseline count"
                     },
                     "table_count": {
                         "status": "pass",
@@ -14626,8 +15500,188 @@
                     }
                 },
                 "summary": {
-                    "pass": 6,
-                    "review": 4,
+                    "pass": 8,
+                    "review": 3,
+                    "fail": 0
+                }
+            }
+        },
+        {
+            "id": "rst-import-packet",
+            "format": "rst",
+            "label": "reStructuredText import packet",
+            "description": "",
+            "source": "Feature-rich reStructuredText input with inlines, bullet and ordered lists, field lists, an embedded image, a CSV table directive, and a code directive.",
+            "sourceUrl": "",
+            "samplePath": "samples/rst-import-packet-rst-import-packet.rst",
+            "sampleSize": 620,
+            "preview": "reStructuredText import packet\n==============================\n\nIntro with *emphasis*, **strong text**, ``literal code``, and `a link <https://example.org>`_.\n\n- First source note\n- Second source note\n\n1. Convert the document\n2. Review the block markup\n\n:Owner: Content operations\n:Status: Ready\n\n.. image:: data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9JJR0AAAAASUVORK5CYII=\n   :alt: Hosted RST diagram\n   :width: 240px\n\n.. csv-table:: Format coverage\n   :header: \"Format\", \"Output\"\n\n   \"RST\", \"WordPress blocks\"\n   \"HTML\", \"Rendered page\"\n\n.. code:: php\n\n   echo \"import\";",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\RstReader",
+                "notes": "Bounded reStructuredText reader maps section titles, paragraphs, emphasis/strong/literal/link inlines, bullet and enumerated lists, field and definition lists, block quotes, literal/code blocks, image directives, and csv-table directives into the shared AST. Full Pandoc RST directive, role, substitution, table, citation, and option parity remains open."
+            },
+            "haskell": {
+                "ok": true,
+                "path": "outputs/rst-import-packet/haskell.html"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/rst-import-packet/php.html",
+                "media": [
+                    {
+                        "path": "outputs/rst-import-packet/media/bac187a7c86d691ecc6d34841319cd3d2649f08e.png",
+                        "mediaPath": "bac187a7c86d691ecc6d34841319cd3d2649f08e.png",
+                        "mimeType": "image/png",
+                        "byteLength": 68,
+                        "sha1": "bac187a7c86d691ecc6d34841319cd3d2649f08e",
+                        "source": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9JJR0AAAAASUVORK5CYII=",
+                        "canonicalSource": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9JJR0AAAAASUVORK5CYII=",
+                        "sourcePath": "data-uri",
+                        "pathRepairSummary": "data-uri-hash-path",
+                        "extractionPathRepairSummary": "data-uri-hash-path",
+                        "mimeTypeSource": "declared",
+                        "inferredMimeType": "application/octet-stream",
+                        "mimeRepairSummary": "data-uri-mime"
+                    }
+                ],
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important",
+                    "extract-media-data-uri-loaded",
+                    "media-resource-mapped:data-uri"
+                ]
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/rst-import-packet/wordpress-blocks.html",
+                "media": [
+                    {
+                        "path": "outputs/rst-import-packet/media/bac187a7c86d691ecc6d34841319cd3d2649f08e.png",
+                        "mediaPath": "bac187a7c86d691ecc6d34841319cd3d2649f08e.png",
+                        "mimeType": "image/png",
+                        "byteLength": 68,
+                        "sha1": "bac187a7c86d691ecc6d34841319cd3d2649f08e",
+                        "source": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9JJR0AAAAASUVORK5CYII=",
+                        "canonicalSource": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9JJR0AAAAASUVORK5CYII=",
+                        "sourcePath": "data-uri",
+                        "pathRepairSummary": "data-uri-hash-path",
+                        "extractionPathRepairSummary": "data-uri-hash-path",
+                        "mimeTypeSource": "declared",
+                        "inferredMimeType": "application/octet-stream",
+                        "mimeRepairSummary": "data-uri-mime"
+                    }
+                ],
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important",
+                    "extract-media-data-uri-loaded",
+                    "media-resource-mapped:data-uri"
+                ]
+            },
+            "wpBlockCounts": {
+                "code": 1,
+                "group": 1,
+                "heading": 1,
+                "image": 1,
+                "list": 4,
+                "paragraph": 3,
+                "table": 1
+            },
+            "faithfulness": {
+                "baseline": "haskell",
+                "comparisons": {
+                    "wpBlocks": {
+                        "label": "PHP WordPress blocks",
+                        "status": "faithful_enough",
+                        "score": 0.9639,
+                        "textStatus": "faithful_enough",
+                        "textScore": 0.9639,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.8
+                    },
+                    "phpHtml": {
+                        "label": "PHP HTML",
+                        "status": "faithful_enough",
+                        "score": 0.9639,
+                        "textStatus": "faithful_enough",
+                        "textScore": 0.9639,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.9259
+                    }
+                }
+            },
+            "importQuality": {
+                "status": "review",
+                "gates": {
+                    "text_completeness": {
+                        "status": "pass",
+                        "expected": ">=0.8",
+                        "actual": 0.9639,
+                        "detail": "visible text overlap with the baseline"
+                    },
+                    "visual_structure": {
+                        "status": "pass",
+                        "expected": ">=0.75",
+                        "actual": 0.8,
+                        "detail": "heading/list/table/image shape overlap with the baseline"
+                    },
+                    "paragraph_merge_split": {
+                        "status": "review",
+                        "expected": "0.80-1.25",
+                        "actual": 0.5,
+                        "detail": "paragraph count ratio expected 2, got 1"
+                    },
+                    "heading_count": {
+                        "status": "review",
+                        "expected": "0",
+                        "actual": 1,
+                        "detail": "heading count ratio has no baseline count"
+                    },
+                    "list_count": {
+                        "status": "pass",
+                        "expected": "0.80-1.25",
+                        "actual": 1,
+                        "detail": "list count ratio expected 2, got 2"
+                    },
+                    "definition_list_count": {
+                        "status": "pass",
+                        "expected": "0.80-1.25",
+                        "actual": 1,
+                        "detail": "definition list count ratio expected 1, got 1"
+                    },
+                    "table_count": {
+                        "status": "pass",
+                        "expected": "0.80-1.25",
+                        "actual": 1,
+                        "detail": "table count ratio expected 1, got 1"
+                    },
+                    "image_count": {
+                        "status": "pass",
+                        "expected": "0.80-1.25",
+                        "actual": 1,
+                        "detail": "image count ratio expected 1, got 1"
+                    },
+                    "media_imported": {
+                        "status": "pass",
+                        "expected": 0,
+                        "actual": 0,
+                        "detail": "no media extraction problems reported"
+                    },
+                    "anchor_validity": {
+                        "status": "pass",
+                        "expected": 0,
+                        "actual": 0,
+                        "detail": "all local fragment links resolve"
+                    },
+                    "custom_html_percentage": {
+                        "status": "pass",
+                        "expected": "<=0.05",
+                        "actual": 0,
+                        "detail": "0/12 WordPress blocks are Custom HTML"
+                    }
+                },
+                "summary": {
+                    "pass": 9,
+                    "review": 2,
                     "fail": 0
                 }
             }
@@ -14726,6 +15780,12 @@
                         "actual": 0,
                         "detail": "list count ratio"
                     },
+                    "definition_list_count": {
+                        "status": "pass",
+                        "expected": "0",
+                        "actual": 0,
+                        "detail": "definition list count ratio"
+                    },
                     "table_count": {
                         "status": "pass",
                         "expected": "0",
@@ -14758,7 +15818,7 @@
                     }
                 },
                 "summary": {
-                    "pass": 8,
+                    "pass": 9,
                     "review": 2,
                     "fail": 0
                 }
@@ -14858,6 +15918,12 @@
                         "actual": 0,
                         "detail": "list count ratio"
                     },
+                    "definition_list_count": {
+                        "status": "pass",
+                        "expected": "0",
+                        "actual": 0,
+                        "detail": "definition list count ratio"
+                    },
                     "table_count": {
                         "status": "pass",
                         "expected": "0",
@@ -14890,7 +15956,7 @@
                     }
                 },
                 "summary": {
-                    "pass": 10,
+                    "pass": 11,
                     "review": 0,
                     "fail": 0
                 }
@@ -14990,6 +16056,12 @@
                         "actual": 0,
                         "detail": "list count ratio"
                     },
+                    "definition_list_count": {
+                        "status": "pass",
+                        "expected": "0",
+                        "actual": 0,
+                        "detail": "definition list count ratio"
+                    },
                     "table_count": {
                         "status": "pass",
                         "expected": "0",
@@ -15022,7 +16094,7 @@
                     }
                 },
                 "summary": {
-                    "pass": 10,
+                    "pass": 11,
                     "review": 0,
                     "fail": 0
                 }
@@ -15064,8 +16136,7 @@
                 ]
             },
             "wpBlockCounts": {
-                "heading": 3,
-                "list": 1,
+                "heading": 2,
                 "table": 2
             },
             "faithfulness": {
@@ -15074,20 +16145,20 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "faithful_enough",
-                        "score": 0.972,
+                        "score": 1,
                         "textStatus": "faithful_enough",
-                        "textScore": 0.972,
+                        "textScore": 1,
                         "visualStatus": "faithful_enough",
-                        "visualScore": 0.9091
+                        "visualScore": 0.9722
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
                         "status": "faithful_enough",
-                        "score": 0.972,
+                        "score": 1,
                         "textStatus": "faithful_enough",
-                        "textScore": 0.972,
+                        "textScore": 1,
                         "visualStatus": "faithful_enough",
-                        "visualScore": 0.9333
+                        "visualScore": 1
                     }
                 }
             },
@@ -15097,44 +16168,50 @@
                     "text_completeness": {
                         "status": "pass",
                         "expected": ">=0.8",
-                        "actual": 0.972,
+                        "actual": 1,
                         "detail": "visible text overlap with the baseline"
                     },
                     "visual_structure": {
                         "status": "pass",
                         "expected": ">=0.75",
-                        "actual": 0.9091,
+                        "actual": 0.9722,
                         "detail": "heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
                         "status": "pass",
                         "expected": "0",
                         "actual": 0,
-                        "detail": "paragraph count ratio after excluding generated XLSX sheet navigation"
+                        "detail": "paragraph count ratio"
                     },
                     "heading_count": {
                         "status": "pass",
                         "expected": "0.80-1.25",
                         "actual": 1,
-                        "detail": "heading count ratio after excluding generated XLSX sheet navigation expected 2, got 2"
+                        "detail": "heading count ratio expected 2, got 2"
                     },
                     "list_count": {
                         "status": "pass",
                         "expected": "0",
                         "actual": 0,
-                        "detail": "list count ratio after excluding generated XLSX sheet navigation"
+                        "detail": "list count ratio"
+                    },
+                    "definition_list_count": {
+                        "status": "pass",
+                        "expected": "0",
+                        "actual": 0,
+                        "detail": "definition list count ratio"
                     },
                     "table_count": {
                         "status": "pass",
                         "expected": "0.80-1.25",
                         "actual": 1,
-                        "detail": "table count ratio after excluding generated XLSX sheet navigation expected 2, got 2"
+                        "detail": "table count ratio expected 2, got 2"
                     },
                     "image_count": {
                         "status": "pass",
                         "expected": "0",
                         "actual": 0,
-                        "detail": "image count ratio after excluding generated XLSX sheet navigation"
+                        "detail": "image count ratio"
                     },
                     "media_imported": {
                         "status": "pass",
@@ -15152,11 +16229,11 @@
                         "status": "pass",
                         "expected": "<=0.05",
                         "actual": 0,
-                        "detail": "0/6 WordPress blocks are Custom HTML"
+                        "detail": "0/4 WordPress blocks are Custom HTML"
                     }
                 },
                 "summary": {
-                    "pass": 10,
+                    "pass": 11,
                     "review": 0,
                     "fail": 0
                 }
@@ -15257,6 +16334,12 @@
                         "actual": 0,
                         "detail": "list count ratio"
                     },
+                    "definition_list_count": {
+                        "status": "pass",
+                        "expected": "0",
+                        "actual": 0,
+                        "detail": "definition list count ratio"
+                    },
                     "table_count": {
                         "status": "pass",
                         "expected": "0.80-1.25",
@@ -15289,7 +16372,7 @@
                     }
                 },
                 "summary": {
-                    "pass": 10,
+                    "pass": 11,
                     "review": 0,
                     "fail": 0
                 }
@@ -15331,8 +16414,7 @@
                 ]
             },
             "wpBlockCounts": {
-                "heading": 52,
-                "list": 1,
+                "heading": 51,
                 "table": 51
             },
             "faithfulness": {
@@ -15341,20 +16423,20 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "faithful_enough",
-                        "score": 0.9659,
+                        "score": 0.9665,
                         "textStatus": "faithful_enough",
-                        "textScore": 0.9659,
+                        "textScore": 0.9665,
                         "visualStatus": "faithful_enough",
-                        "visualScore": 0.984
+                        "visualScore": 0.9883
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
                         "status": "faithful_enough",
-                        "score": 0.9659,
+                        "score": 0.9665,
                         "textStatus": "faithful_enough",
-                        "textScore": 0.9659,
+                        "textScore": 0.9665,
                         "visualStatus": "faithful_enough",
-                        "visualScore": 0.9881
+                        "visualScore": 0.9924
                     }
                 }
             },
@@ -15364,44 +16446,50 @@
                     "text_completeness": {
                         "status": "pass",
                         "expected": ">=0.8",
-                        "actual": 0.9659,
+                        "actual": 0.9665,
                         "detail": "visible text overlap with the baseline"
                     },
                     "visual_structure": {
                         "status": "pass",
                         "expected": ">=0.75",
-                        "actual": 0.984,
+                        "actual": 0.9883,
                         "detail": "heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
                         "status": "pass",
                         "expected": "0",
                         "actual": 0,
-                        "detail": "paragraph count ratio after excluding generated XLSX sheet navigation"
+                        "detail": "paragraph count ratio"
                     },
                     "heading_count": {
                         "status": "pass",
                         "expected": "0.80-1.25",
                         "actual": 1,
-                        "detail": "heading count ratio after excluding generated XLSX sheet navigation expected 51, got 51"
+                        "detail": "heading count ratio expected 51, got 51"
                     },
                     "list_count": {
                         "status": "pass",
                         "expected": "0",
                         "actual": 0,
-                        "detail": "list count ratio after excluding generated XLSX sheet navigation"
+                        "detail": "list count ratio"
+                    },
+                    "definition_list_count": {
+                        "status": "pass",
+                        "expected": "0",
+                        "actual": 0,
+                        "detail": "definition list count ratio"
                     },
                     "table_count": {
                         "status": "pass",
                         "expected": "0.80-1.25",
                         "actual": 1,
-                        "detail": "table count ratio after excluding generated XLSX sheet navigation expected 51, got 51"
+                        "detail": "table count ratio expected 51, got 51"
                     },
                     "image_count": {
                         "status": "pass",
                         "expected": "0",
                         "actual": 0,
-                        "detail": "image count ratio after excluding generated XLSX sheet navigation"
+                        "detail": "image count ratio"
                     },
                     "media_imported": {
                         "status": "pass",
@@ -15419,11 +16507,11 @@
                         "status": "pass",
                         "expected": "<=0.05",
                         "actual": 0,
-                        "detail": "0/104 WordPress blocks are Custom HTML"
+                        "detail": "0/102 WordPress blocks are Custom HTML"
                     }
                 },
                 "summary": {
-                    "pass": 10,
+                    "pass": 11,
                     "review": 0,
                     "fail": 0
                 }
@@ -15516,6 +16604,12 @@
                         "actual": 0,
                         "detail": "list count ratio"
                     },
+                    "definition_list_count": {
+                        "status": "pass",
+                        "expected": "0",
+                        "actual": 0,
+                        "detail": "definition list count ratio"
+                    },
                     "table_count": {
                         "status": "pass",
                         "expected": "0",
@@ -15548,7 +16642,7 @@
                     }
                 },
                 "summary": {
-                    "pass": 10,
+                    "pass": 11,
                     "review": 0,
                     "fail": 0
                 }
@@ -15641,6 +16735,12 @@
                         "actual": 0,
                         "detail": "list count ratio"
                     },
+                    "definition_list_count": {
+                        "status": "pass",
+                        "expected": "0",
+                        "actual": 0,
+                        "detail": "definition list count ratio"
+                    },
                     "table_count": {
                         "status": "pass",
                         "expected": "0",
@@ -15673,7 +16773,7 @@
                     }
                 },
                 "summary": {
-                    "pass": 10,
+                    "pass": 11,
                     "review": 0,
                     "fail": 0
                 }
@@ -15753,9 +16853,10 @@
             },
             "wpBlockCounts": {
                 "group": 1,
-                "heading": 3,
+                "heading": 30,
                 "image": 1,
-                "paragraph": 7
+                "list": 2,
+                "paragraph": 29
             },
             "faithfulness": {
                 "baseline": "phpHtml",
@@ -15767,7 +16868,7 @@
                         "textStatus": "faithful_enough",
                         "textScore": 1,
                         "visualStatus": "faithful_enough",
-                        "visualScore": 0.875
+                        "visualScore": 0.9794
                     }
                 }
             },
@@ -15783,26 +16884,32 @@
                     "visual_structure": {
                         "status": "pass",
                         "expected": ">=0.75",
-                        "actual": 0.875,
+                        "actual": 0.9794,
                         "detail": "heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
                         "status": "pass",
                         "expected": "0.80-1.25",
-                        "actual": 0.875,
-                        "detail": "paragraph count ratio expected 8, got 7"
+                        "actual": 0.9667,
+                        "detail": "paragraph count ratio expected 30, got 29"
                     },
                     "heading_count": {
                         "status": "pass",
                         "expected": "0.80-1.25",
                         "actual": 1,
-                        "detail": "heading count ratio expected 3, got 3"
+                        "detail": "heading count ratio expected 30, got 30"
                     },
                     "list_count": {
                         "status": "pass",
+                        "expected": "0.80-1.25",
+                        "actual": 1,
+                        "detail": "list count ratio expected 2, got 2"
+                    },
+                    "definition_list_count": {
+                        "status": "pass",
                         "expected": "0",
                         "actual": 0,
-                        "detail": "list count ratio"
+                        "detail": "definition list count ratio"
                     },
                     "table_count": {
                         "status": "pass",
@@ -15832,11 +16939,11 @@
                         "status": "pass",
                         "expected": "<=0.05",
                         "actual": 0,
-                        "detail": "0/12 WordPress blocks are Custom HTML"
+                        "detail": "0/63 WordPress blocks are Custom HTML"
                     }
                 },
                 "summary": {
-                    "pass": 10,
+                    "pass": 11,
                     "review": 0,
                     "fail": 0
                 }
@@ -17154,12 +18261,12 @@
                         "textStatus": "faithful_enough",
                         "textScore": 1,
                         "visualStatus": "faithful_enough",
-                        "visualScore": 0.8129
+                        "visualScore": 0.8179
                     }
                 }
             },
             "importQuality": {
-                "status": "review",
+                "status": "pass",
                 "gates": {
                     "text_completeness": {
                         "status": "pass",
@@ -17170,14 +18277,14 @@
                     "visual_structure": {
                         "status": "pass",
                         "expected": ">=0.75",
-                        "actual": 0.8129,
+                        "actual": 0.8179,
                         "detail": "heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
-                        "status": "review",
+                        "status": "pass",
                         "expected": "0.80-1.25",
-                        "actual": 0.7973,
-                        "detail": "paragraph count ratio expected 148, got 118"
+                        "actual": 0.8082,
+                        "detail": "paragraph count ratio expected 146, got 118"
                     },
                     "heading_count": {
                         "status": "pass",
@@ -17190,6 +18297,12 @@
                         "expected": "0.80-1.25",
                         "actual": 1,
                         "detail": "list count ratio expected 2, got 2"
+                    },
+                    "definition_list_count": {
+                        "status": "pass",
+                        "expected": "0",
+                        "actual": 0,
+                        "detail": "definition list count ratio"
                     },
                     "table_count": {
                         "status": "pass",
@@ -17223,8 +18336,8 @@
                     }
                 },
                 "summary": {
-                    "pass": 9,
-                    "review": 1,
+                    "pass": 11,
+                    "review": 0,
                     "fail": 0
                 }
             }
@@ -18375,8 +19488,8 @@
                         "score": 1,
                         "textStatus": "faithful_enough",
                         "textScore": 1,
-                        "visualStatus": "review",
-                        "visualScore": 0.7199
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.7888
                     }
                 }
             },
@@ -18390,16 +19503,16 @@
                         "detail": "visible text overlap with the baseline"
                     },
                     "visual_structure": {
-                        "status": "review",
+                        "status": "pass",
                         "expected": ">=0.75",
-                        "actual": 0.7199,
+                        "actual": 0.7888,
                         "detail": "heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
                         "status": "review",
                         "expected": "0.80-1.25",
-                        "actual": 0.6554,
-                        "detail": "paragraph count ratio expected 177, got 116"
+                        "actual": 0.7838,
+                        "detail": "paragraph count ratio expected 148, got 116"
                     },
                     "heading_count": {
                         "status": "pass",
@@ -18412,6 +19525,12 @@
                         "expected": "0.80-1.25",
                         "actual": 1,
                         "detail": "list count ratio expected 26, got 26"
+                    },
+                    "definition_list_count": {
+                        "status": "pass",
+                        "expected": "0",
+                        "actual": 0,
+                        "detail": "definition list count ratio"
                     },
                     "table_count": {
                         "status": "pass",
@@ -18445,8 +19564,8 @@
                     }
                 },
                 "summary": {
-                    "pass": 8,
-                    "review": 2,
+                    "pass": 10,
+                    "review": 1,
                     "fail": 0
                 }
             }
@@ -19622,6 +20741,12 @@
                         "actual": 0,
                         "detail": "list count ratio"
                     },
+                    "definition_list_count": {
+                        "status": "pass",
+                        "expected": "0",
+                        "actual": 0,
+                        "detail": "definition list count ratio"
+                    },
                     "table_count": {
                         "status": "pass",
                         "expected": "0",
@@ -19654,7 +20779,7 @@
                     }
                 },
                 "summary": {
-                    "pass": 9,
+                    "pass": 10,
                     "review": 1,
                     "fail": 0
                 }
@@ -20569,6 +21694,12 @@
                         "actual": 0,
                         "detail": "list count ratio"
                     },
+                    "definition_list_count": {
+                        "status": "pass",
+                        "expected": "0",
+                        "actual": 0,
+                        "detail": "definition list count ratio"
+                    },
                     "table_count": {
                         "status": "pass",
                         "expected": "0",
@@ -20601,7 +21732,7 @@
                     }
                 },
                 "summary": {
-                    "pass": 7,
+                    "pass": 8,
                     "review": 3,
                     "fail": 0
                 }
@@ -21342,7 +22473,7 @@
                         "textStatus": "faithful_enough",
                         "textScore": 1,
                         "visualStatus": "review",
-                        "visualScore": 0.6993
+                        "visualScore": 0.7143
                     }
                 }
             },
@@ -21358,14 +22489,14 @@
                     "visual_structure": {
                         "status": "review",
                         "expected": ">=0.75",
-                        "actual": 0.6993,
+                        "actual": 0.7143,
                         "detail": "heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
                         "status": "review",
                         "expected": "0.80-1.25",
-                        "actual": 0.54,
-                        "detail": "paragraph count ratio expected 50, got 27"
+                        "actual": 0.5745,
+                        "detail": "paragraph count ratio expected 47, got 27"
                     },
                     "heading_count": {
                         "status": "pass",
@@ -21378,6 +22509,12 @@
                         "expected": "0.80-1.25",
                         "actual": 1,
                         "detail": "list count ratio expected 2, got 2"
+                    },
+                    "definition_list_count": {
+                        "status": "pass",
+                        "expected": "0",
+                        "actual": 0,
+                        "detail": "definition list count ratio"
                     },
                     "table_count": {
                         "status": "pass",
@@ -21411,7 +22548,7 @@
                     }
                 },
                 "summary": {
-                    "pass": 8,
+                    "pass": 9,
                     "review": 2,
                     "fail": 0
                 }
@@ -21503,6 +22640,12 @@
                         "actual": 0,
                         "detail": "list count ratio"
                     },
+                    "definition_list_count": {
+                        "status": "pass",
+                        "expected": "0",
+                        "actual": 0,
+                        "detail": "definition list count ratio"
+                    },
                     "table_count": {
                         "status": "pass",
                         "expected": "0",
@@ -21535,7 +22678,7 @@
                     }
                 },
                 "summary": {
-                    "pass": 10,
+                    "pass": 11,
                     "review": 0,
                     "fail": 0
                 }
@@ -21562,32 +22705,112 @@
                 "path": "outputs/doc-poi-57843/haskell.html.error.txt"
             },
             "phpHtml": {
-                "ok": false,
-                "error": "PHP Fatal error:  Uncaught RuntimeException: CFB root storage entry must be black in $REPO/lanes/pandoc/src/CompoundFileBinary.php:765\nStack trace:\n#0 $REPO/lanes/pandoc/src/CompoundFileBinary.php(239): PortLibs\\Pandoc\\CompoundFileBinary::parseDirectory('R\\x00o\\x00o\\x00t\\x00 \\x00E\\x00n\\x00t...', 3)\n#1 $REPO/lanes/pandoc/src/LegacyDocReader.php(228): PortLibs\\Pandoc\\CompoundFileBinary::fromBytes('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#2 $REPO/lanes/pandoc/src/LegacyDocReader.php(220): PortLibs\\Pandoc\\LegacyDocReader->readBytes('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#3 $REPO/lanes/pandoc/src/PandocConverter.php(37): PortLibs\\Pandoc\\LegacyDocReader->read('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#4 $REPO/lanes/pandoc/src/PandocConverter.php(93): PortLibs\\Pandoc\\PandocConverter::read('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...', 'doc', Array)\n#5 $REPO/lanes/pandoc/src/PandocConverter.php(152): PortLibs\\Pandoc\\PandocConverter::convertWithMedia('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...', 'doc', 'html', Array)\n#6 $REPO/tools/build-pandoc-showcase.php(32): PortLibs\\Pandoc\\PandocConverter::convertFileWithMedia('$REPO', 'doc', 'html', Array)\n#7 {main}\n  thrown in $REPO/lanes/pandoc/src/CompoundFileBinary.php on line 765\nFatal error: Uncaught RuntimeException: CFB root storage entry must be black in $REPO/lanes/pandoc/src/CompoundFileBinary.php:765\nStack trace:\n#0 $REPO/lanes/pandoc/src/CompoundFileBinary.php(239): PortLibs\\Pandoc\\CompoundFileBinary::parseDirectory('R\\x00o\\x00o\\x00t\\x00 \\x00E\\x00n\\x00t...', 3)\n#1 $REPO/lanes/pandoc/src/LegacyDocReader.php(228): PortLibs\\Pandoc\\CompoundFileBinary::fromBytes('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#2 $REPO/lanes/pandoc/src/LegacyDocReader.php(220): PortLibs\\Pandoc\\LegacyDocReader->readBytes('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#3 $REPO/lanes/pandoc/src/PandocConverter.php(37): PortLibs\\Pandoc\\LegacyDocReader->read('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#4 $REPO/lanes/pandoc/src/PandocConverter.php(93): PortLibs\\Pandoc\\PandocConverter::read('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...', 'doc', Array)\n#5 $REPO/lanes/pandoc/src/PandocConverter.php(152): PortLibs\\Pandoc\\PandocConverter::convertWithMedia('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...', 'doc', 'html', Array)\n#6 $REPO/tools/build-pandoc-showcase.php(32): PortLibs\\Pandoc\\PandocConverter::convertFileWithMedia('$REPO', 'doc', 'html', Array)\n#7 {main}\n  thrown in $REPO/lanes/pandoc/src/CompoundFileBinary.php on line 765",
-                "path": "outputs/doc-poi-57843/php.html.error.txt"
+                "ok": true,
+                "path": "outputs/doc-poi-57843/php.html",
+                "media": [],
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
             "wpBlocks": {
-                "ok": false,
-                "error": "PHP Fatal error:  Uncaught RuntimeException: CFB root storage entry must be black in $REPO/lanes/pandoc/src/CompoundFileBinary.php:765\nStack trace:\n#0 $REPO/lanes/pandoc/src/CompoundFileBinary.php(239): PortLibs\\Pandoc\\CompoundFileBinary::parseDirectory('R\\x00o\\x00o\\x00t\\x00 \\x00E\\x00n\\x00t...', 3)\n#1 $REPO/lanes/pandoc/src/LegacyDocReader.php(228): PortLibs\\Pandoc\\CompoundFileBinary::fromBytes('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#2 $REPO/lanes/pandoc/src/LegacyDocReader.php(220): PortLibs\\Pandoc\\LegacyDocReader->readBytes('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#3 $REPO/lanes/pandoc/src/PandocConverter.php(37): PortLibs\\Pandoc\\LegacyDocReader->read('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#4 $REPO/lanes/pandoc/src/PandocConverter.php(93): PortLibs\\Pandoc\\PandocConverter::read('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...', 'doc', Array)\n#5 $REPO/lanes/pandoc/src/PandocConverter.php(152): PortLibs\\Pandoc\\PandocConverter::convertWithMedia('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...', 'doc', 'wordpress', Array)\n#6 $REPO/tools/build-pandoc-showcase.php(32): PortLibs\\Pandoc\\PandocConverter::convertFileWithMedia('$REPO', 'doc', 'wordpress', Array)\n#7 {main}\n  thrown in $REPO/lanes/pandoc/src/CompoundFileBinary.php on line 765\nFatal error: Uncaught RuntimeException: CFB root storage entry must be black in $REPO/lanes/pandoc/src/CompoundFileBinary.php:765\nStack trace:\n#0 $REPO/lanes/pandoc/src/CompoundFileBinary.php(239): PortLibs\\Pandoc\\CompoundFileBinary::parseDirectory('R\\x00o\\x00o\\x00t\\x00 \\x00E\\x00n\\x00t...', 3)\n#1 $REPO/lanes/pandoc/src/LegacyDocReader.php(228): PortLibs\\Pandoc\\CompoundFileBinary::fromBytes('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#2 $REPO/lanes/pandoc/src/LegacyDocReader.php(220): PortLibs\\Pandoc\\LegacyDocReader->readBytes('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#3 $REPO/lanes/pandoc/src/PandocConverter.php(37): PortLibs\\Pandoc\\LegacyDocReader->read('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#4 $REPO/lanes/pandoc/src/PandocConverter.php(93): PortLibs\\Pandoc\\PandocConverter::read('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...', 'doc', Array)\n#5 $REPO/lanes/pandoc/src/PandocConverter.php(152): PortLibs\\Pandoc\\PandocConverter::convertWithMedia('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...', 'doc', 'wordpress', Array)\n#6 $REPO/tools/build-pandoc-showcase.php(32): PortLibs\\Pandoc\\PandocConverter::convertFileWithMedia('$REPO', 'doc', 'wordpress', Array)\n#7 {main}\n  thrown in $REPO/lanes/pandoc/src/CompoundFileBinary.php on line 765",
-                "path": "outputs/doc-poi-57843/wordpress-blocks.html.error.txt"
+                "ok": true,
+                "path": "outputs/doc-poi-57843/wordpress-blocks.html",
+                "media": [],
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
             },
-            "wpBlockCounts": [],
+            "wpBlockCounts": {
+                "paragraph": 21
+            },
             "faithfulness": {
-                "baseline": null,
-                "comparisons": []
+                "baseline": "phpHtml",
+                "comparisons": {
+                    "wpBlocks": {
+                        "label": "PHP WordPress blocks",
+                        "status": "faithful_enough",
+                        "score": 1,
+                        "textStatus": "faithful_enough",
+                        "textScore": 1,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 1
+                    }
+                }
             },
             "importQuality": {
-                "status": "fail",
+                "status": "pass",
                 "gates": {
-                    "conversion": {
-                        "status": "fail",
-                        "detail": "PHP Fatal error:  Uncaught RuntimeException: CFB root storage entry must be black in $REPO/lanes/pandoc/src/CompoundFileBinary.php:765\nStack trace:\n#0 $REPO/lanes/pandoc/src/CompoundFileBinary.php(239): PortLibs\\Pandoc\\CompoundFileBinary::parseDirectory('R\\x00o\\x00o\\x00t\\x00 \\x00E\\x00n\\x00t...', 3)\n#1 $REPO/lanes/pandoc/src/LegacyDocReader.php(228): PortLibs\\Pandoc\\CompoundFileBinary::fromBytes('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#2 $REPO/lanes/pandoc/src/LegacyDocReader.php(220): PortLibs\\Pandoc\\LegacyDocReader->readBytes('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#3 $REPO/lanes/pandoc/src/PandocConverter.php(37): PortLibs\\Pandoc\\LegacyDocReader->read('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#4 $REPO/lanes/pandoc/src/PandocConverter.php(93): PortLibs\\Pandoc\\PandocConverter::read('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...', 'doc', Array)\n#5 $REPO/lanes/pandoc/src/PandocConverter.php(152): PortLibs\\Pandoc\\PandocConverter::convertWithMedia('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...', 'doc', 'wordpress', Array)\n#6 $REPO/tools/build-pandoc-showcase.php(32): PortLibs\\Pandoc\\PandocConverter::convertFileWithMedia('$REPO', 'doc', 'wordpress', Array)\n#7 {main}\n  thrown in $REPO/lanes/pandoc/src/CompoundFileBinary.php on line 765\nFatal error: Uncaught RuntimeException: CFB root storage entry must be black in $REPO/lanes/pandoc/src/CompoundFileBinary.php:765\nStack trace:\n#0 $REPO/lanes/pandoc/src/CompoundFileBinary.php(239): PortLibs\\Pandoc\\CompoundFileBinary::parseDirectory('R\\x00o\\x00o\\x00t\\x00 \\x00E\\x00n\\x00t...', 3)\n#1 $REPO/lanes/pandoc/src/LegacyDocReader.php(228): PortLibs\\Pandoc\\CompoundFileBinary::fromBytes('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#2 $REPO/lanes/pandoc/src/LegacyDocReader.php(220): PortLibs\\Pandoc\\LegacyDocReader->readBytes('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#3 $REPO/lanes/pandoc/src/PandocConverter.php(37): PortLibs\\Pandoc\\LegacyDocReader->read('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...')\n#4 $REPO/lanes/pandoc/src/PandocConverter.php(93): PortLibs\\Pandoc\\PandocConverter::read('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...', 'doc', Array)\n#5 $REPO/lanes/pandoc/src/PandocConverter.php(152): PortLibs\\Pandoc\\PandocConverter::convertWithMedia('\\xD0\\xCF\\x11\\xE0\\xA1\\xB1\\x1A\\xE1\\x00\\x00\\x00\\x00\\x00\\x00\\x00...', 'doc', 'wordpress', Array)\n#6 $REPO/tools/build-pandoc-showcase.php(32): PortLibs\\Pandoc\\PandocConverter::convertFileWithMedia('$REPO', 'doc', 'wordpress', Array)\n#7 {main}\n  thrown in $REPO/lanes/pandoc/src/CompoundFileBinary.php on line 765"
+                    "text_completeness": {
+                        "status": "pass",
+                        "expected": ">=0.8",
+                        "actual": 1,
+                        "detail": "visible text overlap with the baseline"
+                    },
+                    "visual_structure": {
+                        "status": "pass",
+                        "expected": ">=0.75",
+                        "actual": 1,
+                        "detail": "heading/list/table/image shape overlap with the baseline"
+                    },
+                    "paragraph_merge_split": {
+                        "status": "pass",
+                        "expected": "0.80-1.25",
+                        "actual": 1,
+                        "detail": "paragraph count ratio expected 21, got 21"
+                    },
+                    "heading_count": {
+                        "status": "pass",
+                        "expected": "0",
+                        "actual": 0,
+                        "detail": "heading count ratio"
+                    },
+                    "list_count": {
+                        "status": "pass",
+                        "expected": "0",
+                        "actual": 0,
+                        "detail": "list count ratio"
+                    },
+                    "definition_list_count": {
+                        "status": "pass",
+                        "expected": "0",
+                        "actual": 0,
+                        "detail": "definition list count ratio"
+                    },
+                    "table_count": {
+                        "status": "pass",
+                        "expected": "0",
+                        "actual": 0,
+                        "detail": "table count ratio"
+                    },
+                    "image_count": {
+                        "status": "pass",
+                        "expected": "0",
+                        "actual": 0,
+                        "detail": "image count ratio"
+                    },
+                    "media_imported": {
+                        "status": "pass",
+                        "expected": 0,
+                        "actual": 0,
+                        "detail": "no media extraction problems reported"
+                    },
+                    "anchor_validity": {
+                        "status": "pass",
+                        "expected": 0,
+                        "actual": 0,
+                        "detail": "all local fragment links resolve"
+                    },
+                    "custom_html_percentage": {
+                        "status": "pass",
+                        "expected": "<=0.05",
+                        "actual": 0,
+                        "detail": "0/21 WordPress blocks are Custom HTML"
                     }
                 },
                 "summary": {
-                    "pass": 0,
+                    "pass": 11,
                     "review": 0,
-                    "fail": 1
+                    "fail": 0
                 }
             }
         }

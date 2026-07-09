@@ -46,15 +46,7 @@
 <p>Markdown&#039;s syntax is intended for one purpose: to be used as a format for <em>writing</em> for the web.</p>
 <p>Markdown is not a replacement for HTML, or even close to it. Its syntax is very small, corresponding only to a very small subset of HTML tags. The idea is <em>not</em> to create a syntax that makes it easier to insert HTML tags. In my opinion, HTML tags are already easy to insert. The idea for Markdown is to make it easy to read, write, and edit prose. HTML is a <em>publishing</em> format; Markdown is a <em>writing</em> format. Thus, Markdown&#039;s formatting syntax only addresses issues that can be conveyed in plain text.</p>
 <p>For any markup that is not covered by Markdown&#039;s syntax, you simply use HTML itself. There&#039;s no need to preface it or delimit it to indicate that you&#039;re switching from Markdown to HTML; you just use the tags.</p>
-<p>The only restrictions are that block-level HTML elements -- e.g. `</p>
-<div>
-<p>`,</p>
-<p>`</p>
-<table>`, `<pre>`, `<p>`, etc. -- must be separated from surrounding
-content by blank lines, and the start and end tags of the block should
-not be indented with tabs or spaces. Markdown is smart enough not
-<p>to add extra (unwanted) `</p>
-<p>` tags around HTML block-level tags.
+<p>The only restrictions are that block-level HTML elements -- e.g. <code>&lt;div&gt;</code>, <code>&lt;table&gt;</code>, <code>&lt;pre&gt;</code>, <code>&lt;p&gt;</code>, etc. -- must be separated from surrounding content by blank lines, and the start and end tags of the block should not be indented with tabs or spaces. Markdown is smart enough not to add extra (unwanted) <code>&lt;p&gt;</code> tags around HTML block-level tags.</p>
 <p>For example, to add an HTML table to a Markdown article:</p>
 <pre><code>This is a regular paragraph.
 
@@ -193,9 +185,7 @@ Aliquam hendrerit mi posuere lectus. Vestibulum enim wisi,
 viverra nec, fringilla in, laoreet vitae, risus.
 *   Donec sit amet nisl. Aliquam semper ipsum sit amet velit.
 Suspendisse id sem consectetuer libero luctus adipiscing.</code></pre>
-<p>If list items are separated by blank lines, Markdown will wrap the</p>
-<p>items in `</p>
-<p>` tags in the HTML output. For example, this input:
+<p>If list items are separated by blank lines, Markdown will wrap the items in <code>&lt;p&gt;</code> tags in the HTML output. For example, this input:</p>
 <pre><code>*   Bird
 *   Magic</code></pre>
 <p>will turn into:</p>
@@ -244,9 +234,7 @@ sit amet, consectetuer adipiscing elit.
 <p>In other words, a <em>number-period-space</em> sequence at the beginning of a line. To avoid this, you can backslash-escape the period:</p>
 <pre><code>1986\. What a great season.</code></pre>
 <h3 id="precode">Code Blocks</h3>
-<p>Pre-formatted code blocks are used for writing about programming or markup source code. Rather than forming normal paragraphs, the lines of a code block are interpreted literally. Markdown wraps a code block</p>
-<p>in both `</p>
-<pre>` and `<code>` tags.
+<p>Pre-formatted code blocks are used for writing about programming or markup source code. Rather than forming normal paragraphs, the lines of a code block are interpreted literally. Markdown wraps a code block in both <code>&lt;pre&gt;</code> and <code>&lt;code&gt;</code> tags.</p>
 <p>To produce a code block in Markdown, simply indent every line of the block by at least 4 spaces or 1 tab. For example, given this input:</p>
 <pre><code>This is a normal paragraph:
 
@@ -281,11 +269,7 @@ end tell
 &lt;/code&gt;&lt;/pre&gt;</code></pre>
 <p>Regular Markdown syntax is not processed within code blocks. E.g., asterisks are just literal asterisks within a code block. This means it&#039;s also easy to use Markdown to write about Markdown&#039;s own syntax.</p>
 <h3 id="hr">Horizontal Rules</h3>
-<p>You can produce a horizontal rule tag (`</p>
-<hr />`) by placing three or
-more hyphens, asterisks, or underscores on a line by themselves. If you
-wish, you may use spaces between the hyphens or asterisks. Each of the
-following lines will produce a horizontal rule:
+<p>You can produce a horizontal rule tag (<code>&lt;hr /&gt;</code>) by placing three or more hyphens, asterisks, or underscores on a line by themselves. If you wish, you may use spaces between the hyphens or asterisks. Each of the following lines will produce a horizontal rule:</p>
 <pre><code>* * *
 
 ***
@@ -473,5 +457,4 @@ _   underscore
 +   plus sign
 -   minus sign (hyphen)
 .   dot
-!   exclamation mark</code></pre>
-</div></body></html>
+!   exclamation mark</code></pre></body></html>

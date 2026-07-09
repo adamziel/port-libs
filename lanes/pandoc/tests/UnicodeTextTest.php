@@ -5,6 +5,7 @@ declare(strict_types=1);
 use PortLibs\Pandoc\AstNode;
 use PortLibs\Pandoc\MarkdownReader;
 use PortLibs\Pandoc\MarkdownWriter;
+use PortLibs\Pandoc\PandocConverter;
 use PortLibs\Pandoc\UnicodeText;
 use PortLibs\Pandoc\WordPressBlockWriter;
 
@@ -99,6 +100,16 @@ return [
         $t->same('魚', $document->children[0]->attr('text'));
         $t->same('Handoff', $document->children[1]->attr('text'));
         $t->same(['encoding' => 'utf-16le', 'bom' => 'utf-16le', 'repairs' => 0], $document->attr('sourceEncoding'));
+    },
+    'routes encoded markdown bytes through the converter reader path' => static function (TestRunner $t): void {
+        $document = PandocConverter::read("# Caf\xE9\n\nPrice \x8010", 'markdown', ['sourceEncoding' => 'windows-1252']);
+        $blocks = PandocConverter::write($document, 'wordpress');
+
+        $t->same(['encoding' => 'windows-1252', 'bom' => null, 'repairs' => 0], $document->attr('sourceEncoding'));
+        $t->same('Café', $document->children[0]->attr('text'));
+        $t->same('Price €10', $document->children[1]->attr('text'));
+        $t->contains('<h1 id="café">Café</h1>', $blocks);
+        $t->contains('<p>Price €10</p>', $blocks);
     },
     'decodes windows 1252 smart punctuation into wordpress blocks' => static function (TestRunner $t): void {
         $bytes = "# Legacy Import\n\nEditor \x93quoted\x94 source \x97 Cafe\xE9 costs \x8010.";

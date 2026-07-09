@@ -47,6 +47,8 @@ final class HtmlNativeAstComparisonHarness
         'constructor' => true,
         'header' => true,
         'htmlAttributes' => true,
+        'htmlLocalFragmentLinkRepair' => true,
+        'htmlLocalFragmentLinkRepairCount' => true,
         'legacyTableCellBlocksNative' => true,
         'meta' => true,
         'native' => true,
@@ -399,6 +401,7 @@ final class HtmlNativeAstComparisonHarness
                 'default false HTML definition-list looseness sidecars when native text carries no equivalent flag',
                 'reader-derived block cached text metadata, including paragraph/list-item text; task-list sidecars are normalized to Pandoc ballot-box text; block and inline shape remains compared',
                 'source id/classes/key-value attrs on Pandoc inline constructors without native Attr tuples; inline constructor, text, and children remain compared',
+                'local HTML fragment-link repair IDs and diagnostics; original link targets and visible link text remain compared',
                 'redundant raw HTML format attrs and duplicate raw HTML text attrs; raw HTML payload remains compared',
             ],
             'doesNotAssert' => [
@@ -651,6 +654,9 @@ final class HtmlNativeAstComparisonHarness
                 continue;
             }
             if (self::isNativeAttrlessInlineNode($node) && in_array($key, ['id', 'classes', 'attributes'], true)) {
+                continue;
+            }
+            if ($key === 'id' && $node->attr('htmlLocalFragmentLinkRepair') === true) {
                 continue;
             }
             if ($key === 'caption' && $value === '') {

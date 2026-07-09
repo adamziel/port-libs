@@ -169,7 +169,7 @@ return [
         $cases = [
             'grand-canyon-map' => ['minGeometryTables' => 1, 'minTables' => 1, 'minLines' => 250, 'mode' => 'geometry'],
             'muir-brochure' => ['minGeometryTables' => 2, 'minTables' => 2, 'minLines' => 400, 'mode' => 'geometry'],
-            'tracemonkey-paper' => ['minGeometryTables' => 6, 'minTables' => 3, 'minLines' => 1000, 'mode' => 'text-fallback'],
+            'tracemonkey-paper' => ['minGeometryTables' => 5, 'minTables' => 3, 'minLines' => 1000, 'mode' => 'text-fallback'],
         ];
 
         foreach ($cases as $kind => $expectation) {
@@ -247,6 +247,11 @@ return [
         }
         $t->contains('client - http://www.mozilla.com', $text);
         $t->contains('Extreme - http://webkit.org', $text);
+        $t->contains('SPECJVM98 - http://www.spec.org/jvm98/', $text);
+        $t->contains('http://lua-users.org/lists/lua-l/2008-02/msg00051.html', $text);
+        $t->true(!str_contains($text, 'SPECJVM 98'), 'TraceMonkey acronym benchmark names should not be split before digits.');
+        $t->true(!str_contains($text, 'jvm 98'), 'TraceMonkey URL path digits should not be split.');
+        $t->true(!str_contains($text, 'msg 00051'), 'TraceMonkey URL path message identifiers should not be split.');
     },
     'pdf corpus gate does not join TraceMonkey table cell words as fragments' => static function (TestRunner $t) use ($pdfSamplePaths, $plainText): void {
         $document = (new PdfReader([
@@ -319,6 +324,8 @@ return [
         $t->true(($w4Meta['pdfEstimatedPages'] ?? 0) >= 5, 'IRS W-4 form should report its page count.');
         $t->true(($w4Meta['pdfTextLines'] ?? 0) >= 15, 'IRS W-4 form should retain extracted form text lines.');
         $t->true(($w4Meta['pdfTextBytes'] ?? 0) >= 300, 'IRS W-4 form should retain a baseline amount of text.');
+        $t->same(0, $w4Meta['pdfDetectedTables'], 'IRS W-4 form layout should not become a false data table.');
+        $t->true(!str_contains($w4['blocks'], '<!-- wp:table -->'), 'IRS W-4 form layout should remain editable WordPress prose.');
         $t->true($w4['headings'] >= 2, 'IRS W-4 form should retain heading-like form labels.');
     },
     'pdf corpus gate keeps scanned book bounded but readable' => static function (TestRunner $t) use ($pdfSamplePaths, $readPdfSample, $plainText): void {

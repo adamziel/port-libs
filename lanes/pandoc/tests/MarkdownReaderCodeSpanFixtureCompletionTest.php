@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\Pandoc\AstNode;
+use PortLibs\Pandoc\HtmlWriter;
 use PortLibs\Pandoc\MarkdownReader;
 use PortLibs\Pandoc\NativeWriter;
 
@@ -37,5 +38,29 @@ return [
         $t->contains('Code ( "" , [  ] , [  ] ) "hi````there"', $native);
         $t->contains('Str "`hi"', $native);
         $t->contains('Str "there`"', $native);
+    },
+    'keeps block-like html tags literal inside markdown code spans' => static function (TestRunner $t): void {
+        $tick = chr(96);
+        $source = 'In HTML this is represented with '
+            . $tick . '<dl>' . $tick
+            . ', ' . $tick . '<dt>' . $tick
+            . ', and ' . $tick . '<dd>' . $tick
+            . ' tags.';
+
+        $document = (new MarkdownReader(['format' => 'gfm']))->read($source);
+        $paragraph = $document->children[0] ?? new AstNode('missing');
+        $codes = array_values(array_filter(
+            $paragraph->children,
+            static fn (AstNode $node): bool => $node->type === 'code'
+        ));
+        $html = (new HtmlWriter())->write($document);
+
+        $t->same(1, count($document->children));
+        $t->same('paragraph', $paragraph->type);
+        $t->same(['<dl>', '<dt>', '<dd>'], array_map(static fn (AstNode $node): string => $node->attr('text'), $codes));
+        $t->same(
+            '<p>In HTML this is represented with <code>&lt;dl&gt;</code>, <code>&lt;dt&gt;</code>, and <code>&lt;dd&gt;</code> tags.</p>',
+            $html
+        );
     },
 ];

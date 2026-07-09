@@ -78,23 +78,12 @@ the tags.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p>The only restrictions are that block-level HTML elements -- e.g. `</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:group -->
-<div class="wp-block-group">
-<!-- wp:paragraph -->
-<p>`,</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:html -->
-<p>`</p>
-<table>`, `<pre>`, `<p>`, etc. -- must be separated from surrounding
+<p>The only restrictions are that block-level HTML elements -- e.g. <code>&lt;div&gt;</code>,
+<code>&lt;table&gt;</code>, <code>&lt;pre&gt;</code>, <code>&lt;p&gt;</code>, etc. -- must be separated from surrounding
 content by blank lines, and the start and end tags of the block should
 not be indented with tabs or spaces. Markdown is smart enough not
-<p>to add extra (unwanted) `</p>
-<p>` tags around HTML block-level tags.
-<!-- /wp:html -->
+to add extra (unwanted) <code>&lt;p&gt;</code> tags around HTML block-level tags.</p>
+<!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
 <p>For example, to add an HTML table to a Markdown article:</p>
@@ -513,13 +502,9 @@ Suspendisse id sem consectetuer libero luctus adipiscing.</code></pre>
 <!-- /wp:code -->
 
 <!-- wp:paragraph -->
-<p>If list items are separated by blank lines, Markdown will wrap the</p>
+<p>If list items are separated by blank lines, Markdown will wrap the
+items in <code>&lt;p&gt;</code> tags in the HTML output. For example, this input:</p>
 <!-- /wp:paragraph -->
-
-<!-- wp:html -->
-<p>items in `</p>
-<p>` tags in the HTML output. For example, this input:
-<!-- /wp:html -->
 
 <!-- wp:code -->
 <pre class="wp-block-code"><code>*   Bird
@@ -640,13 +625,9 @@ line. To avoid this, you can backslash-escape the period:</p>
 <!-- wp:paragraph -->
 <p>Pre-formatted code blocks are used for writing about programming or
 markup source code. Rather than forming normal paragraphs, the lines
-of a code block are interpreted literally. Markdown wraps a code block</p>
+of a code block are interpreted literally. Markdown wraps a code block
+in both <code>&lt;pre&gt;</code> and <code>&lt;code&gt;</code> tags.</p>
 <!-- /wp:paragraph -->
-
-<!-- wp:html -->
-<p>in both `</p>
-<pre>` and `<code>` tags.
-<!-- /wp:html -->
 
 <!-- wp:paragraph -->
 <p>To produce a code block in Markdown, simply indent every line of the
@@ -737,15 +718,11 @@ it&#039;s also easy to use Markdown to write about Markdown&#039;s own syntax.</
 <!-- /wp:heading -->
 
 <!-- wp:paragraph -->
-<p>You can produce a horizontal rule tag (`</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:html -->
-<hr />`) by placing three or
+<p>You can produce a horizontal rule tag (<code>&lt;hr /&gt;</code>) by placing three or
 more hyphens, asterisks, or underscores on a line by themselves. If you
 wish, you may use spaces between the hyphens or asterisks. Each of the
-following lines will produce a horizontal rule:
-<!-- /wp:html -->
+following lines will produce a horizontal rule:</p>
+<!-- /wp:paragraph -->
 
 <!-- wp:code -->
 <pre class="wp-block-code"><code>* * *
@@ -1318,5 +1295,3 @@ _   underscore
 .   dot
 !   exclamation mark</code></pre>
 <!-- /wp:code -->
-</div>
-<!-- /wp:group -->

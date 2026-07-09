@@ -2253,11 +2253,7 @@ markdown, commonmark, latex, mediawiki, org, rst, twiki, <code>html</code>
 <pre><code>See the section on
 [heading identifiers](#heading-identifiers-in-html-latex-and-context).</code></pre>
 <p>Note, however, that this method of providing links to sections works only in HTML, LaTeX, and ConTeXt formats.</p>
-<p>If the <code>--section-divs</code> option is specified, then each section will be wrapped in a <code>section</code> (or a <code>div</code>, if <code>html4</code> was specified), and the identifier will be attached to the enclosing <code>&lt;section&gt;</code></p>
-<p>(or `</p>
-<div>`) tag rather than the heading itself. This allows entire
-sections to be manipulated using JavaScript or treated differently in
-CSS.
+<p>If the <code>--section-divs</code> option is specified, then each section will be wrapped in a <code>section</code> (or a <code>div</code>, if <code>html4</code> was specified), and the identifier will be attached to the enclosing <code>&lt;section&gt;</code> (or <code>&lt;div&gt;</code>) tag rather than the heading itself. This allows entire sections to be manipulated using JavaScript or treated differently in CSS.</p>
 <h3 id="extension-ascii_identifiers">Extension: <code>ascii_identifiers</code></h3>
 <p>Causes the identifiers produced by <code>auto_identifiers</code> to be pure ASCII. Accents are stripped off of accented Latin letters, and non-Latin letters are omitted.</p>
 <h3 id="extension-gfm_auto_identifiers">Extension: <code>gfm_auto_identifiers</code></h3>
@@ -3145,14 +3141,9 @@ command-line options selected. Therefore see [Math rendering in HTML] above.
 &lt;/table&gt;</code></pre>
 <p>whereas <code>Markdown.pl</code> will preserve it as is.</p>
 <p>There is one exception to this rule:  text between <code>&lt;script&gt;</code>, <code>&lt;style&gt;</code>, <code>&lt;pre&gt;</code>, and <code>&lt;textarea&gt;</code> tags is not interpreted as Markdown.</p>
-<p>This departure from original Markdown should make it easier to mix Markdown with HTML block elements.  For example, one can surround</p>
-<p>a block of Markdown text with `</p>
-<div>` tags without preventing it
-from being interpreted as Markdown.
+<p>This departure from original Markdown should make it easier to mix Markdown with HTML block elements.  For example, one can surround a block of Markdown text with <code>&lt;div&gt;</code> tags without preventing it from being interpreted as Markdown.</p>
 <h3 id="extension-native_divs">Extension: <code>native_divs</code></h3>
-<p>Use native pandoc `Div` blocks for content inside `</p>
-<div>
-<p><code>tags. For the most part this should give the same output as</code>markdown_in_html_blocks`, but it makes it easier to write pandoc filters to manipulate groups of blocks.</p>
+<p>Use native pandoc <code>Div</code> blocks for content inside <code>&lt;div&gt;</code> tags. For the most part this should give the same output as <code>markdown_in_html_blocks</code>, but it makes it easier to write pandoc filters to manipulate groups of blocks.</p>
 <h3 id="extension-native_spans">Extension: <code>native_spans</code></h3>
 <p>Use native pandoc <code>Span</code> blocks for content inside <code>&lt;span&gt;</code> tags. For the most part this should give the same output as <code>raw_html</code>, but it makes it easier to write pandoc filters to manipulate groups of inlines.</p>
 <h3 id="extension-raw_tex">Extension: <code>raw_tex</code></h3>
@@ -3195,7 +3186,7 @@ blah blah
 <p>Note that LaTeX macros will not be applied if they occur inside a raw span or block marked with the <a href="#extension-raw_attribute"><code>raw_attribute</code> extension</a>.</p>
 <p>When <code>latex_macros</code> is disabled, the raw LaTeX and math will not have macros applied. This is usually a better approach when you are targeting LaTeX or PDF.</p>
 <p>Macro definitions in LaTeX will be passed through as raw LaTeX only if <code>latex_macros</code> is not enabled.  Macro definitions in Markdown source (or other formats allowing <code>raw_tex</code>) will be passed through regardless of whether <code>latex_macros</code> is enabled.</p>
-<h2 id="links">Links</h2>
+<h2 id="links-1">Links</h2>
 <p>Markdown allows links to be specified in several ways.</p>
 <h3 id="automatic-links">Automatic links</h3>
 <p>If you enclose a URL or email address in pointy brackets, it will become a link:</p>
@@ -3811,13 +3802,7 @@ content after the pause</code></pre>
 <p>Or you can specify a custom stylesheet using the <code>--css</code> option.</p>
 <p>To style beamer slides, you can specify a <code>theme</code>, <code>colortheme</code>, <code>fonttheme</code>, <code>innertheme</code>, and <code>outertheme</code>, using the <code>-V</code> option:</p>
 <pre><code>pandoc -t beamer habits.txt -V theme:Warsaw -o habits.pdf</code></pre>
-<p>Note that heading attributes will turn into slide attributes</p>
-<p>(on a `</p>
-<div>` or `<section>`) in HTML slide formats, allowing you
-to style individual slides.  In beamer, a number of heading
-classes and attributes are recognized as frame options and
-will be passed through as options to the frame: see
-[Frame attributes in beamer], below.
+<p>Note that heading attributes will turn into slide attributes (on a <code>&lt;div&gt;</code> or <code>&lt;section&gt;</code>) in HTML slide formats, allowing you to style individual slides.  In beamer, a number of heading classes and attributes are recognized as frame options and will be passed through as options to the frame: see <a href="#frame-attributes-in-beamer">Frame attributes in beamer</a>, below.</p>
 <h2 id="speaker-notes">Speaker notes</h2>
 <p>Speaker notes are supported in reveal.js, PowerPoint (pptx), and beamer output. You can add notes to your Markdown document thus:</p>
 <pre><code>::: notes
@@ -4399,7 +4384,6 @@ pdfstandard:
 </ol>
 <h1 id="authors">Authors</h1>
 <p>Copyright 2006–2024 John MacFarlane (jgm@berkeley.edu). Released under the <a href="https://www.gnu.org/copyleft/gpl.html" title="GNU General Public License">GPL</a>, version 2 or greater.  This software carries no warranty of any kind.  (See COPYRIGHT for full copyright and warranty notices.) For a full list of contributors, see the file AUTHORS.md in the pandoc source code.</p>
-</div>
 <div class="footnotes footnotes-end-of-document">
 <hr />
 <ol>

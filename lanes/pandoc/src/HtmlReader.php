@@ -364,6 +364,7 @@ final class HtmlReader
             $attrs = $node->attrs;
             if ($node->type === 'link' && isset($repairs[$pathKey]) && (string) ($attrs['id'] ?? '') === '') {
                 $attrs['id'] = $repairs[$pathKey];
+                $attrs['htmlLocalFragmentLinkRepair'] = true;
                 $htmlAttributes = is_array($attrs['htmlAttributes'] ?? null) ? $attrs['htmlAttributes'] : [];
                 $htmlAttributes['id'] = $repairs[$pathKey];
                 $attrs['htmlAttributes'] = $htmlAttributes;

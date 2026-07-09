@@ -439,6 +439,7 @@ final class DokuWikiReader
         return new AstNode('image', [
             'url' => $target,
             'src' => $target,
+            'alt' => $alt,
             'title' => '',
             'attributes' => $attributes,
         ], $alt === '' ? [] : $this->parseInlines($alt));

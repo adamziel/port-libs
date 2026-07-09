@@ -200,6 +200,30 @@ final class MarkdownReader
         return TableGeometry::withReviewPacket($table);
     }
 
+    public function readBytes(string $bytes, ?string $encoding = null, ?string $normalizationForm = null): AstNode
+    {
+        $decoded = UnicodeText::decodeBytes($bytes, $encoding, $normalizationForm);
+        $document = $this->read($decoded['text']);
+        $sourceEncoding = [
+            'encoding' => $decoded['encoding'],
+            'bom' => $decoded['bom'],
+            'repairs' => $decoded['repairs'],
+        ];
+        if (($decoded['diagnostics'] ?? []) !== []) {
+            $sourceEncoding['diagnostics'] = $decoded['diagnostics'];
+        }
+
+        $attrs = array_replace($document->attrs, ['sourceEncoding' => $sourceEncoding]);
+        if (isset($decoded['lineEndings']) && is_array($decoded['lineEndings'])) {
+            $attrs['sourceLineEndings'] = $decoded['lineEndings'];
+        }
+        if (isset($decoded['normalization']) && is_array($decoded['normalization'])) {
+            $attrs['sourceNormalization'] = $decoded['normalization'];
+        }
+
+        return new AstNode($document->type, $attrs, $document->children);
+    }
+
     public function read(string $markdown): AstNode
     {
         $blocks = [];
@@ -1711,6 +1735,9 @@ final class MarkdownReader
         if ($tagOffset === false) {
             return [$line];
         }
+        if ($this->inlineCodeSpanContainsOffset($line, $tagOffset)) {
+            return [$line];
+        }
 
         $prefix = trim(substr($line, 0, $tagOffset));
         if ($prefix === '') {
@@ -1725,6 +1752,31 @@ final class MarkdownReader
         $suffix = substr($line, $tagOffset);
 
         return ['<p>' . $prefix . '</p>', $suffix];
+    }
+
+    private function inlineCodeSpanContainsOffset(string $line, int $offset): bool
+    {
+        $length = strlen($line);
+        for ($cursor = 0; $cursor < $offset && $cursor < $length; $cursor++) {
+            if ($line[$cursor] !== chr(96)) {
+                continue;
+            }
+
+            $tickCount = $this->countBackticks($line, $cursor);
+            $end = $this->findMatchingBacktickRun($line, $cursor + $tickCount, $tickCount);
+            if ($end === null) {
+                $cursor += $tickCount - 1;
+                continue;
+            }
+
+            if ($offset >= $cursor + $tickCount && $offset < $end) {
+                return true;
+            }
+
+            $cursor = $end + $tickCount - 1;
+        }
+
+        return false;
     }
 
     private function normalizeReferenceLabel(string $label): string

@@ -275,4 +275,56 @@ return [
                 'core/html',
             ]);
         },
+
+    'round trips every successful showcase wordpress import through WordPress core' =>
+        static function (TestRunner $t): void {
+            $root = dirname(__DIR__, 3);
+            $manifestPath = $root . '/pandoc-showcase/manifest.json';
+            $manifest = json_decode((string) file_get_contents($manifestPath), true);
+            $records = is_array($manifest) && is_array($manifest['records'] ?? null)
+                ? $manifest['records']
+                : [];
+            $checked = 0;
+
+            pandoc_require_wordpress_core_block_parser();
+            foreach ($records as $record) {
+                if (!is_array($record) || (($record['wpBlocks']['ok'] ?? false) !== true)) {
+                    continue;
+                }
+
+                $id = (string) ($record['id'] ?? 'unknown');
+                $relativePath = (string) ($record['wpBlocks']['path'] ?? '');
+                $path = $root . '/pandoc-showcase/' . ltrim($relativePath, '/');
+                $t->true(is_file($path), "Expected WordPress output for {$id}");
+                $blocks = file_get_contents($path);
+                $t->true(is_string($blocks) && $blocks !== '', "Expected readable WordPress blocks for {$id}");
+                if (!is_string($blocks) || $blocks === '') {
+                    continue;
+                }
+
+                $parsed = parse_blocks($blocks);
+                $t->true(is_array($parsed) && $parsed !== [], "WordPress should parse blocks for {$id}");
+                if (!is_array($parsed) || $parsed === []) {
+                    continue;
+                }
+                pandoc_assert_no_non_whitespace_classic_blocks($t, $parsed);
+
+                $serialized = serialize_blocks($parsed);
+                $reparsed = parse_blocks($serialized);
+                pandoc_assert_no_non_whitespace_classic_blocks($t, $reparsed);
+                $t->same(
+                    pandoc_wordpress_block_names($parsed),
+                    pandoc_wordpress_block_names($reparsed),
+                    "WordPress block names should survive serialize_blocks for {$id}"
+                );
+                $t->same(
+                    $serialized,
+                    serialize_blocks($reparsed),
+                    "WordPress serialization should be stable for {$id}"
+                );
+                $checked++;
+            }
+
+            $t->same(90, $checked, 'Expected every current showcase sample to have valid WordPress block output.');
+        },
 ];

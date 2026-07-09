@@ -239,6 +239,9 @@ final class LegacyDocReader
 
         $wordDocument = $compoundFile->readStream('WordDocument');
         $fib = $this->readFib($wordDocument);
+        if (($fib['oldBinaryFormat'] ?? false) === true) {
+            return $this->readWord6To95CompoundFile($compoundFile, $wordDocument, $fib);
+        }
         if ($fib['encrypted'] === true) {
             throw new \RuntimeException('Legacy DOC encrypted streams are not supported by the native reader');
         }
@@ -712,6 +715,113 @@ final class LegacyDocReader
         ];
     }
 
+    /**
+     * Word 6/95 uses the same FIB base text range but not the Word 97 table
+     * structures parsed above. Keep this path to text and paragraph recovery.
+     *
+     * @param array<string,mixed> $fib
+     * @return array<string,mixed>
+     */
+    private function readWord6To95CompoundFile(CompoundFileBinary $compoundFile, string $wordDocument, array $fib): array
+    {
+        $textResult = $this->extractText($wordDocument, null, $fib);
+        $streamDirectory = $this->streamDirectoryReport($compoundFile);
+        $directoryEntries = $this->directoryEntryReport($compoundFile);
+        $metadata = $this->readMetadata($compoundFile);
+        $metadata['fibBase'] = $this->fibBaseReviewMetadata($fib);
+        $metadata['legacyDocReaderMode'] = 'word6-95-basic-text';
+        $metadata['legacyDocStructurePolicy'] = 'paragraph-text-only';
+        $metadata['legacyDocUnsupportedStructure'] = ['styles', 'lists', 'tables', 'drawings', 'headers-footers'];
+        if ($streamDirectory !== []) {
+            $metadata['cfbStreamCount'] = count($streamDirectory);
+        }
+
+        $empty = [];
+        $attrs = [
+            'sourceFormat' => 'doc',
+            'cfbStreams' => $compoundFile->streamNames(),
+            'cfbStreamDirectory' => $streamDirectory,
+            'cfbDirectoryEntries' => $directoryEntries,
+            'textSource' => $textResult['source'],
+            'tableStream' => null,
+            'meta' => $metadata,
+            'subdocuments' => $empty,
+            'headerFooterStories' => $empty,
+            'styles' => $empty,
+            'formattingRuns' => $empty,
+            'listFormats' => $empty,
+            'listOverrides' => $empty,
+            'sections' => $empty,
+            'bookmarks' => $empty,
+            'footnotes' => $empty,
+            'endnotes' => $empty,
+            'comments' => $empty,
+            'commentAuthors' => $empty,
+            'revisionAuthors' => $empty,
+            'captionDefinitions' => $empty,
+            'autoCaptionRules' => $empty,
+            'fieldCharacters' => $empty,
+            'fields' => $empty,
+            'fieldStories' => $empty,
+            'formFieldDataReferences' => $empty,
+            'inlineTextFormattingApplications' => $empty,
+            'hiddenTextSuppressions' => $empty,
+            'embeddedObjects' => $empty,
+            'embeddedObjectReferences' => $empty,
+            'pictureReferences' => $empty,
+            'macroProjects' => $empty,
+            'associatedStrings' => $empty,
+            'documentProperties' => $empty,
+            'documentVariables' => $empty,
+            'saveHistory' => $empty,
+            'externalFileReferences' => $empty,
+            'subdocumentReferences' => $empty,
+            'mailMergeSettings' => $empty,
+            'routeSlip' => $empty,
+        ];
+
+        return [
+            'document' => new AstNode('document', $attrs, $this->paragraphNodes((string) $textResult['text'])),
+            'metadata' => $metadata,
+            'streams' => $compoundFile->streamNames(),
+            'streamDirectory' => $streamDirectory,
+            'directoryEntries' => $directoryEntries,
+            'fib' => $fib + ['textSource' => $textResult['source']],
+            'subdocuments' => $empty,
+            'headerFooterStories' => $empty,
+            'styles' => $empty,
+            'formattingRuns' => $empty,
+            'listFormats' => $empty,
+            'listOverrides' => $empty,
+            'sections' => $empty,
+            'bookmarks' => $empty,
+            'footnotes' => $empty,
+            'endnotes' => $empty,
+            'comments' => $empty,
+            'commentAuthors' => $empty,
+            'revisionAuthors' => $empty,
+            'captionDefinitions' => $empty,
+            'autoCaptionRules' => $empty,
+            'fieldCharacters' => $empty,
+            'fields' => $empty,
+            'fieldStories' => $empty,
+            'formFieldDataReferences' => $empty,
+            'hiddenTextSuppressions' => $empty,
+            'embeddedObjects' => $empty,
+            'embeddedObjectReferences' => $empty,
+            'pictureReferences' => $empty,
+            'macroProjects' => $empty,
+            'associatedStrings' => $empty,
+            'documentProperties' => $empty,
+            'documentVariables' => $empty,
+            'saveHistory' => $empty,
+            'externalFileReferences' => $empty,
+            'subdocumentReferences' => $empty,
+            'mailMergeSettings' => $empty,
+            'routeSlip' => $empty,
+        ];
+    }
+
     public function readDocument(string $bytes): AstNode
     {
         return $this->readBytes($bytes)['document'];
@@ -900,8 +1010,13 @@ final class LegacyDocReader
             throw new \InvalidArgumentException('WordDocument stream is too short to contain a FIB');
         }
         $wIdent = self::u16($wordDocument, 0);
-        if ($wIdent !== 0xa5ec) {
+        $nFib = self::u16($wordDocument, 2);
+        $oldBinaryFormat = $wIdent === 0xa5dc;
+        if ($wIdent !== 0xa5ec && !$oldBinaryFormat) {
             throw new \InvalidArgumentException('WordDocument stream has an invalid FIB signature');
+        }
+        if ($oldBinaryFormat && !in_array($nFib, [0x0065, 0x0068], true)) {
+            throw new \InvalidArgumentException('WordDocument stream has an unsupported Word 6/95 FIB version');
         }
 
         $flags = self::u16($wordDocument, 10);
@@ -911,11 +1026,11 @@ final class LegacyDocReader
         $lKey = self::u32($wordDocument, 14);
         $fcMin = self::u32($wordDocument, 24);
         $fcMac = self::u32($wordDocument, 28);
-        $fibRgLw97 = $this->fibRgLw97ReviewMetadata($wordDocument);
+        $fibRgLw97 = $oldBinaryFormat ? [] : $this->fibRgLw97ReviewMetadata($wordDocument);
 
         $fib = [
             'wIdent' => $wIdent,
-            'nFib' => self::u16($wordDocument, 2),
+            'nFib' => $nFib,
             'nFibBack' => $nFibBack,
             'languageId' => $languageId,
             'languageTag' => $this->legacyLanguageTag($languageId),
@@ -939,6 +1054,10 @@ final class LegacyDocReader
             'farEast' => ($flags & 0x4000) !== 0,
             'obfuscated' => ($flags & 0x8000) !== 0,
         ];
+        if ($oldBinaryFormat) {
+            $fib['oldBinaryFormat'] = true;
+            $fib['oldWordVersion'] = $nFib === 0x0065 ? '6.0' : '95';
+        }
         if ($fibRgLw97 !== []) {
             $fib['fibRgLw97'] = $fibRgLw97;
         }
@@ -1125,6 +1244,21 @@ final class LegacyDocReader
     private function extractText(string $wordDocument, ?string $tableStream, ?array $fib = null): array
     {
         $fib ??= $this->readFib($wordDocument);
+        if (($fib['oldBinaryFormat'] ?? false) === true && ($fib['complex'] ?? false) === true) {
+            if (strlen($wordDocument) < 0x164) {
+                throw new \RuntimeException('Legacy DOC Word 6/95 complex FIB is truncated before the CLX offset');
+            }
+            $fcClx = self::u32($wordDocument, 0x160);
+            if ($fcClx === 0 || $fcClx >= strlen($wordDocument)) {
+                throw new \RuntimeException('Legacy DOC Word 6/95 complex FIB has an invalid CLX offset');
+            }
+
+            return ['source' => 'word6-95-piece-table'] + $this->parseClx(
+                substr($wordDocument, $fcClx),
+                $wordDocument,
+                []
+            );
+        }
         if ($tableStream !== null) {
             $pieceTextResult = $this->extractPieceTableText(
                 $wordDocument,

@@ -95,6 +95,40 @@ return [
             $t->true(isset($gates['text_completeness']), "{$id} should have import-quality gates.");
         }
     },
+    'showcase manifest proves complete PHP HTML and WordPress coverage for every supported input format' => static function (TestRunner $t) use ($showcaseManifest): void {
+        $manifest = $showcaseManifest();
+        $records = is_array($manifest['records'] ?? null) ? $manifest['records'] : [];
+        $formats = is_array($manifest['formats'] ?? null) ? $manifest['formats'] : [];
+        $coveredFormats = is_array($manifest['coveredFormats'] ?? null) ? $manifest['coveredFormats'] : [];
+        $qualitySummary = is_array($manifest['importQualitySummary'] ?? null) ? $manifest['importQualitySummary'] : [];
+        $qualityGate = is_array($manifest['importQualityGate'] ?? null) ? $manifest['importQualityGate'] : [];
+
+        $t->same([], $manifest['missingFormats'] ?? null);
+        $t->same($formats, $coveredFormats);
+        $t->same(90, count($records));
+        $t->same(90, $qualitySummary['samples'] ?? null);
+        $t->same(0, $qualitySummary['fail'] ?? null);
+        $t->same('pass', $qualityGate['status'] ?? null);
+        $t->same('pass', $qualityGate['trackedStatus'] ?? null);
+
+        foreach ($records as $record) {
+            if (!is_array($record)) {
+                continue;
+            }
+            $id = (string) ($record['id'] ?? 'unknown');
+            $t->same(true, $record['phpHtml']['ok'] ?? null, "{$id} should convert to PHP HTML.");
+            $t->same(true, $record['wpBlocks']['ok'] ?? null, "{$id} should convert to WordPress blocks.");
+            $quality = is_array($record['importQuality'] ?? null) ? $record['importQuality'] : [];
+            $t->true(
+                in_array($quality['status'] ?? null, ['pass', 'review'], true),
+                "{$id} should not have a failed import-quality result."
+            );
+            $anchor = is_array($quality['gates']['anchor_validity'] ?? null)
+                ? $quality['gates']['anchor_validity']
+                : [];
+            $t->same('pass', $anchor['status'] ?? null, "{$id} should not contain broken local fragment links.");
+        }
+    },
     'showcase manifest records required import quality gates per successful sample' => static function (TestRunner $t) use ($showcaseManifest): void {
         $manifest = $showcaseManifest();
         $records = is_array($manifest['records'] ?? null) ? $manifest['records'] : [];
@@ -103,6 +137,7 @@ return [
             'heading_count',
             'paragraph_merge_split',
             'list_count',
+            'definition_list_count',
             'table_count',
             'image_count',
             'anchor_validity',
@@ -208,7 +243,7 @@ return [
         $t->same('pass', $gates['heading_count']['status'] ?? null, 'Generated Pandoc title chrome should not count as an imported document heading.');
         $t->same('pass', $gates['table_count']['status'] ?? null, 'DOCX table count should remain faithful.');
     },
-    'showcase manifest treats xlsx as native tables with sheet navigation' => static function (TestRunner $t) use ($showcaseManifest, $recordsById): void {
+    'showcase manifest treats xlsx as native tables without synthetic sheet navigation' => static function (TestRunner $t) use ($showcaseManifest, $recordsById): void {
         $manifest = $showcaseManifest();
         $records = is_array($manifest['records'] ?? null) ? $manifest['records'] : [];
         $byId = $recordsById($records);
@@ -221,12 +256,12 @@ return [
 
             $t->same('pass', $record['importQuality']['status'] ?? null, "{$id} should remain a high-confidence spreadsheet import.");
             $t->true(($blocks['table'] ?? 0) >= 1, "{$id} should produce native WordPress table blocks.");
-            $t->true(($blocks['list'] ?? 0) >= 1, "{$id} should expose workbook sheet navigation as a native list block.");
+            $t->same(0, $blocks['list'] ?? 0, "{$id} should not inject a synthetic workbook sheet navigation list.");
             $t->same(0, $blocks['html'] ?? 0, "{$id} should not need Custom HTML fallback.");
-            $t->same('pass', $gates['heading_count']['status'] ?? null, "{$id} generated sheet navigation should not count as a heading regression.");
-            $t->same('pass', $gates['list_count']['status'] ?? null, "{$id} generated sheet navigation should not count as a list regression.");
+            $t->same('pass', $gates['heading_count']['status'] ?? null, "{$id} sheet headings should not count as a heading regression.");
+            $t->same('pass', $gates['list_count']['status'] ?? null, "{$id} should not add a list-count regression.");
             $t->same('pass', $gates['table_count']['status'] ?? null, "{$id} table count should remain faithful.");
-            $t->same('pass', $gates['anchor_validity']['status'] ?? null, "{$id} sheet navigation anchors should resolve.");
+            $t->same('pass', $gates['anchor_validity']['status'] ?? null, "{$id} local anchors should remain valid.");
         }
     },
 ];

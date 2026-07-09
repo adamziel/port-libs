@@ -93,7 +93,7 @@ final class PdfReader
         if ($taggedBlocks === [] && $geometryTableBlocks === [] && $proseRepairEnabled) {
             $positionedLineItems = $this->positionedProseLineItemsFromTextRuns($limitedPositionedRuns);
             $positionedLines = $this->positionedLineItemTexts($positionedLineItems);
-            if ($this->positionedProseLinesLookUsable($positionedLines, $limitedLines)) {
+            if ($this->positionedProseLinesLookUsable($positionedLines, $limitedLines, $limitedPositionedRuns)) {
                 $repairSourceLines = $positionedLines;
                 $repairSourceLayouts = $positionedLineItems;
                 $repairSource = 'positioned';
@@ -795,8 +795,9 @@ final class PdfReader
     /**
      * @param list<string> $positionedLines
      * @param list<string> $textLines
+     * @param list<array<string, mixed>> $positionedRuns
      */
-    private function positionedProseLinesLookUsable(array $positionedLines, array $textLines): bool
+    private function positionedProseLinesLookUsable(array $positionedLines, array $textLines, array $positionedRuns = []): bool
     {
         if (count($positionedLines) < 2) {
             return false;
@@ -815,6 +816,12 @@ final class PdfReader
         if ($positionedSpacingDamage >= $textSpacingDamage + 2) {
             return false;
         }
+        if (
+            $this->positionedRunsArePredominantlyGlyphFragments($positionedRuns, count($textLines))
+            && $textSpacingDamage <= $positionedSpacingDamage + 1
+        ) {
+            return false;
+        }
 
         $positionedTokens = array_flip($this->significantTextTokens(implode(' ', array_slice($positionedLines, 0, 500))));
         if ($positionedTokens === []) {
@@ -829,6 +836,48 @@ final class PdfReader
         }
 
         return $matched / count($textTokens) >= 0.55;
+    }
+
+    /**
+     * PDFs that paint nearly every glyph as an individual run can expose
+     * imprecise placement order even when the ordinary text layer is coherent.
+     * Keep geometry for actual words and phrases; otherwise prefer text order.
+     *
+     * @param list<array<string, mixed>> $runs
+     */
+    private function positionedRunsArePredominantlyGlyphFragments(array $runs, int $textLineCount): bool
+    {
+        if (count($runs) < 128 || $textLineCount < 24) {
+            return false;
+        }
+
+        $runCount = 0;
+        $singleGlyphRuns = 0;
+        $shortRuns = 0;
+        $characters = 0;
+        foreach ($runs as $run) {
+            $text = trim($this->normalizePdfTextEncoding((string) ($run['text'] ?? '')));
+            if ($text === '') {
+                continue;
+            }
+
+            $length = $this->length($text);
+            $runCount++;
+            $characters += $length;
+            if ($length === 1) {
+                $singleGlyphRuns++;
+            }
+            if ($length <= 2) {
+                $shortRuns++;
+            }
+        }
+        if ($runCount < 128 || $runCount / $textLineCount < 6.0) {
+            return false;
+        }
+
+        return $singleGlyphRuns / $runCount >= 0.70
+            && $shortRuns / $runCount >= 0.80
+            && $characters / $runCount <= 1.75;
     }
 
     /**
@@ -1622,7 +1671,7 @@ final class PdfReader
             $line = preg_replace('/(\p{Lu}{2,})(\p{Ll})/u', '$1 $2', $line) ?? $line;
             $line = preg_replace('/([\p{Ll}])([\p{Lu}][\p{Ll}])/u', '$1 $2', $line) ?? $line;
         }
-        $line = preg_replace('/([\p{L}])(\d{2,})/u', '$1 $2', $line) ?? $line;
+        $line = $this->repairPdfLetterDigitBoundaries($line);
         $line = preg_replace('/(\d)([\p{L}]{2,})/u', '$1 $2', $line) ?? $line;
         $line = preg_replace('/\/\/(?=[A-Za-z])/', '// ', $line) ?? $line;
         $line = $this->repairSplitUrlWhitespace($line);
@@ -1631,6 +1680,18 @@ final class PdfReader
         $line = preg_replace('/\s+/u', ' ', $line) ?? $line;
 
         return trim($line);
+    }
+
+    private function repairPdfLetterDigitBoundaries(string $line): string
+    {
+        return preg_replace_callback('/\b([\p{L}]+)(\d{2,})\b/u', function (array $matches): string {
+            $letters = $matches[1];
+            if (preg_match('/^\p{Lu}{2,}$/u', $letters) === 1) {
+                return $matches[0];
+            }
+
+            return $letters . ' ' . $matches[2];
+        }, $line) ?? $line;
     }
 
     /**
@@ -1744,6 +1805,8 @@ final class PdfReader
     {
         $line = preg_replace('/\b(https?):\s*\/\/\s*/iu', '$1://', $line) ?? $line;
         $line = preg_replace('/\b(www)\s+\.(?=[A-Za-z0-9-])/iu', '$1.', $line) ?? $line;
+        $line = preg_replace('/\b((?:https?:\/\/|www\.)\S*[A-Za-z])\s+(\d[\w.-]*)(?=[\/.)?#]|$)/iu', '$1$2', $line) ?? $line;
+        $line = preg_replace('/\b((?:https?:\/\/|www\.)\S*[-\/])\s+([A-Za-z0-9][\w.-]*)(?=[\/.)?#]|$)/iu', '$1$2', $line) ?? $line;
 
         return preg_replace('/\b((?:https?:\/\/|www\.)[A-Za-z0-9.-]*[A-Za-z0-9])\s+((?!www(?=\.))[A-Za-z0-9-]{1,24})(?=\.)/iu', '$1$2', $line) ?? $line;
     }
@@ -1843,6 +1906,11 @@ final class PdfReader
             }
             if ($this->repairedLineLooksLikeSplitWordPrefix($pending, $line, $splitWordHints)) {
                 $pending .= ltrim($line);
+                $pendingLayout = $layout;
+                continue;
+            }
+            if (preg_match('/(?:https?:\/\/|www\.)\S*-\s*$/i', $pending) === 1 && preg_match('/^[A-Za-z0-9]/', ltrim($line)) === 1) {
+                $pending = rtrim($pending) . ltrim($line);
                 $pendingLayout = $layout;
                 continue;
             }
@@ -2332,12 +2400,13 @@ final class PdfReader
 
         $physicalRows = $this->positionedRowsWithCells($rows, $columns);
         $logicalRows = $this->trimSparsePositionedRows($this->compactSparsePositionedColumns($this->mergePositionedContinuationRows($physicalRows)));
+        $logicalRows = $this->withPositionedCellBackgrounds($logicalRows, $filledRectangles);
 
         if (!$this->isPositionedTableCandidate($logicalRows, count($logicalRows[0] ?? [])) || $this->positionedRenderedRowsLookLikeFragmentGrid($logicalRows)) {
             return [];
         }
 
-        return $this->withPositionedCellBackgrounds($logicalRows, $filledRectangles);
+        return $logicalRows;
     }
 
     /**
@@ -2355,8 +2424,12 @@ final class PdfReader
         $rowTolerance = max(3.0, $medianFontSize * 0.55);
         $columnTolerance = max(8.0, $medianFontSize * 1.10);
         $rows = $this->mergePositionedRowFragments($this->clusterPositionedRows($runs, $rowTolerance));
+        $lowConfidenceCandidatesBefore = $this->lowConfidenceGeometryTableCandidates;
         $segments = $this->positionedTableSegments($rows, $columnTolerance, $filledRectangles, $medianFontSize);
         if ($segments === []) {
+            if ($this->lowConfidenceGeometryTableCandidates > $lowConfidenceCandidatesBefore) {
+                return [];
+            }
             $pageRows = $this->positionedTableRowsForPage($runs, $filledRectangles);
 
             return $pageRows === [] ? [] : [$this->table($pageRows)];
@@ -2480,12 +2553,13 @@ final class PdfReader
         }
 
         $logicalRows = $this->compactSparsePositionedColumns($this->mergePositionedContinuationRows($this->positionedRowsWithCells($rows, $columns)));
+        $logicalRows = $this->withPositionedCellBackgrounds($logicalRows, $filledRectangles);
 
         if (!$this->isPositionedTableCandidate($logicalRows, count($logicalRows[0] ?? [])) || $this->positionedRenderedRowsLookLikeFragmentGrid($logicalRows)) {
             return [];
         }
 
-        return $this->withPositionedCellBackgrounds($logicalRows, $filledRectangles);
+        return $logicalRows;
     }
 
     /**
@@ -3276,6 +3350,17 @@ final class PdfReader
         if ($this->positionedRowsLookLikeSparseProseGrid($rows, $columnCount)) {
             return false;
         }
+        if ($this->positionedRowsAreUndersizedNonNumericGrid($rows, $columnCount)
+            || $this->positionedRowsHaveSparsePlaceholderColumns($rows, $columnCount)) {
+            $this->lowConfidenceGeometryTableCandidates++;
+
+            return false;
+        }
+        if ($this->positionedRowsLookLikeFormLayout($rows, $columnCount)) {
+            $this->lowConfidenceGeometryTableCandidates++;
+
+            return false;
+        }
 
         $multiCellRows = 0;
         $columnOccupancy = array_fill(0, $columnCount, 0);
@@ -3308,6 +3393,169 @@ final class PdfReader
         }
 
         return true;
+    }
+
+    /**
+     * A small three-or-more-column grid needs data values before it is safer
+     * to call it a table than to preserve it as a form or visual layout.
+     *
+     * @param list<list<mixed>> $rows
+     */
+    private function positionedRowsAreUndersizedNonNumericGrid(array $rows, int $columnCount): bool
+    {
+        if (count($rows) >= 5 || $columnCount < 3) {
+            return false;
+        }
+        if (count($rows) === 2 && $this->positionedRowsHaveFilledEmptyCell($rows)) {
+            return false;
+        }
+
+        $numericValues = 0;
+        foreach ($rows as $row) {
+            foreach ($row as $cell) {
+                if ($this->positionedCellIsNumericValue(trim($this->cellTextValue($cell)))) {
+                    $numericValues++;
+                }
+            }
+        }
+
+        return $numericValues < 2;
+    }
+
+    /**
+     * @param list<list<mixed>> $rows
+     */
+    private function positionedRowsHaveFilledEmptyCell(array $rows): bool
+    {
+        foreach ($rows as $row) {
+            foreach ($row as $cell) {
+                if (!is_array($cell) || trim($this->cellTextValue($cell)) !== '') {
+                    continue;
+                }
+                $attributes = is_array($cell['htmlAttributes'] ?? null) ? $cell['htmlAttributes'] : [];
+                if (is_string($attributes['data-pdf-fill-color'] ?? null) && $attributes['data-pdf-fill-color'] !== '') {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param list<list<mixed>> $rows
+     */
+    private function positionedRowsHaveSparsePlaceholderColumns(array $rows, int $columnCount): bool
+    {
+        if ($columnCount < 12 || $rows === []) {
+            return false;
+        }
+
+        $populated = 0;
+        $placeholders = 0;
+        foreach ($rows as $row) {
+            foreach ($row as $cell) {
+                $text = trim($this->cellTextValue($cell));
+                if ($text === '') {
+                    continue;
+                }
+
+                $populated++;
+                if (preg_match('/^[._\x{00B7}\x{2026}\x{2013}\x{2014}-]+$/u', $text) === 1) {
+                    $placeholders++;
+                }
+            }
+        }
+        if ($populated === 0) {
+            return true;
+        }
+
+        $fillRatio = $populated / (count($rows) * $columnCount);
+
+        return $fillRatio < 0.50 && $placeholders / $populated >= 0.20;
+    }
+
+    /**
+     * A short matrix of stacked labels beside prose is usually a printable
+     * form layout, not a semantic table. Prefer document text for that
+     * ambiguous case unless the first row has an ordinary compact header.
+     *
+     * @param list<list<mixed>> $rows
+     */
+    private function positionedRowsLookLikeFormLayout(array $rows, int $columnCount): bool
+    {
+        $rowCount = count($rows);
+        if ($rowCount < 2 || $rowCount > 8 || $columnCount < 3) {
+            return false;
+        }
+        if ($this->positionedRowLooksLikeCompactTableHeader($rows[0] ?? [])) {
+            return false;
+        }
+
+        $leadingCells = 0;
+        $shortLeadingCells = 0;
+        $detailRows = 0;
+        $numericValueCells = 0;
+        $populatedCells = 0;
+        foreach ($rows as $row) {
+            $firstCell = true;
+            $hasDetail = false;
+            foreach ($row as $cell) {
+                $text = trim($this->cellTextValue($cell));
+                if ($text === '') {
+                    continue;
+                }
+
+                $populatedCells++;
+                if ($this->positionedCellIsNumericValue($text)) {
+                    $numericValueCells++;
+                }
+                if ($firstCell) {
+                    $leadingCells++;
+                    if ($this->positionedCellWordCount($text) <= 4) {
+                        $shortLeadingCells++;
+                    }
+                    $firstCell = false;
+                    continue;
+                }
+                if ($this->positionedCellWordCount($text) >= 8) {
+                    $hasDetail = true;
+                }
+            }
+            if ($hasDetail) {
+                $detailRows++;
+            }
+        }
+
+        if ($leadingCells < (int) ceil($rowCount * 0.75) || $populatedCells === 0) {
+            return false;
+        }
+
+        return $shortLeadingCells / $leadingCells >= 0.60
+            && $detailRows >= max(1, (int) ceil($rowCount * 0.35))
+            && $numericValueCells / $populatedCells < 0.15;
+    }
+
+    /**
+     * @param list<mixed> $row
+     */
+    private function positionedRowLooksLikeCompactTableHeader(array $row): bool
+    {
+        $compactCells = 0;
+        $populatedCells = 0;
+        foreach ($row as $cell) {
+            $text = trim($this->cellTextValue($cell));
+            if ($text === '') {
+                continue;
+            }
+
+            $populatedCells++;
+            if ($this->positionedCellWordCount($text) <= 4) {
+                $compactCells++;
+            }
+        }
+
+        return $populatedCells >= 3 && $compactCells / $populatedCells >= 0.80;
     }
 
     /**
@@ -3349,6 +3597,10 @@ final class PdfReader
         $recurringColumnRatio = $recurringColumns / max(1, $columnCount);
         $numericRatio = $numericAnchors / max(1, $populatedCells);
         $wideCellRatio = $wideCells / max(1, $populatedCells);
+        $compactTwoColumnGrid = $rowCount === 2
+            && $columnCount === 2
+            && $numericAnchors < 2
+            && $this->positionedRowsFormCompactTwoColumnGrid($rows);
 
         $score = 0.0;
         $score += $rowCount >= 3 ? 0.18 : 0.08;
@@ -3360,13 +3612,63 @@ final class PdfReader
         $score += $wideCellRatio >= 0.75 ? 0.08 : ($wideCellRatio >= 0.50 ? 0.04 : 0.0);
 
         if ($rowCount <= 2 && $columnCount <= 2 && $numericAnchors < 2) {
-            $score = min($score, 0.55);
+            $score = min($score, $compactTwoColumnGrid ? 0.76 : 0.55);
         }
         if ($columnCount === 2 && $rowCount < 4 && $numericAnchors < 2) {
-            $score = min($score, 0.65);
+            $score = min($score, $compactTwoColumnGrid ? 0.76 : 0.65);
         }
 
         return round(min(1.0, $score), 4);
+    }
+
+    /**
+     * A fully populated 2x2 grid whose rendered cell contents are small
+     * compared with its gutter is structural evidence, unlike two prose
+     * columns that merely happen to have two lines.
+     *
+     * @param list<list<mixed>> $rows
+     */
+    private function positionedRowsFormCompactTwoColumnGrid(array $rows): bool
+    {
+        if (count($rows) !== 2) {
+            return false;
+        }
+
+        $leftStarts = [];
+        $rightStarts = [];
+        $widestCell = 0.0;
+        foreach ($rows as $row) {
+            $populated = [];
+            foreach ($row as $cell) {
+                if ($this->cellTextValue($cell) !== '') {
+                    $populated[] = $cell;
+                }
+            }
+            if (count($populated) !== 2) {
+                return false;
+            }
+
+            $left = $populated[0];
+            $right = $populated[1];
+            if (!is_array($left) || !is_array($right)) {
+                return false;
+            }
+            $leftStart = $this->numericValue($left['contentX1'] ?? $left['x1'] ?? null);
+            $rightStart = $this->numericValue($right['contentX1'] ?? $right['x1'] ?? null);
+            $leftEnd = $this->numericValue($left['contentX2'] ?? $left['x2'] ?? null);
+            $rightEnd = $this->numericValue($right['contentX2'] ?? $right['x2'] ?? null);
+            if ($leftStart === null || $rightStart === null || $leftEnd === null || $rightEnd === null || $rightStart <= $leftStart) {
+                return false;
+            }
+
+            $leftStarts[] = $leftStart;
+            $rightStarts[] = $rightStart;
+            $widestCell = max($widestCell, $leftEnd - $leftStart, $rightEnd - $rightStart);
+        }
+
+        $columnGutter = $this->median($rightStarts) - $this->median($leftStarts);
+
+        return $columnGutter > 0.0 && $widestCell <= $columnGutter * 0.42;
     }
 
     /**
@@ -3434,6 +3736,11 @@ final class PdfReader
     private function positionedCellLooksNumericAnchor(string $text): bool
     {
         return preg_match('/(?:[$€£¥]\s*\d|\d[\d,]*(?:\.\d+)?\s*(?:%|[$€£¥])?|\b\d{1,2}[\/.-]\d{1,2}(?:[\/.-]\d{2,4})?\b)/u', $text) === 1;
+    }
+
+    private function positionedCellIsNumericValue(string $text): bool
+    {
+        return preg_match('/^\s*[-+]?(?:[$€£¥]\s*)?\d+(?:[,\s]\d{3})*(?:[.,]\d+)?\s*(?:[%$€£¥])?\s*$/u', $text) === 1;
     }
 
     private function positionedCellWordCount(string $text): int

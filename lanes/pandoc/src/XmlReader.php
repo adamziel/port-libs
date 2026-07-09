@@ -6,9 +6,14 @@ namespace PortLibs\Pandoc;
 
 final class XmlReader
 {
+    private const MATHML_NAMESPACE = 'http://www.w3.org/1998/Math/MathML';
+    private const XLINK_NAMESPACE = 'http://www.w3.org/1999/xlink';
     private const JATS_ROOTS = ['article', 'book', 'book-part'];
     private const JATS_BODY_ROOTS = ['body', 'book-body'];
+    private const JATS_BACK_MATTER_ROOTS = ['back', 'book-back', 'book-part-back'];
     private const JATS_METADATA_ROOTS = ['front', 'article-meta', 'book-meta', 'book-part-meta', 'journal-meta'];
+    private const JATS_IMAGE_NAMES = ['graphic', 'inline-graphic'];
+    private const JATS_FORMULA_NAMES = ['inline-formula', 'disp-formula'];
     private const TABLE_CELL_NAMES = ['td', 'th', 'entry'];
     private const BLOCK_CONTAINER_NAMES = [
         'article',
@@ -66,7 +71,10 @@ final class XmlReader
     public function read(string $bytes): AstNode
     {
         $format = $this->normalizedFormat();
-        $dom = XmlHtmlDom::loadXmlDocument($bytes, strtoupper($format) . ' input', false);
+        // JATS-family exports in the wild can contain recoverable XML defects
+        // such as repeated namespaced metadata attributes. Keep generic XML
+        // strict, but retain the readable document structure for these formats.
+        $dom = XmlHtmlDom::loadXmlDocument($bytes, strtoupper($format) . ' input', false, $format !== 'xml');
         $root = $dom->documentElement;
         if (!$root instanceof \DOMElement) {
             throw new \InvalidArgumentException('XML reader requires a document element.');
@@ -134,6 +142,10 @@ final class XmlReader
         if ($body instanceof \DOMElement) {
             array_push($blocks, ...$this->blocksFromElement($body, 2, true));
         }
+        $backMatter = $this->firstJatsBackMatterElement($root);
+        if ($backMatter instanceof \DOMElement) {
+            array_push($blocks, ...$this->blocksFromElement($backMatter, 2, true));
+        }
 
         if ($blocks === []) {
             foreach ($this->blocksFromElement($root, 1, true) as $block) {
@@ -196,7 +208,7 @@ final class XmlReader
             return [];
         }
         if (in_array($name, ['table', 'informaltable'], true)) {
-            $table = $this->tableFromElement($element);
+            $table = $this->tableFromElement($element, $this->nodeAttrs($element));
 
             return $table === null ? [] : [$table];
         }
@@ -206,12 +218,16 @@ final class XmlReader
             return $table === null ? [] : [$table];
         }
         if (in_array($name, ['ul', 'bullet-list', 'list'], true)) {
-            $list = $this->listFromElement($element, false);
+            $list = $jatsMode
+                ? $this->jatsListFromElement($element, $headingLevel)
+                : $this->listFromElement($element, false, $this->nodeAttrs($element));
 
             return $list === null ? [] : [$list];
         }
         if (in_array($name, ['ol', 'ordered-list'], true)) {
-            $list = $this->listFromElement($element, true);
+            $list = $jatsMode
+                ? $this->jatsListFromElement($element, $headingLevel, true)
+                : $this->listFromElement($element, true, $this->nodeAttrs($element));
 
             return $list === null ? [] : [$list];
         }
@@ -219,17 +235,51 @@ final class XmlReader
             $level = (int) substr($name, 1);
             $text = XmlHtmlDom::normalizedText($element);
 
-            return $text === '' ? [] : [$this->heading($text, $level)];
+            return $text === '' ? [] : [$this->heading($text, $level, $this->nodeAttrs($element))];
         }
         if (in_array($name, self::TITLE_NAMES, true)) {
             $text = XmlHtmlDom::normalizedText($element);
 
-            return $text === '' ? [] : [$this->heading($text, $headingLevel)];
+            return $text === '' ? [] : [$this->heading($text, $headingLevel, $this->nodeAttrs($element))];
         }
         if (in_array($name, self::PARAGRAPH_NAMES, true)) {
             $paragraph = $this->paragraphFromElement($element);
 
             return $paragraph === null ? [] : [$paragraph];
+        }
+        if ($jatsMode && $name === 'fig') {
+            $figure = $this->jatsFigureFromElement($element);
+
+            return $figure === null ? [] : [$figure];
+        }
+        if ($jatsMode && in_array($name, self::JATS_IMAGE_NAMES, true)) {
+            $image = $this->jatsImageFromElement($element);
+            $paragraph = $image instanceof AstNode
+                ? $this->paragraphFromInlines([$image], $this->nodeAttrs($element))
+                : null;
+
+            return $paragraph === null ? [] : [$paragraph];
+        }
+        if ($jatsMode && in_array($name, self::JATS_FORMULA_NAMES, true)) {
+            $inlines = $this->jatsFormulaInlines($element, $name === 'disp-formula');
+            $paragraph = $this->paragraphFromInlines($inlines, $this->nodeAttrs($element));
+
+            return $paragraph === null ? [] : [$paragraph];
+        }
+        if ($jatsMode && $name === 'alternatives') {
+            $paragraph = $this->paragraphFromInlines($this->jatsAlternativeInlines($element), $this->nodeAttrs($element));
+
+            return $paragraph === null ? [] : [$paragraph];
+        }
+        if ($jatsMode && $name === 'def-list') {
+            $list = $this->jatsDefinitionListFromElement($element, $headingLevel);
+
+            return $list === null ? [] : [$list];
+        }
+        if ($jatsMode && in_array($name, ['preformat', 'pre'], true)) {
+            $text = trim((string) $element->textContent, "\r\n");
+
+            return $text === '' ? [] : [new AstNode('code_block', array_replace($this->nodeAttrs($element), ['text' => $text]))];
         }
 
         $blocks = [];
@@ -246,7 +296,7 @@ final class XmlReader
         }
 
         if ($blocks !== []) {
-            return $blocks;
+            return $this->attachElementAnchor($blocks, $element);
         }
         if ($this->hasBlockContainerChild($element)) {
             return [];
@@ -254,18 +304,28 @@ final class XmlReader
 
         $text = XmlHtmlDom::normalizedText($element);
 
-        return $text === '' ? [] : [$this->paragraph($text)];
+        return $text === '' ? [] : [$this->paragraph($text, $this->nodeAttrs($element))];
     }
 
     private function paragraphFromElement(\DOMElement $element): ?AstNode
     {
         $inlines = $this->inlineNodes($element);
+
+        return $this->paragraphFromInlines($inlines, $this->nodeAttrs($element));
+    }
+
+    /**
+     * @param list<AstNode> $inlines
+     * @param array<string, mixed> $attrs
+     */
+    private function paragraphFromInlines(array $inlines, array $attrs = []): ?AstNode
+    {
         $text = $this->plainInlineText($inlines);
-        if ($text === '') {
+        if ($text === '' && !$this->hasRenderableInline($inlines)) {
             return null;
         }
 
-        return new AstNode('paragraph', ['text' => $text], $inlines);
+        return new AstNode('paragraph', array_replace($attrs, ['text' => $text]), $inlines);
     }
 
     private function tableWrapFromElement(\DOMElement $tableWrap): ?AstNode
@@ -385,7 +445,10 @@ final class XmlReader
         return $cells;
     }
 
-    private function listFromElement(\DOMElement $list, bool $ordered): ?AstNode
+    /**
+     * @param array<string, mixed> $attrs
+     */
+    private function listFromElement(\DOMElement $list, bool $ordered, array $attrs = []): ?AstNode
     {
         $items = [];
         foreach (XmlHtmlDom::childElements($list) as $child) {
@@ -394,13 +457,131 @@ final class XmlReader
             }
             $inlines = $this->inlineNodes($child);
             $text = $this->plainInlineText($inlines);
-            if ($text === '') {
+            if ($text === '' && !$this->hasRenderableInline($inlines)) {
                 continue;
             }
-            $items[] = new AstNode('list_item', ['text' => $text], $inlines);
+            $items[] = new AstNode('list_item', array_replace($this->nodeAttrs($child), ['text' => $text]), $inlines);
         }
 
-        return $items === [] ? null : new AstNode($ordered ? 'ordered_list' : 'bullet_list', [], $items);
+        return $items === [] ? null : new AstNode($ordered ? 'ordered_list' : 'bullet_list', $attrs, $items);
+    }
+
+    private function jatsListFromElement(\DOMElement $list, int $headingLevel, bool $forceOrdered = false): ?AstNode
+    {
+        $items = [];
+        foreach (XmlHtmlDom::childElements($list) as $item) {
+            if (!in_array($this->name($item), ['li', 'item', 'list-item'], true)) {
+                continue;
+            }
+
+            $blocks = [];
+            foreach (XmlHtmlDom::childElements($item) as $child) {
+                $name = $this->name($child);
+                if ($name === 'label') {
+                    continue;
+                }
+                if (
+                    in_array($name, self::PARAGRAPH_NAMES, true)
+                    || in_array($name, ['ul', 'ol', 'bullet-list', 'ordered-list', 'list', 'def-list'], true)
+                ) {
+                    array_push($blocks, ...$this->blocksFromElement($child, $headingLevel, true));
+                }
+            }
+
+            if ($blocks === []) {
+                $inlines = $this->inlineNodes($item);
+                $paragraph = $this->paragraphFromInlines($inlines);
+                if ($paragraph instanceof AstNode) {
+                    $blocks[] = $paragraph;
+                }
+            }
+            if ($blocks === []) {
+                continue;
+            }
+
+            $attrs = array_replace($this->nodeAttrs($item), [
+                'text' => XmlHtmlDom::normalizedText($item),
+            ]);
+            $items[] = new AstNode('list_item', $attrs, $blocks);
+        }
+
+        if ($items === []) {
+            return null;
+        }
+
+        $attrs = $this->nodeAttrs($list);
+        $ordered = $forceOrdered || $this->jatsListIsOrdered($list);
+        $start = $this->positiveIntAttr($list, ['start', 'start-number', 'startnum']);
+        if ($ordered && $start > 1) {
+            $attrs['start'] = $start;
+        }
+
+        return new AstNode($ordered ? 'ordered_list' : 'bullet_list', $attrs, $items);
+    }
+
+    private function jatsListIsOrdered(\DOMElement $list): bool
+    {
+        $type = strtolower(trim((string) (XmlHtmlDom::attribute($list, 'list-type') ?? '')));
+        if ($type === '') {
+            return false;
+        }
+
+        return str_contains($type, 'order')
+            || str_contains($type, 'roman')
+            || str_contains($type, 'alpha')
+            || str_contains($type, 'number');
+    }
+
+    private function jatsDefinitionListFromElement(\DOMElement $list, int $headingLevel): ?AstNode
+    {
+        $items = [];
+        foreach (XmlHtmlDom::childElements($list, 'def-item') as $item) {
+            $termElement = XmlHtmlDom::firstDescendantElement($item, 'term');
+            if (!$termElement instanceof \DOMElement) {
+                continue;
+            }
+
+            $termInlines = $this->inlineNodes($termElement);
+            $termText = $this->plainInlineText($termInlines);
+            if ($termText === '') {
+                $termText = XmlHtmlDom::normalizedText($termElement);
+                $termInlines = $this->textInlines($termText);
+            }
+            if ($termText === '') {
+                continue;
+            }
+
+            $definitions = [];
+            foreach (XmlHtmlDom::childElements($item, 'def') as $definition) {
+                $blocks = $this->blocksFromElement($definition, $headingLevel, true);
+                if ($blocks === []) {
+                    $text = XmlHtmlDom::normalizedText($definition);
+                    if ($text !== '') {
+                        $blocks = [$this->paragraph($text, $this->nodeAttrs($definition))];
+                    }
+                }
+                if ($blocks !== []) {
+                    $definitions[] = new AstNode('definition', $this->nodeAttrs($definition), $blocks);
+                }
+            }
+            if ($definitions === []) {
+                continue;
+            }
+
+            $items[] = new AstNode(
+                'definition_item',
+                array_replace($this->nodeAttrs($item), ['term' => $termText]),
+                array_merge([
+                    new AstNode(
+                        'term',
+                        array_replace($this->nodeAttrs($termElement), ['text' => $termText]),
+                        $termInlines
+                    ),
+                ], $definitions)
+            );
+        }
+
+        return $items === [] ? null : new AstNode('definition_list', $this->nodeAttrs($list), $items);
     }
 
     /**
@@ -421,6 +602,32 @@ final class XmlReader
             $name = $this->name($child);
             if ($name === 'br') {
                 $nodes[] = new AstNode('linebreak');
+                continue;
+            }
+            if (in_array($name, self::JATS_IMAGE_NAMES, true)) {
+                $image = $this->jatsImageFromElement($child);
+                if ($image instanceof AstNode) {
+                    $nodes[] = $image;
+                    continue;
+                }
+            }
+            if ($this->isMathMlElement($child)) {
+                $nodes[] = $this->mathFromMathMlElement($child);
+                continue;
+            }
+            if ($name === 'tex-math') {
+                $math = $this->mathFromTexElement($child);
+                if ($math instanceof AstNode) {
+                    $nodes[] = $math;
+                }
+                continue;
+            }
+            if ($name === 'alternatives') {
+                array_push($nodes, ...$this->jatsAlternativeInlines($child));
+                continue;
+            }
+            if (in_array($name, self::JATS_FORMULA_NAMES, true)) {
+                array_push($nodes, ...$this->jatsFormulaInlines($child, $name === 'disp-formula'));
                 continue;
             }
             if (in_array($name, ['xref', 'ext-link', 'uri', 'a', 'link'], true)) {
@@ -455,6 +662,227 @@ final class XmlReader
         }
 
         return $this->trimInlineBoundary($this->coalesceTextNodes($nodes));
+    }
+
+    private function jatsFigureFromElement(\DOMElement $figure): ?AstNode
+    {
+        $graphic = $this->firstJatsImageElement($figure);
+        if (!$graphic instanceof \DOMElement) {
+            return null;
+        }
+
+        $image = $this->jatsImageFromElement($graphic, $this->jatsFigureAltText($figure));
+        if (!$image instanceof AstNode) {
+            return null;
+        }
+
+        $attrs = $this->nodeAttrs($figure);
+        $caption = $this->jatsFigureCaption($figure);
+        if ($caption !== '') {
+            $attrs['caption'] = $caption;
+            $attrs['captionInlines'] = $this->textInlines($caption);
+        }
+
+        return new AstNode('figure', $attrs, [$image]);
+    }
+
+    private function jatsImageFromElement(\DOMElement $element, string $fallbackAlt = ''): ?AstNode
+    {
+        $url = trim((string) (
+            XmlHtmlDom::attribute($element, 'href', self::XLINK_NAMESPACE)
+            ?? XmlHtmlDom::attribute($element, 'href')
+            ?? XmlHtmlDom::attribute($element, 'src')
+            ?? ''
+        ));
+        if ($url === '') {
+            return null;
+        }
+
+        $attrs = $this->nodeAttrs($element);
+        $attrs['url'] = $url;
+        $attrs['src'] = $url;
+        $attrs['alt'] = $this->jatsImageAltText($element, $fallbackAlt);
+        $attrs['title'] = $this->jatsImageTitle($element);
+        $dimensions = [];
+        foreach (['width', 'height'] as $name) {
+            $value = XmlHtmlDom::attribute($element, $name);
+            if ($value !== null && trim($value) !== '') {
+                $dimensions[$name] = trim($value);
+            }
+        }
+        if ($dimensions !== []) {
+            $attrs['attributes'] = $dimensions;
+        }
+
+        return new AstNode('image', $attrs, $this->textInlines((string) $attrs['alt']));
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function jatsAlternativeInlines(\DOMElement $alternatives): array
+    {
+        $candidates = XmlHtmlDom::descendantElements($alternatives);
+        foreach ($candidates as $candidate) {
+            if ($this->isMathMlElement($candidate)) {
+                return [$this->mathFromMathMlElement($candidate)];
+            }
+        }
+        foreach ($candidates as $candidate) {
+            if ($this->name($candidate) !== 'tex-math') {
+                continue;
+            }
+            $math = $this->mathFromTexElement($candidate);
+            if ($math instanceof AstNode) {
+                return [$math];
+            }
+        }
+        foreach ($candidates as $candidate) {
+            if (!in_array($this->name($candidate), self::JATS_IMAGE_NAMES, true)) {
+                continue;
+            }
+            $image = $this->jatsImageFromElement($candidate);
+            if ($image instanceof AstNode) {
+                return [$image];
+            }
+        }
+
+        return $this->inlineNodes($alternatives);
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function jatsFormulaInlines(\DOMElement $formula, bool $display): array
+    {
+        $inlines = $this->inlineNodes($formula);
+
+        return $display ? $this->withMathDisplay($inlines, true) : $inlines;
+    }
+
+    private function mathFromMathMlElement(\DOMElement $math): AstNode
+    {
+        $text = (new MathMlToTexReader())->texFromElement($math);
+        if (!is_string($text) || $text === '') {
+            $text = $this->cleanText($math->textContent ?? '');
+        }
+
+        return new AstNode('math', array_replace($this->nodeAttrs($math), [
+            'display' => strtolower(trim((string) XmlHtmlDom::attribute($math, 'display'))) === 'block',
+            'text' => $text,
+            'mathml' => $this->mathMlElementXml($math),
+        ]));
+    }
+
+    private function mathFromTexElement(\DOMElement $math): ?AstNode
+    {
+        $text = $this->cleanText($math->textContent ?? '');
+        if ($text === '') {
+            return null;
+        }
+
+        return new AstNode('math', array_replace($this->nodeAttrs($math), [
+            'display' => strtolower(trim((string) XmlHtmlDom::attribute($math, 'display'))) === 'block',
+            'text' => $text,
+        ]));
+    }
+
+    private function isMathMlElement(\DOMElement $element): bool
+    {
+        return $this->name($element) === 'math' && $element->namespaceURI === self::MATHML_NAMESPACE;
+    }
+
+    private function mathMlElementXml(\DOMElement $math): string
+    {
+        $xml = $math->ownerDocument instanceof \DOMDocument ? $math->ownerDocument->saveXML($math) : '';
+        $xml = trim(is_string($xml) ? $xml : '');
+        $prefix = $math->prefix;
+        if ($xml === '' || !is_string($prefix) || $prefix === '') {
+            return $xml;
+        }
+
+        $quotedPrefix = preg_quote($prefix, '/');
+        $xml = preg_replace('/<(\\/?)' . $quotedPrefix . ':/u', '<$1', $xml) ?? $xml;
+
+        return preg_replace('/\\s+xmlns:' . $quotedPrefix . '\\s*=/u', ' xmlns=', $xml, 1) ?? $xml;
+    }
+
+    private function jatsImageAltText(\DOMElement $element, string $fallback = ''): string
+    {
+        foreach ([
+            XmlHtmlDom::attribute($element, 'alt-text', self::XLINK_NAMESPACE),
+            XmlHtmlDom::attribute($element, 'alt-text'),
+            XmlHtmlDom::attribute($element, 'alt'),
+        ] as $candidate) {
+            $candidate = $this->cleanText($candidate);
+            if ($candidate !== '') {
+                return $candidate;
+            }
+        }
+
+        $altText = XmlHtmlDom::firstChildElement($element, 'alt-text');
+        if ($altText instanceof \DOMElement) {
+            $candidate = XmlHtmlDom::normalizedText($altText);
+            if ($candidate !== '') {
+                return $candidate;
+            }
+        }
+
+        return $this->cleanText($fallback);
+    }
+
+    private function jatsImageTitle(\DOMElement $element): string
+    {
+        return $this->cleanText(
+            XmlHtmlDom::attribute($element, 'title', self::XLINK_NAMESPACE)
+            ?? XmlHtmlDom::attribute($element, 'title')
+            ?? ''
+        );
+    }
+
+    private function jatsFigureAltText(\DOMElement $figure): string
+    {
+        $altText = XmlHtmlDom::firstChildElement($figure, 'alt-text');
+
+        return $altText instanceof \DOMElement ? XmlHtmlDom::normalizedText($altText) : '';
+    }
+
+    private function jatsFigureCaption(\DOMElement $figure): string
+    {
+        $caption = XmlHtmlDom::firstChildElement($figure, 'caption');
+
+        return $caption instanceof \DOMElement ? XmlHtmlDom::normalizedText($caption) : '';
+    }
+
+    private function firstJatsImageElement(\DOMElement $element): ?\DOMElement
+    {
+        foreach (XmlHtmlDom::childElements($element) as $child) {
+            if (in_array($this->name($child), self::JATS_IMAGE_NAMES, true)) {
+                return $child;
+            }
+        }
+        foreach (XmlHtmlDom::descendantElements($element) as $child) {
+            if (in_array($this->name($child), self::JATS_IMAGE_NAMES, true)) {
+                return $child;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     * @return list<AstNode>
+     */
+    private function withMathDisplay(array $nodes, bool $display): array
+    {
+        $result = [];
+        foreach ($nodes as $node) {
+            $attrs = $node->type === 'math' ? array_replace($node->attrs, ['display' => $display]) : $node->attrs;
+            $result[] = new AstNode($node->type, $attrs, $this->withMathDisplay($node->children, $display));
+        }
+
+        return $result;
     }
 
     private function appendTextNode(array &$nodes, string $text): void
@@ -537,19 +965,25 @@ final class XmlReader
         return $text === '' ? [] : [new AstNode('text', ['text' => $text])];
     }
 
-    private function paragraph(string $text): AstNode
+    /**
+     * @param array<string, mixed> $attrs
+     */
+    private function paragraph(string $text, array $attrs = []): AstNode
     {
         $text = $this->cleanText($text);
 
-        return new AstNode('paragraph', ['text' => $text], $this->textInlines($text));
+        return new AstNode('paragraph', array_replace($attrs, ['text' => $text]), $this->textInlines($text));
     }
 
-    private function heading(string $text, int $level): AstNode
+    /**
+     * @param array<string, mixed> $attrs
+     */
+    private function heading(string $text, int $level, array $attrs = []): AstNode
     {
         $text = $this->cleanText($text);
         $level = max(1, min(6, $level));
 
-        return new AstNode('heading', ['level' => $level, 'text' => $text], $this->textInlines($text));
+        return new AstNode('heading', array_replace($attrs, ['level' => $level, 'text' => $text]), $this->textInlines($text));
     }
 
     /**
@@ -567,6 +1001,23 @@ final class XmlReader
         }
 
         return $this->cleanText($text);
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     */
+    private function hasRenderableInline(array $nodes): bool
+    {
+        foreach ($nodes as $node) {
+            if (in_array($node->type, ['image', 'math', 'raw_html_inline', 'raw_inline'], true)) {
+                return true;
+            }
+            if ($this->hasRenderableInline($node->children)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function cleanText(mixed $value): string
@@ -607,7 +1058,7 @@ final class XmlReader
         $attrs = [];
         $id = XmlHtmlDom::attribute($element, 'id');
         if ($id !== null && trim($id) !== '') {
-            $attrs['identifier'] = $id;
+            $attrs['id'] = $id;
         }
         $role = XmlHtmlDom::attribute($element, 'specific-use') ?? XmlHtmlDom::attribute($element, 'content-type');
         if ($role !== null && trim($role) !== '') {
@@ -638,6 +1089,27 @@ final class XmlReader
         return strtolower($element->localName);
     }
 
+    /**
+     * @param list<AstNode> $blocks
+     * @return list<AstNode>
+     */
+    private function attachElementAnchor(array $blocks, \DOMElement $element): array
+    {
+        $id = trim((string) (XmlHtmlDom::attribute($element, 'id') ?? ''));
+        if ($id === '' || $blocks === []) {
+            return $blocks;
+        }
+
+        $first = $blocks[0];
+        if ((string) $first->attr('id', '') !== '') {
+            return $blocks;
+        }
+
+        $blocks[0] = new AstNode($first->type, array_replace($first->attrs, ['id' => $id]), $first->children);
+
+        return $blocks;
+    }
+
     private function firstJatsBodyElement(\DOMElement $root): ?\DOMElement
     {
         foreach (self::JATS_BODY_ROOTS as $name) {
@@ -650,6 +1122,24 @@ final class XmlReader
             $body = XmlHtmlDom::firstDescendantElement($root, $name);
             if ($body instanceof \DOMElement) {
                 return $body;
+            }
+        }
+
+        return null;
+    }
+
+    private function firstJatsBackMatterElement(\DOMElement $root): ?\DOMElement
+    {
+        foreach (self::JATS_BACK_MATTER_ROOTS as $name) {
+            $backMatter = XmlHtmlDom::firstChildElement($root, $name);
+            if ($backMatter instanceof \DOMElement) {
+                return $backMatter;
+            }
+        }
+        foreach (self::JATS_BACK_MATTER_ROOTS as $name) {
+            $backMatter = XmlHtmlDom::firstDescendantElement($root, $name);
+            if ($backMatter instanceof \DOMElement) {
+                return $backMatter;
             }
         }
 
