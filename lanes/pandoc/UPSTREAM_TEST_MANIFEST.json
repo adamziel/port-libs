@@ -2274,7 +2274,7 @@
         "localCurrentUpstreamDocxPackageFixtureFiles": 2,
         "localCurrentUpstreamNativeFixtureFiles": 1,
         "localPinnedDocxPackageFixtureFiles": 0,
-        "localDocxPackageFixtureFiles": 2,
+        "localDocxPackageFixtureFiles": 5,
         "parserAcceptanceEvidenceKind": "parser-acceptance-only",
         "parserAcceptanceBaseline": {
             "baselineName": "local-upstream-docx-parser-acceptance-20260630",

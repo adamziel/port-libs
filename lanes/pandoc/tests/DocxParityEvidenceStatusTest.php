@@ -153,8 +153,8 @@ return [
         $t->same(1, $manifestAudit['localCurrentUpstreamNativeFixtureFiles'] ?? null);
         $t->same(0, $manifestAudit['localPinnedDocxPackageFixtureFiles'] ?? null);
         $t->same(2, $manifestAudit['localCurrentUpstreamDocxPackageFixtureFiles'] ?? null);
-        $t->same(2, $manifestAudit['localDocxPackageFixtureFiles'] ?? null);
-        $t->same(2, $localDocxPackageFixtures);
+        $t->same(5, $manifestAudit['localDocxPackageFixtureFiles'] ?? null);
+        $t->same(5, $localDocxPackageFixtures);
         $t->same('parser-acceptance-only', $manifestAudit['parserAcceptanceEvidenceKind'] ?? null);
         $t->same($manifestAudit['parserAcceptanceEvidenceKind'] ?? null, $statusAudit['parserAcceptanceEvidenceKind'] ?? null);
         $t->same('local-upstream-docx-parser-acceptance-20260630', $manifestAudit['parserAcceptanceBaseline']['baselineName'] ?? null);
