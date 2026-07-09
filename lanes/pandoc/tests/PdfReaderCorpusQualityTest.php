@@ -207,9 +207,9 @@ return [
         $cdcMeta = $cdc['meta'];
 
         $t->same(0, $cdcMeta['pdfDetectedTables'], 'CDC brochure should not become a false table.');
-        $t->true($cdc['lists'] >= 6, 'CDC brochure should preserve visible bullet lists.');
-        $t->true($cdc['headings'] >= 6, 'CDC brochure should retain prominent heading-like text.');
-        $t->true($cdc['paragraphs'] >= 20, 'CDC brochure should not collapse into a tiny number of paragraphs.');
+        $t->true($cdc['lists'] >= 12, 'CDC brochure should preserve visible bullet lists.');
+        $t->true($cdc['headings'] >= 10, 'CDC brochure should retain prominent heading-like text.');
+        $t->true($cdc['paragraphs'] >= 80, 'CDC brochure should not collapse dense flyer/list content into oversized paragraphs.');
 
         $w4 = $readPdfSample($pdfSamplePaths()['irs-w4-form']);
         $w4Meta = $w4['meta'];

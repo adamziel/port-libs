@@ -828,7 +828,9 @@ final class PdfReader
         }
         $cleaned = $this->removeLowCoherencePdfMapRegions($cleaned);
 
-        $merged = $this->mergeRepairedProseLines($cleaned);
+        $merged = $this->pdfLinesLookLikeDenseListLayout($cleaned)
+            ? array_map(static fn (array $record): string => $record['text'], $cleaned)
+            : $this->mergeRepairedProseLines($cleaned);
         $repaired = [];
         foreach ($merged as $line) {
             $line = $repairGluedText ? $this->repairGluedProseLine($line) : trim($line);
@@ -838,6 +840,41 @@ final class PdfReader
         }
 
         return $repaired;
+    }
+
+    /**
+     * @param list<array{text: string, layout: array{text: string, page: int, x1: float, y1: float, x2: float, y2: float, fontSize: float}|null}> $records
+     */
+    private function pdfLinesLookLikeDenseListLayout(array $records): bool
+    {
+        $count = count($records);
+        if ($count < 20) {
+            return false;
+        }
+
+        $listItems = 0;
+        $shortLines = 0;
+        $totalLength = 0;
+        foreach ($records as $record) {
+            $line = trim($record['text']);
+            $length = $this->length($line);
+            $totalLength += $length;
+            if ($length <= 42) {
+                $shortLines++;
+            }
+            if ($this->lineHasPdfListBlockEvidence($line)) {
+                $listItems++;
+            }
+        }
+
+        $listRatio = $listItems / $count;
+        $shortRatio = $shortLines / $count;
+        $averageLength = $totalLength / $count;
+
+        return $listItems >= 6
+            && $listRatio >= 0.08
+            && $shortRatio >= 0.45
+            && $averageLength <= 48.0;
     }
 
     /**
