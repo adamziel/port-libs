@@ -1286,6 +1286,9 @@ final class PdfReader
         $line = $this->repairSplitFragmentWhitespace($line, $splitWordHints);
         $line = preg_replace('/([,;:!?])(?=\S)/u', '$1 ', $line) ?? $line;
         $line = preg_replace('/(?<!\d)\.(?=\p{Lu})/u', '. ', $line) ?? $line;
+        $line = preg_replace('/([\p{Ll}])(\p{Lu}{2,})(?=\p{Ll})/u', '$1 $2', $line) ?? $line;
+        $line = preg_replace('/(\p{Lu}{2,})(\p{Lu}\p{Ll})/u', '$1 $2', $line) ?? $line;
+        $line = preg_replace('/(\p{Lu}{2,})(\p{Ll})/u', '$1 $2', $line) ?? $line;
         $line = preg_replace('/([\p{Ll}])([\p{Lu}][\p{Ll}])/u', '$1 $2', $line) ?? $line;
         $line = preg_replace('/([\p{L}])(\d{2,})/u', '$1 $2', $line) ?? $line;
         $line = preg_replace('/(\d)([\p{L}]{2,})/u', '$1 $2', $line) ?? $line;

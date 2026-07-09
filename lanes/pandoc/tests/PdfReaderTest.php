@@ -5501,6 +5501,21 @@ return [
         ]));
         $t->same('“quoted”', $runText("\x93quoted\x94"));
     },
+    'repairs pdf acronym boundaries in glued prose' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $repair = (function (array $lines): array {
+            return $this->repairProseTextLines($lines, true);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($repair instanceof \Closure);
+
+        $t->same([
+            'When the VM records a call, TM executes JS compiled traces.',
+            'Trace Monkey and HTML Parser remain readable.',
+        ], $repair([
+            'When theVMrecords a call,TMexecutes JScompiled traces.',
+            'TraceMonkey and HTMLParser remain readable.',
+        ]));
+    },
     'repairs whitespace inserted inside pdf url text' => static function (TestRunner $t): void {
         $reader = new PdfReader();
         $repair = (function (array $lines): array {
