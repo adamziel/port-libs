@@ -70,114 +70,6 @@
 <p>Our implementation of a dynamic type-specializing compiler for Java Script is described in Section 6. Related work is discussed in 1 for (var i = 2; i &lt; 100; ++i) { 2 if (! primes[i]) 3 continue; 4 for (var k = i + i; i &lt; 100; k += i) 5 primes[k] = false; 6 } is values on entry to this code snippet.</p>
 <!-- /wp:paragraph -->
 
-<!-- wp:heading {"level":2} -->
-<h2>Interpret</h2>
-<!-- /wp:heading -->
-
-<!-- wp:heading {"level":2} -->
-<h2>Bytecodes</h2>
-<!-- /wp:heading -->
-
-<!-- wp:heading {"level":2} -->
-<h2>Monitor</h2>
-<!-- /wp:heading -->
-
-<!-- wp:heading {"level":2} -->
-<h2>Record</h2>
-<!-- /wp:heading -->
-
-<!-- wp:heading {"level":2} -->
-<h2>LIR</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
-<p>T</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
-<p>race</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
-<h2>Execute</h2>
-<!-- /wp:heading -->
-
-<!-- wp:heading {"level":2} -->
-<h2>Compiled</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
-<p>T</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
-<p>race</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
-<h2>Enter</h2>
-<!-- /wp:heading -->
-
-<!-- wp:heading {"level":2} -->
-<h2>Compiled</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
-<p>T</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
-<p>race</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
-<h2>Compile</h2>
-<!-- /wp:heading -->
-
-<!-- wp:heading {"level":2} -->
-<h2>LIR</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
-<p>T</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
-<p>race</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
-<h2>Leave</h2>
-<!-- /wp:heading -->
-
-<!-- wp:heading {"level":2} -->
-<h2>Compiled</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
-<p>T</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
-<p>race loop edge hot loop/exit abort recording ﬁ nish at loop header cold/blacklisted loop/exit compiled trace ready loop edge with same types side exit to existing trace side exit, no existing trace</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
-<h2>Overhead</h2>
-<!-- /wp:heading -->
-
-<!-- wp:heading {"level":2} -->
-<h2>Interpreting</h2>
-<!-- /wp:heading -->
-
-<!-- wp:heading {"level":2} -->
-<h2>Native</h2>
-<!-- /wp:heading -->
-
-<!-- wp:heading {"level":2} -->
-<h2>Symbol Key</h2>
-<!-- /wp:heading -->
-
 <!-- wp:paragraph -->
 <p>State machine describing the major activities of Trace- Monkey and the conditions that cause transitions to a new activity. In the dark box, TM executes JS as compiled traces. In the light gray boxes, TM executes JS in the standard interpreter. White boxes are overhead. Thus, to maximize performance, we need to maximize time spent in the darkest box and minimize time spent in the white boxes. The best case is a loop where the types at the loop edge are the same as the types on entry–then TM can stay in native code until the loop is done. a set of industry benchmarks. The paper ends with conclusions in This section provides an overview of our system by describing how Trace Monkey executes an example program. The example program, shown in Figure 1, computes the first 100 prime numbers withnestedloops. Thenarrativeshouldbereadalongwith Figure2, which describes the activities Trace Monkey performs and when it transitions between the loops.</p>
 <!-- /wp:paragraph -->
@@ -451,79 +343,7 @@
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p>r ace 3</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
-<h2>Link</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
-<p>ed</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
-<h2>Link</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
-<p>ed</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
-<h2>Link</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
-<p>ed</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"level":2} -->
-<h2>Closed</h2>
-<!-- /wp:heading -->
-
-<!-- wp:heading {"level":2} -->
-<h2>Number</h2>
-<!-- /wp:heading -->
-
-<!-- wp:heading {"level":2} -->
-<h2>Number</h2>
-<!-- /wp:heading -->
-
-<!-- wp:heading {"level":2} -->
-<h2>Number</h2>
-<!-- /wp:heading -->
-
-<!-- wp:heading {"level":2} -->
-<h2>Boolean</h2>
-<!-- /wp:heading -->
-
-<!-- wp:heading {"level":2} -->
-<h2>Number</h2>
-<!-- /wp:heading -->
-
-<!-- wp:heading {"level":2} -->
-<h2>Boolean</h2>
-<!-- /wp:heading -->
-
-<!-- wp:heading {"level":2} -->
-<h2>Number</h2>
-<!-- /wp:heading -->
-
-<!-- wp:heading {"level":2} -->
-<h2>Boolean</h2>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph -->
-<p>(a) (b) (c) We handle type-unstable loops by allowing traces to compile that cannot loop back to themselves due to a type mismatch. As such traces accumulate, we attempt to connect their loop edges to form groups of trace trees that can execute without having to side-exit to the interpreter to cover odd type cases. This is particularly important for nested trace trees where an outer tree tries to call an inner tree (or in this case a forest of inner trees), since inner loops frequently have initially undefined values which change type to a concrete value after the first iteration. symbol is used to indicate that the trace loops back the tree anchor. When execution leaves the inner loop, the basic design has two choices. First, thesystemcanstoptracingandgiveuponcompiling the outer loop, clearly an undesirable solution. The other choice is to continue tracing, compiling traces for the outer loop inside the inner loop’s trace tree. and record a branch and then . Thus, the outer loop is recorded and compiledtwice, andbothcopiesmustberetainedinthetracecache. i 2 i 3 i 4 i 5 i 1 i 6 i 7 t 1 t 2</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
-<p>T</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
-<p>r ee Call</p>
+<p>r ace 3 We handle type-unstable loops by allowing traces to compile that cannot loop back to themselves due to a type mismatch. As such traces accumulate, we attempt to connect their loop edges to form groups of trace trees that can execute without having to side-exit to the interpreter to cover odd type cases. This is particularly important for nested trace trees where an outer tree tries to call an inner tree (or in this case a forest of inner trees), since inner loops frequently have initially undefined values which change type to a concrete value after the first iteration. symbol is used to indicate that the trace loops back the tree anchor. When execution leaves the inner loop, the basic design has two choices. First, thesystemcanstoptracingandgiveuponcompiling the outer loop, clearly an undesirable solution. The other choice is to continue tracing, compiling traces for the outer loop inside the inner loop’s trace tree. and record a branch and then . Thus, the outer loop is recorded and compiledtwice, andbothcopiesmustberetainedinthetracecache. ee Call</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:heading {"level":2} -->
@@ -543,8 +363,12 @@
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p>In order to execute programs with nested loops efficiently, a tracingsystemneedsatechniqueforcoveringthenestedloopswith The key insight is that if each loop is represented by its own trace tree, the code for each loop can be contained only in its own tree, and outer loop paths will not be duplicated. Another key fact is that we are not tracing arbitrary bytecodes that might have irreduceable control flow graphs, but rather bytecodes produced by a compiler for a language with structured control flow. Thus, given two loop edges, the system can easily determine whether they are nested and which is the inner loop. Using this knowledge, the system can compileinnerandouterloopsseparately, andmaketheouterloop’s the inner loop’s trace tree. The algorithm for building nested trace trees is as follows. We start tracing at loop headers exactly as in the basic tracing system. When we exit a loop (detected by comparing the interpreter PC with the range given by the loop edge), we stop the trace. The key step of the algorithm occurs when we are recording a trace for loop being recorded) and we reach the header must be an as a nested trace tree. If the call succeeds, then we record the call will does not have a type-matching compiled trace tree yet, we have to obtain it before we are able to proceed. In order to do this, we simply abort recording the first trace. The trace monitor will see the inner loop header, and will immediately Ifalltheloopsinanestaretype-stable, thenloopnestingcreates , andeach Instead of aborting the outer recording, we could principally merely suspend the recording, but that would require the implementation to be able to record several traces simultaneously, complicating the implementation, while saving only a few iterations in the interpreter. i 2 i 3 i 1 i 6 i 4 i 5 t 2 t 1 t 4 Exit Guar d</p>
+<p>In order to execute programs with nested loops efficiently, a tracingsystemneedsatechniqueforcoveringthenestedloopswith The key insight is that if each loop is represented by its own trace tree, the code for each loop can be contained only in its own tree, and outer loop paths will not be duplicated. Another key fact is that we are not tracing arbitrary bytecodes that might have irreduceable control flow graphs, but rather bytecodes produced by a compiler for a language with structured control flow. Thus, given two loop edges, the system can easily determine whether they are nested and which is the inner loop. Using this knowledge, the system can compileinnerandouterloopsseparately, andmaketheouterloop’s the inner loop’s trace tree. The algorithm for building nested trace trees is as follows. We start tracing at loop headers exactly as in the basic tracing system. When we exit a loop (detected by comparing the interpreter PC with the range given by the loop edge), we stop the trace. The key step of the algorithm occurs when we are recording a trace for loop being recorded) and we reach the header must be an as a nested trace tree. If the call succeeds, then we record the call will does not have a type-matching compiled trace tree yet, we have to obtain it before we are able to proceed. In order to do this, we simply abort recording the first trace. The trace monitor will see the inner loop header, and will immediately Ifalltheloopsinanestaretype-stable, thenloopnestingcreates , andeach Instead of aborting the outer recording, we could principally merely suspend the recording, but that would require the implementation to be able to record several traces simultaneously, complicating the implementation, while saving only a few iterations in the interpreter.</p>
 <!-- /wp:paragraph -->
+
+<!-- wp:heading {"level":2} -->
+<h2>Exit Guar d</h2>
+<!-- /wp:heading -->
 
 <!-- wp:heading {"level":2} -->
 <h2>Nes</h2>

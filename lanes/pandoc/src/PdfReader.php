@@ -772,7 +772,7 @@ final class PdfReader
 
         $textSpacingDamage = $this->genericSpacingDamageScore($textLines);
         $positionedSpacingDamage = $this->genericSpacingDamageScore($positionedLines);
-        if ($positionedSpacingDamage > $textSpacingDamage + 2) {
+        if ($positionedSpacingDamage >= $textSpacingDamage + 2) {
             return false;
         }
 
@@ -828,7 +828,7 @@ final class PdfReader
         }
         $cleaned = $this->removeLowCoherencePdfMapRegions($cleaned);
 
-        $merged = $this->pdfLinesLookLikeDenseListLayout($cleaned)
+        $merged = $this->pdfLinesLookLikeDenseListLayout($cleaned) || $this->pdfLinesLookLikeSparseLongTextChunks($cleaned)
             ? array_map(static fn (array $record): string => $record['text'], $cleaned)
             : $this->mergeRepairedProseLines($cleaned);
         $repaired = [];
@@ -879,6 +879,41 @@ final class PdfReader
 
     /**
      * @param list<array{text: string, layout: array{text: string, page: int, x1: float, y1: float, x2: float, y2: float, fontSize: float}|null}> $records
+     */
+    private function pdfLinesLookLikeSparseLongTextChunks(array $records): bool
+    {
+        $count = count($records);
+        if ($count < 8 || $count > 60) {
+            return false;
+        }
+
+        $longLines = 0;
+        $shortLines = 0;
+        $listItems = 0;
+        $totalLength = 0;
+        foreach ($records as $record) {
+            $line = trim($record['text']);
+            $length = $this->length($line);
+            $totalLength += $length;
+            if ($length >= 70) {
+                $longLines++;
+            }
+            if ($length <= 42) {
+                $shortLines++;
+            }
+            if ($this->lineHasPdfListBlockEvidence($line)) {
+                $listItems++;
+            }
+        }
+
+        return $longLines / $count >= 0.60
+            && $shortLines / $count <= 0.25
+            && $totalLength / $count >= 80.0
+            && $listItems <= 2;
+    }
+
+    /**
+     * @param list<array{text: string, layout: array{text: string, page: int, x1: float, y1: float, x2: float, y2: float, fontSize: float}|null}> $records
      * @return list<array{text: string, layout: array{text: string, page: int, x1: float, y1: float, x2: float, y2: float, fontSize: float}|null}>
      */
     private function removeLowCoherencePdfMapRegions(array $records): array
@@ -923,6 +958,7 @@ final class PdfReader
         }
 
         $shortLabels = 0;
+        $letterSpacedLabels = 0;
         $edgeFragments = 0;
         $hasLayout = false;
         foreach ($records as $record) {
@@ -933,12 +969,15 @@ final class PdfReader
             if ($this->lineLooksLikeShortPdfMapLabel($line)) {
                 $shortLabels++;
             }
+            if ($this->lineLooksLikeLetterSpacedPdfMapLabel($line)) {
+                $letterSpacedLabels++;
+            }
             if ($this->lineLooksLikePdfMapEdgeFragment($line, $record['layout'])) {
                 $edgeFragments++;
             }
         }
         if (!$hasLayout) {
-            return false;
+            return $count >= 18 && ($shortLabels + $letterSpacedLabels) / $count >= 0.72;
         }
 
         if ($shortLabels >= 6 && $edgeFragments > 0) {
@@ -962,6 +1001,7 @@ final class PdfReader
         }
 
         return $this->lineLooksLikeShortPdfMapLabel($line)
+            || $this->lineLooksLikeLetterSpacedPdfMapLabel($line)
             || $this->lineLooksLikePdfMapEdgeFragment($line, $layout);
     }
 
@@ -1004,6 +1044,29 @@ final class PdfReader
         }
 
         return preg_match('/^[\p{L}\p{N},&()\/ .-]+$/u', $line) === 1;
+    }
+
+    private function lineLooksLikeLetterSpacedPdfMapLabel(string $line): bool
+    {
+        $line = trim($line);
+        if ($line === '' || $this->lineLooksLikePdfListItem($line) || $this->lineLooksLikeUrlOnly($line)) {
+            return false;
+        }
+
+        $tokens = preg_split('/\s+/u', $line) ?: [];
+        if (count($tokens) < 4 || count($tokens) > 24) {
+            return false;
+        }
+
+        $singleGlyphTokens = 0;
+        foreach ($tokens as $token) {
+            $token = trim($token, " \t\n\r\0\x0B,.;:()[]{}'\"’‘“”-");
+            if ($this->length($token) === 1 && preg_match('/^[\p{L}\p{N}]$/u', $token) === 1) {
+                $singleGlyphTokens++;
+            }
+        }
+
+        return $singleGlyphTokens >= 4 && $singleGlyphTokens / count($tokens) >= 0.75;
     }
 
     /**
@@ -2743,8 +2806,18 @@ final class PdfReader
      */
     private function significantTextTokens(string $text): array
     {
-        if (preg_match_all('/[\p{L}\p{N}][\p{L}\p{N}._-]*/u', strtolower($text), $matches) === false) {
-            return [];
+        if (preg_match('//u', $text) !== 1) {
+            $scrubbed = @iconv('UTF-8', 'UTF-8//IGNORE', $text);
+            $text = is_string($scrubbed) ? $scrubbed : (preg_replace('/[^\x20-\x7E]+/', ' ', $text) ?? $text);
+        }
+
+        $normalized = function_exists('mb_strtolower') ? mb_strtolower($text, 'UTF-8') : strtolower($text);
+        if (preg_match_all('/[\p{L}\p{N}][\p{L}\p{N}._-]*/u', $normalized, $matches) === false) {
+            if (preg_match_all('/[A-Za-z0-9][A-Za-z0-9._-]*/', strtolower($text), $fallbackMatches) === false) {
+                return [];
+            }
+
+            $matches = $fallbackMatches;
         }
 
         return array_values(array_filter($matches[0], static fn (string $token): bool => strlen($token) >= 2));

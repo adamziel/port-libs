@@ -186,7 +186,7 @@ return [
     'pdf corpus gate keeps text only retry prose oriented' => static function (TestRunner $t) use ($pdfSamplePaths, $readPdfSample): void {
         $cases = [
             'grand-canyon-map' => ['minParagraphs' => 40, 'minHeadings' => 40],
-            'muir-brochure' => ['minParagraphs' => 20, 'minHeadings' => 10],
+            'muir-brochure' => ['minParagraphs' => 25, 'minHeadings' => 20],
             'tracemonkey-paper' => ['minParagraphs' => 100, 'minHeadings' => 40],
         ];
 
@@ -201,6 +201,14 @@ return [
             $t->true($result['paragraphs'] >= $expectation['minParagraphs'], "{$kind} text-only retry should keep prose split into readable paragraphs.");
             $t->true($result['headings'] >= $expectation['minHeadings'], "{$kind} text-only retry should retain heading-like line structure.");
         }
+    },
+    'pdf corpus gate rejects damaged positioned prose streams' => static function (TestRunner $t) use ($pdfSamplePaths, $readPdfSample): void {
+        $muir = $readPdfSample($pdfSamplePaths()['muir-brochure'], ['pdfGeometryTables' => false]);
+        $meta = $muir['meta'];
+
+        $t->same('text', $meta['pdfTextRepairSource'], 'Muir brochure text-only retry should prefer text order over the damaged positioned stream.');
+        $t->true($muir['paragraphs'] >= 25, 'Muir brochure text-only retry should keep readable prose blocks.');
+        $t->true($muir['headings'] >= 20, 'Muir brochure text-only retry should retain heading-like line structure.');
     },
     'pdf corpus gate preserves brochure lists and form baseline extraction' => static function (TestRunner $t) use ($pdfSamplePaths, $readPdfSample): void {
         $cdc = $readPdfSample($pdfSamplePaths()['cdc-brochure']);
@@ -227,6 +235,6 @@ return [
         $t->true(($meta['pdfTextLines'] ?? 0) >= 20, 'Archive book should keep available OCR/search text lines.');
         $t->true(($meta['pdfTextBytes'] ?? 0) >= 2000, 'Archive book should keep available OCR/search text.');
         $t->same(0, $meta['pdfDetectedTables'], 'Archive book prose should not become a table.');
-        $t->true($result['paragraphs'] >= 8, 'Archive book should produce readable prose blocks.');
+        $t->true($result['paragraphs'] >= 20, 'Archive book should keep sparse long OCR chunks reviewable.');
     },
 ];

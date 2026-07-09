@@ -1,4 +1,4 @@
-const pluginBuild = 'e4db24c059d4';
+const pluginBuild = '503bf5b08137';
 const playgroundClientModuleUrl = 'https://playground.wordpress.net/client/index.js';
 
 const iframe = document.getElementById('wp-playground');

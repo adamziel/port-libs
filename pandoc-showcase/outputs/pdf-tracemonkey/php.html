@@ -16,33 +16,6 @@
 <p>We validate our tracing techniques in an implementation based on the Spider Monkey Java Script interpreter, achieving 2x-20x speedups on many programs.</p>
 <p>Theremainder ofthis paperisorganized asfollows. Section3 is a general overview of trace tree based compilation we use to capture and compile frequently executed code regions. In Section 4 we describe our approach of covering nested loops using a number of individual trace trees. In Section 5 we describe our tracecompilation based speculative type specialization approach we use to generate efficient machine code from recorded bytecode traces.</p>
 <p>Our implementation of a dynamic type-specializing compiler for Java Script is described in Section 6. Related work is discussed in 1 for (var i = 2; i &lt; 100; ++i) { 2 if (! primes[i]) 3 continue; 4 for (var k = i + i; i &lt; 100; k += i) 5 primes[k] = false; 6 } is values on entry to this code snippet.</p>
-<h2>Interpret</h2>
-<h2>Bytecodes</h2>
-<h2>Monitor</h2>
-<h2>Record</h2>
-<h2>LIR</h2>
-<p>T</p>
-<p>race</p>
-<h2>Execute</h2>
-<h2>Compiled</h2>
-<p>T</p>
-<p>race</p>
-<h2>Enter</h2>
-<h2>Compiled</h2>
-<p>T</p>
-<p>race</p>
-<h2>Compile</h2>
-<h2>LIR</h2>
-<p>T</p>
-<p>race</p>
-<h2>Leave</h2>
-<h2>Compiled</h2>
-<p>T</p>
-<p>race loop edge hot loop/exit abort recording ﬁ nish at loop header cold/blacklisted loop/exit compiled trace ready loop edge with same types side exit to existing trace side exit, no existing trace</p>
-<h2>Overhead</h2>
-<h2>Interpreting</h2>
-<h2>Native</h2>
-<h2>Symbol Key</h2>
 <p>State machine describing the major activities of Trace- Monkey and the conditions that cause transitions to a new activity. In the dark box, TM executes JS as compiled traces. In the light gray boxes, TM executes JS in the standard interpreter. White boxes are overhead. Thus, to maximize performance, we need to maximize time spent in the darkest box and minimize time spent in the white boxes. The best case is a loop where the types at the loop edge are the same as the types on entry–then TM can stay in native code until the loop is done. a set of industry benchmarks. The paper ends with conclusions in This section provides an overview of our system by describing how Trace Monkey executes an example program. The example program, shown in Figure 1, computes the first 100 prime numbers withnestedloops. Thenarrativeshouldbereadalongwith Figure2, which describes the activities Trace Monkey performs and when it transitions between the loops.</p>
 <p>Trace Monkey always begins executing a program in the bytecode interpreter. Every loop back edge is a potential trace point.</p>
 <p>When the interpreter crosses a loop edge, Trace Monkey invokes , which may decide to record or execute a native trace. At the start of execution, there are no compiled traces yet, so thetracemonitorcountsthenumberoftimeseachloopbackedgeis , currently after 2 crossings. Note thatthewayourloopsarecompiled, theloopedgeiscrossedbefore entering the loop, so the second crossing occurs immediately after the first iteration. Here is the sequence of events broken down by outer loop</p>
@@ -111,30 +84,13 @@
 <p>T</p>
 <p>r ace 1</p>
 <p>T</p>
-<p>r ace 3</p>
-<h2>Link</h2>
-<p>ed</p>
-<h2>Link</h2>
-<p>ed</p>
-<h2>Link</h2>
-<p>ed</p>
-<h2>Closed</h2>
-<h2>Number</h2>
-<h2>Number</h2>
-<h2>Number</h2>
-<h2>Boolean</h2>
-<h2>Number</h2>
-<h2>Boolean</h2>
-<h2>Number</h2>
-<h2>Boolean</h2>
-<p>(a) (b) (c) We handle type-unstable loops by allowing traces to compile that cannot loop back to themselves due to a type mismatch. As such traces accumulate, we attempt to connect their loop edges to form groups of trace trees that can execute without having to side-exit to the interpreter to cover odd type cases. This is particularly important for nested trace trees where an outer tree tries to call an inner tree (or in this case a forest of inner trees), since inner loops frequently have initially undefined values which change type to a concrete value after the first iteration. symbol is used to indicate that the trace loops back the tree anchor. When execution leaves the inner loop, the basic design has two choices. First, thesystemcanstoptracingandgiveuponcompiling the outer loop, clearly an undesirable solution. The other choice is to continue tracing, compiling traces for the outer loop inside the inner loop’s trace tree. and record a branch and then . Thus, the outer loop is recorded and compiledtwice, andbothcopiesmustberetainedinthetracecache. i 2 i 3 i 4 i 5 i 1 i 6 i 7 t 1 t 2</p>
-<p>T</p>
-<p>r ee Call</p>
+<p>r ace 3 We handle type-unstable loops by allowing traces to compile that cannot loop back to themselves due to a type mismatch. As such traces accumulate, we attempt to connect their loop edges to form groups of trace trees that can execute without having to side-exit to the interpreter to cover odd type cases. This is particularly important for nested trace trees where an outer tree tries to call an inner tree (or in this case a forest of inner trees), since inner loops frequently have initially undefined values which change type to a concrete value after the first iteration. symbol is used to indicate that the trace loops back the tree anchor. When execution leaves the inner loop, the basic design has two choices. First, thesystemcanstoptracingandgiveuponcompiling the outer loop, clearly an undesirable solution. The other choice is to continue tracing, compiling traces for the outer loop inside the inner loop’s trace tree. and record a branch and then . Thus, the outer loop is recorded and compiledtwice, andbothcopiesmustberetainedinthetracecache. ee Call</p>
 <h2>Out</h2>
 <p>er T r ee</p>
 <h2>Nes</h2>
 <p>t ed T r ee Exit Guar d (a) (b) Control flow graph of a nested loop with an if statement inside the inner most loop (a). An inner tree captures the inner loop, and is nested inside an outer tree which “calls” the inner tree. The inner tree returns to the outer tree once it exits along its loop condition guard (b). paths (on geometric average), this na ¨ traces, which can easily fill the trace cache.</p>
-<p>In order to execute programs with nested loops efficiently, a tracingsystemneedsatechniqueforcoveringthenestedloopswith The key insight is that if each loop is represented by its own trace tree, the code for each loop can be contained only in its own tree, and outer loop paths will not be duplicated. Another key fact is that we are not tracing arbitrary bytecodes that might have irreduceable control flow graphs, but rather bytecodes produced by a compiler for a language with structured control flow. Thus, given two loop edges, the system can easily determine whether they are nested and which is the inner loop. Using this knowledge, the system can compileinnerandouterloopsseparately, andmaketheouterloop’s the inner loop’s trace tree. The algorithm for building nested trace trees is as follows. We start tracing at loop headers exactly as in the basic tracing system. When we exit a loop (detected by comparing the interpreter PC with the range given by the loop edge), we stop the trace. The key step of the algorithm occurs when we are recording a trace for loop being recorded) and we reach the header must be an as a nested trace tree. If the call succeeds, then we record the call will does not have a type-matching compiled trace tree yet, we have to obtain it before we are able to proceed. In order to do this, we simply abort recording the first trace. The trace monitor will see the inner loop header, and will immediately Ifalltheloopsinanestaretype-stable, thenloopnestingcreates , andeach Instead of aborting the outer recording, we could principally merely suspend the recording, but that would require the implementation to be able to record several traces simultaneously, complicating the implementation, while saving only a few iterations in the interpreter. i 2 i 3 i 1 i 6 i 4 i 5 t 2 t 1 t 4 Exit Guar d</p>
+<p>In order to execute programs with nested loops efficiently, a tracingsystemneedsatechniqueforcoveringthenestedloopswith The key insight is that if each loop is represented by its own trace tree, the code for each loop can be contained only in its own tree, and outer loop paths will not be duplicated. Another key fact is that we are not tracing arbitrary bytecodes that might have irreduceable control flow graphs, but rather bytecodes produced by a compiler for a language with structured control flow. Thus, given two loop edges, the system can easily determine whether they are nested and which is the inner loop. Using this knowledge, the system can compileinnerandouterloopsseparately, andmaketheouterloop’s the inner loop’s trace tree. The algorithm for building nested trace trees is as follows. We start tracing at loop headers exactly as in the basic tracing system. When we exit a loop (detected by comparing the interpreter PC with the range given by the loop edge), we stop the trace. The key step of the algorithm occurs when we are recording a trace for loop being recorded) and we reach the header must be an as a nested trace tree. If the call succeeds, then we record the call will does not have a type-matching compiled trace tree yet, we have to obtain it before we are able to proceed. In order to do this, we simply abort recording the first trace. The trace monitor will see the inner loop header, and will immediately Ifalltheloopsinanestaretype-stable, thenloopnestingcreates , andeach Instead of aborting the outer recording, we could principally merely suspend the recording, but that would require the implementation to be able to record several traces simultaneously, complicating the implementation, while saving only a few iterations in the interpreter.</p>
+<h2>Exit Guar d</h2>
 <h2>Nes</h2>
 <p>t ed T r ee Control flow graph of a loop with two nested loops (left) and its nested trace tree configuration (right). The outer tree calls the two inner nested trace trees and places guards at their side exit locations. different type maps (on geometric average), is close to 1, the resulting trace trees will be tractable.</p>
 <h2>Animportantdetailisthatthecalltotheinnertracetreemustact</h2>
