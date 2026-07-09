@@ -316,11 +316,18 @@ return [
             $GLOBALS['plpc_test_current_user_caps'] = [];
         }
     },
-    'playground pdf importer keeps geometry table reconstruction enabled with prose repair' => static function (TestRunner $t): void {
+    'playground pdf importer keeps geometry table reconstruction enabled with prose repair by default' => static function (TestRunner $t): void {
         $options = plpc_converter_options('pdf');
 
         $t->same(80000, $options['readerOptions']['maxTextBytes'] ?? null);
         $t->same(true, $options['readerOptions']['pdfGeometryTables'] ?? null);
+        $t->same(true, $options['readerOptions']['pdfRepairProseText'] ?? null);
+    },
+    'playground pdf importer can retry in text only mode without geometry tables' => static function (TestRunner $t): void {
+        $options = plpc_converter_options('pdf', 'text-only');
+
+        $t->same(80000, $options['readerOptions']['maxTextBytes'] ?? null);
+        $t->same(false, $options['readerOptions']['pdfGeometryTables'] ?? null);
         $t->same(true, $options['readerOptions']['pdfRepairProseText'] ?? null);
     },
     'playground csv importer still permits blank records' => static function (TestRunner $t): void {
@@ -335,6 +342,14 @@ return [
         $t->same('none', plpc_normalize_image_mode(false));
         $t->same('all', plpc_normalize_image_mode('all-images'));
         $t->same('all', plpc_normalize_image_mode(true));
+    },
+    'playground importer normalizes pdf retry modes' => static function (TestRunner $t): void {
+        $t->same('layout', plpc_normalize_pdf_mode(''));
+        $t->same('layout', plpc_normalize_pdf_mode('layout-aware'));
+        $t->same('layout', plpc_normalize_pdf_mode('geometry'));
+        $t->same('text', plpc_normalize_pdf_mode('text'));
+        $t->same('text', plpc_normalize_pdf_mode('text_only'));
+        $t->same('text', plpc_normalize_pdf_mode('without layout'));
     },
     'playground importer reports conversion quality from diagnostics' => static function (TestRunner $t): void {
         $quality = plpc_import_quality_report('pdf', [

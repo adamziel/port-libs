@@ -123,9 +123,10 @@ function plpc_convert_uploaded_document(WP_REST_Request $request): WP_REST_Respo
             $title = plpc_title_from_filename($filename);
         }
         $imageMode = plpc_normalize_image_mode($payload['imageMode'] ?? 'important');
+        $pdfMode = plpc_normalize_pdf_mode($payload['pdfMode'] ?? 'layout');
 
         if (isset($payload['files']) && is_array($payload['files'])) {
-            return plpc_collection_response(plpc_collection_from_payload($payload, $title), $title, $imageMode);
+            return plpc_collection_response(plpc_collection_from_payload($payload, $title), $title, $imageMode, $pdfMode);
         }
 
         $base64 = (string) ($payload['bytes'] ?? '');
@@ -135,13 +136,13 @@ function plpc_convert_uploaded_document(WP_REST_Request $request): WP_REST_Respo
         }
 
         if (plpc_should_expand_zip_upload($format, $filename, $bytes)) {
-            return plpc_collection_response(plpc_collection_from_zip($bytes, $filename, $title), $title, $imageMode);
+            return plpc_collection_response(plpc_collection_from_zip($bytes, $filename, $title), $title, $imageMode, $pdfMode);
         }
 
         $result = plpc_convert_collection_file_to_page([
             'path' => $filename,
             'bytes' => $bytes,
-        ], null, $title, $imageMode);
+        ], null, $title, $imageMode, $pdfMode);
 
         return new WP_REST_Response([
             'ok' => true,
@@ -322,7 +323,7 @@ function plpc_collection_path_is_ignored(string $path): bool
 /**
  * @param array{label: string, files: list<array{path: string, bytes: string}>} $collection
  */
-function plpc_collection_response(array $collection, string $title, string $imageMode = 'important'): WP_REST_Response
+function plpc_collection_response(array $collection, string $title, string $imageMode = 'important', string $pdfMode = 'layout'): WP_REST_Response
 {
     $documents = plpc_convertible_collection_files($collection);
     if ($documents === []) {
@@ -335,7 +336,7 @@ function plpc_collection_response(array $collection, string $title, string $imag
     $imagesImported = 0;
     foreach ($documents as $file) {
         try {
-            $result = plpc_convert_collection_file_to_page($file, $collection, null, $imageMode);
+            $result = plpc_convert_collection_file_to_page($file, $collection, null, $imageMode, $pdfMode);
             $posts[] = $result;
             $imageTagCount += $result['imageTagCount'];
             $imagesImported += $result['imagesImported'];
@@ -441,7 +442,7 @@ function plpc_convertible_collection_files(array $collection): array
  * @param array{label: string, files: list<array{path: string, bytes: string}>}|null $collection
  * @return array{postId: int, pageUrl: string, editUrl: string, format: string, title: string, path: string, imageTagCount: int, imagesImported: int, diagnostics: list<string>, quality: array{status:string, flags:list<string>, warnings:list<string>}}
  */
-function plpc_convert_collection_file_to_page(array $file, ?array $collection = null, ?string $title = null, string $imageMode = 'important'): array
+function plpc_convert_collection_file_to_page(array $file, ?array $collection = null, ?string $title = null, string $imageMode = 'important', string $pdfMode = 'layout'): array
 {
     $path = $file['path'];
     $format = (string) ($file['format'] ?? plpc_normalize_format('', $path));
@@ -449,7 +450,7 @@ function plpc_convert_collection_file_to_page(array $file, ?array $collection = 
         throw new RuntimeException(plpc_unsupported_format_message($format));
     }
     $postTitle = $title !== null && $title !== '' ? $title : plpc_title_from_filename($path);
-    $options = plpc_converter_options($format);
+    $options = plpc_converter_options($format, $pdfMode);
     $document = PandocConverter::read($file['bytes'], $format, $options['readerOptions']);
     $media = (new PandocMediaExtractor())->extract($document, $file['bytes'], $format, [
         'destination' => 'media',
@@ -850,13 +851,14 @@ function plpc_conversion_warning_blocks(array $warnings): string
 /**
  * @return array{readerOptions: array<string, mixed>, writerOptions: array<string, mixed>}
  */
-function plpc_converter_options(string $format): array
+function plpc_converter_options(string $format, string $pdfMode = 'layout'): array
 {
     $readerOptions = [];
     $canonicalFormat = PandocConverter::canonicalInputFormat($format);
     if ($canonicalFormat === 'pdf') {
+        $pdfMode = plpc_normalize_pdf_mode($pdfMode);
         $readerOptions['maxTextBytes'] = 80000;
-        $readerOptions['pdfGeometryTables'] = true;
+        $readerOptions['pdfGeometryTables'] = $pdfMode === 'layout';
         $readerOptions['pdfRepairProseText'] = true;
     }
     if ($canonicalFormat === 'docx') {
@@ -931,6 +933,16 @@ function plpc_normalize_image_mode(mixed $mode): string
         'none', 'no', 'off', 'false', '0', 'no-images', 'without-images' => 'none',
         'all', 'yes', 'on', 'true', '1', 'all-images' => 'all',
         default => 'important',
+    };
+}
+
+function plpc_normalize_pdf_mode(mixed $mode): string
+{
+    $mode = strtolower(str_replace(['_', ' '], '-', trim((string) $mode)));
+
+    return match ($mode) {
+        'text', 'text-only', 'plain-text', 'fast-text', 'no-layout', 'without-layout' => 'text',
+        default => 'layout',
     };
 }
 

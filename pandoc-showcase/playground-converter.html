@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Import any document into WordPress</title>
   <link rel="stylesheet" href="styles.css">
-  <link rel="stylesheet" href="playground-converter.css?v=quality-retry-20260709">
+  <link rel="stylesheet" href="playground-converter.css?v=pdf-retry-20260709">
 </head>
 <body>
   <main class="playground-tool">
@@ -99,6 +99,18 @@
           </label>
         </fieldset>
 
+        <fieldset id="pdf-mode-control" class="pdf-mode-control" hidden>
+          <legend>PDF reconstruction</legend>
+          <label>
+            <input type="radio" name="pdf-mode" value="layout" checked>
+            <span>Layout-aware</span>
+          </label>
+          <label>
+            <input type="radio" name="pdf-mode" value="text">
+            <span>Text-only</span>
+          </label>
+        </fieldset>
+
         <div id="conversion-progress" class="conversion-progress" role="status" aria-live="polite">
           <span class="progress-spinner" aria-hidden="true"></span>
           <span id="conversion-progress-text">Preparing conversion...</span>
@@ -112,6 +124,8 @@
             <button type="button" data-retry-image-mode="none">Retry with no images</button>
             <button type="button" data-retry-image-mode="important">Retry with important images</button>
             <button type="button" data-retry-image-mode="all">Retry with all images</button>
+            <button type="button" data-retry-pdf-mode="text">Retry PDF as text-only</button>
+            <button type="button" data-retry-pdf-mode="layout">Retry PDF as layout-aware</button>
           </div>
         </section>
 
@@ -139,6 +153,6 @@
     <strong>Drop to import</strong>
   </div>
 
-  <script type="module" src="playground-converter.js?v=quality-retry-20260709"></script>
+  <script type="module" src="playground-converter.js?v=pdf-retry-20260709"></script>
 </body>
 </html>

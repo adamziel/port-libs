@@ -1,4 +1,4 @@
-const pluginBuild = '6cfbeed1115153c6';
+const pluginBuild = '758b069e07fea82d';
 const playgroundClientModuleUrl = 'https://playground.wordpress.net/client/index.js';
 
 const iframe = document.getElementById('wp-playground');
@@ -9,6 +9,8 @@ const directoryInput = document.getElementById('directory-input');
 const formatInput = document.getElementById('format-input');
 const titleInput = document.getElementById('title-input');
 const imageModeInputs = Array.from(document.querySelectorAll('input[name="image-mode"]'));
+const pdfModeControl = document.getElementById('pdf-mode-control');
+const pdfModeInputs = Array.from(document.querySelectorAll('input[name="pdf-mode"]'));
 const convertButton = document.getElementById('convert-button');
 const dropzone = document.getElementById('dropzone');
 const fileName = document.getElementById('file-name');
@@ -22,7 +24,7 @@ const qualityTitle = document.getElementById('quality-title');
 const qualityMessage = document.getElementById('quality-message');
 const qualityDetails = document.getElementById('quality-details');
 const retryActions = document.getElementById('retry-actions');
-const retryButtons = Array.from(document.querySelectorAll('[data-retry-image-mode]'));
+const retryButtons = Array.from(document.querySelectorAll('[data-retry-image-mode], [data-retry-pdf-mode]'));
 
 const formatByExtension = new Map(Object.entries({
   bib: 'bibtex',
@@ -145,8 +147,12 @@ form.addEventListener('submit', async (event) => {
 
 for (const button of retryButtons) {
   button.addEventListener('click', async () => {
-    const mode = button.dataset.retryImageMode || 'important';
-    setSelectedImageMode(mode);
+    if (button.dataset.retryImageMode) {
+      setSelectedImageMode(button.dataset.retryImageMode);
+    }
+    if (button.dataset.retryPdfMode) {
+      setSelectedPdfMode(button.dataset.retryPdfMode);
+    }
     await convertSelectedFile();
   });
 }
@@ -201,8 +207,8 @@ async function convertSelectedFile() {
     }
     log(`Rendered image tags: ${data.imageTagCount}; imported media files: ${data.imagesImported}`);
     setQualityPanel(data.quality || null);
-    for (const diagnostic of data.diagnostics || []) {
-      log(diagnostic);
+    if (data.quality?.status) {
+      log(`Import quality: ${data.quality.status}`);
     }
     const pagePath = playgroundPath(data.pageUrl);
     setProgressStatus('Opening converted page...');
@@ -297,6 +303,7 @@ function setSelectedUpload(upload) {
     fileName.textContent = 'No file selected';
     titleInput.value = '';
     formatInput.value = '';
+    updatePdfModeVisibility(null);
     updateConvertAvailability();
     return;
   }
@@ -309,6 +316,7 @@ function setSelectedUpload(upload) {
   } else {
     setStatus('idle', `Ready to import ${upload.displayName}.`);
   }
+  updatePdfModeVisibility(upload);
   updateConvertAvailability();
 }
 
@@ -318,6 +326,9 @@ function setBusy(busy) {
   fileInput.disabled = busy;
   directoryInput.disabled = busy;
   for (const input of imageModeInputs) {
+    input.disabled = busy;
+  }
+  for (const input of pdfModeInputs) {
     input.disabled = busy;
   }
   dropzone.dataset.disabled = busy ? 'true' : 'false';
@@ -477,6 +488,7 @@ async function payloadFromUpload(upload) {
       format: upload.format,
       title: upload.title,
       imageMode: selectedImageMode(),
+      pdfMode: selectedPdfMode(),
       bytes: await readFileAsBase64(entry.file),
     };
   }
@@ -485,6 +497,7 @@ async function payloadFromUpload(upload) {
     filename: upload.displayName,
     title: upload.title,
     imageMode: selectedImageMode(),
+    pdfMode: selectedPdfMode(),
     files: await Promise.all(upload.entries.map(async (entry) => ({
       path: entry.path,
       filename: entry.file.name,
@@ -501,6 +514,38 @@ function setSelectedImageMode(mode) {
   for (const input of imageModeInputs) {
     input.checked = input.value === mode;
   }
+}
+
+function selectedPdfMode() {
+  return pdfModeInputs.find((input) => input.checked)?.value || 'layout';
+}
+
+function setSelectedPdfMode(mode) {
+  const normalized = mode === 'text' ? 'text' : 'layout';
+  for (const input of pdfModeInputs) {
+    input.checked = input.value === normalized;
+  }
+}
+
+function updatePdfModeVisibility(upload) {
+  if (!pdfModeControl) {
+    return;
+  }
+  pdfModeControl.hidden = !uploadContainsPdf(upload);
+}
+
+function uploadContainsPdf(upload) {
+  if (!upload) {
+    return false;
+  }
+  if (upload.format === 'pdf') {
+    return true;
+  }
+
+  return upload.entries.some((entry) => {
+    const extension = entry.file.name.split('.').pop()?.toLowerCase() || '';
+    return formatByExtension.get(extension) === 'pdf';
+  });
 }
 
 function setQualityPanel(quality) {
@@ -601,16 +646,24 @@ function updateRetryActions(flags) {
     return;
   }
   const flagSet = new Set(flags);
-  const shouldOfferRetry = selectedUpload && (
-    flagSet.has('media_missing')
-    || flagSet.has('layout_uncertain')
+  const shouldOfferImageRetry = Boolean(selectedUpload && flagSet.has('media_missing'));
+  const shouldOfferPdfRetry = Boolean(selectedUpload && uploadContainsPdf(selectedUpload) && (
+    flagSet.has('layout_uncertain')
     || flagSet.has('best_effort')
-  );
-  retryActions.hidden = !shouldOfferRetry;
-  const currentMode = selectedImageMode();
+  ));
+  retryActions.hidden = !(shouldOfferImageRetry || shouldOfferPdfRetry);
+  const currentImageMode = selectedImageMode();
+  const currentPdfMode = selectedPdfMode();
   for (const button of retryButtons) {
-    const mode = button.dataset.retryImageMode || '';
-    button.hidden = !shouldOfferRetry || mode === currentMode;
+    if (button.dataset.retryImageMode) {
+      button.hidden = !shouldOfferImageRetry || button.dataset.retryImageMode === currentImageMode;
+      continue;
+    }
+    if (button.dataset.retryPdfMode) {
+      button.hidden = !shouldOfferPdfRetry || button.dataset.retryPdfMode === currentPdfMode;
+      continue;
+    }
+    button.hidden = true;
   }
 }
 

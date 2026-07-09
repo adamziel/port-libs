@@ -239,7 +239,8 @@ body[data-dragging="true"] {
   white-space: nowrap;
 }
 
-.image-mode-control {
+.image-mode-control,
+.pdf-mode-control {
   box-sizing: border-box;
   width: min(100%, 440px);
   display: grid;
@@ -251,7 +252,13 @@ body[data-dragging="true"] {
   border-radius: 6px;
 }
 
-.image-mode-control legend {
+.image-mode-control[hidden],
+.pdf-mode-control[hidden] {
+  display: none;
+}
+
+.image-mode-control legend,
+.pdf-mode-control legend {
   padding: 0 6px;
   color: #515b66;
   font-size: 12px;
@@ -259,7 +266,8 @@ body[data-dragging="true"] {
   text-transform: uppercase;
 }
 
-.image-mode-control label {
+.image-mode-control label,
+.pdf-mode-control label {
   min-width: 0;
   min-height: 38px;
   display: flex;
@@ -276,21 +284,25 @@ body[data-dragging="true"] {
   cursor: pointer;
 }
 
-.image-mode-control input {
+.image-mode-control input,
+.pdf-mode-control input {
   flex: 0 0 auto;
 }
 
-.image-mode-control label:has(input:checked) {
+.image-mode-control label:has(input:checked),
+.pdf-mode-control label:has(input:checked) {
   border-color: #0f6b4f;
   background: #edf8f3;
   color: #0f513c;
 }
 
-.upload-form[data-busy="true"] .image-mode-control {
+.upload-form[data-busy="true"] .image-mode-control,
+.upload-form[data-busy="true"] .pdf-mode-control {
   color: #6b7280;
 }
 
-.upload-form[data-busy="true"] .image-mode-control label {
+.upload-form[data-busy="true"] .image-mode-control label,
+.upload-form[data-busy="true"] .pdf-mode-control label {
   cursor: not-allowed;
 }
 
