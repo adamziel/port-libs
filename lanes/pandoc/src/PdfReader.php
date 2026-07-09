@@ -1343,10 +1343,14 @@ final class PdfReader
             return false;
         }
         $letters = 0;
+        $singleGlyphTokens = 0;
         foreach ($tokens as $token) {
             $length = $this->length($token);
             if ($length > 24 || preg_match('/^[\p{L}\p{N}]+$/u', $token) !== 1) {
                 return false;
+            }
+            if ($length === 1) {
+                $singleGlyphTokens++;
             }
             if (preg_match('/\p{L}/u', $token) === 1) {
                 $letters++;
@@ -1354,6 +1358,16 @@ final class PdfReader
         }
         if ($letters === 0) {
             return false;
+        }
+        if ($singleGlyphTokens > 1) {
+            return false;
+        }
+        if ($singleGlyphTokens === 1) {
+            foreach ($tokens as $index => $token) {
+                if ($this->length($token) === 1 && $index !== 0) {
+                    return false;
+                }
+            }
         }
 
         if (count($tokens) === 2) {

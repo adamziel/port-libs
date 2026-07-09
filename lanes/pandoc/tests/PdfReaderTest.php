@@ -5577,6 +5577,23 @@ return [
             'performance of the generated machine code. Our system uses mixed mode execution.',
             'The trace tree for the inner loop records a side exit without duplicating the outer loop.',
         ], $repaired);
+
+        $letterSpaced = $repair([
+            'Muir Beach and Redwood Creek stay readable.',
+        ], [
+            $run('M', 10.0, 16.0),
+            $run('u', 18.0, 24.0),
+            $run('ir', 26.0, 36.0),
+            $run('Beach', 42.0, 72.0),
+            $run('and', 78.0, 96.0),
+            $run('Red', 102.0, 122.0),
+            $run('w', 124.0, 130.0),
+            $run('oo', 132.0, 144.0),
+            $run('d', 146.0, 152.0),
+            $run('Creek', 158.0, 188.0),
+        ]);
+
+        $t->same(['Muir Beach and Redwood Creek stay readable.'], $letterSpaced);
     },
     'repairs whitespace inserted inside pdf url text' => static function (TestRunner $t): void {
         $reader = new PdfReader();
