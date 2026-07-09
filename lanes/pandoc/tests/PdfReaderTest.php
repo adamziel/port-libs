@@ -5443,6 +5443,48 @@ return [
             'Use soap and water when hands look dirty.',
         ], $withoutHint);
     },
+    'preserves uncertain pdf line end hyphen compounds without geometry' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $repair = (function (array $lines): array {
+            return $this->repairProseTextLines($lines, true);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($repair instanceof \Closure);
+
+        $repaired = $repair([
+            'expanded the lagoon, created frog-',
+            'breeding habitat, and enhanced sand dunes.',
+            'efficient type-',
+            'specialized machine code',
+            'hard-',
+            'to-treat infections',
+            'for the ac-',
+            'tual dynamic types.',
+            'Inadynamicallytypedpro-',
+            'gramming language such as JavaScript.',
+        ]);
+
+        $t->same([
+            'expanded the lagoon, created frog-breeding habitat, and enhanced sand dunes. efficient type-specialized machine code hard-to-treat infections for the actual dynamic types.',
+            'Inadynamicallytypedprogramming language such as Java Script.',
+        ], $repaired);
+    },
+    'removes pdf line end hyphen when geometry shows a wrapped word' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $repair = (function (array $lines, array $layouts): array {
+            return $this->repairProseTextLines($lines, true, $layouts);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($repair instanceof \Closure);
+
+        $previous = ['text' => 'for the ac-', 'page' => 1, 'x1' => 50.0, 'y1' => 100.0, 'x2' => 330.0, 'y2' => 110.0, 'fontSize' => 10.0];
+        $next = ['text' => 'tual dynamic types.', 'page' => 1, 'x1' => 51.0, 'y1' => 88.0, 'x2' => 170.0, 'y2' => 98.0, 'fontSize' => 10.0];
+
+        $t->same([
+            'for the actual dynamic types.',
+        ], $repair([
+            'for the ac-',
+            'tual dynamic types.',
+        ], [$previous, $next]));
+    },
     'repairs whitespace inserted inside pdf url text' => static function (TestRunner $t): void {
         $reader = new PdfReader();
         $repair = (function (array $lines): array {

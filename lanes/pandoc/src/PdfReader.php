@@ -1373,7 +1373,9 @@ final class PdfReader
                 continue;
             }
             if (preg_match('/-\s*$/', $pending) === 1 && preg_match('/^\p{Ll}/u', $line) === 1) {
-                $pending = rtrim(substr($pending, 0, -1)) . $line;
+                $pending = $this->repairedLineShouldRemoveHyphenatedBreak($pending, $line, $pendingLayout, $layout)
+                    ? (preg_replace('/-\s*$/u', '', $pending) ?? rtrim(substr($pending, 0, -1))) . ltrim($line)
+                    : rtrim($pending) . ltrim($line);
                 $pendingLayout = $layout;
                 continue;
             }
@@ -1391,6 +1393,37 @@ final class PdfReader
         }
 
         return $merged;
+    }
+
+    /**
+     * @param array{text: string, page: int, x1: float, y1: float, x2: float, y2: float, fontSize: float}|null $previousLayout
+     * @param array{text: string, page: int, x1: float, y1: float, x2: float, y2: float, fontSize: float}|null $lineLayout
+     */
+    private function repairedLineShouldRemoveHyphenatedBreak(string $previous, string $line, ?array $previousLayout, ?array $lineLayout): bool
+    {
+        if ($previousLayout === null || $lineLayout === null) {
+            $prefix = $this->hyphenatedLineBreakPrefix($previous);
+            $continuation = $this->firstWordToken($line);
+
+            return $prefix !== ''
+                && $continuation !== ''
+                && ($this->length($prefix) <= 3 || $this->length($prefix) > 8)
+                && $this->length($continuation) >= 3;
+        }
+        if (preg_match('/^\p{Ll}{1,3}-/u', ltrim($line)) === 1) {
+            return false;
+        }
+
+        return $this->repairedPdfLayoutContinuesWrappedLine($previousLayout, $lineLayout);
+    }
+
+    private function hyphenatedLineBreakPrefix(string $line): string
+    {
+        if (preg_match('/([\p{L}]+)-\s*$/u', $line, $matches) !== 1) {
+            return '';
+        }
+
+        return $matches[1];
     }
 
     /**
