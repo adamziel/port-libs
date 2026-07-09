@@ -1622,6 +1622,9 @@ function showcase_html_visual_signature(string $html): ?array
         }
 
         if ($tag === 'p') {
+            if (showcase_is_image_only_paragraph($element)) {
+                continue;
+            }
             if (showcase_element_has_class($element, 'linegroup')) {
                 showcase_increment_visual_signature($counts, 'linegroup');
             } elseif (showcase_is_document_paragraph($element)) {
@@ -1683,6 +1686,37 @@ function showcase_is_document_paragraph(DOMElement $element): bool
     return !showcase_element_has_ancestor_tag($element, ['caption', 'dd', 'dt', 'figcaption', 'li', 'td', 'th'])
         && !showcase_element_has_ancestor_class($element, 'pandoc-definition-list')
         && !showcase_element_has_ancestor_class($element, 'linegroup');
+}
+
+function showcase_is_image_only_paragraph(DOMElement $element): bool
+{
+    $containsImage = false;
+    $stack = [$element];
+    while ($stack !== []) {
+        $node = array_pop($stack);
+        foreach ($node->childNodes as $child) {
+            if ($child instanceof DOMText) {
+                if (trim($child->wholeText) !== '') {
+                    return false;
+                }
+                continue;
+            }
+            if (!$child instanceof DOMElement) {
+                continue;
+            }
+            $tag = strtolower($child->tagName);
+            if ($tag === 'img') {
+                $containsImage = true;
+                continue;
+            }
+            if (!in_array($tag, ['a', 'picture', 'source'], true)) {
+                return false;
+            }
+            $stack[] = $child;
+        }
+    }
+
+    return $containsImage;
 }
 
 /**
@@ -2826,16 +2860,19 @@ HTML));
         $unicodeText = showcase_output_text(dirname($unicodeProbe), basename($unicodeProbe));
         unlink($unicodeProbe);
     }
+    $imageParagraphSignature = showcase_html_visual_signature('<p><img src="diagram.png" alt="Diagram"/></p>');
     $ok = $baseline === $expected
         && $wordpress === $expected
         && $score === 1.0
-        && $unicodeText === 'Państwo E=mc²';
+        && $unicodeText === 'Państwo E=mc²'
+        && $imageParagraphSignature === ['img' => 1];
     fwrite(STDOUT, json_encode([
         'ok' => $ok,
         'baseline' => $baseline,
         'wordpress' => $wordpress,
         'score' => $score,
         'unicodeText' => $unicodeText,
+        'imageParagraphSignature' => $imageParagraphSignature,
     ], JSON_UNESCAPED_SLASHES) . PHP_EOL);
     exit($ok ? 0 : 1);
 }

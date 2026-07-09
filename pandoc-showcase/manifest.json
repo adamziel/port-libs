@@ -1,5 +1,5 @@
 {
-    "generatedAt": "2026-07-09T20:52:04+00:00",
+    "generatedAt": "2026-07-09T20:56:04+00:00",
     "pandocVersion": "pandoc 3.10\nFeatures: +server +lua\nScripting engine: Lua 5.4\nUser data directory: $REPO\nCopyright (C) 2006-2025 John MacFarlane. Web:  https://pandoc.org\nThis is free software; see the source for copying conditions. There is no\nwarranty, not even for merchantability or fitness for a particular purpose.",
     "mediaImageMode": "important",
     "formats": [
@@ -362,22 +362,22 @@
         "divergent": 0,
         "noText": 1,
         "visualComparisons": 147,
-        "visualFaithfulEnough": 140,
-        "visualReview": 6,
+        "visualFaithfulEnough": 143,
+        "visualReview": 3,
         "visualDivergent": 0,
         "visualNoStructure": 1
     },
     "importQualitySummary": {
         "samples": 90,
-        "pass": 67,
-        "review": 23,
+        "pass": 74,
+        "review": 16,
         "fail": 0
     },
     "importQualitySegmentSummary": {
         "common": {
             "samples": 44,
-            "pass": 34,
-            "review": 10,
+            "pass": 40,
+            "review": 4,
             "fail": 0,
             "wpFailures": 0,
             "passOrReview": 44,
@@ -400,8 +400,8 @@
                 },
                 "epub": {
                     "samples": 5,
-                    "pass": 3,
-                    "review": 2,
+                    "pass": 5,
+                    "review": 0,
                     "fail": 0,
                     "wpFailures": 0,
                     "passOrReview": 5
@@ -448,16 +448,16 @@
                 },
                 "pdf": {
                     "samples": 6,
-                    "pass": 2,
-                    "review": 4,
+                    "pass": 5,
+                    "review": 1,
                     "fail": 0,
                     "wpFailures": 0,
                     "passOrReview": 6
                 },
                 "pptx": {
                     "samples": 4,
-                    "pass": 3,
-                    "review": 1,
+                    "pass": 4,
+                    "review": 0,
                     "fail": 0,
                     "wpFailures": 0,
                     "passOrReview": 4
@@ -490,8 +490,8 @@
         },
         "exotic": {
             "samples": 46,
-            "pass": 33,
-            "review": 13,
+            "pass": 34,
+            "review": 12,
             "fail": 0,
             "wpFailures": 0,
             "passOrReview": 46,
@@ -562,8 +562,8 @@
                 },
                 "dokuwiki": {
                     "samples": 1,
-                    "pass": 0,
-                    "review": 1,
+                    "pass": 1,
+                    "review": 0,
                     "fail": 0,
                     "wpFailures": 0,
                     "passOrReview": 1
@@ -735,8 +735,8 @@
                 "actual": {
                     "samples": 44,
                     "wpFailures": 0,
-                    "pass": 34,
-                    "review": 10,
+                    "pass": 40,
+                    "review": 4,
                     "fail": 0,
                     "passOrReview": 44
                 },
@@ -754,7 +754,7 @@
                     "minPass": {
                         "status": "pass",
                         "expected": ">=29",
-                        "actual": 34
+                        "actual": 40
                     },
                     "minPassOrReview": {
                         "status": "pass",
@@ -783,8 +783,8 @@
                 "actual": {
                     "samples": 46,
                     "wpFailures": 0,
-                    "pass": 33,
-                    "review": 13,
+                    "pass": 34,
+                    "review": 12,
                     "fail": 0,
                     "passOrReview": 46
                 },
@@ -802,7 +802,7 @@
                     "minPass": {
                         "status": "pass",
                         "expected": ">=18",
-                        "actual": 33
+                        "actual": 34
                     },
                     "minPassOrReview": {
                         "status": "pass",
@@ -1681,7 +1681,7 @@
                         "status": "pass",
                         "expected": "0.80-1.25",
                         "actual": 1,
-                        "detail": "paragraph count ratio expected 37, got 37"
+                        "detail": "paragraph count ratio expected 36, got 36"
                     },
                     "heading_count": {
                         "status": "pass",
@@ -4126,7 +4126,7 @@
                         "textStatus": "faithful_enough",
                         "textScore": 0.9941,
                         "visualStatus": "faithful_enough",
-                        "visualScore": 0.9204
+                        "visualScore": 0.9205
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
@@ -4151,14 +4151,14 @@
                     "visual_structure": {
                         "status": "pass",
                         "expected": ">=0.75",
-                        "actual": 0.9204,
+                        "actual": 0.9205,
                         "detail": "heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
                         "status": "pass",
                         "expected": "0.80-1.25",
-                        "actual": 0.9992,
-                        "detail": "paragraph count ratio expected 1321, got 1320"
+                        "actual": 1,
+                        "detail": "paragraph count ratio expected 1320, got 1320"
                     },
                     "heading_count": {
                         "status": "pass",
@@ -4445,7 +4445,7 @@
                         "textStatus": "faithful_enough",
                         "textScore": 1,
                         "visualStatus": "faithful_enough",
-                        "visualScore": 0.8929
+                        "visualScore": 0.9259
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
@@ -4459,7 +4459,7 @@
                 }
             },
             "importQuality": {
-                "status": "review",
+                "status": "pass",
                 "gates": {
                     "text_completeness": {
                         "status": "pass",
@@ -4470,14 +4470,14 @@
                     "visual_structure": {
                         "status": "pass",
                         "expected": ">=0.75",
-                        "actual": 0.8929,
+                        "actual": 0.9259,
                         "detail": "heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
-                        "status": "review",
+                        "status": "pass",
                         "expected": "0.80-1.25",
-                        "actual": 0.5,
-                        "detail": "paragraph count ratio expected 2, got 1"
+                        "actual": 1,
+                        "detail": "paragraph count ratio expected 1, got 1"
                     },
                     "heading_count": {
                         "status": "pass",
@@ -4529,8 +4529,8 @@
                     }
                 },
                 "summary": {
-                    "pass": 10,
-                    "review": 1,
+                    "pass": 11,
+                    "review": 0,
                     "fail": 0
                 }
             }
@@ -4866,7 +4866,7 @@
                         "textStatus": "faithful_enough",
                         "textScore": 0.9947,
                         "visualStatus": "faithful_enough",
-                        "visualScore": 0.9643
+                        "visualScore": 0.9818
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
@@ -4880,7 +4880,7 @@
                 }
             },
             "importQuality": {
-                "status": "review",
+                "status": "pass",
                 "gates": {
                     "text_completeness": {
                         "status": "pass",
@@ -4891,14 +4891,14 @@
                     "visual_structure": {
                         "status": "pass",
                         "expected": ">=0.75",
-                        "actual": 0.9643,
+                        "actual": 0.9818,
                         "detail": "heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
-                        "status": "review",
+                        "status": "pass",
                         "expected": "0.80-1.25",
-                        "actual": 0.75,
-                        "detail": "paragraph count ratio expected 4, got 3"
+                        "actual": 1,
+                        "detail": "paragraph count ratio expected 3, got 3"
                     },
                     "heading_count": {
                         "status": "pass",
@@ -4950,8 +4950,8 @@
                     }
                 },
                 "summary": {
-                    "pass": 10,
-                    "review": 1,
+                    "pass": 11,
+                    "review": 0,
                     "fail": 0
                 }
             }
@@ -5182,8 +5182,8 @@
                         "score": 1,
                         "textStatus": "faithful_enough",
                         "textScore": 1,
-                        "visualStatus": "review",
-                        "visualScore": 0.6
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.75
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
@@ -5197,7 +5197,7 @@
                 }
             },
             "importQuality": {
-                "status": "review",
+                "status": "pass",
                 "gates": {
                     "text_completeness": {
                         "status": "pass",
@@ -5206,16 +5206,16 @@
                         "detail": "visible text overlap with the baseline"
                     },
                     "visual_structure": {
-                        "status": "review",
+                        "status": "pass",
                         "expected": ">=0.75",
-                        "actual": 0.6,
+                        "actual": 0.75,
                         "detail": "heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
-                        "status": "review",
+                        "status": "pass",
                         "expected": "0.80-1.25",
-                        "actual": 0.6667,
-                        "detail": "paragraph count ratio expected 3, got 2"
+                        "actual": 1,
+                        "detail": "paragraph count ratio expected 2, got 2"
                     },
                     "heading_count": {
                         "status": "pass",
@@ -5267,8 +5267,8 @@
                     }
                 },
                 "summary": {
-                    "pass": 9,
-                    "review": 2,
+                    "pass": 11,
+                    "review": 0,
                     "fail": 0
                 }
             }
@@ -5462,7 +5462,7 @@
                         "textStatus": "faithful_enough",
                         "textScore": 1,
                         "visualStatus": "faithful_enough",
-                        "visualScore": 0.8077
+                        "visualScore": 0.84
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
@@ -5487,14 +5487,14 @@
                     "visual_structure": {
                         "status": "pass",
                         "expected": ">=0.75",
-                        "actual": 0.8077,
+                        "actual": 0.84,
                         "detail": "heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
                         "status": "pass",
                         "expected": "0.80-1.25",
-                        "actual": 0.875,
-                        "detail": "paragraph count ratio expected 8, got 7"
+                        "actual": 1,
+                        "detail": "paragraph count ratio expected 7, got 7"
                     },
                     "heading_count": {
                         "status": "pass",
@@ -6834,7 +6834,7 @@
                         "textStatus": "faithful_enough",
                         "textScore": 0.9994,
                         "visualStatus": "faithful_enough",
-                        "visualScore": 0.8684
+                        "visualScore": 0.8676
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
@@ -6843,7 +6843,7 @@
                         "textStatus": "faithful_enough",
                         "textScore": 0.9994,
                         "visualStatus": "faithful_enough",
-                        "visualScore": 0.9962
+                        "visualScore": 0.9961
                     }
                 }
             },
@@ -6859,14 +6859,14 @@
                     "visual_structure": {
                         "status": "pass",
                         "expected": ">=0.75",
-                        "actual": 0.8684,
+                        "actual": 0.8676,
                         "detail": "heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
                         "status": "pass",
                         "expected": "0.80-1.25",
-                        "actual": 1.1414,
-                        "detail": "paragraph count ratio expected 792, got 904"
+                        "actual": 1.1429,
+                        "detail": "paragraph count ratio expected 791, got 904"
                     },
                     "heading_count": {
                         "status": "pass",
@@ -7263,7 +7263,7 @@
                         "textStatus": "faithful_enough",
                         "textScore": 0.9991,
                         "visualStatus": "faithful_enough",
-                        "visualScore": 0.9874
+                        "visualScore": 0.9891
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
@@ -7272,7 +7272,7 @@
                         "textStatus": "faithful_enough",
                         "textScore": 0.9994,
                         "visualStatus": "faithful_enough",
-                        "visualScore": 0.9964
+                        "visualScore": 0.9963
                     }
                 }
             },
@@ -7288,14 +7288,14 @@
                     "visual_structure": {
                         "status": "pass",
                         "expected": ">=0.75",
-                        "actual": 0.9874,
+                        "actual": 0.9891,
                         "detail": "heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
                         "status": "pass",
                         "expected": "0.80-1.25",
-                        "actual": 0.9862,
-                        "detail": "paragraph count ratio expected 363, got 358"
+                        "actual": 1.0057,
+                        "detail": "paragraph count ratio expected 353, got 355"
                     },
                     "heading_count": {
                         "status": "pass",
@@ -7410,7 +7410,7 @@
                         "textStatus": "faithful_enough",
                         "textScore": 0.9973,
                         "visualStatus": "faithful_enough",
-                        "visualScore": 0.9223
+                        "visualScore": 0.922
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
@@ -7419,7 +7419,7 @@
                         "textStatus": "faithful_enough",
                         "textScore": 0.998,
                         "visualStatus": "faithful_enough",
-                        "visualScore": 0.9455
+                        "visualScore": 0.945
                     }
                 }
             },
@@ -7435,14 +7435,14 @@
                     "visual_structure": {
                         "status": "pass",
                         "expected": ">=0.75",
-                        "actual": 0.9223,
+                        "actual": 0.922,
                         "detail": "heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
                         "status": "pass",
                         "expected": "0.80-1.25",
-                        "actual": 0.975,
-                        "detail": "paragraph count ratio expected 40, got 39"
+                        "actual": 1.0263,
+                        "detail": "paragraph count ratio expected 38, got 39"
                     },
                     "heading_count": {
                         "status": "pass",
@@ -7556,7 +7556,7 @@
                         "textStatus": "faithful_enough",
                         "textScore": 1,
                         "visualStatus": "faithful_enough",
-                        "visualScore": 0.9594
+                        "visualScore": 0.9609
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
@@ -7565,7 +7565,7 @@
                         "textStatus": "faithful_enough",
                         "textScore": 1,
                         "visualStatus": "faithful_enough",
-                        "visualScore": 0.9904
+                        "visualScore": 0.9903
                     }
                 }
             },
@@ -7581,14 +7581,14 @@
                     "visual_structure": {
                         "status": "pass",
                         "expected": ">=0.75",
-                        "actual": 0.9594,
+                        "actual": 0.9609,
                         "detail": "heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
                         "status": "pass",
                         "expected": "0.80-1.25",
-                        "actual": 0.9924,
-                        "detail": "paragraph count ratio expected 131, got 130"
+                        "actual": 1,
+                        "detail": "paragraph count ratio expected 130, got 130"
                     },
                     "heading_count": {
                         "status": "pass",
@@ -8540,7 +8540,7 @@
                         "textStatus": "faithful_enough",
                         "textScore": 0.9828,
                         "visualStatus": "faithful_enough",
-                        "visualScore": 0.8689
+                        "visualScore": 0.8741
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
@@ -8549,7 +8549,7 @@
                         "textStatus": "faithful_enough",
                         "textScore": 0.9828,
                         "visualStatus": "faithful_enough",
-                        "visualScore": 0.8927
+                        "visualScore": 0.8967
                     }
                 }
             },
@@ -8565,14 +8565,14 @@
                     "visual_structure": {
                         "status": "pass",
                         "expected": ">=0.75",
-                        "actual": 0.8689,
+                        "actual": 0.8741,
                         "detail": "heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
                         "status": "pass",
                         "expected": "0.80-1.25",
-                        "actual": 0.9618,
-                        "detail": "paragraph count ratio expected 157, got 151"
+                        "actual": 0.9869,
+                        "detail": "paragraph count ratio expected 153, got 151"
                     },
                     "heading_count": {
                         "status": "pass",
@@ -9784,7 +9784,7 @@
                         "textStatus": "faithful_enough",
                         "textScore": 0.9996,
                         "visualStatus": "faithful_enough",
-                        "visualScore": 0.9776
+                        "visualScore": 0.982
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
@@ -9793,7 +9793,7 @@
                         "textStatus": "faithful_enough",
                         "textScore": 0.9996,
                         "visualStatus": "faithful_enough",
-                        "visualScore": 0.9776
+                        "visualScore": 0.982
                     }
                 }
             },
@@ -9809,14 +9809,14 @@
                     "visual_structure": {
                         "status": "pass",
                         "expected": ">=0.75",
-                        "actual": 0.9776,
+                        "actual": 0.982,
                         "detail": "heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
                         "status": "pass",
                         "expected": "0.80-1.25",
-                        "actual": 0.9787,
-                        "detail": "paragraph count ratio expected 47, got 46"
+                        "actual": 1,
+                        "detail": "paragraph count ratio expected 46, got 46"
                     },
                     "heading_count": {
                         "status": "pass",
@@ -13571,8 +13571,8 @@
                     "paragraph_merge_split": {
                         "status": "pass",
                         "expected": "0.80-1.25",
-                        "actual": 0.9999,
-                        "detail": "paragraph count ratio expected 10589, got 10588"
+                        "actual": 1,
+                        "detail": "paragraph count ratio expected 10588, got 10588"
                     },
                     "heading_count": {
                         "status": "pass",
@@ -13996,7 +13996,7 @@
                         "textStatus": "faithful_enough",
                         "textScore": 1,
                         "visualStatus": "faithful_enough",
-                        "visualScore": 0.9516
+                        "visualScore": 0.9672
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
@@ -14021,14 +14021,14 @@
                     "visual_structure": {
                         "status": "pass",
                         "expected": ">=0.75",
-                        "actual": 0.9516,
+                        "actual": 0.9672,
                         "detail": "heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
                         "status": "pass",
                         "expected": "0.80-1.25",
-                        "actual": 0.9583,
-                        "detail": "paragraph count ratio expected 24, got 23"
+                        "actual": 1,
+                        "detail": "paragraph count ratio expected 23, got 23"
                     },
                     "heading_count": {
                         "status": "pass",
@@ -14892,8 +14892,8 @@
                         "score": 1,
                         "textStatus": "faithful_enough",
                         "textScore": 1,
-                        "visualStatus": "review",
-                        "visualScore": 0.6612
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.7945
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
@@ -14907,7 +14907,7 @@
                 }
             },
             "importQuality": {
-                "status": "review",
+                "status": "pass",
                 "gates": {
                     "text_completeness": {
                         "status": "pass",
@@ -14916,16 +14916,16 @@
                         "detail": "visible text overlap with the baseline"
                     },
                     "visual_structure": {
-                        "status": "review",
+                        "status": "pass",
                         "expected": ">=0.75",
-                        "actual": 0.6612,
+                        "actual": 0.7945,
                         "detail": "heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
-                        "status": "review",
+                        "status": "pass",
                         "expected": "0.80-1.25",
-                        "actual": 0.5487,
-                        "detail": "paragraph count ratio expected 113, got 62"
+                        "actual": 1,
+                        "detail": "paragraph count ratio expected 62, got 62"
                     },
                     "heading_count": {
                         "status": "pass",
@@ -14977,8 +14977,8 @@
                     }
                 },
                 "summary": {
-                    "pass": 9,
-                    "review": 2,
+                    "pass": 11,
+                    "review": 0,
                     "fail": 0
                 }
             }
@@ -15173,7 +15173,7 @@
                         "textStatus": "faithful_enough",
                         "textScore": 1,
                         "visualStatus": "faithful_enough",
-                        "visualScore": 0.9308
+                        "visualScore": 0.961
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
@@ -15198,14 +15198,14 @@
                     "visual_structure": {
                         "status": "pass",
                         "expected": ">=0.75",
-                        "actual": 0.9308,
+                        "actual": 0.961,
                         "detail": "heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
                         "status": "pass",
                         "expected": "0.80-1.25",
-                        "actual": 0.9383,
-                        "detail": "paragraph count ratio expected 81, got 76"
+                        "actual": 1,
+                        "detail": "paragraph count ratio expected 76, got 76"
                     },
                     "heading_count": {
                         "status": "pass",
@@ -15595,7 +15595,7 @@
                         "textStatus": "faithful_enough",
                         "textScore": 0.9639,
                         "visualStatus": "faithful_enough",
-                        "visualScore": 0.8
+                        "visualScore": 0.8276
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
@@ -15604,7 +15604,7 @@
                         "textStatus": "faithful_enough",
                         "textScore": 0.9639,
                         "visualStatus": "faithful_enough",
-                        "visualScore": 0.9259
+                        "visualScore": 0.9231
                     }
                 }
             },
@@ -15620,14 +15620,14 @@
                     "visual_structure": {
                         "status": "pass",
                         "expected": ">=0.75",
-                        "actual": 0.8,
+                        "actual": 0.8276,
                         "detail": "heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
-                        "status": "review",
+                        "status": "pass",
                         "expected": "0.80-1.25",
-                        "actual": 0.5,
-                        "detail": "paragraph count ratio expected 2, got 1"
+                        "actual": 1,
+                        "detail": "paragraph count ratio expected 1, got 1"
                     },
                     "heading_count": {
                         "status": "review",
@@ -15679,8 +15679,8 @@
                     }
                 },
                 "summary": {
-                    "pass": 9,
-                    "review": 2,
+                    "pass": 10,
+                    "review": 1,
                     "fail": 0
                 }
             }
@@ -16867,7 +16867,7 @@
                         "textStatus": "faithful_enough",
                         "textScore": 1,
                         "visualStatus": "faithful_enough",
-                        "visualScore": 0.9794
+                        "visualScore": 0.9896
                     }
                 }
             },
@@ -16883,14 +16883,14 @@
                     "visual_structure": {
                         "status": "pass",
                         "expected": ">=0.75",
-                        "actual": 0.9794,
+                        "actual": 0.9896,
                         "detail": "heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
                         "status": "pass",
                         "expected": "0.80-1.25",
-                        "actual": 0.9667,
-                        "detail": "paragraph count ratio expected 30, got 29"
+                        "actual": 1,
+                        "detail": "paragraph count ratio expected 29, got 29"
                     },
                     "heading_count": {
                         "status": "pass",
@@ -18260,7 +18260,7 @@
                         "textStatus": "faithful_enough",
                         "textScore": 1,
                         "visualStatus": "faithful_enough",
-                        "visualScore": 0.8179
+                        "visualScore": 0.8953
                     }
                 }
             },
@@ -18276,14 +18276,14 @@
                     "visual_structure": {
                         "status": "pass",
                         "expected": ">=0.75",
-                        "actual": 0.8179,
+                        "actual": 0.8953,
                         "detail": "heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
                         "status": "pass",
                         "expected": "0.80-1.25",
-                        "actual": 0.8082,
-                        "detail": "paragraph count ratio expected 146, got 118"
+                        "actual": 1,
+                        "detail": "paragraph count ratio expected 118, got 118"
                     },
                     "heading_count": {
                         "status": "pass",
@@ -19488,12 +19488,12 @@
                         "textStatus": "faithful_enough",
                         "textScore": 1,
                         "visualStatus": "faithful_enough",
-                        "visualScore": 0.7888
+                        "visualScore": 0.8819
                     }
                 }
             },
             "importQuality": {
-                "status": "review",
+                "status": "pass",
                 "gates": {
                     "text_completeness": {
                         "status": "pass",
@@ -19504,14 +19504,14 @@
                     "visual_structure": {
                         "status": "pass",
                         "expected": ">=0.75",
-                        "actual": 0.7888,
+                        "actual": 0.8819,
                         "detail": "heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
-                        "status": "review",
+                        "status": "pass",
                         "expected": "0.80-1.25",
-                        "actual": 0.7838,
-                        "detail": "paragraph count ratio expected 148, got 116"
+                        "actual": 1,
+                        "detail": "paragraph count ratio expected 116, got 116"
                     },
                     "heading_count": {
                         "status": "pass",
@@ -19563,8 +19563,8 @@
                     }
                 },
                 "summary": {
-                    "pass": 10,
-                    "review": 1,
+                    "pass": 11,
+                    "review": 0,
                     "fail": 0
                 }
             }
@@ -20703,12 +20703,12 @@
                         "textStatus": "faithful_enough",
                         "textScore": 1,
                         "visualStatus": "faithful_enough",
-                        "visualScore": 0.7898
+                        "visualScore": 0.8826
                     }
                 }
             },
             "importQuality": {
-                "status": "review",
+                "status": "pass",
                 "gates": {
                     "text_completeness": {
                         "status": "pass",
@@ -20719,14 +20719,14 @@
                     "visual_structure": {
                         "status": "pass",
                         "expected": ">=0.75",
-                        "actual": 0.7898,
+                        "actual": 0.8826,
                         "detail": "heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
-                        "status": "review",
+                        "status": "pass",
                         "expected": "0.80-1.25",
-                        "actual": 0.6593,
-                        "detail": "paragraph count ratio expected 91, got 60"
+                        "actual": 1,
+                        "detail": "paragraph count ratio expected 60, got 60"
                     },
                     "heading_count": {
                         "status": "pass",
@@ -20778,8 +20778,8 @@
                     }
                 },
                 "summary": {
-                    "pass": 10,
-                    "review": 1,
+                    "pass": 11,
+                    "review": 0,
                     "fail": 0
                 }
             }
@@ -21656,7 +21656,7 @@
                         "textStatus": "faithful_enough",
                         "textScore": 1,
                         "visualStatus": "review",
-                        "visualScore": 0.52
+                        "visualScore": 0.6842
                     }
                 }
             },
@@ -21672,14 +21672,14 @@
                     "visual_structure": {
                         "status": "review",
                         "expected": ">=0.75",
-                        "actual": 0.52,
+                        "actual": 0.6842,
                         "detail": "heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
-                        "status": "review",
+                        "status": "pass",
                         "expected": "0.80-1.25",
-                        "actual": 0.5,
-                        "detail": "paragraph count ratio expected 48, got 24"
+                        "actual": 1,
+                        "detail": "paragraph count ratio expected 24, got 24"
                     },
                     "heading_count": {
                         "status": "pass",
@@ -21731,8 +21731,8 @@
                     }
                 },
                 "summary": {
-                    "pass": 8,
-                    "review": 3,
+                    "pass": 9,
+                    "review": 2,
                     "fail": 0
                 }
             }
@@ -22471,13 +22471,13 @@
                         "score": 1,
                         "textStatus": "faithful_enough",
                         "textScore": 1,
-                        "visualStatus": "review",
-                        "visualScore": 0.7143
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.8333
                     }
                 }
             },
             "importQuality": {
-                "status": "review",
+                "status": "pass",
                 "gates": {
                     "text_completeness": {
                         "status": "pass",
@@ -22486,16 +22486,16 @@
                         "detail": "visible text overlap with the baseline"
                     },
                     "visual_structure": {
-                        "status": "review",
+                        "status": "pass",
                         "expected": ">=0.75",
-                        "actual": 0.7143,
+                        "actual": 0.8333,
                         "detail": "heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
-                        "status": "review",
+                        "status": "pass",
                         "expected": "0.80-1.25",
-                        "actual": 0.5745,
-                        "detail": "paragraph count ratio expected 47, got 27"
+                        "actual": 1,
+                        "detail": "paragraph count ratio expected 27, got 27"
                     },
                     "heading_count": {
                         "status": "pass",
@@ -22547,8 +22547,8 @@
                     }
                 },
                 "summary": {
-                    "pass": 9,
-                    "review": 2,
+                    "pass": 11,
+                    "review": 0,
                     "fail": 0
                 }
             }
