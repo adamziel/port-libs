@@ -2614,6 +2614,20 @@ return [
         $t->same(['Health', 'care', 'providers', 'should'], array_slice(array_map(static fn (array $run): string => $run['text'], $positionedRuns), 0, 4));
         $t->true(!str_contains($extractor->extractPlainText($pdf), 'Beforeputtingongloves'));
     },
+    'uses small-font TJ word gaps without splitting kerning fragments' => static function (TestRunner $t) use ($pdfWithContent): void {
+        $content = 'BT /F1 8.9664 Tf 72 720 Td '
+            . '[(a)-193(counter)-193(for)-193(each)-193(side)-193(exit)] TJ '
+            . 'T* [(co)15(ver)-193(the)-193(loop,)-193(the)-193(VM)-193(must)-193(record)] TJ ET';
+        $extractor = new PdfTextExtractor();
+        $pdf = $pdfWithContent($content);
+
+        $t->same([
+            'a counter for each side exit',
+            'cover the loop, the VM must record',
+        ], $extractor->extractTextLines($pdf));
+        $t->true(!str_contains($extractor->extractPlainText($pdf), 'co ver'));
+        $t->true(!str_contains($extractor->extractPlainText($pdf), 'acounter'));
+    },
     'extracts positioned text runs with page and stream metadata' => static function (TestRunner $t) use ($pdfWithContent): void {
         $content = 'BT /F1 12 Tf '
             . '1 0 0 1 72 720 Tm (Item) Tj '

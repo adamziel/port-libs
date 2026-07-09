@@ -16321,7 +16321,7 @@ final class PdfTextExtractor
             return false;
         }
 
-        return $gap >= max(1.5, ($fontSize ?? 12.0) * 0.22);
+        return $gap >= max(1.5, ($fontSize ?? 12.0) * 0.18);
     }
 
     /**

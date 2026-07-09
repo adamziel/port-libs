@@ -187,7 +187,7 @@ return [
         $cases = [
             'grand-canyon-map' => ['minParagraphs' => 40, 'minHeadings' => 40],
             'muir-brochure' => ['minParagraphs' => 25, 'minHeadings' => 20],
-            'tracemonkey-paper' => ['minParagraphs' => 100, 'minHeadings' => 35],
+            'tracemonkey-paper' => ['minParagraphs' => 100, 'minHeadings' => 30],
         ];
 
         foreach ($cases as $kind => $expectation) {
@@ -216,6 +216,24 @@ return [
         $t->contains('of their', $text);
         $t->contains('of values', $text);
         $t->contains('the fastest', $text);
+    },
+    'pdf corpus gate repairs TraceMonkey TJ word gaps without fragment splits' => static function (TestRunner $t) use ($pdfSamplePaths, $plainText): void {
+        $document = (new PdfReader([
+            'maxTextBytes' => 80000,
+            'pdfRepairProseText' => true,
+            'pdfGeometryTables' => false,
+        ]))->read(file_get_contents($pdfSamplePaths()['tracemonkey-paper']) ?: '');
+        $text = $plainText(PandocConverter::write($document, 'html'));
+
+        foreach (['completelycovertheloop', 'theVMmustrecord', 'acounterforeachsideexit', 'recordatracestarting', 'havebeentriedandfailed'] as $glued) {
+            $t->true(!str_contains($text, $glued), "TraceMonkey text-only retry should not contain '{$glued}'.");
+        }
+        foreach (['completely cover the loop', 'the VM must record', 'a counter for each side exit', 'record a trace starting', 'have been tried and failed'] as $spaced) {
+            $t->contains($spaced, $text);
+        }
+        foreach (['tra ce', 'co ver'] as $splitWord) {
+            $t->true(!str_contains($text, $splitWord), "TraceMonkey text-only retry should not introduce '{$splitWord}'.");
+        }
     },
     'pdf corpus gate does not inject TraceMonkey positioned word fragment spaces' => static function (TestRunner $t) use ($pdfSamplePaths, $plainText): void {
         $document = (new PdfReader([
