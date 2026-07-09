@@ -375,6 +375,38 @@ XML,
             ],
         ], $normalizedDocx['attrs']['captionInlines']);
     },
+    'normalizes local docx presentation anchors and equivalent nested links' => static function (TestRunner $t): void {
+        $harness = new DocxNativeAstComparisonHarness();
+        $method = new ReflectionMethod(DocxNativeAstComparisonHarness::class, 'normalizedNode');
+
+        $localParagraph = new AstNode('paragraph', [
+            'align' => 'justify',
+            'backgroundColor' => '#FFFFFF',
+        ], [
+            new AstNode('span', ['id' => '_Toc123', 'classes' => ['anchor']]),
+            new AstNode('link', ['url' => '#target', 'title' => ''], [
+                new AstNode('text', ['text' => 'Short instructions 1']),
+            ]),
+        ]);
+        $nativeParagraph = new AstNode('paragraph', [], [
+            new AstNode('link', ['url' => '#target', 'title' => ''], [
+                new AstNode('text', ['text' => 'Short']),
+                new AstNode('text', ['text' => ' ']),
+                new AstNode('text', ['text' => 'instructions']),
+                new AstNode('text', ['text' => ' ']),
+                new AstNode('link', ['url' => '#target', 'title' => ''], [
+                    new AstNode('text', ['text' => '1']),
+                ]),
+            ]),
+        ]);
+
+        $normalizedLocal = $method->invoke($harness, $localParagraph);
+        $normalizedNative = $method->invoke($harness, $nativeParagraph);
+
+        $t->same($normalizedNative, $normalizedLocal);
+        $t->same([], $normalizedLocal['attrs']);
+        $t->same('Short instructions 1', $normalizedLocal['children'][0]['children'][0]['attrs']['text']);
+    },
     'normalizes docx table provenance defaults and mirrored image dimensions in ast comparisons' => static function (TestRunner $t): void {
         $harness = new DocxNativeAstComparisonHarness();
         $method = new ReflectionMethod(DocxNativeAstComparisonHarness::class, 'normalizedNode');

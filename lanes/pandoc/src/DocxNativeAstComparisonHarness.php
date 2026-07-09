@@ -330,11 +330,14 @@ final class DocxNativeAstComparisonHarness
                 'DOCX data-docx-* provenance attributes retained for local writer diagnostics',
                 'DOCX table captionSource retained for local writer diagnostics',
                 'derived text attrs on plain, paragraph, heading, and table_cell nodes',
+                'DOCX paragraph and heading presentation attrs that Pandoc native AST cannot encode',
+                'empty bookmark anchor spans retained for local HTML and WordPress link targets',
                 'derived figure caption inline caches when caption blocks are present',
                 'DOCX package media target roots when upstream native uses document-relative media paths',
                 'default table cell alignment, spans, and row-head counts omitted by native Attr tuples',
                 'DOCX tab separator encoding when upstream native exposes equivalent spacing',
                 'reader-specific adjacent Str/Space text-node segmentation',
+                'nested links with the same target, which cannot be represented by valid HTML anchors',
                 'floating-point serialization noise in table column width fractions',
             ],
             'doesNotAssert' => [
@@ -402,6 +405,9 @@ final class DocxNativeAstComparisonHarness
             if ($this->isIgnoredTableCellAttr($node, (string) $key, $value)) {
                 continue;
             }
+            if ($this->isPandocUnrepresentableDocxPresentationAttr($node, $key)) {
+                continue;
+            }
             if ($key === 'attributes' && $this->isDocxProvenanceAttributeMap($value)) {
                 continue;
             }
@@ -452,6 +458,9 @@ final class DocxNativeAstComparisonHarness
         $children = $node->type === 'figure'
             ? $this->normalizedFigureChildren($node->children)
             : $this->normalizedChildren($node->children);
+        if ($node->type === 'link') {
+            $children = $this->flattenNestedEquivalentLinks($children, $attrs);
+        }
 
         return [
             'type' => $node->type,
@@ -554,6 +563,12 @@ final class DocxNativeAstComparisonHarness
         return false;
     }
 
+    private function isPandocUnrepresentableDocxPresentationAttr(AstNode $node, string $key): bool
+    {
+        return in_array($node->type, ['plain', 'paragraph', 'heading'], true)
+            && in_array($key, ['align', 'backgroundColor'], true);
+    }
+
     private function isDocxProvenanceAttributeMap(mixed $value): bool
     {
         if (!is_array($value) || array_is_list($value) || $value === []) {
@@ -632,6 +647,10 @@ final class DocxNativeAstComparisonHarness
             return [];
         }
 
+        if ($this->isEmptyBookmarkAnchorSpan($node)) {
+            return [];
+        }
+
         if ($this->isWhitespaceOnlyStyledInline($node)) {
             return [];
         }
@@ -641,6 +660,17 @@ final class DocxNativeAstComparisonHarness
         }
 
         return null;
+    }
+
+    private function isEmptyBookmarkAnchorSpan(AstNode $node): bool
+    {
+        if ($node->type !== 'span' || $node->children !== [] || (string) $node->attr('id', '') === '') {
+            return false;
+        }
+
+        $classes = $node->attr('classes', []);
+
+        return is_array($classes) && in_array('anchor', array_map('strval', $classes), true);
     }
 
     private function isRawBookmarkInline(AstNode $node): bool
@@ -681,6 +711,47 @@ final class DocxNativeAstComparisonHarness
             || in_array('docx-generated-field', $classes, true)
             || in_array('docx-content-control', $classes, true)
             || in_array('docx-content-control-inline', $classes, true);
+    }
+
+    /**
+     * Pandoc's DOCX reader can expose a field link nested in a hyperlink with
+     * the same target. HTML cannot represent nested anchors, so local output
+     * flattens that shape. Compare the equivalent inline content here.
+     *
+     * @param list<array<string, mixed>> $children
+     * @param array<string, mixed> $attrs
+     * @return list<array<string, mixed>>
+     */
+    private function flattenNestedEquivalentLinks(array $children, array $attrs): array
+    {
+        $url = $attrs['url'] ?? null;
+        $title = $attrs['title'] ?? null;
+        if (!is_string($url) || !is_string($title)) {
+            return $children;
+        }
+
+        $flattened = [];
+        foreach ($children as $child) {
+            $childAttrs = $child['attrs'] ?? null;
+            if (
+                ($child['type'] ?? null) === 'link'
+                && is_array($childAttrs)
+                && ($childAttrs['url'] ?? null) === $url
+                && ($childAttrs['title'] ?? null) === $title
+                && is_array($child['children'] ?? null)
+            ) {
+                foreach ($child['children'] as $grandchild) {
+                    if (is_array($grandchild)) {
+                        $this->appendNormalizedChild($flattened, $grandchild);
+                    }
+                }
+                continue;
+            }
+
+            $this->appendNormalizedChild($flattened, $child);
+        }
+
+        return $this->trimBoundaryWhitespaceText($flattened);
     }
 
     private function normalizedInlineText(AstNode $node): string

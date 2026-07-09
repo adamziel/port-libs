@@ -12439,12 +12439,12 @@ final class MarkdownReader
             return null;
         }
 
-        $headerColumns = $this->parseSimpleTableDelimiter($lines[$index + 1]);
+        $headerColumns = $this->parseMarkdownBlockSimpleTableDelimiter($lines[$index + 1]);
         if ($headerColumns !== null) {
             return $this->readSimpleTableWithHeader($lines, $index, $headerColumns);
         }
 
-        $bodyColumns = $this->parseSimpleTableDelimiter($lines[$index]);
+        $bodyColumns = $this->parseMarkdownBlockSimpleTableDelimiter($lines[$index]);
         if ($bodyColumns !== null) {
             return $this->readSimpleTableWithoutHeader($lines, $index, $bodyColumns);
         }
@@ -12457,7 +12457,7 @@ final class MarkdownReader
      */
     private function tryReadMultilineSimpleTableWithHeader(array $lines, int &$index): ?AstNode
     {
-        if (!$this->isSimpleTableBoundary($lines[$index] ?? '')) {
+        if (!$this->isMarkdownBlockSimpleTableBoundary($lines[$index] ?? '')) {
             return null;
         }
 
@@ -12466,11 +12466,11 @@ final class MarkdownReader
         $headerLines = [];
         $columns = null;
         while ($cursor < $count) {
-            if (trim($lines[$cursor]) === '' || $this->isSimpleTableBoundary($lines[$cursor])) {
+            if (trim($lines[$cursor]) === '' || $this->isMarkdownBlockSimpleTableBoundary($lines[$cursor])) {
                 return null;
             }
 
-            $columns = $this->parseSimpleTableDelimiter($lines[$cursor]);
+            $columns = $this->parseMarkdownBlockSimpleTableDelimiter($lines[$cursor]);
             if ($columns !== null) {
                 break;
             }
@@ -12516,7 +12516,7 @@ final class MarkdownReader
         $bodyRows = [];
         $count = count($lines);
         while ($cursor < $count && trim($lines[$cursor]) !== '') {
-            if ($this->parseSimpleTableDelimiter($lines[$cursor]) !== null) {
+            if ($this->parseMarkdownBlockSimpleTableDelimiter($lines[$cursor]) !== null) {
                 break;
             }
 
@@ -12529,7 +12529,7 @@ final class MarkdownReader
         }
 
         $captionCursor = $cursor;
-        if ($cursor < $count && $this->parseSimpleTableDelimiter($lines[$cursor]) !== null) {
+        if ($cursor < $count && $this->parseMarkdownBlockSimpleTableDelimiter($lines[$cursor]) !== null) {
             $captionCursor = $cursor + 1;
         }
 
@@ -12597,9 +12597,31 @@ final class MarkdownReader
         return count($columns) >= 2 ? $columns : null;
     }
 
+    /**
+     * Pandoc allows table-cell padding before a simple-table delimiter, but a
+     * delimiter at four columns is an indented code block, not table syntax.
+     * Keep this check at table-entry points so caption continuation logic can
+     * still recognize delimiter-looking literal lines without consuming them.
+     *
+     * @return list<array{start:int, length:int}>|null
+     */
+    private function parseMarkdownBlockSimpleTableDelimiter(string $line): ?array
+    {
+        if ($this->countIndentColumns($line) >= 4) {
+            return null;
+        }
+
+        return $this->parseSimpleTableDelimiter($line);
+    }
+
     private function isSimpleTableBoundary(string $line): bool
     {
         return preg_match('/^[ \t]*-{3,}[ \t]*$/', $line) === 1;
+    }
+
+    private function isMarkdownBlockSimpleTableBoundary(string $line): bool
+    {
+        return $this->countIndentColumns($line) < 4 && $this->isSimpleTableBoundary($line);
     }
 
     /**
@@ -12614,7 +12636,7 @@ final class MarkdownReader
         $count = count($lines);
 
         while ($cursor < $count) {
-            if ($this->isSimpleTableBoundary($lines[$cursor])) {
+            if ($this->isMarkdownBlockSimpleTableBoundary($lines[$cursor])) {
                 $this->flushSimpleTableRow($current, $rows);
 
                 return [$rows, $cursor];
@@ -12639,7 +12661,7 @@ final class MarkdownReader
         $count = count($lines);
 
         while ($cursor < $count) {
-            $closingColumns = $this->parseSimpleTableDelimiter($lines[$cursor]);
+            $closingColumns = $this->parseMarkdownBlockSimpleTableDelimiter($lines[$cursor]);
             if ($closingColumns !== null && count($closingColumns) === count($columns)) {
                 $this->flushSimpleTableRow($current, $rows);
 
@@ -13048,6 +13070,11 @@ final class MarkdownReader
     private function tryReadPipeTable(array $lines, int &$index): ?AstNode
     {
         if (!isset($lines[$index + 1])) {
+            return null;
+        }
+
+        // A pipe row cannot start a table after indented-code indentation.
+        if ($this->countIndentColumns($lines[$index]) >= 4 || $this->countIndentColumns($lines[$index + 1]) >= 4) {
             return null;
         }
 

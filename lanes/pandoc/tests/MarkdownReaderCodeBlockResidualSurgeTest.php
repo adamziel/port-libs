@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\Pandoc\AstNode;
 use PortLibs\Pandoc\MarkdownReader;
+use PortLibs\Pandoc\WordPressBlockWriter;
 
 $paragraphFormats = [
     'commonmark' => ['format' => 'commonmark'],
@@ -60,6 +61,26 @@ $fenceStyles = [
     'tilde' => '~',
 ];
 
+$indentedTableLookingCodeCases = [
+    'simple table' => implode("\n", [
+        '    Metric  Value',
+        '    ------  -----',
+        '    queue   12',
+    ]),
+    'multiline table' => implode("\n", [
+        '    ----------------',
+        '    Metric    Value',
+        '    --------  -------',
+        '    queue     ready',
+        '    ----------------',
+    ]),
+    'pipe table' => implode("\n", [
+        '    | Metric | Value |',
+        '    |--------|-------|',
+        '    | queue  | 12    |',
+    ]),
+];
+
 $tests = [];
 
 $tests['maps upstream markdown reader indented code paragraph noninterruption residual cases'] =
@@ -106,12 +127,27 @@ $tests['maps upstream markdown reader fenced code tab deindent residual cases'] 
         }
     };
 
+$tests['keeps four-column table-looking Markdown examples as indented code'] =
+    static function (TestRunner $t) use ($indentedTableLookingCodeCases): void {
+        foreach ($indentedTableLookingCodeCases as $caseName => $markdown) {
+            $document = (new MarkdownReader())->read($markdown);
+            $code = $document->children[0] ?? new AstNode('missing');
+            $wordpress = (new WordPressBlockWriter())->write($document);
+
+            $t->same(['code_block'], array_map(static fn (AstNode $node): string => $node->type, $document->children), $caseName);
+            $t->same(preg_replace('/^ {4}/m', '', $markdown), (string) $code->attr('text', ''), $caseName);
+            $t->contains('<pre class="wp-block-code">', $wordpress, $caseName);
+            $t->true(!str_contains($wordpress, '<table'), $caseName);
+        }
+    };
+
 $tests['records markdown reader code block residual surge mapped-case count'] =
-    static function (TestRunner $t) use ($paragraphFormats, $paragraphInterruptionCases, $fenceFormats, $fenceStyles, $fenceTabCases): void {
+    static function (TestRunner $t) use ($paragraphFormats, $paragraphInterruptionCases, $fenceFormats, $fenceStyles, $fenceTabCases, $indentedTableLookingCodeCases): void {
         $t->same(
-            80,
+            83,
             count($paragraphFormats) * count($paragraphInterruptionCases)
                 + count($fenceFormats) * count($fenceStyles) * count($fenceTabCases)
+                + count($indentedTableLookingCodeCases)
         );
     };
 

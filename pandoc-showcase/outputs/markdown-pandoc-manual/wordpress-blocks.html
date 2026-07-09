@@ -5677,12 +5677,14 @@ off. It may appear either before or after the table.</p>
 <p>Simple tables look like this:</p>
 <!-- /wp:paragraph -->
 
-<!-- wp:table -->
-<figure class="wp-block-table"><table><thead><tr><th style="text-align:right">Right</th><th style="text-align:left">Left</th><th style="text-align:center">Center</th><th>Default</th></tr></thead><tbody><tr><td style="text-align:right">12</td><td style="text-align:left">12</td><td style="text-align:center">12</td><td>12</td></tr><tr><td style="text-align:right">123</td><td style="text-align:left">123</td><td style="text-align:center">123</td><td>123</td></tr><tr><td style="text-align:right">1</td><td style="text-align:left">1</td><td style="text-align:center">1</td><td>1</td></tr></tbody></table></figure>
-<!-- /wp:table -->
-
 <!-- wp:code -->
-<pre class="wp-block-code"><code>Table:  Demonstration of simple table syntax.</code></pre>
+<pre class="wp-block-code"><code>  Right     Left     Center     Default
+-------     ------ ----------   -------
+     12     12        12            12
+    123     123       123          123
+      1     1          1             1
+
+Table:  Demonstration of simple table syntax.</code></pre>
 <!-- /wp:code -->
 
 <!-- wp:paragraph -->
@@ -5705,9 +5707,13 @@ a blank line.</p>
 to end the table. For example:</p>
 <!-- /wp:paragraph -->
 
-<!-- wp:table -->
-<figure class="wp-block-table"><table><tbody><tr><td style="text-align:right">12</td><td style="text-align:left">12</td><td style="text-align:center">12</td><td style="text-align:right">12</td></tr><tr><td style="text-align:right">123</td><td style="text-align:left">123</td><td style="text-align:center">123</td><td style="text-align:right">123</td></tr><tr><td style="text-align:right">1</td><td style="text-align:left">1</td><td style="text-align:center">1</td><td style="text-align:right">1</td></tr></tbody></table></figure>
-<!-- /wp:table -->
+<!-- wp:code -->
+<pre class="wp-block-code"><code>-------     ------ ----------   -------
+     12     12        12             12
+    123     123       123           123
+      1     1          1              1
+-------     ------ ----------   -------</code></pre>
+<!-- /wp:code -->
 
 <!-- wp:paragraph -->
 <p>When the header row is omitted, column alignments are determined on the basis
@@ -5725,19 +5731,20 @@ of text (but cells that span multiple columns or rows of the table are
 not supported).  Here is an example:</p>
 <!-- /wp:paragraph -->
 
-<!-- wp:table -->
-<figure class="wp-block-table"><table><colgroup><col style="width:15%"/><col style="width:10%"/><col style="width:20%"/><col style="width:32.5%"/></colgroup><thead><tr><th style="text-align:center">Centered
-Header</th><th>Default
-Aligned</th><th style="text-align:right">Right
-Aligned</th><th style="text-align:left">Left
-Aligned</th></tr></thead><tbody><tr><td style="text-align:center">First</td><td>row</td><td style="text-align:right">12.0</td><td style="text-align:left">Example of a row that
-spans multiple lines.</td></tr><tr><td style="text-align:center">Second</td><td>row</td><td style="text-align:right">5.0</td><td style="text-align:left">Here’s another one. Note
-the blank line between
-rows.</td></tr></tbody></table></figure>
-<!-- /wp:table -->
-
 <!-- wp:code -->
-<pre class="wp-block-code"><code>Table: Here&#039;s the caption. It, too, may span
+<pre class="wp-block-code"><code>-------------------------------------------------------------
+ Centered   Default           Right Left
+  Header    Aligned         Aligned Aligned
+----------- ------- --------------- -------------------------
+   First    row                12.0 Example of a row that
+                                    spans multiple lines.
+
+  Second    row                 5.0 Here&#039;s another one. Note
+                                    the blank line between
+                                    rows.
+-------------------------------------------------------------
+
+Table: Here&#039;s the caption. It, too, may span
 multiple lines.</code></pre>
 <!-- /wp:code -->
 
@@ -5760,15 +5767,17 @@ output, try widening it in the Markdown source.</p>
 <p>The header may be omitted in multiline tables as well as simple tables:</p>
 <!-- /wp:paragraph -->
 
-<!-- wp:table -->
-<figure class="wp-block-table"><table><colgroup><col style="width:15%"/><col style="width:10%"/><col style="width:20%"/><col style="width:32.5%"/></colgroup><tbody><tr><td style="text-align:center">First</td><td style="text-align:left">row</td><td style="text-align:right">12.0</td><td>Example of a row that
-spans multiple lines.</td></tr><tr><td style="text-align:center">Second</td><td style="text-align:left">row</td><td style="text-align:right">5.0</td><td>Here’s another one. Note
-the blank line between
-rows.</td></tr></tbody></table></figure>
-<!-- /wp:table -->
-
 <!-- wp:code -->
-<pre class="wp-block-code"><code>: Here&#039;s a multiline table without a header.</code></pre>
+<pre class="wp-block-code"><code>----------- ------- --------------- -------------------------
+   First    row                12.0 Example of a row that
+                                    spans multiple lines.
+
+  Second    row                 5.0 Here&#039;s another one. Note
+                                    the blank line between
+                                    rows.
+----------- ------- --------------- -------------------------
+
+: Here&#039;s a multiline table without a header.</code></pre>
 <!-- /wp:code -->
 
 <!-- wp:paragraph -->
@@ -5897,12 +5906,14 @@ that use <code>=</code> instead of <code>-</code>:</p>
 <p>Pipe tables look like this:</p>
 <!-- /wp:paragraph -->
 
-<!-- wp:table -->
-<figure class="wp-block-table"><table><thead><tr><th style="text-align:right">Right</th><th style="text-align:left">Left</th><th>Default</th><th style="text-align:center">Center</th></tr></thead><tbody><tr><td style="text-align:right">12</td><td style="text-align:left">12</td><td>12</td><td style="text-align:center">12</td></tr><tr><td style="text-align:right">123</td><td style="text-align:left">123</td><td>123</td><td style="text-align:center">123</td></tr><tr><td style="text-align:right">1</td><td style="text-align:left">1</td><td>1</td><td style="text-align:center">1</td></tr></tbody></table></figure>
-<!-- /wp:table -->
-
 <!-- wp:code -->
-<pre class="wp-block-code"><code>  : Demonstration of pipe table syntax.</code></pre>
+<pre class="wp-block-code"><code>| Right | Left | Default | Center |
+|------:|:-----|---------|:------:|
+|   12  |  12  |    12   |    12  |
+|  123  |  123 |   123   |   123  |
+|    1  |    1 |     1   |     1  |
+
+  : Demonstration of pipe table syntax.</code></pre>
 <!-- /wp:code -->
 
 <!-- wp:paragraph -->
@@ -5919,9 +5930,13 @@ aligned, as they are in the above example.  So, this is a perfectly
 legal (though ugly) pipe table:</p>
 <!-- /wp:paragraph -->
 
-<!-- wp:table -->
-<figure class="wp-block-table"><table><thead><tr><th>fruit</th><th style="text-align:right">price</th></tr></thead><tbody><tr><td>apple</td><td style="text-align:right">2.05</td></tr><tr><td>pear</td><td style="text-align:right">1.37</td></tr><tr><td>orange</td><td style="text-align:right">3.09</td></tr></tbody></table></figure>
-<!-- /wp:table -->
+<!-- wp:code -->
+<pre class="wp-block-code"><code>fruit| price
+-----|-----:
+apple|2.05
+pear|1.37
+orange|3.09</code></pre>
+<!-- /wp:code -->
 
 <!-- wp:paragraph -->
 <p>The cells of pipe tables cannot contain block elements like paragraphs
