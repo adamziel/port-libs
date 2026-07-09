@@ -413,43 +413,63 @@ HTML;
         $t->same(['media/photo & one.png', 'media/second.png'], plpc_rendered_image_sources($blocks));
     },
     'playground importer marks imported wp image blocks with attachment metadata' => static function (TestRunner $t): void {
-        $blocks = <<<'HTML'
-<!-- wp:image -->
-<figure class="wp-block-image"><img src="media/photo &amp; one.png" alt="First"/></figure>
-<!-- /wp:image -->
+        $blocks = [
+            [
+                'blockName' => 'core/image',
+                'attrs' => [],
+                'innerBlocks' => [],
+                'innerHTML' => '<figure class="wp-block-image"><img src="media/photo &amp; one.png" alt="First"/></figure>',
+                'innerContent' => ['<figure class="wp-block-image"><img src="media/photo &amp; one.png" alt="First"/></figure>'],
+            ],
+            [
+                'blockName' => 'core/image',
+                'attrs' => [],
+                'innerBlocks' => [],
+                'innerHTML' => '<figure class="wp-block-image"><img src="media/other.png" alt="Other"/></figure>',
+                'innerContent' => ['<figure class="wp-block-image"><img src="media/other.png" alt="Other"/></figure>'],
+            ],
+            [
+                'blockName' => 'core/html',
+                'attrs' => [],
+                'innerBlocks' => [],
+                'innerHTML' => '<div><img src="media/photo &amp; one.png" alt="Raw"></div>',
+                'innerContent' => ['<div><img src="media/photo &amp; one.png" alt="Raw"></div>'],
+            ],
+        ];
+        $changed = false;
 
-<!-- wp:image -->
-<figure class="wp-block-image"><img src="media/other.png" alt="Other"/></figure>
-<!-- /wp:image -->
-
-<!-- wp:html -->
-<div><img src="media/photo &amp; one.png" alt="Raw"></div>
-<!-- /wp:html -->
-HTML;
-
-        $rewritten = plpc_replace_image_source(
+        plpc_replace_image_source_in_blocks(
             $blocks,
             'media/photo & one.png',
             'https://playground.test/uploads/photo.png?x=1&y=2',
-            42
+            42,
+            $changed
         );
 
-        $t->contains('<!-- wp:image {"id":42} -->', $rewritten);
-        $t->contains('<img src="https://playground.test/uploads/photo.png?x=1&amp;y=2" alt="First" class="wp-image-42"/>', $rewritten);
-        $t->contains('<!-- wp:image -->' . "\n" . '<figure class="wp-block-image"><img src="media/other.png" alt="Other"/></figure>', $rewritten);
-        $t->contains('<div><img src="https://playground.test/uploads/photo.png?x=1&amp;y=2" alt="Raw"></div>', $rewritten);
-        $t->true(!str_contains($rewritten, 'alt="Raw" class="wp-image-42"'), 'Raw HTML images should not be marked as native wp:image attachments.');
+        $t->true($changed, 'Matching image sources should be rewritten through parsed block data.');
+        $t->same(['id' => 42], $blocks[0]['attrs']);
+        $t->contains('<img src="https://playground.test/uploads/photo.png?x=1&amp;y=2" alt="First" class="wp-image-42">', $blocks[0]['innerContent'][0]);
+        $t->same([], $blocks[1]['attrs']);
+        $t->contains('<img src="media/other.png" alt="Other"/>', $blocks[1]['innerContent'][0]);
+        $t->contains('<div><img src="https://playground.test/uploads/photo.png?x=1&amp;y=2" alt="Raw"></div>', $blocks[2]['innerContent'][0]);
+        $t->true(!str_contains($blocks[2]['innerContent'][0], 'wp-image-42'), 'Raw HTML images should not be marked as native wp:image attachments.');
     },
     'playground importer preserves existing image block attrs and classes when marking attachments' => static function (TestRunner $t): void {
-        $blocks = '<!-- wp:image {"sizeSlug":"large","id":9} -->'
-            . "\n" . '<figure class="wp-block-image"><img src="media/logo.png" alt="Logo" class="alignnone"/></figure>'
-            . "\n" . '<!-- /wp:image -->';
+        $blocks = [[
+            'blockName' => 'core/image',
+            'attrs' => ['sizeSlug' => 'large', 'id' => 9],
+            'innerBlocks' => [],
+            'innerHTML' => '<figure class="wp-block-image"><img src="media/logo.png" alt="Logo" class="alignnone"/></figure>',
+            'innerContent' => ['<figure class="wp-block-image"><img src="media/logo.png" alt="Logo" class="alignnone"/></figure>'],
+        ]];
+        $changed = false;
 
-        $rewritten = plpc_replace_image_source($blocks, 'media/logo.png', 'https://playground.test/uploads/logo.png', 77);
+        plpc_replace_image_source_in_blocks($blocks, 'media/logo.png', 'https://playground.test/uploads/logo.png', 77, $changed);
 
-        $t->contains('<!-- wp:image {"id":77,"sizeSlug":"large"} -->', $rewritten);
-        $t->contains('class="alignnone wp-image-77"', $rewritten);
-        $t->true(!str_contains($rewritten, 'wp-image-77 wp-image-77'), 'Attachment class should not be duplicated.');
+        $t->true($changed, 'Matching image block should be marked as changed.');
+        $t->same(['id' => 77, 'sizeSlug' => 'large'], $blocks[0]['attrs']);
+        $t->contains('class="alignnone wp-image-77"', $blocks[0]['innerContent'][0]);
+        $t->true(!str_contains($blocks[0]['innerContent'][0], 'wp-image-77 wp-image-77'), 'Attachment class should not be duplicated.');
     },
     'playground importer dedupes media uploads by content hash' => static function (TestRunner $t): void {
         $GLOBALS['plpc_imported_media_by_hash'] = [];
