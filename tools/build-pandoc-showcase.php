@@ -1482,7 +1482,11 @@ function showcase_record_faithfulness(string $siteDir, array $record): array
         return ['baseline' => null, 'comparisons' => []];
     }
 
-    $baselineKey = (($record['haskell']['ok'] ?? false) === true) ? 'haskell' : ((($record['phpHtml']['ok'] ?? false) === true) ? 'phpHtml' : '');
+    $externalReference = is_array($record['externalReference'] ?? null) ? $record['externalReference'] : [];
+    $requiresExternalReference = PandocConverter::canonicalInputFormat((string) ($record['format'] ?? '')) === 'doc';
+    $baselineKey = (($record['haskell']['ok'] ?? false) === true)
+        ? 'haskell'
+        : (($externalReference['ok'] ?? false) === true ? 'externalReference' : ($requiresExternalReference ? '' : ((($record['phpHtml']['ok'] ?? false) === true) ? 'phpHtml' : '')));
     if ($baselineKey === '') {
         return ['baseline' => null, 'comparisons' => []];
     }
@@ -2957,7 +2961,7 @@ function write_conversion_report(
     $html = '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">';
     $html .= '<title>Pandoc PHP Port Conversion Report</title><link rel="stylesheet" href="styles.css"></head><body>';
     $html .= '<header class="hero"><div class="hero-inner"><p class="eyebrow">conversion report</p><h1>How the pulled test files converted</h1>';
-    $html .= '<p class="lede">Every source file in this showcase is run through three paths: Haskell Pandoc to HTML, the PHP port to HTML, and the PHP port to WordPress block markup. This report shows the current pass/fail shape and links into a curated stress set.</p>';
+    $html .= '<p class="lede">Every source file is converted to PHP HTML and WordPress block markup. Haskell Pandoc provides the primary external reference where it can read the format; format-native references are added where Pandoc has no reader. This report shows the current pass/fail shape and links into a curated stress set.</p>';
     $html .= '<div class="stats">';
     $html .= '<div class="stat"><strong>' . h((string) $summary['totalSamples']) . '</strong><span>source files</span></div>';
     $html .= '<div class="stat"><strong>' . h((string) count($coveredFormats)) . '</strong><span>covered input formats</span></div>';
@@ -2979,7 +2983,7 @@ function write_conversion_report(
     $html .= '</div></section>';
 
     $html .= '<section><h2>Faithful enough diff checks</h2>';
-    $html .= '<p>These checks compare generated outputs against Haskell Pandoc when available, or PHP HTML as a fallback baseline. Text scores compare normalized visible words. Visual-structure scores compare the rendered document shape: headings, paragraphs, lists, tables, images, figures, captions, code, quotes, and math.</p>';
+    $html .= '<p>These checks compare generated outputs against Haskell Pandoc when it can read the source, a format-native external reference where one is available, or PHP HTML only as a disclosed fallback. Text scores compare normalized visible words. Visual-structure scores compare the rendered document shape: headings, paragraphs, lists, tables, images, figures, captions, code, quotes, and math.</p>';
     $html .= '<h3>Text</h3>';
     $html .= '<div class="report-grid">';
     $html .= '<div class="report-card"><h3>Faithful enough</h3><p class="report-number">' . h((string) ($faithfulnessSummary['faithfulEnough'] ?? 0)) . '</p></div>';
@@ -3167,6 +3171,71 @@ function run_haskell_pandoc(string $path, string $format, string $dir): array
     ];
 }
 
+/**
+ * @return array{ok:bool,kind?:string,label?:string,path?:string,error?:string}|null
+ */
+function run_external_reference(string $path, string $format, string $dir): ?array
+{
+    if (PandocConverter::canonicalInputFormat($format) !== 'doc') {
+        return null;
+    }
+
+    return run_textutil_doc_reference($path, $dir);
+}
+
+/**
+ * @return array{ok:bool,kind?:string,label?:string,path?:string,error?:string}
+ */
+function run_textutil_doc_reference(string $path, string $dir): array
+{
+    $output = $dir . '/textutil.html';
+    if (PHP_OS_FAMILY !== 'Darwin' || !is_executable('/usr/bin/textutil')) {
+        $message = 'macOS TextUtil is unavailable for this legacy DOC reference conversion.';
+        file_put_contents($dir . '/textutil.html.error.txt', $message);
+
+        return ['ok' => false, 'error' => $message, 'path' => 'outputs/' . basename($dir) . '/textutil.html.error.txt'];
+    }
+
+    $result = run_process(['/usr/bin/textutil', '-convert', 'html', '-encoding', 'UTF-8', '-stdout', $path], 45);
+    $body = $result['exitCode'] === 0 ? showcase_textutil_reference_body($result['stdout']) : '';
+    if ($body === '') {
+        $message = sanitize_generated_text(trim($result['stderr'] . "\n" . $result['stdout']));
+        if ($message === '') {
+            $message = 'macOS TextUtil produced no readable HTML body.';
+        }
+        file_put_contents($dir . '/textutil.html.error.txt', $message);
+
+        return ['ok' => false, 'error' => $message, 'path' => 'outputs/' . basename($dir) . '/textutil.html.error.txt'];
+    }
+
+    file_put_contents($output, wrap_local_html_document($body, 'macOS TextUtil HTML reference'));
+
+    return [
+        'ok' => true,
+        'kind' => 'macos-textutil-html',
+        'label' => 'macOS TextUtil HTML reference',
+        'path' => 'outputs/' . basename($dir) . '/textutil.html',
+    ];
+}
+
+function showcase_textutil_reference_body(string $html): string
+{
+    $html = str_replace("\0", '', $html);
+    if (preg_match('/<body\\b[^>]*>(.*)<\\/body>/is', $html, $matches) !== 1) {
+        return '';
+    }
+
+    $body = preg_replace_callback('/<p\\b[^>]*>(.*?)<\\/p>/is', static function (array $match): string {
+        $text = html_entity_decode(strip_tags($match[1]), ENT_QUOTES | ENT_HTML5 | ENT_SUBSTITUTE, 'UTF-8');
+        $text = str_replace("\xc2\xa0", ' ', $text);
+        $text = trim(preg_replace('/\\s+/u', ' ', $text) ?? $text);
+
+        return $text === '' ? '' : $match[0];
+    }, (string) $matches[1]);
+
+    return trim($body ?? '');
+}
+
 function showcase_bibliography_input_format(string $format): bool
 {
     return in_array(PandocConverter::canonicalInputFormat($format), [
@@ -3300,6 +3369,8 @@ HTML));
     $imageFigureSignature = showcase_html_visual_signature('<figure class="wp-block-image"><img src="diagram.png" alt="Diagram"/></figure>');
     $unbenchmarkedDir = sys_get_temp_dir() . '/pandoc-showcase-unbenchmarked-' . bin2hex(random_bytes(6));
     $unbenchmarked = [];
+    $legacyDocWithoutReference = [];
+    $legacyDocFaithfulness = [];
     $preservedRawHtml = [];
     $unexpectedCustomHtml = [];
     if (mkdir($unbenchmarkedDir, 0777, true)) {
@@ -3314,6 +3385,22 @@ HTML));
                 'faithfulness' => ['baseline' => null],
                 'wpBlockCounts' => ['paragraph' => 1],
             ]);
+            file_put_contents($unbenchmarkedDir . '/php.html', '<p>Standalone entry</p>');
+            $legacyDocRecord = [
+                'format' => 'doc',
+                'haskell' => ['ok' => false],
+                'externalReference' => ['ok' => false],
+                'phpHtml' => ['ok' => true, 'path' => 'php.html'],
+                'wpBlocks' => [
+                    'ok' => true,
+                    'path' => 'wordpress.html',
+                    'mediaDiagnostics' => [],
+                ],
+                'wpBlockCounts' => ['paragraph' => 1],
+            ];
+            $legacyDocFaithfulness = showcase_record_faithfulness($unbenchmarkedDir, $legacyDocRecord);
+            $legacyDocRecord['faithfulness'] = $legacyDocFaithfulness;
+            $legacyDocWithoutReference = showcase_record_import_quality($unbenchmarkedDir, $legacyDocRecord);
             $preservedRawHtml = showcase_record_import_quality($unbenchmarkedDir, [
                 'wpBlocks' => [
                     'ok' => true,
@@ -3335,6 +3422,7 @@ HTML));
             ]);
         } finally {
             @unlink($unbenchmarkedDir . '/wordpress.html');
+            @unlink($unbenchmarkedDir . '/php.html');
             @rmdir($unbenchmarkedDir);
         }
     }
@@ -3346,6 +3434,8 @@ HTML));
         && $imageFigureSignature === ['img' => 1]
         && ($unbenchmarked['status'] ?? null) === 'unbenchmarked'
         && (($unbenchmarked['gates']['text_completeness']['status'] ?? null) === 'unbenchmarked')
+        && (($legacyDocFaithfulness['baseline'] ?? null) === null)
+        && (($legacyDocWithoutReference['status'] ?? null) === 'unbenchmarked')
         && (($preservedRawHtml['gates']['custom_html_percentage']['status'] ?? null) === 'pass')
         && (($unexpectedCustomHtml['gates']['custom_html_percentage']['status'] ?? null) === 'fail');
     fwrite(STDOUT, json_encode([
@@ -3357,6 +3447,8 @@ HTML));
         'imageParagraphSignature' => $imageParagraphSignature,
         'imageFigureSignature' => $imageFigureSignature,
         'unbenchmarkedStatus' => $unbenchmarked['status'] ?? null,
+        'legacyDocWithoutReferenceStatus' => $legacyDocWithoutReference['status'] ?? null,
+        'legacyDocWithoutReferenceBaseline' => $legacyDocFaithfulness['baseline'] ?? null,
         'preservedRawHtmlStatus' => $preservedRawHtml['gates']['custom_html_percentage']['status'] ?? null,
         'unexpectedCustomHtmlStatus' => $unexpectedCustomHtml['gates']['custom_html_percentage']['status'] ?? null,
     ], JSON_UNESCAPED_SLASHES) . PHP_EOL);
@@ -3417,6 +3509,7 @@ foreach ($samples as $sample) {
     ensure_clean_dir($outDir);
 
     $haskell = is_file($target) ? run_haskell_pandoc($target, $format, $outDir) : ['ok' => false, 'error' => $downloadError ?? 'missing source file'];
+    $externalReference = is_file($target) ? run_external_reference($target, $format, $outDir) : null;
     $phpHtml = is_file($target) ? write_output_from_process($outDir, 'php.html', $target, $format, 'html') : ['ok' => false, 'error' => $downloadError ?? 'missing source file'];
     $wpBlocks = is_file($target) ? write_output_from_process($outDir, 'wordpress-blocks.html', $target, $format, 'wordpress') : ['ok' => false, 'error' => $downloadError ?? 'missing source file'];
     $wpBlockCounts = (($wpBlocks['ok'] ?? false) === true && isset($wpBlocks['path']))
@@ -3448,6 +3541,9 @@ foreach ($samples as $sample) {
         'sourceRawHtmlBlockCount' => $sourceRawHtmlBlockCount,
         'bibliographySource' => $bibliographySource,
     ];
+    if ($externalReference !== null) {
+        $record['externalReference'] = $externalReference;
+    }
     $record['bibliographyComparison'] = showcase_record_bibliography_comparison($siteDir, $record);
     $record['faithfulness'] = showcase_record_faithfulness($siteDir, $record);
     $record['importQuality'] = showcase_record_import_quality($siteDir, $record);
@@ -4017,7 +4113,7 @@ $totalConversions = count($records) * 3;
 $html = '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">';
 $html .= '<title>Pandoc PHP Port Conversion Showcase</title><link rel="stylesheet" href="styles.css"></head><body>';
 $html .= '<header class="hero"><div class="hero-inner"><p class="eyebrow">adamziel/port-libs</p><h1>Pandoc PHP port conversion showcase</h1>';
-$html .= '<p class="lede">Real public documents and upstream fixtures are converted three ways: Haskell Pandoc to HTML, the local PHP port to HTML, and the local PHP port to WordPress block markup. The stress samples are intentionally messy enough to expose timeouts, memory limits, package complexity, and block coverage.</p>';
+$html .= '<p class="lede">Real public documents and upstream fixtures are converted to PHP HTML and WordPress block markup, compared with Haskell Pandoc where that reader exists, and checked against format-native external references where Pandoc has no reader. The stress samples are intentionally messy enough to expose timeouts, memory limits, package complexity, and block coverage.</p>';
 $html .= '<div class="stats">';
 $html .= '<div class="stat"><strong>' . count($coveredFormats) . '</strong><span>covered input formats</span></div>';
 $html .= '<div class="stat"><strong>' . count($records) . '</strong><span>source files</span></div>';
@@ -4071,6 +4167,12 @@ foreach ($byFormat as $format => $formatRecords) {
             'phpHtml' => ['label' => 'PHP HTML', 'short' => 'PHP HTML'],
             'haskell' => ['label' => 'Haskell Pandoc HTML', 'short' => 'Haskell HTML'],
         ];
+        if (($record['externalReference']['ok'] ?? false) === true) {
+            $tabs['externalReference'] = [
+                'label' => (string) ($record['externalReference']['label'] ?? 'External reference HTML'),
+                'short' => 'External reference',
+            ];
+        }
         foreach ($tabs as $key => $tabInfo) {
             $panelId = $record['id'] . '-' . $key;
             $result = $record[$key];

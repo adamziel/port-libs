@@ -202,6 +202,25 @@ return [
         $t->same('pass', $gates['text_completeness']['status'] ?? null, 'Large ODT text should remain externally measured.');
         $t->same('pass', $gates['visual_structure']['status'] ?? null, 'Large ODT structure should remain externally measured.');
     },
+    'showcase compares legacy DOC imports with the format-native TextUtil reference' => static function (TestRunner $t) use ($showcaseManifest, $recordsById): void {
+        $manifest = $showcaseManifest();
+        $records = is_array($manifest['records'] ?? null) ? $manifest['records'] : [];
+        $byId = $recordsById($records);
+
+        foreach (['doc-poi-47304', 'doc-poi-57843'] as $id) {
+            $record = $byId[$id] ?? null;
+            $t->true(is_array($record), "{$id} should be present in the showcase manifest.");
+            $reference = is_array($record['externalReference'] ?? null) ? $record['externalReference'] : [];
+            $quality = is_array($record['importQuality'] ?? null) ? $record['importQuality'] : [];
+            $gates = is_array($quality['gates'] ?? null) ? $quality['gates'] : [];
+
+            $t->same(true, $reference['ok'] ?? null, "{$id} should retain an external legacy DOC reference.");
+            $t->same('macos-textutil-html', $reference['kind'] ?? null, "{$id} should use macOS TextUtil instead of a PHP self-baseline.");
+            $t->same('externalReference', $record['faithfulness']['baseline'] ?? null, "{$id} should compare WordPress blocks with the external reference.");
+            $t->same('pass', $gates['text_completeness']['status'] ?? null, "{$id} should preserve external-reference text.");
+            $t->same('pass', $gates['visual_structure']['status'] ?? null, "{$id} should preserve non-empty paragraph structure.");
+        }
+    },
     'showcase manifest proves bibliography imports against Pandoc Citeproc' => static function (TestRunner $t) use ($showcaseManifest, $recordsById): void {
         $manifest = $showcaseManifest();
         $records = is_array($manifest['records'] ?? null) ? $manifest['records'] : [];
