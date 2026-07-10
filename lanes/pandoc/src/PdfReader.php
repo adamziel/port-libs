@@ -2180,7 +2180,7 @@ final class PdfReader
      * @param list<string> $lines
      * @return list<AstNode>
      */
-    private function blocksFromLines(array $lines): array
+    private function blocksFromLines(array $lines, bool $allowStackedTables = true): array
     {
         $blocks = [];
         $pendingItems = [];
@@ -2206,12 +2206,14 @@ final class PdfReader
                 $index += $tableRun['consumed'];
                 continue;
             }
-            $stackedTableRun = $this->stackedTableRowsAt($lines, $index);
-            if ($stackedTableRun['rows'] !== []) {
-                $flushList();
-                $blocks[] = $this->table($stackedTableRun['rows']);
-                $index += $stackedTableRun['consumed'];
-                continue;
+            if ($allowStackedTables) {
+                $stackedTableRun = $this->stackedTableRowsAt($lines, $index);
+                if ($stackedTableRun['rows'] !== []) {
+                    $flushList();
+                    $blocks[] = $this->table($stackedTableRun['rows']);
+                    $index += $stackedTableRun['consumed'];
+                    continue;
+                }
             }
 
             $listItem = $this->listItem($line);
@@ -2445,7 +2447,7 @@ final class PdfReader
             $lines = $this->proseTextRepairEnabled()
                 ? $this->repairProseTextLines($pendingLines, $this->looksLikeProseRepairCandidate($pendingLines))
                 : $pendingLines;
-            foreach ($this->blocksFromLines($lines) as $block) {
+            foreach ($this->blocksFromLines($lines, false) as $block) {
                 $blocks[] = $block;
             }
             $pendingLines = [];
@@ -2491,7 +2493,7 @@ final class PdfReader
             $lines = $this->repairProseTextLines($lines, $this->looksLikeProseRepairCandidate($lines));
         }
 
-        return $this->blocksFromLines($lines);
+        return $this->blocksFromLines($lines, false);
     }
 
     /**
@@ -3350,6 +3352,16 @@ final class PdfReader
         if ($this->positionedRowsLookLikeSparseProseGrid($rows, $columnCount)) {
             return false;
         }
+        if ($this->positionedRowsLookLikeTwoColumnProse($rows, $columnCount)) {
+            $this->lowConfidenceGeometryTableCandidates++;
+
+            return false;
+        }
+        if ($this->positionedRowsLookLikeTitleMetadataGrid($rows, $columnCount)) {
+            $this->lowConfidenceGeometryTableCandidates++;
+
+            return false;
+        }
         if ($this->positionedRowsAreUndersizedNonNumericGrid($rows, $columnCount)
             || $this->positionedRowsHaveSparsePlaceholderColumns($rows, $columnCount)) {
             $this->lowConfidenceGeometryTableCandidates++;
@@ -3393,6 +3405,146 @@ final class PdfReader
         }
 
         return true;
+    }
+
+    /**
+     * Side-by-side narrative columns share the visual alignment of a table,
+     * but neither column has row-wise data semantics. Prefer editable prose
+     * when most rows contain long text in both wide columns and there is no
+     * numeric evidence of a compact data grid.
+     *
+     * @param list<list<mixed>> $rows
+     */
+    private function positionedRowsLookLikeTwoColumnProse(array $rows, int $columnCount): bool
+    {
+        if ($columnCount < 2 || count($rows) < 3) {
+            return false;
+        }
+
+        $columnPresence = array_fill(0, $columnCount, 0);
+        foreach ($rows as $row) {
+            for ($index = 0; $index < $columnCount; $index++) {
+                if (trim($this->cellTextValue($row[$index] ?? '')) !== '') {
+                    $columnPresence[$index]++;
+                }
+            }
+        }
+        $minimumPresence = max(2, (int) ceil(count($rows) * 0.20));
+        $activeColumns = [];
+        foreach ($columnPresence as $index => $presence) {
+            if ($presence >= $minimumPresence) {
+                $activeColumns[] = $index;
+            }
+        }
+        if (count($activeColumns) !== 2) {
+            return false;
+        }
+
+        $twoCellRows = 0;
+        $longPairRows = 0;
+        $widePairRows = 0;
+        $numericCells = 0;
+        $populatedCells = 0;
+        foreach ($rows as $row) {
+            $populated = [];
+            foreach ($activeColumns as $columnIndex) {
+                $cell = $row[$columnIndex] ?? '';
+                $text = trim($this->cellTextValue($cell));
+                if ($text === '') {
+                    continue;
+                }
+                $populated[] = $cell;
+                $populatedCells++;
+                if ($this->positionedCellIsNumericValue($text)) {
+                    $numericCells++;
+                }
+            }
+            if (count($populated) !== 2) {
+                continue;
+            }
+
+            $twoCellRows++;
+            $leftText = trim($this->cellTextValue($populated[0]));
+            $rightText = trim($this->cellTextValue($populated[1]));
+            if ((
+                $this->positionedCellWordCount($leftText) >= 7
+                && $this->positionedCellWordCount($rightText) >= 7
+            ) || (
+                $this->length($leftText) >= 48
+                && $this->length($rightText) >= 48
+            )) {
+                $longPairRows++;
+            }
+
+            $leftWidth = $this->positionedCellContentWidth($populated[0]);
+            $rightWidth = $this->positionedCellContentWidth($populated[1]);
+            if ($leftWidth !== null && $rightWidth !== null && min($leftWidth, $rightWidth) >= 80.0) {
+                $widePairRows++;
+            }
+        }
+
+        if ($twoCellRows < 3 || $populatedCells === 0) {
+            return false;
+        }
+
+        return $longPairRows / $twoCellRows >= 0.50
+            && $widePairRows / $twoCellRows >= 0.50
+            && $numericCells / $populatedCells < 0.12;
+    }
+
+    private function positionedCellContentWidth(mixed $cell): ?float
+    {
+        if (!is_array($cell)) {
+            return null;
+        }
+        $x1 = $this->numericValue($cell['contentX1'] ?? $cell['x1'] ?? null);
+        $x2 = $this->numericValue($cell['contentX2'] ?? $cell['x2'] ?? null);
+
+        return $x1 === null || $x2 === null ? null : max(0.0, $x2 - $x1);
+    }
+
+    /**
+     * A two-row, two-column title and qualifier pair is common in forms and
+     * page headers. It is not enough evidence to turn the surrounding page
+     * into a data table.
+     *
+     * @param list<list<mixed>> $rows
+     */
+    private function positionedRowsLookLikeTitleMetadataGrid(array $rows, int $columnCount): bool
+    {
+        if ($columnCount !== 2 || count($rows) !== 2) {
+            return false;
+        }
+
+        $texts = [];
+        foreach ($rows as $row) {
+            $populated = [];
+            foreach ($row as $cell) {
+                $text = trim($this->cellTextValue($cell));
+                if ($text !== '') {
+                    $populated[] = $text;
+                }
+            }
+            if (count($populated) !== 2) {
+                return false;
+            }
+            $texts[] = $populated;
+        }
+
+        foreach ([...$texts[0], ...$texts[1]] as $text) {
+            if ($this->positionedCellIsNumericValue($text)) {
+                return false;
+            }
+        }
+
+        $firstRowCompact = $this->positionedCellWordCount($texts[0][0]) <= 5
+            && $this->positionedCellWordCount($texts[0][1]) <= 5;
+        $secondRowHasNarrative = max(
+            $this->positionedCellWordCount($texts[1][0]),
+            $this->positionedCellWordCount($texts[1][1])
+        ) >= 5;
+
+        return $firstRowCompact && $secondRowHasNarrative;
     }
 
     /**
@@ -4786,11 +4938,47 @@ final class PdfReader
             }
 
             if (count($rows) >= 4) {
+                if (!$this->stackedTableRowsLookLikeDataGrid($rows, $columnCount)) {
+                    continue;
+                }
+
                 return ['rows' => $rows, 'consumed' => $index - $start];
             }
         }
 
         return ['rows' => [], 'consumed' => 0];
+    }
+
+    /**
+     * Wide stacked grids are especially prone to false positives when a
+     * multi-column PDF has been flattened into interleaved line fragments.
+     * Keep text-only wide grids as prose unless their body carries repeated
+     * numeric values, which are a format-independent data-table signal.
+     *
+     * @param list<list<string>> $rows
+     */
+    private function stackedTableRowsLookLikeDataGrid(array $rows, int $columnCount): bool
+    {
+        if ($columnCount <= 3) {
+            return true;
+        }
+
+        $bodyCells = 0;
+        $numericCells = 0;
+        foreach (array_slice($rows, 1) as $row) {
+            foreach ($row as $cell) {
+                $text = trim($cell);
+                if ($text === '') {
+                    continue;
+                }
+                $bodyCells++;
+                if ($this->positionedCellIsNumericValue($text)) {
+                    $numericCells++;
+                }
+            }
+        }
+
+        return $numericCells >= max(3, (int) ceil($bodyCells * 0.20));
     }
 
     private function stackedTableHeaderCell(string $line): bool

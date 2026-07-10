@@ -1,0 +1,1151 @@
+{
+    "extractor": "macOS PDFKit",
+    "pageCount": 2,
+    "pages": [
+        {
+            "height": 672,
+            "lines": [
+                {
+                    "height": 46.018,
+                    "text": "Hand Hygiene is the #1 way to",
+                    "width": 331.417,
+                    "x": 62.295,
+                    "y": 567.804
+                },
+                {
+                    "height": 46.018,
+                    "text": "prevent the spread of infections",
+                    "width": 362.425,
+                    "x": 46.791,
+                    "y": 542.8
+                },
+                {
+                    "height": 87.192,
+                    "text": "Why? You can take action by practicing",
+                    "width": 280.978,
+                    "x": 99.648,
+                    "y": 473.592
+                },
+                {
+                    "height": 26.719,
+                    "text": "hand hygiene regularly and by",
+                    "width": 155.375,
+                    "x": 218.123,
+                    "y": 487.34
+                },
+                {
+                    "height": 26.719,
+                    "text": "asking those around you to practice",
+                    "width": 179.344,
+                    "x": 218.123,
+                    "y": 473.843
+                },
+                {
+                    "height": 26.719,
+                    "text": "it as well.",
+                    "width": 47.058,
+                    "x": 218.123,
+                    "y": 460.346
+                },
+                {
+                    "height": 87.192,
+                    "text": "When? You and your loved ones should",
+                    "width": 309.931,
+                    "x": 67.791,
+                    "y": 406.092
+                },
+                {
+                    "height": 26.719,
+                    "text": "clean your hands very often,",
+                    "width": 143.066,
+                    "x": 218.123,
+                    "y": 419.84
+                },
+                {
+                    "height": 26.719,
+                    "text": "especially after touching objects or",
+                    "width": 170.258,
+                    "x": 218.123,
+                    "y": 406.343
+                },
+                {
+                    "height": 26.719,
+                    "text": "surfaces in the hospital room,",
+                    "width": 148.236,
+                    "x": 218.134,
+                    "y": 392.846
+                },
+                {
+                    "height": 26.719,
+                    "text": "before eating, and after using the",
+                    "width": 166.815,
+                    "x": 218.134,
+                    "y": 379.349
+                },
+                {
+                    "height": 26.719,
+                    "text": "restroom.Your healthcare provider",
+                    "width": 174.339,
+                    "x": 218.134,
+                    "y": 365.852
+                },
+                {
+                    "height": 26.719,
+                    "text": "should practice hand hygiene",
+                    "width": 149.985,
+                    "x": 218.134,
+                    "y": 352.355
+                },
+                {
+                    "height": 26.719,
+                    "text": "every time they enter your room.",
+                    "width": 165.66,
+                    "x": 218.134,
+                    "y": 338.858
+                },
+                {
+                    "height": 87.192,
+                    "text": "How? It only takes 15 seconds of using",
+                    "width": 283.535,
+                    "x": 96.783,
+                    "y": 284.592
+                },
+                {
+                    "height": 26.719,
+                    "text": "either soap and water or an",
+                    "width": 138.259,
+                    "x": 218.123,
+                    "y": 298.34
+                },
+                {
+                    "height": 26.719,
+                    "text": "alcohol­based hand rub to kill the",
+                    "width": 170.577,
+                    "x": 218.123,
+                    "y": 284.843
+                },
+                {
+                    "height": 26.719,
+                    "text": "germs that cause infections.",
+                    "width": 140.668,
+                    "x": 218.123,
+                    "y": 271.346
+                },
+                {
+                    "height": 87.192,
+                    "text": "Which?",
+                    "width": 159.912,
+                    "x": 50.738,
+                    "y": 217.092
+                },
+                {
+                    "height": 87.192,
+                    "text": "Use soap and water when your",
+                    "width": 153.879,
+                    "x": 218.123,
+                    "y": 217.092
+                },
+                {
+                    "height": 26.719,
+                    "text": "hands look dirty; otherwise, you",
+                    "width": 160.281,
+                    "x": 218.123,
+                    "y": 230.843
+                },
+                {
+                    "height": 26.719,
+                    "text": "can use an alcohol­based hand rub.",
+                    "width": 179.19,
+                    "x": 218.123,
+                    "y": 217.346
+                },
+                {
+                    "height": 87.192,
+                    "text": "Who? You, your loved ones, and your",
+                    "width": 276.397,
+                    "x": 94.791,
+                    "y": 163.092
+                },
+                {
+                    "height": 26.719,
+                    "text": "healthcare providers should",
+                    "width": 141.482,
+                    "x": 218.121,
+                    "y": 176.84
+                },
+                {
+                    "height": 26.719,
+                    "text": "practice hand hygiene.",
+                    "width": 116.303,
+                    "x": 218.121,
+                    "y": 163.343
+                },
+                {
+                    "height": 26.642,
+                    "text": "For more information, please visit",
+                    "width": 223.274,
+                    "x": 57,
+                    "y": 126.748
+                },
+                {
+                    "height": 26.642,
+                    "text": "www.cdc.gov/handhygiene or call 1­800­CDC­INFO",
+                    "width": 329.998,
+                    "x": 57.007,
+                    "y": 113.548
+                },
+                {
+                    "height": 7.136,
+                    "text": "CDC acknowledges the following partners in the development of the Hand Hygiene Saves Lives video:",
+                    "width": 281.584,
+                    "x": 57,
+                    "y": 81.822
+                },
+                {
+                    "height": 7.136,
+                    "text": "the Association for Professionals in Infection Control and Epidemiology and Safe Care Campaign.",
+                    "width": 270.904,
+                    "x": 57,
+                    "y": 72.222
+                },
+                {
+                    "height": 7.136,
+                    "text": "This brochure was developed with support from the CDC Foundation and Kimberly­Clark Corporation.",
+                    "width": 280.664,
+                    "x": 57,
+                    "y": 55.398
+                },
+                {
+                    "height": 32.091,
+                    "text": "A Patient’s Guide",
+                    "width": 134.527,
+                    "x": 653.769,
+                    "y": 585.267
+                },
+                {
+                    "height": 38.275,
+                    "text": "aves Lives",
+                    "width": 193.931,
+                    "x": 596.217,
+                    "y": 307.242
+                },
+                {
+                    "height": 33.908,
+                    "text": "hand hygiene",
+                    "width": 114.8,
+                    "x": 652.868,
+                    "y": 252.877
+                },
+                {
+                    "height": 12.614,
+                    "text": "• Washing hands with",
+                    "width": 112.448,
+                    "x": 652.868,
+                    "y": 239.507
+                },
+                {
+                    "height": 12.488,
+                    "text": "soap and water.",
+                    "width": 77.714,
+                    "x": 666.112,
+                    "y": 224.639
+                },
+                {
+                    "height": 12.614,
+                    "text": "• Cleansing hands",
+                    "width": 95.634,
+                    "x": 652.868,
+                    "y": 205.907
+                },
+                {
+                    "height": 12.488,
+                    "text": "using an alcohol",
+                    "width": 80.836,
+                    "x": 666.112,
+                    "y": 191.039
+                },
+                {
+                    "height": 12.488,
+                    "text": "based\nhand rub.",
+                    "width": 80.038,
+                    "x": 666.112,
+                    "y": 176.045
+                },
+                {
+                    "height": 12.614,
+                    "text": "• Preventing the spread",
+                    "width": 120.484,
+                    "x": 652.868,
+                    "y": 157.313
+                },
+                {
+                    "height": 12.488,
+                    "text": "of germs and infections.",
+                    "width": 118.916,
+                    "x": 666.112,
+                    "y": 142.445
+                }
+            ],
+            "number": 1,
+            "rotation": 0,
+            "text": "Hand Hygiene is the #1 way to\nprevent the spread of infections\nWhy? You can take action by practicing\nhand hygiene regularly and by\nasking those around you to practice\nit as well.\nWhen? You and your loved ones should\nclean your hands very often,\nespecially after touching objects or\nsurfaces in the hospital room,\nbefore eating, and after using the\nrestroom.Your healthcare provider\nshould practice hand hygiene\nevery time they enter your room.\nHow? It only takes 15 seconds of using\neither soap and water or an\nalcohol­based hand rub to kill the\ngerms that cause infections.\nWhich? Use soap and water when your\nhands look dirty; otherwise, you\ncan use an alcohol­based hand rub.\nWho? You, your loved ones, and your\nhealthcare providers should\npractice hand hygiene.\nFor more information, please visit\nwww.cdc.gov/handhygiene or call 1­800­CDC­INFO\nCDC acknowledges the following partners in the development of the Hand Hygiene Saves Lives video:\nthe Association for Professionals in Infection Control and Epidemiology and Safe Care Campaign.\nThis brochure was developed with support from the CDC Foundation and Kimberly­Clark Corporation.\nA Patient’s Guide\naves Lives\nhand hygiene\n• Washing hands with\nsoap and water.\n• Cleansing hands\nusing an alcoholbased\nhand rub.\n• Preventing the spread\nof germs and infections.",
+            "width": 852
+        },
+        {
+            "height": 672,
+            "lines": [
+                {
+                    "height": 87.192,
+                    "text": "Why? When?",
+                    "width": 326.016,
+                    "x": 50.277,
+                    "y": 572.1
+                },
+                {
+                    "height": 26.642,
+                    "text": "To prevent hospital",
+                    "width": 126.896,
+                    "x": 57,
+                    "y": 568.417
+                },
+                {
+                    "height": 26.642,
+                    "text": "You should practice",
+                    "width": 130.185,
+                    "x": 237.004,
+                    "y": 568.417
+                },
+                {
+                    "height": 26.642,
+                    "text": "infections. hand hygiene:",
+                    "width": 274.56,
+                    "x": 57.011,
+                    "y": 554.92
+                },
+                {
+                    "height": 9.817,
+                    "text": "• In the United States, hospital patients",
+                    "width": 152.477,
+                    "x": 57,
+                    "y": 545.625
+                },
+                {
+                    "height": 9.817,
+                    "text": "• Before preparing or eating food.",
+                    "width": 129.987,
+                    "x": 237.021,
+                    "y": 545.625
+                },
+                {
+                    "height": 9.812,
+                    "text": "get nearly 2 million infections each year.",
+                    "width": 153.12,
+                    "x": 64.772,
+                    "y": 532.133
+                },
+                {
+                    "height": 9.812,
+                    "text": "• Before touching your eyes, nose,",
+                    "width": 130.614,
+                    "x": 237.043,
+                    "y": 532.133
+                },
+                {
+                    "height": 9.812,
+                    "text": "That’s about 1 infection per 20 patients!",
+                    "width": 153.582,
+                    "x": 64.794,
+                    "y": 518.636
+                },
+                {
+                    "height": 9.812,
+                    "text": "or mouth.",
+                    "width": 36.641,
+                    "x": 244.93,
+                    "y": 518.636
+                },
+                {
+                    "height": 9.814,
+                    "text": "• Infections you get in the hospital can be",
+                    "width": 159.698,
+                    "x": 56.995,
+                    "y": 505.128
+                },
+                {
+                    "height": 9.814,
+                    "text": "• Before and after changing wound",
+                    "width": 136.092,
+                    "x": 237.021,
+                    "y": 505.128
+                },
+                {
+                    "height": 9.812,
+                    "text": "life­threatening and hard to treat.",
+                    "width": 128.986,
+                    "x": 64.772,
+                    "y": 491.633
+                },
+                {
+                    "height": 9.812,
+                    "text": "dressings or bandages.",
+                    "width": 89.771,
+                    "x": 244.908,
+                    "y": 491.633
+                },
+                {
+                    "height": 9.817,
+                    "text": "• All patients are at risk for hospital",
+                    "width": 137.885,
+                    "x": 56.995,
+                    "y": 478.125
+                },
+                {
+                    "height": 9.817,
+                    "text": "• After using the restroom.",
+                    "width": 103.125,
+                    "x": 236.999,
+                    "y": 478.125
+                },
+                {
+                    "height": 9.812,
+                    "text": "infections.",
+                    "width": 39.82,
+                    "x": 64.75,
+                    "y": 464.633
+                },
+                {
+                    "height": 9.812,
+                    "text": "• After blowing your nose, coughing,",
+                    "width": 139.755,
+                    "x": 237.01,
+                    "y": 464.633
+                },
+                {
+                    "height": 9.817,
+                    "text": "• You can take action by asking both your",
+                    "width": 157.971,
+                    "x": 56.995,
+                    "y": 451.125
+                },
+                {
+                    "height": 9.817,
+                    "text": "or sneezing.",
+                    "width": 45.793,
+                    "x": 244.897,
+                    "y": 451.125
+                },
+                {
+                    "height": 9.812,
+                    "text": "healthcare providers and visitors to",
+                    "width": 134.453,
+                    "x": 64.772,
+                    "y": 437.633
+                },
+                {
+                    "height": 9.812,
+                    "text": "• After touching hospital surfaces such",
+                    "width": 151.976,
+                    "x": 237.01,
+                    "y": 437.633
+                },
+                {
+                    "height": 9.812,
+                    "text": "wash their hands.",
+                    "width": 68.233,
+                    "x": 64.761,
+                    "y": 424.136
+                },
+                {
+                    "height": 9.812,
+                    "text": "as bed rails, bedside tables, doorknobs,",
+                    "width": 152.68,
+                    "x": 244.908,
+                    "y": 424.136
+                },
+                {
+                    "height": 9.812,
+                    "text": "remote controls, or the phone.",
+                    "width": 114.202,
+                    "x": 244.875,
+                    "y": 410.628
+                },
+                {
+                    "height": 26.644,
+                    "text": "Healthcare providers",
+                    "width": 139.811,
+                    "x": 236.999,
+                    "y": 379.41
+                },
+                {
+                    "height": 38.41,
+                    "text": "Remember: Hand should practice hand",
+                    "width": 312.187,
+                    "x": 66,
+                    "y": 365.917
+                },
+                {
+                    "height": 68.616,
+                    "text": "{ }• Every time they enter your room.*",
+                    "width": 328.361,
+                    "x": 43.5,
+                    "y": 342.69
+                },
+                {
+                    "height": 38.529,
+                    "text": "hygiene saves lives. hygiene:",
+                    "width": 228.202,
+                    "x": 66,
+                    "y": 352.417
+                },
+                {
+                    "height": 9.812,
+                    "text": "• Before putting on gloves. Wearing",
+                    "width": 137.126,
+                    "x": 237.001,
+                    "y": 329.633
+                },
+                {
+                    "height": 26.645,
+                    "text": "To make a difference",
+                    "width": 137.907,
+                    "x": 56.997,
+                    "y": 311.92
+                },
+                {
+                    "height": 26.642,
+                    "text": "in your own health.",
+                    "width": 126.643,
+                    "x": 56.997,
+                    "y": 298.423
+                },
+                {
+                    "height": 9.814,
+                    "text": "• Hand hygiene is one of the most",
+                    "width": 130.636,
+                    "x": 56.997,
+                    "y": 289.128
+                },
+                {
+                    "height": 9.812,
+                    "text": "important ways to prevent the spread of",
+                    "width": 153.252,
+                    "x": 64.875,
+                    "y": 275.633
+                },
+                {
+                    "height": 34.006,
+                    "text": "infections, including the common cold,",
+                    "width": 149.028,
+                    "x": 64.875,
+                    "y": 255.467
+                },
+                {
+                    "height": 34.006,
+                    "text": "flu, and even hard­to­treat infections,",
+                    "width": 145.893,
+                    "x": 64.875,
+                    "y": 242.086
+                },
+                {
+                    "height": 34.006,
+                    "text": "such as methicillin­resistant",
+                    "width": 111.144,
+                    "x": 64.875,
+                    "y": 228.706
+                },
+                {
+                    "height": 34.006,
+                    "text": "Staphylococcus aureus, or MRSA.",
+                    "width": 127.545,
+                    "x": 64.875,
+                    "y": 215.327
+                },
+                {
+                    "height": 26.645,
+                    "text": "gloves alone is not enough to prevent",
+                    "width": 142.923,
+                    "x": 244.877,
+                    "y": 311.92
+                },
+                {
+                    "height": 26.642,
+                    "text": "the spread of infection.",
+                    "width": 89.144,
+                    "x": 244.877,
+                    "y": 298.423
+                },
+                {
+                    "height": 9.814,
+                    "text": "• After removing gloves.",
+                    "width": 93.381,
+                    "x": 237.001,
+                    "y": 289.128
+                },
+                {
+                    "height": 34.006,
+                    "text": "Remember: Ask your",
+                    "width": 134.736,
+                    "x": 242.056,
+                    "y": 255.467
+                },
+                {
+                    "height": 34.006,
+                    "text": "doctors and nurses to",
+                    "width": 137.97,
+                    "x": 242.056,
+                    "y": 242.086
+                },
+                {
+                    "height": 68.616,
+                    "text": "{ }",
+                    "width": 190.656,
+                    "x": 219.556,
+                    "y": 213.76
+                },
+                {
+                    "height": 34.006,
+                    "text": "clean their hands before",
+                    "width": 149.128,
+                    "x": 242.057,
+                    "y": 228.706
+                },
+                {
+                    "height": 34.006,
+                    "text": "they examine you.",
+                    "width": 117.04,
+                    "x": 242.059,
+                    "y": 215.327
+                },
+                {
+                    "height": 7.136,
+                    "text": "* If you already have an infection, your healthcare",
+                    "width": 139.328,
+                    "x": 237,
+                    "y": 189.364
+                },
+                {
+                    "height": 7.136,
+                    "text": "providers may take special measures (isolation",
+                    "width": 131.472,
+                    "x": 242.248,
+                    "y": 181.364
+                },
+                {
+                    "height": 7.136,
+                    "text": "precautions) to prevent the spread of your infection",
+                    "width": 142.976,
+                    "x": 242.248,
+                    "y": 173.364
+                },
+                {
+                    "height": 7.136,
+                    "text": "to others. They might enter your room wearing",
+                    "width": 129.216,
+                    "x": 242.248,
+                    "y": 165.364
+                },
+                {
+                    "height": 7.136,
+                    "text": "protective equipment (e.g., gloves, gown, mask).",
+                    "width": 135.472,
+                    "x": 242.248,
+                    "y": 157.364
+                },
+                {
+                    "height": 7.136,
+                    "text": "You do not need to ask them to clean their hands",
+                    "width": 136.352,
+                    "x": 242.248,
+                    "y": 149.364
+                },
+                {
+                    "height": 7.136,
+                    "text": "because they should have done so before they put",
+                    "width": 138.568,
+                    "x": 242.248,
+                    "y": 141.364
+                },
+                {
+                    "height": 7.136,
+                    "text": "on gloves.",
+                    "width": 27.992,
+                    "x": 242.248,
+                    "y": 133.364
+                },
+                {
+                    "height": 26.642,
+                    "text": "Alcohol based hand rubs",
+                    "width": 160.93,
+                    "x": 635.245,
+                    "y": 433.417
+                },
+                {
+                    "height": 9.812,
+                    "text": "• Products that kill germs on the hands.",
+                    "width": 155.034,
+                    "x": 635.256,
+                    "y": 424.133
+                },
+                {
+                    "height": 9.812,
+                    "text": "• Should contain 60% to 95% ethanol",
+                    "width": 147.697,
+                    "x": 635.256,
+                    "y": 410.636
+                },
+                {
+                    "height": 9.812,
+                    "text": "or isopropanol (types of alcohol).",
+                    "width": 125.169,
+                    "x": 643.132,
+                    "y": 397.139
+                },
+                {
+                    "height": 9.812,
+                    "text": "• Are fast­acting and convenient.",
+                    "width": 129.371,
+                    "x": 635.256,
+                    "y": 383.642
+                },
+                {
+                    "height": 87.192,
+                    "text": "How? Which?",
+                    "width": 339.912,
+                    "x": 446.277,
+                    "y": 572.1
+                },
+                {
+                    "height": 26.642,
+                    "text": "With soap and water:",
+                    "width": 138.666,
+                    "x": 453.001,
+                    "y": 568.417
+                },
+                {
+                    "height": 9.815,
+                    "text": "1. Wet your hands with warm water.",
+                    "width": 136.525,
+                    "x": 453.001,
+                    "y": 559.13
+                },
+                {
+                    "height": 9.812,
+                    "text": "Use liquid soap if possible. Apply a",
+                    "width": 134.343,
+                    "x": 462.751,
+                    "y": 545.633
+                },
+                {
+                    "height": 9.812,
+                    "text": "nickel­or quarter­sized amount of",
+                    "width": 130.856,
+                    "x": 462.751,
+                    "y": 532.136
+                },
+                {
+                    "height": 26.642,
+                    "text": "Use soap and water:",
+                    "width": 130.933,
+                    "x": 633.005,
+                    "y": 568.417
+                },
+                {
+                    "height": 9.815,
+                    "text": "• When your hands look dirty.",
+                    "width": 112.53,
+                    "x": 632.998,
+                    "y": 559.13
+                },
+                {
+                    "height": 9.812,
+                    "text": "• After you use the bathroom.",
+                    "width": 113.564,
+                    "x": 632.998,
+                    "y": 545.633
+                },
+                {
+                    "height": 9.812,
+                    "text": "• Before you eat or prepare food.",
+                    "width": 125.169,
+                    "x": 632.998,
+                    "y": 532.136
+                },
+                {
+                    "height": 9.812,
+                    "text": "soap to your hands.",
+                    "width": 75.097,
+                    "x": 462.751,
+                    "y": 518.639
+                },
+                {
+                    "height": 26.642,
+                    "text": "2. Rub your hands together until soap",
+                    "width": 144.672,
+                    "x": 453.005,
+                    "y": 500.918
+                },
+                {
+                    "height": 26.642,
+                    "text": "forms a lather and then rub all over",
+                    "width": 136.774,
+                    "x": 462.752,
+                    "y": 487.421
+                },
+                {
+                    "height": 9.812,
+                    "text": "the top of your hands, in between your",
+                    "width": 145.915,
+                    "x": 462.752,
+                    "y": 478.137
+                },
+                {
+                    "height": 9.812,
+                    "text": "fingers and the area around and under",
+                    "width": 148.973,
+                    "x": 462.752,
+                    "y": 464.64
+                },
+                {
+                    "height": 26.642,
+                    "text": "Use an alcohol­based",
+                    "width": 140.151,
+                    "x": 632.999,
+                    "y": 500.918
+                },
+                {
+                    "height": 26.642,
+                    "text": "hand rub:",
+                    "width": 65.538,
+                    "x": 632.999,
+                    "y": 487.421
+                },
+                {
+                    "height": 9.812,
+                    "text": "• When your hands do not look dirty.",
+                    "width": 138.787,
+                    "x": 632.999,
+                    "y": 478.137
+                },
+                {
+                    "height": 9.812,
+                    "text": "• If soap and water are not available.",
+                    "width": 144.705,
+                    "x": 632.999,
+                    "y": 464.64
+                },
+                {
+                    "height": 9.812,
+                    "text": "the fingernails.",
+                    "width": 58.608,
+                    "x": 462.752,
+                    "y": 451.143
+                },
+                {
+                    "height": 9.816,
+                    "text": "3. Continue rubbing your hands for 15",
+                    "width": 144.027,
+                    "x": 453.006,
+                    "y": 437.631
+                },
+                {
+                    "height": 9.812,
+                    "text": "seconds. Need a timer? Imagine singing",
+                    "width": 151.767,
+                    "x": 462.503,
+                    "y": 424.134
+                },
+                {
+                    "height": 9.812,
+                    "text": "the “Happy Birthday” song twice.",
+                    "width": 127.6,
+                    "x": 462.514,
+                    "y": 410.637
+                },
+                {
+                    "height": 9.812,
+                    "text": "4. Rinse your hands well under running",
+                    "width": 150.183,
+                    "x": 452.999,
+                    "y": 397.129
+                },
+                {
+                    "height": 9.814,
+                    "text": "water.",
+                    "width": 23.196,
+                    "x": 462.756,
+                    "y": 383.632
+                },
+                {
+                    "height": 9.817,
+                    "text": "5. Dry your hands using a paper towel if",
+                    "width": 152.603,
+                    "x": 453.007,
+                    "y": 370.126
+                },
+                {
+                    "height": 9.812,
+                    "text": "possible. Then use your paper towel to",
+                    "width": 145.948,
+                    "x": 462.753,
+                    "y": 356.634
+                },
+                {
+                    "height": 9.812,
+                    "text": "turn off the faucet and to open the door",
+                    "width": 151.415,
+                    "x": 462.753,
+                    "y": 343.137
+                },
+                {
+                    "height": 9.812,
+                    "text": "if needed.",
+                    "width": 37.862,
+                    "x": 462.753,
+                    "y": 329.64
+                },
+                {
+                    "height": 34.006,
+                    "text": "Remember:",
+                    "width": 75.712,
+                    "x": 461.024,
+                    "y": 295.833
+                },
+                {
+                    "height": 34.006,
+                    "text": "takes 15 seconds to",
+                    "width": 124.558,
+                    "x": 461.024,
+                    "y": 282.463
+                },
+                {
+                    "height": 74.67,
+                    "text": "{It only",
+                    "width": 140.451,
+                    "x": 438.524,
+                    "y": 255.17
+                },
+                {
+                    "height": 34.006,
+                    "text": "protect yourself and",
+                    "width": 128.576,
+                    "x": 461.024,
+                    "y": 269.079
+                },
+                {
+                    "height": 34.006,
+                    "text": "others.",
+                    "width": 44.632,
+                    "x": 461.024,
+                    "y": 255.695
+                },
+                {
+                    "height": 136.168,
+                    "text": "} Who?",
+                    "width": 150.241,
+                    "x": 595.052,
+                    "y": 255.17
+                },
+                {
+                    "height": 74.67,
+                    "text": "You can make a",
+                    "width": 101.893,
+                    "x": 633,
+                    "y": 255.17
+                },
+                {
+                    "height": 26.642,
+                    "text": "difference in your",
+                    "width": 117.348,
+                    "x": 633,
+                    "y": 284.92
+                },
+                {
+                    "height": 26.642,
+                    "text": "own health:",
+                    "width": 77.935,
+                    "x": 633,
+                    "y": 271.423
+                },
+                {
+                    "height": 9.812,
+                    "text": "• Healthcare providers know they should",
+                    "width": 155.65,
+                    "x": 633,
+                    "y": 262.139
+                },
+                {
+                    "height": 9.812,
+                    "text": "practice hand hygiene, but they",
+                    "width": 120.879,
+                    "x": 640.876,
+                    "y": 248.642
+                },
+                {
+                    "height": 26.642,
+                    "text": "With an alcohol­based",
+                    "width": 143.341,
+                    "x": 452.996,
+                    "y": 230.932
+                },
+                {
+                    "height": 26.642,
+                    "text": "sometimes forget. Most welcome your",
+                    "width": 143.539,
+                    "x": 640.865,
+                    "y": 230.932
+                },
+                {
+                    "height": 26.642,
+                    "text": "hand rub: friendly reminder.",
+                    "width": 255.046,
+                    "x": 452.985,
+                    "y": 217.435
+                },
+                {
+                    "height": 9.813,
+                    "text": "1. Follow directions on the bottle for how",
+                    "width": 155.097,
+                    "x": 452.996,
+                    "y": 208.129
+                },
+                {
+                    "height": 9.813,
+                    "text": "• Ask healthcare providers to practice",
+                    "width": 145.882,
+                    "x": 632.997,
+                    "y": 208.129
+                },
+                {
+                    "height": 9.812,
+                    "text": "much of the product to use.",
+                    "width": 105.644,
+                    "x": 462.75,
+                    "y": 194.633
+                },
+                {
+                    "height": 9.812,
+                    "text": "hand hygiene in a polite way — tell",
+                    "width": 137.368,
+                    "x": 640.873,
+                    "y": 194.633
+                },
+                {
+                    "height": 9.817,
+                    "text": "2. Rub hands together and then rub",
+                    "width": 137.346,
+                    "x": 453.004,
+                    "y": 181.125
+                },
+                {
+                    "height": 9.817,
+                    "text": "them that you know how easy it is for",
+                    "width": 142.263,
+                    "x": 640.873,
+                    "y": 181.125
+                },
+                {
+                    "height": 9.812,
+                    "text": "product all over the top of your hands,",
+                    "width": 145.915,
+                    "x": 462.75,
+                    "y": 167.633
+                },
+                {
+                    "height": 9.812,
+                    "text": "people to get infections in the hospital",
+                    "width": 147.774,
+                    "x": 640.873,
+                    "y": 167.633
+                },
+                {
+                    "height": 9.812,
+                    "text": "in between your fingers and the area",
+                    "width": 140.415,
+                    "x": 462.75,
+                    "y": 154.136
+                },
+                {
+                    "height": 9.812,
+                    "text": "and that you don’t want it to happen",
+                    "width": 140.393,
+                    "x": 640.873,
+                    "y": 154.136
+                },
+                {
+                    "height": 9.812,
+                    "text": "around and under the fingernails.",
+                    "width": 129.426,
+                    "x": 462.75,
+                    "y": 140.639
+                },
+                {
+                    "height": 9.812,
+                    "text": "to you.",
+                    "width": 25.025,
+                    "x": 640.873,
+                    "y": 140.639
+                },
+                {
+                    "height": 9.813,
+                    "text": "3. Continue rubbing until your hands are",
+                    "width": 152.098,
+                    "x": 453.004,
+                    "y": 127.13
+                },
+                {
+                    "height": 34.006,
+                    "text": "dry. If enough rub was used to kill",
+                    "width": 134.827,
+                    "x": 462.718,
+                    "y": 100.247
+                },
+                {
+                    "height": 34.006,
+                    "text": "Remember: Take",
+                    "width": 108.206,
+                    "x": 643.283,
+                    "y": 100.247
+                },
+                {
+                    "height": 9.812,
+                    "text": "germs, it should take at least 15",
+                    "width": 125.18,
+                    "x": 462.751,
+                    "y": 100.13
+                },
+                {
+                    "height": 68.616,
+                    "text": "control of your health, }seconds of rubbing before your hands",
+                    "width": 400.795,
+                    "x": 382.88,
+                    "y": 66.273
+                },
+                {
+                    "height": 9.815,
+                    "text": "with water or dry them with a towel.",
+                    "width": 137.346,
+                    "x": 462.752,
+                    "y": 59.63
+                },
+                {
+                    "height": 68.616,
+                    "text": "{feel dry. You should not rinse your hands",
+                    "width": 200.657,
+                    "x": 420.126,
+                    "y": 66.273
+                },
+                {
+                    "height": 34.006,
+                    "text": "practice hand hygiene.",
+                    "width": 143.234,
+                    "x": 643.283,
+                    "y": 73.485
+                }
+            ],
+            "number": 2,
+            "rotation": 0,
+            "text": "Why? When?\nTo prevent hospital You should practice\ninfections. hand hygiene:\n• In the United States, hospital patients • Before preparing or eating food.\nget nearly 2 million infections each year. • Before touching your eyes, nose,\nThat’s about 1 infection per 20 patients! or mouth.\n• Infections you get in the hospital can be • Before and after changing wound\nlife­threatening and hard to treat. dressings or bandages.\n• All patients are at risk for hospital • After using the restroom.\ninfections. • After blowing your nose, coughing,\n• You can take action by asking both your or sneezing.\nhealthcare providers and visitors to • After touching hospital surfaces such\nwash their hands. as bed rails, bedside tables, doorknobs,\nremote controls, or the phone.\nHealthcare providers\nRemember: Hand should practice hand\n{ }• Every time they enter your room.*\nhygiene saves lives. hygiene:\n• Before putting on gloves. Wearing\nTo make a difference in your own health. • Hand hygiene is one of the most important ways to prevent the spread of\ninfections, including the common cold, flu, and even hard­to­treat infections, such as methicillin­resistant Staphylococcus aureus, or MRSA. gloves alone is not enough to prevent\nthe spread of infection.\n• After removing gloves.\nRemember: Ask your\ndoctors and nurses to\n{ }\nclean their hands before\nthey examine you.\n* If you already have an infection, your healthcare\nproviders may take special measures (isolation\nprecautions) to prevent the spread of your infection\nto others. They might enter your room wearing\nprotective equipment (e.g., gloves, gown, mask).\nYou do not need to ask them to clean their hands\nbecause they should have done so before they put\non gloves.\nAlcohol based hand rubs\n• Products that kill germs on the hands.\n• Should contain 60% to 95% ethanol\nor isopropanol (types of alcohol).\n• Are fast­acting and convenient.\nHow? Which?\nWith soap and water: 1. Wet your hands with warm water. Use liquid soap if possible. Apply a nickel­or quarter­sized amount of Use soap and water:\n• When your hands look dirty.\n• After you use the bathroom.\n• Before you eat or prepare food.\nsoap to your hands.\n2. Rub your hands together until soap forms a lather and then rub all over the top of your hands, in between your fingers and the area around and under Use an alcohol­based\nhand rub:\n• When your hands do not look dirty.\n• If soap and water are not available.\nthe fingernails.\n3. Continue rubbing your hands for 15\nseconds. Need a timer? Imagine singing\nthe “Happy Birthday” song twice.\n4. Rinse your hands well under running\nwater.\n5. Dry your hands using a paper towel if\npossible. Then use your paper towel to\nturn off the faucet and to open the door\nif needed.\nRemember:\ntakes 15 seconds to\n{It only protect yourself and\nothers.\n} Who?\nYou can make a\ndifference in your\nown health:\n• Healthcare providers know they should\npractice hand hygiene, but they\nWith an alcohol­based sometimes forget. Most welcome your\nhand rub: friendly reminder.\n1. Follow directions on the bottle for how • Ask healthcare providers to practice\nmuch of the product to use. hand hygiene in a polite way — tell\n2. Rub hands together and then rub them that you know how easy it is for\nproduct all over the top of your hands, people to get infections in the hospital\nin between your fingers and the area and that you don’t want it to happen\naround and under the fingernails. to you.\n3. Continue rubbing until your hands are\ndry. If enough rub was used to kill\n Remember: Take\ngerms, it should take at least 15\ncontrol of your health, }seconds of rubbing before your hands with water or dry them with a towel.{feel dry. You should not rinse your hands\npractice hand hygiene.",
+            "width": 852
+        }
+    ]
+}

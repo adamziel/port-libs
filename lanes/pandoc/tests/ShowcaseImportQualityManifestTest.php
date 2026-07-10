@@ -151,6 +151,15 @@ return [
             'anchor_validity',
             'custom_html_percentage',
         ];
+        $pdfGates = [
+            'text_completeness',
+            'native_source_coverage',
+            'pdf_geometry_reference',
+            'paragraph_merge_split',
+            'media_imported',
+            'anchor_validity',
+            'custom_html_percentage',
+        ];
         $validStatuses = ['pass' => true, 'review' => true, 'fail' => true, 'unbenchmarked' => true];
         $successful = 0;
 
@@ -162,9 +171,11 @@ return [
             $id = (string) ($record['id'] ?? 'unknown');
             $quality = is_array($record['importQuality'] ?? null) ? $record['importQuality'] : [];
             $gates = is_array($quality['gates'] ?? null) ? $quality['gates'] : [];
-            $requiredGates = (($record['bibliographyComparison']['available'] ?? false) === true)
-                ? $bibliographyGates
-                : $documentGates;
+            $requiredGates = (string) ($record['format'] ?? '') === 'pdf'
+                ? $pdfGates
+                : ((($record['bibliographyComparison']['available'] ?? false) === true)
+                    ? $bibliographyGates
+                    : $documentGates);
             foreach ($requiredGates as $gate) {
                 $t->true(isset($gates[$gate]) && is_array($gates[$gate]), "{$id} should include {$gate} import-quality gate.");
                 $status = (string) ($gates[$gate]['status'] ?? '');
@@ -219,6 +230,42 @@ return [
             $t->same('externalReference', $record['faithfulness']['baseline'] ?? null, "{$id} should compare WordPress blocks with the external reference.");
             $t->same('pass', $gates['text_completeness']['status'] ?? null, "{$id} should preserve external-reference text.");
             $t->same('pass', $gates['visual_structure']['status'] ?? null, "{$id} should preserve non-empty paragraph structure.");
+        }
+    },
+    'showcase compares PDF imports with native PDFKit text and geometry evidence' => static function (TestRunner $t) use ($showcaseManifest, $recordsById): void {
+        $manifest = $showcaseManifest();
+        $records = is_array($manifest['records'] ?? null) ? $manifest['records'] : [];
+        $byId = $recordsById($records);
+
+        foreach ([
+            'pdf-irs-w4',
+            'pdf-tracemonkey',
+            'pdf-cdc-hand-hygiene-brochure',
+            'pdf-grand-canyon-north-rim-map',
+            'pdf-archive-motograph-book',
+            'pdf-muir-beach-brochure',
+        ] as $id) {
+            $record = $byId[$id] ?? null;
+            $t->true(is_array($record), "{$id} should be present in the showcase manifest.");
+            $reference = is_array($record['externalReference'] ?? null) ? $record['externalReference'] : [];
+            $quality = is_array($record['importQuality'] ?? null) ? $record['importQuality'] : [];
+            $gates = is_array($quality['gates'] ?? null) ? $quality['gates'] : [];
+            $comparison = is_array($record['faithfulness']['comparisons']['wpBlocks'] ?? null)
+                ? $record['faithfulness']['comparisons']['wpBlocks']
+                : [];
+            $metrics = is_array($reference['metrics'] ?? null) ? $reference['metrics'] : [];
+
+            $t->same(true, $reference['ok'] ?? null, "{$id} should retain a native PDF reference.");
+            $t->same('macos-pdfkit-text-geometry', $reference['kind'] ?? null, "{$id} should use macOS PDFKit instead of a PHP self-baseline.");
+            $t->same('externalReference', $record['faithfulness']['baseline'] ?? null, "{$id} should compare WordPress blocks with the external reference.");
+            $t->same('not_applicable', $comparison['visualStatus'] ?? null, "{$id} should not claim an HTML semantic visual baseline from an untagged PDF.");
+            $t->true((int) ($metrics['pageCount'] ?? 0) > 0, "{$id} should retain native page evidence.");
+            $t->true((int) ($metrics['lineCount'] ?? 0) > 0, "{$id} should retain native line-geometry evidence.");
+            $t->same('pass', $quality['status'] ?? null, "{$id} should have passing PDF import-quality evidence.");
+            $t->same('pass', $gates['text_completeness']['status'] ?? null, "{$id} should preserve PDFKit text.");
+            $t->same('pass', $gates['native_source_coverage']['status'] ?? null, "{$id} should retain native source-token coverage.");
+            $t->same('pass', $gates['pdf_geometry_reference']['status'] ?? null, "{$id} should retain native page and line geometry.");
+            $t->same('pass', $gates['paragraph_merge_split']['status'] ?? null, "{$id} should avoid visual-line paragraph drift.");
         }
     },
     'showcase manifest proves bibliography imports against Pandoc Citeproc' => static function (TestRunner $t) use ($showcaseManifest, $recordsById): void {

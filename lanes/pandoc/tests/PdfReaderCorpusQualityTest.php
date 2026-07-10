@@ -309,7 +309,7 @@ return [
         $t->contains('including the Muir Beach floodplain', $text);
         $t->contains('redwood forest', $text);
     },
-    'pdf corpus gate preserves brochure lists and form baseline extraction' => static function (TestRunner $t) use ($pdfSamplePaths, $readPdfSample): void {
+    'pdf corpus gate preserves brochure lists and form baseline extraction' => static function (TestRunner $t) use ($pdfSamplePaths, $readPdfSample, $plainText): void {
         $cdc = $readPdfSample($pdfSamplePaths()['cdc-brochure']);
         $cdcMeta = $cdc['meta'];
 
@@ -320,12 +320,17 @@ return [
 
         $w4 = $readPdfSample($pdfSamplePaths()['irs-w4-form']);
         $w4Meta = $w4['meta'];
+        $w4Text = $plainText(PandocConverter::write($w4['document'], 'html'));
 
         $t->true(($w4Meta['pdfEstimatedPages'] ?? 0) >= 5, 'IRS W-4 form should report its page count.');
-        $t->true(($w4Meta['pdfTextLines'] ?? 0) >= 15, 'IRS W-4 form should retain extracted form text lines.');
-        $t->true(($w4Meta['pdfTextBytes'] ?? 0) >= 300, 'IRS W-4 form should retain a baseline amount of text.');
-        $t->same(0, $w4Meta['pdfDetectedTables'], 'IRS W-4 form layout should not become a false data table.');
-        $t->true(!str_contains($w4['blocks'], '<!-- wp:table -->'), 'IRS W-4 form layout should remain editable WordPress prose.');
+        $t->true(($w4Meta['pdfTextLines'] ?? 0) >= 800, 'IRS W-4 form should retain text from every linearized source page.');
+        $t->true(($w4Meta['pdfTextBytes'] ?? 0) >= 20000, 'IRS W-4 form should retain the full multi-page text payload.');
+        $t->contains('General Instructions', $w4Text);
+        $t->contains('Multiple Jobs Worksheet', $w4Text);
+        $t->contains('Married Filing Jointly', $w4Text);
+        $t->same(1, $w4Meta['pdfDetectedTables'], 'IRS W-4 should retain its salary matrix without turning prose columns into tables.');
+        $t->same(1, $w4['tables'], 'IRS W-4 WordPress output should contain only the real salary matrix table.');
+        $t->contains('Married Filing Jointly', $w4['blocks']);
         $t->true($w4['headings'] >= 2, 'IRS W-4 form should retain heading-like form labels.');
     },
     'pdf corpus gate keeps scanned book bounded but readable' => static function (TestRunner $t) use ($pdfSamplePaths, $readPdfSample, $plainText): void {

@@ -1483,13 +1483,19 @@ function showcase_record_faithfulness(string $siteDir, array $record): array
     }
 
     $externalReference = is_array($record['externalReference'] ?? null) ? $record['externalReference'] : [];
-    $requiresExternalReference = PandocConverter::canonicalInputFormat((string) ($record['format'] ?? '')) === 'doc';
+    $requiresExternalReference = in_array(
+        PandocConverter::canonicalInputFormat((string) ($record['format'] ?? '')),
+        ['doc', 'pdf'],
+        true
+    );
     $baselineKey = (($record['haskell']['ok'] ?? false) === true)
         ? 'haskell'
         : (($externalReference['ok'] ?? false) === true ? 'externalReference' : ($requiresExternalReference ? '' : ((($record['phpHtml']['ok'] ?? false) === true) ? 'phpHtml' : '')));
     if ($baselineKey === '') {
         return ['baseline' => null, 'comparisons' => []];
     }
+    $pdfKitTextGeometryReference = $baselineKey === 'externalReference'
+        && ($externalReference['kind'] ?? null) === 'macos-pdfkit-text-geometry';
     $baselinePath = (string) ($record[$baselineKey]['path'] ?? '');
     $baselineText = showcase_output_text($siteDir, $baselinePath);
     $baselineVisual = showcase_output_visual_signature($siteDir, $baselinePath);
@@ -1517,12 +1523,17 @@ function showcase_record_faithfulness(string $siteDir, array $record): array
         }
         $textScore = showcase_text_similarity($baselineText, $text);
         $actualVisual = showcase_output_visual_signature($siteDir, (string) ($record[$key]['path'] ?? ''));
-        $visualScore = showcase_visual_signature_similarity(
-            $baselineVisual,
-            $actualVisual
-        );
-        if ($textScore >= 0.80 && $baselineVisual === [] && showcase_text_only_visual_signature($actualVisual)) {
-            $visualScore = 1.0;
+        $visualScore = null;
+        $visualStatus = 'not_applicable';
+        if (!$pdfKitTextGeometryReference) {
+            $visualScore = showcase_visual_signature_similarity(
+                $baselineVisual,
+                $actualVisual
+            );
+            if ($textScore >= 0.80 && $baselineVisual === [] && showcase_text_only_visual_signature($actualVisual)) {
+                $visualScore = 1.0;
+            }
+            $visualStatus = $visualScore >= 0.75 ? 'faithful_enough' : ($visualScore >= 0.50 ? 'review' : 'divergent');
         }
         $comparisons[$key] = [
             'label' => $label,
@@ -1530,7 +1541,7 @@ function showcase_record_faithfulness(string $siteDir, array $record): array
             'score' => $textScore,
             'textStatus' => $textScore >= 0.80 ? 'faithful_enough' : ($textScore >= 0.55 ? 'review' : 'divergent'),
             'textScore' => $textScore,
-            'visualStatus' => $visualScore >= 0.75 ? 'faithful_enough' : ($visualScore >= 0.50 ? 'review' : 'divergent'),
+            'visualStatus' => $visualStatus,
             'visualScore' => $visualScore,
         ];
     }
@@ -2054,13 +2065,35 @@ function showcase_text_only_visual_signature(array $signature): bool
 
 function showcase_text_similarity(string $expected, string $actual): float
 {
+    return showcase_text_overlap_metrics($expected, $actual)['f1'];
+}
+
+/**
+ * @return array{expectedTokenCount:int,actualTokenCount:int,matchedTokenCount:int,expectedCoverage:float,actualPrecision:float,f1:float}
+ */
+function showcase_text_overlap_metrics(string $expected, string $actual): array
+{
     $expectedTokens = showcase_text_tokens($expected);
     $actualTokens = showcase_text_tokens($actual);
     if ($expectedTokens === [] && $actualTokens === []) {
-        return 1.0;
+        return [
+            'expectedTokenCount' => 0,
+            'actualTokenCount' => 0,
+            'matchedTokenCount' => 0,
+            'expectedCoverage' => 1.0,
+            'actualPrecision' => 1.0,
+            'f1' => 1.0,
+        ];
     }
     if ($expectedTokens === [] || $actualTokens === []) {
-        return 0.0;
+        return [
+            'expectedTokenCount' => count($expectedTokens),
+            'actualTokenCount' => count($actualTokens),
+            'matchedTokenCount' => 0,
+            'expectedCoverage' => 0.0,
+            'actualPrecision' => 0.0,
+            'f1' => 0.0,
+        ];
     }
 
     $expectedCounts = array_count_values($expectedTokens);
@@ -2070,7 +2103,14 @@ function showcase_text_similarity(string $expected, string $actual): float
         $overlap += min($count, $actualCounts[$token] ?? 0);
     }
 
-    return round((2.0 * $overlap) / (count($expectedTokens) + count($actualTokens)), 4);
+    return [
+        'expectedTokenCount' => count($expectedTokens),
+        'actualTokenCount' => count($actualTokens),
+        'matchedTokenCount' => $overlap,
+        'expectedCoverage' => round($overlap / count($expectedTokens), 4),
+        'actualPrecision' => round($overlap / count($actualTokens), 4),
+        'f1' => round((2.0 * $overlap) / (count($expectedTokens) + count($actualTokens)), 4),
+    ];
 }
 
 /**
@@ -2086,7 +2126,7 @@ function showcase_text_tokens(string $text): array
 
 /**
  * @param list<array<string, mixed>> $records
- * @return array{comparisons:int, faithfulEnough:int, review:int, divergent:int, noText:int, visualComparisons:int, visualFaithfulEnough:int, visualReview:int, visualDivergent:int, visualNoStructure:int}
+ * @return array{comparisons:int, faithfulEnough:int, review:int, divergent:int, noText:int, visualComparisons:int, visualFaithfulEnough:int, visualReview:int, visualDivergent:int, visualNoStructure:int, visualNotApplicable:int}
  */
 function showcase_faithfulness_summary(array $records): array
 {
@@ -2101,6 +2141,7 @@ function showcase_faithfulness_summary(array $records): array
         'visualReview' => 0,
         'visualDivergent' => 0,
         'visualNoStructure' => 0,
+        'visualNotApplicable' => 0,
     ];
     foreach ($records as $record) {
         $faithfulness = $record['faithfulness'] ?? [];
@@ -2122,8 +2163,12 @@ function showcase_faithfulness_summary(array $records): array
             } else {
                 $summary['noText']++;
             }
-            $summary['visualComparisons']++;
             $visualStatus = (string) ($comparison['visualStatus'] ?? '');
+            if ($visualStatus === 'not_applicable') {
+                $summary['visualNotApplicable']++;
+                continue;
+            }
+            $summary['visualComparisons']++;
             if ($visualStatus === 'faithful_enough') {
                 $summary['visualFaithfulEnough']++;
             } elseif ($visualStatus === 'review') {
@@ -2186,6 +2231,11 @@ function showcase_record_import_quality(string $siteDir, array $record): array
     $bibliographyQuality = showcase_bibliography_import_quality($siteDir, $record);
     if ($bibliographyQuality !== null) {
         return $bibliographyQuality;
+    }
+
+    $pdfQuality = showcase_pdf_import_quality($siteDir, $record);
+    if ($pdfQuality !== null) {
+        return $pdfQuality;
     }
 
     $wpPath = (string) ($record['wpBlocks']['path'] ?? '');
@@ -2291,6 +2341,106 @@ function showcase_bibliography_import_quality(string $siteDir, array $record): ?
     showcase_add_output_integrity_gates($gates, $siteDir, $record, $wpPath);
 
     return showcase_import_quality_result($gates);
+}
+
+/**
+ * PDFKit provides an independent source-side text and geometry reference, but
+ * a PDF page does not generally encode an HTML semantic tree. Do not turn its
+ * visual lines into fake paragraphs merely to reuse an HTML-to-HTML score.
+ *
+ * @return array{status:string, gates:array<string,array<string,mixed>>, summary:array<string,int>}|null
+ */
+function showcase_pdf_import_quality(string $siteDir, array $record): ?array
+{
+    if (PandocConverter::canonicalInputFormat((string) ($record['format'] ?? '')) !== 'pdf') {
+        return null;
+    }
+
+    $reference = is_array($record['externalReference'] ?? null) ? $record['externalReference'] : [];
+    if (($reference['ok'] ?? false) !== true || ($reference['kind'] ?? null) !== 'macos-pdfkit-text-geometry') {
+        return null;
+    }
+
+    $wpPath = (string) ($record['wpBlocks']['path'] ?? '');
+    $referencePath = (string) ($reference['path'] ?? '');
+    $expectedText = showcase_output_text($siteDir, $referencePath);
+    $actualText = showcase_output_text($siteDir, $wpPath);
+    $textMetrics = showcase_text_overlap_metrics($expectedText, $actualText);
+    $referenceMetrics = is_array($reference['metrics'] ?? null) ? $reference['metrics'] : [];
+    $wpVisual = showcase_output_visual_signature($siteDir, $wpPath);
+
+    $gates = [
+        'text_completeness' => showcase_score_gate(
+            $textMetrics['f1'],
+            0.80,
+            0.55,
+            'bidirectional visible-text overlap with the independent macOS PDFKit reference',
+            true
+        ),
+        'native_source_coverage' => showcase_score_gate(
+            $textMetrics['expectedCoverage'],
+            0.65,
+            0.45,
+            'native PDFKit source tokens retained in the WordPress output',
+            true
+        ),
+        'pdf_geometry_reference' => showcase_pdf_geometry_reference_gate($referenceMetrics),
+        'paragraph_merge_split' => showcase_pdf_paragraph_geometry_gate($referenceMetrics, $wpVisual),
+    ];
+
+    showcase_add_output_integrity_gates($gates, $siteDir, $record, $wpPath);
+
+    return showcase_import_quality_result($gates);
+}
+
+/**
+ * @param array<string,mixed> $metrics
+ * @return array{status:string,expected:string,actual:array<string,int>,detail:string}
+ */
+function showcase_pdf_geometry_reference_gate(array $metrics): array
+{
+    $pages = max(0, (int) ($metrics['pageCount'] ?? 0));
+    $textPages = max(0, (int) ($metrics['textPageCount'] ?? 0));
+    $lines = max(0, (int) ($metrics['lineCount'] ?? 0));
+
+    return [
+        'status' => $pages > 0 && $textPages > 0 && $lines > 0 ? 'pass' : 'fail',
+        'expected' => 'native PDF page and line geometry',
+        'actual' => ['pages' => $pages, 'textPages' => $textPages, 'lines' => $lines],
+        'detail' => 'macOS PDFKit independently exposed source page boundaries and visual text lines; untagged PDFs do not expose an HTML heading/list/table/image tree.',
+    ];
+}
+
+/**
+ * @param array<string,mixed> $metrics
+ * @param array<string,int> $wpVisual
+ * @return array{status:string,expected:string,actual:array<string,int>,detail:string}
+ */
+function showcase_pdf_paragraph_geometry_gate(array $metrics, array $wpVisual): array
+{
+    $sourceLines = max(0, (int) ($metrics['lineCount'] ?? 0));
+    $textPages = max(1, (int) ($metrics['textPageCount'] ?? 0));
+    $paragraphs = max(0, (int) ($wpVisual['p'] ?? 0));
+    $textBlocks = $paragraphs
+        + max(0, (int) ($wpVisual['heading'] ?? 0))
+        + max(0, (int) ($wpVisual['li'] ?? 0))
+        + max(0, (int) ($wpVisual['td'] ?? 0))
+        + max(0, (int) ($wpVisual['th'] ?? 0))
+        + max(0, (int) ($wpVisual['linegroup'] ?? 0));
+    $maxParagraphs = $sourceLines < 20 ? PHP_INT_MAX : max(1, (int) floor($sourceLines * 0.90));
+
+    $status = $textBlocks < $textPages
+        ? 'fail'
+        : ($paragraphs > $maxParagraphs ? 'review' : 'pass');
+
+    return [
+        'status' => $status,
+        'expected' => $sourceLines < 20
+            ? 'at least ' . $textPages . ' semantic text blocks'
+            : 'at least ' . $textPages . ' semantic text blocks and no more than 90% of ' . $sourceLines . ' visual lines as paragraphs',
+        'actual' => ['textBlocks' => $textBlocks, 'paragraphs' => $paragraphs, 'sourceLines' => $sourceLines],
+        'detail' => 'native line geometry guards against collapsing a multi-page source or emitting one paragraph for every visual line.',
+    ];
 }
 
 /**
@@ -2961,7 +3111,7 @@ function write_conversion_report(
     $html = '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">';
     $html .= '<title>Pandoc PHP Port Conversion Report</title><link rel="stylesheet" href="styles.css"></head><body>';
     $html .= '<header class="hero"><div class="hero-inner"><p class="eyebrow">conversion report</p><h1>How the pulled test files converted</h1>';
-    $html .= '<p class="lede">Every source file is converted to PHP HTML and WordPress block markup. Haskell Pandoc provides the primary external reference where it can read the format; format-native references are added where Pandoc has no reader. This report shows the current pass/fail shape and links into a curated stress set.</p>';
+    $html .= '<p class="lede">Every source file is converted to PHP HTML and WordPress block markup. Haskell Pandoc provides the primary external reference where it can read the format; format-native references are added where Pandoc has no reader. PDFs use macOS PDFKit for independent text and line-geometry evidence, while their HTML semantics remain explicit inference rather than fabricated source tags. This report shows the current pass/fail shape and links into a curated stress set.</p>';
     $html .= '<div class="stats">';
     $html .= '<div class="stat"><strong>' . h((string) $summary['totalSamples']) . '</strong><span>source files</span></div>';
     $html .= '<div class="stat"><strong>' . h((string) count($coveredFormats)) . '</strong><span>covered input formats</span></div>';
@@ -2983,7 +3133,7 @@ function write_conversion_report(
     $html .= '</div></section>';
 
     $html .= '<section><h2>Faithful enough diff checks</h2>';
-    $html .= '<p>These checks compare generated outputs against Haskell Pandoc when it can read the source, a format-native external reference where one is available, or PHP HTML only as a disclosed fallback. Text scores compare normalized visible words. Visual-structure scores compare the rendered document shape: headings, paragraphs, lists, tables, images, figures, captions, code, quotes, and math.</p>';
+    $html .= '<p>These checks compare generated outputs against Haskell Pandoc when it can read the source, a format-native external reference where one is available, or PHP HTML only as a disclosed fallback. Text scores compare normalized visible words. Visual-structure scores compare the rendered document shape: headings, paragraphs, lists, tables, images, figures, captions, code, quotes, and math. PDFKit supplies text and geometry, not an HTML semantic tree, so PDF visual tag scores are explicitly excluded rather than reported as a false mismatch.</p>';
     $html .= '<h3>Text</h3>';
     $html .= '<div class="report-grid">';
     $html .= '<div class="report-card"><h3>Faithful enough</h3><p class="report-number">' . h((string) ($faithfulnessSummary['faithfulEnough'] ?? 0)) . '</p></div>';
@@ -2995,6 +3145,7 @@ function write_conversion_report(
     $html .= '<div class="report-card"><h3>Faithful enough</h3><p class="report-number">' . h((string) ($faithfulnessSummary['visualFaithfulEnough'] ?? 0)) . '</p></div>';
     $html .= '<div class="report-card"><h3>Needs review</h3><p class="report-number">' . h((string) ($faithfulnessSummary['visualReview'] ?? 0)) . '</p></div>';
     $html .= '<div class="report-card"><h3>Divergent or empty</h3><p class="report-number">' . h((string) (($faithfulnessSummary['visualDivergent'] ?? 0) + ($faithfulnessSummary['visualNoStructure'] ?? 0))) . '</p></div>';
+    $html .= '<div class="report-card"><h3>Source semantics unavailable</h3><p class="report-number">' . h((string) ($faithfulnessSummary['visualNotApplicable'] ?? 0)) . '</p></div>';
     $html .= '</div></section>';
 
     if (($bibliographyComparisonSummary['samples'] ?? 0) > 0) {
@@ -3008,7 +3159,7 @@ function write_conversion_report(
     }
 
     $html .= '<section><h2>Import quality gates</h2>';
-    $html .= '<p>These checks evaluate the WordPress block output as an import artifact: visible text completeness, heading/list/table/image counts, paragraph merge or split drift, Citeproc reference coverage where applicable, media extraction diagnostics, local anchor validity, and Custom HTML block share.</p>';
+    $html .= '<p>These checks evaluate the WordPress block output as an import artifact: visible text completeness, paragraph merge or split drift, Citeproc reference coverage where applicable, media extraction diagnostics, local anchor validity, and Custom HTML block share. PDFs additionally use independent native source-token coverage and line geometry because untagged PDFs do not encode HTML heading, list, table, or image semantics.</p>';
     $html .= '<div class="report-grid">';
     $html .= '<div class="report-card"><h3>Pass</h3><p class="report-number">' . h((string) ($importQualitySummary['pass'] ?? 0)) . '</p></div>';
     $html .= '<div class="report-card"><h3>Review</h3><p class="report-number">' . h((string) ($importQualitySummary['review'] ?? 0)) . '</p></div>';
@@ -3176,11 +3327,11 @@ function run_haskell_pandoc(string $path, string $format, string $dir): array
  */
 function run_external_reference(string $path, string $format, string $dir): ?array
 {
-    if (PandocConverter::canonicalInputFormat($format) !== 'doc') {
-        return null;
-    }
-
-    return run_textutil_doc_reference($path, $dir);
+    return match (PandocConverter::canonicalInputFormat($format)) {
+        'doc' => run_textutil_doc_reference($path, $dir),
+        'pdf' => run_pdfkit_pdf_reference($path, $dir),
+        default => null,
+    };
 }
 
 /**
@@ -3234,6 +3385,131 @@ function showcase_textutil_reference_body(string $html): string
     }, (string) $matches[1]);
 
     return trim($body ?? '');
+}
+
+/**
+ * @return array{ok:bool,kind?:string,label?:string,path?:string,dataPath?:string,metrics?:array<string,int>,error?:string}
+ */
+function run_pdfkit_pdf_reference(string $path, string $dir): array
+{
+    global $root;
+
+    $output = $dir . '/pdfkit.html';
+    $dataOutput = $dir . '/pdfkit-reference.json';
+    $tool = $root . '/tools/pdfkit-reference.swift';
+    if (PHP_OS_FAMILY !== 'Darwin' || !is_executable('/usr/bin/xcrun') || !is_file($tool)) {
+        $message = 'macOS PDFKit is unavailable for this PDF reference conversion.';
+        file_put_contents($dir . '/pdfkit.html.error.txt', $message);
+
+        return ['ok' => false, 'error' => $message, 'path' => 'outputs/' . basename($dir) . '/pdfkit.html.error.txt'];
+    }
+
+    $result = run_process(['/usr/bin/xcrun', 'swift', $tool, $path], 75);
+    $reference = $result['exitCode'] === 0 ? json_decode($result['stdout'], true) : null;
+    if (!showcase_pdfkit_reference_is_valid($reference)) {
+        $message = sanitize_generated_text(trim($result['stderr']));
+        if ($message === '') {
+            $message = $result['exitCode'] === 0
+                ? 'macOS PDFKit produced unreadable reference JSON.'
+                : 'macOS PDFKit reference extraction exited with code ' . $result['exitCode'] . '.';
+        }
+        file_put_contents($dir . '/pdfkit.html.error.txt', $message);
+
+        return ['ok' => false, 'error' => $message, 'path' => 'outputs/' . basename($dir) . '/pdfkit.html.error.txt'];
+    }
+
+    $body = showcase_pdfkit_reference_body($reference);
+    if ($body === '') {
+        $message = 'macOS PDFKit did not expose readable page text for this PDF.';
+        file_put_contents($dir . '/pdfkit.html.error.txt', $message);
+
+        return ['ok' => false, 'error' => $message, 'path' => 'outputs/' . basename($dir) . '/pdfkit.html.error.txt'];
+    }
+
+    file_put_contents($output, wrap_local_html_document($body, 'macOS PDFKit text and geometry reference'));
+    file_put_contents($dataOutput, json_encode($reference, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+
+    return [
+        'ok' => true,
+        'kind' => 'macos-pdfkit-text-geometry',
+        'label' => 'macOS PDFKit text and geometry reference',
+        'path' => 'outputs/' . basename($dir) . '/pdfkit.html',
+        'dataPath' => 'outputs/' . basename($dir) . '/pdfkit-reference.json',
+        'metrics' => showcase_pdfkit_reference_metrics($reference),
+    ];
+}
+
+function showcase_pdfkit_reference_is_valid(mixed $reference): bool
+{
+    if (!is_array($reference) || !is_int($reference['pageCount'] ?? null) || !is_array($reference['pages'] ?? null)) {
+        return false;
+    }
+
+    return $reference['pageCount'] > 0 && count($reference['pages']) === $reference['pageCount'];
+}
+
+/**
+ * @param array{pageCount:int,pages:list<array<string,mixed>>} $reference
+ */
+function showcase_pdfkit_reference_body(array $reference): string
+{
+    $body = '<div class="pdfkit-reference" data-page-count="' . (int) $reference['pageCount'] . '">';
+    foreach ($reference['pages'] as $page) {
+        if (!is_array($page)) {
+            continue;
+        }
+        $number = max(1, (int) ($page['number'] ?? 0));
+        $text = trim((string) ($page['text'] ?? ''));
+        if ($text === '' && is_array($page['lines'] ?? null)) {
+            $text = implode("\n", array_map(
+                static fn (mixed $line): string => is_array($line) ? trim((string) ($line['text'] ?? '')) : '',
+                $page['lines']
+            ));
+            $text = trim($text);
+        }
+        $body .= '<div class="pdfkit-page" data-page="' . $number . '">';
+        if ($text !== '') {
+            $body .= '<div class="pdfkit-page-text" style="white-space:pre-wrap">'
+                . htmlspecialchars($text, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')
+                . '</div>';
+        }
+        $body .= '</div>';
+    }
+
+    return $body . '</div>';
+}
+
+/**
+ * @param array{pageCount:int,pages:list<array<string,mixed>>} $reference
+ * @return array<string,int>
+ */
+function showcase_pdfkit_reference_metrics(array $reference): array
+{
+    $pageTexts = [];
+    $nonEmptyPages = 0;
+    $lineCount = 0;
+    foreach ($reference['pages'] as $page) {
+        if (!is_array($page)) {
+            continue;
+        }
+        $text = trim((string) ($page['text'] ?? ''));
+        if ($text !== '') {
+            $nonEmptyPages++;
+            $pageTexts[] = $text;
+        }
+        if (is_array($page['lines'] ?? null)) {
+            $lineCount += count($page['lines']);
+        }
+    }
+    $text = implode("\n", $pageTexts);
+
+    return [
+        'pageCount' => (int) $reference['pageCount'],
+        'textPageCount' => $nonEmptyPages,
+        'lineCount' => $lineCount,
+        'textBytes' => strlen($text),
+        'tokenCount' => count(showcase_text_tokens($text)),
+    ];
 }
 
 function showcase_bibliography_input_format(string $format): bool
@@ -3371,6 +3647,8 @@ HTML));
     $unbenchmarked = [];
     $legacyDocWithoutReference = [];
     $legacyDocFaithfulness = [];
+    $pdfWithoutReference = [];
+    $pdfFaithfulness = [];
     $preservedRawHtml = [];
     $unexpectedCustomHtml = [];
     if (mkdir($unbenchmarkedDir, 0777, true)) {
@@ -3401,6 +3679,21 @@ HTML));
             $legacyDocFaithfulness = showcase_record_faithfulness($unbenchmarkedDir, $legacyDocRecord);
             $legacyDocRecord['faithfulness'] = $legacyDocFaithfulness;
             $legacyDocWithoutReference = showcase_record_import_quality($unbenchmarkedDir, $legacyDocRecord);
+            $pdfRecord = [
+                'format' => 'pdf',
+                'haskell' => ['ok' => false],
+                'externalReference' => ['ok' => false],
+                'phpHtml' => ['ok' => true, 'path' => 'php.html'],
+                'wpBlocks' => [
+                    'ok' => true,
+                    'path' => 'wordpress.html',
+                    'mediaDiagnostics' => [],
+                ],
+                'wpBlockCounts' => ['paragraph' => 1],
+            ];
+            $pdfFaithfulness = showcase_record_faithfulness($unbenchmarkedDir, $pdfRecord);
+            $pdfRecord['faithfulness'] = $pdfFaithfulness;
+            $pdfWithoutReference = showcase_record_import_quality($unbenchmarkedDir, $pdfRecord);
             $preservedRawHtml = showcase_record_import_quality($unbenchmarkedDir, [
                 'wpBlocks' => [
                     'ok' => true,
@@ -3436,6 +3729,8 @@ HTML));
         && (($unbenchmarked['gates']['text_completeness']['status'] ?? null) === 'unbenchmarked')
         && (($legacyDocFaithfulness['baseline'] ?? null) === null)
         && (($legacyDocWithoutReference['status'] ?? null) === 'unbenchmarked')
+        && (($pdfFaithfulness['baseline'] ?? null) === null)
+        && (($pdfWithoutReference['status'] ?? null) === 'unbenchmarked')
         && (($preservedRawHtml['gates']['custom_html_percentage']['status'] ?? null) === 'pass')
         && (($unexpectedCustomHtml['gates']['custom_html_percentage']['status'] ?? null) === 'fail');
     fwrite(STDOUT, json_encode([
@@ -3449,6 +3744,8 @@ HTML));
         'unbenchmarkedStatus' => $unbenchmarked['status'] ?? null,
         'legacyDocWithoutReferenceStatus' => $legacyDocWithoutReference['status'] ?? null,
         'legacyDocWithoutReferenceBaseline' => $legacyDocFaithfulness['baseline'] ?? null,
+        'pdfWithoutReferenceStatus' => $pdfWithoutReference['status'] ?? null,
+        'pdfWithoutReferenceBaseline' => $pdfFaithfulness['baseline'] ?? null,
         'preservedRawHtmlStatus' => $preservedRawHtml['gates']['custom_html_percentage']['status'] ?? null,
         'unexpectedCustomHtmlStatus' => $unexpectedCustomHtml['gates']['custom_html_percentage']['status'] ?? null,
     ], JSON_UNESCAPED_SLASHES) . PHP_EOL);

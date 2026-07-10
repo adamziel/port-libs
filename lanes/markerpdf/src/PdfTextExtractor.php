@@ -5999,6 +5999,26 @@ final class PdfTextExtractor
             $index++;
         }
 
+        // Object streams can contain embedded stream bodies, including their
+        // own literal "endstream" tokens. A direct /Length is authoritative
+        // and prevents truncating the outer object stream at the first nested
+        // marker. Fall back to marker scanning for malformed or indirect
+        // lengths that cannot be resolved at this boundary.
+        $declaredLength = $this->integerDictionaryValue($dictionary, 'Length');
+        if ($declaredLength !== null && $declaredLength >= 0 && $index + $declaredLength <= $length) {
+            $streamEnd = $index + $declaredLength;
+            $markerOffset = $streamEnd;
+            while ($markerOffset < $length && ctype_space($objectBody[$markerOffset])) {
+                $markerOffset++;
+            }
+            if (substr($objectBody, $markerOffset, 9) === 'endstream') {
+                return [
+                    'dictionary' => $dictionary,
+                    'stream' => substr($objectBody, $index, $declaredLength),
+                ];
+            }
+        }
+
         $endOffset = strpos($objectBody, 'endstream', $index);
         if ($endOffset === false) {
             return null;
@@ -11216,6 +11236,7 @@ final class PdfTextExtractor
         $objects = [];
         $objectOffsets = [];
         $rawObjects = $this->rawPdfObjects($pdfBytes);
+        $allRawObjects = $rawObjects;
         if ($rawObjects === []) {
             return $objects;
         }
@@ -11250,6 +11271,8 @@ final class PdfTextExtractor
         if ($trailerRootReference !== null && $trailerRootReference['generation'] > 0) {
             $promotedReferences[$trailerRootReference['objectNumber'] . ':' . $trailerRootReference['generation']] = $trailerRootReference['objectNumber'];
         }
+        $promotedReferences += $this->linearizedPageReferencePromotions($allRawObjects, $xrefEntries);
+        $rawObjects = $this->withPromotedRawObjects($rawObjects, $allRawObjects, $promotedReferences);
 
         $referenceObjectNumbers = $this->internalObjectNumbersByReference($rawObjects, $maxObjectNumber, $promotedReferences);
         foreach ($rawObjects as $rawObject) {
@@ -11262,7 +11285,87 @@ final class PdfTextExtractor
             $objectOffsets[$objectKey] = $rawObject['offset'];
         }
 
-        return $this->expandObjectStreams($objects, $objectOffsets, $referenceObjectNumbers, $xrefEntries);
+        return $this->expandObjectStreams(
+            $objects,
+            $objectOffsets,
+            $referenceObjectNumbers,
+            $xrefEntries,
+            array_fill_keys(array_values($promotedReferences), true)
+        );
+    }
+
+    /**
+     * A linearized file can carry a current direct first-page object while a
+     * stale compressed generation remains in its main xref stream. The
+     * /Linearized /O entry is an explicit structural reference to that page,
+     * so promote only that newer direct generation instead of guessing from
+     * arbitrary unreferenced objects.
+     *
+     * @param list<array{objectNumber: int, generation: int, body: string, offset: int}> $rawObjects
+     * @param array<string, array{status: string, offset?: int, objectStreamNumber?: int, objectStreamIndex?: int}> $xrefEntries
+     * @return array<string,int>
+     */
+    private function linearizedPageReferencePromotions(array $rawObjects, array $xrefEntries): array
+    {
+        $firstPageObjectNumbers = [];
+        foreach ($rawObjects as $rawObject) {
+            if (preg_match('/\/Linearized\b/', $rawObject['body']) !== 1
+                || preg_match('/\/O\s+(\d+)\b/', $rawObject['body'], $match) !== 1) {
+                continue;
+            }
+            $firstPageObjectNumbers[] = (int) $match[1];
+        }
+
+        $promoted = [];
+        foreach (array_values(array_unique($firstPageObjectNumbers)) as $objectNumber) {
+            $compressedEntry = $xrefEntries[$objectNumber . ':0'] ?? null;
+            if (($compressedEntry['status'] ?? null) !== 'compressed') {
+                continue;
+            }
+
+            $generation = null;
+            foreach ($rawObjects as $rawObject) {
+                if ($rawObject['objectNumber'] !== $objectNumber || $rawObject['generation'] <= 0) {
+                    continue;
+                }
+                if ($generation === null || $rawObject['generation'] > $generation) {
+                    $generation = $rawObject['generation'];
+                }
+            }
+            if ($generation !== null) {
+                $promoted[$objectNumber . ':' . $generation] = $objectNumber;
+            }
+        }
+
+        return $promoted;
+    }
+
+    /**
+     * @param list<array{objectNumber: int, generation: int, body: string, offset: int}> $selected
+     * @param list<array{objectNumber: int, generation: int, body: string, offset: int}> $allRawObjects
+     * @param array<string,int> $promotedReferences
+     * @return list<array{objectNumber: int, generation: int, body: string, offset: int}>
+     */
+    private function withPromotedRawObjects(array $selected, array $allRawObjects, array $promotedReferences): array
+    {
+        if ($promotedReferences === []) {
+            return $selected;
+        }
+
+        $selectedReferences = [];
+        foreach ($selected as $rawObject) {
+            $selectedReferences[$rawObject['objectNumber'] . ':' . $rawObject['generation']] = true;
+        }
+        foreach ($allRawObjects as $rawObject) {
+            $reference = $rawObject['objectNumber'] . ':' . $rawObject['generation'];
+            if (!isset($promotedReferences[$reference]) || isset($selectedReferences[$reference])) {
+                continue;
+            }
+            $selected[] = $rawObject;
+            $selectedReferences[$reference] = true;
+        }
+
+        return $selected;
     }
 
     /**
@@ -12842,12 +12945,19 @@ final class PdfTextExtractor
             return $previousOffset;
         }
 
-        if ($previousOffset < $currentOffset
+        // A linearized PDF writes a small front xref before the primary xref.
+        // Its valid /Prev pointer is therefore forward in file order. Follow
+        // any directly verifiable xref target and let the caller's seen-offset
+        // set bound the traversal, rather than assuming /Prev always declines.
+        if ($previousOffset !== $currentOffset
             && ($this->xrefTableBodyAndTrailer(substr($pdfBytes, $previousOffset)) !== null
-            || $this->xrefStreamObjectBodyAtOffset($pdfBytes, $previousOffset) !== null
-            )
+            || $this->xrefStreamObjectBodyAtOffset($pdfBytes, $previousOffset) !== null)
         ) {
             return $previousOffset;
+        }
+
+        if ($previousOffset > $currentOffset) {
+            return null;
         }
 
         $candidate = null;
@@ -13170,7 +13280,7 @@ final class PdfTextExtractor
      * @param array<string, array{status: string, offset?: int, objectStreamNumber?: int, objectStreamIndex?: int}> $xrefEntries
      * @return array<int, string>
      */
-    private function expandObjectStreams(array $objects, array $objectOffsets = [], array $referenceObjectNumbers = [], array $xrefEntries = []): array
+    private function expandObjectStreams(array $objects, array $objectOffsets = [], array $referenceObjectNumbers = [], array $xrefEntries = [], array $protectedObjectNumbers = []): array
     {
         $expanded = $objects;
         $processed = [];
@@ -13186,6 +13296,9 @@ final class PdfTextExtractor
 
                 foreach ($this->objectsFromObjectStream($objectBody, $expanded) as $embeddedObjectNumber => $embeddedObject) {
                     if (!$this->xrefAllowsEmbeddedObject($embeddedObjectNumber, $objectNumber, $embeddedObject['index'], $xrefEntries)) {
+                        continue;
+                    }
+                    if (isset($protectedObjectNumbers[$embeddedObjectNumber]) && isset($expanded[$embeddedObjectNumber])) {
                         continue;
                     }
 

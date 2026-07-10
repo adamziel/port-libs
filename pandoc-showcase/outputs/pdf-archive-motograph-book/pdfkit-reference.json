@@ -1,0 +1,579 @@
+{
+    "extractor": "macOS PDFKit",
+    "pageCount": 47,
+    "pages": [
+        {
+            "height": 792,
+            "lines": [
+                {
+                    "height": 9.963,
+                    "text": "This is a digital copy of a book that was preserved for generations on library shelves before it was carefully scanned by Google as part of a project",
+                    "width": 583.204,
+                    "x": 14.4,
+                    "y": 649.946
+                },
+                {
+                    "height": 9.963,
+                    "text": "to make the world’s books discoverable online.",
+                    "width": 187.384,
+                    "x": 14.4,
+                    "y": 637.991
+                },
+                {
+                    "height": 9.963,
+                    "text": "It has survived long enough for the copyright to expire and the book to enter the public domain. A public domain book is one that was never subject",
+                    "width": 583.204,
+                    "x": 14.4,
+                    "y": 623.047
+                },
+                {
+                    "height": 9.963,
+                    "text": "to copyright or whose legal copyright term has expired. Whether a book is in the public domain may vary country to country. Public domain books",
+                    "width": 583.204,
+                    "x": 14.4,
+                    "y": 611.092
+                },
+                {
+                    "height": 9.963,
+                    "text": "are our gateways to the past, representing a wealth of history, culture and knowledge that’s often difficult to discover.",
+                    "width": 465.491,
+                    "x": 14.4,
+                    "y": 599.137
+                },
+                {
+                    "height": 9.963,
+                    "text": "Marks, notations and other marginalia present in the original volume will appear in this file - a reminder of this book’s long journey from the",
+                    "width": 583.204,
+                    "x": 14.4,
+                    "y": 584.193
+                },
+                {
+                    "height": 9.963,
+                    "text": "publisher to a library and finally to you.",
+                    "width": 158.282,
+                    "x": 14.4,
+                    "y": 572.238
+                },
+                {
+                    "height": 9.963,
+                    "text": "Usage guidelines",
+                    "width": 70.578,
+                    "x": 14.4,
+                    "y": 542.723
+                },
+                {
+                    "height": 9.963,
+                    "text": "Google is proud to partner with libraries to digitize public domain materials and make them widely accessible. Public domain books belong to the",
+                    "width": 583.204,
+                    "x": 14.4,
+                    "y": 521.055
+                },
+                {
+                    "height": 9.963,
+                    "text": "public and we are merely their custodians. Nevertheless, this work is expensive, so in order to keep providing this resource, we have taken steps to",
+                    "width": 583.204,
+                    "x": 14.4,
+                    "y": 509.099
+                },
+                {
+                    "height": 9.963,
+                    "text": "prevent abuse by commercial parties, including placing technical restrictions on automated querying.",
+                    "width": 401.987,
+                    "x": 14.4,
+                    "y": 497.144
+                },
+                {
+                    "height": 9.963,
+                    "text": "We also ask that you:",
+                    "width": 84.984,
+                    "x": 14.4,
+                    "y": 482.2
+                },
+                {
+                    "height": 9.963,
+                    "text": "+ Make non-commercial use of the files We designed Google Book Search for use by individuals, and we request that you use these files for",
+                    "width": 568.899,
+                    "x": 28.706,
+                    "y": 457.294
+                },
+                {
+                    "height": 9.963,
+                    "text": "personal, non-commercial purposes.",
+                    "width": 144.424,
+                    "x": 39.306,
+                    "y": 445.338
+                },
+                {
+                    "height": 9.963,
+                    "text": "+ Refrain from automated querying Do not send automated queries of any sort to Google’s system: If you are conducting research on machine",
+                    "width": 568.891,
+                    "x": 28.706,
+                    "y": 425.413
+                },
+                {
+                    "height": 9.963,
+                    "text": "translation, optical character recognition or other areas where access to a large amount of text is helpful, please contact us. We encourage the",
+                    "width": 558.297,
+                    "x": 39.306,
+                    "y": 413.458
+                },
+                {
+                    "height": 9.963,
+                    "text": "use of public domain materials for these purposes and may be able to help.",
+                    "width": 297.724,
+                    "x": 39.306,
+                    "y": 401.503
+                },
+                {
+                    "height": 9.963,
+                    "text": "+ Maintain attribution The Google “watermark” you see on each file is essential for informing people about this project and helping them find",
+                    "width": 568.892,
+                    "x": 28.706,
+                    "y": 381.578
+                },
+                {
+                    "height": 9.963,
+                    "text": "additional materials through Google Book Search. Please do not remove it.",
+                    "width": 299.149,
+                    "x": 39.306,
+                    "y": 369.622
+                },
+                {
+                    "height": 9.963,
+                    "text": "+ Keep it legal Whatever your use, remember that you are responsible for ensuring that what you are doing is legal. Do not assume that just",
+                    "width": 568.893,
+                    "x": 28.706,
+                    "y": 349.697
+                },
+                {
+                    "height": 9.963,
+                    "text": "because we believe a book is in the public domain for users in the United States, that the work is also in the public domain for users in other",
+                    "width": 558.297,
+                    "x": 39.306,
+                    "y": 337.742
+                },
+                {
+                    "height": 9.963,
+                    "text": "countries. Whether a book is still in copyright varies from country to country, and we can’t offer guidance on whether any specific use of",
+                    "width": 558.297,
+                    "x": 39.306,
+                    "y": 325.787
+                },
+                {
+                    "height": 9.963,
+                    "text": "any specific book is allowed. Please do not assume that a book’s appearance in Google Book Search means it can be used in any manner",
+                    "width": 558.297,
+                    "x": 39.306,
+                    "y": 313.832
+                },
+                {
+                    "height": 9.963,
+                    "text": "anywhere in the world. Copyright infringement liability can be quite severe.",
+                    "width": 303.114,
+                    "x": 39.306,
+                    "y": 301.876
+                },
+                {
+                    "height": 9.963,
+                    "text": "About Google Book Search",
+                    "width": 115.232,
+                    "x": 14.4,
+                    "y": 272.362
+                },
+                {
+                    "height": 9.963,
+                    "text": "Google’s mission is to organize the world’s information and to make it universally accessible and useful. Google Book Search helps readers",
+                    "width": 583.204,
+                    "x": 14.4,
+                    "y": 250.693
+                },
+                {
+                    "height": 9.963,
+                    "text": "discover the world’s books while helping authors and publishers reach new audiences. You can search through the full text of this book on the web",
+                    "width": 583.204,
+                    "x": 14.4,
+                    "y": 238.738
+                },
+                {
+                    "height": 10.002,
+                    "text": "at http://books.google.com/",
+                    "width": 153.15,
+                    "x": 14.4,
+                    "y": 226.783
+                }
+            ],
+            "number": 1,
+            "rotation": 0,
+            "text": "This is a digital copy of a book that was preserved for generations on library shelves before it was carefully scanned by Google as part of a project\nto make the world’s books discoverable online.\nIt has survived long enough for the copyright to expire and the book to enter the public domain. A public domain book is one that was never subject\nto copyright or whose legal copyright term has expired. Whether a book is in the public domain may vary country to country. Public domain books\nare our gateways to the past, representing a wealth of history, culture and knowledge that’s often difficult to discover.\nMarks, notations and other marginalia present in the original volume will appear in this file - a reminder of this book’s long journey from the\npublisher to a library and finally to you.\nUsage guidelines\nGoogle is proud to partner with libraries to digitize public domain materials and make them widely accessible. Public domain books belong to the\npublic and we are merely their custodians. Nevertheless, this work is expensive, so in order to keep providing this resource, we have taken steps to\nprevent abuse by commercial parties, including placing technical restrictions on automated querying.\nWe also ask that you:\n+ Make non-commercial use of the files We designed Google Book Search for use by individuals, and we request that you use these files for\npersonal, non-commercial purposes.\n+ Refrain from automated querying Do not send automated queries of any sort to Google’s system: If you are conducting research on machine\ntranslation, optical character recognition or other areas where access to a large amount of text is helpful, please contact us. We encourage the\nuse of public domain materials for these purposes and may be able to help.\n+ Maintain attribution The Google “watermark” you see on each file is essential for informing people about this project and helping them find\nadditional materials through Google Book Search. Please do not remove it.\n+ Keep it legal Whatever your use, remember that you are responsible for ensuring that what you are doing is legal. Do not assume that just\nbecause we believe a book is in the public domain for users in the United States, that the work is also in the public domain for users in other\ncountries. Whether a book is still in copyright varies from country to country, and we can’t offer guidance on whether any specific use of\nany specific book is allowed. Please do not assume that a book’s appearance in Google Book Search means it can be used in any manner\nanywhere in the world. Copyright infringement liability can be quite severe.\nAbout Google Book Search\nGoogle’s mission is to organize the world’s information and to make it universally accessible and useful. Google Book Search helps readers\ndiscover the world’s books while helping authors and publishers reach new audiences. You can search through the full text of this book on the web\nat http://books.google.com/",
+            "width": 612
+        },
+        {
+            "height": 815,
+            "lines": [],
+            "number": 2,
+            "rotation": 0,
+            "text": "",
+            "width": 661
+        },
+        {
+            "height": 815,
+            "lines": [],
+            "number": 3,
+            "rotation": 0,
+            "text": "",
+            "width": 661
+        },
+        {
+            "height": 815,
+            "lines": [],
+            "number": 4,
+            "rotation": 0,
+            "text": "",
+            "width": 661
+        },
+        {
+            "height": 815,
+            "lines": [],
+            "number": 5,
+            "rotation": 0,
+            "text": "",
+            "width": 661
+        },
+        {
+            "height": 815,
+            "lines": [],
+            "number": 6,
+            "rotation": 0,
+            "text": "",
+            "width": 661
+        },
+        {
+            "height": 815,
+            "lines": [],
+            "number": 7,
+            "rotation": 0,
+            "text": "",
+            "width": 661
+        },
+        {
+            "height": 815,
+            "lines": [],
+            "number": 8,
+            "rotation": 0,
+            "text": "",
+            "width": 661
+        },
+        {
+            "height": 815,
+            "lines": [],
+            "number": 9,
+            "rotation": 0,
+            "text": "",
+            "width": 661
+        },
+        {
+            "height": 815,
+            "lines": [],
+            "number": 10,
+            "rotation": 0,
+            "text": "",
+            "width": 661
+        },
+        {
+            "height": 815,
+            "lines": [],
+            "number": 11,
+            "rotation": 0,
+            "text": "",
+            "width": 661
+        },
+        {
+            "height": 815,
+            "lines": [],
+            "number": 12,
+            "rotation": 0,
+            "text": "",
+            "width": 661
+        },
+        {
+            "height": 815,
+            "lines": [],
+            "number": 13,
+            "rotation": 0,
+            "text": "",
+            "width": 661
+        },
+        {
+            "height": 815,
+            "lines": [],
+            "number": 14,
+            "rotation": 0,
+            "text": "",
+            "width": 661
+        },
+        {
+            "height": 815,
+            "lines": [],
+            "number": 15,
+            "rotation": 0,
+            "text": "",
+            "width": 661
+        },
+        {
+            "height": 815,
+            "lines": [],
+            "number": 16,
+            "rotation": 0,
+            "text": "",
+            "width": 661
+        },
+        {
+            "height": 815,
+            "lines": [],
+            "number": 17,
+            "rotation": 0,
+            "text": "",
+            "width": 661
+        },
+        {
+            "height": 815,
+            "lines": [],
+            "number": 18,
+            "rotation": 0,
+            "text": "",
+            "width": 661
+        },
+        {
+            "height": 815,
+            "lines": [],
+            "number": 19,
+            "rotation": 0,
+            "text": "",
+            "width": 661
+        },
+        {
+            "height": 815,
+            "lines": [],
+            "number": 20,
+            "rotation": 0,
+            "text": "",
+            "width": 661
+        },
+        {
+            "height": 815,
+            "lines": [],
+            "number": 21,
+            "rotation": 0,
+            "text": "",
+            "width": 661
+        },
+        {
+            "height": 815,
+            "lines": [],
+            "number": 22,
+            "rotation": 0,
+            "text": "",
+            "width": 661
+        },
+        {
+            "height": 815,
+            "lines": [],
+            "number": 23,
+            "rotation": 0,
+            "text": "",
+            "width": 661
+        },
+        {
+            "height": 815,
+            "lines": [],
+            "number": 24,
+            "rotation": 0,
+            "text": "",
+            "width": 661
+        },
+        {
+            "height": 815,
+            "lines": [],
+            "number": 25,
+            "rotation": 0,
+            "text": "",
+            "width": 661
+        },
+        {
+            "height": 815,
+            "lines": [],
+            "number": 26,
+            "rotation": 0,
+            "text": "",
+            "width": 661
+        },
+        {
+            "height": 815,
+            "lines": [],
+            "number": 27,
+            "rotation": 0,
+            "text": "",
+            "width": 661
+        },
+        {
+            "height": 815,
+            "lines": [],
+            "number": 28,
+            "rotation": 0,
+            "text": "",
+            "width": 661
+        },
+        {
+            "height": 815,
+            "lines": [],
+            "number": 29,
+            "rotation": 0,
+            "text": "",
+            "width": 661
+        },
+        {
+            "height": 815,
+            "lines": [],
+            "number": 30,
+            "rotation": 0,
+            "text": "",
+            "width": 661
+        },
+        {
+            "height": 815,
+            "lines": [],
+            "number": 31,
+            "rotation": 0,
+            "text": "",
+            "width": 661
+        },
+        {
+            "height": 815,
+            "lines": [],
+            "number": 32,
+            "rotation": 0,
+            "text": "",
+            "width": 661
+        },
+        {
+            "height": 815,
+            "lines": [],
+            "number": 33,
+            "rotation": 0,
+            "text": "",
+            "width": 661
+        },
+        {
+            "height": 815,
+            "lines": [],
+            "number": 34,
+            "rotation": 0,
+            "text": "",
+            "width": 661
+        },
+        {
+            "height": 815,
+            "lines": [],
+            "number": 35,
+            "rotation": 0,
+            "text": "",
+            "width": 661
+        },
+        {
+            "height": 815,
+            "lines": [],
+            "number": 36,
+            "rotation": 0,
+            "text": "",
+            "width": 661
+        },
+        {
+            "height": 815,
+            "lines": [],
+            "number": 37,
+            "rotation": 0,
+            "text": "",
+            "width": 661
+        },
+        {
+            "height": 815,
+            "lines": [],
+            "number": 38,
+            "rotation": 0,
+            "text": "",
+            "width": 661
+        },
+        {
+            "height": 815,
+            "lines": [],
+            "number": 39,
+            "rotation": 0,
+            "text": "",
+            "width": 661
+        },
+        {
+            "height": 815,
+            "lines": [],
+            "number": 40,
+            "rotation": 0,
+            "text": "",
+            "width": 661
+        },
+        {
+            "height": 815,
+            "lines": [],
+            "number": 41,
+            "rotation": 0,
+            "text": "",
+            "width": 661
+        },
+        {
+            "height": 815,
+            "lines": [],
+            "number": 42,
+            "rotation": 0,
+            "text": "",
+            "width": 661
+        },
+        {
+            "height": 815,
+            "lines": [],
+            "number": 43,
+            "rotation": 0,
+            "text": "",
+            "width": 661
+        },
+        {
+            "height": 815,
+            "lines": [],
+            "number": 44,
+            "rotation": 0,
+            "text": "",
+            "width": 661
+        },
+        {
+            "height": 815,
+            "lines": [],
+            "number": 45,
+            "rotation": 0,
+            "text": "",
+            "width": 661
+        },
+        {
+            "height": 815,
+            "lines": [],
+            "number": 46,
+            "rotation": 0,
+            "text": "",
+            "width": 661
+        },
+        {
+            "height": 815,
+            "lines": [],
+            "number": 47,
+            "rotation": 0,
+            "text": "",
+            "width": 661
+        }
+    ]
+}

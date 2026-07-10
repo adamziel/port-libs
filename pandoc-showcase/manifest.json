@@ -1,5 +1,5 @@
 {
-    "generatedAt": "2026-07-10T00:24:11+00:00",
+    "generatedAt": "2026-07-10T01:11:51+00:00",
     "pandocVersion": "pandoc 3.10\nFeatures: +server +lua\nScripting engine: Lua 5.4\nUser data directory: $REPO\nCopyright (C) 2006-2025 John MacFarlane. Web:  https://pandoc.org\nThis is free software; see the source for copying conditions. There is no\nwarranty, not even for merchantability or fitness for a particular purpose.",
     "mediaImageMode": "important",
     "formats": [
@@ -356,16 +356,17 @@
         }
     },
     "faithfulnessSummary": {
-        "comparisons": 152,
-        "faithfulEnough": 152,
+        "comparisons": 158,
+        "faithfulEnough": 158,
         "review": 0,
         "divergent": 0,
         "noText": 0,
-        "visualComparisons": 152,
-        "visualFaithfulEnough": 152,
+        "visualComparisons": 146,
+        "visualFaithfulEnough": 146,
         "visualReview": 0,
         "visualDivergent": 0,
-        "visualNoStructure": 0
+        "visualNoStructure": 0,
+        "visualNotApplicable": 12
     },
     "bibliographyComparisonSummary": {
         "samples": 10,
@@ -876,14 +877,14 @@
         "totals": {
             "code": 650,
             "group": 308,
-            "heading": 4181,
+            "heading": 4211,
             "html": 51,
             "image": 286,
-            "list": 1389,
-            "paragraph": 16113,
+            "list": 1397,
+            "paragraph": 16151,
             "quote": 54,
             "separator": 65,
-            "table": 573,
+            "table": 574,
             "verse": 2
         },
         "sampleCount": 90
@@ -15799,27 +15800,51 @@
             },
             "wpBlockCounts": {
                 "group": 1,
-                "heading": 30,
+                "heading": 57,
                 "image": 1,
-                "list": 2,
-                "paragraph": 29
+                "list": 10,
+                "paragraph": 67,
+                "table": 1
             },
             "sourceRawHtmlBlockCount": null,
             "bibliographySource": null,
+            "externalReference": {
+                "ok": true,
+                "kind": "macos-pdfkit-text-geometry",
+                "label": "macOS PDFKit text and geometry reference",
+                "path": "outputs/pdf-irs-w4/pdfkit.html",
+                "dataPath": "outputs/pdf-irs-w4/pdfkit-reference.json",
+                "metrics": {
+                    "pageCount": 5,
+                    "textPageCount": 5,
+                    "lineCount": 994,
+                    "textBytes": 25795,
+                    "tokenCount": 4954
+                }
+            },
             "bibliographyComparison": {
                 "available": false
             },
             "faithfulness": {
-                "baseline": "phpHtml",
+                "baseline": "externalReference",
                 "comparisons": {
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "faithful_enough",
-                        "score": 1,
+                        "score": 0.9318,
                         "textStatus": "faithful_enough",
-                        "textScore": 1,
-                        "visualStatus": "faithful_enough",
-                        "visualScore": 1
+                        "textScore": 0.9318,
+                        "visualStatus": "not_applicable",
+                        "visualScore": null
+                    },
+                    "phpHtml": {
+                        "label": "PHP HTML",
+                        "status": "faithful_enough",
+                        "score": 0.9318,
+                        "textStatus": "faithful_enough",
+                        "textScore": 0.9318,
+                        "visualStatus": "not_applicable",
+                        "visualScore": null
                     }
                 }
             },
@@ -15829,50 +15854,34 @@
                     "text_completeness": {
                         "status": "pass",
                         "expected": ">=0.8",
-                        "actual": 1,
-                        "detail": "visible text overlap with the baseline"
+                        "actual": 0.9318,
+                        "detail": "bidirectional visible-text overlap with the independent macOS PDFKit reference"
                     },
-                    "visual_structure": {
+                    "native_source_coverage": {
                         "status": "pass",
-                        "expected": ">=0.75",
-                        "actual": 1,
-                        "detail": "heading/list/table/image shape overlap with the baseline"
+                        "expected": ">=0.65",
+                        "actual": 0.8795,
+                        "detail": "native PDFKit source tokens retained in the WordPress output"
+                    },
+                    "pdf_geometry_reference": {
+                        "status": "pass",
+                        "expected": "native PDF page and line geometry",
+                        "actual": {
+                            "pages": 5,
+                            "textPages": 5,
+                            "lines": 994
+                        },
+                        "detail": "macOS PDFKit independently exposed source page boundaries and visual text lines; untagged PDFs do not expose an HTML heading/list/table/image tree."
                     },
                     "paragraph_merge_split": {
                         "status": "pass",
-                        "expected": "0.80-1.25",
-                        "actual": 1,
-                        "detail": "paragraph count ratio expected 29, got 29"
-                    },
-                    "heading_count": {
-                        "status": "pass",
-                        "expected": "0.80-1.25",
-                        "actual": 1,
-                        "detail": "heading count ratio expected 30, got 30"
-                    },
-                    "list_count": {
-                        "status": "pass",
-                        "expected": "0.80-1.25",
-                        "actual": 1,
-                        "detail": "list count ratio expected 2, got 2"
-                    },
-                    "definition_list_count": {
-                        "status": "pass",
-                        "expected": "0",
-                        "actual": 0,
-                        "detail": "definition list count ratio"
-                    },
-                    "table_count": {
-                        "status": "pass",
-                        "expected": "0",
-                        "actual": 0,
-                        "detail": "table count ratio"
-                    },
-                    "image_count": {
-                        "status": "pass",
-                        "expected": "0.80-1.25",
-                        "actual": 1,
-                        "detail": "image count ratio expected 1, got 1"
+                        "expected": "at least 5 semantic text blocks and no more than 90% of 994 visual lines as paragraphs",
+                        "actual": {
+                            "textBlocks": 159,
+                            "paragraphs": 67,
+                            "sourceLines": 994
+                        },
+                        "detail": "native line geometry guards against collapsing a multi-page source or emitting one paragraph for every visual line."
                     },
                     "media_imported": {
                         "status": "pass",
@@ -15890,11 +15899,11 @@
                         "status": "pass",
                         "expected": "<=0.05",
                         "actual": 0,
-                        "detail": "0/63 WordPress blocks are Custom HTML"
+                        "detail": "0/137 WordPress blocks are Custom HTML"
                     }
                 },
                 "summary": {
-                    "pass": 11,
+                    "pass": 7,
                     "review": 0,
                     "fail": 0,
                     "unbenchmarked": 0
@@ -17205,20 +17214,43 @@
             },
             "sourceRawHtmlBlockCount": null,
             "bibliographySource": null,
+            "externalReference": {
+                "ok": true,
+                "kind": "macos-pdfkit-text-geometry",
+                "label": "macOS PDFKit text and geometry reference",
+                "path": "outputs/pdf-tracemonkey/pdfkit.html",
+                "dataPath": "outputs/pdf-tracemonkey/pdfkit-reference.json",
+                "metrics": {
+                    "pageCount": 14,
+                    "textPageCount": 14,
+                    "lineCount": 1572,
+                    "textBytes": 83048,
+                    "tokenCount": 14073
+                }
+            },
             "bibliographyComparison": {
                 "available": false
             },
             "faithfulness": {
-                "baseline": "phpHtml",
+                "baseline": "externalReference",
                 "comparisons": {
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "faithful_enough",
-                        "score": 1,
+                        "score": 0.8958,
                         "textStatus": "faithful_enough",
-                        "textScore": 1,
-                        "visualStatus": "faithful_enough",
-                        "visualScore": 0.9888
+                        "textScore": 0.8958,
+                        "visualStatus": "not_applicable",
+                        "visualScore": null
+                    },
+                    "phpHtml": {
+                        "label": "PHP HTML",
+                        "status": "faithful_enough",
+                        "score": 0.8958,
+                        "textStatus": "faithful_enough",
+                        "textScore": 0.8958,
+                        "visualStatus": "not_applicable",
+                        "visualScore": null
                     }
                 }
             },
@@ -17228,50 +17260,34 @@
                     "text_completeness": {
                         "status": "pass",
                         "expected": ">=0.8",
-                        "actual": 1,
-                        "detail": "visible text overlap with the baseline"
+                        "actual": 0.8958,
+                        "detail": "bidirectional visible-text overlap with the independent macOS PDFKit reference"
                     },
-                    "visual_structure": {
+                    "native_source_coverage": {
                         "status": "pass",
-                        "expected": ">=0.75",
-                        "actual": 0.9888,
-                        "detail": "heading/list/table/image shape overlap with the baseline"
+                        "expected": ">=0.65",
+                        "actual": 0.8342,
+                        "detail": "native PDFKit source tokens retained in the WordPress output"
+                    },
+                    "pdf_geometry_reference": {
+                        "status": "pass",
+                        "expected": "native PDF page and line geometry",
+                        "actual": {
+                            "pages": 14,
+                            "textPages": 14,
+                            "lines": 1572
+                        },
+                        "detail": "macOS PDFKit independently exposed source page boundaries and visual text lines; untagged PDFs do not expose an HTML heading/list/table/image tree."
                     },
                     "paragraph_merge_split": {
                         "status": "pass",
-                        "expected": "0.80-1.25",
-                        "actual": 1,
-                        "detail": "paragraph count ratio expected 118, got 118"
-                    },
-                    "heading_count": {
-                        "status": "pass",
-                        "expected": "0.80-1.25",
-                        "actual": 1,
-                        "detail": "heading count ratio expected 25, got 25"
-                    },
-                    "list_count": {
-                        "status": "pass",
-                        "expected": "0.80-1.25",
-                        "actual": 1,
-                        "detail": "list count ratio expected 2, got 2"
-                    },
-                    "definition_list_count": {
-                        "status": "pass",
-                        "expected": "0",
-                        "actual": 0,
-                        "detail": "definition list count ratio"
-                    },
-                    "table_count": {
-                        "status": "pass",
-                        "expected": "0.80-1.25",
-                        "actual": 1,
-                        "detail": "table count ratio expected 3, got 3"
-                    },
-                    "image_count": {
-                        "status": "pass",
-                        "expected": "0.80-1.25",
-                        "actual": 1,
-                        "detail": "image count ratio expected 28, got 28"
+                        "expected": "at least 14 semantic text blocks and no more than 90% of 1572 visual lines as paragraphs",
+                        "actual": {
+                            "textBlocks": 187,
+                            "paragraphs": 118,
+                            "sourceLines": 1572
+                        },
+                        "detail": "native line geometry guards against collapsing a multi-page source or emitting one paragraph for every visual line."
                     },
                     "media_imported": {
                         "status": "pass",
@@ -17293,7 +17309,7 @@
                     }
                 },
                 "summary": {
-                    "pass": 11,
+                    "pass": 7,
                     "review": 0,
                     "fail": 0,
                     "unbenchmarked": 0
@@ -18432,27 +18448,50 @@
             },
             "wpBlockCounts": {
                 "group": 1,
-                "heading": 18,
+                "heading": 19,
                 "image": 32,
                 "list": 26,
-                "paragraph": 116
+                "paragraph": 115
             },
             "sourceRawHtmlBlockCount": null,
             "bibliographySource": null,
+            "externalReference": {
+                "ok": true,
+                "kind": "macos-pdfkit-text-geometry",
+                "label": "macOS PDFKit text and geometry reference",
+                "path": "outputs/pdf-cdc-hand-hygiene-brochure/pdfkit.html",
+                "dataPath": "outputs/pdf-cdc-hand-hygiene-brochure/pdfkit-reference.json",
+                "metrics": {
+                    "pageCount": 2,
+                    "textPageCount": 2,
+                    "lineCount": 161,
+                    "textBytes": 5102,
+                    "tokenCount": 844
+                }
+            },
             "bibliographyComparison": {
                 "available": false
             },
             "faithfulness": {
-                "baseline": "phpHtml",
+                "baseline": "externalReference",
                 "comparisons": {
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "faithful_enough",
-                        "score": 1,
+                        "score": 0.9621,
                         "textStatus": "faithful_enough",
-                        "textScore": 1,
-                        "visualStatus": "faithful_enough",
-                        "visualScore": 1
+                        "textScore": 0.9621,
+                        "visualStatus": "not_applicable",
+                        "visualScore": null
+                    },
+                    "phpHtml": {
+                        "label": "PHP HTML",
+                        "status": "faithful_enough",
+                        "score": 0.9621,
+                        "textStatus": "faithful_enough",
+                        "textScore": 0.9621,
+                        "visualStatus": "not_applicable",
+                        "visualScore": null
                     }
                 }
             },
@@ -18462,50 +18501,34 @@
                     "text_completeness": {
                         "status": "pass",
                         "expected": ">=0.8",
-                        "actual": 1,
-                        "detail": "visible text overlap with the baseline"
+                        "actual": 0.9621,
+                        "detail": "bidirectional visible-text overlap with the independent macOS PDFKit reference"
                     },
-                    "visual_structure": {
+                    "native_source_coverage": {
                         "status": "pass",
-                        "expected": ">=0.75",
-                        "actual": 1,
-                        "detail": "heading/list/table/image shape overlap with the baseline"
+                        "expected": ">=0.65",
+                        "actual": 0.9775,
+                        "detail": "native PDFKit source tokens retained in the WordPress output"
+                    },
+                    "pdf_geometry_reference": {
+                        "status": "pass",
+                        "expected": "native PDF page and line geometry",
+                        "actual": {
+                            "pages": 2,
+                            "textPages": 2,
+                            "lines": 161
+                        },
+                        "detail": "macOS PDFKit independently exposed source page boundaries and visual text lines; untagged PDFs do not expose an HTML heading/list/table/image tree."
                     },
                     "paragraph_merge_split": {
                         "status": "pass",
-                        "expected": "0.80-1.25",
-                        "actual": 1,
-                        "detail": "paragraph count ratio expected 116, got 116"
-                    },
-                    "heading_count": {
-                        "status": "pass",
-                        "expected": "0.80-1.25",
-                        "actual": 1,
-                        "detail": "heading count ratio expected 18, got 18"
-                    },
-                    "list_count": {
-                        "status": "pass",
-                        "expected": "0.80-1.25",
-                        "actual": 1,
-                        "detail": "list count ratio expected 26, got 26"
-                    },
-                    "definition_list_count": {
-                        "status": "pass",
-                        "expected": "0",
-                        "actual": 0,
-                        "detail": "definition list count ratio"
-                    },
-                    "table_count": {
-                        "status": "pass",
-                        "expected": "0",
-                        "actual": 0,
-                        "detail": "table count ratio"
-                    },
-                    "image_count": {
-                        "status": "pass",
-                        "expected": "0.80-1.25",
-                        "actual": 1,
-                        "detail": "image count ratio expected 32, got 32"
+                        "expected": "at least 2 semantic text blocks and no more than 90% of 161 visual lines as paragraphs",
+                        "actual": {
+                            "textBlocks": 163,
+                            "paragraphs": 115,
+                            "sourceLines": 161
+                        },
+                        "detail": "native line geometry guards against collapsing a multi-page source or emitting one paragraph for every visual line."
                     },
                     "media_imported": {
                         "status": "pass",
@@ -18527,7 +18550,7 @@
                     }
                 },
                 "summary": {
-                    "pass": 11,
+                    "pass": 7,
                     "review": 0,
                     "fail": 0,
                     "unbenchmarked": 0
@@ -19654,26 +19677,49 @@
             },
             "wpBlockCounts": {
                 "group": 1,
-                "heading": 71,
+                "heading": 73,
                 "image": 31,
-                "paragraph": 60
+                "paragraph": 61
             },
             "sourceRawHtmlBlockCount": null,
             "bibliographySource": null,
+            "externalReference": {
+                "ok": true,
+                "kind": "macos-pdfkit-text-geometry",
+                "label": "macOS PDFKit text and geometry reference",
+                "path": "outputs/pdf-grand-canyon-north-rim-map/pdfkit.html",
+                "dataPath": "outputs/pdf-grand-canyon-north-rim-map/pdfkit-reference.json",
+                "metrics": {
+                    "pageCount": 2,
+                    "textPageCount": 2,
+                    "lineCount": 414,
+                    "textBytes": 15458,
+                    "tokenCount": 2676
+                }
+            },
             "bibliographyComparison": {
                 "available": false
             },
             "faithfulness": {
-                "baseline": "phpHtml",
+                "baseline": "externalReference",
                 "comparisons": {
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "faithful_enough",
-                        "score": 1,
+                        "score": 0.8568,
                         "textStatus": "faithful_enough",
-                        "textScore": 1,
-                        "visualStatus": "faithful_enough",
-                        "visualScore": 1
+                        "textScore": 0.8568,
+                        "visualStatus": "not_applicable",
+                        "visualScore": null
+                    },
+                    "phpHtml": {
+                        "label": "PHP HTML",
+                        "status": "faithful_enough",
+                        "score": 0.8568,
+                        "textStatus": "faithful_enough",
+                        "textScore": 0.8568,
+                        "visualStatus": "not_applicable",
+                        "visualScore": null
                     }
                 }
             },
@@ -19683,50 +19729,34 @@
                     "text_completeness": {
                         "status": "pass",
                         "expected": ">=0.8",
-                        "actual": 1,
-                        "detail": "visible text overlap with the baseline"
+                        "actual": 0.8568,
+                        "detail": "bidirectional visible-text overlap with the independent macOS PDFKit reference"
                     },
-                    "visual_structure": {
+                    "native_source_coverage": {
                         "status": "pass",
-                        "expected": ">=0.75",
-                        "actual": 1,
-                        "detail": "heading/list/table/image shape overlap with the baseline"
+                        "expected": ">=0.65",
+                        "actual": 0.7556,
+                        "detail": "native PDFKit source tokens retained in the WordPress output"
+                    },
+                    "pdf_geometry_reference": {
+                        "status": "pass",
+                        "expected": "native PDF page and line geometry",
+                        "actual": {
+                            "pages": 2,
+                            "textPages": 2,
+                            "lines": 414
+                        },
+                        "detail": "macOS PDFKit independently exposed source page boundaries and visual text lines; untagged PDFs do not expose an HTML heading/list/table/image tree."
                     },
                     "paragraph_merge_split": {
                         "status": "pass",
-                        "expected": "0.80-1.25",
-                        "actual": 1,
-                        "detail": "paragraph count ratio expected 60, got 60"
-                    },
-                    "heading_count": {
-                        "status": "pass",
-                        "expected": "0.80-1.25",
-                        "actual": 1,
-                        "detail": "heading count ratio expected 71, got 71"
-                    },
-                    "list_count": {
-                        "status": "pass",
-                        "expected": "0",
-                        "actual": 0,
-                        "detail": "list count ratio"
-                    },
-                    "definition_list_count": {
-                        "status": "pass",
-                        "expected": "0",
-                        "actual": 0,
-                        "detail": "definition list count ratio"
-                    },
-                    "table_count": {
-                        "status": "pass",
-                        "expected": "0",
-                        "actual": 0,
-                        "detail": "table count ratio"
-                    },
-                    "image_count": {
-                        "status": "pass",
-                        "expected": "0.80-1.25",
-                        "actual": 1,
-                        "detail": "image count ratio expected 31, got 31"
+                        "expected": "at least 2 semantic text blocks and no more than 90% of 414 visual lines as paragraphs",
+                        "actual": {
+                            "textBlocks": 134,
+                            "paragraphs": 61,
+                            "sourceLines": 414
+                        },
+                        "detail": "native line geometry guards against collapsing a multi-page source or emitting one paragraph for every visual line."
                     },
                     "media_imported": {
                         "status": "pass",
@@ -19744,11 +19774,11 @@
                         "status": "pass",
                         "expected": "<=0.05",
                         "actual": 0,
-                        "detail": "0/163 WordPress blocks are Custom HTML"
+                        "detail": "0/166 WordPress blocks are Custom HTML"
                     }
                 },
                 "summary": {
-                    "pass": 11,
+                    "pass": 7,
                     "review": 0,
                     "fail": 0,
                     "unbenchmarked": 0
@@ -22131,20 +22161,43 @@
             },
             "sourceRawHtmlBlockCount": null,
             "bibliographySource": null,
+            "externalReference": {
+                "ok": true,
+                "kind": "macos-pdfkit-text-geometry",
+                "label": "macOS PDFKit text and geometry reference",
+                "path": "outputs/pdf-archive-motograph-book/pdfkit.html",
+                "dataPath": "outputs/pdf-archive-motograph-book/pdfkit-reference.json",
+                "metrics": {
+                    "pageCount": 47,
+                    "textPageCount": 1,
+                    "lineCount": 28,
+                    "textBytes": 2971,
+                    "tokenCount": 505
+                }
+            },
             "bibliographyComparison": {
                 "available": false
             },
             "faithfulness": {
-                "baseline": "phpHtml",
+                "baseline": "externalReference",
                 "comparisons": {
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "faithful_enough",
-                        "score": 1,
+                        "score": 0.9323,
                         "textStatus": "faithful_enough",
-                        "textScore": 1,
-                        "visualStatus": "faithful_enough",
-                        "visualScore": 1
+                        "textScore": 0.9323,
+                        "visualStatus": "not_applicable",
+                        "visualScore": null
+                    },
+                    "phpHtml": {
+                        "label": "PHP HTML",
+                        "status": "faithful_enough",
+                        "score": 0.9323,
+                        "textStatus": "faithful_enough",
+                        "textScore": 0.9323,
+                        "visualStatus": "not_applicable",
+                        "visualScore": null
                     }
                 }
             },
@@ -22154,50 +22207,34 @@
                     "text_completeness": {
                         "status": "pass",
                         "expected": ">=0.8",
-                        "actual": 1,
-                        "detail": "visible text overlap with the baseline"
+                        "actual": 0.9323,
+                        "detail": "bidirectional visible-text overlap with the independent macOS PDFKit reference"
                     },
-                    "visual_structure": {
+                    "native_source_coverage": {
                         "status": "pass",
-                        "expected": ">=0.75",
-                        "actual": 1,
-                        "detail": "heading/list/table/image shape overlap with the baseline"
+                        "expected": ">=0.65",
+                        "actual": 0.9129,
+                        "detail": "native PDFKit source tokens retained in the WordPress output"
+                    },
+                    "pdf_geometry_reference": {
+                        "status": "pass",
+                        "expected": "native PDF page and line geometry",
+                        "actual": {
+                            "pages": 47,
+                            "textPages": 1,
+                            "lines": 28
+                        },
+                        "detail": "macOS PDFKit independently exposed source page boundaries and visual text lines; untagged PDFs do not expose an HTML heading/list/table/image tree."
                     },
                     "paragraph_merge_split": {
                         "status": "pass",
-                        "expected": "0.80-1.25",
-                        "actual": 1,
-                        "detail": "paragraph count ratio expected 24, got 24"
-                    },
-                    "heading_count": {
-                        "status": "pass",
-                        "expected": "0.80-1.25",
-                        "actual": 1,
-                        "detail": "heading count ratio expected 2, got 2"
-                    },
-                    "list_count": {
-                        "status": "pass",
-                        "expected": "0",
-                        "actual": 0,
-                        "detail": "list count ratio"
-                    },
-                    "definition_list_count": {
-                        "status": "pass",
-                        "expected": "0",
-                        "actual": 0,
-                        "detail": "definition list count ratio"
-                    },
-                    "table_count": {
-                        "status": "pass",
-                        "expected": "0",
-                        "actual": 0,
-                        "detail": "table count ratio"
-                    },
-                    "image_count": {
-                        "status": "pass",
-                        "expected": "0.80-1.25",
-                        "actual": 1,
-                        "detail": "image count ratio expected 66, got 66"
+                        "expected": "at least 1 semantic text blocks and no more than 90% of 28 visual lines as paragraphs",
+                        "actual": {
+                            "textBlocks": 26,
+                            "paragraphs": 24,
+                            "sourceLines": 28
+                        },
+                        "detail": "native line geometry guards against collapsing a multi-page source or emitting one paragraph for every visual line."
                     },
                     "media_imported": {
                         "status": "pass",
@@ -22219,7 +22256,7 @@
                     }
                 },
                 "summary": {
-                    "pass": 11,
+                    "pass": 7,
                     "review": 0,
                     "fail": 0,
                     "unbenchmarked": 0
@@ -22953,20 +22990,43 @@
             },
             "sourceRawHtmlBlockCount": null,
             "bibliographySource": null,
+            "externalReference": {
+                "ok": true,
+                "kind": "macos-pdfkit-text-geometry",
+                "label": "macOS PDFKit text and geometry reference",
+                "path": "outputs/pdf-muir-beach-brochure/pdfkit.html",
+                "dataPath": "outputs/pdf-muir-beach-brochure/pdfkit-reference.json",
+                "metrics": {
+                    "pageCount": 4,
+                    "textPageCount": 4,
+                    "lineCount": 424,
+                    "textBytes": 6208,
+                    "tokenCount": 1177
+                }
+            },
             "bibliographyComparison": {
                 "available": false
             },
             "faithfulness": {
-                "baseline": "phpHtml",
+                "baseline": "externalReference",
                 "comparisons": {
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "faithful_enough",
-                        "score": 1,
+                        "score": 0.8077,
                         "textStatus": "faithful_enough",
-                        "textScore": 1,
-                        "visualStatus": "faithful_enough",
-                        "visualScore": 1
+                        "textScore": 0.8077,
+                        "visualStatus": "not_applicable",
+                        "visualScore": null
+                    },
+                    "phpHtml": {
+                        "label": "PHP HTML",
+                        "status": "faithful_enough",
+                        "score": 0.8077,
+                        "textStatus": "faithful_enough",
+                        "textScore": 0.8077,
+                        "visualStatus": "not_applicable",
+                        "visualScore": null
                     }
                 }
             },
@@ -22976,50 +23036,34 @@
                     "text_completeness": {
                         "status": "pass",
                         "expected": ">=0.8",
-                        "actual": 1,
-                        "detail": "visible text overlap with the baseline"
+                        "actual": 0.8077,
+                        "detail": "bidirectional visible-text overlap with the independent macOS PDFKit reference"
                     },
-                    "visual_structure": {
+                    "native_source_coverage": {
                         "status": "pass",
-                        "expected": ">=0.75",
-                        "actual": 1,
-                        "detail": "heading/list/table/image shape overlap with the baseline"
+                        "expected": ">=0.65",
+                        "actual": 0.6975,
+                        "detail": "native PDFKit source tokens retained in the WordPress output"
+                    },
+                    "pdf_geometry_reference": {
+                        "status": "pass",
+                        "expected": "native PDF page and line geometry",
+                        "actual": {
+                            "pages": 4,
+                            "textPages": 4,
+                            "lines": 424
+                        },
+                        "detail": "macOS PDFKit independently exposed source page boundaries and visual text lines; untagged PDFs do not expose an HTML heading/list/table/image tree."
                     },
                     "paragraph_merge_split": {
                         "status": "pass",
-                        "expected": "0.80-1.25",
-                        "actual": 1,
-                        "detail": "paragraph count ratio expected 27, got 27"
-                    },
-                    "heading_count": {
-                        "status": "pass",
-                        "expected": "0.80-1.25",
-                        "actual": 1,
-                        "detail": "heading count ratio expected 24, got 24"
-                    },
-                    "list_count": {
-                        "status": "pass",
-                        "expected": "0.80-1.25",
-                        "actual": 1,
-                        "detail": "list count ratio expected 2, got 2"
-                    },
-                    "definition_list_count": {
-                        "status": "pass",
-                        "expected": "0",
-                        "actual": 0,
-                        "detail": "definition list count ratio"
-                    },
-                    "table_count": {
-                        "status": "pass",
-                        "expected": "0",
-                        "actual": 0,
-                        "detail": "table count ratio"
-                    },
-                    "image_count": {
-                        "status": "pass",
-                        "expected": "0.80-1.25",
-                        "actual": 1,
-                        "detail": "image count ratio expected 20, got 20"
+                        "expected": "at least 4 semantic text blocks and no more than 90% of 424 visual lines as paragraphs",
+                        "actual": {
+                            "textBlocks": 54,
+                            "paragraphs": 27,
+                            "sourceLines": 424
+                        },
+                        "detail": "native line geometry guards against collapsing a multi-page source or emitting one paragraph for every visual line."
                     },
                     "media_imported": {
                         "status": "pass",
@@ -23041,7 +23085,7 @@
                     }
                 },
                 "summary": {
-                    "pass": 11,
+                    "pass": 7,
                     "review": 0,
                     "fail": 0,
                     "unbenchmarked": 0
