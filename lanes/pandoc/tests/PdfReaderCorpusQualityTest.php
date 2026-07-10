@@ -169,7 +169,7 @@ return [
         $cases = [
             'grand-canyon-map' => ['minGeometryTables' => 1, 'minTables' => 1, 'minLines' => 250, 'mode' => 'geometry'],
             'muir-brochure' => ['minGeometryTables' => 2, 'minTables' => 2, 'minLines' => 400, 'mode' => 'geometry'],
-            'tracemonkey-paper' => ['minGeometryTables' => 5, 'minTables' => 3, 'minLines' => 1000, 'mode' => 'text-fallback'],
+            'tracemonkey-paper' => ['minGeometryTables' => 5, 'minTables' => 1, 'minLines' => 1000, 'mode' => 'text-fallback'],
         ];
 
         foreach ($cases as $kind => $expectation) {
@@ -187,7 +187,7 @@ return [
         $cases = [
             'grand-canyon-map' => ['minParagraphs' => 40, 'minHeadings' => 25, 'minTables' => 0],
             'muir-brochure' => ['minParagraphs' => 25, 'minHeadings' => 20, 'minTables' => 0],
-            'tracemonkey-paper' => ['minParagraphs' => 100, 'minHeadings' => 20, 'minTables' => 1],
+            'tracemonkey-paper' => ['minParagraphs' => 100, 'minHeadings' => 12, 'minTables' => 1],
         ];
 
         foreach ($cases as $kind => $expectation) {
@@ -253,7 +253,7 @@ return [
         $t->true(!str_contains($text, 'jvm 98'), 'TraceMonkey URL path digits should not be split.');
         $t->true(!str_contains($text, 'msg 00051'), 'TraceMonkey URL path message identifiers should not be split.');
     },
-    'pdf corpus gate does not join TraceMonkey table cell words as fragments' => static function (TestRunner $t) use ($pdfSamplePaths, $plainText): void {
+    'pdf corpus gate preserves TraceMonkey data tables without promoting split diagram labels' => static function (TestRunner $t) use ($pdfSamplePaths, $plainText): void {
         $document = (new PdfReader([
             'maxTextBytes' => 80000,
             'pdfRepairProseText' => true,
@@ -265,10 +265,11 @@ return [
         foreach (['objectpointer', 'numberpointer', 'stringpointer', 'booleanenumeration'] as $glued) {
             $t->true(!str_contains($blocks, $glued), "TraceMonkey table cells should not contain '{$glued}'.");
         }
-        $t->contains('<!-- wp:table -->', $blocks);
+        $t->same(1, substr_count($blocks, '<!-- wp:table -->'));
         $t->contains('<th>Tag</th><th>JS Type</th><th>Description</th>', $blocks);
         $t->contains('<td>object</td><td>pointer to JS Object handle</td>', $blocks);
         $t->contains('<td>boolean</td><td>enumeration for null, undefined, true, false', $blocks);
+        $t->true(!str_contains($blocks, '<th>T</th><th>r</th><th>ace 2</th>'));
         $t->contains('Testing tags, unboxing', $text);
     },
     'pdf corpus gate does not inject TraceMonkey positioned word fragment spaces' => static function (TestRunner $t) use ($pdfSamplePaths, $plainText): void {

@@ -5011,6 +5011,23 @@ return [
         $t->true(!str_contains($html, '1 ,693'));
         $t->true(!str_contains($html, '$4, 700.00'));
     },
+    'does not promote split diagram labels to stacked tables' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $blocksFromLines = (function (array $lines): array {
+            return $this->blocksFromLines($lines);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($blocksFromLines instanceof \Closure);
+
+        $blocks = $blocksFromLines([
+            'Q', 'u', 'anta 1',
+            'Q', 'u', 'anta 2',
+            'Q', 'u', 'anta 3',
+            'Link', 'ed', 'Closed',
+        ]);
+
+        $tables = array_filter($blocks, static fn (object $block): bool => $block->type === 'table');
+        $t->same(0, count($tables));
+    },
     'does not dictionary segment glued pdf prose without layout evidence' => static function (TestRunner $t) use ($pdfWithContent): void {
         $pdf = $pdfWithContent(
             'BT /F1 12 Tf '

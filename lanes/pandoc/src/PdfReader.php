@@ -1514,6 +1514,7 @@ final class PdfReader
             }
         }
         $cleaned = $this->removeLowCoherencePdfMapRegions($cleaned);
+        $cleaned = $this->removeLowCoherencePdfDiagramLabelRegions($cleaned);
 
         $merged = $this->mergeRepairedPdfRecords($cleaned, $splitWordHints);
         $repaired = [];
@@ -1659,6 +1660,100 @@ final class PdfReader
         $flushCandidate();
 
         return $filtered;
+    }
+
+    /**
+     * Diagram labels are frequently emitted as individual glyph fragments in
+     * reading order. They can look like a stacked table after text extraction,
+     * even though their only reliable semantic counterpart is the surrounding
+     * figure caption. Drop only sustained clusters that contain repeated word
+     * fragments; ordinary short headings and compact data grids remain intact.
+     *
+     * @param list<array{text: string, layout: array{text: string, page: int, x1: float, y1: float, x2: float, y2: float, fontSize: float}|null}> $records
+     * @return list<array{text: string, layout: array{text: string, page: int, x1: float, y1: float, x2: float, y2: float, fontSize: float}|null}>
+     */
+    private function removeLowCoherencePdfDiagramLabelRegions(array $records): array
+    {
+        $filtered = [];
+        $candidate = [];
+        $flushCandidate = function () use (&$filtered, &$candidate): void {
+            if ($candidate === []) {
+                return;
+            }
+            if (!$this->pdfDiagramLabelClusterShouldBeDropped($candidate)) {
+                foreach ($candidate as $record) {
+                    $filtered[] = $record;
+                }
+            }
+            $candidate = [];
+        };
+
+        foreach ($records as $record) {
+            $layout = is_array($record['layout'] ?? null) ? $record['layout'] : null;
+            if (($layout['code'] ?? false) === true || !$this->lineLooksLikePdfDiagramLabel($record['text'])) {
+                $flushCandidate();
+                $filtered[] = $record;
+                continue;
+            }
+            $candidate[] = $record;
+        }
+        $flushCandidate();
+
+        return $filtered;
+    }
+
+    private function lineLooksLikePdfDiagramLabel(string $line): bool
+    {
+        $line = trim($line);
+        if ($line === '' || $this->length($line) > 36 || preg_match('/[.!?]\s*$/u', $line) === 1) {
+            return false;
+        }
+        if (preg_match('/[{};]|:=|=>|->|\/\//u', $line) === 1) {
+            return false;
+        }
+
+        return count($this->pdfLineWordTokens($line)) <= 5;
+    }
+
+    /**
+     * @param list<array{text: string, layout: array<string, mixed>|null}> $records
+     */
+    private function pdfDiagramLabelClusterShouldBeDropped(array $records): bool
+    {
+        $count = count($records);
+        if ($count < 6) {
+            return false;
+        }
+
+        $shortLabels = 0;
+        $singleLetterFragments = 0;
+        $lowercaseFragments = 0;
+        $fragmentTransitions = 0;
+        $previousWasShortPrefix = false;
+        foreach ($records as $record) {
+            $line = trim($record['text']);
+            if ($this->length($line) <= 24) {
+                $shortLabels++;
+            }
+
+            $startsLowercaseFragment = preg_match('/^\p{Ll}{1,8}(?=\s|$)/u', $line) === 1;
+            $isShortPrefix = preg_match('/^\p{L}{1,2}$/u', $line) === 1;
+            if ($isShortPrefix) {
+                $singleLetterFragments++;
+            }
+            if ($startsLowercaseFragment) {
+                $lowercaseFragments++;
+            }
+            if ($previousWasShortPrefix && $startsLowercaseFragment) {
+                $fragmentTransitions++;
+            }
+            $previousWasShortPrefix = $isShortPrefix || $startsLowercaseFragment;
+        }
+
+        return $shortLabels / $count >= 0.80
+            && $singleLetterFragments >= 2
+            && $lowercaseFragments >= 2
+            && $fragmentTransitions >= 2;
     }
 
     /**
@@ -5579,7 +5674,11 @@ final class PdfReader
             $consumed++;
         }
 
-        return count($rows) >= 2 ? ['rows' => $rows, 'consumed' => $consumed] : ['rows' => [], 'consumed' => 0];
+        if (count($rows) < 2 || $this->tableRowsLookLikeFragmentedLabelGrid($rows)) {
+            return ['rows' => [], 'consumed' => 0];
+        }
+
+        return ['rows' => $rows, 'consumed' => $consumed];
     }
 
     /**
@@ -5639,7 +5738,8 @@ final class PdfReader
             }
 
             if (count($rows) >= 4) {
-                if (!$this->stackedTableRowsLookLikeDataGrid($rows, $columnCount)) {
+                if (!$this->stackedTableRowsLookLikeDataGrid($rows, $columnCount)
+                    || $this->tableRowsLookLikeFragmentedLabelGrid($rows)) {
                     continue;
                 }
 
@@ -5680,6 +5780,40 @@ final class PdfReader
         }
 
         return $numericCells >= max(3, (int) ceil($bodyCells * 0.20));
+    }
+
+    /**
+     * A columnar text stream such as "T / r / ace" is a split label, not
+     * three data cells. This occurs in vector diagrams where each word is
+     * painted in separate fragments. It is intentionally rejected before the
+     * generic stacked-table parser can promote the diagram to a data table.
+     *
+     * @param list<list<string>> $rows
+     */
+    private function tableRowsLookLikeFragmentedLabelGrid(array $rows): bool
+    {
+        if (count($rows) < 2 || count($rows[0] ?? []) < 3) {
+            return false;
+        }
+
+        $fragmentedRows = 0;
+        foreach ($rows as $row) {
+            $fragments = 0;
+            for ($index = 0, $limit = count($row) - 1; $index < $limit; $index++) {
+                $left = $this->lastWordToken((string) $row[$index]);
+                $right = $this->firstWordToken((string) $row[$index + 1]);
+                if (preg_match('/^\p{L}{1,2}$/u', $left) !== 1
+                    || preg_match('/^\p{Ll}{1,8}$/u', $right) !== 1) {
+                    continue;
+                }
+                $fragments++;
+            }
+            if ($fragments >= 2) {
+                $fragmentedRows++;
+            }
+        }
+
+        return $fragmentedRows >= 2 && $fragmentedRows / count($rows) >= 0.50;
     }
 
     private function stackedTableHeaderCell(string $line): bool
