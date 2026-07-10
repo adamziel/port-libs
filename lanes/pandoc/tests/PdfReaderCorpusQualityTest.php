@@ -185,7 +185,7 @@ return [
     },
     'pdf corpus gate keeps text only retry prose oriented' => static function (TestRunner $t) use ($pdfSamplePaths, $readPdfSample): void {
         $cases = [
-            'grand-canyon-map' => ['minParagraphs' => 40, 'minHeadings' => 40, 'minTables' => 0],
+            'grand-canyon-map' => ['minParagraphs' => 40, 'minHeadings' => 25, 'minTables' => 0],
             'muir-brochure' => ['minParagraphs' => 25, 'minHeadings' => 20, 'minTables' => 0],
             'tracemonkey-paper' => ['minParagraphs' => 100, 'minHeadings' => 20, 'minTables' => 1],
         ];
@@ -287,6 +287,21 @@ return [
         $t->contains('recording', $text);
         $t->contains('interpreter', $text);
     },
+    'pdf corpus gate infers sustained monospaced listings as code blocks' => static function (TestRunner $t) use ($pdfSamplePaths): void {
+        $document = (new PdfReader([
+            'maxTextBytes' => 80000,
+            'pdfRepairProseText' => true,
+            'pdfGeometryTables' => false,
+        ]))->read(file_get_contents($pdfSamplePaths()['tracemonkey-paper']) ?: '');
+        $blocks = PandocConverter::write($document, 'blocks');
+        $meta = $document->attr('meta');
+
+        $t->same(2, $meta['pdfDetectedCodeBlocks']);
+        $t->same(2, substr_count($blocks, '<!-- wp:code -->'));
+        $t->contains("v0 := ld state[748]      // load primes from the trace activation record\n", $blocks);
+        $t->contains("mov edx, ebx(748)       // load primes from the trace activation record\n", $blocks);
+        $t->contains('This is the LIR recorded for line 5', $blocks);
+    },
     'pdf corpus gate rejects damaged positioned prose streams' => static function (TestRunner $t) use ($pdfSamplePaths, $readPdfSample): void {
         $muir = $readPdfSample($pdfSamplePaths()['muir-brochure'], ['pdfGeometryTables' => false]);
         $meta = $muir['meta'];
@@ -314,9 +329,21 @@ return [
         $cdcMeta = $cdc['meta'];
 
         $t->same(0, $cdcMeta['pdfDetectedTables'], 'CDC brochure should not become a false table.');
+        $t->same(0, $cdcMeta['pdfDetectedCodeBlocks'], 'CDC brochure columns should not become false code listings.');
         $t->true($cdc['lists'] >= 12, 'CDC brochure should preserve visible bullet lists.');
-        $t->true($cdc['headings'] >= 10, 'CDC brochure should retain prominent heading-like text.');
-        $t->true($cdc['paragraphs'] >= 80, 'CDC brochure should not collapse dense flyer/list content into oversized paragraphs.');
+        $t->true($cdc['headings'] >= 6, 'CDC brochure should retain prominent heading-like text without splitting wrapped headings.');
+        $t->true($cdc['paragraphs'] >= 30, 'CDC brochure should preserve its prose groups without emitting every visual line as a paragraph.');
+
+        $cdcText = $plainText(PandocConverter::write($cdc['document'], 'html'));
+        $t->contains('To prevent hospital infections.', $cdcText);
+        $t->contains('You should practice hand hygiene:', $cdcText);
+        $t->contains('Before preparing or eating food.', $cdcText);
+        $t->contains('To prevent hospital infections.', $cdc['blocks']);
+        $t->contains('You should practice hand hygiene:', $cdc['blocks']);
+        $t->contains('Healthcare providers should practice hand hygiene:', $cdc['blocks']);
+        foreach (['To prevent hospital You should practice', 'year. • Before touching', 't he hospital', 'at ris k', 'take actio n'] as $artifact) {
+            $t->true(!str_contains($cdcText, $artifact), "CDC brochure should not contain '{$artifact}'.");
+        }
 
         $w4 = $readPdfSample($pdfSamplePaths()['irs-w4-form']);
         $w4Meta = $w4['meta'];

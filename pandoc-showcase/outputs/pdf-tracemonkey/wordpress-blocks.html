@@ -198,17 +198,57 @@
 <p>iteration:</p>
 <!-- /wp:paragraph -->
 
-<!-- wp:paragraph -->
-<p>v0 : = ld state[748] // load primes from the trace activation record st sp[0], v0 // store primes to interpreter stack v1 : = ld state[764] // load k from the trace activation record v2 : = i2f(v1)// convert k from int to double st sp[8], v1 // store k to interpreter stack st sp[16], 0 // store false to interpreter stack v3 : = ld v0[4]// load class word for primes v4 : = and v3, -4// mask out object class tag for primes v5 : = eq v4, Array // test whether primes is an array xf v5// side exit if v5 is false v6 : = js_Array_set(v0, v2, false) // call function to set array element v7 : = eq v6, 0// test return value from call xt v7// side exit if js_Array_set returns false. This is the LIR recorded for line 5 of the sample program in Figure 1. The LIR encodes the semantics in SSA form using temporary variables. The LIR also encodes all the stores that the interpreter would do to its data stack. Sometimes these stores can be optimized away as the stack locations are live only on exits to the interpreter. Finally, the LIR records guards mov edx, ebx(748) // load primes from the trace activation record mov edi(0), edx// (*) store primes to interpreter stack mov esi, ebx(764) // load k from the trace activation record mov edi(8), esi// (*) store k to interpreter stack mov edi(16), 0// (*) store false to interpreter stack mov eax, edx(4)// (*) load object class word for primes and eax, -4// (*) mask out object class tag for primes cmp eax, Array// (*) test whether primes is an array jne side_exit_1// (*) side exit if primes is not an array sub esp, 8// bump stack for call alignment convention push false// push last argument for call push esi// push first argument for call call js_Array_set // call function to set array element add esp, 8// clean up extra stack space mov ecx, ebx// (*) created by register allocator test eax, eax// (*) test return value of js_Array_set je side_exit_2// (*) side exit if call failed</p>
-<!-- /wp:paragraph -->
+<!-- wp:code -->
+<pre class="wp-block-code"><code>v0 := ld state[748]      // load primes from the trace activation record
+       st sp[0], v0      // store primes to interpreter stack
+v1 := ld state[764]      // load k from the trace activation record
+v2 := i2f(v1)            // convert k from int to double
+       st sp[8], v1      // store k to interpreter stack
+       st sp[16], 0      // store false to interpreter stack
+v3 := ld v0[4]           // load class word for primes
+v4 := and v3, -4         // mask out object class tag for primes
+v5 := eq v4, Array       // test whether primes is an array
+       xf v5             // side exit if v5 is false
+v6 := js_Array_set(v0, v2, false)  // call function to set array element
+v7 := eq v6, 0           // test return value from call
+       xt v7             // side exit if js_Array_set returns false.</code></pre>
+<!-- /wp:code -->
 
 <!-- wp:paragraph -->
-<p>side_exit_1:</p>
+<p>This is the LIR recorded for line 5 of the sample program in Figure 1. The LIR encodes the semantics in SSA form using temporary variables. The LIR also encodes all the stores that the interpreter would do to its data stack. Sometimes these stores can be optimized away as the stack locations are live only on exits to the interpreter. Finally, the LIR records guards</p>
 <!-- /wp:paragraph -->
 
+<!-- wp:code -->
+<pre class="wp-block-code"><code>mov edx, ebx(748)       // load primes from the trace activation record
+mov edi(0), edx         // (*) store primes to interpreter stack
+mov esi, ebx(764)       // load k from the trace activation record
+mov edi(8), esi         // (*) store k to interpreter stack
+mov edi(16), 0          // (*) store false to interpreter stack
+mov eax, edx(4)         // (*) load object class word for primes
+and eax, -4             // (*) mask out object class tag for primes
+cmp eax, Array          // (*) test whether primes is an array
+jne side_exit_1         // (*) side exit if primes is not an array
+sub esp, 8              // bump stack for call alignment convention
+push false              // push last argument for call
+push esi                // push first argument for call
+call js_Array_set       // call function to set array element
+add esp, 8              // clean up extra stack space
+mov ecx, ebx            // (*) created by register allocator
+test eax, eax           // (*) test return value of js_Array_set
+je side_exit_2          // (*) side exit if call failed
+side_exit_1:
+mov ecx, ebp(-4)        // restore ecx
+mov esp, ebp            // restore esp
+jmp epilog              // jump to ret statement</code></pre>
+<!-- /wp:code -->
+
 <!-- wp:paragraph -->
-<p>mov ecx, ebp(-4) // restore ecx mov esp, ebp// restore esp jmp epilog// jump to ret statement This is the x 86 code compiled from the LIR snippet in Figure 3. Most LIR instructions compile would be omitted by an idealized compiler that knew that none of the side exits would ever be taken. The 17 instructions generated by the compiler compare favorably with the 100+ instructions that the interpreter would This is the first iteration of the outer loop. The loop on lines 4-5 becomes hot on its second iteration, so Trace Monkey enters recording mode on line 4. In recording mode, Trace Monkey records the code along the trace in a low-level compiler intermedi- . The LIR trace encodes all the oper-ations performed and the types of all operands. The LIR trace also , which are checks that verify that the control flow and types are identical to those observed during trace recording. Thus, on later executions, if and only if all guards are passed, the trace has the required program semantics.</p>
+<p>This is the x 86 code compiled from the LIR snippet in Figure</p>
 <!-- /wp:paragraph -->
+
+<!-- wp:list {"ordered":true,"start":3} -->
+<ol start="3"><li>Most LIR instructions compile would be omitted by an idealized compiler that knew that none of the side exits would ever be taken. The 17 instructions generated by the compiler compare favorably with the 100+ instructions that the interpreter would This is the first iteration of the outer loop. The loop on lines 4-5 becomes hot on its second iteration, so Trace Monkey enters recording mode on line</li><li>In recording mode, Trace Monkey records the code along the trace in a low-level compiler intermedi- . The LIR trace encodes all the oper-ations performed and the types of all operands. The LIR trace also , which are checks that verify that the control flow and types are identical to those observed during trace recording. Thus, on later executions, if and only if all guards are passed, the trace has the required program semantics.</li></ol>
+<!-- /wp:list -->
 
 <!-- wp:paragraph -->
 <p>Trace Monkey stops recording when execution returns to the loop header or exits the loop. In this case, execution returns to the loop header on line 4.</p>

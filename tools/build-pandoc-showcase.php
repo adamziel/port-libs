@@ -2426,6 +2426,7 @@ function showcase_pdf_paragraph_geometry_gate(array $metrics, array $wpVisual): 
         + max(0, (int) ($wpVisual['li'] ?? 0))
         + max(0, (int) ($wpVisual['td'] ?? 0))
         + max(0, (int) ($wpVisual['th'] ?? 0))
+        + max(0, (int) ($wpVisual['pre'] ?? 0))
         + max(0, (int) ($wpVisual['linegroup'] ?? 0));
     $maxParagraphs = $sourceLines < 20 ? PHP_INT_MAX : max(1, (int) floor($sourceLines * 0.90));
 

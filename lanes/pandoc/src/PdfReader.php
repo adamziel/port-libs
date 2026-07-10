@@ -10,6 +10,7 @@ final class PdfReader
 {
     private const DEFAULT_MAX_TEXT_BYTES = 120000;
     private const DEFAULT_FAST_MODE_BYTES = 5_000_000;
+    private const PDF_CODE_BLOCK_PREFIX = "\x1EPDF-CODE\x1F";
     private int $lowConfidenceGeometryTableCandidates = 0;
 
     /**
@@ -89,24 +90,27 @@ final class PdfReader
         $repairSourceLines = $limitedLines;
         $repairSourceLayouts = [];
         $repairSource = 'text';
-        $repairSplitWordHints = [];
+        $positionedCodeBlocks = [];
+        $repairSplitWordHints = array_replace(
+            $this->pdfTextRunSplitWordHints($runs),
+            $this->pdfPositionedRunSpacingHints($limitedPositionedRuns)
+        );
         if ($taggedBlocks === [] && $geometryTableBlocks === [] && $proseRepairEnabled) {
             $positionedLineItems = $this->positionedProseLineItemsFromTextRuns($limitedPositionedRuns);
             $positionedLines = $this->positionedLineItemTexts($positionedLineItems);
+            $positionedCodeBlocks = $this->positionedCodeBlocksFromLineItems($positionedLineItems);
             if ($this->positionedProseLinesLookUsable($positionedLines, $limitedLines, $limitedPositionedRuns)) {
                 $repairSourceLines = $positionedLines;
                 $repairSourceLayouts = $positionedLineItems;
                 $repairSource = 'positioned';
-            } else {
-                $repairSplitWordHints = array_replace(
-                    $this->pdfTextRunSplitWordHints($runs),
-                    $this->pdfPositionedRunSpacingHints($limitedPositionedRuns)
-                );
             }
         }
         $repairedLines = $taggedBlocks === [] && $geometryTableBlocks === [] && $proseRepairEnabled
             ? $this->repairProseTextLines($repairSourceLines, $this->looksLikeProseRepairCandidate($repairSourceLines), $repairSourceLayouts, $repairSplitWordHints)
             : $limitedLines;
+        if ($repairSource === 'text' && $positionedCodeBlocks !== []) {
+            $repairedLines = $this->injectPositionedCodeBlocks($repairedLines, $positionedCodeBlocks);
+        }
         $blocks = $taggedBlocks !== [] ? $taggedBlocks : ($geometryTableBlocks !== [] ? $geometryTableBlocks : $this->blocksFromLines($repairedLines));
         $blocks = $appliedLinkAnnotations === [] ? $blocks : $this->applyLinkAnnotationsToBlocks($blocks, $appliedLinkAnnotations);
         $pdfWarnings = is_array($diagnostics['warnings'] ?? null) ? array_values(array_map(static fn (mixed $warning): string => (string) $warning, $diagnostics['warnings'])) : [];
@@ -128,6 +132,7 @@ final class PdfReader
             'pdfTextRepair' => $repairedLines !== $limitedLines,
             'pdfTextRepairSource' => $repairedLines !== $limitedLines ? $repairSource : null,
             'pdfDetectedTables' => $this->countNodesOfType($blocks, 'table'),
+            'pdfDetectedCodeBlocks' => $this->countNodesOfType($blocks, 'code_block'),
             'pdfGeometryTables' => $geometryTableCount,
             'pdfGeometryTablesEnabled' => $geometryTablesEnabled,
             'pdfGeometryTableLowConfidenceCandidates' => $this->lowConfidenceGeometryTableCandidates,
@@ -436,17 +441,252 @@ final class PdfReader
     }
 
     /**
+     * @param list<array{text: string, page?: int, code?: bool}> $items
+     * @return list<string>
+     */
+    private function positionedCodeBlocksFromLineItems(array $items): array
+    {
+        $blocks = [];
+        $lines = [];
+        $page = null;
+        $flush = static function () use (&$blocks, &$lines, &$page): void {
+            $text = rtrim(implode("\n", $lines));
+            if ($text !== '') {
+                $blocks[] = $text;
+            }
+            $lines = [];
+            $page = null;
+        };
+
+        foreach ($items as $item) {
+            $itemPage = max(1, (int) ($item['page'] ?? 1));
+            if (($item['code'] ?? false) !== true || ($page !== null && $page !== $itemPage)) {
+                $flush();
+            }
+            if (($item['code'] ?? false) !== true) {
+                continue;
+            }
+
+            $page = $itemPage;
+            $lines[] = (string) $item['text'];
+        }
+        $flush();
+
+        return $blocks;
+    }
+
+    /**
+     * Geometry can identify a listing even when the ordinary PDF text stream
+     * has better prose spacing. Replace only a span whose leading and trailing
+     * token sequences match and whose complete token inventory substantially
+     * agrees with the geometry-derived listing.
+     *
+     * @param list<string> $lines
+     * @param list<string> $codeBlocks
+     * @return list<string>
+     */
+    private function injectPositionedCodeBlocks(array $lines, array $codeBlocks): array
+    {
+        if ($lines === [] || $codeBlocks === []) {
+            return $lines;
+        }
+
+        $document = implode("\n", $lines);
+        $replacements = [];
+        foreach ($codeBlocks as $index => $codeBlock) {
+            $codeTokens = array_column($this->pdfCodeMatchTokens($codeBlock), 'token');
+            if (count($codeTokens) < 24) {
+                continue;
+            }
+
+            $documentTokens = $this->pdfCodeMatchTokens($document);
+            $match = $this->matchingPdfCodeTokenSpan($documentTokens, $codeTokens);
+            if ($match === null) {
+                continue;
+            }
+
+            $placeholder = "\x1EPDF-CODE-ID:" . $index . "\x1F";
+            $before = substr($document, 0, $match['start']);
+            $after = substr($document, $match['end']);
+            if ($before !== '' && !str_ends_with($before, "\n")) {
+                $before = rtrim($before) . "\n";
+            }
+            if ($after !== '' && !str_starts_with($after, "\n")) {
+                $after = "\n" . ltrim($after);
+            }
+            $document = $before . $placeholder . $after;
+            $replacements[$placeholder] = self::PDF_CODE_BLOCK_PREFIX . rtrim($codeBlock);
+        }
+
+        if ($replacements === []) {
+            return $lines;
+        }
+
+        $result = [];
+        foreach (explode("\n", $document) as $line) {
+            if (isset($replacements[$line])) {
+                $result[] = $replacements[$line];
+                continue;
+            }
+            $line = trim($line);
+            if ($line !== '') {
+                $result[] = $line;
+            }
+        }
+
+        return $result;
+    }
+
+    /**
+     * @return list<array{token: string, start: int, end: int}>
+     */
+    private function pdfCodeMatchTokens(string $text): array
+    {
+        if (preg_match_all('/[\p{L}\p{N}_$]+|[^\s\p{L}\p{N}_$]/u', $text, $matches, PREG_OFFSET_CAPTURE) === false) {
+            return [];
+        }
+
+        $tokens = [];
+        foreach ($matches[0] as [$token, $offset]) {
+            $normalized = function_exists('mb_strtolower')
+                ? mb_strtolower($token, 'UTF-8')
+                : strtolower($token);
+            $tokens[] = [
+                'token' => $normalized,
+                'start' => (int) $offset,
+                'end' => (int) $offset + strlen($token),
+            ];
+        }
+
+        return $tokens;
+    }
+
+    /**
+     * @param list<array{token: string, start: int, end: int}> $documentTokens
+     * @param list<string> $codeTokens
+     * @return array{start: int, end: int}|null
+     */
+    private function matchingPdfCodeTokenSpan(array $documentTokens, array $codeTokens): ?array
+    {
+        $codeTokenCount = count($codeTokens);
+        if ($codeTokenCount < 24 || count($documentTokens) < $codeTokenCount * 0.60) {
+            return null;
+        }
+
+        $anchorSize = min(10, max(6, (int) floor($codeTokenCount / 8)));
+        $firstAnchor = array_slice($codeTokens, 0, $anchorSize);
+        $lastAnchor = array_slice($codeTokens, -$anchorSize);
+        $documentValues = array_column($documentTokens, 'token');
+        $firstOffsets = $this->pdfTokenSequenceOffsets($documentValues, $firstAnchor);
+        if ($firstOffsets === []) {
+            return null;
+        }
+
+        $best = null;
+        $bestScore = 0.0;
+        foreach ($firstOffsets as $firstOffset) {
+            $lastOffsets = $this->pdfTokenSequenceOffsets(
+                $documentValues,
+                $lastAnchor,
+                $firstOffset + $anchorSize
+            );
+            foreach ($lastOffsets as $lastOffset) {
+                $segmentEnd = $lastOffset + $anchorSize;
+                $segmentTokens = array_slice($documentValues, $firstOffset, $segmentEnd - $firstOffset);
+                $segmentTokenCount = count($segmentTokens);
+                if ($segmentTokenCount < $codeTokenCount * 0.60 || $segmentTokenCount > $codeTokenCount * 1.65) {
+                    if ($segmentTokenCount > $codeTokenCount * 1.65) {
+                        break;
+                    }
+                    continue;
+                }
+
+                $score = $this->pdfTokenInventorySimilarity($codeTokens, $segmentTokens);
+                if ($score < 0.78 || $score <= $bestScore) {
+                    continue;
+                }
+                $bestScore = $score;
+                $best = [
+                    'start' => $documentTokens[$firstOffset]['start'],
+                    'end' => $documentTokens[$segmentEnd - 1]['end'],
+                ];
+            }
+        }
+
+        return $best;
+    }
+
+    /**
+     * @param list<string> $tokens
+     * @param list<string> $sequence
+     * @return list<int>
+     */
+    private function pdfTokenSequenceOffsets(array $tokens, array $sequence, int $start = 0): array
+    {
+        $offsets = [];
+        $sequenceCount = count($sequence);
+        $limit = count($tokens) - $sequenceCount;
+        for ($index = max(0, $start); $index <= $limit; $index++) {
+            for ($offset = 0; $offset < $sequenceCount; $offset++) {
+                if ($tokens[$index + $offset] !== $sequence[$offset]) {
+                    continue 2;
+                }
+            }
+            $offsets[] = $index;
+        }
+
+        return $offsets;
+    }
+
+    /**
+     * @param list<string> $expected
+     * @param list<string> $actual
+     */
+    private function pdfTokenInventorySimilarity(array $expected, array $actual): float
+    {
+        $expectedCounts = array_count_values($expected);
+        $actualCounts = array_count_values($actual);
+        $overlap = 0;
+        foreach ($expectedCounts as $token => $count) {
+            $overlap += min($count, $actualCounts[$token] ?? 0);
+        }
+        if ($overlap === 0) {
+            return 0.0;
+        }
+
+        $precision = $overlap / count($actual);
+        $recall = $overlap / count($expected);
+
+        return 2.0 * $precision * $recall / ($precision + $recall);
+    }
+
+    /**
      * @param list<array<string, mixed>> $runs
      * @return list<array{text: string, page: int, x1: float, y1: float, x2: float, y2: float, fontSize: float}>
      */
     private function positionedProseLineItemsFromTextRuns(array $runs): array
     {
         $runsByPage = [];
+        $pendingWhitespace = [];
         foreach ($runs as $index => $run) {
             $run['_order'] = $index;
+            $whitespaceKey = max(1, (int) ($run['page'] ?? 1)) . ':' . max(0, (int) ($run['stream'] ?? 0));
+            $rawText = $this->normalizePdfTextEncoding((string) ($run['text'] ?? ''));
+            if ($rawText !== '' && trim($rawText) === '' && preg_match('/\s/u', $rawText) === 1) {
+                $pendingWhitespace[$whitespaceKey] = [
+                    'hardBoundary' => (bool) (($pendingWhitespace[$whitespaceKey]['hardBoundary'] ?? false)
+                        || preg_match('/[\t\r\n]/u', $rawText) === 1),
+                ];
+                continue;
+            }
             $normalized = $this->positionedRun($run);
             if ($normalized === null) {
                 continue;
+            }
+            if (isset($pendingWhitespace[$whitespaceKey])) {
+                $normalized['startsWithWhitespace'] = true;
+                $normalized['startsAfterTextBoundary'] = (bool) ($pendingWhitespace[$whitespaceKey]['hardBoundary'] ?? false);
+                unset($pendingWhitespace[$whitespaceKey]);
             }
             $runsByPage[$normalized['page']][] = $normalized;
         }
@@ -484,13 +724,25 @@ final class PdfReader
             return [];
         }
 
+        foreach ($runs as &$run) {
+            $run['fontSize'] = max(
+                1.0,
+                (float) ($run['fontSize'] ?? 0.0),
+                abs((float) ($run['y2'] ?? 0.0) - (float) ($run['y1'] ?? 0.0)) * 0.8
+            );
+        }
+        unset($run);
+
         $fontSizes = array_map(static fn (array $run): float => $run['fontSize'], $runs);
         $medianFontSize = max(1.0, $this->median($fontSizes));
         $rowTolerance = max(3.0, $medianFontSize * 0.55);
         $rows = $this->clusterPositionedRows($runs, $rowTolerance);
         $rows = $this->mergePositionedProseRowFragments($rows, $this->positionedRowsBounds($rows));
+        $rows = $this->markPositionedCodeListingRows($rows);
         $rows = $this->splitPositionedRowsIntoProseFragments($rows);
         $rows = $this->orderPositionedProseRows($rows, $medianFontSize);
+        $rows = $this->mergeAdjacentPositionedProseRowsOnSameBaseline($rows);
+        $rows = $this->markPositionedCodeListingRows($rows);
 
         $items = [];
         foreach ($rows as $row) {
@@ -498,13 +750,14 @@ final class PdfReader
             if ($line !== '' && !$this->lineIsOnlyPdfNoise($line)) {
                 $bounds = $this->positionedProseRowBounds($row);
                 $items[] = [
-                    'text' => $line,
+                    'text' => (string) ($row['codeText'] ?? $line),
                     'page' => (int) $row['runs'][0]['page'],
                     'x1' => $bounds['x1'],
                     'y1' => $bounds['y1'],
                     'x2' => $bounds['x2'],
                     'y2' => $bounds['y2'],
                     'fontSize' => $this->positionedRowMaxFontSize($row),
+                    'code' => (bool) ($row['code'] ?? false),
                 ];
             }
         }
@@ -521,8 +774,10 @@ final class PdfReader
     {
         $pageWidth = max(0.0, $pageBounds['x2'] - $pageBounds['x1']);
         foreach ($rows as &$row) {
+            $sourceOrdered = $row['runs'];
+            usort($sourceOrdered, static fn (array $left, array $right): int => ((int) ($left['order'] ?? 0)) <=> ((int) ($right['order'] ?? 0)));
             $merged = [];
-            foreach ($row['runs'] as $run) {
+            foreach ($sourceOrdered as $run) {
                 $lastIndex = array_key_last($merged);
                 if ($lastIndex === null) {
                     $merged[] = $run;
@@ -531,20 +786,26 @@ final class PdfReader
 
                 $last = $merged[$lastIndex];
                 $gap = $run['textX1'] - $last['textX2'];
-                $mergeGap = max(4.0, max($run['fontSize'], $last['fontSize']) * 1.25);
-                $combinedWidth = max($last['x2'], $last['textX2'], $run['x2'], $run['textX2']) - min($last['x1'], $last['textX1'], $run['x1'], $run['textX1']);
-                $normalProseMerge = $gap <= $mergeGap && ($pageWidth <= 0.0 || $combinedWidth <= $pageWidth * 0.72);
-                $looksLikeLineContinuation = $this->positionedProseRunsLookLikeLineContinuation($last, $run, $gap, $pageWidth);
-                if ($normalProseMerge || $looksLikeLineContinuation) {
+                $fontSize = max($run['fontSize'], $last['fontSize'], 1.0);
+                $sourceOrderGap = (int) ($run['order'] ?? 0) - (int) ($last['lastOrder'] ?? $last['order'] ?? 0);
+                $visualColumnBoundary = ($run['startsAfterTextBoundary'] ?? false) === true
+                    || $sourceOrderGap > 8
+                    || (($run['startsWithWhitespace'] ?? false) === true && $gap >= max(8.0, $fontSize * 0.75));
+                $sameSourceLine = !$visualColumnBoundary
+                    && $gap <= max(6.0, $fontSize)
+                    && $gap >= -max(16.0, $fontSize * 1.5);
+                $looksLikeLineContinuation = !$visualColumnBoundary
+                    && $this->positionedProseRunsLookLikeLineContinuation($last, $run, $gap, $pageWidth);
+                if ($sameSourceLine || $looksLikeLineContinuation) {
                     $merged[$lastIndex] = [
                         'page' => $last['page'],
-                        'text' => $looksLikeLineContinuation && !$normalProseMerge
+                        'text' => $looksLikeLineContinuation && !$sameSourceLine
                             ? $this->positionedCellText($last['text'] . $run['text'])
                             : $this->joinPositionedCellText(
                                 $last['text'],
                                 $run['text'],
                                 $gap,
-                                max($run['fontSize'], $last['fontSize']),
+                                $fontSize,
                                 (bool) ($last['endsWithWhitespace'] ?? false),
                                 (bool) ($run['startsWithWhitespace'] ?? false)
                             ),
@@ -559,17 +820,324 @@ final class PdfReader
                         'fontSize' => max($run['fontSize'], $last['fontSize']),
                         'startsWithWhitespace' => (bool) ($last['startsWithWhitespace'] ?? false),
                         'endsWithWhitespace' => (bool) ($run['endsWithWhitespace'] ?? false),
+                        'startsAfterTextBoundary' => (bool) ($last['startsAfterTextBoundary'] ?? false),
+                        'order' => min((int) ($last['order'] ?? 0), (int) ($run['order'] ?? 0)),
+                        'lastOrder' => max((int) ($last['lastOrder'] ?? $last['order'] ?? 0), (int) ($run['lastOrder'] ?? $run['order'] ?? 0)),
                     ];
                     continue;
                 }
 
                 $merged[] = $run;
             }
+            $merged = $this->removeOverprintedPositionedRuns($merged);
+            usort($merged, static fn (array $left, array $right): int => ($left['x1'] <=> $right['x1']) ?: (((int) ($left['order'] ?? 0)) <=> ((int) ($right['order'] ?? 0))));
             $row['runs'] = $merged;
         }
         unset($row);
 
         return $rows;
+    }
+
+    /**
+     * After column ordering, small styled text runs from one visual line are
+     * adjacent again. Recombine only when their baselines and font metrics
+     * agree and at least one run is too short to represent a full column line.
+     *
+     * @param list<array{center: float, runs: list<array<string, mixed>>}> $rows
+     * @return list<array{center: float, runs: list<array<string, mixed>>}>
+     */
+    private function mergeAdjacentPositionedProseRowsOnSameBaseline(array $rows): array
+    {
+        $merged = [];
+        foreach ($rows as $row) {
+            $lastIndex = array_key_last($merged);
+            if ($lastIndex === null || ($row['code'] ?? false) === true || ($merged[$lastIndex]['code'] ?? false) === true) {
+                $merged[] = $row;
+                continue;
+            }
+
+            $last = $merged[$lastIndex];
+            $lastBounds = $this->positionedProseRowBounds($last);
+            $rowBounds = $this->positionedProseRowBounds($row);
+            $lastPage = (int) ($last['runs'][0]['page'] ?? 1);
+            $rowPage = (int) ($row['runs'][0]['page'] ?? 1);
+            $fontSize = max($this->positionedRowMaxFontSize($last), $this->positionedRowMaxFontSize($row), 1.0);
+            $lastWidth = max(0.0, $lastBounds['x2'] - $lastBounds['x1']);
+            $rowWidth = max(0.0, $rowBounds['x2'] - $rowBounds['x1']);
+            $gap = $rowBounds['x1'] - $lastBounds['x2'];
+            $sameBaseline = abs((float) $last['center'] - (float) $row['center']) <= max(2.5, $fontSize * 0.30);
+            $nearby = $gap >= -max(2.0, $fontSize * 0.15) && $gap <= max(18.0, $fontSize * 1.5);
+            $hasShortFragment = min($lastWidth, $rowWidth) <= $fontSize * 6.5;
+
+            if ($lastPage !== $rowPage || !$sameBaseline || !$nearby || !$hasShortFragment) {
+                $merged[] = $row;
+                continue;
+            }
+
+            $runs = array_merge($last['runs'], $row['runs']);
+            usort($runs, static fn (array $left, array $right): int => ($left['x1'] <=> $right['x1']) ?: (((int) ($left['order'] ?? 0)) <=> ((int) ($right['order'] ?? 0))));
+            $merged[$lastIndex] = [
+                'center' => ((float) $last['center'] + (float) $row['center']) / 2.0,
+                'runs' => $runs,
+            ];
+        }
+
+        return $merged;
+    }
+
+    /**
+     * Monospaced listings expose a stable character pitch and baseline rhythm
+     * even when the PDF does not carry semantic tags. Mark only sustained runs
+     * that also contain generic programming punctuation; proportional prose
+     * and ordinary aligned columns remain prose.
+     *
+     * @param list<array{center: float, runs: list<array<string, mixed>>}> $rows
+     * @return list<array{center: float, runs: list<array<string, mixed>>}>
+     */
+    private function markPositionedCodeListingRows(array $rows): array
+    {
+        if (count($rows) < 4) {
+            return $rows;
+        }
+
+        $signatures = array_map(fn (array $row): array => $this->positionedCodeRowSignature($row), $rows);
+        $rowCount = count($rows);
+        $index = 0;
+        while ($index < $rowCount) {
+            if ($signatures[$index]['pitch'] === null) {
+                $index++;
+                continue;
+            }
+
+            $end = $index;
+            while ($end + 1 < $rowCount && $this->positionedCodeRowsShareBand($signatures[$end], $signatures[$end + 1])) {
+                $end++;
+            }
+
+            $bandSignatures = array_slice($signatures, $index, $end - $index + 1);
+            $firstCodeOffset = null;
+            $lastCodeOffset = null;
+            foreach ($bandSignatures as $offset => $signature) {
+                if ($signature['codeEvidence'] < 1 || $signature['codeCoverage'] < 0.55) {
+                    continue;
+                }
+                $firstCodeOffset ??= $offset;
+                $lastCodeOffset = $offset;
+            }
+            if ($firstCodeOffset !== null && $lastCodeOffset !== null) {
+                $candidateSignatures = array_slice(
+                    $bandSignatures,
+                    $firstCodeOffset,
+                    $lastCodeOffset - $firstCodeOffset + 1
+                );
+            } else {
+                $candidateSignatures = [];
+            }
+            if ($this->positionedBandLooksLikeCode($candidateSignatures)) {
+                $pitch = $this->median(array_map(
+                    static fn (array $signature): float => (float) $signature['pitch'],
+                    $candidateSignatures
+                ));
+                $minimumX = min(array_map(
+                    static fn (array $signature): float => (float) $signature['x1'],
+                    $candidateSignatures
+                ));
+                $firstCodeRow = $index + $firstCodeOffset;
+                $lastCodeRow = $index + $lastCodeOffset;
+                for ($rowIndex = $firstCodeRow; $rowIndex <= $lastCodeRow; $rowIndex++) {
+                    $rows[$rowIndex]['code'] = true;
+                    $rows[$rowIndex]['codeText'] = $this->positionedCodeLineText($rows[$rowIndex], $minimumX, $pitch);
+                }
+            }
+
+            $index = $end + 1;
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @param array{center: float, runs: list<array<string, mixed>>} $row
+     * @return array{center: float, x1: float, y1: float, y2: float, fontSize: float, pitch: ?float, codeEvidence: int, codeCoverage: float}
+     */
+    private function positionedCodeRowSignature(array $row): array
+    {
+        $bounds = $this->positionedProseRowBounds($row);
+        $pitches = [];
+        foreach ($row['runs'] as $run) {
+            $text = trim((string) ($run['text'] ?? ''));
+            $characters = $this->length($text);
+            $width = abs((float) ($run['textX2'] ?? $run['x2'] ?? 0.0) - (float) ($run['textX1'] ?? $run['x1'] ?? 0.0));
+            if ($characters >= 2 && $width > 0.0) {
+                $pitches[] = $width / $characters;
+            }
+        }
+
+        $pitch = $pitches === [] ? null : $this->median($pitches);
+        if ($pitch !== null && count($pitches) >= 2) {
+            $consistent = 0;
+            foreach ($pitches as $candidate) {
+                if (abs($candidate - $pitch) <= max(0.35, $pitch * 0.18)) {
+                    $consistent++;
+                }
+            }
+            if ($consistent / count($pitches) < 0.65) {
+                $pitch = null;
+            }
+        }
+
+        $totalWidth = 0.0;
+        $codeWidth = 0.0;
+        $codeEvidence = 0;
+        foreach ($row['runs'] as $run) {
+            $text = trim((string) ($run['text'] ?? ''));
+            $width = max(0.0, (float) ($run['textX2'] ?? $run['x2'] ?? 0.0) - (float) ($run['textX1'] ?? $run['x1'] ?? 0.0));
+            $evidence = $this->positionedCodeSyntaxEvidence($text);
+            $totalWidth += $width;
+            $codeEvidence += $evidence;
+            if ($evidence >= 2) {
+                $codeWidth += $width;
+            }
+        }
+
+        $rowEvidence = $this->positionedCodeSyntaxEvidence($this->positionedRowText($row));
+        $codeCoverage = $totalWidth > 0.0 ? $codeWidth / $totalWidth : 0.0;
+        if ($rowEvidence >= 2) {
+            $codeCoverage = 1.0;
+        }
+
+        return [
+            'center' => (float) $row['center'],
+            'x1' => $bounds['x1'],
+            'y1' => $bounds['y1'],
+            'y2' => $bounds['y2'],
+            'fontSize' => $this->positionedRowMaxFontSize($row),
+            'pitch' => $pitch,
+            'codeEvidence' => max($codeEvidence, $rowEvidence),
+            'codeCoverage' => $codeCoverage,
+        ];
+    }
+
+    /**
+     * @param array{center: float, x1: float, y1: float, y2: float, fontSize: float, pitch: ?float, codeEvidence: int, codeCoverage: float} $upper
+     * @param array{center: float, x1: float, y1: float, y2: float, fontSize: float, pitch: ?float, codeEvidence: int, codeCoverage: float} $lower
+     */
+    private function positionedCodeRowsShareBand(array $upper, array $lower): bool
+    {
+        if ($upper['pitch'] === null || $lower['pitch'] === null) {
+            return false;
+        }
+
+        $fontSize = max($upper['fontSize'], $lower['fontSize'], 1.0);
+        if (abs($upper['fontSize'] - $lower['fontSize']) > max(1.25, $fontSize * 0.18)) {
+            return false;
+        }
+        $pitch = max($upper['pitch'], $lower['pitch'], 0.1);
+        if (abs($upper['pitch'] - $lower['pitch']) > max(0.45, $pitch * 0.15)) {
+            return false;
+        }
+
+        $height = max(
+            1.0,
+            $upper['y2'] - $upper['y1'],
+            $lower['y2'] - $lower['y1'],
+            $fontSize
+        );
+        $baselineGap = $upper['center'] - $lower['center'];
+
+        return $baselineGap >= $height * 0.35 && $baselineGap <= $height * 2.2;
+    }
+
+    /**
+     * @param list<array{center: float, x1: float, y1: float, y2: float, fontSize: float, pitch: ?float, codeEvidence: int, codeCoverage: float}> $signatures
+     */
+    private function positionedBandLooksLikeCode(array $signatures): bool
+    {
+        $count = count($signatures);
+        if ($count < 6) {
+            return false;
+        }
+
+        $evidenceRows = 0;
+        $evidenceScore = 0;
+        $pitches = [];
+        foreach ($signatures as $signature) {
+            $evidenceScore += $signature['codeEvidence'];
+            if ($signature['codeEvidence'] >= 2 && $signature['codeCoverage'] >= 0.75) {
+                $evidenceRows++;
+            }
+            if ($signature['pitch'] !== null) {
+                $pitches[] = $signature['pitch'];
+            }
+        }
+        if (count($pitches) !== $count) {
+            return false;
+        }
+
+        $medianPitch = $this->median($pitches);
+        $stablePitchRows = 0;
+        foreach ($pitches as $pitch) {
+            if (abs($pitch - $medianPitch) <= max(0.4, $medianPitch * 0.14)) {
+                $stablePitchRows++;
+            }
+        }
+
+        return $stablePitchRows / $count >= 0.80
+            && $evidenceRows >= max(3, (int) ceil($count * 0.50))
+            && $evidenceScore >= max(4, (int) ceil($count * 0.35));
+    }
+
+    private function positionedCodeSyntaxEvidence(string $line): int
+    {
+        $line = trim($line);
+        if ($line === '') {
+            return 0;
+        }
+
+        $score = 0;
+        if (preg_match('~(?:^|\s)(?://|/\*|\*/|#(?:include|define|if|else|endif)\b)~u', $line) === 1) {
+            $score += 2;
+        }
+        if (preg_match('/(?::=|===?|!==?|<=|>=|=>|->|\+\+|--|&&|\|\|)/u', $line) === 1) {
+            $score += 2;
+        }
+        if (preg_match('/[{};]|\[[^\]]*\]/u', $line) === 1) {
+            $score++;
+        }
+        if (preg_match('/^[A-Za-z_.$][A-Za-z0-9_.$-]*:\s*(?:(?:\/\/|#).*)?$/u', $line) === 1) {
+            $score += 2;
+        }
+        if (preg_match('/[A-Za-z_.$][A-Za-z0-9_.$-]*\s*\([^)]*\)/u', $line) === 1
+            && preg_match('/[.!?]\s*$/u', $line) !== 1) {
+            $score++;
+        }
+        return $score;
+    }
+
+    /**
+     * @param array{center: float, runs: list<array<string, mixed>>} $row
+     */
+    private function positionedCodeLineText(array $row, float $minimumX, float $pitch): string
+    {
+        $pitch = max(0.5, $pitch);
+        $line = '';
+        foreach ($row['runs'] as $run) {
+            $text = trim((string) ($run['text'] ?? ''));
+            if ($text === '') {
+                continue;
+            }
+            $startX = (float) ($run['textX1'] ?? $run['x1'] ?? $minimumX);
+            $targetColumn = max(0, (int) round(($startX - $minimumX) / $pitch));
+            $currentColumn = $this->length($line);
+            if ($line === '') {
+                $line = str_repeat(' ', $targetColumn);
+            } else {
+                $line .= str_repeat(' ', max(1, $targetColumn - $currentColumn));
+            }
+            $line .= $text;
+        }
+
+        return rtrim($line);
     }
 
     /**
@@ -621,7 +1189,7 @@ final class PdfReader
     {
         $fragments = [];
         foreach ($rows as $row) {
-            if (count($row['runs']) <= 1) {
+            if (count($row['runs']) <= 1 || ($row['code'] ?? false) === true) {
                 $fragments[] = $row;
                 continue;
             }
@@ -692,7 +1260,18 @@ final class PdfReader
             return $rows;
         }
 
-        return array_merge($columns['left'], $columns['right']);
+        $left = $this->orderPositionedProseBand(
+            $columns['left'],
+            $this->positionedRowsBounds($columns['left']),
+            $medianFontSize
+        );
+        $right = $this->orderPositionedProseBand(
+            $columns['right'],
+            $this->positionedRowsBounds($columns['right']),
+            $medianFontSize
+        );
+
+        return array_merge($left, $right);
     }
 
     /**
@@ -753,6 +1332,10 @@ final class PdfReader
      */
     private function positionedProseRowIsFullWidth(array $row, array $pageBounds, float $medianFontSize): bool
     {
+        if (($row['code'] ?? false) === true) {
+            return true;
+        }
+
         $bounds = $this->positionedProseRowBounds($row);
         $pageWidth = max(0.0, $pageBounds['x2'] - $pageBounds['x1']);
         if ($pageWidth <= 0.0) {
@@ -932,11 +1515,13 @@ final class PdfReader
         }
         $cleaned = $this->removeLowCoherencePdfMapRegions($cleaned);
 
-        $merged = $this->pdfLinesLookLikeDenseListLayout($cleaned) || $this->pdfLinesLookLikeSparseLongTextChunks($cleaned)
-            ? array_map(static fn (array $record): string => $record['text'], $cleaned)
-            : $this->mergeRepairedProseLinesPreservingStackedTables($cleaned, $splitWordHints);
+        $merged = $this->mergeRepairedPdfRecords($cleaned, $splitWordHints);
         $repaired = [];
         foreach ($merged as $line) {
+            if (str_starts_with($line, self::PDF_CODE_BLOCK_PREFIX)) {
+                $repaired[] = $line;
+                continue;
+            }
             $line = $repairGluedText ? $this->repairGluedProseLine($line, $splitWordHints) : trim($line);
             if ($line !== '') {
                 $repaired[] = $line;
@@ -1121,6 +1706,10 @@ final class PdfReader
      */
     private function lineLooksLikePdfMapLabelNoise(string $line, ?array $layout): bool
     {
+        if (($layout['code'] ?? false) === true) {
+            return false;
+        }
+
         $line = trim($line);
         if ($line === '') {
             return false;
@@ -1846,6 +2435,67 @@ final class PdfReader
     }
 
     /**
+     * Preserve geometry-confirmed code lines as one multiline block while
+     * retaining the existing prose, list, and stacked-table merge behavior
+     * for every surrounding record.
+     *
+     * @param list<array{text: string, layout: array<string, mixed>|null}> $records
+     * @param array<string, true|string> $splitWordHints
+     * @return list<string>
+     */
+    private function mergeRepairedPdfRecords(array $records, array $splitWordHints = []): array
+    {
+        $merged = [];
+        $prose = [];
+        $code = [];
+        $flushProse = function () use (&$merged, &$prose, $splitWordHints): void {
+            if ($prose === []) {
+                return;
+            }
+            $hasLayout = false;
+            foreach ($prose as $record) {
+                if (is_array($record['layout'] ?? null)) {
+                    $hasLayout = true;
+                    break;
+                }
+            }
+            $lines = !$hasLayout && ($this->pdfLinesLookLikeDenseListLayout($prose) || $this->pdfLinesLookLikeSparseLongTextChunks($prose))
+                ? array_map(static fn (array $record): string => $record['text'], $prose)
+                : $this->mergeRepairedProseLinesPreservingStackedTables($prose, $splitWordHints);
+            foreach ($lines as $line) {
+                $merged[] = $line;
+            }
+            $prose = [];
+        };
+        $flushCode = function () use (&$merged, &$code): void {
+            if ($code === []) {
+                return;
+            }
+            $text = rtrim(implode("\n", $code));
+            if ($text !== '') {
+                $merged[] = self::PDF_CODE_BLOCK_PREFIX . $text;
+            }
+            $code = [];
+        };
+
+        foreach ($records as $record) {
+            $layout = is_array($record['layout'] ?? null) ? $record['layout'] : null;
+            if (($layout['code'] ?? false) === true) {
+                $flushProse();
+                $code[] = (string) ($layout['codeText'] ?? $record['text']);
+                continue;
+            }
+
+            $flushCode();
+            $prose[] = $record;
+        }
+        $flushCode();
+        $flushProse();
+
+        return $merged;
+    }
+
+    /**
      * @param list<array{text: string, layout: array{text: string, page: int, x1: float, y1: float, x2: float, y2: float, fontSize: float}|null}> $records
      * @param array<string, true|string> $splitWordHints
      * @return list<string>
@@ -2008,10 +2658,19 @@ final class PdfReader
         if ($this->lineHasPdfListBlockEvidence($line)) {
             return true;
         }
-        if ($this->repairedLineLooksLikeSectionLabel($previous) || $this->repairedLineLooksLikeSectionLabel($line)) {
+        if ($this->repairedPdfLayoutStartsNewBlock($previousLayout, $lineLayout)) {
             return true;
         }
-        if ($this->repairedPdfLayoutStartsNewBlock($previousLayout, $lineLayout)) {
+        if ($this->repairedLineLooksLikeSectionLabel($previous)) {
+            if ($this->repairedSectionLabelContinuesOnNextVisualLine($previous, $line, $previousLayout, $lineLayout)) {
+                return false;
+            }
+            return true;
+        }
+        if ($this->repairedLineLooksLikeSectionLabel($line)) {
+            if ($this->repairedSectionLabelContinuesOnNextVisualLine($previous, $line, $previousLayout, $lineLayout)) {
+                return false;
+            }
             return true;
         }
         if ($this->lineHasPdfListBlockEvidence($previous) && !$this->lineHasPdfListBlockEvidence($line)) {
@@ -2050,6 +2709,32 @@ final class PdfReader
      * @param array{text: string, page: int, x1: float, y1: float, x2: float, y2: float, fontSize: float}|null $previousLayout
      * @param array{text: string, page: int, x1: float, y1: float, x2: float, y2: float, fontSize: float}|null $lineLayout
      */
+    private function repairedSectionLabelContinuesOnNextVisualLine(
+        string $previous,
+        string $line,
+        ?array $previousLayout,
+        ?array $lineLayout
+    ): bool {
+        if (!$this->repairedPdfLayoutContinuesWrappedLine($previousLayout, $lineLayout)) {
+            return false;
+        }
+        $previousWords = $this->pdfLineWordTokens($previous);
+        if (preg_match('/[.!?]\s*$/u', trim($previous)) === 1
+            || count($previousWords) > 6
+            || count($this->pdfLineWordTokens($previous . ' ' . $line)) > 9) {
+            return false;
+        }
+
+        $previousWidth = max(1.0, $previousLayout['x2'] - $previousLayout['x1']);
+        $lineWidth = max(1.0, $lineLayout['x2'] - $lineLayout['x1']);
+
+        return $lineWidth <= $previousWidth * 1.35;
+    }
+
+    /**
+     * @param array{text: string, page: int, x1: float, y1: float, x2: float, y2: float, fontSize: float}|null $previousLayout
+     * @param array{text: string, page: int, x1: float, y1: float, x2: float, y2: float, fontSize: float}|null $lineLayout
+     */
     private function repairedPdfLayoutStartsNewBlock(?array $previousLayout, ?array $lineLayout): bool
     {
         if ($previousLayout === null || $lineLayout === null) {
@@ -2063,7 +2748,7 @@ final class PdfReader
         $lineHeight = max(1.0, $lineLayout['y2'] - $lineLayout['y1']);
         $referenceHeight = max($previousHeight, $lineHeight, $previousLayout['fontSize'], $lineLayout['fontSize'], 1.0);
         $verticalGap = $previousLayout['y1'] - $lineLayout['y2'];
-        if ($verticalGap > $referenceHeight * 1.85) {
+        if ($verticalGap < -$referenceHeight * 1.5 || $verticalGap > $referenceHeight * 0.80) {
             return true;
         }
 
@@ -2088,6 +2773,11 @@ final class PdfReader
         $previousHeight = max(1.0, $previousLayout['y2'] - $previousLayout['y1']);
         $lineHeight = max(1.0, $lineLayout['y2'] - $lineLayout['y1']);
         $referenceHeight = max($previousHeight, $lineHeight, $previousLayout['fontSize'], $lineLayout['fontSize'], 1.0);
+        $largerFont = max($previousLayout['fontSize'], $lineLayout['fontSize'], 1.0);
+        $smallerFont = max(1.0, min($previousLayout['fontSize'], $lineLayout['fontSize']));
+        if ($largerFont / $smallerFont > 1.35) {
+            return false;
+        }
         $verticalGap = $previousLayout['y1'] - $lineLayout['y2'];
         if ($verticalGap < -$referenceHeight * 0.4 || $verticalGap > $referenceHeight * 1.45) {
             return false;
@@ -2199,6 +2889,15 @@ final class PdfReader
         $lineCount = count($lines);
         while ($index < $lineCount) {
             $line = $lines[$index];
+            if (str_starts_with($line, self::PDF_CODE_BLOCK_PREFIX)) {
+                $flushList();
+                $code = substr($line, strlen(self::PDF_CODE_BLOCK_PREFIX));
+                if ($code !== '') {
+                    $blocks[] = new AstNode('code_block', ['text' => $code]);
+                }
+                $index++;
+                continue;
+            }
             $tableRun = $this->tableRowsAt($lines, $index);
             if ($tableRun['rows'] !== []) {
                 $flushList();
@@ -2344,10 +3043,12 @@ final class PdfReader
             'textY1' => min($textY1, $textY2),
             'textX2' => max($textX1, $textX2),
             'textY2' => max($textY1, $textY2),
-            'fontSize' => max(1.0, $fontSize ?? max(1.0, abs($y2 - $y1))),
+            'fontSize' => max(1.0, $fontSize ?? abs($y2 - $y1)),
             'startsWithWhitespace' => preg_match('/^\s/u', $rawText) === 1,
             'endsWithWhitespace' => preg_match('/\s$/u', $rawText) === 1,
+            'startsAfterTextBoundary' => false,
             'order' => max(0, (int) ($run['_order'] ?? 0)),
+            'lastOrder' => max(0, (int) ($run['_order'] ?? 0)),
         ];
     }
 
