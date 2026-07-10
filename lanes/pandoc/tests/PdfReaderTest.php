@@ -5253,7 +5253,7 @@ return [
         $text = preg_replace('/\s+/', ' ', html_entity_decode(strip_tags(PandocConverter::write($document, 'html')), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')) ?? '';
         $meta = $document->attr('meta');
 
-        $t->same('positioned', $meta['pdfTextRepairSource']);
+        $t->same('text-geometry', $meta['pdfTextRepairSource']);
         $leftFirst = strpos($text, 'Left column first sentence continues');
         $leftThird = strpos($text, 'Left column third line finishes.');
         $rightFirst = strpos($text, 'Right column should not interleave');
@@ -5283,7 +5283,7 @@ return [
         $text = preg_replace('/\s+/', ' ', html_entity_decode(strip_tags(PandocConverter::write($document, 'html')), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')) ?? '';
         $meta = $document->attr('meta');
 
-        $t->same('positioned', $meta['pdfTextRepairSource']);
+        $t->same('text-geometry', $meta['pdfTextRepairSource']);
         $t->contains('This paper examines how pharmaceutical Artificial Intelligence advancements may affect development of', $text);
         $t->contains('new drugs in the coming years. The question was answered by review.', $text);
         $t->contains('Research journals and market projections support this conclusion.', $text);
@@ -5292,6 +5292,27 @@ return [
         $t->true(!str_contains($text, 'coming yea rs'));
         $t->true(!str_contains($text, 'market projecti ons'));
         $t->true(!str_contains($text, 'paper argu es'));
+    },
+    'rejects positioned prose geometry with collapsed baselines and starts' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $looksUsable = (function (array $items): bool {
+            return $this->positionedPdfPageGeometryLooksUsable($items);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($looksUsable instanceof \Closure);
+
+        $collapsed = [
+            ['text' => 'First independent line', 'page' => 1, 'x1' => 72.0, 'y1' => 120.0, 'x2' => 210.0, 'y2' => 132.0, 'fontSize' => 12.0, 'code' => false],
+            ['text' => 'Second independent line', 'page' => 1, 'x1' => 72.0, 'y1' => 120.0, 'x2' => 220.0, 'y2' => 132.0, 'fontSize' => 12.0, 'code' => false],
+            ['text' => 'Third independent line', 'page' => 1, 'x1' => 72.0, 'y1' => 120.0, 'x2' => 215.0, 'y2' => 132.0, 'fontSize' => 12.0, 'code' => false],
+        ];
+        $parallelColumns = [
+            ['text' => 'Left panel heading', 'page' => 1, 'x1' => 72.0, 'y1' => 120.0, 'x2' => 170.0, 'y2' => 132.0, 'fontSize' => 12.0, 'code' => false],
+            ['text' => 'Middle panel heading', 'page' => 1, 'x1' => 260.0, 'y1' => 120.0, 'x2' => 380.0, 'y2' => 132.0, 'fontSize' => 12.0, 'code' => false],
+            ['text' => 'Right panel heading', 'page' => 1, 'x1' => 450.0, 'y1' => 120.0, 'x2' => 560.0, 'y2' => 132.0, 'fontSize' => 12.0, 'code' => false],
+        ];
+
+        $t->true(!$looksUsable($collapsed), 'Collapsed transforms must not drive visual reading order.');
+        $t->true($looksUsable($parallelColumns), 'Independent columns sharing a baseline remain valid geometry.');
     },
     'merges clean wrapped pdf prose lines without requiring glued-word damage' => static function (TestRunner $t) use ($pdfWithContent): void {
         $pdf = $pdfWithContent(

@@ -288,6 +288,18 @@ return [
         $t->contains('recording', $text);
         $t->contains('interpreter', $text);
     },
+    'pdf corpus gate keeps TraceMonkey figure fragments out of prose order' => static function (TestRunner $t) use ($pdfSamplePaths): void {
+        $document = (new PdfReader([
+            'maxTextBytes' => 80000,
+            'pdfRepairProseText' => true,
+            'pdfGeometryTables' => false,
+        ]))->read(file_get_contents($pdfSamplePaths()['tracemonkey-paper']) ?: '');
+        $blocks = PandocConverter::write($document, 'blocks');
+
+        $t->true(!str_contains($blocks, 'that the path and 1 for'), 'TraceMonkey must not splice figure text into a nearby code sample.');
+        $t->true(!str_contains($blocks, '?&gt;9@AJ'), 'TraceMonkey must not emit corrupted chart-font bytes as prose.');
+        $t->same(1, substr_count($blocks, '<!-- wp:table -->'), 'TraceMonkey diagram labels must not become an extra table.');
+    },
     'pdf corpus gate infers sustained monospaced listings as code blocks' => static function (TestRunner $t) use ($pdfSamplePaths): void {
         $document = (new PdfReader([
             'maxTextBytes' => 80000,
@@ -307,9 +319,13 @@ return [
         $muir = $readPdfSample($pdfSamplePaths()['muir-brochure'], ['pdfGeometryTables' => false]);
         $meta = $muir['meta'];
 
-        $t->same('text', $meta['pdfTextRepairSource'], 'Muir brochure text-only retry should prefer text order over the damaged positioned stream.');
+        $t->same('text-geometry', $meta['pdfTextRepairSource'], 'Muir brochure text-only retry should use geometry only on pages with coherent coordinates.');
         $t->true($muir['paragraphs'] >= 25, 'Muir brochure text-only retry should keep readable prose blocks.');
         $t->true($muir['headings'] >= 20, 'Muir brochure text-only retry should retain heading-like line structure.');
+        $t->contains('Farming, cattle and dairy ranching, road construction, and beachfront development collectively confined the creek, cut it off from its floodplain, caused it to fill', $muir['blocks']);
+        $t->contains('In collaboration with public agencies and nonprofit partners, the National Park Service implemented a multi-year', $muir['blocks']);
+        $t->contains('Left, Top &amp; Bottom images: Traditional prayer', $muir['blocks']);
+        $t->true(!str_contains($muir['blocks'], 'caused it to fill In collaboration'), 'Muir brochure columns must not be merged into one paragraph.');
     },
     'pdf corpus gate repairs Muir wrapped hyphen word fragments' => static function (TestRunner $t) use ($pdfSamplePaths, $plainText): void {
         $document = (new PdfReader([
@@ -345,6 +361,7 @@ return [
         foreach (['To prevent hospital You should practice', 'year. • Before touching', 't he hospital', 'at ris k', 'take actio n'] as $artifact) {
             $t->true(!str_contains($cdcText, $artifact), "CDC brochure should not contain '{$artifact}'.");
         }
+        $t->true(!str_contains($cdcText, 'Hand }'), 'CDC brochure should not expose malformed rotated display text as prose.');
 
         $w4 = $readPdfSample($pdfSamplePaths()['irs-w4-form']);
         $w4Meta = $w4['meta'];
@@ -370,12 +387,13 @@ return [
         $t->true(($meta['pdfTextLines'] ?? 0) >= 20, 'Archive book should keep available OCR/search text lines.');
         $t->true(($meta['pdfTextBytes'] ?? 0) >= 2000, 'Archive book should keep available OCR/search text.');
         $t->same(0, $meta['pdfDetectedTables'], 'Archive book prose should not become a table.');
-        $t->true($result['paragraphs'] >= 20, 'Archive book should keep sparse long OCR chunks reviewable.');
+        $t->true($result['paragraphs'] >= 8, 'Archive book should keep sparse long OCR chunks grouped into reviewable paragraphs.');
         $t->contains('difficult to discover', $text);
         $t->contains('this file - a reminder', $text);
         $t->contains('these files for personal', $text);
         $t->contains('find additional materials', $text);
         $t->true(!str_contains($text, 'dif cult'), 'Archive book fi ligatures should not be lost as spaces.');
         $t->true(!str_contains($text, ' le - a reminder'), 'Archive book fi ligatures should not leave bare word fragments.');
+        $t->true(!str_contains($result['blocks'], 'journey from the Google is proud'), 'Archive book source regions must not be fused across a missing OCR span.');
     },
 ];

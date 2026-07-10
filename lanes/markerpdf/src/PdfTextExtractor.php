@@ -4612,15 +4612,32 @@ final class PdfTextExtractor
      */
     public function extractTextLines(string $pdfBytes): array
     {
+        return array_column($this->extractTextLineItems($pdfBytes), 'text');
+    }
+
+    /**
+     * Preserve the source page and content-stream boundary for consumers that
+     * need to repair visual reading order without discarding the text layer's
+     * generally better word spacing.
+     *
+     * @return list<array{page: int, stream: int, text: string}>
+     */
+    public function extractTextLineItems(string $pdfBytes): array
+    {
         if (!$this->canExtractEncryptedContent($pdfBytes)) {
             return [];
         }
 
         $lines = [];
-        foreach ($this->limitedStreamContexts($pdfBytes) as $context) {
+        foreach ($this->limitedStreamContexts($pdfBytes) as $streamIndex => $context) {
+            $page = is_int($context['page'] ?? null) ? $context['page'] : $streamIndex + 1;
             foreach ($this->textLinesFromContentStream($context['stream'], $context['fontToUnicodeMaps'], $context['fontEncodings'], $context['propertyActualTexts'], $context['mcidActualTexts'], $context['propertyMcids']) as $line) {
                 if ($line !== '') {
-                    $lines[] = $line;
+                    $lines[] = [
+                        'page' => $page,
+                        'stream' => $streamIndex + 1,
+                        'text' => $line,
+                    ];
                 }
             }
         }
