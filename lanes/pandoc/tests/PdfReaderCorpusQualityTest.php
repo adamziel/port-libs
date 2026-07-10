@@ -186,7 +186,7 @@ return [
     'pdf corpus gate keeps text only retry prose oriented' => static function (TestRunner $t) use ($pdfSamplePaths, $readPdfSample): void {
         $cases = [
             'grand-canyon-map' => ['minParagraphs' => 40, 'minHeadings' => 25, 'minTables' => 0],
-            'muir-brochure' => ['minParagraphs' => 25, 'minHeadings' => 20, 'minTables' => 0],
+            'muir-brochure' => ['minParagraphs' => 25, 'minHeadings' => 10, 'minTables' => 0],
             'tracemonkey-paper' => ['minParagraphs' => 100, 'minHeadings' => 12, 'minTables' => 1],
         ];
 
@@ -227,7 +227,7 @@ return [
         foreach (['completelycovertheloop', 'theVMmustrecord', 'acounterforeachsideexit', 'recordatracestarting', 'havebeentriedandfailed'] as $glued) {
             $t->true(!str_contains($text, $glued), "TraceMonkey text-only retry should not contain '{$glued}'.");
         }
-        foreach (['completely cover the loop', 'the VM must record', 'a counter for each side exit', 'record a trace starting', 'have been tried and failed'] as $spaced) {
+        foreach (['completely cover the loop', 'the VM must record', 'a counter for each side exit', 'record a trace starting', 'When the VM fails to finish a trace'] as $spaced) {
             $t->contains($spaced, $text);
         }
         foreach (['tra ce', 'co ver'] as $splitWord) {
@@ -267,8 +267,8 @@ return [
         }
         $t->same(1, substr_count($blocks, '<!-- wp:table -->'));
         $t->contains('<th>Tag</th><th>JS Type</th><th>Description</th>', $blocks);
-        $t->contains('<td>object</td><td>pointer to JS Object handle</td>', $blocks);
-        $t->contains('<td>boolean</td><td>enumeration for null, undefined, true, false', $blocks);
+        $t->contains('<td>000</td><td>object</td><td>pointer to JS Object handle</td>', $blocks);
+        $t->contains('<td>110</td><td>boolean</td><td>enumeration for null, undefined, true, false', $blocks);
         $t->true(!str_contains($blocks, '<th>T</th><th>r</th><th>ace 2</th>'));
         $t->contains('Testing tags, unboxing', $text);
     },
@@ -299,6 +299,28 @@ return [
         $t->true(!str_contains($blocks, 'that the path and 1 for'), 'TraceMonkey must not splice figure text into a nearby code sample.');
         $t->true(!str_contains($blocks, '?&gt;9@AJ'), 'TraceMonkey must not emit corrupted chart-font bytes as prose.');
         $t->same(1, substr_count($blocks, '<!-- wp:table -->'), 'TraceMonkey diagram labels must not become an extra table.');
+        $t->contains('A tree with two traces, a trunk trace and one branch trace. The trunk trace contains a guard', $blocks);
+        $t->contains('We handle type-unstable loops by allowing traces to compile that can not loop back to themselves', $blocks);
+        foreach ([
+            'There is at least one hot side exit for which the VM can not',
+            'symbol is used to',
+            'and record a branch',
+            'as Thus, we should not count such aborts',
+            'In order to execute programs with nested loops efficiently, a The goal of nesting',
+            'tractable. An important detail',
+            'Stores to locations that are off Dead call-stack',
+            'Trace Monkey can cover the entire program with 1 or 2 traces that operate on integers. Trace Mon-isforms one very long trace',
+            'is dominated by regular expression matching, Some programs trace very well',
+            'on 9 The closest area of related work',
+            '<h2>Br</h2>',
+            '<h2>Link</h2>',
+        ] as $artifact) {
+            $t->true(!str_contains($blocks, $artifact), "TraceMonkey must not retain detached diagram or incomplete-flow fragment '{$artifact}'.");
+        }
+        $t->contains('The loop body is short.', $blocks);
+        $t->contains('In this case, the VM will repeatedly pass the loop header, search for a trace, find it, execute it, and fall back to the interpreter.', $blocks);
+        $t->true(!str_contains($blocks, 'blacklisting loops for which the average trace call executes few'), 'TraceMonkey must not retain an incomplete tail after a damaged figure.');
+        $t->contains('An important detail is that the call to the inner trace tree must act', $blocks);
     },
     'pdf corpus gate infers sustained monospaced listings as code blocks' => static function (TestRunner $t) use ($pdfSamplePaths): void {
         $document = (new PdfReader([
@@ -321,11 +343,16 @@ return [
 
         $t->same('text-geometry', $meta['pdfTextRepairSource'], 'Muir brochure text-only retry should use geometry only on pages with coherent coordinates.');
         $t->true($muir['paragraphs'] >= 25, 'Muir brochure text-only retry should keep readable prose blocks.');
-        $t->true($muir['headings'] >= 20, 'Muir brochure text-only retry should retain heading-like line structure.');
+        $t->true($muir['headings'] >= 10, 'Muir brochure text-only retry should retain its actual heading structure without map labels.');
         $t->contains('Farming, cattle and dairy ranching, road construction, and beachfront development collectively confined the creek, cut it off from its floodplain, caused it to fill', $muir['blocks']);
         $t->contains('In collaboration with public agencies and nonprofit partners, the National Park Service implemented a multi-year', $muir['blocks']);
+        $t->contains('<h2>Make a Difference</h2>', $muir['blocks']);
         $t->contains('Left, Top &amp; Bottom images: Traditional prayer', $muir['blocks']);
         $t->true(!str_contains($muir['blocks'], 'caused it to fill In collaboration'), 'Muir brochure columns must not be merged into one paragraph.');
+        $t->true(!str_contains($muir['blocks'], 'at y a representative of the Coast Miwok'), 'Muir brochure must not repeat a clipped source fragment after a positioned repair line.');
+        $t->true(!str_contains($muir['blocks'], 'www.nps.gov/goga Horses and Hiking only'), 'Muir map labels must not continue an unrelated resource list.');
+        $t->true(!str_contains($muir['blocks'], '<h2>Hiking only</h2>'), 'Muir map legend labels must not be promoted to document headings.');
+        $t->contains('<p>Hiking only</p>', $muir['blocks']);
     },
     'pdf corpus gate repairs Muir wrapped hyphen word fragments' => static function (TestRunner $t) use ($pdfSamplePaths, $plainText): void {
         $document = (new PdfReader([
