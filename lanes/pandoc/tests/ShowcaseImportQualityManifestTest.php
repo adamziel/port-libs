@@ -232,6 +232,28 @@ return [
             $t->same('pass', $gates['visual_structure']['status'] ?? null, "{$id} should preserve non-empty paragraph structure.");
         }
     },
+    'showcase compares generic XML imports with the independent libxml2 libxslt reference' => static function (TestRunner $t) use ($showcaseManifest, $recordsById): void {
+        $manifest = $showcaseManifest();
+        $records = is_array($manifest['records'] ?? null) ? $manifest['records'] : [];
+        $byId = $recordsById($records);
+
+        foreach (['xml-docbook-generic', 'xml-outline-generic'] as $id) {
+            $record = $byId[$id] ?? null;
+            $t->true(is_array($record), "{$id} should be present in the showcase manifest.");
+            $reference = is_array($record['externalReference'] ?? null) ? $record['externalReference'] : [];
+            $quality = is_array($record['importQuality'] ?? null) ? $record['importQuality'] : [];
+            $gates = is_array($quality['gates'] ?? null) ? $quality['gates'] : [];
+
+            $t->same(true, $reference['ok'] ?? null, "{$id} should retain an external generic XML reference.");
+            $t->same('libxml2-libxslt-generic-xml-html', $reference['kind'] ?? null, "{$id} should use libxml2/libxslt instead of a PHP self-baseline.");
+            $t->same('externalReference', $record['faithfulness']['baseline'] ?? null, "{$id} should compare WordPress blocks with the XML source reference.");
+            $t->same('pass', $gates['text_completeness']['status'] ?? null, "{$id} should preserve XML source text.");
+            $t->same('pass', $gates['visual_structure']['status'] ?? null, "{$id} should preserve common XML structure.");
+        }
+
+        $docbook = $byId['xml-docbook-generic'] ?? [];
+        $t->same('pass', $docbook['importQuality']['gates']['list_count']['status'] ?? null, 'DocBook itemized lists should become WordPress lists.');
+    },
     'showcase compares PDF imports with native PDFKit text and geometry evidence' => static function (TestRunner $t) use ($showcaseManifest, $recordsById): void {
         $manifest = $showcaseManifest();
         $records = is_array($manifest['records'] ?? null) ? $manifest['records'] : [];

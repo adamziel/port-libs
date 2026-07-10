@@ -52,12 +52,16 @@ final class XmlReader
     private const PARAGRAPH_NAMES = ['p', 'para', 'paragraph', 'license-p', 'title-group'];
     private const TITLE_NAMES = [
         'title',
+        'heading',
         'article-title',
         'book-title',
         'subtitle',
         'trans-title',
         'alt-title',
     ];
+    private const UNORDERED_LIST_NAMES = ['ul', 'bullet-list', 'unordered-list', 'list', 'itemizedlist'];
+    private const ORDERED_LIST_NAMES = ['ol', 'ordered-list', 'numbered-list', 'orderedlist'];
+    private const LIST_ITEM_NAMES = ['li', 'item', 'list-item', 'listitem'];
 
     /**
      * @param array<string, mixed> $options
@@ -210,14 +214,14 @@ final class XmlReader
 
             return $table === null ? [] : [$table];
         }
-        if (in_array($name, ['ul', 'bullet-list', 'list'], true)) {
+        if (in_array($name, self::UNORDERED_LIST_NAMES, true)) {
             $list = $jatsMode
                 ? $this->jatsListFromElement($element, $headingLevel)
                 : $this->listFromElement($element, false, $this->nodeAttrs($element));
 
             return $list === null ? [] : [$list];
         }
-        if (in_array($name, ['ol', 'ordered-list'], true)) {
+        if (in_array($name, self::ORDERED_LIST_NAMES, true)) {
             $list = $jatsMode
                 ? $this->jatsListFromElement($element, $headingLevel, true)
                 : $this->listFromElement($element, true, $this->nodeAttrs($element));
@@ -445,7 +449,7 @@ final class XmlReader
     {
         $items = [];
         foreach (XmlHtmlDom::childElements($list) as $child) {
-            if (!in_array($this->name($child), ['li', 'item', 'list-item'], true)) {
+            if (!in_array($this->name($child), self::LIST_ITEM_NAMES, true)) {
                 continue;
             }
             $inlines = $this->inlineNodes($child);

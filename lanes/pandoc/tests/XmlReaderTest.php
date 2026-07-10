@@ -55,6 +55,24 @@ XML;
 
         $t->contains('<p>Before fallback graphic text after.</p>', $blocks);
     },
+    'maps common DocBook-style heading and list aliases through generic XML' => static function (TestRunner $t): void {
+        $xml = <<<'XML'
+<article xmlns="http://docbook.org/ns/docbook">
+  <title>Guide</title>
+  <section><heading>Checklist</heading><itemizedlist><listitem><para>First item</para></listitem><listitem><para>Second item</para></listitem></itemizedlist></section>
+  <section><orderedlist><listitem><para>Step one</para></listitem><listitem><para>Step two</para></listitem></orderedlist></section>
+</article>
+XML;
+
+        $blocks = PandocConverter::write(PandocConverter::read($xml, 'xml'), 'blocks');
+
+        $t->contains('<h1>Guide</h1>', $blocks);
+        $t->contains('<h1>Checklist</h1>', $blocks);
+        $t->contains('<!-- wp:list -->', $blocks);
+        $t->contains('<!-- wp:list {"ordered":true} -->', $blocks);
+        $t->contains('<li>First item</li>', $blocks);
+        $t->contains('<li>Step two</li>', $blocks);
+    },
     'maps jats article front matter body sections and table wraps into ast blocks' => static function (TestRunner $t): void {
         $jats = <<<'XML'
 <article xmlns:xlink="http://www.w3.org/1999/xlink" article-type="research-article" dtd-version="1.3">

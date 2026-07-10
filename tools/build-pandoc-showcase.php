@@ -1485,7 +1485,7 @@ function showcase_record_faithfulness(string $siteDir, array $record): array
     $externalReference = is_array($record['externalReference'] ?? null) ? $record['externalReference'] : [];
     $requiresExternalReference = in_array(
         PandocConverter::canonicalInputFormat((string) ($record['format'] ?? '')),
-        ['doc', 'pdf'],
+        ['doc', 'pdf', 'xml'],
         true
     );
     $baselineKey = (($record['haskell']['ok'] ?? false) === true)
@@ -3111,7 +3111,7 @@ function write_conversion_report(
     $html = '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">';
     $html .= '<title>Pandoc PHP Port Conversion Report</title><link rel="stylesheet" href="styles.css"></head><body>';
     $html .= '<header class="hero"><div class="hero-inner"><p class="eyebrow">conversion report</p><h1>How the pulled test files converted</h1>';
-    $html .= '<p class="lede">Every source file is converted to PHP HTML and WordPress block markup. Haskell Pandoc provides the primary external reference where it can read the format; format-native references are added where Pandoc has no reader. PDFs use macOS PDFKit for independent text and line-geometry evidence, while their HTML semantics remain explicit inference rather than fabricated source tags. This report shows the current pass/fail shape and links into a curated stress set.</p>';
+    $html .= '<p class="lede">Every source file is converted to PHP HTML and WordPress block markup. Haskell Pandoc provides the primary external reference where it can read the format; format-native references are added where Pandoc has no reader. PDFs use macOS PDFKit for independent text and line-geometry evidence, while generic XML uses libxml2/libxslt source structure. PDF HTML semantics remain explicit inference rather than fabricated source tags. This report shows the current pass/fail shape and links into a curated stress set.</p>';
     $html .= '<div class="stats">';
     $html .= '<div class="stat"><strong>' . h((string) $summary['totalSamples']) . '</strong><span>source files</span></div>';
     $html .= '<div class="stat"><strong>' . h((string) count($coveredFormats)) . '</strong><span>covered input formats</span></div>';
@@ -3133,7 +3133,7 @@ function write_conversion_report(
     $html .= '</div></section>';
 
     $html .= '<section><h2>Faithful enough diff checks</h2>';
-    $html .= '<p>These checks compare generated outputs against Haskell Pandoc when it can read the source, a format-native external reference where one is available, or PHP HTML only as a disclosed fallback. Text scores compare normalized visible words. Visual-structure scores compare the rendered document shape: headings, paragraphs, lists, tables, images, figures, captions, code, quotes, and math. PDFKit supplies text and geometry, not an HTML semantic tree, so PDF visual tag scores are explicitly excluded rather than reported as a false mismatch.</p>';
+    $html .= '<p>These checks compare generated outputs against Haskell Pandoc when it can read the source, a format-native external reference where one is available, or PHP HTML only as a disclosed fallback. Text scores compare normalized visible words. Visual-structure scores compare the rendered document shape: headings, paragraphs, lists, tables, images, figures, captions, code, quotes, and math. Generic XML uses an independent libxml2/libxslt transform over common structural element names. PDFKit supplies text and geometry, not an HTML semantic tree, so PDF visual tag scores are explicitly excluded rather than reported as a false mismatch.</p>';
     $html .= '<h3>Text</h3>';
     $html .= '<div class="report-grid">';
     $html .= '<div class="report-card"><h3>Faithful enough</h3><p class="report-number">' . h((string) ($faithfulnessSummary['faithfulEnough'] ?? 0)) . '</p></div>';
@@ -3159,7 +3159,7 @@ function write_conversion_report(
     }
 
     $html .= '<section><h2>Import quality gates</h2>';
-    $html .= '<p>These checks evaluate the WordPress block output as an import artifact: visible text completeness, paragraph merge or split drift, Citeproc reference coverage where applicable, media extraction diagnostics, local anchor validity, and Custom HTML block share. PDFs additionally use independent native source-token coverage and line geometry because untagged PDFs do not encode HTML heading, list, table, or image semantics.</p>';
+    $html .= '<p>These checks evaluate the WordPress block output as an import artifact: visible text completeness, paragraph merge or split drift, Citeproc reference coverage where applicable, media extraction diagnostics, local anchor validity, and Custom HTML block share. Generic XML is checked against independent libxml2/libxslt source structure. PDFs additionally use independent native source-token coverage and line geometry because untagged PDFs do not encode HTML heading, list, table, or image semantics.</p>';
     $html .= '<div class="report-grid">';
     $html .= '<div class="report-card"><h3>Pass</h3><p class="report-number">' . h((string) ($importQualitySummary['pass'] ?? 0)) . '</p></div>';
     $html .= '<div class="report-card"><h3>Review</h3><p class="report-number">' . h((string) ($importQualitySummary['review'] ?? 0)) . '</p></div>';
@@ -3330,6 +3330,7 @@ function run_external_reference(string $path, string $format, string $dir): ?arr
     return match (PandocConverter::canonicalInputFormat($format)) {
         'doc' => run_textutil_doc_reference($path, $dir),
         'pdf' => run_pdfkit_pdf_reference($path, $dir),
+        'xml' => run_libxml_xml_reference($path, $dir),
         default => null,
     };
 }
@@ -3385,6 +3386,61 @@ function showcase_textutil_reference_body(string $html): string
     }, (string) $matches[1]);
 
     return trim($body ?? '');
+}
+
+/**
+ * Use libxml2/libxslt as a source-side reference for bounded generic XML.
+ * XML has no universal document vocabulary, so the accompanying stylesheet
+ * only maps common structural element names and leaves unknown nodes as
+ * transparent containers. It is an independently executed source-side
+ * transform, not a PHP-output self-baseline.
+ *
+ * @return array{ok:bool,kind?:string,label?:string,path?:string,error?:string}
+ */
+function run_libxml_xml_reference(string $path, string $dir): array
+{
+    global $root;
+
+    $output = $dir . '/xml-reference.html';
+    $stylesheet = $root . '/tools/xml-reference.xsl';
+    if (!is_executable('/usr/bin/xmllint') || !is_executable('/usr/bin/xsltproc') || !is_file($stylesheet)) {
+        $message = 'libxml2/libxslt is unavailable for this generic XML reference conversion.';
+        file_put_contents($dir . '/xml-reference.html.error.txt', $message);
+
+        return ['ok' => false, 'error' => $message, 'path' => 'outputs/' . basename($dir) . '/xml-reference.html.error.txt'];
+    }
+
+    $validation = run_process(['/usr/bin/xmllint', '--nonet', '--noout', $path], 45);
+    if ($validation['exitCode'] !== 0) {
+        $message = sanitize_generated_text(trim($validation['stderr'] . "\n" . $validation['stdout']));
+        if ($message === '') {
+            $message = 'libxml2 rejected the XML source.';
+        }
+        file_put_contents($dir . '/xml-reference.html.error.txt', $message);
+
+        return ['ok' => false, 'error' => $message, 'path' => 'outputs/' . basename($dir) . '/xml-reference.html.error.txt'];
+    }
+
+    $result = run_process(['/usr/bin/xsltproc', '--nonet', $stylesheet, $path], 45);
+    $html = trim($result['stdout']);
+    if ($result['exitCode'] !== 0 || $html === '' || stripos($html, '<html') === false) {
+        $message = sanitize_generated_text(trim($result['stderr'] . "\n" . $result['stdout']));
+        if ($message === '') {
+            $message = 'libxslt produced no readable generic XML reference HTML.';
+        }
+        file_put_contents($dir . '/xml-reference.html.error.txt', $message);
+
+        return ['ok' => false, 'error' => $message, 'path' => 'outputs/' . basename($dir) . '/xml-reference.html.error.txt'];
+    }
+
+    file_put_contents($output, $html . "\n");
+
+    return [
+        'ok' => true,
+        'kind' => 'libxml2-libxslt-generic-xml-html',
+        'label' => 'libxml2/libxslt generic XML source reference',
+        'path' => 'outputs/' . basename($dir) . '/xml-reference.html',
+    ];
 }
 
 /**
@@ -3649,6 +3705,8 @@ HTML));
     $legacyDocFaithfulness = [];
     $pdfWithoutReference = [];
     $pdfFaithfulness = [];
+    $xmlWithoutReference = [];
+    $xmlFaithfulness = [];
     $preservedRawHtml = [];
     $unexpectedCustomHtml = [];
     if (mkdir($unbenchmarkedDir, 0777, true)) {
@@ -3694,6 +3752,21 @@ HTML));
             $pdfFaithfulness = showcase_record_faithfulness($unbenchmarkedDir, $pdfRecord);
             $pdfRecord['faithfulness'] = $pdfFaithfulness;
             $pdfWithoutReference = showcase_record_import_quality($unbenchmarkedDir, $pdfRecord);
+            $xmlRecord = [
+                'format' => 'xml',
+                'haskell' => ['ok' => false],
+                'externalReference' => ['ok' => false],
+                'phpHtml' => ['ok' => true, 'path' => 'php.html'],
+                'wpBlocks' => [
+                    'ok' => true,
+                    'path' => 'wordpress.html',
+                    'mediaDiagnostics' => [],
+                ],
+                'wpBlockCounts' => ['paragraph' => 1],
+            ];
+            $xmlFaithfulness = showcase_record_faithfulness($unbenchmarkedDir, $xmlRecord);
+            $xmlRecord['faithfulness'] = $xmlFaithfulness;
+            $xmlWithoutReference = showcase_record_import_quality($unbenchmarkedDir, $xmlRecord);
             $preservedRawHtml = showcase_record_import_quality($unbenchmarkedDir, [
                 'wpBlocks' => [
                     'ok' => true,
@@ -3731,6 +3804,8 @@ HTML));
         && (($legacyDocWithoutReference['status'] ?? null) === 'unbenchmarked')
         && (($pdfFaithfulness['baseline'] ?? null) === null)
         && (($pdfWithoutReference['status'] ?? null) === 'unbenchmarked')
+        && (($xmlFaithfulness['baseline'] ?? null) === null)
+        && (($xmlWithoutReference['status'] ?? null) === 'unbenchmarked')
         && (($preservedRawHtml['gates']['custom_html_percentage']['status'] ?? null) === 'pass')
         && (($unexpectedCustomHtml['gates']['custom_html_percentage']['status'] ?? null) === 'fail');
     fwrite(STDOUT, json_encode([
@@ -3746,6 +3821,8 @@ HTML));
         'legacyDocWithoutReferenceBaseline' => $legacyDocFaithfulness['baseline'] ?? null,
         'pdfWithoutReferenceStatus' => $pdfWithoutReference['status'] ?? null,
         'pdfWithoutReferenceBaseline' => $pdfFaithfulness['baseline'] ?? null,
+        'xmlWithoutReferenceStatus' => $xmlWithoutReference['status'] ?? null,
+        'xmlWithoutReferenceBaseline' => $xmlFaithfulness['baseline'] ?? null,
         'preservedRawHtmlStatus' => $preservedRawHtml['gates']['custom_html_percentage']['status'] ?? null,
         'unexpectedCustomHtmlStatus' => $unexpectedCustomHtml['gates']['custom_html_percentage']['status'] ?? null,
     ], JSON_UNESCAPED_SLASHES) . PHP_EOL);
