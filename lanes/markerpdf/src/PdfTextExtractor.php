@@ -8563,7 +8563,14 @@ final class PdfTextExtractor
             $baseEncoding = self::GLYPH_NAME_ENCODING;
         }
 
-        if ($baseEncoding !== null && $embeddedDifferences !== [] && $this->isUnmappedCustomFont($objectBody)) {
+        if ($baseEncoding !== null
+            && $embeddedDifferences !== []
+            && $this->isUnmappedCustomFont($objectBody)
+            && !$this->isSimpleWidthEncodedFontWithSafeDeclaredEncoding(
+                $objectBody,
+                $baseEncoding,
+                $this->fontWidthsFromObject($objectBody, $objects)
+            )) {
             $baseEncoding = self::GLYPH_NAME_ENCODING;
         }
 
@@ -15449,6 +15456,19 @@ final class PdfTextExtractor
                 continue;
             }
 
+            if ($char === '/') {
+                $start = $index;
+                $index++;
+                while ($index < $length && !$this->isDelimiter($stream[$index])) {
+                    $index++;
+                }
+                $tokens[] = substr($stream, $start, $index - $start);
+                if (count($tokens) >= $this->maxContentTokens()) {
+                    break;
+                }
+                continue;
+            }
+
             $start = $index;
             while ($index < $length && !$this->isDelimiter($stream[$index])) {
                 $index++;
@@ -15656,7 +15676,7 @@ final class PdfTextExtractor
 
     private function isDelimiter(string $char): bool
     {
-        return ctype_space($char) || str_contains('[]()<>{}%', $char);
+        return ctype_space($char) || str_contains('[]()<>{}/%', $char);
     }
 
     /**

@@ -5293,6 +5293,86 @@ return [
         $t->true(!str_contains($text, 'market projecti ons'));
         $t->true(!str_contains($text, 'paper argu es'));
     },
+    'does not bridge distant source-order fragments on one positioned baseline' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $itemsFromRuns = (function (array $runs): array {
+            return $this->positionedProseLineItemsFromTextRuns($runs);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($itemsFromRuns instanceof \Closure);
+
+        $run = static function (string $text, float $x1, float $y1, float $x2): array {
+            return [
+                'text' => $text,
+                'page' => 1,
+                'x1' => $x1,
+                'y1' => $y1,
+                'x2' => $x2,
+                'y2' => $y1 + 12.0,
+                'textX1' => $x1,
+                'textY1' => $y1 + 4.0,
+                'textX2' => $x2,
+                'textY2' => $y1 + 4.0,
+                'fontSize' => 10.0,
+            ];
+        };
+        $items = $itemsFromRuns([
+            $run('Display tag', 272.0, 700.0, 296.0),
+            $run('Body line one.', 72.0, 680.0, 160.0),
+            $run('Body line two.', 72.0, 664.0, 160.0),
+            $run('Body line three.', 72.0, 648.0, 170.0),
+            $run('Body line four.', 72.0, 632.0, 165.0),
+            $run('Body line five.', 72.0, 616.0, 165.0),
+            $run('Body line six.', 72.0, 600.0, 160.0),
+            $run('Body line seven.', 72.0, 584.0, 170.0),
+            $run('Body line eight.', 72.0, 568.0, 170.0),
+            $run('Neighboring body prose remains separate.', 314.0, 700.0, 510.0),
+        ]);
+        $texts = array_column($items, 'text');
+
+        $t->contains('Display tag', implode("\n", $texts));
+        $t->contains('Neighboring body prose remains separate.', implode("\n", $texts));
+        $t->true(!str_contains(implode("\n", $texts), 'Display tag Neighboring body prose'));
+    },
+    'drops a source-proven orphaned inferred continuation flow' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $drop = (function (array $records): array {
+            return $this->removeSourcePdfOrphanedInferredContinuations($records);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($drop instanceof \Closure);
+
+        $layout = [
+            'page' => 1,
+            'sourceStream' => 3,
+            'sourceGeometryColumn' => 0,
+            'x1' => 72.0,
+            'x2' => 420.0,
+            'y1' => 700.0,
+            'y2' => 712.0,
+            'fontSize' => 10.0,
+        ];
+        $records = $drop([
+            ['text' => 'A complete source sentence remains intact. An unresolved lead', 'layout' => $layout],
+            ['text' => 'requires an omitted display prefix', 'layout' => array_replace($layout, [
+                'y1' => 688.0,
+                'y2' => 700.0,
+                'sourceOrphanedInferredContinuation' => true,
+                'sourceOrphanedMissingSourceText' => true,
+            ])],
+            ['text' => 'and cannot form a standalone paragraph', 'layout' => array_replace($layout, [
+                'y1' => 676.0,
+                'y2' => 688.0,
+            ])],
+            ['text' => 'The next verified sentence remains.', 'layout' => array_replace($layout, [
+                'y1' => 650.0,
+                'y2' => 662.0,
+            ])],
+        ]);
+
+        $t->same([
+            'A complete source sentence remains intact.',
+            'The next verified sentence remains.',
+        ], array_column($records, 'text'));
+    },
     'rejects positioned prose geometry with collapsed baselines and starts' => static function (TestRunner $t): void {
         $reader = new PdfReader();
         $looksUsable = (function (array $items): bool {
@@ -5503,7 +5583,7 @@ return [
 
         $t->same([
             'expanded the lagoon, created frog-breeding habitat, and enhanced sand dunes. efficient type-specialized machine code hard-to-treat infections for the actual dynamic types.',
-            'Inadynamicallytypedprogramming language such as Java Script.',
+            'Inadynamicallytypedprogramming language such as JavaScript.',
         ], $repaired);
     },
     'removes pdf line end hyphen when geometry shows a wrapped word' => static function (TestRunner $t): void {
@@ -5523,10 +5603,1372 @@ return [
             'tual dynamic types.',
         ], [$previous, $next]));
     },
+    'continues matching pdf body prose across a page boundary' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $repair = (function (array $lines, array $layouts): array {
+            return $this->repairProseTextLines($lines, true, $layouts);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($repair instanceof \Closure);
+
+        $bottomOfPage = [
+            'text' => 'The report should',
+            'page' => 1,
+            'x1' => 315.0,
+            'y1' => 72.0,
+            'x2' => 520.0,
+            'y2' => 84.0,
+            'fontSize' => 10.0,
+        ];
+        $topOfNextPage = [
+            'text' => 'not be split across the page boundary.',
+            'page' => 2,
+            'x1' => 52.0,
+            'y1' => 710.0,
+            'x2' => 290.0,
+            'y2' => 722.0,
+            'fontSize' => 10.0,
+        ];
+
+        $t->same([
+            'The report should not be split across the page boundary.',
+        ], $repair([
+            'The report should',
+            'not be split across the page boundary.',
+        ], [$bottomOfPage, $topOfNextPage]));
+
+        $bottomOfPage['text'] = 'The object represen-';
+        $topOfNextPage['text'] = 'tations remain available after the page break.';
+        $t->same([
+            'The object representations remain available after the page break.',
+        ], $repair([
+            'The object represen-',
+            'tations remain available after the page break.',
+        ], [$bottomOfPage, $topOfNextPage]));
+
+        $topOfNextPage['text'] = 'New section starts here.';
+        $t->same([
+            'The report should',
+            'New section starts here.',
+        ], $repair([
+            'The report should',
+            'New section starts here.',
+        ], [$bottomOfPage, $topOfNextPage]));
+    },
+    'trims an incomplete structured pdf tail before an unconfirmed page boundary' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $repair = (function (array $lines, array $layouts): array {
+            return $this->repairProseTextLines($lines, true, $layouts);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($repair instanceof \Closure);
+
+        $layout = [
+            'sourceStructuredGeometry' => true,
+            'sourceGeometryColumn' => 0,
+            'x1' => 72.0,
+            'x2' => 420.0,
+            'fontSize' => 10.0,
+        ];
+        $t->same([
+            'A complete sentence remains readable.',
+            'Figure caption begins a separate visual block.',
+        ], $repair([
+            'A complete sentence remains readable. The unresolved source tail',
+            'Figure caption begins a separate visual block.',
+        ], [
+            array_replace($layout, ['text' => 'A complete sentence remains readable. The unresolved source tail', 'page' => 1, 'y1' => 72.0, 'y2' => 84.0]),
+            array_replace($layout, ['text' => 'Figure caption begins a separate visual block.', 'page' => 2, 'y1' => 700.0, 'y2' => 712.0]),
+        ]));
+    },
+    'trims only unresolved pdf hyphenated paragraph tails' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $repair = (function (array $lines): array {
+            return $this->repairProseTextLines($lines, true);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($repair instanceof \Closure);
+
+        $t->same([
+            'A complete sentence survives.',
+        ], $repair([
+            'A complete sentence survives. The U.S. Gov-',
+        ]));
+        $t->same([
+            'A completed line remains intact.',
+        ], $repair([
+            'A completed line remains intact.',
+        ]));
+    },
+    'does not emit one word sentence starts from damaged pdf lines' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $trim = (function (array $record): array {
+            return $this->trimLeadingIncompletePdfComplexRecord($record);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($trim instanceof \Closure);
+
+        $layout = [
+            'page' => 1,
+            'x1' => 72.0,
+            'y1' => 700.0,
+            'x2' => 400.0,
+            'y2' => 712.0,
+            'fontSize' => 10.0,
+            'forceBlockBreakBefore' => true,
+        ];
+        $fragment = [
+            'text' => 'restore code after the interrupted instruction. The',
+            'layout' => $layout,
+        ];
+        $t->same($fragment, $trim($fragment));
+
+        $recoverable = [
+            'text' => 'restore code after the interrupted instruction. A complete standalone sentence survives.',
+            'layout' => $layout,
+        ];
+        $t->same('A complete standalone sentence survives.', $trim($recoverable)['text']);
+    },
+    'recovers a complete sentence after a punctuation-adjacent formula prefix' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $recover = (function (array $records): array {
+            return $this->completePdfComplexSegmentSuffix($records);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($recover instanceof \Closure);
+
+        $layout = [
+            'page' => 1,
+            'x1' => 72.0,
+            'y1' => 700.0,
+            'x2' => 420.0,
+            'y2' => 712.0,
+            'fontSize' => 10.0,
+            'sourceGeometryColumn' => 0,
+        ];
+        $records = [
+            ['text' => 'and an interrupted display: {x}.Thus, a complete sentence remains', 'layout' => $layout],
+            ['text' => 'available after the display.', 'layout' => array_replace($layout, ['y1' => 688.0, 'y2' => 700.0])],
+        ];
+
+        $recovered = $recover($records);
+        $t->same('Thus, a complete sentence remains', $recovered[0]['text'] ?? null);
+        $t->same('available after the display.', $recovered[1]['text'] ?? null);
+    },
+    'trims only interrupted pdf sentence tails before a new visual sentence' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $trim = (function (array $records): array {
+            return $this->trimIncompletePdfInterruptedSentenceTails($records);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($trim instanceof \Closure);
+
+        $layout = [
+            'page' => 1,
+            'x1' => 72.0,
+            'y1' => 700.0,
+            'x2' => 420.0,
+            'y2' => 712.0,
+            'fontSize' => 10.0,
+            'sourceGeometryColumn' => 0,
+            'sourceInterruptedColumnRegion' => true,
+        ];
+        $records = $trim([
+            ['text' => 'A complete sentence survives. The ne', 'layout' => $layout],
+            ['text' => 'Next visual sentence starts independently.', 'layout' => array_replace($layout, [
+                'y1' => 688.0,
+                'y2' => 700.0,
+                'sourceInterruptedColumnRegion' => false,
+            ])],
+        ]);
+
+        $t->same('A complete sentence survives.', $records[0]['text']);
+        $t->same(true, $records[1]['layout']['forceBlockBreakBefore'] ?? null);
+    },
+    'marks only bibliography entries on mixed prose and reference pdf pages' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $referenceItems = (function (array $sourceItems, array $positionedItems): array {
+            return $this->sourcePdfReferenceItemsInSourceOrder($sourceItems, $positionedItems);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($referenceItems instanceof \Closure);
+
+        $items = $referenceItems([
+            ['page' => 1, 'stream' => 1, 'text' => 'Closing prose continues onto this page.'],
+            ['page' => 1, 'stream' => 1, 'text' => '[1] Example reference entry.'],
+            ['page' => 1, 'stream' => 1, 'text' => 'Publication details continue here.'],
+        ], []);
+
+        $t->true(!isset($items[0]['sourcePdfReferenceEntry']));
+        $t->same(true, $items[1]['sourcePdfReferenceEntry'] ?? null);
+        $t->same(true, $items[2]['sourcePdfReferenceEntry'] ?? null);
+    },
+    'joins hyphenated bibliography wraps across a hanging indent' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $merge = (function (array $records): array {
+            return $this->mergeRepairedProseLines($records);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($merge instanceof \Closure);
+
+        $layout = [
+            'page' => 1,
+            'sourceStream' => 4,
+            'sourcePdfReferenceEntry' => true,
+            'x1' => 315.0,
+            'y1' => 500.0,
+            'x2' => 575.0,
+            'y2' => 508.0,
+            'fontSize' => 8.0,
+        ];
+        $merged = $merge([
+            ['text' => '[18] Example reference with a Compila-', 'layout' => $layout],
+            ['text' => 'tion Technique for Pro-', 'layout' => array_replace($layout, [
+                'x1' => 332.0,
+                'y1' => 490.0,
+                'y2' => 498.0,
+            ])],
+            ['text' => 'gramming Languages.', 'layout' => array_replace($layout, [
+                'x1' => 332.0,
+                'y1' => 480.0,
+                'y2' => 488.0,
+            ])],
+        ]);
+
+        $t->same([
+            '[18] Example reference with a Compilation Technique for Programming Languages.',
+        ], $merged);
+    },
+    'does not promote sentence case pdf prose fragments to headings' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $blocksFromLines = (function (array $lines): array {
+            return $this->blocksFromLines($lines);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($blocksFromLines instanceof \Closure);
+
+        $blocks = $blocksFromLines([
+            'Document Title',
+            'The implementation does not currently trace recursion, so',
+            'General Instructions',
+            'The next sentence remains ordinary prose.',
+        ]);
+
+        $t->same('heading', $blocks[0]->type);
+        $t->same('paragraph', $blocks[1]->type);
+        $t->same('heading', $blocks[2]->type);
+        $t->same('paragraph', $blocks[3]->type);
+    },
+    'keeps a glyphless hanging pdf list continuation in one visual flow' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $markBoundaries = (function (array $items): array {
+            return $this->markPositionedPdfParagraphBoundaries($items);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($markBoundaries instanceof \Closure);
+
+        $items = $markBoundaries([
+            [
+                'text' => 'A glyphless list item continues',
+                'page' => 1,
+                'x1' => 78.0,
+                'y1' => 700.0,
+                'x2' => 390.0,
+                'y2' => 712.0,
+                'fontSize' => 10.0,
+                'forceBlockBreakBefore' => true,
+                'sourceGeometryColumn' => 0,
+            ],
+            [
+                'text' => 'Across the next hanging visual line.',
+                'page' => 1,
+                'x1' => 86.0,
+                'y1' => 688.0,
+                'x2' => 390.0,
+                'y2' => 700.0,
+                'fontSize' => 10.0,
+                'sourceGeometryColumn' => 0,
+                'forceBlockBreakBefore' => true,
+            ],
+            [
+                'text' => 'The following ordinary paragraph begins after a gap.',
+                'page' => 1,
+                'x1' => 72.0,
+                'y1' => 650.0,
+                'x2' => 390.0,
+                'y2' => 662.0,
+                'fontSize' => 10.0,
+                'sourceGeometryColumn' => 0,
+            ],
+        ]);
+
+        $t->true(!isset($items[1]['forceBlockBreakBefore']));
+        $t->same(true, $items[2]['forceBlockBreakBefore'] ?? null);
+    },
+    'drops only overlapping prefix duplicate pdf text layers' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $deduplicate = (function (array $items): array {
+            return $this->removeSourcePdfNearBaselinePrefixDuplicates($items);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($deduplicate instanceof \Closure);
+
+        $layout = [
+            'page' => 1,
+            'sourceStream' => 3,
+            'sourceGeometryColumn' => 0,
+            'x1' => 72.0,
+            'y1' => 700.0,
+            'x2' => 420.0,
+            'y2' => 712.0,
+            'fontSize' => 10.0,
+        ];
+        $items = $deduplicate([
+            array_replace($layout, ['text' => 'The longer visible sentence continues to its conclusion.']),
+            array_replace($layout, [
+                'text' => 'The longer visible sentence continues',
+                'y1' => 698.0,
+                'y2' => 710.0,
+                'sourceSupplementalPositioned' => true,
+            ]),
+            array_replace($layout, [
+                'text' => 'visible sentence continues to its conclusion',
+                'x1' => 150.0,
+                'x2' => 420.0,
+                'y1' => 699.0,
+                'y2' => 711.0,
+                'sourceSupplementalPositioned' => true,
+            ]),
+            array_replace($layout, [
+                'text' => 'A separate line remains independently readable.',
+                'y1' => 680.0,
+                'y2' => 692.0,
+            ]),
+        ]);
+
+        $t->same([
+            'The longer visible sentence continues to its conclusion.',
+            'A separate line remains independently readable.',
+        ], array_column($items, 'text'));
+    },
+    'drops diagram overlays that interrupt a wrapped source pdf line' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $filter = (function (array $items): array {
+            return $this->removeSourcePdfSupplementalOverlaysThatInterruptSourceWrap($items);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($filter instanceof \Closure);
+
+        $layout = [
+            'page' => 1,
+            'sourceStream' => 3,
+            'sourceGeometryColumn' => 0,
+            'x1' => 72.0,
+            'y1' => 700.0,
+            'x2' => 420.0,
+            'y2' => 712.0,
+            'fontSize' => 10.0,
+        ];
+        $items = $filter([
+            array_replace($layout, ['text' => 'The source line continues']),
+            array_replace($layout, [
+                'text' => 'Diagram overlay text',
+                'x1' => 88.0,
+                'x2' => 240.0,
+                'y1' => 699.0,
+                'y2' => 711.0,
+                'sourceSupplementalPositioned' => true,
+                'sourceSupplementalSourceOverlap' => true,
+            ]),
+            array_replace($layout, [
+                'text' => 'with the next source line.',
+                'y1' => 688.0,
+                'y2' => 700.0,
+            ]),
+        ]);
+
+        $t->same([
+            'The source line continues',
+            'with the next source line.',
+        ], array_column($items, 'text'));
+    },
+    'trims only unfinished supplemental pdf segment tails' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $trim = (function (array $records): array {
+            return $this->trimIncompletePdfSupplementalSegmentTails($records);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($trim instanceof \Closure);
+
+        $layout = [
+            'page' => 1,
+            'sourceGeometryColumn' => 0,
+            'x1' => 72.0,
+            'y1' => 700.0,
+            'x2' => 420.0,
+            'y2' => 712.0,
+            'fontSize' => 10.0,
+            'sourceInterruptedColumnRegion' => true,
+        ];
+        $records = $trim([
+            ['text' => 'A complete sentence survives.', 'layout' => $layout],
+            ['text' => 'Diagram residue begins', 'layout' => array_replace($layout, [
+                'y1' => 688.0,
+                'y2' => 700.0,
+                'sourceSupplementalPositioned' => true,
+            ])],
+            ['text' => 'and continues without punctuation', 'layout' => array_replace($layout, [
+                'y1' => 676.0,
+                'y2' => 688.0,
+                'sourceSupplementalPositioned' => true,
+            ])],
+            ['text' => 'until the damaged region ends', 'layout' => array_replace($layout, [
+                'y1' => 664.0,
+                'y2' => 676.0,
+                'sourceSupplementalPositioned' => true,
+            ])],
+            ['text' => 'The next paragraph remains.', 'layout' => array_replace($layout, [
+                'y1' => 620.0,
+                'y2' => 632.0,
+                'forceBlockBreakBefore' => true,
+                'sourceInterruptedColumnRegion' => false,
+            ])],
+        ]);
+
+        $t->same([
+            'A complete sentence survives.',
+            'The next paragraph remains.',
+        ], array_column($records, 'text'));
+    },
+    'trims incomplete inferred pdf continuations to the last complete sentence' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $trim = (function (array $records): array {
+            return $this->trimIncompletePdfSupplementalSegmentTails($records);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($trim instanceof \Closure);
+
+        $layout = [
+            'page' => 1,
+            'sourceGeometryColumn' => 0,
+            'x1' => 72.0,
+            'y1' => 700.0,
+            'x2' => 420.0,
+            'y2' => 712.0,
+            'fontSize' => 10.0,
+        ];
+        $records = $trim([
+            ['text' => 'The caption contains one complete sentence. It begins an incomplete continuation', 'layout' => $layout],
+            ['text' => 'that cannot be completed from the source', 'layout' => array_replace($layout, [
+                'y1' => 688.0,
+                'y2' => 700.0,
+                'sourceInferredNeighborLayout' => true,
+            ])],
+            ['text' => 'The next block remains.', 'layout' => array_replace($layout, [
+                'y1' => 640.0,
+                'y2' => 652.0,
+                'forceBlockBreakBefore' => true,
+            ])],
+        ]);
+
+        $t->same([
+            'The caption contains one complete sentence.',
+            'The next block remains.',
+        ], array_column($records, 'text'));
+    },
+    'reconciles contiguous source fragments with one positioned pdf line' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $match = (function (array $sourceItems, array $positionedItems): array {
+            return $this->matchSourcePdfLinesToPositionedItems($sourceItems, $positionedItems);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($match instanceof \Closure);
+
+        $sourceItems = [
+            ['page' => 1, 'stream' => 1, 'text' => 'The loop (with header at i'],
+            ['page' => 1, 'stream' => 1, 'text' => '2'],
+            ['page' => 1, 'stream' => 1, 'text' => ') becomes hot.'],
+        ];
+        $positionedItems = [[
+            'text' => 'Theloop(withheaderati2)becomeshot.',
+            'page' => 1,
+            'x1' => 72.0,
+            'y1' => 700.0,
+            'x2' => 360.0,
+            'y2' => 712.0,
+            'fontSize' => 10.0,
+            'code' => false,
+        ]];
+
+        $result = $match($sourceItems, $positionedItems);
+        $t->same([0 => true, 1 => true, 2 => true], $result['sourceIndexes']);
+        $t->same('The loop (with header at i2) becomes hot.', $result['items'][0]['text']);
+        $t->same([0, 1, 2], $result['items'][0]['sourcePdfSourceIndexes']);
+
+        $result = $match([
+            ['page' => 1, 'stream' => 1, 'text' => 'A complete sentence.'],
+            ['page' => 1, 'stream' => 1, 'text' => 'A separate sentence'],
+        ], [[
+            'text' => 'Acompletesentence.Aseparatesentence',
+            'page' => 1,
+            'x1' => 72.0,
+            'y1' => 700.0,
+            'x2' => 360.0,
+            'y2' => 712.0,
+            'fontSize' => 10.0,
+            'code' => false,
+        ]]);
+        $t->same([], $result['sourceIndexes']);
+    },
+    'reconciles adjacent positioned style fragments with one source line' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $match = (function (array $sourceItems, array $positionedItems): array {
+            return $this->matchSourcePdfLinesToPositionedItems($sourceItems, $positionedItems);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($match instanceof \Closure);
+
+        $result = $match([
+            ['page' => 1, 'stream' => 1, 'text' => 'Structured label: body prose begins here.'],
+        ], [
+            [
+                'text' => 'Structured label:',
+                'page' => 1,
+                'x1' => 92.0,
+                'y1' => 700.0,
+                'x2' => 176.0,
+                'y2' => 712.0,
+                'fontSize' => 10.0,
+                'code' => false,
+                'sourceOrderStart' => 50,
+                'sourceOrderEnd' => 53,
+            ],
+            [
+                'text' => 'body prose begins here.',
+                'page' => 1,
+                'x1' => 168.0,
+                'y1' => 700.0,
+                'x2' => 300.0,
+                'y2' => 712.0,
+                'fontSize' => 10.0,
+                'code' => false,
+                'sourceOrderStart' => 54,
+                'sourceOrderEnd' => 58,
+            ],
+        ]);
+
+        $t->same([0 => true], $result['sourceIndexes']);
+        $t->same('Structured label: body prose begins here.', $result['items'][0]['text']);
+        $t->same(92.0, $result['items'][0]['x1']);
+        $t->same(300.0, $result['items'][0]['x2']);
+    },
+    'reconciles short numeric source fragments only as positioned inline continuations' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $match = (function (array $sourceItems, array $positionedItems): array {
+            return $this->matchSourcePdfLinesToPositionedItems($sourceItems, $positionedItems);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($match instanceof \Closure);
+
+        $result = $match([
+            ['page' => 1, 'stream' => 1, 'text' => 'The trace exits at i'],
+            ['page' => 1, 'stream' => 1, 'text' => '2'],
+            ['page' => 1, 'stream' => 1, 'text' => 'and then'],
+        ], [[
+            'text' => '2andthen',
+            'page' => 1,
+            'x1' => 240.0,
+            'y1' => 700.0,
+            'x2' => 300.0,
+            'y2' => 712.0,
+            'fontSize' => 10.0,
+            'code' => false,
+        ]]);
+
+        $t->same([1 => true, 2 => true], $result['sourceIndexes']);
+        $t->same('2 and then', $result['items'][0]['text']);
+        $t->same([1, 2], $result['items'][0]['sourcePdfSourceIndexes']);
+    },
+    'ends a PDF formula lead before a recoverable prose suffix' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $merge = (function (array $records): array {
+            return $this->mergeRepairedProseLines($records);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($merge instanceof \Closure);
+
+        $layout = [
+            'page' => 1,
+            'sourceStream' => 1,
+            'x1' => 72.0,
+            'x2' => 420.0,
+            'y1' => 700.0,
+            'y2' => 712.0,
+            'fontSize' => 10.0,
+        ];
+        $t->same([
+            'The outer trace calls a nested loop.',
+            'Thus, execution resumes normally.',
+        ], $merge([
+            ['text' => 'The outer trace calls a nested loop:', 'layout' => $layout],
+            ['text' => 'Thus, execution resumes normally.', 'layout' => array_replace($layout, [
+                'y1' => 688.0,
+                'y2' => 700.0,
+                'sourceSupplementalRecoverableSentenceSuffix' => true,
+            ])],
+        ]));
+    },
+    'trims an unfinished pdf prose tail before a forced visual block boundary' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $merge = (function (array $records): array {
+            return $this->mergeRepairedProseLines($records);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($merge instanceof \Closure);
+
+        $layout = [
+            'page' => 1,
+            'sourceStream' => 1,
+            'sourceGeometryColumn' => 0,
+            'sourceStructuredGeometry' => true,
+            'x1' => 72.0,
+            'x2' => 420.0,
+            'fontSize' => 10.0,
+        ];
+        $t->same([
+            'The first statement is complete.',
+            'The next visual block remains complete.',
+        ], $merge([
+            ['text' => 'The first statement is complete. The final source line is unresolved', 'layout' => array_replace($layout, ['y1' => 700.0, 'y2' => 712.0])],
+            ['text' => 'The next visual block remains complete.', 'layout' => array_replace($layout, [
+                'y1' => 660.0,
+                'y2' => 672.0,
+                'forceBlockBreakBefore' => true,
+            ])],
+        ]));
+    },
+    'merges wrapped lower-case display text across a forced pdf boundary' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $merge = (function (array $records): array {
+            return $this->mergeRepairedProseLines($records);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($merge instanceof \Closure);
+
+        $layout = [
+            'page' => 1,
+            'sourceGeometryColumn' => 0,
+            'x1' => 72.0,
+            'x2' => 420.0,
+            'fontSize' => 18.0,
+        ];
+        $t->same(['A wrapped display line continues here'], $merge([
+            ['text' => 'A wrapped display line', 'layout' => array_replace($layout, ['y1' => 700.0, 'y2' => 720.0])],
+            ['text' => 'continues here', 'layout' => array_replace($layout, [
+                'y1' => 676.0,
+                'y2' => 696.0,
+                'forceBlockBreakBefore' => true,
+            ])],
+        ]));
+    },
+    'merges a short inline pdf callout lead with its wrapped continuation' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $merge = (function (array $records): array {
+            return $this->mergeRepairedProseLines($records);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($merge instanceof \Closure);
+
+        $layout = [
+            'page' => 1,
+            'sourceGeometryColumn' => 0,
+            'fontSize' => 14.0,
+        ];
+        $t->same(['Remember: Act now to stay safe.'], $merge([
+            ['text' => 'Remember:', 'layout' => array_replace($layout, ['x1' => 72.0, 'x2' => 142.0, 'y1' => 700.0, 'y2' => 718.0])],
+            ['text' => 'Act now', 'layout' => array_replace($layout, ['x1' => 150.0, 'x2' => 204.0, 'y1' => 700.0, 'y2' => 718.0])],
+            ['text' => 'to stay safe.', 'layout' => array_replace($layout, ['x1' => 72.0, 'x2' => 170.0, 'y1' => 686.0, 'y2' => 704.0])],
+        ]));
+    },
+    'drops incomplete oversized unstructured pdf display fragments' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $looksIncomplete = (function (array $record, float $medianFontSize): bool {
+            return $this->pdfUnstructuredDisplayFragmentLooksIncomplete($record, $medianFontSize);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($looksIncomplete instanceof \Closure);
+
+        $layout = [
+            'page' => 1,
+            'x1' => 480.0,
+            'x2' => 620.0,
+            'y1' => 300.0,
+            'y2' => 336.0,
+            'fontSize' => 32.0,
+        ];
+        $t->true($looksIncomplete(['text' => 'fragment Display', 'layout' => $layout], 10.0));
+        $t->true(!$looksIncomplete(['text' => 'Complete Display', 'layout' => $layout], 10.0));
+        $t->true(!$looksIncomplete(['text' => 'fragment Display', 'layout' => array_replace($layout, ['sourceStructuredGeometry' => true])], 10.0));
+    },
+    'trims an unfinished pdf prose tail before a stacked table boundary' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $merge = (function (array $records, array $following): array {
+            return $this->mergeRepairedProseLines($records, [], $following);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($merge instanceof \Closure);
+
+        $layout = [
+            'page' => 1,
+            'sourceStream' => 1,
+            'sourceGeometryColumn' => 0,
+            'sourceStructuredGeometry' => true,
+            'x1' => 72.0,
+            'x2' => 420.0,
+            'fontSize' => 10.0,
+        ];
+        $t->same(['The complete sentence remains readable.'], $merge([
+            ['text' => 'The complete sentence remains readable. The unresolved formula lead', 'layout' => array_replace($layout, ['y1' => 700.0, 'y2' => 712.0])],
+        ], [
+            'text' => 'Column heading',
+            'layout' => array_replace($layout, [
+                'sourceGeometryColumn' => 1,
+                'y1' => 700.0,
+                'y2' => 712.0,
+                'forceBlockBreakBefore' => true,
+            ]),
+        ]));
+    },
+    'drops unfinished prose immediately before a stacked pdf table' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $repair = (function (array $lines): array {
+            return $this->repairProseTextLines($lines, true);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($repair instanceof \Closure);
+
+        $repaired = $repair([
+            'The complete sentence remains readable. The formula tail is unresolved',
+            'Code',
+            'Type',
+            'Meaning',
+            'A1',
+            'alpha',
+            'first compact entry',
+            'B2',
+            'beta',
+            'second compact entry',
+            'C3',
+            'gamma',
+            'third compact entry',
+        ]);
+
+        $t->same('The complete sentence remains readable.', $repaired[0] ?? null);
+        $t->true(!str_contains(implode("\n", $repaired), 'formula tail is unresolved'));
+    },
+    'drops interrupted pdf continuation runs between complete visual blocks' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $remove = (function (array $records): array {
+            return $this->removeIncompletePdfInterruptedFlowSegments($records);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($remove instanceof \Closure);
+
+        $layout = [
+            'page' => 1,
+            'sourceStream' => 1,
+            'sourceGeometryColumn' => 0,
+            'x1' => 72.0,
+            'x2' => 420.0,
+            'fontSize' => 10.0,
+        ];
+        $records = $remove([
+            ['text' => 'The caption is complete.', 'layout' => array_replace($layout, ['y1' => 720.0, 'y2' => 732.0])],
+            ['text' => 'As long as', 'layout' => array_replace($layout, [
+                'y1' => 700.0,
+                'y2' => 712.0,
+                'sourceInterruptedColumnRegion' => true,
+            ])],
+            ['text' => 'the unresolved overlay continues.', 'layout' => array_replace($layout, [
+                'y1' => 688.0,
+                'y2' => 700.0,
+                'sourceInterruptedColumnRegion' => true,
+            ])],
+            ['text' => 'The next paragraph is independent.', 'layout' => array_replace($layout, [
+                'y1' => 650.0,
+                'y2' => 662.0,
+                'forceBlockBreakBefore' => true,
+            ])],
+        ]);
+
+        $t->same([
+            'The caption is complete.',
+            'The next paragraph is independent.',
+        ], array_column($records, 'text'));
+    },
+    'corroborates raw pdf split fragments with a positioned baseline word' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $corroborate = (function (array $runs, array $hints, array $sourceItems = []): array {
+            return $this->pdfPositionedRunCorroboratedSplitFragmentHints($runs, $hints, $sourceItems);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($corroborate instanceof \Closure);
+
+        $run = static function (string $text, float $x1, float $x2): array {
+            return [
+                'text' => $text,
+                'page' => 1,
+                'x1' => $x1,
+                'y1' => 700.0,
+                'x2' => $x2,
+                'y2' => 712.0,
+                'textX1' => $x1,
+                'textY1' => 704.0,
+                'textX2' => $x2,
+                'textY2' => 704.0,
+                'fontSize' => 10.0,
+            ];
+        };
+        $hints = [
+            "fragment\0w ith" => 'with',
+            "fragment\0pro viders" => 'providers',
+            "fragment\0and takes" => 'andtakes',
+            "fragment\0the trace" => 'thetrace',
+        ];
+
+        $t->same([
+            "fragment\0w ith" => 'with',
+            "fragment\0pro viders" => 'providers',
+        ], $corroborate([
+            $run('w', 72.0, 78.0),
+            $run('ith', 78.5, 92.0),
+            $run('pro', 120.0, 138.0),
+            $run('viders', 138.5, 172.0),
+            $run(' ', 172.0, 178.0),
+            $run('and', 180.0, 198.0),
+            $run(' ', 198.0, 204.0),
+            $run('takes', 204.0, 234.0),
+            $run('the', 260.0, 276.0),
+            $run('trace', 276.5, 304.0),
+        ], $hints, [
+            ['page' => 1, 'stream' => 1, 'text' => 'This sentence contains w ith an artificial PDF gap.'],
+            ['page' => 1, 'stream' => 1, 'text' => 'Healthcare pro viders'],
+            ['page' => 1, 'stream' => 1, 'text' => 'The trace tree records a loop entry.'],
+        ]));
+    },
+    'corroborates positioned line-end fragments against clipped PDF source lines' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $corroborate = (function (array $runs, array $hints, array $sourceItems): array {
+            return $this->pdfPositionedRunCorroboratedSplitFragmentHints($runs, $hints, $sourceItems);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($corroborate instanceof \Closure);
+
+        $run = static function (string $text, float $x1, float $x2): array {
+            return [
+                'text' => $text,
+                'page' => 1,
+                'x1' => $x1,
+                'y1' => 700.0,
+                'x2' => $x2,
+                'y2' => 712.0,
+                'textX1' => $x1,
+                'textY1' => 704.0,
+                'textX2' => $x2,
+                'textY2' => 704.0,
+                'fontSize' => 10.0,
+            ];
+        };
+        $t->same([
+            "fragment\0pro viders" => 'providers',
+        ], $corroborate([
+            $run('Healthcare', 72.0, 132.0),
+            $run(' ', 132.0, 138.0),
+            $run('pro', 140.0, 158.0),
+            // The positioned layer retains a visible gap at the clipped
+            // source-line boundary, as it does in the real brochure.
+            $run('viders', 164.0, 199.5),
+        ], [
+            "fragment\0pro viders" => 'providers',
+        ], [
+            ['page' => 1, 'stream' => 1, 'text' => 'Healthcare pro'],
+        ]));
+    },
+    'keeps raw PDF fragment hints bounded to actual split runs' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $hints = (function (array $runs): array {
+            return $this->pdfTextRunSplitWordHints($runs);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($hints instanceof \Closure);
+
+        $result = $hints([
+            'pro',
+            'viders',
+            ' ',
+            'A normal source line ends with the',
+            'trace monitor',
+            ' ',
+            'h all',
+            'owe',
+            'd',
+            ' ',
+        ]);
+
+        $t->same('providers', $result["fragment\0pro viders"] ?? null);
+        $t->same('allowed', $result["fragment\0all owed"] ?? null);
+        $t->true(!isset($result["fragment\0the trace"]));
+    },
+    'restores adjacent source PDF continuations without joining intervening panels' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $restore = (function (array $items): array {
+            return $this->restoreSourcePdfAdjacentVisualContinuations($items);
+        })->bindTo($reader, PdfReader::class);
+        $merge = (function (array $records): array {
+            return $this->mergeRepairedProseLines($records);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($restore instanceof \Closure);
+        $t->true($merge instanceof \Closure);
+
+        $body = [
+            'page' => 1,
+            'sourceStream' => 4,
+            'x1' => 72.0,
+            'x2' => 420.0,
+            'fontSize' => 10.0,
+        ];
+        $items = $restore([
+            array_replace($body, [
+                'text' => 'Camping is only permitted in developed campgrounds. For backcountry',
+                'sourcePdfSourceIndex' => 10,
+                'y1' => 700.0,
+                'y2' => 712.0,
+            ]),
+            [
+                'text' => 'Map legend',
+                'page' => 1,
+                'sourceStream' => 9,
+                'sourcePdfSourceIndex' => 20,
+                'x1' => 320.0,
+                'x2' => 400.0,
+                'y1' => 660.0,
+                'y2' => 672.0,
+                'fontSize' => 9.0,
+            ],
+            array_replace($body, [
+                'text' => 'camping options require a permit from the Backcountry Information Center.',
+                'sourcePdfSourceIndex' => 11,
+                'x1' => 340.0,
+                'x2' => 590.0,
+                'y1' => 320.0,
+                'y2' => 332.0,
+                'forceBlockBreakBefore' => true,
+            ]),
+        ]);
+
+        $t->same([
+            'Camping is only permitted in developed campgrounds. For backcountry',
+            'camping options require a permit from the Backcountry Information Center.',
+            'Map legend',
+        ], array_column($items, 'text'));
+        $t->true(($items[1]['sourcePdfCrossPanelContinuation'] ?? false) === true);
+        $t->true(!isset($items[1]['forceBlockBreakBefore']));
+        $t->same([
+            'Camping is only permitted in developed campgrounds. For backcountry camping options require a permit from the Backcountry Information Center.',
+            'Map legend',
+        ], $merge(array_map(static fn (array $item): array => ['text' => $item['text'], 'layout' => $item], $items)));
+    },
+    'restores source text that extends a clipped positioned pdf line' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $restore = (function (array $ordered, array $fallback): array {
+            return $this->restoreSourcePdfPartialSupplementalLines($ordered, $fallback);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($restore instanceof \Closure);
+
+        $layout = [
+            'page' => 1,
+            'x1' => 72.0,
+            'x2' => 360.0,
+            'fontSize' => 10.0,
+        ];
+        [$ordered, $fallback] = $restore([
+            array_replace($layout, [
+                'text' => 'A verified source line retains its clipped',
+                'y1' => 700.0,
+                'y2' => 712.0,
+                'sourceSupplementalPositioned' => true,
+            ]),
+            array_replace($layout, [
+                'text' => 'continuation on the known baseline.',
+                'y1' => 688.0,
+                'y2' => 700.0,
+                'sourceStream' => 7,
+                'sourcePdfSourceIndex' => 21,
+            ]),
+        ], [[
+            'text' => 'A verified source line retains its clipped suffix exactly.',
+            'page' => 1,
+            'sourceStream' => 7,
+            'sourcePdfSourceIndex' => 20,
+            'forceBlockBreakBefore' => true,
+        ]]);
+
+        $t->same('A verified source line retains its clipped suffix exactly.', $ordered[0]['text'] ?? null);
+        $t->true(($ordered[0]['sourceRecoveredPartialSupplemental'] ?? false) === true);
+        $t->same([], $fallback);
+    },
+    'infers a short comma led source fragment before a known pdf baseline' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $order = (function (array $sourceItems, array $match): array {
+            return $this->sourcePdfItemsInVisualOrder($sourceItems, $match);
+        })->bindTo($reader, PdfReader::class);
+        $merge = (function (array $records): array {
+            return $this->mergeRepairedProseLines($records);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($order instanceof \Closure);
+        $t->true($merge instanceof \Closure);
+
+        $sourceItems = [
+            ['page' => 1, 'stream' => 4, 'text' => 'Clearly, a'],
+            ['page' => 1, 'stream' => 4, 'text' => 'Capitalized continuation completes the verified statement.'],
+        ];
+        $knownLayout = [
+            'text' => $sourceItems[1]['text'],
+            'page' => 1,
+            'x1' => 72.0,
+            'x2' => 420.0,
+            'y1' => 688.0,
+            'y2' => 700.0,
+            'fontSize' => 10.0,
+        ];
+        $items = $order($sourceItems, [
+            'sourceIndexes' => [1 => true],
+            'itemsBySourceIndex' => [1 => $knownLayout],
+            'visualEntries' => [['item' => $knownLayout, 'sourceIndex' => 1]],
+        ]);
+
+        $t->same(['Clearly, a', 'Capitalized continuation completes the verified statement.'], array_column($items, 'text'));
+        $t->true(($items[0]['sourceShortCommaLead'] ?? false) === true);
+        $t->same(['Clearly, a Capitalized continuation completes the verified statement.'], $merge(array_map(
+            static fn (array $item): array => ['text' => $item['text'], 'layout' => $item],
+            $items
+        )));
+    },
+    'restores source pdf continuations separated by a smaller footer panel' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $restore = (function (array $items, array $sourceItems): array {
+            return $this->restoreSourcePdfAdjacentVisualContinuations($items, $sourceItems);
+        })->bindTo($reader, PdfReader::class);
+        $merge = (function (array $records): array {
+            return $this->mergeRepairedProseLines($records);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($restore instanceof \Closure);
+        $t->true($merge instanceof \Closure);
+
+        $body = [
+            'page' => 1,
+            'sourceStream' => 4,
+            'sourceStructuredGeometry' => true,
+            'x1' => 72.0,
+            'x2' => 300.0,
+            'fontSize' => 10.0,
+        ];
+        $panel = [
+            'page' => 1,
+            'sourceStream' => 4,
+            'sourceStructuredGeometry' => true,
+            'sourceGeometryColumn' => 0,
+            'x1' => 72.0,
+            'x2' => 290.0,
+            'fontSize' => 8.0,
+        ];
+        $sourceItems = [];
+        for ($index = 0; $index <= 7; $index++) {
+            $sourceItems[] = ['page' => 1, 'stream' => 4, 'text' => 'source record ' . $index];
+        }
+        $items = $restore([
+            array_replace($body, [
+                'text' => 'The body flow reaches the end of its first column',
+                'sourceGeometryColumn' => 0,
+                'sourcePdfSourceIndex' => 3,
+                'y1' => 300.0,
+                'y2' => 312.0,
+            ]),
+            array_replace($panel, [
+                'text' => 'Small footer line one.',
+                'sourcePdfSourceIndex' => 4,
+                'y1' => 260.0,
+                'y2' => 270.0,
+                'forceBlockBreakBefore' => true,
+            ]),
+            array_replace($panel, [
+                'text' => 'Small footer line two.',
+                'sourcePdfSourceIndex' => 5,
+                'y1' => 250.0,
+                'y2' => 260.0,
+            ]),
+            array_replace($panel, [
+                'text' => 'Small footer line three.',
+                'sourcePdfSourceIndex' => 6,
+                'y1' => 240.0,
+                'y2' => 250.0,
+            ]),
+            array_replace($body, [
+                'text' => 'continues at the top of the next body column.',
+                'sourceGeometryColumn' => 1,
+                'sourcePdfSourceIndex' => 7,
+                'x1' => 330.0,
+                'x2' => 560.0,
+                'y1' => 700.0,
+                'y2' => 712.0,
+                'forceBlockBreakBefore' => true,
+            ]),
+        ], $sourceItems);
+
+        $t->same([
+            'The body flow reaches the end of its first column',
+            'continues at the top of the next body column.',
+            'Small footer line one.',
+            'Small footer line two.',
+            'Small footer line three.',
+        ], array_column($items, 'text'));
+        $t->true(($items[1]['sourcePdfCrossPanelContinuation'] ?? false) === true);
+        $t->same('The body flow reaches the end of its first column continues at the top of the next body column.', $merge(array_map(
+            static fn (array $item): array => ['text' => $item['text'], 'layout' => $item],
+            $items
+        ))[0] ?? null);
+    },
+    'drops isolated unproven geometry-only PDF fragments' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $trim = (function (array $records): array {
+            return $this->trimIncompletePdfUnstructuredFragments($records);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($trim instanceof \Closure);
+
+        $t->same([], $trim([[
+            'text' => 'prohibited.',
+            'layout' => [
+                'page' => 1,
+                'x1' => 420.0,
+                'x2' => 470.0,
+                'y1' => 120.0,
+                'y2' => 132.0,
+                'fontSize' => 9.0,
+            ],
+        ]]));
+        $t->same([[
+            'text' => 'on gloves.',
+            'layout' => [
+                'page' => 1,
+                'x1' => 72.0,
+                'x2' => 130.0,
+                'y1' => 120.0,
+                'y2' => 132.0,
+                'fontSize' => 9.0,
+                'sourceStructuredGeometry' => true,
+                'sourceGeometryColumn' => 0,
+            ],
+        ]], $trim([[
+            'text' => 'on gloves.',
+            'layout' => [
+                'page' => 1,
+                'x1' => 72.0,
+                'x2' => 130.0,
+                'y1' => 120.0,
+                'y2' => 132.0,
+                'fontSize' => 9.0,
+                'sourceStructuredGeometry' => true,
+                'sourceGeometryColumn' => 0,
+            ],
+        ]]));
+    },
+    'keeps numbered PDF display headings distinct from body prose and lists' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $merge = (function (array $records): array {
+            return $this->mergeRepairedProseLines($records);
+        })->bindTo($reader, PdfReader::class);
+        $blocksFromLines = (function (array $lines): array {
+            return $this->blocksFromLines($lines);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($merge instanceof \Closure);
+        $t->true($blocksFromLines instanceof \Closure);
+
+        $lines = $merge([
+            ['text' => '4. Nested Trace Tree Formation', 'layout' => [
+                'page' => 1,
+                'x1' => 72.0,
+                'x2' => 320.0,
+                'y1' => 720.0,
+                'y2' => 734.0,
+                'fontSize' => 12.0,
+            ]],
+            ['text' => 'Figure 7 shows a nested loop with two paths.', 'layout' => [
+                'page' => 1,
+                'x1' => 72.0,
+                'x2' => 420.0,
+                'y1' => 704.0,
+                'y2' => 716.0,
+                'fontSize' => 10.0,
+            ]],
+        ]);
+        $t->same([
+            "\x1EPDF-NUMBERED-HEADING\x1F4. Nested Trace Tree Formation",
+            'Figure 7 shows a nested loop with two paths.',
+        ], $lines);
+        $blocks = $blocksFromLines($lines);
+        $t->same('heading', $blocks[0]->type);
+        $t->same('paragraph', $blocks[1]->type);
+
+        $list = $blocksFromLines(['1. First item', '2. Second item']);
+        $t->same(1, count($list));
+        $t->same('ordered_list', $list[0]->type);
+        $t->same(2, count($list[0]->children));
+    },
+    'preserves visible soft hyphens in repaired pdf prose' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $repair = (function (array $lines): array {
+            return $this->repairProseTextLines($lines, true);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($repair instanceof \Closure);
+
+        $t->same([
+            'A hard-to-treat condition remains.',
+            'An alcohol-based hand rub helps.',
+        ], $repair([
+            "A hard\u{00AD}to\u{00AD}treat condition remains.",
+            "An alcohol\u{00AD}",
+            'based hand rub helps.',
+        ]));
+    },
+    'does not split digit-leading bare domains during pdf prose repair' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $repair = (function (string $line): string {
+            return $this->repairGluedProseLine($line);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($repair instanceof \Closure);
+
+        $t->same('Resources: www.bluefront.org 5gyres.org', $repair('Resources: www.bluefront.org 5gyres.org'));
+        $t->same('The report includes 20 years of data.', $repair('The report includes 20years of data.'));
+    },
+    'keeps title-like pdf text in an unfinished wrapped body line' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $startsNewBlock = (function (string $previous, string $line, array $previousLayout, array $lineLayout): bool {
+            return $this->repairedLineShouldStartNewBlock($previous, $line, $previousLayout, $lineLayout);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($startsNewBlock instanceof \Closure);
+
+        $layout = [
+            'page' => 1,
+            'x1' => 72.0,
+            'x2' => 420.0,
+            'fontSize' => 10.0,
+        ];
+        $t->true(!$startsNewBlock(
+            'members of the community are known as the',
+            'Federated Council of Example Valley,',
+            array_replace($layout, ['y1' => 700.0, 'y2' => 712.0]),
+            array_replace($layout, ['y1' => 688.0, 'y2' => 700.0])
+        ));
+    },
+    'drops incomplete source stream tails while preserving complete prefixes' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $merge = (function (array $records): array {
+            return $this->mergeRepairedProseLines($records);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($merge instanceof \Closure);
+
+        $layout = ['page' => 1, 'sourceStream' => 1];
+        $t->same([
+            'The following paragraph is complete.',
+        ], $merge([
+            ['text' => 'A long source paragraph loses its final visual continuation and cannot safely become a complete sentence', 'layout' => $layout],
+            ['text' => 'The following paragraph is complete.', 'layout' => ['page' => 1, 'sourceStream' => 2]],
+        ]));
+        $t->same([
+            'The first sentence is complete.',
+            'The following paragraph is complete.',
+        ], $merge([
+            ['text' => 'The first sentence is complete. A later visual continuation is missing from this source stream', 'layout' => $layout],
+            ['text' => 'The following paragraph is complete.', 'layout' => ['page' => 1, 'sourceStream' => 2]],
+        ]));
+        $substantialTail = 'A substantial source-only paragraph preserves enough verified text to remain useful when a later visual continuation is unavailable at the stream boundary';
+        $t->same([
+            'The following paragraph is complete.',
+        ], $merge([
+            ['text' => $substantialTail, 'layout' => $layout],
+            ['text' => 'The following paragraph is complete.', 'layout' => ['page' => 1, 'sourceStream' => 2]],
+        ]));
+    },
+    'preserves semantic hyphens in digit bearing pdf identifiers' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $merge = (function (array $records): array {
+            return $this->mergeRepairedProseLines($records);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($merge instanceof \Closure);
+
+        $layout = [
+            'page' => 1,
+            'x1' => 72.0,
+            'y1' => 700.0,
+            'x2' => 420.0,
+            'y2' => 712.0,
+            'fontSize' => 10.0,
+        ];
+        $merged = $merge([
+            ['text' => 'The 3d-', 'layout' => $layout],
+            ['text' => 'raytrace workload remains.', 'layout' => array_replace($layout, [
+                'y1' => 688.0,
+                'y2' => 700.0,
+            ])],
+        ]);
+
+        $t->same(['The 3d-raytrace workload remains.'], $merged);
+
+        $compound = $merge([
+            ['text' => 'The date-format-', 'layout' => $layout],
+            ['text' => 'xparb workload remains.', 'layout' => array_replace($layout, [
+                'y1' => 688.0,
+                'y2' => 700.0,
+            ])],
+        ]);
+        $t->same(['The date-format-xparb workload remains.'], $compound);
+    },
+    'separates inline greek pdf variables from following latin prose' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $repair = (function (string $line): string {
+            return $this->repairGluedProseLine($line);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($repair instanceof \Closure);
+
+        $t->same('The α symbol is used to mark the loop.', $repair('The αsymbol is used to mark the loop.'));
+    },
+    'does not apply short positioned spacing hints inside compound identifiers' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $repair = (function (string $line): string {
+            return $this->repairGluedProseLine($line, ["spacing\0format" => 'form at']);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($repair instanceof \Closure);
+
+        $t->same('The date-format-xparb benchmark remains.', $repair('The date-format-xparb benchmark remains.'));
+    },
+    'requires matching source evidence for bare positioned spacing pairs' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $hintsFromRuns = (function (array $runs, array $sourceItems): array {
+            return $this->pdfPositionedRunSpacingHints($runs, $sourceItems);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($hintsFromRuns instanceof \Closure);
+
+        $run = static function (string $text, float $x1, float $x2, float $y): array {
+            return [
+                'text' => $text,
+                'page' => 1,
+                'x1' => $x1,
+                'x2' => $x2,
+                'y1' => $y,
+                'y2' => $y + 12.0,
+                'textX1' => $x1,
+                'textX2' => $x2,
+                'textY1' => $y,
+                'textY2' => $y + 12.0,
+                'fontSize' => 10.0,
+            ];
+        };
+        $hints = $hintsFromRuns([
+            $run('able', 72.0, 96.0, 700.0),
+            $run('to', 98.0, 110.0, 700.0),
+            $run('continue', 112.0, 158.0, 700.0),
+            $run('form', 72.0, 96.0, 680.0),
+            $run('at', 98.0, 110.0, 680.0),
+            $run('least', 112.0, 144.0, 680.0),
+        ], [
+            ['page' => 1, 'stream' => 1, 'text' => 'ableto continue'],
+            ['page' => 1, 'stream' => 1, 'text' => 'form at least'],
+        ]);
+
+        $t->same('able to', $hints["spacing\0ableto"] ?? null);
+        $t->true(!isset($hints["spacing\0format"]));
+    },
     'repairs pdf hyphen fragments only with raw run evidence' => static function (TestRunner $t): void {
         $reader = new PdfReader();
         $repair = (function (array $lines, array $runs): array {
-            return $this->repairProseTextLines($lines, true, [], $this->pdfTextRunSplitWordHints($runs));
+            return $this->repairProseTextLines(
+                $lines,
+                true,
+                [],
+                $this->pdfTextRunHyphenatedSplitWordHints($this->pdfTextRunSplitWordHints($runs))
+            );
         })->bindTo($reader, PdfReader::class);
         $t->true($repair instanceof \Closure);
 
@@ -5561,6 +7003,16 @@ return [
             'hard',
             '-',
             'to-treat infections',
+        ]));
+
+        $t->same([
+            'Construction continued along the beachfront development corridor.',
+        ], $repair([
+            "Construction continued along the beachfront develop\u{00AD} ment corridor.",
+        ], [
+            'Construction continued along the beachfront develop',
+            "\u{00AD}",
+            'ment corridor.',
         ]));
     },
     'does not join complete lowercase pdf table cell words as split fragments' => static function (TestRunner $t): void {
@@ -5597,7 +7049,7 @@ return [
             'Tag',
             'JS Type',
             'Description',
-            '000 object pointer to JS Object handle 110 boolean enumeration for null, undefined, true, false Dogs on leash allowed',
+            '000 object pointer to JSObject handle 110 boolean enumeration for null, undefined, true, false Dogs on leash allowed',
         ], $repaired);
     },
     'preserves stacked pdf text cells as tables without merging surrounding prose' => static function (TestRunner $t): void {
@@ -5676,7 +7128,7 @@ return [
 
         $t->same([
             'When the VM records a call, TM executes JS compiled traces.',
-            'Trace Monkey and HTML Parser remain readable.',
+            'TraceMonkey and HTMLParser remain readable.',
         ], $repair([
             'When theVMrecords a call,TMexecutes JScompiled traces.',
             'TraceMonkey and HTMLParser remain readable.',

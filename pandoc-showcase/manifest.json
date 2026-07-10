@@ -1,5 +1,5 @@
 {
-    "generatedAt": "2026-07-10T14:46:04+00:00",
+    "generatedAt": "2026-07-10T23:54:25+00:00",
     "pandocVersion": "pandoc 3.10\nFeatures: +server +lua\nScripting engine: Lua 5.4\nUser data directory: $REPO\nCopyright (C) 2006-2025 John MacFarlane. Web:  https://pandoc.org\nThis is free software; see the source for copying conditions. There is no\nwarranty, not even for merchantability or fitness for a particular purpose.",
     "mediaImageMode": "important",
     "formats": [
@@ -877,14 +877,14 @@
         "totals": {
             "code": 652,
             "group": 308,
-            "heading": 4172,
+            "heading": 4132,
             "html": 51,
             "image": 286,
-            "list": 1384,
-            "paragraph": 16259,
+            "list": 1382,
+            "paragraph": 16177,
             "quote": 54,
             "separator": 65,
-            "table": 571,
+            "table": 574,
             "verse": 2
         },
         "sampleCount": 90
@@ -15831,10 +15831,11 @@
             },
             "wpBlockCounts": {
                 "group": 1,
-                "heading": 50,
+                "heading": 39,
                 "image": 1,
-                "list": 9,
-                "paragraph": 67
+                "list": 8,
+                "paragraph": 62,
+                "table": 3
             },
             "sourceRawHtmlBlockCount": null,
             "bibliographySource": null,
@@ -15861,18 +15862,18 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "faithful_enough",
-                        "score": 0.857,
+                        "score": 0.9923,
                         "textStatus": "faithful_enough",
-                        "textScore": 0.857,
+                        "textScore": 0.9923,
                         "visualStatus": "not_applicable",
                         "visualScore": null
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
                         "status": "faithful_enough",
-                        "score": 0.857,
+                        "score": 0.9923,
                         "textStatus": "faithful_enough",
-                        "textScore": 0.857,
+                        "textScore": 0.9923,
                         "visualStatus": "not_applicable",
                         "visualScore": null
                     }
@@ -15884,13 +15885,13 @@
                     "text_completeness": {
                         "status": "pass",
                         "expected": ">=0.8",
-                        "actual": 0.857,
-                        "detail": "bidirectional visible-text overlap with the independent macOS PDFKit reference"
+                        "actual": 0.985,
+                        "detail": "bidirectional stable body-text overlap with the independent macOS PDFKit reference"
                     },
                     "native_source_coverage": {
                         "status": "pass",
                         "expected": ">=0.65",
-                        "actual": 0.758,
+                        "actual": 0.99,
                         "detail": "native PDFKit source tokens retained in the WordPress output"
                     },
                     "pdf_geometry_reference": {
@@ -15907,8 +15908,8 @@
                         "status": "pass",
                         "expected": "at least 5 semantic text blocks and no more than 90% of 994 visual lines as paragraphs",
                         "actual": {
-                            "textBlocks": 134,
-                            "paragraphs": 67,
+                            "textBlocks": 792,
+                            "paragraphs": 62,
                             "sourceLines": 994
                         },
                         "detail": "native line geometry guards against collapsing a multi-page source or emitting one paragraph for every visual line."
@@ -15929,7 +15930,7 @@
                         "status": "pass",
                         "expected": "<=0.05",
                         "actual": 0,
-                        "detail": "0/128 WordPress blocks are Custom HTML"
+                        "detail": "0/114 WordPress blocks are Custom HTML"
                     }
                 },
                 "summary": {
@@ -17237,10 +17238,10 @@
             "wpBlockCounts": {
                 "code": 2,
                 "group": 1,
-                "heading": 20,
+                "heading": 17,
                 "image": 28,
-                "list": 2,
-                "paragraph": 283,
+                "list": 1,
+                "paragraph": 220,
                 "table": 1
             },
             "sourceRawHtmlBlockCount": null,
@@ -17268,18 +17269,18 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "faithful_enough",
-                        "score": 0.8473,
+                        "score": 0.9037,
                         "textStatus": "faithful_enough",
-                        "textScore": 0.8473,
+                        "textScore": 0.9037,
                         "visualStatus": "not_applicable",
                         "visualScore": null
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
                         "status": "faithful_enough",
-                        "score": 0.8473,
+                        "score": 0.9037,
                         "textStatus": "faithful_enough",
-                        "textScore": 0.8473,
+                        "textScore": 0.9037,
                         "visualStatus": "not_applicable",
                         "visualScore": null
                     }
@@ -17291,13 +17292,13 @@
                     "text_completeness": {
                         "status": "pass",
                         "expected": ">=0.8",
-                        "actual": 0.8473,
-                        "detail": "bidirectional visible-text overlap with the independent macOS PDFKit reference"
+                        "actual": 0.923,
+                        "detail": "bidirectional stable body-text overlap with the independent macOS PDFKit reference"
                     },
                     "native_source_coverage": {
                         "status": "pass",
                         "expected": ">=0.65",
-                        "actual": 0.7544,
+                        "actual": 0.834,
                         "detail": "native PDFKit source tokens retained in the WordPress output"
                     },
                     "pdf_geometry_reference": {
@@ -17314,8 +17315,8 @@
                         "status": "pass",
                         "expected": "at least 14 semantic text blocks and no more than 90% of 1572 visual lines as paragraphs",
                         "actual": {
-                            "textBlocks": 325,
-                            "paragraphs": 283,
+                            "textBlocks": 259,
+                            "paragraphs": 220,
                             "sourceLines": 1572
                         },
                         "detail": "native line geometry guards against collapsing a multi-page source or emitting one paragraph for every visual line."
@@ -17336,7 +17337,7 @@
                         "status": "pass",
                         "expected": "<=0.05",
                         "actual": 0,
-                        "detail": "0/337 WordPress blocks are Custom HTML"
+                        "detail": "0/270 WordPress blocks are Custom HTML"
                     }
                 },
                 "summary": {
@@ -18479,10 +18480,10 @@
             },
             "wpBlockCounts": {
                 "group": 1,
-                "heading": 11,
+                "heading": 8,
                 "image": 32,
                 "list": 14,
-                "paragraph": 35
+                "paragraph": 25
             },
             "sourceRawHtmlBlockCount": null,
             "bibliographySource": null,
@@ -18509,18 +18510,18 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "faithful_enough",
-                        "score": 0.9711,
+                        "score": 0.9587,
                         "textStatus": "faithful_enough",
-                        "textScore": 0.9711,
+                        "textScore": 0.9587,
                         "visualStatus": "not_applicable",
                         "visualScore": null
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
                         "status": "faithful_enough",
-                        "score": 0.9711,
+                        "score": 0.9587,
                         "textStatus": "faithful_enough",
-                        "textScore": 0.9711,
+                        "textScore": 0.9587,
                         "visualStatus": "not_applicable",
                         "visualScore": null
                     }
@@ -18532,13 +18533,13 @@
                     "text_completeness": {
                         "status": "pass",
                         "expected": ">=0.8",
-                        "actual": 0.9711,
-                        "detail": "bidirectional visible-text overlap with the independent macOS PDFKit reference"
+                        "actual": 0.8598,
+                        "detail": "bidirectional stable body-text overlap with the independent macOS PDFKit reference"
                     },
                     "native_source_coverage": {
                         "status": "pass",
                         "expected": ">=0.65",
-                        "actual": 0.9739,
+                        "actual": 0.949,
                         "detail": "native PDFKit source tokens retained in the WordPress output"
                     },
                     "pdf_geometry_reference": {
@@ -18555,8 +18556,8 @@
                         "status": "pass",
                         "expected": "at least 2 semantic text blocks and no more than 90% of 161 visual lines as paragraphs",
                         "actual": {
-                            "textBlocks": 82,
-                            "paragraphs": 35,
+                            "textBlocks": 69,
+                            "paragraphs": 25,
                             "sourceLines": 161
                         },
                         "detail": "native line geometry guards against collapsing a multi-page source or emitting one paragraph for every visual line."
@@ -18577,7 +18578,7 @@
                         "status": "pass",
                         "expected": "<=0.05",
                         "actual": 0,
-                        "detail": "0/93 WordPress blocks are Custom HTML"
+                        "detail": "0/80 WordPress blocks are Custom HTML"
                     }
                 },
                 "summary": {
@@ -19708,9 +19709,9 @@
             },
             "wpBlockCounts": {
                 "group": 1,
-                "heading": 64,
+                "heading": 42,
                 "image": 31,
-                "paragraph": 61
+                "paragraph": 63
             },
             "sourceRawHtmlBlockCount": null,
             "bibliographySource": null,
@@ -19737,18 +19738,18 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "faithful_enough",
-                        "score": 0.8495,
+                        "score": 0.8496,
                         "textStatus": "faithful_enough",
-                        "textScore": 0.8495,
+                        "textScore": 0.8496,
                         "visualStatus": "not_applicable",
                         "visualScore": null
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
                         "status": "faithful_enough",
-                        "score": 0.8495,
+                        "score": 0.8496,
                         "textStatus": "faithful_enough",
-                        "textScore": 0.8495,
+                        "textScore": 0.8496,
                         "visualStatus": "not_applicable",
                         "visualScore": null
                     }
@@ -19760,13 +19761,13 @@
                     "text_completeness": {
                         "status": "pass",
                         "expected": ">=0.8",
-                        "actual": 0.8495,
-                        "detail": "bidirectional visible-text overlap with the independent macOS PDFKit reference"
+                        "actual": 0.8615,
+                        "detail": "bidirectional stable body-text overlap with the independent macOS PDFKit reference"
                     },
                     "native_source_coverage": {
                         "status": "pass",
                         "expected": ">=0.65",
-                        "actual": 0.7444,
+                        "actual": 0.744,
                         "detail": "native PDFKit source tokens retained in the WordPress output"
                     },
                     "pdf_geometry_reference": {
@@ -19783,8 +19784,8 @@
                         "status": "pass",
                         "expected": "at least 2 semantic text blocks and no more than 90% of 414 visual lines as paragraphs",
                         "actual": {
-                            "textBlocks": 125,
-                            "paragraphs": 61,
+                            "textBlocks": 105,
+                            "paragraphs": 63,
                             "sourceLines": 414
                         },
                         "detail": "native line geometry guards against collapsing a multi-page source or emitting one paragraph for every visual line."
@@ -19805,7 +19806,7 @@
                         "status": "pass",
                         "expected": "<=0.05",
                         "actual": 0,
-                        "detail": "0/157 WordPress blocks are Custom HTML"
+                        "detail": "0/137 WordPress blocks are Custom HTML"
                     }
                 },
                 "summary": {
@@ -22186,9 +22187,9 @@
             },
             "wpBlockCounts": {
                 "group": 1,
-                "heading": 2,
+                "heading": 4,
                 "image": 66,
-                "paragraph": 11
+                "paragraph": 10
             },
             "sourceRawHtmlBlockCount": null,
             "bibliographySource": null,
@@ -22215,18 +22216,18 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "faithful_enough",
-                        "score": 0.9323,
+                        "score": 0.9768,
                         "textStatus": "faithful_enough",
-                        "textScore": 0.9323,
+                        "textScore": 0.9768,
                         "visualStatus": "not_applicable",
                         "visualScore": null
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
                         "status": "faithful_enough",
-                        "score": 0.9323,
+                        "score": 0.9768,
                         "textStatus": "faithful_enough",
-                        "textScore": 0.9323,
+                        "textScore": 0.9768,
                         "visualStatus": "not_applicable",
                         "visualScore": null
                     }
@@ -22238,13 +22239,13 @@
                     "text_completeness": {
                         "status": "pass",
                         "expected": ">=0.8",
-                        "actual": 0.9323,
-                        "detail": "bidirectional visible-text overlap with the independent macOS PDFKit reference"
+                        "actual": 0.9768,
+                        "detail": "bidirectional stable body-text overlap with the independent macOS PDFKit reference"
                     },
                     "native_source_coverage": {
                         "status": "pass",
                         "expected": ">=0.65",
-                        "actual": 0.9129,
+                        "actual": 1,
                         "detail": "native PDFKit source tokens retained in the WordPress output"
                     },
                     "pdf_geometry_reference": {
@@ -22261,8 +22262,8 @@
                         "status": "pass",
                         "expected": "at least 1 semantic text blocks and no more than 90% of 28 visual lines as paragraphs",
                         "actual": {
-                            "textBlocks": 13,
-                            "paragraphs": 11,
+                            "textBlocks": 14,
+                            "paragraphs": 10,
                             "sourceLines": 28
                         },
                         "detail": "native line geometry guards against collapsing a multi-page source or emitting one paragraph for every visual line."
@@ -22283,7 +22284,7 @@
                         "status": "pass",
                         "expected": "<=0.05",
                         "actual": 0,
-                        "detail": "0/80 WordPress blocks are Custom HTML"
+                        "detail": "0/81 WordPress blocks are Custom HTML"
                     }
                 },
                 "summary": {
@@ -23014,10 +23015,10 @@
             },
             "wpBlockCounts": {
                 "group": 1,
-                "heading": 13,
+                "heading": 10,
                 "image": 20,
                 "list": 1,
-                "paragraph": 66
+                "paragraph": 61
             },
             "sourceRawHtmlBlockCount": null,
             "bibliographySource": null,
@@ -23044,18 +23045,18 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "faithful_enough",
-                        "score": 0.8082,
+                        "score": 0.8,
                         "textStatus": "faithful_enough",
-                        "textScore": 0.8082,
+                        "textScore": 0.8,
                         "visualStatus": "not_applicable",
                         "visualScore": null
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
                         "status": "faithful_enough",
-                        "score": 0.8082,
+                        "score": 0.8,
                         "textStatus": "faithful_enough",
-                        "textScore": 0.8082,
+                        "textScore": 0.8,
                         "visualStatus": "not_applicable",
                         "visualScore": null
                     }
@@ -23067,13 +23068,13 @@
                     "text_completeness": {
                         "status": "pass",
                         "expected": ">=0.8",
-                        "actual": 0.8082,
-                        "detail": "bidirectional visible-text overlap with the independent macOS PDFKit reference"
+                        "actual": 0.887,
+                        "detail": "bidirectional stable body-text overlap with the independent macOS PDFKit reference"
                     },
                     "native_source_coverage": {
                         "status": "pass",
                         "expected": ">=0.65",
-                        "actual": 0.7001,
+                        "actual": 0.687,
                         "detail": "native PDFKit source tokens retained in the WordPress output"
                     },
                     "pdf_geometry_reference": {
@@ -23090,8 +23091,8 @@
                         "status": "pass",
                         "expected": "at least 4 semantic text blocks and no more than 90% of 424 visual lines as paragraphs",
                         "actual": {
-                            "textBlocks": 82,
-                            "paragraphs": 66,
+                            "textBlocks": 74,
+                            "paragraphs": 61,
                             "sourceLines": 424
                         },
                         "detail": "native line geometry guards against collapsing a multi-page source or emitting one paragraph for every visual line."
@@ -23112,7 +23113,7 @@
                         "status": "pass",
                         "expected": "<=0.05",
                         "actual": 0,
-                        "detail": "0/101 WordPress blocks are Custom HTML"
+                        "detail": "0/93 WordPress blocks are Custom HTML"
                     }
                 },
                 "summary": {

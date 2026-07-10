@@ -2595,6 +2595,18 @@ return [
         $runs = (new PdfTextExtractor())->extractTextRuns($pdfWithContent($content));
         $t->same(['Hello (WP)', 'Data Liberation'], $runs);
     },
+    'separates a PDF name token immediately following a text operator' => static function (TestRunner $t) use ($pdfWithContent): void {
+        $content = 'BT /F1 12 Tf 72 720 Td (First) TJ/F2 12 Tf 30 0 Td (second) TJ/F1 12 Tf 42 0 Td (third) TJ ET';
+        $extractor = new PdfTextExtractor();
+        $pdf = $pdfWithContent($content);
+
+        $t->same(['First second third'], $extractor->extractTextLines($pdf));
+        $t->same(['First', 'second', 'third'], $extractor->extractTextRuns($pdf));
+        $t->same(['First', 'second', 'third'], array_map(
+            static fn (array $run): string => $run['text'],
+            $extractor->extractPositionedTextRuns($pdf)
+        ));
+    },
     'uses TJ array displacement as a visual word gap in text and positioned runs' => static function (TestRunner $t) use ($pdfWithContent): void {
         $content = 'BT /F1 12 Tf 72 720 Td '
             . '[(Health) -260 (care) -260 (providers) -260 (should) -260 (practice) -260 (hand) -260 (hygiene)] TJ '
