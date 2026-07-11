@@ -1,0 +1,128 @@
+<!-- wp:group -->
+<div class="wp-block-group latex-title-block">
+<!-- wp:heading {"level":1} -->
+<h1 id="title">A Native LaTeX Import Study</h1>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p class="latex-author">Ada Lovelace</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p class="latex-author">Grace Hopper</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p class="latex-date">June 2026</p>
+<!-- /wp:paragraph -->
+</div>
+<!-- /wp:group -->
+
+<!-- wp:group -->
+<div class="wp-block-group latex-abstract">
+<!-- wp:heading {"level":2} -->
+<h2 id="abstract">Abstract</h2>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>This article tests a semantic import path for Project <span style="font-variant:small-caps">Harbor</span>. It keeps <em>meaningful structure</em> editable instead of reproducing page layout.</p>
+<!-- /wp:paragraph -->
+</div>
+<!-- /wp:group -->
+
+<!-- wp:group -->
+<div id="table-of-contents" class="wp-block-group latex-table-of-contents">
+<!-- wp:heading {"level":2} -->
+<h2 id="table-of-contents">Contents</h2>
+<!-- /wp:heading -->
+
+<!-- wp:list -->
+<ul class="latex-toc-list"><li><a href="#latex-sec:methods">Methods</a></li><li><a href="#latex-sec:appendix">Imported Appendix</a></li></ul>
+<!-- /wp:list -->
+</div>
+<!-- /wp:group -->
+
+<!-- wp:heading {"level":1} -->
+<h1 id="latex-sec:methods">Methods</h1>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>The method uses <strong>native PHP</strong> and links to <a href="https://example.test/method">the implementation note</a>. A footnote keeps context<sup id="fnref-1"><a href="#fn-1" role="doc-noteref">1</a></sup> close to its text.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>The energy estimate is <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><semantics><mrow><mi>E</mi><mo>=</mo><mi>m</mi><msup><mi>c</mi><mn>2</mn></msup></mrow><annotation encoding="application/x-tex">E = mc^2</annotation></semantics></math>.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p id="latex-eq:identity" class="latex-display-math"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mrow><mi>α</mi><mo>+</mo><mi>β</mi><mo>=</mo><mi>γ</mi></mrow><annotation encoding="application/x-tex">\alpha + \beta = \gamma</annotation></semantics></math></p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p class="latex-display-math"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mrow><mi>f</mi><mo>(</mo><mi>x</mi><mo>)</mo><mo>&amp;</mo><mo>=</mo><msup><mi>x</mi><mn>2</mn></msup><mo>+</mo><mn>1</mn><mi>\\</mi><mi>g</mi><mo>(</mo><mi>x</mi><mo>)</mo><mo>&amp;</mo><mo>=</mo><mfrac><mn>1</mn><mi>x</mi></mfrac></mrow><annotation encoding="application/x-tex">f(x) &amp;= x^2 + 1 \\
+  g(x) &amp;= \frac{1}{x}</annotation></semantics></math></p>
+<!-- /wp:paragraph -->
+
+<!-- wp:list -->
+<ul><li><p>Preserve headings, labels, and links.</p></li><li><p>Keep <code>inline code</code> as code.</p></li></ul>
+<!-- /wp:list -->
+
+<!-- wp:list {"ordered":true} -->
+<ol><li><p>Parse source safely.</p></li><li><p>Never execute TeX packages or shell escapes.</p></li></ol>
+<!-- /wp:list -->
+
+<!-- wp:quote -->
+<blockquote class="wp-block-quote"><p>Editable structure is more useful than a simulated printed page.</p></blockquote>
+<!-- /wp:quote -->
+
+<!-- wp:image -->
+<figure class="wp-block-image latex-figure" id="latex-fig:architecture" data-pandoc-short-caption="Architecture"><img src="media/figures/architecture.svg" alt="The import architecture." data-pandoc-width="50%" style="width:50%" data-pandoc-media-source="figures/architecture.svg" data-pandoc-media-canonical-source="figures/architecture.svg" data-pandoc-media-original-path="figures/architecture.svg" data-pandoc-media-path="figures/architecture.svg" data-pandoc-media-target="media/figures/architecture.svg" data-pandoc-media-type="image/svg+xml" data-pandoc-media-bytes="779" data-pandoc-media-sha1="bde2dcfd18a485011dbffb85278c4213df4dfba9" data-pandoc-media-source-path="figures/architecture.svg" data-pandoc-media-source-sha1="28b5ba1de55e6b38e7d689c08bd2f28bcb48d07e" data-pandoc-media-path-repaired="false" data-pandoc-media-path-repair="safe-relative-path" data-pandoc-media-mime-source="declared" data-pandoc-media-inferred-type="image/svg+xml" data-pandoc-media-mime-repair="declared-mime-matches-path"/><figcaption>The import architecture.</figcaption></figure>
+<!-- /wp:image -->
+
+<!-- wp:table -->
+<figure class="wp-block-table"><table id="latex-tab:gates" class="latex-tabular"><thead><tr><th style="text-align:left">Gate</th><th style="text-align:center">Scope</th><th style="text-align:right">Status</th></tr></thead><tbody><tr><td style="text-align:left">Text</td><td style="text-align:center">Paragraphs</td><td style="text-align:right">Ready</td></tr><tr><td style="text-align:left">Media</td><td style="text-align:center">Figures</td><td style="text-align:right">Ready</td></tr></tbody></table><figcaption class="wp-element-caption">Import quality gates.</figcaption></figure>
+<!-- /wp:table -->
+
+<!-- wp:paragraph -->
+<p>As shown in <a href="#latex-fig:architecture">Figure 1</a>, the table in <a href="#latex-tab:gates">1</a> supports the method in <a href="#latex-sec:methods">Methods</a>. Equation <a href="#latex-eq:identity">1</a> remains math. (Knuth 1984, pp. 12--14; Lamport 1994, pp. 12--14)</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading {"level":2} -->
+<h2 id="latex-sec:appendix">Imported Appendix</h2>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>The local include is parsed through a bounded PHP file resolver. Unknown commands such as <span class="pandoc-raw-tex">\custompublisher{review}</span> remain visible raw TeX instead of being executed or discarded.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading {"level":2} -->
+<h2 id="references">References</h2>
+<!-- /wp:heading -->
+
+<!-- wp:group -->
+<div class="wp-block-group pandoc-definition-list pandoc-csl-bibliography">
+<!-- wp:paragraph -->
+<p class="pandoc-definition-term"><strong>Knuth 1984</strong></p>
+<!-- /wp:paragraph -->
+
+<!-- wp:list -->
+<ul class="pandoc-definition-values"><li>Knuth, Donald E. The TeXbook. Addison-Wesley, 1984.</li></ul>
+<!-- /wp:list -->
+
+<!-- wp:paragraph -->
+<p class="pandoc-definition-term"><strong>Lamport 1994</strong></p>
+<!-- /wp:paragraph -->
+
+<!-- wp:list -->
+<ul class="pandoc-definition-values"><li>Lamport, Leslie. LaTeX: A Document Preparation System. Addison-Wesley, 1994.</li></ul>
+<!-- /wp:list -->
+</div>
+<!-- /wp:group -->
+
+<!-- wp:group -->
+<div class="wp-block-group footnotes" role="doc-endnotes">
+<!-- wp:list {"ordered":true} -->
+<ol><li id="fn-1"><p>Footnotes become WordPress note references.</p> <a href="#fnref-1" aria-label="Back to content">Back</a></li></ol>
+<!-- /wp:list -->
+</div>
+<!-- /wp:group -->

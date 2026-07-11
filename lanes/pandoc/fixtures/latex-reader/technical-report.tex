@@ -1,0 +1,19 @@
+\documentclass{report}
+\title{Migration Readiness Report}
+\author{Documentation Team}
+\begin{document}
+\maketitle
+\chapter{Executive Summary}\label{chap:summary}
+The report records a \underline{read-only} conversion policy and a
+\url{https://example.test/report}.
+
+\section{Controls}
+\begin{description}
+  \item[Input boundary] Files stay below configured limits.
+  \item[Execution boundary] Packages and shell escapes are never run.
+\end{description}
+
+\begin{verbatim}
+php tools/run-tests.php lanes/pandoc/tests/LatexReaderTest.php
+\end{verbatim}
+\end{document}

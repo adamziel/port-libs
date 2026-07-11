@@ -128,6 +128,32 @@ function local_sample(string $id, string $format, string $path, string $label, s
     ];
 }
 
+function copy_local_resource_tree(string $source, string $destination): bool
+{
+    if (!is_dir($source)) {
+        return false;
+    }
+    ensure_clean_dir($destination);
+    $iterator = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($source, FilesystemIterator::SKIP_DOTS),
+        RecursiveIteratorIterator::SELF_FIRST
+    );
+    foreach ($iterator as $item) {
+        $relative = substr($item->getPathname(), strlen(rtrim($source, DIRECTORY_SEPARATOR)) + 1);
+        $target = $destination . DIRECTORY_SEPARATOR . $relative;
+        if ($item->isDir()) {
+            ensure_dir($target);
+            continue;
+        }
+        ensure_dir(dirname($target));
+        if (!copy($item->getPathname(), $target)) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 /**
  * @return array<string, mixed>
  */
@@ -879,6 +905,16 @@ RST;
             inline_sample('json-pandoc-list', 'json', 'pandoc-list.json', 'Pandoc JSON list AST', "{\"pandoc-api-version\":[1,23,1],\"meta\":{},\"blocks\":[{\"t\":\"BulletList\",\"c\":[[{\"t\":\"Plain\",\"c\":[{\"t\":\"Str\",\"c\":\"First\"}]}],[{\"t\":\"Plain\",\"c\":[{\"t\":\"Str\",\"c\":\"Second\"}]}]]}]}\n", 'Inline Pandoc JSON AST list document.'),
         ],
         'latex' => [
+            [
+                'id' => 'latex-native-academic-article',
+                'format' => 'latex',
+                'label' => 'Native LaTeX academic article',
+                'description' => 'Checked-in academic article with metadata, abstract, structure, math, lists, figure media, booktabs table, cross-references, local include, and BibTeX citations.',
+                'localPath' => 'lanes/pandoc/fixtures/latex-reader/academic-article.tex',
+                'localResourceRoot' => 'lanes/pandoc/fixtures/latex-reader',
+                'source' => 'Checked-in port-libs LaTeX reader corpus with companion TeX, BibTeX, and SVG assets.',
+                'filename' => 'academic-article.tex',
+            ],
             inline_sample('latex-table', 'latex', 'latex-table.tex', 'LaTeX table import packet', $latexTable, 'Inline LaTeX fragment with captioned tabular data.', 'Valid LaTeX table fragment exercising paragraph, table, caption, alignment, and WordPress table-block conversion.'),
             upstream_sample('latex-bar', 'latex', 'test/command/bar.tex', 'LaTeX included file fixture', 'Small TeX file from upstream Pandoc command tests.'),
         ],
@@ -1262,14 +1298,14 @@ function wrap_local_html_document(string $body, string $title): string
  * @param list<string> $cmd
  * @return array{exitCode:int, stdout:string, stderr:string}
  */
-function run_process(array $cmd, int $timeoutSeconds = 0): array
+function run_process(array $cmd, int $timeoutSeconds = 0, ?string $workingDirectory = null): array
 {
     $descriptors = [
         0 => ['pipe', 'r'],
         1 => ['pipe', 'w'],
         2 => ['pipe', 'w'],
     ];
-    $process = proc_open($cmd, $descriptors, $pipes);
+    $process = proc_open($cmd, $descriptors, $pipes, $workingDirectory);
     if (!is_resource($process)) {
         return ['exitCode' => 127, 'stdout' => '', 'stderr' => 'Unable to start process.'];
     }
@@ -3521,7 +3557,11 @@ function run_haskell_pandoc(string $path, string $format, string $dir): array
     $command[] = '--output';
     $command[] = $bodyPath;
     $command[] = $path;
-    $result = run_process($command, haskell_pandoc_timeout_seconds($path));
+    // Readers such as LaTeX resolve \input, bibliography, and media paths
+    // against the source document. Keep the external reference in that same
+    // context instead of the showcase builder's working directory.
+    $sourceDirectory = dirname($path);
+    $result = run_process($command, haskell_pandoc_timeout_seconds($path), $sourceDirectory);
     if ($result['exitCode'] !== 0 || !is_file($bodyPath)) {
         $message = sanitize_generated_text(trim($result['stderr'] . "\n" . $result['stdout']));
         if ($message === '') {
@@ -4081,15 +4121,24 @@ foreach ($samples as $sample) {
     $format = (string) $sample['format'];
     $id = preg_replace('/[^a-z0-9-]+/', '-', strtolower((string) $sample['id']));
     $filename = (string) $sample['filename'];
-    $target = $samplesDir . '/' . $id . '-' . $filename;
+    $resourceRoot = isset($sample['localResourceRoot']) ? $root . '/' . ltrim((string) $sample['localResourceRoot'], '/') : null;
+    $target = is_string($resourceRoot)
+        ? $samplesDir . '/' . $id . '/' . $filename
+        : $samplesDir . '/' . $id . '-' . $filename;
     $downloadError = null;
-    if (is_file($target)) {
+    if (is_string($resourceRoot)) {
+        if (!copy_local_resource_tree($resourceRoot, dirname($target))) {
+            $downloadError = 'Unable to copy local resource tree ' . $sample['localResourceRoot'];
+        }
+    } elseif (is_file($target)) {
         unlink($target);
     }
-    if (is_file($target . '.download-error.txt')) {
+    if (!is_string($resourceRoot) && is_file($target . '.download-error.txt')) {
         unlink($target . '.download-error.txt');
     }
-    if (isset($sample['content'])) {
+    if ($downloadError !== null) {
+        file_put_contents($target . '.download-error.txt', $downloadError);
+    } elseif (isset($sample['content'])) {
         file_put_contents($target, (string) $sample['content']);
     } elseif (isset($sample['localPath'])) {
         $localPath = $root . '/' . ltrim((string) $sample['localPath'], '/');

@@ -362,8 +362,8 @@ final class PandocFormatRegistry
         ],
         'latex' => [
             'status' => 'partial',
-            'implementation' => MarkdownReader::class,
-            'notes' => 'Raw TeX and bounded LaTeX table/math behavior are mapped; full LaTeX reader parity remains open.',
+            'implementation' => LatexReader::class,
+            'notes' => 'Bounded native PHP LaTeX reader maps preamble metadata, document structure, common text environments, math, figures, tables, citations, and safe local includes without executing TeX; full LaTeX reader parity remains open.',
         ],
         'man' => [
             'status' => 'partial',

@@ -134,6 +134,7 @@ return [
         $t->true(PandocConverter::canRead('fb2'));
         $t->true(PandocConverter::canRead('ipynb'));
         $t->true(PandocConverter::canRead('jira'));
+        $t->true(PandocConverter::canRead('latex'));
         $t->true(PandocConverter::canRead('odt'));
         $t->true(PandocConverter::canRead('opml'));
         $t->true(PandocConverter::canRead('pptx'));

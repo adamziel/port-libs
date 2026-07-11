@@ -17,6 +17,7 @@ use PortLibs\Pandoc\IpynbReader;
 use PortLibs\Pandoc\JiraReader;
 use PortLibs\Pandoc\JsonReader;
 use PortLibs\Pandoc\JsonWriter;
+use PortLibs\Pandoc\LatexReader;
 use PortLibs\Pandoc\LatexWriter;
 use PortLibs\Pandoc\LegacyDocReader;
 use PortLibs\Pandoc\ManReader;
@@ -170,6 +171,8 @@ return [
         $t->same(JsonReader::class, $support['json']['implementation']);
         $t->same('partial', $support['jira']['status']);
         $t->same(JiraReader::class, $support['jira']['implementation']);
+        $t->same('partial', $support['latex']['status']);
+        $t->same(LatexReader::class, $support['latex']['implementation']);
         $t->same('partial', $support['man']['status']);
         $t->same(ManReader::class, $support['man']['implementation']);
         $t->same('partial', $support['mdoc']['status']);

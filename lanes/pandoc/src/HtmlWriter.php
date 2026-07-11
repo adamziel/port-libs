@@ -1212,7 +1212,7 @@ final class HtmlWriter
             'quoted' => $this->renderQuoted($node),
             'link' => $this->renderLink($node),
             'note' => $this->renderNoteReference($node),
-            'citation' => $this->renderCitation($node),
+            'citation', 'citation_group' => $this->renderCitation($node),
             'math' => $this->renderMath($node),
             'raw_html_inline' => (string) $node->attr('html', $node->attr('text', '')),
             'raw_inline' => $this->renderRawInline($node),
@@ -1462,7 +1462,8 @@ final class HtmlWriter
             }
         }
 
-        $display = $node->children;
+        $rendered = trim((string) $node->attr('rendered', ''));
+        $display = $rendered === '' ? $node->children : [new AstNode('text', ['text' => $rendered])];
         if ($display === []) {
             $text = (string) $node->attr('text', $ids === [] ? '' : '[' . implode('; ', array_map(
                 static fn (string $id): string => '@' . $id,
@@ -1509,6 +1510,21 @@ final class HtmlWriter
         }
 
         $id = (string) $node->attr('id', $node->attr('citationId', ''));
+
+        if ($id === '' && $node->type === 'citation_group') {
+            $entries = [];
+            foreach ($node->children as $citation) {
+                if ($citation->type !== 'citation') {
+                    continue;
+                }
+                $citationId = (string) $citation->attr('id', $citation->attr('citationId', ''));
+                if ($citationId !== '') {
+                    $entries[] = ['id' => $citationId];
+                }
+            }
+
+            return $entries;
+        }
 
         return $id === '' ? [] : [['id' => $id]];
     }

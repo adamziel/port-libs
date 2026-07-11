@@ -1,0 +1,27 @@
+\documentclass{article}
+\title{Lecture Notes on Safe Parsing}
+\begin{document}
+\section{Recurrence}\label{sec:recurrence}
+\begin{gather}
+  a_n = a_{n-1} + 2 \\
+  a_0 = 1
+\end{gather}
+
+The equivalent closed form is
+\[
+  a_n = 2n + 1.
+\]
+
+\begin{lstlisting}[language=PHP]
+$document = PandocConverter::read($source, 'latex');
+\end{lstlisting}
+
+\begin{longtable}{lr}
+  \toprule
+  Week & Topic \\
+  \midrule
+  1 & Tokens \\
+  2 & Trees \\
+  \bottomrule
+\end{longtable}
+\end{document}

@@ -414,6 +414,7 @@ final class PandocConverter
             MarkdownReader::class => new MarkdownReader(self::markdownReaderOptions($format, $options)),
             MediaWikiReader::class => new MediaWikiReader(),
             JsonReader::class => new JsonReader(),
+            LatexReader::class => new LatexReader($options),
             NativeReader::class => new NativeReader(),
             MdocReader::class => new MdocReader(),
             OdtReader::class => new OdtReader(),
