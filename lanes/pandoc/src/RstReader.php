@@ -316,7 +316,8 @@ final class RstReader
         $document = (new DelimitedTextReader())->readCsv($source, $readerOptions);
         $table = $document->children[0] ?? new AstNode('table');
         $packet = is_array($table->attr('delimitedText')) ? $table->attr('delimitedText') : [];
-        $attrs = array_replace($table->attrs, [
+        $compactTable = $table->attributeResolver() instanceof CompactDelimitedTableAttributes;
+        $attrs = array_replace($compactTable ? $table->baseAttrs() : $table->attrs, [
             'sourceFormat' => 'rst-csv-table',
             'caption' => $caption,
             'rstDirective' => 'csv-table',
@@ -342,7 +343,12 @@ final class RstReader
             $attrs['widths'] = $widths;
         }
 
-        return new AstNode('table', $attrs, $table->children);
+        return new AstNode(
+            'table',
+            $attrs,
+            $table->children,
+            $compactTable ? new CompactDelimitedTableAttributes() : null
+        );
     }
 
     /**

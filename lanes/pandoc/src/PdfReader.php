@@ -58,21 +58,29 @@ final class PdfReader
         // When positioned text is available, it is the only reliable evidence
         // for spacing; otherwise a raw adjacency can turn "a trace" into
         // "atrace" or join the end of one line to the next.
-        $rawSplitWordHints = $this->pdfTextRunSplitWordHints($runs);
-        $positionedSplitWordHints = $limitedPositionedRuns === []
-            ? []
-            : $this->pdfPositionedRunCorroboratedSplitFragmentHints(
-                $limitedPositionedRuns,
-                $rawSplitWordHints,
-                $limitedTextLineItems
-            );
-        $repairSplitWordHints = $limitedPositionedRuns === []
-            ? $rawSplitWordHints
-            : array_replace(
-                $this->pdfTextRunHyphenatedSplitWordHints($rawSplitWordHints),
-                $positionedSplitWordHints,
-                $this->pdfPositionedRunSpacingHints($limitedPositionedRuns, $limitedTextLineItems)
-            );
+        $rawSplitWordHints = [];
+        $repairSplitWordHints = [];
+        // Split and spacing hints are only consumed by the prose-repair path.
+        // Building them from every positioned glyph run can dominate memory on
+        // otherwise ordinary PDF imports, so do not build that work when
+        // prose repair is disabled.
+        if ($proseRepairEnabled) {
+            $rawSplitWordHints = $this->pdfTextRunSplitWordHints($runs);
+            $positionedSplitWordHints = $limitedPositionedRuns === []
+                ? []
+                : $this->pdfPositionedRunCorroboratedSplitFragmentHints(
+                    $limitedPositionedRuns,
+                    $rawSplitWordHints,
+                    $limitedTextLineItems
+                );
+            $repairSplitWordHints = $limitedPositionedRuns === []
+                ? $rawSplitWordHints
+                : array_replace(
+                    $this->pdfTextRunHyphenatedSplitWordHints($rawSplitWordHints),
+                    $positionedSplitWordHints,
+                    $this->pdfPositionedRunSpacingHints($limitedPositionedRuns, $limitedTextLineItems)
+                );
+        }
         $insertedText = implode("\n", $limitedLines);
         $linkAnnotations = is_array($diagnostics['linkAnnotations'] ?? null) ? $diagnostics['linkAnnotations'] : [];
         $textAnnotations = is_array($diagnostics['textAnnotations'] ?? null) ? $diagnostics['textAnnotations'] : [];
@@ -164,15 +172,17 @@ final class PdfReader
                 $repairSource = 'text';
             }
         }
-        $repairSplitWordHints = array_replace(
-            $repairSplitWordHints,
-            $this->pdfRepeatedCompoundLineBreakHints(
-                $repairSourceLines,
-                $repairSourceLayouts,
-                $limitedLines,
-                $limitedTextLineItems
-            )
-        );
+        if ($proseRepairEnabled) {
+            $repairSplitWordHints = array_replace(
+                $repairSplitWordHints,
+                $this->pdfRepeatedCompoundLineBreakHints(
+                    $repairSourceLines,
+                    $repairSourceLayouts,
+                    $limitedLines,
+                    $limitedTextLineItems
+                )
+            );
+        }
         if ($repairSource !== 'positioned' && $positionedCodeBlocks !== []) {
             $codeInjection = $this->injectPositionedCodeBlocksIntoRepairSource(
                 $repairSourceLines,
@@ -5928,6 +5938,20 @@ final class PdfReader
      */
     private function positionedProseLineItemsFromTextRuns(array $runs): array
     {
+        return $this->positionedProseLineItemsFromRunsByPage(
+            $this->positionedRunsByPageFromTextRuns($runs)
+        );
+    }
+
+    /**
+     * Normalize text-showing runs once before consumers derive prose lines,
+     * spacing candidates, or table rows from their geometry.
+     *
+     * @param list<array<string, mixed>> $runs
+     * @return array<int, list<array<string, mixed>>>
+     */
+    private function positionedRunsByPageFromTextRuns(array $runs): array
+    {
         $runsByPage = [];
         $pendingWhitespace = [];
         foreach ($runs as $index => $run) {
@@ -5952,11 +5976,22 @@ final class PdfReader
             }
             $runsByPage[$normalized['page']][] = $normalized;
         }
+
+        ksort($runsByPage);
+
+        return $runsByPage;
+    }
+
+    /**
+     * @param array<int, list<array<string, mixed>>> $runsByPage
+     * @return list<array{text: string, page: int, x1: float, y1: float, x2: float, y2: float, fontSize: float}>
+     */
+    private function positionedProseLineItemsFromRunsByPage(array $runsByPage): array
+    {
         if ($runsByPage === []) {
             return [];
         }
 
-        ksort($runsByPage);
         $items = [];
         foreach ($runsByPage as $pageRuns) {
             foreach ($this->positionedProseLineItemsForPage($pageRuns) as $item) {
@@ -10851,30 +10886,24 @@ final class PdfReader
      */
     private function pdfPositionedRunSpacingHints(array $runs, array $sourceItems = []): array
     {
-        $runsByPage = [];
-        foreach ($runs as $index => $run) {
-            $run['_order'] = $index;
-            $normalized = $this->positionedRun($run);
-            if ($normalized === null) {
-                continue;
-            }
-            $runsByPage[$normalized['page']][] = $normalized;
-        }
+        $runsByPage = $this->positionedRunsByPageFromTextRuns($runs);
         if ($runsByPage === []) {
             return [];
         }
 
         $matchedSourceItems = [];
         $requireSourceEvidence = $sourceItems !== [];
+        $sourceGluedTokensByPage = $requireSourceEvidence
+            ? $this->pdfSourceGluedTokensByPage($sourceItems)
+            : [];
         if ($requireSourceEvidence) {
             $match = $this->matchSourcePdfLinesToPositionedItems(
                 $sourceItems,
-                $this->positionedProseLineItemsFromTextRuns($runs)
+                $this->positionedProseLineItemsFromRunsByPage($runsByPage)
             );
             $matchedSourceItems = array_values($match['itemsBySourceIndex']);
         }
 
-        ksort($runsByPage);
         $hints = [];
         foreach ($runsByPage as $pageRuns) {
             $fontSizes = array_map(static fn (array $run): float => $run['fontSize'], $pageRuns);
@@ -10886,6 +10915,7 @@ final class PdfReader
                 fn (array $row): bool => $this->positionedRowMaxNominalFontSize($row) >= 4.0
             ));
             foreach ($spacingRows as $row) {
+                $page = (int) ($row['runs'][0]['page'] ?? 0);
                 foreach ($this->positionedSpacingHintTokenSegments($row['runs']) as $tokens) {
                     $tokenCount = count($tokens);
                     for ($start = 0; $start < $tokenCount - 1; $start++) {
@@ -10898,10 +10928,17 @@ final class PdfReader
                             if ($end === $start) {
                                 continue;
                             }
+                            if ($requireSourceEvidence && !isset($sourceGluedTokensByPage[$page][$glued])) {
+                                continue;
+                            }
                             if ($end === $start + 1) {
                                 $pairTokens = array_slice($tokens, $start, 2);
                                 $hasSourceEvidence = !$requireSourceEvidence
-                                    || $this->positionedPdfRowHasMatchedSourceGluedText($row, $glued, $matchedSourceItems);
+                                    || $this->positionedPdfRowHasMatchedSourceGluedText(
+                                        $row,
+                                        $glued,
+                                        $matchedSourceItems
+                                    );
                                 if (!$hasSourceEvidence
                                     || $this->spacingHintTokensHaveAmbiguousTrailingLowercaseGlyph($pairTokens)
                                     || (!$this->spacingHintTokenSequenceLooksUsable($pairTokens)
@@ -10943,6 +10980,33 @@ final class PdfReader
         }
 
         return $hints;
+    }
+
+    /**
+     * A spacing hint can only change a source word that already contains its
+     * glued text. Index those words before enumerating positioned n-grams so
+     * ordinary text runs do not produce a document-sized map of candidates
+     * which can never be applied.
+     *
+     * @param list<array{page: int, stream: int, text: string}> $sourceItems
+     * @return array<int, array<string, true>>
+     */
+    private function pdfSourceGluedTokensByPage(array $sourceItems): array
+    {
+        $tokensByPage = [];
+        foreach ($sourceItems as $sourceItem) {
+            $page = max(1, (int) ($sourceItem['page'] ?? 1));
+            preg_match_all(
+                '/(?<![\p{L}\p{N}_-])[\p{L}\p{N}]{2,192}(?![\p{L}\p{N}_-])/u',
+                (string) ($sourceItem['text'] ?? ''),
+                $matches
+            );
+            foreach ($matches[0] ?? [] as $token) {
+                $tokensByPage[$page][$token] = true;
+            }
+        }
+
+        return $tokensByPage;
     }
 
     /**

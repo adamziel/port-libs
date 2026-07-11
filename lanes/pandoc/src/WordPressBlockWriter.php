@@ -1310,6 +1310,10 @@ final class WordPressBlockWriter
 
     private function tableCaptionBeforeTable(AstNode $node): bool
     {
+        if ((string) $node->attr('caption', '') === '') {
+            return false;
+        }
+
         $geometry = $node->attr('tableGeometry', []);
         if (is_array($geometry)) {
             $captions = $geometry['captions'] ?? [];
@@ -1733,6 +1737,10 @@ final class WordPressBlockWriter
      */
     private function tableAccessibilityByCell(AstNode $table): array
     {
+        if ($table->attributeResolver() instanceof CompactDelimitedTableAttributes) {
+            return [];
+        }
+
         if ($this->tableAccessibilitySlotCount($table) > self::MAX_TABLE_ACCESSIBILITY_SLOTS) {
             return [];
         }
@@ -1806,6 +1814,10 @@ final class WordPressBlockWriter
      */
     private function tableVisualColumnsByCell(AstNode $table): array
     {
+        if ($table->attributeResolver() instanceof CompactDelimitedTableAttributes) {
+            return [];
+        }
+
         $byCell = [];
         foreach (TableGeometry::cellCoverage($table) as $record) {
             $node = $record['node'] ?? null;

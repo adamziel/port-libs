@@ -3620,7 +3620,7 @@ final class MarkdownWriter
         if (
             $node->type === 'table_cell'
             && (
-                array_key_exists('header', $node->attrs)
+                $node->hasAttr('header')
                 || trim((string) $node->attr('align', '')) !== ''
                 || trim((string) $node->attr('valign', '')) !== ''
             )
@@ -3655,11 +3655,12 @@ final class MarkdownWriter
             return true;
         }
 
-        if ($this->firstStringAttr($node->attrs, ['id', 'identifier']) !== '') {
+        $attrs = $node->baseAttrs();
+        if ($this->firstStringAttr($attrs, ['id', 'identifier']) !== '') {
             return true;
         }
 
-        return $this->attributeClasses($node->attrs) !== [] || $this->attributeKeyValues($node->attrs) !== [];
+        return $this->attributeClasses($attrs) !== [] || $this->attributeKeyValues($attrs) !== [];
     }
 
     /**

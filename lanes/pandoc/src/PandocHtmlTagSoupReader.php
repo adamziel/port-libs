@@ -29,6 +29,10 @@ final class PandocHtmlTagSoupReader
     {
         $parser = new TagSoupParser();
         $tokens = TagSoupParser::canonicalizeTags($parser->parse($html));
+        // The canonical list is independent of the tokenizer's raw tokens.
+        // Release that first list before building the AST so large HTML input
+        // does not retain two token trees throughout parsing.
+        unset($parser);
         $this->htmlBaseHref = $this->firstBaseHref($tokens);
         $documentMeta = $this->documentMetadataFromTokens($tokens);
         $this->footnotes = (new PandocHtmlTagSoupTableReader())->footnoteDefinitionsFromTokens($tokens);
