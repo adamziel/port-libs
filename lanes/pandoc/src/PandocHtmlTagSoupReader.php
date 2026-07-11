@@ -17,6 +17,7 @@ final class PandocHtmlTagSoupReader
     private array $footnotes = [];
     /** @var list<string> */
     private array $containerIdStack = [];
+    private string $tokenizerClass = TagSoupParser::class;
 
     /**
      * @param array<string, mixed> $options
@@ -27,8 +28,7 @@ final class PandocHtmlTagSoupReader
 
     public function read(string $html): AstNode
     {
-        $parser = new TagSoupParser();
-        $tokens = TagSoupParser::canonicalizeTags($parser->parse($html));
+        $tokens = $this->tokenize($html);
         $this->htmlBaseHref = $this->firstBaseHref($tokens);
         $documentMeta = $this->documentMetadataFromTokens($tokens);
         $this->footnotes = (new PandocHtmlTagSoupTableReader())->footnoteDefinitionsFromTokens($tokens);
@@ -46,7 +46,7 @@ final class PandocHtmlTagSoupReader
                 'sourceFormat' => 'html',
                 'reader' => self::class,
                 'readerScope' => 'tagsoup-pandoc-html-reader-port',
-                'htmlTokenizer' => TagSoupParser::class,
+                'htmlTokenizer' => $this->tokenizerClass,
                 'sourceBytes' => strlen($html),
                 'sourceSha256' => hash('sha256', $html),
             ]),
@@ -58,7 +58,22 @@ final class PandocHtmlTagSoupReader
      */
     public function tokenize(string $html): array
     {
+        $this->tokenizerClass = TagSoupParser::class;
+        if ($this->wordPressHtmlProcessorRequested() && WpHtmlProcessorTokenStream::available()) {
+            $tokens = WpHtmlProcessorTokenStream::tokenize($html);
+            if ($tokens !== null) {
+                $this->tokenizerClass = WpHtmlProcessorTokenStream::class;
+
+                return $tokens;
+            }
+        }
+
         return TagSoupParser::canonicalizeTags((new TagSoupParser())->parse($html));
+    }
+
+    private function wordPressHtmlProcessorRequested(): bool
+    {
+        return ($this->options['htmlTokenizerBackend'] ?? 'tagsoup') === 'wp-html-processor';
     }
 
     /**

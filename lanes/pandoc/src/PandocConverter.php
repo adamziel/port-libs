@@ -61,12 +61,20 @@ final class PandocConverter
      */
     public static function readFile(string $path, string $format, array $options = []): AstNode
     {
+        if (!isset($options['sourcePath'])) {
+            $options['sourcePath'] = $path;
+        }
+
+        $requestedFormat = self::normalizeFormat($format);
+        $canonical = self::canonicalInputFormat($requestedFormat);
+        $entry = self::inputSupport($canonical);
+        if ($entry['implementation'] === OdtReader::class) {
+            return (new OdtReader())->readOdtFile($path);
+        }
+
         $bytes = file_get_contents($path);
         if (!is_string($bytes)) {
             throw new \RuntimeException("Unable to read '{$path}'.");
-        }
-        if (!isset($options['sourcePath'])) {
-            $options['sourcePath'] = $path;
         }
 
         return self::read($bytes, $format, $options);
@@ -137,10 +145,6 @@ final class PandocConverter
      */
     public static function convertFile(string $path, string $from, string $to, array $options = []): string
     {
-        $bytes = file_get_contents($path);
-        if (!is_string($bytes)) {
-            throw new \RuntimeException("Unable to read '{$path}'.");
-        }
         if (!isset($options['readerOptions']) || !is_array($options['readerOptions'])) {
             $options['readerOptions'] = [];
         }
@@ -148,7 +152,9 @@ final class PandocConverter
             $options['readerOptions']['sourcePath'] = $path;
         }
 
-        return self::convert($bytes, $from, $to, $options);
+        $writerOptions = isset($options['writerOptions']) && is_array($options['writerOptions']) ? $options['writerOptions'] : [];
+
+        return self::write(self::readFile($path, $from, $options['readerOptions']), $to, $writerOptions);
     }
 
     /**
