@@ -238,6 +238,7 @@ return [
         $t->contains('OR Hike the North Kaibab Trail to Coconino Overlook. Hiking into the Canyon offers a different perspective.', $text);
         $t->contains('The Pocket Map is published by Grand Canyon National Park with support from your entrance fees.', $text);
         $t->contains('Food service is available from mid-May to mid-October.', $text);
+        $t->contains('For backcountry camping options (permit required) check with the Backcountry Information Center.', $text);
         foreach ([
             'Hiking into 22 feet (6.7 m) prohibited on the roads',
             'Trail south from Point Imperial for a half mile for an easy hike with Parking',
@@ -275,6 +276,14 @@ return [
         $t->contains('of their', $text);
         $t->contains('of values', $text);
         $t->contains('the fastest', $text);
+        foreach (['ac-tual', 'discov-ered', 'sus-pend'] as $fragment) {
+            $t->true(!str_contains($text, $fragment), "TraceMonkey should remove geometry-confirmed discretionary hyphen '{$fragment}'.");
+        }
+        $t->contains('actual dynamic types', $text);
+        $t->contains('discovered alternative paths', $text);
+        foreach (['mixed-mode execution approach', 'type-unstable loops', 'register-carried value', 'non-negligible runtime cost'] as $compound) {
+            $t->contains($compound, $text, "TraceMonkey should preserve semantic compound '{$compound}'.");
+        }
     },
     'pdf corpus gate repairs TraceMonkey TJ word gaps without fragment splits' => static function (TestRunner $t) use ($pdfSamplePaths, $plainText): void {
         $document = (new PdfReader([
@@ -432,6 +441,8 @@ return [
         $t->contains('There is at least one hot side exit for which the VM cannot complete a trace.', $blocks);
         $t->contains('The loop body is short.', $blocks);
         $t->contains('In this case, the VM will repeatedly pass the loop header, search for a trace, find it, execute it, and fall back to the interpreter.', $blocks);
+        $t->true(!str_contains($blocks, 'objects’ rep-resentations'), 'TraceMonkey must remove a geometry-proven automatic hyphen across a page boundary.');
+        $t->contains('Clearly, a JavaScript VM that wants to be fast must find a way to operate on integers directly and avoid these conversions.', $blocks);
         $t->contains('Figure 7 shows basic trace tree compilation (11) applied to a nested loop where the inner loop contains two paths. Usually, the inner loop (with header at i2) becomes hot first, and a trace tree is rooted at that point.', $blocks);
         $t->true(!str_contains($blocks, 'loop (with header at i at that point.'), 'TraceMonkey must not merge source fragments across omitted diagram content.');
         $t->contains('Thus, the outer loop is recorded and compiled twice, and both copies must be retained in the trace cache.', $blocks);
@@ -497,6 +508,45 @@ return [
         $t->contains("v0 := ld state[748]      // load primes from the trace activation record\n", $blocks);
         $t->contains("mov edx, ebx(748)       // load primes from the trace activation record\n", $blocks);
     },
+    'pdf corpus gate keeps TraceMonkey source geometry flow coherent around side tables' => static function (TestRunner $t) use ($pdfSamplePaths): void {
+        $document = (new PdfReader([
+            'maxTextBytes' => 100000,
+            'pdfRepairProseText' => true,
+            'pdfGeometryTables' => true,
+        ]))->read(file_get_contents($pdfSamplePaths()['tracemonkey-paper']) ?: '');
+        $blocks = PandocConverter::write($document, 'blocks');
+
+        $t->contains('<h2>5.2 Register Allocation</h2>', $blocks);
+        $t->contains('<h2>6.1 Calling Compiled Traces</h2>', $blocks);
+        $t->contains('Then the heuristic selects v with minimum', $blocks);
+        $t->contains('register-carried value', $blocks);
+        $t->contains('stop-the-world mark-and-sweep collector.', $blocks);
+        $t->contains('non-negligible runtime cost', $blocks);
+        $t->contains('TraceMonkey implementation.', $blocks);
+        $t->contains('The heuristic considers the set R of values v in registers immediately', $blocks);
+        $t->contains('where each v is referred to.', $blocks);
+        $t->contains('<li>CSE (constant subexpression elimination),</li>', $blocks);
+        $t->contains('<li>Dead code elimination. This eliminates any operation that stores to a value that is never used.</li>', $blocks);
+        foreach ([
+            '<p>with a</p>',
+            '<p>to be replaced</p>',
+            '<p>in registers immebe the last</p>',
+            '<p>is machine word in which up to the 3 of the</p>',
+            '<p>values are mappings of string-valued property</p>',
+            '<p>is marked free for</p>',
+            '<p>point to</p>',
+            'TraceMon-key',
+            'registercarried',
+            'stoptheworld',
+            'nonnegligible',
+            'Rof values vin',
+            'each vis referred',
+        ] as $artifact) {
+            $t->true(!str_contains($blocks, $artifact), "TraceMonkey geometry flow must not retain '{$artifact}'.");
+        }
+        $t->same(1, substr_count($blocks, '<!-- wp:table -->'));
+        $t->same(2, substr_count($blocks, '<!-- wp:code -->'));
+    },
     'pdf corpus gate rejects damaged positioned prose streams' => static function (TestRunner $t) use ($pdfSamplePaths, $readPdfSample): void {
         $muir = $readPdfSample($pdfSamplePaths()['muir-brochure'], ['pdfGeometryTables' => false]);
         $meta = $muir['meta'];
@@ -507,6 +557,7 @@ return [
         $t->contains('In collaboration with public agencies and nonprofit partners, the National Park Service implemented a multi-year', $muir['blocks']);
         $t->contains('<h2>Make a Difference</h2>', $muir['blocks']);
         $t->contains('Left, Top &amp; Bottom images: Traditional prayer', $muir['blocks']);
+        $t->contains('Left, Top &amp; Bottom images: Traditional prayer led by a representative of the Coast Miwok at the annual Welcome Back Salmon ceremony at Muir Beach.', $muir['blocks']);
         $t->true(!str_contains($muir['blocks'], 'caused it to fill In collaboration'), 'Muir brochure columns must not be merged into one paragraph.');
         $t->true(!str_contains($muir['blocks'], 'caused it to fill</p>'), 'Muir brochure must not emit an unresolved source-only sentence tail.');
         $t->true(!str_contains($muir['blocks'], 'at y a representative of the Coast Miwok'), 'Muir brochure must not repeat a clipped source fragment after a positioned repair line.');
@@ -575,6 +626,7 @@ return [
         $t->contains('General Instructions', $w4Text);
         $t->contains('Multiple Jobs Worksheet', $w4Text);
         $t->contains('Married Filing Jointly', $w4Text);
+        $t->contains('household salaries and enter that value on line 1. Then, skip to line 3.', $w4Text);
         $t->same(3, $w4Meta['pdfDetectedTables'], 'IRS W-4 should retain its three salary matrices without turning prose columns into tables.');
         $t->same(3, $w4['tables'], 'IRS W-4 WordPress output should retain each real salary matrix as a table.');
         $t->contains('Married Filing Jointly', $w4['blocks']);
