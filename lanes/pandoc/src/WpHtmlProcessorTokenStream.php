@@ -21,7 +21,7 @@ final class WpHtmlProcessorTokenStream
      */
     public static function tokenize(string $html): ?array
     {
-        if (!self::available()) {
+        if (!self::available() || self::requiresSourceTokenCompatibility($html)) {
             return null;
         }
 
@@ -33,6 +33,10 @@ final class WpHtmlProcessorTokenStream
             }
 
             $tokens = [];
+            $preserveExplicitRoot = [
+                'html' => self::sourceContainsStartTag($html, 'html'),
+                'body' => self::sourceContainsStartTag($html, 'body'),
+            ];
             $transparentRootDepth = ['html' => 0, 'body' => 0];
             while ($processor->next_token()) {
                 $type = $processor->get_token_type();
@@ -55,16 +59,23 @@ final class WpHtmlProcessorTokenStream
                     }
 
                     $attributes = self::attributes($processor);
-                    if (isset($transparentRootDepth[$name]) && $attributes === []) {
+                    if (isset($transparentRootDepth[$name]) && !$preserveExplicitRoot[$name] && $attributes === []) {
                         $transparentRootDepth[$name]++;
                         continue;
                     }
                     $tokens[] = TagSoupTag::open($name, $attributes);
+                    if (self::rawTextTag($name)) {
+                        $text = $processor->get_modifiable_text();
+                        if ($text !== '') {
+                            self::appendToken($tokens, TagSoupTag::text($text));
+                        }
+                        $tokens[] = TagSoupTag::close($name);
+                    }
                     continue;
                 }
 
                 if ($type === '#text' || $type === '#cdata-section') {
-                    $tokens[] = TagSoupTag::text($processor->get_modifiable_text());
+                    self::appendToken($tokens, TagSoupTag::text($processor->get_modifiable_text()));
                     continue;
                 }
 
@@ -73,12 +84,76 @@ final class WpHtmlProcessorTokenStream
                 }
             }
 
+            if ($processor->get_last_error() !== null) {
+                return null;
+            }
+
             return $tokens;
         } catch (\Throwable) {
             // A WordPress HTML API failure must not make a standalone import
             // less robust than the established TagSoup reader.
             return null;
         }
+    }
+
+    private static function rawTextTag(string $name): bool
+    {
+        return in_array($name, ['title', 'script', 'style', 'textarea', 'xmp'], true);
+    }
+
+    /**
+     * The Pandoc reader owns source-token semantics for these structures.
+     * WordPress intentionally performs HTML tree construction for them, which
+     * can reparent, discard, or reinterpret source tokens before this reader
+     * sees them. Use the established source tokenizer for those general
+     * language constructs rather than changing imported output.
+     */
+    private static function requiresSourceTokenCompatibility(string $html): bool
+    {
+        if (preg_match(
+            '/<\\s*\\/?\\s*(?:'
+            . 'table|caption|colgroup|col|thead|tbody|tfoot|tr|td|th|'
+            . 'template|svg|math|'
+            . 'noscript|noembed|noframes|plaintext|object|iframe|applet|frameset|'
+            . 'select|optgroup|option'
+            . ')\\b/i',
+            $html
+        ) === 1) {
+            return true;
+        }
+
+        // The HTML tree builder implicitly closes a paragraph before these
+        // elements. The source-token reader owns that recovery itself, so use
+        // it whenever the source actually crosses that boundary.
+        return preg_match(
+            '/<\\s*p\\b[^>]*>(?:(?!<\\s*\\/?\\s*p\\b).)*?<\\s*(?:'
+            . 'address|article|aside|blockquote|center|details|dialog|dir|div|dl|fieldset|'
+            . 'figcaption|figure|footer|form|h[1-6]|header|hgroup|hr|main|menu|nav|ol|p|pre|'
+            . 'search|section|summary|table|ul'
+            . ')\\b/is',
+            $html
+        ) === 1;
+    }
+
+    private static function sourceContainsStartTag(string $html, string $name): bool
+    {
+        return preg_match('/<\\s*' . preg_quote($name, '/') . '(?:[\\s\\/>])/i', $html) === 1;
+    }
+
+    /**
+     * @param list<TagSoupTag> $tokens
+     */
+    private static function appendToken(array &$tokens, TagSoupTag $token): void
+    {
+        $previous = $tokens[array_key_last($tokens)] ?? null;
+        if ($token->type === TagSoupTag::TEXT && $previous instanceof TagSoupTag && $previous->type === TagSoupTag::TEXT) {
+            array_pop($tokens);
+            $tokens[] = TagSoupTag::text($previous->text . $token->text);
+
+            return;
+        }
+
+        $tokens[] = $token;
     }
 
     private static function canonicalTagName(string $name): string

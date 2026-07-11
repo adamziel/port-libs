@@ -68,6 +68,9 @@ final class PandocConverter
         $requestedFormat = self::normalizeFormat($format);
         $canonical = self::canonicalInputFormat($requestedFormat);
         $entry = self::inputSupport($canonical);
+        if ($entry['implementation'] === DelimitedTextReader::class) {
+            return (new DelimitedTextReader())->readFile($path, $canonical, $options);
+        }
         if ($entry['implementation'] === OdtReader::class) {
             return (new OdtReader())->readOdtFile($path);
         }
@@ -163,6 +166,14 @@ final class PandocConverter
      */
     public static function convertFileWithMedia(string $path, string $from, string $to, array $options = []): array
     {
+        if (self::extractMediaOptions($options) === null) {
+            return [
+                'output' => self::convertFile($path, $from, $to, $options),
+                'media' => [],
+                'diagnostics' => [],
+            ];
+        }
+
         $bytes = file_get_contents($path);
         if (!is_string($bytes)) {
             throw new \RuntimeException("Unable to read '{$path}'.");

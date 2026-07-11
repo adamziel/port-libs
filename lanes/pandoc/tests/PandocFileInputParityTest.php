@@ -60,4 +60,71 @@ $tests['keeps file-backed conversion byte-identical to byte-backed conversion'] 
         }
     };
 
+$tests['streams regular oversized delimited text without changing its ast or rendered output'] =
+    static function (TestRunner $t): void {
+        $path = tempnam(sys_get_temp_dir(), 'pandoc-file-input-streaming-');
+        if (!is_string($path)) {
+            throw new RuntimeException('Unable to create temporary delimited text input.');
+        }
+        $csvPath = $path . '.csv';
+        if (!rename($path, $csvPath)) {
+            throw new RuntimeException('Unable to name temporary delimited text input.');
+        }
+
+        $input = "name,description,count\n" . str_repeat("example,regular unquoted row,42\n", 1250);
+        if (file_put_contents($csvPath, $input) === false) {
+            throw new RuntimeException('Unable to write temporary delimited text input.');
+        }
+
+        try {
+            $options = ['sourcePath' => $csvPath];
+            $fromBytes = PandocConverter::read($input, 'csv', $options);
+            $fromFile = PandocConverter::readFile($csvPath, 'csv', $options);
+
+            $byteAst = serialize($fromBytes);
+            $fileAst = serialize($fromFile);
+            if ($byteAst !== $fileAst) {
+                throw new RuntimeException('Streamed CSV changed the complete AST.');
+            }
+            $t->same(hash('sha256', $byteAst), hash('sha256', $fileAst), 'streamed CSV must preserve the complete AST');
+            foreach (['wordpress', 'html', 'markdown', 'native', 'plain'] as $format) {
+                $t->same(
+                    PandocConverter::write($fromBytes, $format),
+                    PandocConverter::write($fromFile, $format),
+                    "streamed CSV must preserve {$format} output"
+                );
+            }
+        } finally {
+            @unlink($csvPath);
+        }
+    };
+
+$tests['keeps no-media file conversion on the file-backed import path'] =
+    static function (TestRunner $t): void {
+        $path = tempnam(sys_get_temp_dir(), 'pandoc-file-input-no-media-');
+        if (!is_string($path)) {
+            throw new RuntimeException('Unable to create temporary no-media input.');
+        }
+        $csvPath = $path . '.csv';
+        if (!rename($path, $csvPath)) {
+            throw new RuntimeException('Unable to name temporary no-media input.');
+        }
+
+        $input = "name,description,count\n" . str_repeat("example,regular unquoted row,42\n", 1250);
+        if (file_put_contents($csvPath, $input) === false) {
+            throw new RuntimeException('Unable to write temporary no-media input.');
+        }
+
+        try {
+            $expected = PandocConverter::convertFile($csvPath, 'csv', 'wordpress');
+            $result = PandocConverter::convertFileWithMedia($csvPath, 'csv', 'wordpress');
+
+            $t->same($expected, $result['output']);
+            $t->same([], $result['media']);
+            $t->same([], $result['diagnostics']);
+        } finally {
+            @unlink($csvPath);
+        }
+    };
+
 return $tests;
