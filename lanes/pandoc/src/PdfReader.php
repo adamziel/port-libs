@@ -163,6 +163,24 @@ final class PdfReader
                 $repairSource = 'text';
             }
         }
+        $repairSplitWordHints = array_replace(
+            $repairSplitWordHints,
+            $this->pdfRepeatedCompoundLineBreakHints(
+                $repairSourceLines,
+                $repairSourceLayouts,
+                $limitedLines
+            )
+        );
+        if ($repairSource !== 'positioned' && $positionedCodeBlocks !== []) {
+            $codeInjection = $this->injectPositionedCodeBlocksIntoRepairSource(
+                $repairSourceLines,
+                $repairSourceLayouts,
+                $positionedCodeBlocks
+            );
+            $repairSourceLines = $codeInjection['lines'];
+            $repairSourceLayouts = $codeInjection['layouts'];
+            $positionedCodeBlocks = $codeInjection['remainingCodeBlocks'];
+        }
         $repairedLines = $taggedBlocks === [] && $proseRepairEnabled
             ? $this->repairProseTextLines($repairSourceLines, $this->looksLikeProseRepairCandidate($repairSourceLines), $repairSourceLayouts, $repairSplitWordHints)
             : $limitedLines;
@@ -172,14 +190,26 @@ final class PdfReader
         if ($taggedBlocks !== []) {
             $blocks = $taggedBlocks;
         } elseif ($geometryTableBlocks !== []) {
-            $blocks = !$geometryTableFallback && $geometryTableBlocksByPage !== [] && $positionedCodeBlocks === []
-                ? $this->blocksWithPositionedPdfTablePages(
-                    $repairSourceLines,
-                    $repairSourceLayouts,
-                    $geometryTableBlocksByPage,
-                    $repairSplitWordHints
-                )
-                : $geometryTableBlocks;
+            if ($geometryTableFallback) {
+                // The fallback table was selected before later prose repair
+                // protects code listings and resolves source/geometry joins.
+                // Prefer that final stream whenever it preserves the same
+                // table coverage.
+                $repairedBlocks = $this->blocksFromLines($repairedLines);
+                $blocks = $this->countNodesOfType($repairedBlocks, 'table')
+                    >= $this->countNodesOfType($geometryTableBlocks, 'table')
+                    ? $repairedBlocks
+                    : $geometryTableBlocks;
+            } else {
+                $blocks = $geometryTableBlocksByPage !== [] && $positionedCodeBlocks === []
+                    ? $this->blocksWithPositionedPdfTablePages(
+                        $repairSourceLines,
+                        $repairSourceLayouts,
+                        $geometryTableBlocksByPage,
+                        $repairSplitWordHints
+                    )
+                    : $geometryTableBlocks;
+            }
         } else {
             $blocks = $this->blocksFromLines($repairedLines);
         }
@@ -615,6 +645,10 @@ final class PdfReader
                     !$geometryMatchIsReliable
                 );
                 $hasStableBodyColumns = $this->sourcePdfGeometryOrderHasStableBodyColumns($geometryItems);
+                $positionedBodyColumns = $this->sourcePdfStableTextColumns($pagePositionedItems);
+                $hasStablePositionedBodyColumns = $this->sourcePdfColumnsLookLikeParallelBodyColumns(
+                    $positionedBodyColumns
+                );
                 $preservesTextTable = !$hasTextTable || $this->sourcePdfGeometryOrderPreservesTextTable($geometryItems, $splitWordHints);
                 $preservesCode = !$hasCode || $this->sourcePdfGeometryOrderPreservesPositionedCode(
                     $geometryItems,
@@ -624,7 +658,8 @@ final class PdfReader
                 if (!$hasCode
                     && !$hasTextTable
                     && !$geometryMatchIsReliable
-                    && $this->sourcePdfGeometryBodyColumnCount($geometryItems) >= 3
+                    && ($this->sourcePdfGeometryBodyColumnCount($geometryItems) >= 3
+                        || $hasStablePositionedBodyColumns)
                     && $this->positionedPdfPageTextLooksUsable($pageSourceItems, $pagePositionedItems)) {
                     $geometryPages++;
                     $positionedBodyItems = $this->orderSourcePdfItemsWithinStableColumns($pagePositionedItems);
@@ -656,7 +691,10 @@ final class PdfReader
             }
         }
 
-        return ['items' => $ordered, 'geometryPages' => $geometryPages];
+        return [
+            'items' => $this->prioritizeSourcePdfVerifiedCrossColumnContinuationPages($ordered),
+            'geometryPages' => $geometryPages,
+        ];
     }
 
     /**
@@ -948,6 +986,7 @@ final class PdfReader
     {
         $sourceIndexesByKey = [];
         $sourceIndexesByComparablePrefix = [];
+        $sourceIndexesByCompactPrefix = [];
         foreach ($sourceItems as $index => $item) {
             $key = $this->pdfComparableLineText($item['text']);
             if ($this->length($key) >= 3) {
@@ -956,11 +995,17 @@ final class PdfReader
             if ($this->length($key) >= 8) {
                 $sourceIndexesByComparablePrefix[substr($key, 0, 8)][] = $index;
             }
+            if ($this->length($key) >= 1 && $this->length($key) <= 3) {
+                $sourceIndexesByCompactPrefix[substr($key, 0, 1)][] = $index;
+            }
         }
 
         $positionedItems = $this->combineAdjacentPositionedPdfFragmentsMatchingSourceLines(
             $positionedItems,
-            $sourceIndexesByKey
+            $sourceItems,
+            $sourceIndexesByKey,
+            $sourceIndexesByComparablePrefix,
+            $sourceIndexesByCompactPrefix
         );
 
         $nextSourceIndexByKey = [];
@@ -970,7 +1015,11 @@ final class PdfReader
         $visualEntries = [];
         $shortSupplementalCandidates = [];
         $previousWasSupplementalPositionedItem = false;
-        foreach ($positionedItems as $positionedItem) {
+        $consumedPositionedIndexes = [];
+        foreach ($positionedItems as $positionedIndex => $positionedItem) {
+            if (isset($consumedPositionedIndexes[$positionedIndex])) {
+                continue;
+            }
             $key = $this->pdfComparableLineText($positionedItem['text']);
             $sourceIndex = null;
             if ($this->length($key) >= 3 && isset($sourceIndexesByKey[$key])) {
@@ -985,9 +1034,97 @@ final class PdfReader
                 }
             }
 
+            $fragmentIndexes = $sourceIndex === null
+                ? $this->sourcePdfFragmentIndexesMatchingPositionedLine(
+                    $sourceItems,
+                    $matchedSourceIndexes,
+                    $key,
+                    $sourceIndexesByComparablePrefix,
+                    $sourceIndexesByCompactPrefix
+                )
+                : [];
+            if ($fragmentIndexes !== []) {
+                $firstSourceIndex = $fragmentIndexes[0];
+                $sourceItem = $this->sourcePdfJoinedFragmentLineItem(
+                    $sourceItems,
+                    $fragmentIndexes,
+                    $rawSplitWordHints,
+                    (string) ($positionedItem['text'] ?? '')
+                );
+                $item = $this->sourcePdfLineItem($sourceItem, $positionedItem);
+                $item = $this->markSourcePdfVerifiedGeometryText($item, $positionedItem);
+                $item['sourcePdfSourceIndexes'] = $fragmentIndexes;
+                $item['sourcePdfSourceIndexEnd'] = $fragmentIndexes[array_key_last($fragmentIndexes)];
+                foreach ($fragmentIndexes as $fragmentIndex) {
+                    $matchedSourceIndexes[$fragmentIndex] = true;
+                }
+                $matchedItems[] = $item;
+                $matchedItemsBySourceIndex[$firstSourceIndex] = $item;
+                $visualEntries[] = ['item' => $item, 'sourceIndex' => $firstSourceIndex];
+                $previousWasSupplementalPositionedItem = false;
+                continue;
+            }
+
+            $inlineSiblingIndexes = $this->positionedPdfInlineContinuationSiblingIndexes(
+                $positionedItems,
+                $positionedIndex
+            );
+            if ($inlineSiblingIndexes !== []) {
+                $inlineKey = $this->pdfComparableLineText(
+                    $this->positionedPdfInlineContinuationText(
+                        $positionedItem,
+                        $positionedItems,
+                        $inlineSiblingIndexes
+                    )
+                );
+                $inlineFragmentIndexes = $inlineKey === $key
+                    ? []
+                    : $this->sourcePdfFragmentIndexesMatchingPositionedLine(
+                        $sourceItems,
+                        $matchedSourceIndexes,
+                        $inlineKey,
+                        $sourceIndexesByComparablePrefix,
+                        $sourceIndexesByCompactPrefix
+                    );
+                if ($inlineFragmentIndexes !== []) {
+                    $firstSourceIndex = $inlineFragmentIndexes[0];
+                    $sourceItem = $this->sourcePdfJoinedFragmentLineItem(
+                        $sourceItems,
+                        $inlineFragmentIndexes,
+                        $rawSplitWordHints,
+                        $this->positionedPdfInlineContinuationText(
+                            $positionedItem,
+                            $positionedItems,
+                            $inlineSiblingIndexes
+                        )
+                    );
+                    $positionedLayout = $this->positionedPdfCompositeInlineContinuationLayout(
+                        $positionedItem,
+                        $positionedItems,
+                        $inlineSiblingIndexes
+                    );
+                    $item = $this->sourcePdfLineItem($sourceItem, $positionedLayout);
+                    $item = $this->markSourcePdfVerifiedGeometryText($item, $positionedLayout);
+                    $item['sourcePdfSourceIndexes'] = $inlineFragmentIndexes;
+                    $item['sourcePdfSourceIndexEnd'] = $inlineFragmentIndexes[array_key_last($inlineFragmentIndexes)];
+                    foreach ($inlineFragmentIndexes as $fragmentIndex) {
+                        $matchedSourceIndexes[$fragmentIndex] = true;
+                    }
+                    foreach ($inlineSiblingIndexes as $inlineSiblingIndex) {
+                        $consumedPositionedIndexes[$inlineSiblingIndex] = true;
+                    }
+                    $matchedItems[] = $item;
+                    $matchedItemsBySourceIndex[$firstSourceIndex] = $item;
+                    $visualEntries[] = ['item' => $item, 'sourceIndex' => $firstSourceIndex];
+                    $previousWasSupplementalPositionedItem = false;
+                    continue;
+                }
+            }
+
             if ($sourceIndex !== null) {
                 $matchedSourceIndexes[$sourceIndex] = true;
                 $item = $this->sourcePdfLineItem($sourceItems[$sourceIndex], $positionedItem);
+                $item = $this->markSourcePdfVerifiedGeometryText($item, $positionedItem);
                 $matchedItems[] = $item;
                 $matchedItemsBySourceIndex[$sourceIndex] = $item;
                 $visualEntries[] = ['item' => $item, 'sourceIndex' => $sourceIndex];
@@ -995,24 +1132,39 @@ final class PdfReader
                 continue;
             }
 
-            $fragmentIndexes = $this->sourcePdfFragmentIndexesMatchingPositionedLine(
+            $partialFragmentIndexes = $this->sourcePdfFragmentIndexesExtendingPositionedLine(
                 $sourceItems,
                 $matchedSourceIndexes,
                 $key,
                 $sourceIndexesByComparablePrefix
             );
-            if ($fragmentIndexes !== []) {
-                $firstSourceIndex = $fragmentIndexes[0];
+            if ($partialFragmentIndexes !== [] && $inlineSiblingIndexes !== []) {
+                $firstSourceIndex = $partialFragmentIndexes[0];
                 $sourceItem = $this->sourcePdfJoinedFragmentLineItem(
                     $sourceItems,
-                    $fragmentIndexes,
-                    $rawSplitWordHints
+                    $partialFragmentIndexes,
+                    $rawSplitWordHints,
+                    $this->positionedPdfInlineContinuationText(
+                        $positionedItem,
+                        $positionedItems,
+                        $inlineSiblingIndexes
+                    )
                 );
-                $item = $this->sourcePdfLineItem($sourceItem, $positionedItem);
-                $item['sourcePdfSourceIndexes'] = $fragmentIndexes;
-                $item['sourcePdfSourceIndexEnd'] = $fragmentIndexes[array_key_last($fragmentIndexes)];
-                foreach ($fragmentIndexes as $fragmentIndex) {
+                $positionedLayout = $this->positionedPdfCompositeInlineContinuationLayout(
+                    $positionedItem,
+                    $positionedItems,
+                    $inlineSiblingIndexes
+                );
+                $item = $this->sourcePdfLineItem($sourceItem, $positionedLayout);
+                $item['sourceVerifiedGeometryText'] = true;
+                $item['sourceVerifiedPartialInlineGeometry'] = true;
+                $item['sourcePdfSourceIndexes'] = $partialFragmentIndexes;
+                $item['sourcePdfSourceIndexEnd'] = $partialFragmentIndexes[array_key_last($partialFragmentIndexes)];
+                foreach ($partialFragmentIndexes as $fragmentIndex) {
                     $matchedSourceIndexes[$fragmentIndex] = true;
+                }
+                foreach ($inlineSiblingIndexes as $inlineSiblingIndex) {
+                    $consumedPositionedIndexes[$inlineSiblingIndex] = true;
                 }
                 $matchedItems[] = $item;
                 $matchedItemsBySourceIndex[$firstSourceIndex] = $item;
@@ -1074,12 +1226,18 @@ final class PdfReader
      * than a guess based on vocabulary.
      *
      * @param list<array<string, mixed>> $positionedItems
+     * @param list<array{page: int, stream: int, text: string}> $sourceItems
      * @param array<string, list<int>> $sourceIndexesByKey
+     * @param array<string, list<int>> $sourceIndexesByComparablePrefix
+     * @param array<string, list<int>> $sourceIndexesByCompactPrefix
      * @return list<array<string, mixed>>
      */
     private function combineAdjacentPositionedPdfFragmentsMatchingSourceLines(
         array $positionedItems,
-        array $sourceIndexesByKey
+        array $sourceItems,
+        array $sourceIndexesByKey,
+        array $sourceIndexesByComparablePrefix,
+        array $sourceIndexesByCompactPrefix
     ): array {
         $combined = [];
         $count = count($positionedItems);
@@ -1087,9 +1245,7 @@ final class PdfReader
             $item = $positionedItems[$index];
             if (!$this->pdfLayoutHasGeometry($item)
                 || ($item['code'] ?? false) === true
-                || !isset($item['sourceOrderStart'], $item['sourceOrderEnd'])
-                || (!$this->positionedPdfFragmentLooksLikeShortTerminalLead($item)
-                    && !$this->positionedPdfFragmentLooksLikeReferenceLead($item))) {
+                || !isset($item['sourceOrderStart'], $item['sourceOrderEnd'])) {
                 $combined[] = $item;
                 continue;
             }
@@ -1104,7 +1260,16 @@ final class PdfReader
 
                 $candidate = $this->composePositionedPdfSourceLineFragments($candidate, $next);
                 $key = $this->pdfComparableLineText((string) ($candidate['text'] ?? ''));
-                if ($this->length($key) >= 12 && isset($sourceIndexesByKey[$key])) {
+                $hasDirectSourceLine = $this->length($key) >= 12 && isset($sourceIndexesByKey[$key]);
+                $hasSourceFragmentSequence = !$hasDirectSourceLine
+                    && $this->sourcePdfFragmentIndexesMatchingPositionedLine(
+                        $sourceItems,
+                        [],
+                        $key,
+                        $sourceIndexesByComparablePrefix,
+                        $sourceIndexesByCompactPrefix
+                    ) !== [];
+                if ($hasDirectSourceLine || $hasSourceFragmentSequence) {
                     $matchedEnd = $end;
                     break;
                 }
@@ -1193,9 +1358,36 @@ final class PdfReader
         }
 
         $gap = (float) $right['x1'] - (float) $left['x2'];
+        $compactInlineContinuation = $this->positionedPdfFragmentIsCompactInlineContinuation($right);
 
-        return $gap >= -max(18.0, $fontSize * 3.0)
+        return $gap >= -max(
+            18.0,
+            $fontSize * ($compactInlineContinuation ? 6.0 : 3.0)
+        )
             && $gap <= max(36.0, $fontSize * 4.0);
+    }
+
+    /**
+     * Font metrics for a superscript or short inline token can overlap the
+     * preceding run's bounding box even though both runs share a baseline and
+     * source order. The caller still requires an exact source match before
+     * composing the pair, so this only broadens the geometric tolerance for
+     * a compact continuation rather than arbitrary overlapping labels.
+     *
+     * @param array<string, mixed> $item
+     */
+    private function positionedPdfFragmentIsCompactInlineContinuation(array $item): bool
+    {
+        $text = trim((string) ($item['text'] ?? ''));
+        $compact = $this->pdfComparableLineText($text);
+        $tokens = $this->pdfLineWordTokens($text);
+
+        return $compact !== ''
+            && $this->length($compact) <= 8
+            && (count($tokens) <= 1
+                || (count($tokens) <= 2
+                    && (preg_match('/[\p{N}\p{P}]/u', $text) === 1
+                        || preg_match('/^\p{Lu}{1,3}\b/u', $tokens[0] ?? '') === 1)));
     }
 
     /**
@@ -1234,7 +1426,8 @@ final class PdfReader
         array $sourceItems,
         array $matchedSourceIndexes,
         string $positionedKey,
-        array $sourceIndexesByComparablePrefix
+        array $sourceIndexesByComparablePrefix,
+        array $sourceIndexesByCompactPrefix = []
     ): array {
         $shortInlineContinuation = $this->length($positionedKey) < 16
             && preg_match('/^\d{1,3}\p{Ll}/u', $positionedKey) === 1;
@@ -1246,6 +1439,9 @@ final class PdfReader
         $startIndexes = $shortInlineContinuation
             ? array_keys($sourceItems)
             : ($sourceIndexesByComparablePrefix[$prefix] ?? []);
+        if ($startIndexes === [] && !$shortInlineContinuation && $this->length($positionedKey) >= 24) {
+            $startIndexes = $sourceIndexesByCompactPrefix[substr($positionedKey, 0, 1)] ?? [];
+        }
         foreach ($startIndexes as $startIndex) {
             if (isset($matchedSourceIndexes[$startIndex])) {
                 continue;
@@ -1254,7 +1450,7 @@ final class PdfReader
             $sourceStream = $sourceItems[$startIndex]['stream'];
             $joinedKey = '';
             $indexes = [];
-            for ($index = $startIndex; $index < count($sourceItems) && $index < $startIndex + 4; $index++) {
+            for ($index = $startIndex; $index < count($sourceItems) && $index < $startIndex + 24; $index++) {
                 if (isset($matchedSourceIndexes[$index])
                     || $sourceItems[$index]['stream'] !== $sourceStream
                     || ($index > $startIndex && preg_match('/[.!?]\s*$/u', $sourceItems[$index - 1]['text']) === 1)) {
@@ -1262,22 +1458,50 @@ final class PdfReader
                 }
 
                 $fragmentKey = $this->pdfComparableLineText($sourceItems[$index]['text']);
-                if ($fragmentKey === '' || !str_starts_with($positionedKey, $joinedKey . $fragmentKey)) {
+                if ($fragmentKey === '') {
+                    if ($indexes !== []
+                        && $this->sourcePdfFragmentIsInlineIgnorableGlyph($sourceItems[$index]['text'])) {
+                        $indexes[] = $index;
+                        continue;
+                    }
+                    break;
+                }
+                if (!str_starts_with($positionedKey, $joinedKey . $fragmentKey)) {
                     break;
                 }
 
                 $joinedKey .= $fragmentKey;
                 $indexes[] = $index;
                 if (count($indexes) >= 2 && $joinedKey === $positionedKey) {
-                    if (!$shortInlineContinuation
+                    if ((!$shortInlineContinuation
+                            && $this->sourcePdfLongFragmentSequenceMatchesPositionedLine($sourceItems, $indexes, $positionedKey))
                         || $this->sourcePdfShortFragmentSequenceMatchesPositionedLine($sourceItems, $indexes, $positionedKey)) {
-                        return $indexes;
+                        $indexes = $this->sourcePdfFragmentIndexesWithLeadingListMarker(
+                            $sourceItems,
+                            $indexes,
+                            $matchedSourceIndexes
+                        );
+
+                        return $this->sourcePdfFragmentIndexesWithTrailingPunctuation(
+                            $sourceItems,
+                            $indexes,
+                            $matchedSourceIndexes
+                        );
                     }
                 }
             }
         }
 
         return [];
+    }
+
+    private function sourcePdfFragmentIsInlineIgnorableGlyph(string $text): bool
+    {
+        $text = trim($text);
+
+        return $text !== ''
+            && $this->length($text) <= 3
+            && preg_match('/^[\p{M}\p{Sk}]+$/u', $text) === 1;
     }
 
     /**
@@ -1308,6 +1532,321 @@ final class PdfReader
     }
 
     /**
+     * A source text layer may split inline notation into individual glyph runs
+     * while the positioned layer exposes the complete visual line. Extend the
+     * ordinary short-sequence match only when every extra interior record is a
+     * compact inline fragment and both layers agree exactly after normalization.
+     *
+     * @param list<array{page: int, stream: int, text: string}> $sourceItems
+     * @param list<int> $indexes
+     */
+    private function sourcePdfLongFragmentSequenceMatchesPositionedLine(
+        array $sourceItems,
+        array $indexes,
+        string $positionedKey
+    ): bool {
+        if (count($indexes) <= 4 || $this->length($positionedKey) < 24) {
+            return count($indexes) <= 4;
+        }
+
+        $first = $this->pdfComparableLineText($sourceItems[$indexes[0]]['text']);
+        $last = $this->pdfComparableLineText($sourceItems[$indexes[array_key_last($indexes)]]['text']);
+        if (max($this->length($first), $this->length($last)) < 8) {
+            $hasSubstantialFragment = false;
+            foreach ($indexes as $index) {
+                if ($this->length($this->pdfComparableLineText($sourceItems[$index]['text'])) >= 12) {
+                    $hasSubstantialFragment = true;
+                    break;
+                }
+            }
+            if (!$hasSubstantialFragment) {
+                return false;
+            }
+        }
+
+        $compactInteriorFragments = 0;
+        $substantialInteriorFragments = 0;
+        foreach (array_slice($indexes, 1, -1) as $index) {
+            $sourceText = $sourceItems[$index]['text'];
+            $fragment = $this->pdfComparableLineText($sourceText);
+            if ($fragment === '') {
+                if ($this->sourcePdfFragmentIsInlineIgnorableGlyph($sourceText)) {
+                    $compactInteriorFragments++;
+                    continue;
+                }
+                return false;
+            }
+            if ($this->length($fragment) <= 3) {
+                $compactInteriorFragments++;
+                continue;
+            }
+            $substantialInteriorFragments++;
+        }
+
+        // A font switch can split a word into a compact accent or superscript
+        // plus a normal text run. The positioned visual line gives an exact
+        // whole-line match, and the compact interior token proves this is an
+        // inline split rather than a sequence of ordinary source lines.
+        return $compactInteriorFragments > 0 && $substantialInteriorFragments <= 2;
+    }
+
+    /**
+     * A bullet can be emitted as a standalone source record immediately
+     * before a formula-split list item. Keep it with the verified item so the
+     * downstream block parser can preserve the list structure.
+     *
+     * @param list<array{page: int, stream: int, text: string}> $sourceItems
+     * @param list<int> $indexes
+     * @param array<int, true> $matchedSourceIndexes
+     * @return list<int>
+     */
+    private function sourcePdfFragmentIndexesWithLeadingListMarker(
+        array $sourceItems,
+        array $indexes,
+        array $matchedSourceIndexes
+    ): array {
+        $firstIndex = $indexes[0];
+        $previousIndex = $firstIndex - 1;
+        if (!isset($sourceItems[$previousIndex])
+            || isset($matchedSourceIndexes[$previousIndex])
+            || $sourceItems[$previousIndex]['page'] !== $sourceItems[$firstIndex]['page']
+            || $sourceItems[$previousIndex]['stream'] !== $sourceItems[$firstIndex]['stream']
+            || !$this->lineIsStandalonePdfListMarker($sourceItems[$previousIndex]['text'])) {
+            return $indexes;
+        }
+
+        array_unshift($indexes, $previousIndex);
+
+        return $indexes;
+    }
+
+    /**
+     * Some text streams emit terminal punctuation as its own record. It has
+     * no comparable key, but it is structurally part of the matched source
+     * line and must not later surface as an orphaned positioned fragment.
+     *
+     * @param list<array{page: int, stream: int, text: string}> $sourceItems
+     * @param list<int> $indexes
+     * @param array<int, true> $matchedSourceIndexes
+     * @return list<int>
+     */
+    private function sourcePdfFragmentIndexesWithTrailingPunctuation(
+        array $sourceItems,
+        array $indexes,
+        array $matchedSourceIndexes
+    ): array {
+        $lastIndex = $indexes[array_key_last($indexes)];
+        $last = $sourceItems[$lastIndex];
+        for ($index = $lastIndex + 1; isset($sourceItems[$index]) && $index <= $lastIndex + 2; $index++) {
+            if (isset($matchedSourceIndexes[$index])
+                || $sourceItems[$index]['page'] !== $last['page']
+                || $sourceItems[$index]['stream'] !== $last['stream']) {
+                break;
+            }
+            $text = trim($sourceItems[$index]['text']);
+            if (preg_match('/^[,.;:!?\)\]\}]+$/u', $text) !== 1) {
+                break;
+            }
+            $indexes[] = $index;
+        }
+
+        return $indexes;
+    }
+
+    /**
+     * A positioned body line can end immediately before a run of inline
+     * notation. Recover the complete source sequence only when that sequence
+     * starts with the positioned text, ends at a source sentence boundary, and
+     * has the same compact-fragment evidence as an exact long match.
+     *
+     * @param list<array{page: int, stream: int, text: string}> $sourceItems
+     * @param array<int, true> $matchedSourceIndexes
+     * @param array<string, list<int>> $sourceIndexesByComparablePrefix
+     * @return list<int>
+     */
+    private function sourcePdfFragmentIndexesExtendingPositionedLine(
+        array $sourceItems,
+        array $matchedSourceIndexes,
+        string $positionedKey,
+        array $sourceIndexesByComparablePrefix
+    ): array {
+        if ($this->length($positionedKey) < 24) {
+            return [];
+        }
+
+        $startIndexes = $sourceIndexesByComparablePrefix[substr($positionedKey, 0, 8)] ?? [];
+        foreach ($startIndexes as $startIndex) {
+            if (isset($matchedSourceIndexes[$startIndex])) {
+                continue;
+            }
+
+            $sourceStream = $sourceItems[$startIndex]['stream'];
+            $joinedKey = '';
+            $indexes = [];
+            $extendsPositionedText = false;
+            for ($index = $startIndex; $index < count($sourceItems) && $index < $startIndex + 24; $index++) {
+                if (isset($matchedSourceIndexes[$index])
+                    || $sourceItems[$index]['stream'] !== $sourceStream
+                    || ($index > $startIndex && preg_match('/[.!?]\s*$/u', $sourceItems[$index - 1]['text']) === 1)) {
+                    break;
+                }
+
+                $fragmentKey = $this->pdfComparableLineText($sourceItems[$index]['text']);
+                if ($fragmentKey === '') {
+                    break;
+                }
+                $candidateKey = $joinedKey . $fragmentKey;
+                if (!str_starts_with($candidateKey, $positionedKey)
+                    && !str_starts_with($positionedKey, $candidateKey)) {
+                    break;
+                }
+
+                $joinedKey = $candidateKey;
+                $indexes[] = $index;
+                $extendsPositionedText = $extendsPositionedText
+                    || ($joinedKey !== $positionedKey && str_starts_with($joinedKey, $positionedKey));
+                if (!$extendsPositionedText
+                    || preg_match('/[.!?]\s*$/u', $sourceItems[$index]['text']) !== 1) {
+                    continue;
+                }
+
+                if (count($indexes) > 4
+                    && $this->sourcePdfLongFragmentSequenceMatchesPositionedLine(
+                        $sourceItems,
+                        $indexes,
+                        $joinedKey
+                    )) {
+                    return $indexes;
+                }
+                break;
+            }
+        }
+
+        return [];
+    }
+
+    /**
+     * The text runs for one visual line can be emitted out of visual-list
+     * order. A source-order-adjacent sibling on the same baseline proves that
+     * a prefix line really continues through inline notation.
+     *
+     * @param list<array<string, mixed>> $positionedItems
+     * @return list<int>
+     */
+    private function positionedPdfInlineContinuationSiblingIndexes(array $positionedItems, int $positionedIndex): array
+    {
+        $item = $positionedItems[$positionedIndex] ?? null;
+        if (!is_array($item)
+            || !$this->pdfLayoutHasGeometry($item)
+            || !isset($item['sourceOrderStart'], $item['sourceOrderEnd'])) {
+            return [];
+        }
+
+        $fontSize = max(1.0, (float) $item['fontSize']);
+        $sourceOrderEnd = (int) $item['sourceOrderEnd'];
+        $minimumExtension = (float) $item['x2'] + max(8.0, $fontSize);
+        $maximumX2 = (float) $item['x2'];
+        $hasCompactInlineSibling = false;
+        $siblings = [];
+        foreach ($positionedItems as $index => $candidate) {
+            if ($index === $positionedIndex
+                || !$this->pdfLayoutHasGeometry($candidate)
+                || !isset($candidate['sourceOrderStart'], $candidate['sourceOrderEnd'])
+                || ($candidate['page'] ?? null) !== ($item['page'] ?? null)
+                || (float) $candidate['x1'] < (float) $item['x1'] - max(4.0, $fontSize * 0.5)
+                || abs(((float) $candidate['y1'] + (float) $candidate['y2']) / 2.0 - ((float) $item['y1'] + (float) $item['y2']) / 2.0) > max(2.5, $fontSize * 0.35)) {
+                continue;
+            }
+
+            $candidateStart = (int) $candidate['sourceOrderStart'];
+            $candidateEnd = (int) $candidate['sourceOrderEnd'];
+            if ($candidateEnd <= (int) $item['sourceOrderEnd']
+                || $candidateStart > $sourceOrderEnd + 48) {
+                continue;
+            }
+
+            $siblings[] = $index;
+            $sourceOrderEnd = max($sourceOrderEnd, $candidateEnd);
+            $maximumX2 = max($maximumX2, (float) $candidate['x2']);
+            $hasCompactInlineSibling = $hasCompactInlineSibling
+                || $this->positionedPdfFragmentIsCompactInlineContinuation($candidate);
+        }
+
+        return $sourceOrderEnd > (int) $item['sourceOrderEnd']
+            && ($maximumX2 >= $minimumExtension || $hasCompactInlineSibling)
+            ? $siblings
+            : [];
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @param list<array<string, mixed>> $positionedItems
+     * @param list<int> $siblingIndexes
+     */
+    private function positionedPdfInlineContinuationText(array $item, array $positionedItems, array $siblingIndexes): string
+    {
+        $fragments = [$item];
+        foreach ($siblingIndexes as $index) {
+            $sibling = $positionedItems[$index] ?? null;
+            if (is_array($sibling)) {
+                $fragments[] = $sibling;
+            }
+        }
+        usort($fragments, static function (array $left, array $right): int {
+            return ((float) $left['x1'] <=> (float) $right['x1'])
+                ?: ((int) ($left['sourceOrderStart'] ?? 0) <=> (int) ($right['sourceOrderStart'] ?? 0));
+        });
+
+        return implode(' ', array_map(static fn (array $fragment): string => (string) ($fragment['text'] ?? ''), $fragments));
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @param list<array<string, mixed>> $positionedItems
+     * @param list<int> $siblingIndexes
+     * @return array<string, mixed>
+     */
+    private function positionedPdfCompositeInlineContinuationLayout(array $item, array $positionedItems, array $siblingIndexes): array
+    {
+        foreach ($siblingIndexes as $index) {
+            $sibling = $positionedItems[$index] ?? null;
+            if (!is_array($sibling) || !$this->pdfLayoutHasGeometry($sibling)) {
+                continue;
+            }
+            $item['x1'] = min((float) $item['x1'], (float) $sibling['x1']);
+            $item['y1'] = min((float) $item['y1'], (float) $sibling['y1']);
+            $item['x2'] = max((float) $item['x2'], (float) $sibling['x2']);
+            $item['y2'] = max((float) $item['y2'], (float) $sibling['y2']);
+            $item['fontSize'] = max((float) $item['fontSize'], (float) $sibling['fontSize']);
+            $item['sourceOrderStart'] = min((int) $item['sourceOrderStart'], (int) $sibling['sourceOrderStart']);
+            $item['sourceOrderEnd'] = max((int) $item['sourceOrderEnd'], (int) $sibling['sourceOrderEnd']);
+        }
+
+        return $item;
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @param array<string, mixed> $positionedItem
+     * @return array<string, mixed>
+     */
+    private function markSourcePdfVerifiedGeometryText(array $item, array $positionedItem): array
+    {
+        $sourceKey = $this->pdfComparableLineText((string) ($item['text'] ?? ''));
+        $positionedKey = $this->pdfComparableLineText((string) ($positionedItem['text'] ?? ''));
+        if ($sourceKey === ''
+            || $sourceKey !== $positionedKey
+            || $this->length($sourceKey) < 24
+            || count($this->pdfLineWordTokens((string) ($item['text'] ?? ''))) < 4) {
+            return $item;
+        }
+
+        $item['sourceVerifiedGeometryText'] = true;
+
+        return $item;
+    }
+
+    /**
      * @param list<array{page: int, stream: int, text: string}> $sourceItems
      * @param list<int> $indexes
      * @return array{page: int, stream: int, text: string}
@@ -1315,10 +1854,18 @@ final class PdfReader
     private function sourcePdfJoinedFragmentLineItem(
         array $sourceItems,
         array $indexes,
-        array $rawSplitWordHints = []
+        array $rawSplitWordHints = [],
+        ?string $matchingPositionedText = null
     ): array
     {
         $first = $sourceItems[$indexes[0]];
+        $rawJoinedText = '';
+        foreach ($indexes as $index) {
+            $rawJoinedText .= trim($sourceItems[$index]['text']);
+        }
+        $directlyMatchesPositionedText = $matchingPositionedText !== null
+            && $this->pdfExactLayoutText($rawJoinedText) !== ''
+            && $this->pdfExactLayoutText($rawJoinedText) === $this->pdfExactLayoutText($matchingPositionedText);
         $text = '';
         foreach ($indexes as $index) {
             $fragment = trim($sourceItems[$index]['text']);
@@ -1327,6 +1874,7 @@ final class PdfReader
             }
             if ($text !== ''
                 && $this->sourcePdfJoinedFragmentsNeedSpace($text, $fragment)
+                && !$directlyMatchesPositionedText
                 && !$this->sourcePdfFragmentBoundaryHasRawSplitWordHint($text, $fragment, $rawSplitWordHints)) {
                 $text .= ' ';
             }
@@ -1338,6 +1886,21 @@ final class PdfReader
             'stream' => $first['stream'],
             'text' => $text,
         ];
+    }
+
+    /**
+     * Preserve spaces while comparing a source fragment sequence with one
+     * positioned visual line. Unlike the ordinary comparable-text key, this
+     * intentionally distinguishes "New York" from "NewYork" so a direct
+     * character match can prove that a source-stream boundary is intra-word.
+     */
+    private function pdfExactLayoutText(string $text): string
+    {
+        $text = $this->normalizePdfTextEncoding($text);
+        $text = str_replace(["\u{00AD}", "\u{2010}", "\u{2011}"], '-', $text);
+        $text = str_replace("\u{00A0}", ' ', $text);
+
+        return trim(preg_replace('/\s+/u', ' ', $text) ?? $text);
     }
 
     /**
@@ -1368,6 +1931,10 @@ final class PdfReader
         }
         if (preg_match('/[-\x{2010}-\x{2015}\/(\[{]\s*$/u', $previous) === 1
             || preg_match('/^\s*[\)\]\},.!?;:]/u', $next) === 1) {
+            return false;
+        }
+        if (preg_match('/^[\p{M}\p{Sk}]+$/u', $next) === 1
+            || preg_match('/[\p{M}\p{Sk}]$/u', $previous) === 1) {
             return false;
         }
 
@@ -3106,6 +3673,13 @@ final class PdfReader
     {
         $sourceTokens = $this->sourcePdfComparableTokens($sourceText);
         $positionedTokens = $this->sourcePdfComparableTokens($positionedText);
+        if (count($positionedTokens) < count($sourceTokens)
+            && preg_match('/[.!?;:]\s*$/u', rtrim($sourceText)) === 1) {
+            // A positioned prefix can lose a trailing font run. A complete
+            // source sentence on the same baseline is stronger evidence than
+            // that shorter prefix and must remain available for restoration.
+            return false;
+        }
         if (count($sourceTokens) < 4 || count($positionedTokens) < 4) {
             return $this->sourcePdfComparableTextIsCoveredBySupplementalPositioning($sourceText, $positionedText);
         }
@@ -3252,6 +3826,13 @@ final class PdfReader
             return $items;
         }
 
+        // A styled inline fragment can begin beyond the normal first-line
+        // indent tolerance while still sharing a baseline and source sequence
+        // with a body line in the same column. Compose that proven visual
+        // line before column assignment so the trailing fragment is not
+        // mistaken for detached geometry.
+        $items = $this->composePositionedPdfInlineFragmentsWithinStableColumns($items, $columns);
+
         $columnItems = array_fill(0, count($columns), []);
         $floating = [];
         $floatingGeometryCount = 0;
@@ -3298,12 +3879,27 @@ final class PdfReader
 
         $ordered = [];
         $previousColumnEntries = null;
+        $deferredMinorFontEntries = [];
         foreach ($columnItems as $columnIndex => $entries) {
             usort($entries, static function (array $left, array $right): int {
                 return ((float) $right['y1'] <=> (float) $left['y1'])
                     ?: ((float) $left['x1'] <=> (float) $right['x1']);
             });
             $entries = $this->markSourcePdfMinorFontFlows($entries, $medianFontSize);
+            $minorFontEntries = array_values(array_filter(
+                $entries,
+                static fn (array $entry): bool => ($entry['sourceMinorFontFlow'] ?? false) === true
+            ));
+            if ($minorFontEntries !== []) {
+                // A footnote may sit below an unfinished body sentence. Keep
+                // it on the page, but defer it until after body columns have
+                // been connected so it cannot become a false paragraph tail.
+                $deferredMinorFontEntries = array_merge($deferredMinorFontEntries, $minorFontEntries);
+                $entries = array_values(array_filter(
+                    $entries,
+                    static fn (array $entry): bool => ($entry['sourceMinorFontFlow'] ?? false) !== true
+                ));
+            }
             $entries = $this->markSourcePdfIndentedParagraphBoundaries($entries, $columns[$columnIndex]);
             $entries = $this->markSourcePdfOrphanedColumnFlows(
                 $entries,
@@ -3321,6 +3917,10 @@ final class PdfReader
                     $columns[$columnIndex]
                 );
             }
+            $entries = $this->prioritizeSourcePdfVerifiedCrossColumnContinuation(
+                $entries,
+                $previousColumnEntries
+            );
             foreach ($entries as $entry) {
                 if ($complexFigurePage) {
                     $entry['sourceComplexGeometryPage'] = true;
@@ -3337,6 +3937,389 @@ final class PdfReader
                 $entry['sourceComplexGeometryPage'] = true;
             }
             $ordered[] = $entry;
+        }
+        foreach ($deferredMinorFontEntries as $entry) {
+            if ($complexFigurePage && $this->pdfLayoutHasGeometry($entry)) {
+                $entry['sourceComplexGeometryPage'] = true;
+            }
+            $ordered[] = $entry;
+        }
+
+        return $ordered;
+    }
+
+    /**
+     * Keep a visual line intact when a PDF paints it as multiple positioned
+     * fragments. A fragment is eligible only when a stable body column and
+     * the content-stream order both corroborate the local same-baseline
+     * geometry. This deliberately never joins fragments assigned to separate
+     * columns, even when their physical rows share a baseline.
+     *
+     * @param list<array<string, mixed>> $items
+     * @param list<array{x: float, width: float, fontSize: float, count: int}> $columns
+     * @return list<array<string, mixed>>
+     */
+    private function composePositionedPdfInlineFragmentsWithinStableColumns(array $items, array $columns): array
+    {
+        $columnIndexes = [];
+        foreach ($items as $index => $item) {
+            if (!$this->pdfLayoutHasGeometry($item) || ($item['code'] ?? false) === true) {
+                continue;
+            }
+            $columnIndex = $this->sourcePdfColumnIndexForItem($item, $columns);
+            if ($columnIndex !== null) {
+                $columnIndexes[$index] = $columnIndex;
+            }
+        }
+
+        // A short trailing styled fragment can start just beyond the normal
+        // indent tolerance. Let its already-assigned same-line neighbor carry
+        // the column identity, but only under the same bounded layout and
+        // source-order evidence required for composition below.
+        $changed = true;
+        while ($changed) {
+            $changed = false;
+            foreach ($items as $index => $item) {
+                if (isset($columnIndexes[$index])
+                    || !$this->pdfLayoutHasGeometry($item)
+                    || ($item['code'] ?? false) === true) {
+                    continue;
+                }
+                foreach ($columnIndexes as $neighborIndex => $columnIndex) {
+                    $neighbor = $items[$neighborIndex] ?? null;
+                    if (!is_array($neighbor)
+                        || !$this->positionedPdfInlineFragmentsCanComposeWithinStableColumn(
+                            $neighbor,
+                            $item,
+                            $columns[$columnIndex]
+                        )) {
+                        continue;
+                    }
+                    $columnIndexes[$index] = $columnIndex;
+                    $changed = true;
+                    break;
+                }
+            }
+        }
+
+        $groups = [];
+        foreach ($columnIndexes as $index => $columnIndex) {
+            $item = $items[$index];
+            $fontSize = max(1.0, (float) $item['fontSize']);
+            $baseline = ((float) $item['y1'] + (float) $item['y2']) / 2.0;
+            $groupIndex = null;
+            foreach ($groups[$columnIndex] ?? [] as $candidateIndex => $group) {
+                if (abs($baseline - $group['baseline']) <= max(2.5, $fontSize * 0.35)) {
+                    $groupIndex = $candidateIndex;
+                    break;
+                }
+            }
+            if ($groupIndex === null) {
+                $groups[$columnIndex][] = [
+                    'baseline' => $baseline,
+                    'indexes' => [$index],
+                ];
+                continue;
+            }
+            $groups[$columnIndex][$groupIndex]['indexes'][] = $index;
+        }
+
+        $consumed = [];
+        $composed = [];
+        foreach ($groups as $columnIndex => $columnGroups) {
+            foreach ($columnGroups as $group) {
+                if (count($group['indexes']) < 2) {
+                    continue;
+                }
+                $indexes = $group['indexes'];
+                usort($indexes, fn (int $left, int $right): int => ((float) $items[$left]['x1'] <=> (float) $items[$right]['x1'])
+                    ?: ((int) ($items[$left]['sourceOrderStart'] ?? 0) <=> (int) ($items[$right]['sourceOrderStart'] ?? 0)));
+
+                $candidate = $items[$indexes[0]];
+                $candidateIndexes = [$indexes[0]];
+                for ($offset = 1, $count = count($indexes); $offset < $count; $offset++) {
+                    $nextIndex = $indexes[$offset];
+                    $next = $items[$nextIndex];
+                    if (!$this->positionedPdfInlineFragmentsCanComposeWithinStableColumn(
+                        $candidate,
+                        $next,
+                        $columns[$columnIndex]
+                    )) {
+                        if (count($candidateIndexes) > 1) {
+                            $firstIndex = $candidateIndexes[0];
+                            $composed[$firstIndex] = $candidate;
+                            foreach (array_slice($candidateIndexes, 1) as $consumedIndex) {
+                                $consumed[$consumedIndex] = true;
+                            }
+                        }
+                        $candidate = $next;
+                        $candidateIndexes = [$nextIndex];
+                        continue;
+                    }
+                    $candidate = $this->composePositionedPdfInlineLayoutFragments($candidate, $next);
+                    $candidateIndexes[] = $nextIndex;
+                }
+                if (count($candidateIndexes) > 1) {
+                    $firstIndex = $candidateIndexes[0];
+                    $composed[$firstIndex] = $candidate;
+                    foreach (array_slice($candidateIndexes, 1) as $consumedIndex) {
+                        $consumed[$consumedIndex] = true;
+                    }
+                }
+            }
+        }
+
+        if ($composed === []) {
+            return $items;
+        }
+
+        $result = [];
+        foreach ($items as $index => $item) {
+            if (isset($consumed[$index])) {
+                continue;
+            }
+            $result[] = $composed[$index] ?? $item;
+        }
+
+        return $result;
+    }
+
+    /**
+     * @param array<string, mixed> $first
+     * @param array<string, mixed> $second
+     * @param array{x: float, width: float, fontSize: float, count: int} $column
+     */
+    private function positionedPdfInlineFragmentsCanComposeWithinStableColumn(
+        array $first,
+        array $second,
+        array $column
+    ): bool {
+        if (!$this->pdfLayoutHasGeometry($first)
+            || !$this->pdfLayoutHasGeometry($second)
+            || ($first['code'] ?? false) === true
+            || ($second['code'] ?? false) === true
+            || !isset($first['sourceOrderStart'], $first['sourceOrderEnd'], $second['sourceOrderStart'])) {
+            return false;
+        }
+
+        if ((int) ($first['page'] ?? 0) !== (int) ($second['page'] ?? 0)) {
+            return false;
+        }
+
+        $fontSize = max(1.0, (float) $first['fontSize'], (float) $second['fontSize'], $column['fontSize']);
+        if (abs((float) $first['fontSize'] - (float) $second['fontSize']) > max(1.5, $fontSize * 0.25)) {
+            return false;
+        }
+
+        $firstCenter = ((float) $first['y1'] + (float) $first['y2']) / 2.0;
+        $secondCenter = ((float) $second['y1'] + (float) $second['y2']) / 2.0;
+        if (abs($firstCenter - $secondCenter) > max(2.5, $fontSize * 0.35)) {
+            return false;
+        }
+
+        $firstStart = (int) $first['sourceOrderStart'];
+        $firstEnd = (int) $first['sourceOrderEnd'];
+        $secondStart = (int) $second['sourceOrderStart'];
+        if ($secondStart <= $firstEnd || $secondStart - $firstEnd > 48) {
+            return false;
+        }
+
+        if ((float) $second['x1'] < (float) $first['x1'] - max(2.0, $fontSize * 0.25)) {
+            return false;
+        }
+
+        $gap = (float) $second['x1'] - (float) $first['x2'];
+        return $gap >= -max(24.0, $fontSize * 3.0)
+            && $gap <= min(36.0, max(18.0, $column['width'] * 0.25));
+    }
+
+    /**
+     * @param array<string, mixed> $left
+     * @param array<string, mixed> $right
+     * @return array<string, mixed>
+     */
+    private function composePositionedPdfInlineLayoutFragments(array $left, array $right): array
+    {
+        $leftText = rtrim((string) ($left['text'] ?? ''));
+        $rightText = ltrim((string) ($right['text'] ?? ''));
+
+        return array_replace($left, [
+            'text' => $leftText
+                . ($leftText !== '' && $rightText !== '' && $this->sourcePdfJoinedFragmentsNeedSpace($leftText, $rightText) ? ' ' : '')
+                . $rightText,
+            'x1' => min((float) $left['x1'], (float) $right['x1']),
+            'y1' => min((float) $left['y1'], (float) $right['y1']),
+            'x2' => max((float) $left['x2'], (float) $right['x2']),
+            'y2' => max((float) $left['y2'], (float) $right['y2']),
+            'fontSize' => max((float) $left['fontSize'], (float) $right['fontSize']),
+            'sourceOrderStart' => min((int) $left['sourceOrderStart'], (int) $right['sourceOrderStart']),
+            'sourceOrderEnd' => max((int) $left['sourceOrderEnd'], (int) $right['sourceOrderEnd']),
+            'sourceInlineLayoutComposite' => true,
+        ]);
+    }
+
+    /**
+     * A side figure can occupy the top of the next visual column while body
+     * prose continues from the prior column below it. Move that continuation
+     * ahead of the figure-side records only when an exact source/geometry
+     * match proves both the line and its lower-case cross-column continuation.
+     *
+     * @param list<array<string, mixed>> $entries
+     * @param list<array<string, mixed>>|null $previousColumnEntries
+     * @return list<array<string, mixed>>
+     */
+    private function prioritizeSourcePdfVerifiedCrossColumnContinuation(array $entries, ?array $previousColumnEntries): array
+    {
+        if ($previousColumnEntries === null || $previousColumnEntries === []) {
+            return $entries;
+        }
+
+        foreach ($entries as $index => $entry) {
+            $predecessorIndex = $this->sourcePdfColumnContinuationPredecessorIndex(
+                $previousColumnEntries,
+                $entry
+            );
+            if (($entry['sourceVerifiedGeometryText'] ?? false) !== true
+                || ($index !== 0 && ($entry['forceBlockBreakBefore'] ?? false) !== true)
+                || $predecessorIndex === null) {
+                continue;
+            }
+
+            unset(
+                $entry['sourceInterruptedColumnRegion'],
+                $entry['sourceUnresolvedInterruptedFlow'],
+                $entry['sourceOrphanedInferredContinuation'],
+                $entry['forceBlockBreakBefore']
+            );
+            $entry['sourceCrossColumnContinuation'] = true;
+            $entry['sourceCrossColumnPredecessorIndex'] = $predecessorIndex;
+            $entries[$index] = $entry;
+
+            for ($continuationIndex = $index + 1; isset($entries[$continuationIndex]); $continuationIndex++) {
+                $continuation = $entries[$continuationIndex];
+                if (($continuation['page'] ?? null) !== ($entry['page'] ?? null)
+                    || ($continuation['sourceGeometryColumn'] ?? null) !== ($entry['sourceGeometryColumn'] ?? null)
+                    || ($continuation['sourceVerifiedGeometryText'] ?? false) !== true
+                    || ($continuation['forceBlockBreakBefore'] ?? false) === true
+                    || preg_match('/^[^\p{L}\p{N}]*\p{Ll}/u', ltrim((string) ($continuation['text'] ?? ''))) !== 1) {
+                    break;
+                }
+                unset(
+                    $continuation['sourceInterruptedColumnRegion'],
+                    $continuation['sourceUnresolvedInterruptedFlow'],
+                    $continuation['sourceOrphanedInferredContinuation']
+                );
+                $entries[$continuationIndex] = $continuation;
+            }
+
+            return array_merge(array_slice($entries, $index), array_slice($entries, 0, $index));
+        }
+
+        return $entries;
+    }
+
+    /**
+     * Some PDF readers retain source provenance only after a page has chosen
+     * its final geometry path. Re-apply the verified continuation ordering at
+     * that boundary so a side figure cannot separate a proven paragraph.
+     *
+     * @param list<array<string, mixed>> $items
+     * @return list<array<string, mixed>>
+     */
+    private function prioritizeSourcePdfVerifiedCrossColumnContinuationPages(array $items): array
+    {
+        $pages = [];
+        foreach ($items as $item) {
+            $pages[(string) ($item['page'] ?? 0)][] = $item;
+        }
+
+        $ordered = [];
+        foreach ($pages as $pageItems) {
+            $columns = [];
+            $other = [];
+            foreach ($pageItems as $item) {
+                if (($item['sourceStructuredGeometry'] ?? false) === true
+                    && isset($item['sourceGeometryColumn'])
+                    && ($item['sourceMinorFontFlow'] ?? false) !== true) {
+                    $columns[(int) $item['sourceGeometryColumn']][] = $item;
+                    continue;
+                }
+                $other[] = $item;
+            }
+            if (count($columns) < 2) {
+                foreach ($pageItems as $item) {
+                    $ordered[] = $item;
+                }
+                continue;
+            }
+
+            ksort($columns, SORT_NUMERIC);
+            $previousColumnEntries = null;
+            $previousColumn = null;
+            $orderedColumns = [];
+            $changed = false;
+            foreach ($columns as $columnIndex => $entries) {
+                $entries = $previousColumn !== null && $columnIndex === $previousColumn + 1
+                    ? $this->prioritizeSourcePdfVerifiedCrossColumnContinuation($entries, $previousColumnEntries)
+                    : $entries;
+                $crossColumnContinuation = array_values(array_filter(
+                    $entries,
+                    static fn (array $entry): bool => ($entry['sourceCrossColumnContinuation'] ?? false) === true
+                ));
+                if ($crossColumnContinuation !== []
+                    && is_array($previousColumnEntries)
+                    && $previousColumnEntries !== []
+                    && $orderedColumns !== []) {
+                    $tailIndex = $crossColumnContinuation[0]['sourceCrossColumnPredecessorIndex']
+                        ?? array_key_last($previousColumnEntries);
+                    if (isset($previousColumnEntries[$tailIndex])) {
+                        $tail = $previousColumnEntries[$tailIndex];
+                        for ($leadIndex = $tailIndex; isset($previousColumnEntries[$leadIndex]); $leadIndex--) {
+                            $lead = $previousColumnEntries[$leadIndex];
+                            if (($lead['page'] ?? null) !== ($tail['page'] ?? null)
+                                || ($lead['sourceGeometryColumn'] ?? null) !== ($tail['sourceGeometryColumn'] ?? null)) {
+                                break;
+                            }
+                            $lead['sourceCrossColumnContinuationLead'] = true;
+                            if ($leadIndex === $tailIndex) {
+                                $lead['sourceCrossColumnContinuationTail'] = true;
+                            }
+                            $previousColumnEntries[$leadIndex] = $lead;
+                            foreach ($orderedColumns as $orderedIndex => $orderedEntry) {
+                                if (($orderedEntry['sourcePdfSourceIndex'] ?? null) === ($lead['sourcePdfSourceIndex'] ?? null)
+                                    && ($orderedEntry['x1'] ?? null) === ($lead['x1'] ?? null)
+                                    && ($orderedEntry['y1'] ?? null) === ($lead['y1'] ?? null)) {
+                                    $orderedColumns[$orderedIndex] = $lead;
+                                    break;
+                                }
+                            }
+                            if ($leadIndex !== $tailIndex
+                                && ($lead['forceBlockBreakBefore'] ?? false) === true) {
+                                break;
+                            }
+                        }
+                    }
+                }
+                foreach ($entries as $entry) {
+                    $changed = $changed || (($entry['sourceCrossColumnContinuation'] ?? false) === true);
+                    $orderedColumns[] = $entry;
+                }
+                $previousColumnEntries = $entries;
+                $previousColumn = $columnIndex;
+            }
+            if (!$changed) {
+                foreach ($pageItems as $item) {
+                    $ordered[] = $item;
+                }
+                continue;
+            }
+
+            foreach ($orderedColumns as $item) {
+                $ordered[] = $item;
+            }
+            foreach ($other as $item) {
+                $ordered[] = $item;
+            }
         }
 
         return $ordered;
@@ -3771,24 +4754,55 @@ final class PdfReader
      */
     private function sourcePdfColumnLeadingItemContinuesPreviousColumn(?array $previousColumnItems, array $item): bool
     {
-        if ($previousColumnItems === null || $previousColumnItems === []) {
-            return false;
+        return $this->sourcePdfColumnContinuationPredecessorIndex($previousColumnItems, $item) !== null;
+    }
+
+    /**
+     * A footnote, caption, or small diagram can be the last physical item in
+     * a column even when an unfinished body sentence above it continues in
+     * the next column. Find the nearest compatible body line rather than
+     * assuming the literal last item is the paragraph tail.
+     *
+     * @param list<array<string, mixed>>|null $previousColumnItems
+     */
+    private function sourcePdfColumnContinuationPredecessorIndex(?array $previousColumnItems, array $item): ?int
+    {
+        if ($previousColumnItems === null
+            || $previousColumnItems === []
+            || !$this->pdfLayoutHasGeometry($item)
+            || ($item['code'] ?? false) === true
+            || isset($item['sourcePdfTableGroup'])
+            || ($item['sourceVerifiedGeometryText'] ?? false) !== true
+            || preg_match('/^[^\p{L}\p{N}]*\p{Ll}/u', ltrim((string) ($item['text'] ?? ''))) !== 1
+            || count($this->pdfLineWordTokens((string) ($item['text'] ?? ''))) < 4) {
+            return null;
         }
 
-        $previous = $previousColumnItems[array_key_last($previousColumnItems)];
-        if (!$this->pdfLayoutHasGeometry($previous) || !$this->pdfLayoutHasGeometry($item)
-            || ($previous['page'] ?? null) !== ($item['page'] ?? null)
-            || ($previous['sourceInterruptedColumnRegion'] ?? false) === true
-            || preg_match('/[.!?;:]\s*$/u', rtrim((string) ($previous['text'] ?? ''))) === 1) {
-            return false;
+        foreach (array_reverse(array_keys($previousColumnItems)) as $index) {
+            $previous = $previousColumnItems[$index];
+            if (!$this->pdfLayoutHasGeometry($previous)
+                || ($previous['page'] ?? null) !== ($item['page'] ?? null)
+                || ($previous['code'] ?? false) === true
+                || isset($previous['sourcePdfTableGroup'])
+                || ($previous['sourceVerifiedGeometryText'] ?? false) !== true
+                || $this->lineHasPdfListBlockEvidence((string) ($previous['text'] ?? ''))
+                || preg_match('/[.!?;:]\s*$/u', rtrim((string) ($previous['text'] ?? ''))) === 1
+                || count($this->pdfLineWordTokens((string) ($previous['text'] ?? ''))) < 4) {
+                continue;
+            }
+
+            $fontSize = max(1.0, (float) $previous['fontSize'], (float) $item['fontSize']);
+            $smallerFontSize = min((float) $previous['fontSize'], (float) $item['fontSize']);
+            if ($smallerFontSize / $fontSize < 0.92
+                || abs((float) $previous['fontSize'] - (float) $item['fontSize']) > max(1.25, $fontSize * 0.20)
+                || (float) $item['y1'] - (float) $previous['y1'] <= max(24.0, $fontSize * 3.0)) {
+                continue;
+            }
+
+            return (int) $index;
         }
 
-        $fontSize = max(1.0, (float) $previous['fontSize'], (float) $item['fontSize']);
-        if (abs((float) $previous['fontSize'] - (float) $item['fontSize']) > max(1.25, $fontSize * 0.20)) {
-            return false;
-        }
-
-        return (float) $item['y1'] - (float) $previous['y1'] > max(24.0, $fontSize * 3.0);
+        return null;
     }
 
     /**
@@ -4396,6 +5410,130 @@ final class PdfReader
         }
 
         return $result;
+    }
+
+    /**
+     * Protect a geometry-verified listing before prose cleanup can discard or
+     * merge its source lines. This accepts only matches whose token span is
+     * line-aligned in the source stream, so nearby prose cannot be replaced
+     * by a code block merely because it shares a few identifiers.
+     *
+     * @param list<string> $lines
+     * @param list<array<string, mixed>> $layouts
+     * @param list<string> $codeBlocks
+     * @return array{lines: list<string>, layouts: list<array<string, mixed>>, remainingCodeBlocks: list<string>}
+     */
+    private function injectPositionedCodeBlocksIntoRepairSource(
+        array $lines,
+        array $layouts,
+        array $codeBlocks
+    ): array {
+        if ($lines === [] || $codeBlocks === []) {
+            return [
+                'lines' => $lines,
+                'layouts' => $layouts,
+                'remainingCodeBlocks' => $codeBlocks,
+            ];
+        }
+
+        if (count($layouts) !== count($lines)) {
+            $layouts = array_fill(0, count($lines), []);
+        }
+
+        $document = implode("\n", $lines);
+        $documentTokens = $this->pdfCodeMatchTokens($document);
+        $lineStarts = [];
+        $offset = 0;
+        foreach ($lines as $line) {
+            $lineStarts[] = $offset;
+            $offset += strlen($line) + 1;
+        }
+
+        $lineIndexAtOffset = static function (int $target) use ($lineStarts): ?int {
+            $index = null;
+            foreach ($lineStarts as $candidate => $start) {
+                if ($start > $target) {
+                    break;
+                }
+                $index = $candidate;
+            }
+
+            return $index;
+        };
+
+        $replacements = [];
+        $remaining = [];
+        foreach ($codeBlocks as $codeIndex => $codeBlock) {
+            $codeTokens = array_column($this->pdfCodeMatchTokens($codeBlock), 'token');
+            if (count($codeTokens) < 24) {
+                $remaining[] = $codeBlock;
+                continue;
+            }
+            $match = $this->matchingPdfCodeTokenSpan($documentTokens, $codeTokens);
+            if ($match === null) {
+                $remaining[] = $codeBlock;
+                continue;
+            }
+
+            $startLine = $lineIndexAtOffset($match['start']);
+            $endLine = $lineIndexAtOffset(max($match['start'], $match['end'] - 1));
+            if ($startLine === null || $endLine === null || $startLine > $endLine) {
+                $remaining[] = $codeBlock;
+                continue;
+            }
+
+            $startColumn = $match['start'] - $lineStarts[$startLine];
+            $endColumn = $match['end'] - $lineStarts[$endLine];
+            $leading = substr($lines[$startLine], 0, max(0, $startColumn));
+            $trailing = substr($lines[$endLine], max(0, $endColumn));
+            if (trim($leading) !== '' || trim($trailing) !== '') {
+                $remaining[] = $codeBlock;
+                continue;
+            }
+
+            $overlaps = false;
+            foreach ($replacements as $replacement) {
+                if ($startLine <= $replacement['endLine'] && $endLine >= $replacement['startLine']) {
+                    $overlaps = true;
+                    break;
+                }
+            }
+            if ($overlaps) {
+                $remaining[] = $codeBlock;
+                continue;
+            }
+
+            $replacements[] = [
+                'startLine' => $startLine,
+                'endLine' => $endLine,
+                'text' => self::PDF_CODE_BLOCK_PREFIX . rtrim($codeBlock),
+            ];
+        }
+
+        if ($replacements === []) {
+            return [
+                'lines' => $lines,
+                'layouts' => $layouts,
+                'remainingCodeBlocks' => $remaining,
+            ];
+        }
+
+        usort($replacements, static fn (array $left, array $right): int => $right['startLine'] <=> $left['startLine']);
+        foreach ($replacements as $replacement) {
+            $length = $replacement['endLine'] - $replacement['startLine'] + 1;
+            $codeText = substr($replacement['text'], strlen(self::PDF_CODE_BLOCK_PREFIX));
+            array_splice($lines, $replacement['startLine'], $length, [$replacement['text']]);
+            array_splice($layouts, $replacement['startLine'], $length, [[
+                'code' => true,
+                'codeText' => $codeText,
+            ]]);
+        }
+
+        return [
+            'lines' => $lines,
+            'layouts' => $layouts,
+            'remainingCodeBlocks' => $remaining,
+        ];
     }
 
     /**
@@ -5570,6 +6708,19 @@ final class PdfReader
         $pendingListMarker = null;
         foreach ($lines as $index => $line) {
             $layout = $lineLayouts[$index] ?? null;
+            if (str_starts_with($line, self::PDF_CODE_BLOCK_PREFIX)) {
+                $code = rtrim(substr($line, strlen(self::PDF_CODE_BLOCK_PREFIX)));
+                if ($code !== '') {
+                    $cleaned[] = [
+                        'text' => $code,
+                        'layout' => [
+                            'code' => true,
+                            'codeText' => $code,
+                        ],
+                    ];
+                }
+                continue;
+            }
             $chunks = $this->splitPdfTextLineVisualChunks($line);
             $chunkLayout = count($chunks) === 1 ? $layout : null;
             foreach ($chunks as $chunk) {
@@ -6649,6 +7800,19 @@ final class PdfReader
         foreach ($records as $record) {
             $layout = is_array($record['layout'] ?? null) ? $record['layout'] : null;
             $text = (string) ($record['text'] ?? '');
+            if (($layout['sourceCrossColumnContinuation'] ?? false) === true
+                || ($layout['sourceCrossColumnContinuationLead'] ?? false) === true) {
+                $orphanedFlowLayout = null;
+                $filtered[] = $record;
+                continue;
+            }
+            if (($layout['sourceVerifiedGeometryText'] ?? false) === true
+                && $this->length($this->pdfComparableLineText($text)) >= 24
+                && count($this->pdfLineWordTokens($text)) >= 4) {
+                $orphanedFlowLayout = null;
+                $filtered[] = $record;
+                continue;
+            }
             $startsOrphanedFlow = ($layout['sourceOrphanedInferredContinuation'] ?? false) === true
                 || ($layout['sourceUnresolvedInterruptedFlow'] ?? false) === true;
             $continuesOrphanedFlow = !$startsOrphanedFlow
@@ -6911,6 +8075,7 @@ final class PdfReader
             $startsInterruptedSupplementLead = ($layout['sourceSupplementalPositioned'] ?? false) === true
                 && preg_match('/[.!?;:]\s*$/u', $text) !== 1;
             if (!$this->pdfLayoutHasGeometry($layout)
+                || ($layout['sourceVerifiedGeometryText'] ?? false) === true
                 || ($layout['sourceInterruptedColumnRegion'] ?? false) !== true
                 || (($layout['forceBlockBreakBefore'] ?? false) === true && !$startsInterruptedSupplementLead)
                 || $this->lineHasPdfListBlockEvidence($text)
@@ -7289,11 +8454,13 @@ final class PdfReader
                 : null;
             $text = ltrim($record['text']);
             $startsContinuation = preg_match('/^(?:[^\p{L}\p{N}]*\p{Ll}|[,;:\)\]\}])/u', $text) === 1;
+            $startsFormulaAssignment = $this->sourcePdfTextContainsCompactAssignmentLabel($text);
             if ($page !== null
                 && $page !== $previousPage
                 && $previous !== null
                 && preg_match('/[.!?]\s*$/u', rtrim($previous['text'])) === 1
                 && $startsContinuation
+                && !$startsFormulaAssignment
                 && !$this->lineHasPdfListBlockEvidence($text)
                 && !$this->lineLooksLikeUrlOnly($text)) {
                 $droppingPage = $page;
@@ -7467,6 +8634,9 @@ final class PdfReader
     private function pdfComplexColumnRecordHasDamageEvidence(array $record): bool
     {
         $layout = is_array($record['layout'] ?? null) ? $record['layout'] : [];
+        if (($layout['sourceVerifiedGeometryText'] ?? false) === true) {
+            return false;
+        }
         if (($layout['sourceInterruptedColumnRegion'] ?? false) === true
             || ($layout['sourceMinorFontFlow'] ?? false) === true) {
             return true;
@@ -7496,6 +8666,11 @@ final class PdfReader
         ?array $visualPreceding = null
     ): bool
     {
+        foreach ($records as $record) {
+            if (($record['layout']['sourceCrossColumnContinuationTail'] ?? false) === true) {
+                return false;
+            }
+        }
         if ($this->pdfComplexColumnSegmentIsIsolatedInterruptedSupplement($records, $following)) {
             return true;
         }
@@ -8887,6 +10062,57 @@ final class PdfReader
     }
 
     /**
+     * A hard line-break hyphen is indistinguishable from a semantic hyphen in
+     * an untagged PDF. A repeated, intact compound elsewhere in the same
+     * document makes the former observable without relying on a dictionary.
+     *
+     * @param list<string> $lines
+     * @param list<array<string, mixed>> $layouts
+     * @param list<string> $documentLines
+     * @return array<string, string>
+     */
+    private function pdfRepeatedCompoundLineBreakHints(array $lines, array $layouts, array $documentLines): array
+    {
+        if (count($lines) < 2 || count($layouts) !== count($lines) || $documentLines === []) {
+            return [];
+        }
+
+        $documentText = $this->normalizePdfTextEncoding(implode("\n", $documentLines));
+        if (preg_match_all('/(?<![\p{L}\p{M}\p{N}])([\p{L}][\p{L}\p{M}\p{N}]*)(?![\p{L}\p{M}\p{N}])/u', $documentText, $matches) === false) {
+            return [];
+        }
+        $knownTokens = array_fill_keys($matches[1], true);
+        $hints = [];
+
+        for ($index = 0, $count = count($lines) - 1; $index < $count; $index++) {
+            $previous = rtrim($lines[$index]);
+            $following = ltrim($lines[$index + 1]);
+            $previousLayout = $layouts[$index];
+            $followingLayout = $layouts[$index + 1];
+            if (($previousLayout['code'] ?? false) === true
+                || ($followingLayout['code'] ?? false) === true
+                || ($followingLayout['forceBlockBreakBefore'] ?? false) === true
+                || !$this->repairedPdfLayoutContinuesWrappedLine($previousLayout, $followingLayout)
+                || preg_match('/([\p{Lu}][\p{Ll}\p{M}]{1,})[-\x{2010}\x{2011}]\s*$/u', $previous, $prefixMatch) !== 1
+                || preg_match('/^([\p{Lu}][\p{Ll}\p{M}]{1,})(?![\p{L}\p{M}\p{N}])/u', $following, $continuationMatch) !== 1) {
+                continue;
+            }
+
+            $prefix = $prefixMatch[1];
+            $continuation = $continuationMatch[1];
+            $compound = $prefix . $continuation;
+            if (!isset($knownTokens[$compound]) || isset($knownTokens[$prefix . '-' . $continuation])) {
+                continue;
+            }
+
+            $hints[$this->splitHyphenFragmentHintKey($prefix . '-' . $continuation)] = $compound;
+            $hints[$this->splitHyphenFragmentHintKey($prefix . '- ' . $continuation)] = $compound;
+        }
+
+        return $hints;
+    }
+
+    /**
      * Raw text operators sometimes split one word, while the reconstructed
      * source line later inserts a space between its fragments. A raw hint is
      * safe only when positioned runs independently show the fragments as one
@@ -9187,7 +10413,11 @@ final class PdfReader
             $medianFontSize = max(1.0, $this->median($fontSizes));
             $rowTolerance = max(3.0, $medianFontSize * 0.55);
             $rows = $this->clusterPositionedRows($pageRuns, $rowTolerance);
-            foreach ($rows as $row) {
+            $spacingRows = array_values(array_filter(
+                $rows,
+                fn (array $row): bool => $this->positionedRowMaxNominalFontSize($row) >= 4.0
+            ));
+            foreach ($spacingRows as $row) {
                 foreach ($this->positionedSpacingHintTokenSegments($row['runs']) as $tokens) {
                     $tokenCount = count($tokens);
                     for ($start = 0; $start < $tokenCount - 1; $start++) {
@@ -9202,13 +10432,16 @@ final class PdfReader
                             }
                             if ($end === $start + 1) {
                                 $pairTokens = array_slice($tokens, $start, 2);
-                                if (!$this->spacingHintTokenSequenceLooksUsable($pairTokens)) {
+                                $hasSourceEvidence = !$requireSourceEvidence
+                                    || $this->positionedPdfRowHasMatchedSourceGluedText($row, $glued, $matchedSourceItems);
+                                if (!$hasSourceEvidence
+                                    || $this->spacingHintTokensHaveAmbiguousTrailingLowercaseGlyph($pairTokens)
+                                    || (!$this->spacingHintTokenSequenceLooksUsable($pairTokens)
+                                        && !($requireSourceEvidence
+                                            && $this->spacingHintTokensHaveSingleLetterEdge($pairTokens)))) {
                                     continue;
                                 }
-                                if (!$requireSourceEvidence
-                                    || $this->positionedPdfRowHasMatchedSourceGluedText($row, $glued, $matchedSourceItems)) {
-                                    $hints[$this->spacingHintKey($glued)] = $spaced;
-                                }
+                                $hints[$this->spacingHintKey($glued)] = $spaced;
                                 continue;
                             }
                             if (!$this->spacingHintTokenSequenceLooksUsable(array_slice($tokens, $start, $end - $start + 1))) {
@@ -9222,7 +10455,7 @@ final class PdfReader
                 }
             }
             foreach ($this->pdfPositionedRowBoundarySpacingHints(
-                $rows,
+                $spacingRows,
                 $medianFontSize,
                 $matchedSourceItems,
                 $requireSourceEvidence
@@ -9366,7 +10599,7 @@ final class PdfReader
     }
 
     /**
-     * @param list<array{page: int, text: string, x1: float, y1: float, x2: float, y2: float, textX1: float, textY1: float, textX2: float, textY2: float, fontSize: float, startsWithWhitespace?: bool, endsWithWhitespace?: bool}> $runs
+     * @param list<array{page: int, text: string, x1: float, y1: float, x2: float, y2: float, textX1: float, textY1: float, textX2: float, textY2: float, fontSize: float, startsWithWhitespace?: bool, endsWithWhitespace?: bool, wordBoundaryBefore?: bool, hasWordBoundaryBefore?: bool}> $runs
      * @return list<list<string>>
      */
     private function positionedSpacingHintTokenSegments(array $runs): array
@@ -9374,12 +10607,17 @@ final class PdfReader
         usort($runs, static fn (array $left, array $right): int => ($left['textX1'] <=> $right['textX1']) ?: (($left['order'] ?? 0) <=> ($right['order'] ?? 0)));
         $segments = [];
         $current = [];
+        $currentWord = '';
         $previous = null;
-        $flush = static function () use (&$segments, &$current): void {
+        $flush = static function () use (&$segments, &$current, &$currentWord): void {
+            if ($currentWord !== '') {
+                $current[] = $currentWord;
+            }
             if (count($current) >= 2) {
                 $segments[] = $current;
             }
             $current = [];
+            $currentWord = '';
         };
         foreach ($runs as $run) {
             $token = $this->spacingHintTokenFromPositionedRun((string) $run['text']);
@@ -9388,10 +10626,30 @@ final class PdfReader
                 $previous = null;
                 continue;
             }
-            if ($previous !== null && !$this->positionedRunsHaveSpacingHintBoundary($previous, $run)) {
-                $flush();
+            if ($previous === null) {
+                $currentWord = $token;
+                $previous = $run;
+                continue;
             }
-            $current[] = $token;
+
+            $hasStructuralBoundary = ($run['hasWordBoundaryBefore'] ?? false) === true;
+            $isWordBoundary = $hasStructuralBoundary
+                ? (($run['wordBoundaryBefore'] ?? false) === true)
+                : $this->positionedRunsHaveSpacingHintBoundary($previous, $run);
+            if ($isWordBoundary) {
+                if ($currentWord !== '') {
+                    $current[] = $currentWord;
+                }
+                $currentWord = $token;
+            } elseif ($hasStructuralBoundary) {
+                // A TJ adjustment or text-state transition explicitly proves
+                // this run continues the same word. Trust it over imprecise
+                // font-width geometry.
+                $currentWord .= $token;
+            } else {
+                $flush();
+                $currentWord = $token;
+            }
             $previous = $run;
         }
         $flush();
@@ -9494,6 +10752,41 @@ final class PdfReader
         }
 
         return true;
+    }
+
+    /**
+     * A one-letter mathematical variable at either edge of ordinary prose is
+     * ambiguous without source evidence. Callers use this only after the
+     * positioned row and source text both prove the corresponding glued token.
+     *
+     * @param list<string> $tokens
+     */
+    private function spacingHintTokensHaveSingleLetterEdge(array $tokens): bool
+    {
+        if (count($tokens) !== 2) {
+            return false;
+        }
+
+        return (preg_match('/^\p{L}$/u', $tokens[0]) === 1
+                && preg_match('/^\p{L}{2,24}$/u', $tokens[1]) === 1)
+            || (preg_match('/^\p{L}{2,24}$/u', $tokens[0]) === 1
+                && preg_match('/^\p{L}$/u', $tokens[1]) === 1);
+    }
+
+    /**
+     * A lower-case final glyph in an otherwise lower-case run is often a
+     * separate positioned font fragment, not an independently spaced token.
+     * Do not turn that ambiguous pair into a global spacing replacement: the
+     * same replacement could split intact prose elsewhere in the document.
+     * Upper-case notation and leading one-letter variables remain eligible.
+     *
+     * @param list<string> $tokens
+     */
+    private function spacingHintTokensHaveAmbiguousTrailingLowercaseGlyph(array $tokens): bool
+    {
+        return count($tokens) === 2
+            && preg_match('/^\p{Ll}{2,24}$/u', $tokens[0]) === 1
+            && preg_match('/^\p{Ll}$/u', $tokens[1]) === 1;
     }
 
     private function pdfTextRunTrailingSplitFragment(string $text): string
@@ -9634,6 +10927,7 @@ final class PdfReader
         $line = str_replace("\u{00AD}", '-', $line);
         $line = $this->repairPositionedSpacingWhitespace($line, $splitWordHints);
         $lineHasWordSpacing = preg_match('/\p{L}\s+\p{L}/u', $line) === 1;
+        $line = preg_replace('/(?<=\S) +(?=[.,!?\)\]])/u', '', $line) ?? $line;
         $line = preg_replace('/([,;:!?])(?=\S)/u', '$1 ', $line) ?? $line;
         $line = preg_replace('/(?<!\d)\.(?=\p{Lu})/u', '. ', $line) ?? $line;
         if ($lineHasWordSpacing) {
@@ -10225,6 +11519,13 @@ final class PdfReader
                 $pending = $this->repairedLineShouldRemoveHyphenatedBreak($pending, $line, $pendingLayout, $layout)
                     ? rtrim(preg_replace('/-\s*$/u', '', $pending) ?? rtrim(substr($pending, 0, -1))) . ltrim($line)
                     : rtrim($pending) . ltrim($line);
+                $pendingLayout = $layout;
+                continue;
+            }
+            if (preg_match('/[-\x{2010}\x{2011}]\s*$/u', $pending) === 1
+                && preg_match('/^[^\p{L}\p{N}]*\p{Lu}/u', ltrim($line)) === 1
+                && $this->repairedPdfLayoutContinuesWrappedLine($pendingLayout, $layout)) {
+                $pending = rtrim($pending) . ltrim($line);
                 $pendingLayout = $layout;
                 continue;
             }
@@ -11195,7 +12496,7 @@ final class PdfReader
 
     /**
      * @param array<string, mixed> $run
-     * @return array{page: int, text: string, x1: float, y1: float, x2: float, y2: float, textX1: float, textY1: float, textX2: float, textY2: float, fontSize: float, startsWithWhitespace: bool, endsWithWhitespace: bool}|null
+     * @return array{page: int, text: string, x1: float, y1: float, x2: float, y2: float, textX1: float, textY1: float, textX2: float, textY2: float, fontSize: float, startsWithWhitespace: bool, endsWithWhitespace: bool, wordBoundaryBefore: bool, hasWordBoundaryBefore: bool}|null
      */
     private function positionedRun(array $run): ?array
     {
@@ -11227,8 +12528,11 @@ final class PdfReader
             'textX2' => max($textX1, $textX2),
             'textY2' => max($textY1, $textY2),
             'fontSize' => max(1.0, $fontSize ?? abs($y2 - $y1)),
+            'nominalFontSize' => max(1.0, $fontSize ?? abs($y2 - $y1)),
             'startsWithWhitespace' => preg_match('/^\s/u', $rawText) === 1,
             'endsWithWhitespace' => preg_match('/\s$/u', $rawText) === 1,
+            'wordBoundaryBefore' => ($run['wordBoundaryBefore'] ?? false) === true,
+            'hasWordBoundaryBefore' => array_key_exists('wordBoundaryBefore', $run),
             'startsAfterTextBoundary' => false,
             'order' => max(0, (int) ($run['_order'] ?? 0)),
             'lastOrder' => max(0, (int) ($run['_order'] ?? 0)),
@@ -11537,6 +12841,23 @@ final class PdfReader
         }
 
         return $fontSize;
+    }
+
+    /**
+     * Form XObjects can apply a large coordinate transform to nominally tiny
+     * text. Keep that original text-state size separate from the expanded
+     * visual bounds when deciding whether operator-level spacing is reliable.
+     *
+     * @param array{runs: list<array<string, mixed>>} $row
+     */
+    private function positionedRowMaxNominalFontSize(array $row): float
+    {
+        $fontSize = 0.0;
+        foreach ($row['runs'] as $run) {
+            $fontSize = max($fontSize, (float) ($run['nominalFontSize'] ?? $run['fontSize'] ?? 0.0));
+        }
+
+        return max(1.0, $fontSize);
     }
 
     /**

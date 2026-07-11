@@ -15051,7 +15051,7 @@ final class PdfTextExtractor
     }
 
     /**
-     * @return list<array{text: string, x1: float, y1: float, x2: float, y2: float, textX1: float, textY1: float, textX2: float, textY2: float, fontSize: float}>
+     * @return list<array{text: string, x1: float, y1: float, x2: float, y2: float, textX1: float, textY1: float, textX2: float, textY2: float, fontSize: float, wordBoundaryBefore: bool}>
      * @param array<string, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}> $fontToUnicodeMaps
      * @param array<string, array{base: string, differences: array<int, string>, suppressUnmapped: bool}> $fontEncodings
      * @param array<string, string> $propertyActualTexts
@@ -15079,6 +15079,7 @@ final class PdfTextExtractor
         $textStateStack = [];
         $actualTextStack = [];
         $artifactStack = [];
+        $pendingTextPositionBoundary = false;
         $currentTransformationMatrix = $this->identityTransformationMatrix();
         $maxRuns = $this->maxPositionedTextRuns();
 
@@ -15123,6 +15124,7 @@ final class PdfTextExtractor
                     );
                     $currentTextEndX = $currentTextX;
                     $currentTextEndY = $currentTextY;
+                    $pendingTextPositionBoundary = true;
                 }
 
                 if ($token === '"') {
@@ -15162,7 +15164,7 @@ final class PdfTextExtractor
                         && $startX !== null
                         && $startY !== null
                     ) {
-                        foreach ($this->textOperandVisualSegments(
+                        $segments = $this->textOperandVisualSegments(
                             $operand,
                             $toUnicodeMap,
                             $fontEncoding,
@@ -15171,7 +15173,8 @@ final class PdfTextExtractor
                             $wordSpacing,
                             $horizontalScale,
                             $axis
-                        ) as $segment) {
+                        );
+                        foreach ($segments as $segmentIndex => $segment) {
                             $segmentStartX = $startX + ($segment['startOffset'] * $axis['x']);
                             $segmentStartY = $startY + ($segment['startOffset'] * $axis['y']);
                             $segmentEndX = $startX + ($segment['endOffset'] * $axis['x']);
@@ -15183,11 +15186,19 @@ final class PdfTextExtractor
                                 $segmentEndX,
                                 $segmentEndY,
                                 $currentFontSize,
-                                $axis
+                                $axis,
+                                ($segmentIndex === 0 && $pendingTextPositionBoundary)
+                                    || $this->tjAdjustmentGapLooksLikeWordBoundary(
+                                        $segment['gapBefore'],
+                                        $currentFontSize
+                                    )
                             );
                             if (count($runs) >= $maxRuns) {
                                 return $runs;
                             }
+                        }
+                        if ($segments !== []) {
+                            $pendingTextPositionBoundary = false;
                         }
                     }
 
@@ -15214,6 +15225,7 @@ final class PdfTextExtractor
                     'xAxisY' => $currentTextXAxisY,
                     'yAxisX' => $currentTextYAxisX,
                     'yAxisY' => $currentTextYAxisY,
+                    'pendingTextPositionBoundary' => $pendingTextPositionBoundary,
                     'transformationMatrix' => $currentTransformationMatrix,
                 ];
                 $operands = [];
@@ -15237,6 +15249,7 @@ final class PdfTextExtractor
                     $currentTextXAxisY = $state['xAxisY'];
                     $currentTextYAxisX = $state['yAxisX'];
                     $currentTextYAxisY = $state['yAxisY'];
+                    $pendingTextPositionBoundary = (bool) ($state['pendingTextPositionBoundary'] ?? false);
                     $currentTransformationMatrix = is_array($state['transformationMatrix'] ?? null)
                         ? $state['transformationMatrix']
                         : $this->identityTransformationMatrix();
@@ -15303,6 +15316,7 @@ final class PdfTextExtractor
                 );
                 $currentTextEndX = $currentTextX;
                 $currentTextEndY = $currentTextY;
+                $pendingTextPositionBoundary = true;
                 $operands = [];
                 continue;
             }
@@ -15313,6 +15327,7 @@ final class PdfTextExtractor
                 $currentTextY = $matrixPosition['y'] ?? null;
                 $currentTextEndX = $currentTextX;
                 $currentTextEndY = $currentTextY;
+                $pendingTextPositionBoundary = true;
                 $matrixAxes = $this->textMatrixAxes($operands, $currentTransformationMatrix);
                 $currentTextXAxisX = $matrixAxes['xAxisX'] ?? 1.0;
                 $currentTextXAxisY = $matrixAxes['xAxisY'] ?? 0.0;
@@ -15332,6 +15347,7 @@ final class PdfTextExtractor
                 );
                 $currentTextEndX = $currentTextX;
                 $currentTextEndY = $currentTextY;
+                $pendingTextPositionBoundary = true;
                 $operands = [];
                 continue;
             }
@@ -15345,6 +15361,7 @@ final class PdfTextExtractor
                 $currentTextXAxisY = 0.0;
                 $currentTextYAxisX = 0.0;
                 $currentTextYAxisY = 1.0;
+                $pendingTextPositionBoundary = false;
                 $operands = [];
                 continue;
             }
@@ -15358,6 +15375,7 @@ final class PdfTextExtractor
                 $currentTextXAxisY = 0.0;
                 $currentTextYAxisX = 0.0;
                 $currentTextYAxisY = 1.0;
+                $pendingTextPositionBoundary = false;
                 $operands = [];
                 continue;
             }
@@ -15375,9 +15393,18 @@ final class PdfTextExtractor
 
     /**
      * @param array{x: float, y: float, scale: float} $axis
-     * @return array{text: string, x1: float, y1: float, x2: float, y2: float, textX1: float, textY1: float, textX2: float, textY2: float, fontSize: float}
+     * @return array{text: string, x1: float, y1: float, x2: float, y2: float, textX1: float, textY1: float, textX2: float, textY2: float, fontSize: float, wordBoundaryBefore: bool}
      */
-    private function positionedTextRun(string $text, float $startX, float $startY, float $endX, float $endY, ?float $fontSize, array $axis): array
+    private function positionedTextRun(
+        string $text,
+        float $startX,
+        float $startY,
+        float $endX,
+        float $endY,
+        ?float $fontSize,
+        array $axis,
+        bool $wordBoundaryBefore = false
+    ): array
     {
         $resolvedFontSize = $fontSize ?? 12.0;
         $height = max(1.0, $resolvedFontSize * max(1.0, $axis['scale']));
@@ -15394,6 +15421,7 @@ final class PdfTextExtractor
             'textX2' => max($startX, $endX),
             'textY2' => max($startY, $endY),
             'fontSize' => $resolvedFontSize,
+            'wordBoundaryBefore' => $wordBoundaryBefore,
         ];
     }
 

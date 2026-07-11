@@ -237,10 +237,12 @@ return [
         $t->true(!str_contains($blocks, '<!-- wp:table -->'));
         $t->contains('OR Hike the North Kaibab Trail to Coconino Overlook. Hiking into the Canyon offers a different perspective.', $text);
         $t->contains('The Pocket Map is published by Grand Canyon National Park with support from your entrance fees.', $text);
+        $t->contains('Food service is available from mid-May to mid-October.', $text);
         foreach ([
             'Hiking into 22 feet (6.7 m) prohibited on the roads',
             'Trail south from Point Imperial for a half mile for an easy hike with Parking',
             'S o c n',
+            'mid- May',
         ] as $artifact) {
             $t->true(!str_contains($text, $artifact), "Grand Canyon prose must not retain interleaved map-panel artifact '{$artifact}'.");
         }
@@ -390,13 +392,11 @@ return [
         $t->contains('Figure 6. We handle type-unstable loops by allowing traces to compile that cannot loop back to themselves', $blocks);
         foreach ([
             '<p>compiled twice, and both copies must be retained in the trace cache.</p>',
-            'is close to 1, the resulting trace trees will be tractable.',
-            'Later, the program might take the other branch at i',
+            '<p>Later, the program might take the other branch at i</p>',
             '<h2>In general, if loops are nested to depthk</h2>',
-            'which can easily fill the trace cache.',
-            'loops back to line 1. i=3.',
+            '<p>which can easily fill the trace cache.</p>',
+            '<p>loops back to line 1. i=3.</p>',
             'tofaila guard and takea sideexit.',
-            'exactly as the na',
             'Related work is discussed in</p>',
             'The LIR encodes</p>',
             'Most LIR instructions compile</p>',
@@ -435,6 +435,18 @@ return [
         $t->contains('Figure 7 shows basic trace tree compilation (11) applied to a nested loop where the inner loop contains two paths. Usually, the inner loop (with header at i2) becomes hot first, and a trace tree is rooted at that point.', $blocks);
         $t->true(!str_contains($blocks, 'loop (with header at i at that point.'), 'TraceMonkey must not merge source fragments across omitted diagram content.');
         $t->contains('Thus, the outer loop is recorded and compiled twice, and both copies must be retained in the trace cache.', $blocks);
+        $t->contains('Later, the program might take the other branch at i2 and then exit, recording another branch trace incorporating the outer loop:', $blocks);
+        $t->contains('In general, if loops are nested to depth k, and each loop has n paths (on geometric average), this naïve strategy yields O(n k)traces, which can easily fill the trace cache.', $blocks);
+        $t->contains('We solve the nested loop problem by recording nested trace trees. Our system traces the inner loop exactly as the naïve version.', $blocks);
+        $t->contains('After compiling T 45, TraceMonkey returns to the interpreter and loops back to line 1. i=3. Now the loop header at line 1 has become hot, so TraceMonkey starts recording.', $blocks);
+        $t->contains('We call the resulting tracing VM TraceMonkey. TraceMonkey supports all the JavaScript features of SpiderMonkey', $blocks);
+        $t->true(!str_contains($blocks, 'Trace- Monkey'), 'TraceMonkey must join geometry-confirmed repeated compounds across line-end hyphens.');
+        $t->contains('each loop is entered with m different type maps (on geometric average)', $blocks);
+        $t->contains('As long as m is close to 1, the resulting trace trees will be tractable.', $blocks);
+        $t->true(
+            !str_contains($blocks, '<p>is close to 1, the resulting trace trees will be tractable.</p>'),
+            'TraceMonkey must not retain the second half of a sentence as detached prose.'
+        );
         $t->contains('When the VM fails to finish a trace starting at a given point, the VM records that a failure has occurred.', $blocks);
         $t->contains('As future work, this situation could be avoided by detecting and blacklisting loops for which the average trace call executes few bytecodes before returning to the interpreter.', $blocks);
         $t->contains('An important detail is that the call to the inner trace tree must act', $blocks);
@@ -446,7 +458,7 @@ return [
         foreach ([
             'JavaScript, for example, is the de facto standard for client-side web programming and is used for the application logic of browser-based productivity applications',
             'In TraceMonkey, traces are recorded in trace-flavored SSA LIR (low-level intermediate representation).',
-            'objects’ representations are assigned an integer key called the object shape . Thus, the guard is a simple equality check on the object shape.',
+            'objects’ representations are assigned an integer key called the object shape. Thus, the guard is a simple equality check on the object shape.',
             'Clearly, a JavaScript VM that wants to be fast must find a way to operate on integers directly and avoid these conversions.',
             'See Figure 6 for details. All pointers contained in jsvals point to GC-controlled blocks aligned on 8-byte boundaries.',
         ] as $recovered) {
@@ -467,6 +479,23 @@ return [
         $t->contains("v0 := ld state[748]      // load primes from the trace activation record\n", $blocks);
         $t->contains("mov edx, ebx(748)       // load primes from the trace activation record\n", $blocks);
         $t->contains('This is the LIR recorded for line 5', $blocks);
+    },
+    'pdf corpus gate preserves final prose repairs after geometry table fallback' => static function (TestRunner $t) use ($pdfSamplePaths): void {
+        $document = (new PdfReader([
+            'maxTextBytes' => 100000,
+            'pdfRepairProseText' => true,
+            'pdfGeometryTables' => true,
+        ]))->read(file_get_contents($pdfSamplePaths()['tracemonkey-paper']) ?: '');
+        $blocks = PandocConverter::write($document, 'blocks');
+        $meta = $document->attr('meta');
+
+        $t->same('text-fallback', $meta['pdfTableReconstruction']);
+        $t->same(1, substr_count($blocks, '<!-- wp:table -->'));
+        $t->same(2, substr_count($blocks, '<!-- wp:code -->'));
+        $t->contains('TraceMonkey starts recording.', $blocks);
+        $t->true(!str_contains($blocks, 'Trace-Monkey'), 'A geometry table fallback must retain the final repeated-compound repair.');
+        $t->contains("v0 := ld state[748]      // load primes from the trace activation record\n", $blocks);
+        $t->contains("mov edx, ebx(748)       // load primes from the trace activation record\n", $blocks);
     },
     'pdf corpus gate rejects damaged positioned prose streams' => static function (TestRunner $t) use ($pdfSamplePaths, $readPdfSample): void {
         $muir = $readPdfSample($pdfSamplePaths()['muir-brochure'], ['pdfGeometryTables' => false]);
@@ -519,7 +548,19 @@ return [
         $t->contains('You can take action by practicing hand hygiene regularly and by asking those around you to practice it as well.', $cdcText);
         $t->contains('Remember: Hand hygiene saves lives.', $cdcText);
         $t->contains('Remember: It only takes 15 seconds to protect yourself and others.', $cdcText);
-        foreach (['To prevent hospital You should practice', 'year. • Before touching', 't he hospital', 'at ris k', 'take actio n'] as $artifact) {
+        $t->contains('Hand hygiene is one of the most important ways to prevent the spread of infections, including the common cold, flu, and even hard-to-treat infections, such as methicillin-resistant Staphylococcus aureus, or MRSA.', $cdcText);
+        $t->contains('Wet your hands with warm water.', $cdcText);
+        $t->contains('Apply a nickel-or quarter-sized amount of soap to your hands.', $cdcText);
+        $t->contains('You can make a difference in your own health:', $cdcText);
+        foreach ([
+            'To prevent hospital You should practice',
+            'year. • Before touching',
+            't he hospital',
+            'at ris k',
+            'take actio n',
+            'war m water',
+            'To make a difference gloves alone',
+        ] as $artifact) {
             $t->true(!str_contains($cdcText, $artifact), "CDC brochure should not contain '{$artifact}'.");
         }
         $t->true(!str_contains($cdcText, 'Hand }'), 'CDC brochure should not expose malformed rotated display text as prose.');
