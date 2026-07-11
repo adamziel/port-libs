@@ -18,9 +18,14 @@
 <h1 id="latex-sec:methods">Methods</h1>
 <p>The method uses <strong>native PHP</strong> and links to <a href="https://example.test/method">the implementation note</a>. A footnote keeps context<a href="#fn1" class="footnote-ref" id="fnref1" role="doc-noteref"><sup>1</sup></a> close to its text.</p>
 <p>The energy estimate is <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><semantics><mrow><mi>E</mi><mo>=</mo><mi>m</mi><msup><mi>c</mi><mn>2</mn></msup></mrow><annotation encoding="application/x-tex">E = mc^2</annotation></semantics></math>.</p>
-<p><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mrow><mi>α</mi><mo>+</mo><mi>β</mi><mo>=</mo><mi>γ</mi></mrow><annotation encoding="application/x-tex">\alpha + \beta = \gamma</annotation></semantics></math></p>
-<p><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mrow><mi>f</mi><mo>(</mo><mi>x</mi><mo>)</mo><mo>&amp;</mo><mo>=</mo><msup><mi>x</mi><mn>2</mn></msup><mo>+</mo><mn>1</mn><mi>\\</mi><mi>g</mi><mo>(</mo><mi>x</mi><mo>)</mo><mo>&amp;</mo><mo>=</mo><mfrac><mn>1</mn><mi>x</mi></mfrac></mrow><annotation encoding="application/x-tex">f(x) &amp;= x^2 + 1 \\
-  g(x) &amp;= \frac{1}{x}</annotation></semantics></math></p>
+<p><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mrow id="eq:identity"><mi>α</mi><mo>+</mo><mi>β</mi><mo>=</mo><mi>γ</mi></mrow><annotation encoding="application/x-tex">\begin{equation}
+\alpha + \beta = \gamma
+  \label{eq:identity}
+\end{equation}</annotation></semantics></math></p>
+<p><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mtable columnalign="right left"><mtr><mtd><mi>f</mi><mo>(</mo><mi>x</mi><mo>)</mo></mtd><mtd><mo>=</mo><msup><mi>x</mi><mn>2</mn></msup><mo>+</mo><mn>1</mn></mtd></mtr><mtr><mtd><mi>g</mi><mo>(</mo><mi>x</mi><mo>)</mo></mtd><mtd><mo>=</mo><mfrac><mn>1</mn><mi>x</mi></mfrac></mtd></mtr></mtable><annotation encoding="application/x-tex">\begin{align}
+f(x) &amp;= x^2 + 1 \\
+  g(x) &amp;= \frac{1}{x}
+\end{align}</annotation></semantics></math></p>
 <ul>
 <li><p>Preserve headings, labels, and links.</p></li>
 <li><p>Keep <code>inline code</code> as code.</p></li>
@@ -46,9 +51,10 @@
 <tr><td style="text-align:left">Media</td><td style="text-align:center">Figures</td><td style="text-align:right">Ready</td></tr>
 </tbody>
 </table>
-<p>As shown in <a href="#latex-fig:architecture">Figure 1</a>, the table in <a href="#latex-tab:gates">1</a> supports the method in <a href="#latex-sec:methods">Methods</a>. Equation <a href="#latex-eq:identity">1</a> remains math. <span class="citation" data-cites="knuth1984 lamport1994">(Knuth 1984, pp. 12--14; Lamport 1994, pp. 12--14)</span></p>
+<p>As shown in <a href="#latex-fig:architecture">Figure 1</a>, the table in <a href="#latex-tab:gates">1</a> supports the method in <a href="#latex-sec:methods">Methods</a>. Equation <a href="#latex-eq:identity">1</a> remains math. <span class="citation" data-cites="knuth1984 lamport1994">(Knuth 1984; Lamport 1994, pp. 12--14)</span></p>
 <h2 id="latex-sec:appendix">Imported Appendix</h2>
-<p>The local include is parsed through a bounded PHP file resolver. Unknown commands such as <span class="pandoc-raw-raw" data-pandoc-raw-format="">\custompublisher{review}</span> remain visible raw TeX instead of being executed or discarded.</p>
+<p>The local include is parsed through a bounded PHP file resolver. Unknown commands such as <span class="pandoc-raw-tex" data-pandoc-raw-format="" data-pandoc-latex-source="appendix.tex" data-pandoc-latex-line="3" data-pandoc-latex-column="18" title="appendix.tex:3:18 (custompublisher) - latex-unsupported-command:custompublisher">\custompublisher{review}</span> remain visible raw TeX instead of being executed or discarded.</p>
+<div class="pandoc-csl-bibliography">
 <h2 id="references">References</h2>
 <dl>
 <dt>Knuth 1984</dt>
@@ -60,6 +66,7 @@
 <p>Lamport, Leslie. LaTeX: A Document Preparation System. Addison-Wesley, 1994.</p>
 </dd>
 </dl>
+</div>
 <div class="footnotes footnotes-end-of-document">
 <hr />
 <ol>

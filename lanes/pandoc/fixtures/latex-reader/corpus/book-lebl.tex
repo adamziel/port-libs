@@ -1,0 +1,41 @@
+% Reduced extract from Jiri Lebl, Tasty Bits of Several Complex Variables.
+% License: CC BY-SA 4.0. See SOURCES.md for attribution and source revision.
+\documentclass{book}
+\usepackage{amsmath,amssymb}
+\newcommand{\C}{\mathbb{C}}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\N}{\mathbb{N}}
+\newcommand{\abs}[1]{\lvert #1 \rvert}
+
+\begin{document}
+\chapter{Holomorphic Functions in Several Variables}
+\section{Motivation, single variable, and Cauchy's formula}\label{sec:motivation}
+
+We start with some standard notation. We use $\C$ for complex numbers,
+$\R$ for real numbers, and $\N = \{1,2,3,\ldots\}$ for natural numbers.
+As complex analysis deals with complex numbers, perhaps we should begin with
+$\sqrt{-1}$. Start with the real numbers, $\R$, and add $\sqrt{-1}$ into our
+field. Call this square root $i$, and write the complex numbers, $\C$, by
+identifying $\C$ with $\R^2$ using
+\begin{equation*}
+z = x + iy,
+\end{equation*}
+where $z \in \C$ and $(x,y) \in \R^2$.
+
+Given a complex number $z$, its "opposite" is the \emph{complex conjugate}
+of $z$ and is defined as
+\begin{equation*}
+\bar{z} \overset{\text{def}}{=} x - iy.
+\end{equation*}
+The size of $z$ is measured by the \emph{modulus}:
+\begin{equation*}
+\abs{z} \overset{\text{def}}{=} \sqrt{z \bar{z}} = \sqrt{x^2 + y^2}.
+\end{equation*}
+
+A nonzero polynomial in $z$ is an expression
+\begin{equation*}
+P(z) = \sum_{k=0}^d c_k\,z^k,
+\end{equation*}
+where $c_k \in \C$ and $c_d \neq 0$. The number $d$ is called the
+\emph{degree} of the polynomial $P$.
+\end{document}

@@ -1,0 +1,54 @@
+% Reduced extract from Kent E. Holsinger, Lecture Notes in Population Genetics.
+% License: CC BY-SA 4.0. See SOURCES.md for attribution and source revision.
+\documentclass{book}
+\newcommand{\half}{\frac{1}{2}}
+\newcommand{\fourth}{\frac{1}{4}}
+
+\begin{document}
+\chapter{The Hardy-Weinberg Principle and estimating allele frequencies}
+\section*{The genetic composition of populations}
+
+When I talk about the genetic composition of a population, I am referring to
+three aspects of genetic variation within that population:\footnote{At each
+locus I am talking about one locus at a time.}
+\begin{enumerate}
+\item The number of alleles at a locus.
+\item The frequency of alleles at the locus.
+\item The frequency of genotypes at the locus.
+\end{enumerate}
+
+It may not be immediately obvious why we need both genotype and allele
+frequencies to describe the genetic composition of a population. Consider two
+hypothetical populations:
+\begin{center}
+\begin{tabular}{lrrr}
+             & $A_1A_1$ & $A_1A_2$ & $A_2A_2$ \\
+\hline\hline
+Population 1 &       50 &        0 &       50 \\
+Population 2 &       25 &       50 &       25 \\
+\hline
+\end{tabular}
+\end{center}
+
+The frequency of $A_1$ is 0.5 in both populations, but the genotype
+frequencies are very different. The following mating table uses the same
+notation:
+\begin{center}
+\begin{tabular}{rcccc}
+\hline\hline
+                       &           & \multicolumn{3}{c}{Offspring genotype} \\
+Female $\times$ Male   & Frequency & $A_1A_1$ & $A_1A_2$ & $A_2A_2$ \\
+\hline
+$A_1A_1 \times A_1A_1$ & $x_{11}^2$ & 1 & 0 & 0 \\
+              $A_1A_2$ & $x_{11}x_{12}$ & $\half$ & $\half$ & 0 \\
+              $A_2A_2$ & $x_{12}x_{22}$ & 0 & 1 & 0 \\
+\hline
+\end{tabular}
+\end{center}
+
+Taking these assumptions together allows us to calculate a frequency in the
+pool of newly formed zygotes:
+\[
+\sum(\text{frequency of mating})(\text{frequency of genotype}) .
+\]
+\end{document}

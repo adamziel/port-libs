@@ -1,5 +1,5 @@
 {
-    "generatedAt": "2026-07-11T15:14:40+00:00",
+    "generatedAt": "2026-07-11T18:19:30+00:00",
     "pandocVersion": "pandoc 3.10\nFeatures: +server +lua\nScripting engine: Lua 5.4\nUser data directory: $REPO\nCopyright (C) 2006-2025 John MacFarlane. Web:  https://pandoc.org\nThis is free software; see the source for copying conditions. There is no\nwarranty, not even for merchantability or fitness for a particular purpose.",
     "mediaImageMode": "important",
     "formats": [
@@ -357,13 +357,13 @@
     },
     "faithfulnessSummary": {
         "comparisons": 169,
-        "faithfulEnough": 165,
-        "review": 4,
+        "faithfulEnough": 167,
+        "review": 2,
         "divergent": 0,
         "noText": 0,
         "visualComparisons": 151,
-        "visualFaithfulEnough": 149,
-        "visualReview": 2,
+        "visualFaithfulEnough": 151,
+        "visualReview": 0,
         "visualDivergent": 0,
         "visualNoStructure": 0,
         "visualNotApplicable": 18
@@ -378,9 +378,9 @@
     },
     "importQualitySummary": {
         "samples": 95,
-        "pass": 93,
+        "pass": 94,
         "review": 1,
-        "fail": 1,
+        "fail": 0,
         "unbenchmarked": 0
     },
     "importQualitySegmentSummary": {
@@ -514,12 +514,12 @@
         },
         "exotic": {
             "samples": 47,
-            "pass": 46,
+            "pass": 47,
             "review": 0,
-            "fail": 1,
+            "fail": 0,
             "unbenchmarked": 0,
             "wpFailures": 0,
-            "passReviewOrUnbenchmarked": 46,
+            "passReviewOrUnbenchmarked": 47,
             "formats": {
                 "biblatex": {
                     "samples": 2,
@@ -658,12 +658,12 @@
                 },
                 "latex": {
                     "samples": 3,
-                    "pass": 2,
+                    "pass": 3,
                     "review": 0,
-                    "fail": 1,
+                    "fail": 0,
                     "unbenchmarked": 0,
                     "wpFailures": 0,
-                    "passReviewOrUnbenchmarked": 2
+                    "passReviewOrUnbenchmarked": 3
                 },
                 "man": {
                     "samples": 2,
@@ -836,11 +836,11 @@
                 "actual": {
                     "samples": 47,
                     "wpFailures": 0,
-                    "pass": 46,
+                    "pass": 47,
                     "review": 0,
-                    "fail": 1,
+                    "fail": 0,
                     "unbenchmarked": 0,
-                    "passReviewOrUnbenchmarked": 46
+                    "passReviewOrUnbenchmarked": 47
                 },
                 "checks": {
                     "minSamples": {
@@ -856,17 +856,17 @@
                     "minPass": {
                         "status": "pass",
                         "expected": ">=18",
-                        "actual": 46
+                        "actual": 47
                     },
                     "minPassReviewOrUnbenchmarked": {
                         "status": "pass",
                         "expected": ">=39",
-                        "actual": 46
+                        "actual": 47
                     },
                     "maxFail": {
                         "status": "pass",
                         "expected": "<=2",
-                        "actual": 1
+                        "actual": 0
                     }
                 },
                 "failedChecks": []
@@ -876,7 +876,7 @@
     "blockUsage": {
         "totals": {
             "code": 652,
-            "group": 408,
+            "group": 409,
             "heading": 4243,
             "html": 52,
             "image": 299,
@@ -940,6 +940,7 @@
                     "\u043f\u0443\u043d\u043a\u04423"
                 ]
             },
+            "importSemantics": null,
             "bibliographyComparison": {
                 "available": true,
                 "expectedEntryCount": 3,
@@ -1046,6 +1047,7 @@
                     "cicero"
                 ]
             },
+            "importSemantics": null,
             "bibliographyComparison": {
                 "available": true,
                 "expectedEntryCount": 4,
@@ -1151,6 +1153,7 @@
                     "\u043f\u0443\u043d\u043a\u04423"
                 ]
             },
+            "importSemantics": null,
             "bibliographyComparison": {
                 "available": true,
                 "expectedEntryCount": 3,
@@ -1254,6 +1257,7 @@
                     "wp"
                 ]
             },
+            "importSemantics": null,
             "bibliographyComparison": {
                 "available": true,
                 "expectedEntryCount": 1,
@@ -1351,6 +1355,7 @@
             },
             "sourceRawHtmlBlockCount": null,
             "bibliographySource": null,
+            "importSemantics": null,
             "bibliographyComparison": {
                 "available": false
             },
@@ -1497,6 +1502,7 @@
             },
             "sourceRawHtmlBlockCount": null,
             "bibliographySource": null,
+            "importSemantics": null,
             "bibliographyComparison": {
                 "available": false
             },
@@ -1645,6 +1651,7 @@
             },
             "sourceRawHtmlBlockCount": null,
             "bibliographySource": null,
+            "importSemantics": null,
             "bibliographyComparison": {
                 "available": false
             },
@@ -1794,6 +1801,7 @@
             },
             "sourceRawHtmlBlockCount": 13,
             "bibliographySource": null,
+            "importSemantics": null,
             "bibliographyComparison": {
                 "available": false
             },
@@ -1946,6 +1954,7 @@
                     "knuth-1984"
                 ]
             },
+            "importSemantics": null,
             "bibliographyComparison": {
                 "available": true,
                 "expectedEntryCount": 1,
@@ -2049,6 +2058,7 @@
                     "berners-lee-1994"
                 ]
             },
+            "importSemantics": null,
             "bibliographyComparison": {
                 "available": true,
                 "expectedEntryCount": 1,
@@ -2145,6 +2155,7 @@
             },
             "sourceRawHtmlBlockCount": null,
             "bibliographySource": null,
+            "importSemantics": null,
             "bibliographyComparison": {
                 "available": false
             },
@@ -2290,6 +2301,7 @@
             },
             "sourceRawHtmlBlockCount": null,
             "bibliographySource": null,
+            "importSemantics": null,
             "bibliographyComparison": {
                 "available": false
             },
@@ -2435,6 +2447,7 @@
             },
             "sourceRawHtmlBlockCount": null,
             "bibliographySource": null,
+            "importSemantics": null,
             "bibliographyComparison": {
                 "available": false
             },
@@ -2580,6 +2593,7 @@
             },
             "sourceRawHtmlBlockCount": null,
             "bibliographySource": null,
+            "importSemantics": null,
             "bibliographyComparison": {
                 "available": false
             },
@@ -2727,6 +2741,7 @@
             },
             "sourceRawHtmlBlockCount": null,
             "bibliographySource": null,
+            "importSemantics": null,
             "bibliographyComparison": {
                 "available": false
             },
@@ -2873,6 +2888,7 @@
             },
             "sourceRawHtmlBlockCount": null,
             "bibliographySource": null,
+            "importSemantics": null,
             "bibliographyComparison": {
                 "available": false
             },
@@ -3021,6 +3037,7 @@
             },
             "sourceRawHtmlBlockCount": null,
             "bibliographySource": null,
+            "importSemantics": null,
             "bibliographyComparison": {
                 "available": false
             },
@@ -3169,6 +3186,7 @@
             },
             "sourceRawHtmlBlockCount": null,
             "bibliographySource": null,
+            "importSemantics": null,
             "bibliographyComparison": {
                 "available": false
             },
@@ -3317,6 +3335,7 @@
             },
             "sourceRawHtmlBlockCount": null,
             "bibliographySource": null,
+            "importSemantics": null,
             "bibliographyComparison": {
                 "available": false
             },
@@ -3463,6 +3482,7 @@
             },
             "sourceRawHtmlBlockCount": null,
             "bibliographySource": null,
+            "importSemantics": null,
             "bibliographyComparison": {
                 "available": false
             },
@@ -3609,6 +3629,7 @@
             },
             "sourceRawHtmlBlockCount": null,
             "bibliographySource": null,
+            "importSemantics": null,
             "bibliographyComparison": {
                 "available": false
             },
@@ -3757,6 +3778,7 @@
             },
             "sourceRawHtmlBlockCount": null,
             "bibliographySource": null,
+            "importSemantics": null,
             "bibliographyComparison": {
                 "available": false
             },
@@ -3972,6 +3994,7 @@
             },
             "sourceRawHtmlBlockCount": null,
             "bibliographySource": null,
+            "importSemantics": null,
             "bibliographyComparison": {
                 "available": false
             },
@@ -4191,6 +4214,7 @@
             },
             "sourceRawHtmlBlockCount": null,
             "bibliographySource": null,
+            "importSemantics": null,
             "bibliographyComparison": {
                 "available": false
             },
@@ -4338,6 +4362,7 @@
             },
             "sourceRawHtmlBlockCount": null,
             "bibliographySource": null,
+            "importSemantics": null,
             "bibliographyComparison": {
                 "available": false
             },
@@ -4524,6 +4549,7 @@
             },
             "sourceRawHtmlBlockCount": null,
             "bibliographySource": null,
+            "importSemantics": null,
             "bibliographyComparison": {
                 "available": false
             },
@@ -4677,6 +4703,7 @@
                     "ISI:000200148800014"
                 ]
             },
+            "importSemantics": null,
             "bibliographyComparison": {
                 "available": true,
                 "expectedEntryCount": 2,
@@ -4780,6 +4807,7 @@
                     "endnote-1"
                 ]
             },
+            "importSemantics": null,
             "bibliographyComparison": {
                 "available": true,
                 "expectedEntryCount": 1,
@@ -4917,6 +4945,7 @@
             },
             "sourceRawHtmlBlockCount": null,
             "bibliographySource": null,
+            "importSemantics": null,
             "bibliographyComparison": {
                 "available": false
             },
@@ -5065,6 +5094,7 @@
             },
             "sourceRawHtmlBlockCount": null,
             "bibliographySource": null,
+            "importSemantics": null,
             "bibliographyComparison": {
                 "available": false
             },
@@ -5248,6 +5278,7 @@
             },
             "sourceRawHtmlBlockCount": null,
             "bibliographySource": null,
+            "importSemantics": null,
             "bibliographyComparison": {
                 "available": false
             },
@@ -5534,6 +5565,7 @@
             },
             "sourceRawHtmlBlockCount": null,
             "bibliographySource": null,
+            "importSemantics": null,
             "bibliographyComparison": {
                 "available": false
             },
@@ -6947,6 +6979,7 @@
             },
             "sourceRawHtmlBlockCount": null,
             "bibliographySource": null,
+            "importSemantics": null,
             "bibliographyComparison": {
                 "available": false
             },
@@ -7135,6 +7168,7 @@
             },
             "sourceRawHtmlBlockCount": null,
             "bibliographySource": null,
+            "importSemantics": null,
             "bibliographyComparison": {
                 "available": false
             },
@@ -7284,6 +7318,7 @@
             },
             "sourceRawHtmlBlockCount": null,
             "bibliographySource": null,
+            "importSemantics": null,
             "bibliographyComparison": {
                 "available": false
             },
@@ -7431,6 +7466,7 @@
             },
             "sourceRawHtmlBlockCount": null,
             "bibliographySource": null,
+            "importSemantics": null,
             "bibliographyComparison": {
                 "available": false
             },
@@ -7585,6 +7621,7 @@
             },
             "sourceRawHtmlBlockCount": 34,
             "bibliographySource": null,
+            "importSemantics": null,
             "bibliographyComparison": {
                 "available": false
             },
@@ -7739,6 +7776,7 @@
             },
             "sourceRawHtmlBlockCount": 9,
             "bibliographySource": null,
+            "importSemantics": null,
             "bibliographyComparison": {
                 "available": false
             },
@@ -7892,6 +7930,7 @@
             },
             "sourceRawHtmlBlockCount": null,
             "bibliographySource": null,
+            "importSemantics": null,
             "bibliographyComparison": {
                 "available": false
             },
@@ -8037,6 +8076,7 @@
             },
             "sourceRawHtmlBlockCount": null,
             "bibliographySource": null,
+            "importSemantics": null,
             "bibliographyComparison": {
                 "available": false
             },
@@ -8185,6 +8225,7 @@
             },
             "sourceRawHtmlBlockCount": null,
             "bibliographySource": null,
+            "importSemantics": null,
             "bibliographyComparison": {
                 "available": false
             },
@@ -8333,6 +8374,7 @@
             },
             "sourceRawHtmlBlockCount": null,
             "bibliographySource": null,
+            "importSemantics": null,
             "bibliographyComparison": {
                 "available": false
             },
@@ -8481,6 +8523,7 @@
             },
             "sourceRawHtmlBlockCount": null,
             "bibliographySource": null,
+            "importSemantics": null,
             "bibliographyComparison": {
                 "available": false
             },
@@ -8628,6 +8671,7 @@
             },
             "sourceRawHtmlBlockCount": null,
             "bibliographySource": null,
+            "importSemantics": null,
             "bibliographyComparison": {
                 "available": false
             },
@@ -8774,6 +8818,7 @@
             },
             "sourceRawHtmlBlockCount": null,
             "bibliographySource": null,
+            "importSemantics": null,
             "bibliographyComparison": {
                 "available": false
             },
@@ -8925,6 +8970,7 @@
             },
             "sourceRawHtmlBlockCount": null,
             "bibliographySource": null,
+            "importSemantics": null,
             "bibliographyComparison": {
                 "available": false
             },
@@ -9073,6 +9119,7 @@
             },
             "sourceRawHtmlBlockCount": null,
             "bibliographySource": null,
+            "importSemantics": null,
             "bibliographyComparison": {
                 "available": false
             },
@@ -9219,6 +9266,7 @@
             },
             "sourceRawHtmlBlockCount": null,
             "bibliographySource": null,
+            "importSemantics": null,
             "bibliographyComparison": {
                 "available": false
             },
@@ -9365,6 +9413,7 @@
             },
             "sourceRawHtmlBlockCount": null,
             "bibliographySource": null,
+            "importSemantics": null,
             "bibliographyComparison": {
                 "available": false
             },
@@ -9510,6 +9559,7 @@
             },
             "sourceRawHtmlBlockCount": null,
             "bibliographySource": null,
+            "importSemantics": null,
             "bibliographyComparison": {
                 "available": false
             },
@@ -9687,7 +9737,7 @@
                 ]
             },
             "wpBlockCounts": {
-                "group": 5,
+                "group": 6,
                 "heading": 6,
                 "image": 1,
                 "list": 6,
@@ -9697,6 +9747,36 @@
             },
             "sourceRawHtmlBlockCount": null,
             "bibliographySource": null,
+            "importSemantics": {
+                "format": "latex",
+                "metadata": {
+                    "title": [
+                        "A Native LaTeX Import Study"
+                    ],
+                    "date": [
+                        "June 2026"
+                    ],
+                    "abstract": [
+                        "This article tests a semantic import path for Project Harbor. It keeps meaningful structure editable instead of reproducing page layout."
+                    ],
+                    "author": [
+                        "Ada Lovelace",
+                        "Grace Hopper"
+                    ]
+                },
+                "structures": [
+                    "latex-title-block",
+                    "latex-abstract",
+                    "latex-table-of-contents",
+                    "pandoc-csl-bibliography"
+                ],
+                "comparisonExclusionClasses": [
+                    "latex-title-block",
+                    "latex-abstract",
+                    "latex-table-of-contents",
+                    "pandoc-csl-bibliography"
+                ]
+            },
             "bibliographyComparison": {
                 "available": false
             },
@@ -9705,62 +9785,62 @@
                 "comparisons": {
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
-                        "status": "review",
-                        "score": 0.738,
-                        "textStatus": "review",
-                        "textScore": 0.738,
-                        "visualStatus": "review",
-                        "visualScore": 0.65
+                        "status": "faithful_enough",
+                        "score": 0.9013,
+                        "textStatus": "faithful_enough",
+                        "textScore": 0.9013,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.8864
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
-                        "status": "review",
-                        "score": 0.7401,
-                        "textStatus": "review",
-                        "textScore": 0.7401,
-                        "visualStatus": "review",
-                        "visualScore": 0.6724
+                        "status": "faithful_enough",
+                        "score": 0.8925,
+                        "textStatus": "faithful_enough",
+                        "textScore": 0.8925,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.9286
                     }
                 }
             },
             "importQuality": {
-                "status": "fail",
+                "status": "pass",
                 "gates": {
                     "text_completeness": {
-                        "status": "review",
+                        "status": "pass",
                         "expected": ">=0.8",
-                        "actual": 0.738,
+                        "actual": 0.9013,
                         "detail": "visible text overlap with the baseline"
                     },
                     "visual_structure": {
-                        "status": "review",
+                        "status": "pass",
                         "expected": ">=0.75",
-                        "actual": 0.65,
+                        "actual": 0.8864,
                         "detail": "heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
-                        "status": "review",
+                        "status": "pass",
                         "expected": "0.80-1.25",
-                        "actual": 1.5714,
-                        "detail": "paragraph count ratio expected 7, got 11"
+                        "actual": 1,
+                        "detail": "paragraph count ratio expected 7, got 7"
                     },
                     "heading_count": {
-                        "status": "fail",
+                        "status": "pass",
                         "expected": "0.80-1.25",
-                        "actual": 3,
-                        "detail": "heading count ratio expected 2, got 6"
+                        "actual": 1,
+                        "detail": "heading count ratio expected 2, got 2"
                     },
                     "list_count": {
-                        "status": "review",
+                        "status": "pass",
                         "expected": "0.80-1.25",
-                        "actual": 1.3333,
-                        "detail": "list count ratio expected 3, got 4"
+                        "actual": 1,
+                        "detail": "list count ratio expected 3, got 3"
                     },
                     "definition_list_count": {
-                        "status": "review",
+                        "status": "pass",
                         "expected": "0",
-                        "actual": 1,
-                        "detail": "definition list count ratio has no baseline count"
+                        "actual": 0,
+                        "detail": "definition list count ratio"
                     },
                     "table_count": {
                         "status": "pass",
@@ -9773,6 +9853,12 @@
                         "expected": "0.80-1.25",
                         "actual": 1,
                         "detail": "image count ratio expected 1, got 1"
+                    },
+                    "source_metadata_semantics": {
+                        "status": "pass",
+                        "expected": 9,
+                        "actual": 9,
+                        "detail": "source metadata and generated semantic structures retained in WordPress output"
                     },
                     "media_imported": {
                         "status": "pass",
@@ -9790,13 +9876,13 @@
                         "status": "pass",
                         "expected": "<=0.05",
                         "actual": 0,
-                        "detail": "0/32 WordPress blocks are Custom HTML"
+                        "detail": "0/33 WordPress blocks are Custom HTML"
                     }
                 },
                 "summary": {
-                    "pass": 5,
-                    "review": 5,
-                    "fail": 1,
+                    "pass": 12,
+                    "review": 0,
+                    "fail": 0,
                     "unbenchmarked": 0
                 }
             }
@@ -9843,6 +9929,12 @@
             },
             "sourceRawHtmlBlockCount": null,
             "bibliographySource": null,
+            "importSemantics": {
+                "format": "latex",
+                "metadata": [],
+                "structures": [],
+                "comparisonExclusionClasses": []
+            },
             "bibliographyComparison": {
                 "available": false
             },
@@ -9988,6 +10080,12 @@
             },
             "sourceRawHtmlBlockCount": null,
             "bibliographySource": null,
+            "importSemantics": {
+                "format": "latex",
+                "metadata": [],
+                "structures": [],
+                "comparisonExclusionClasses": []
+            },
             "bibliographyComparison": {
                 "available": false
             },
@@ -10139,6 +10237,7 @@
             },
             "sourceRawHtmlBlockCount": null,
             "bibliographySource": null,
+            "importSemantics": null,
             "bibliographyComparison": {
                 "available": false
             },
@@ -10288,6 +10387,7 @@
             },
             "sourceRawHtmlBlockCount": null,
             "bibliographySource": null,
+            "importSemantics": null,
             "bibliographyComparison": {
                 "available": false
             },
@@ -10437,6 +10537,7 @@
             },
             "sourceRawHtmlBlockCount": null,
             "bibliographySource": null,
+            "importSemantics": null,
             "bibliographyComparison": {
                 "available": false
             },
@@ -10586,6 +10687,7 @@
             },
             "sourceRawHtmlBlockCount": null,
             "bibliographySource": null,
+            "importSemantics": null,
             "bibliographyComparison": {
                 "available": false
             },
@@ -10734,6 +10836,7 @@
             },
             "sourceRawHtmlBlockCount": null,
             "bibliographySource": null,
+            "importSemantics": null,
             "bibliographyComparison": {
                 "available": false
             },
@@ -10880,6 +10983,7 @@
             },
             "sourceRawHtmlBlockCount": null,
             "bibliographySource": null,
+            "importSemantics": null,
             "bibliographyComparison": {
                 "available": false
             },
@@ -11029,6 +11133,7 @@
             },
             "sourceRawHtmlBlockCount": null,
             "bibliographySource": null,
+            "importSemantics": null,
             "bibliographyComparison": {
                 "available": false
             },
@@ -11180,6 +11285,7 @@
             },
             "sourceRawHtmlBlockCount": null,
             "bibliographySource": null,
+            "importSemantics": null,
             "bibliographyComparison": {
                 "available": false
             },
@@ -11328,6 +11434,7 @@
             },
             "sourceRawHtmlBlockCount": null,
             "bibliographySource": null,
+            "importSemantics": null,
             "bibliographyComparison": {
                 "available": false
             },
@@ -11474,6 +11581,7 @@
             },
             "sourceRawHtmlBlockCount": null,
             "bibliographySource": null,
+            "importSemantics": null,
             "bibliographyComparison": {
                 "available": false
             },
@@ -11626,6 +11734,7 @@
             },
             "sourceRawHtmlBlockCount": null,
             "bibliographySource": null,
+            "importSemantics": null,
             "bibliographyComparison": {
                 "available": false
             },
@@ -11772,6 +11881,7 @@
             },
             "sourceRawHtmlBlockCount": null,
             "bibliographySource": null,
+            "importSemantics": null,
             "bibliographyComparison": {
                 "available": false
             },
@@ -11917,6 +12027,7 @@
             },
             "sourceRawHtmlBlockCount": null,
             "bibliographySource": null,
+            "importSemantics": null,
             "bibliographyComparison": {
                 "available": false
             },
@@ -12816,6 +12927,7 @@
             },
             "sourceRawHtmlBlockCount": null,
             "bibliographySource": null,
+            "importSemantics": null,
             "bibliographyComparison": {
                 "available": false
             },
@@ -12953,6 +13065,7 @@
             },
             "sourceRawHtmlBlockCount": null,
             "bibliographySource": null,
+            "importSemantics": null,
             "bibliographyComparison": {
                 "available": false
             },
@@ -13098,6 +13211,7 @@
             },
             "sourceRawHtmlBlockCount": null,
             "bibliographySource": null,
+            "importSemantics": null,
             "bibliographyComparison": {
                 "available": false
             },
@@ -13284,6 +13398,7 @@
             },
             "sourceRawHtmlBlockCount": null,
             "bibliographySource": null,
+            "importSemantics": null,
             "bibliographyComparison": {
                 "available": false
             },
@@ -13431,6 +13546,7 @@
             },
             "sourceRawHtmlBlockCount": null,
             "bibliographySource": null,
+            "importSemantics": null,
             "bibliographyComparison": {
                 "available": false
             },
@@ -14195,6 +14311,7 @@
             },
             "sourceRawHtmlBlockCount": null,
             "bibliographySource": null,
+            "importSemantics": null,
             "bibliographyComparison": {
                 "available": false
             },
@@ -14482,6 +14599,7 @@
             },
             "sourceRawHtmlBlockCount": null,
             "bibliographySource": null,
+            "importSemantics": null,
             "bibliographyComparison": {
                 "available": false
             },
@@ -14634,6 +14752,7 @@
                     "ris-1"
                 ]
             },
+            "importSemantics": null,
             "bibliographyComparison": {
                 "available": true,
                 "expectedEntryCount": 1,
@@ -14737,6 +14856,7 @@
                     "https://wordpress.org/"
                 ]
             },
+            "importSemantics": null,
             "bibliographyComparison": {
                 "available": true,
                 "expectedEntryCount": 1,
@@ -14875,6 +14995,7 @@
             },
             "sourceRawHtmlBlockCount": null,
             "bibliographySource": null,
+            "importSemantics": null,
             "bibliographyComparison": {
                 "available": false
             },
@@ -15020,6 +15141,7 @@
             },
             "sourceRawHtmlBlockCount": null,
             "bibliographySource": null,
+            "importSemantics": null,
             "bibliographyComparison": {
                 "available": false
             },
@@ -15165,6 +15287,7 @@
             },
             "sourceRawHtmlBlockCount": null,
             "bibliographySource": null,
+            "importSemantics": null,
             "bibliographyComparison": {
                 "available": false
             },
@@ -15310,6 +15433,7 @@
             },
             "sourceRawHtmlBlockCount": null,
             "bibliographySource": null,
+            "importSemantics": null,
             "bibliographyComparison": {
                 "available": false
             },
@@ -15456,6 +15580,7 @@
             },
             "sourceRawHtmlBlockCount": null,
             "bibliographySource": null,
+            "importSemantics": null,
             "bibliographyComparison": {
                 "available": false
             },
@@ -15602,6 +15727,7 @@
             },
             "sourceRawHtmlBlockCount": null,
             "bibliographySource": null,
+            "importSemantics": null,
             "bibliographyComparison": {
                 "available": false
             },
@@ -15748,6 +15874,7 @@
             },
             "sourceRawHtmlBlockCount": null,
             "bibliographySource": null,
+            "importSemantics": null,
             "bibliographyComparison": {
                 "available": false
             },
@@ -15895,6 +16022,7 @@
             },
             "sourceRawHtmlBlockCount": null,
             "bibliographySource": null,
+            "importSemantics": null,
             "externalReference": {
                 "ok": true,
                 "kind": "libxml2-libxslt-generic-xml-html",
@@ -16047,6 +16175,7 @@
             },
             "sourceRawHtmlBlockCount": null,
             "bibliographySource": null,
+            "importSemantics": null,
             "externalReference": {
                 "ok": true,
                 "kind": "libxml2-libxslt-generic-xml-html",
@@ -16239,6 +16368,7 @@
             },
             "sourceRawHtmlBlockCount": null,
             "bibliographySource": null,
+            "importSemantics": null,
             "externalReference": {
                 "ok": true,
                 "kind": "macos-pdfkit-text-geometry",
@@ -17646,6 +17776,7 @@
             },
             "sourceRawHtmlBlockCount": null,
             "bibliographySource": null,
+            "importSemantics": null,
             "externalReference": {
                 "ok": true,
                 "kind": "macos-pdfkit-text-geometry",
@@ -18887,6 +19018,7 @@
             },
             "sourceRawHtmlBlockCount": null,
             "bibliographySource": null,
+            "importSemantics": null,
             "externalReference": {
                 "ok": true,
                 "kind": "macos-pdfkit-text-geometry",
@@ -20115,6 +20247,7 @@
             },
             "sourceRawHtmlBlockCount": null,
             "bibliographySource": null,
+            "importSemantics": null,
             "externalReference": {
                 "ok": true,
                 "kind": "macos-pdfkit-text-geometry",
@@ -22593,6 +22726,7 @@
             },
             "sourceRawHtmlBlockCount": null,
             "bibliographySource": null,
+            "importSemantics": null,
             "externalReference": {
                 "ok": true,
                 "kind": "macos-pdfkit-text-geometry",
@@ -23422,6 +23556,7 @@
             },
             "sourceRawHtmlBlockCount": null,
             "bibliographySource": null,
+            "importSemantics": null,
             "externalReference": {
                 "ok": true,
                 "kind": "macos-pdfkit-text-geometry",
@@ -23779,6 +23914,7 @@
             },
             "sourceRawHtmlBlockCount": null,
             "bibliographySource": null,
+            "importSemantics": null,
             "externalReference": {
                 "ok": true,
                 "kind": "macos-pdfkit-text-geometry",
@@ -24031,6 +24167,7 @@
             },
             "sourceRawHtmlBlockCount": null,
             "bibliographySource": null,
+            "importSemantics": null,
             "externalReference": {
                 "ok": true,
                 "kind": "macos-pdfkit-text-geometry",
@@ -24174,6 +24311,7 @@
             },
             "sourceRawHtmlBlockCount": null,
             "bibliographySource": null,
+            "importSemantics": null,
             "externalReference": {
                 "ok": true,
                 "kind": "macos-pdfkit-text-geometry",
@@ -24317,6 +24455,7 @@
             },
             "sourceRawHtmlBlockCount": null,
             "bibliographySource": null,
+            "importSemantics": null,
             "externalReference": {
                 "ok": true,
                 "kind": "macos-textutil-html",
@@ -24468,6 +24607,7 @@
             },
             "sourceRawHtmlBlockCount": null,
             "bibliographySource": null,
+            "importSemantics": null,
             "externalReference": {
                 "ok": true,
                 "kind": "macos-textutil-html",

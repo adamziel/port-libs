@@ -3079,9 +3079,48 @@ final class WordPressBlockWriter
 
     private function renderRawTexBlockHtml(AstNode $node): string
     {
-        return '<pre class="wp-block-code"><code class="language-tex">'
+        return '<pre class="wp-block-code"' . $this->rawTexDiagnosticAttrs($node) . '><code class="language-tex">'
             . $this->esc((string) $node->attr('tex', $node->attr('text', '')))
             . '</code></pre>';
+    }
+
+    private function rawTexDiagnosticAttrs(AstNode $node): string
+    {
+        $location = $node->attr('latexSourceLocation', []);
+        if (!is_array($location) || !is_string($location['source'] ?? null)) {
+            return '';
+        }
+        $source = trim($location['source']);
+        $line = max(0, (int) ($location['line'] ?? 0));
+        $column = max(0, (int) ($location['column'] ?? 0));
+        if ($source === '') {
+            return '';
+        }
+        $label = $source;
+        if ($line > 0) {
+            $label .= ':' . $line;
+            if ($column > 0) {
+                $label .= ':' . $column;
+            }
+        }
+        $command = trim((string) ($location['command'] ?? $location['environment'] ?? ''));
+        if ($command !== '') {
+            $label .= ' (' . $command . ')';
+        }
+        $diagnostic = trim((string) $node->attr('latexDiagnostic', ''));
+        if ($diagnostic !== '') {
+            $label .= ' - ' . $diagnostic;
+        }
+
+        $attrs = ' data-pandoc-latex-source="' . $this->esc($source) . '"';
+        if ($line > 0) {
+            $attrs .= ' data-pandoc-latex-line="' . $line . '"';
+        }
+        if ($column > 0) {
+            $attrs .= ' data-pandoc-latex-column="' . $column . '"';
+        }
+
+        return $attrs . ' title="' . $this->esc($label) . '"';
     }
 
     private function renderRawFormatBlockHtml(AstNode $node): string
@@ -3107,7 +3146,7 @@ final class WordPressBlockWriter
         }
 
         if ($rawFamily === 'tex') {
-            return '<span class="pandoc-raw-tex">' . $this->esc($text) . '</span>';
+            return '<span class="pandoc-raw-tex"' . $this->rawTexDiagnosticAttrs($node) . '>' . $this->esc($text) . '</span>';
         }
 
         if (strtolower($format) === 'openxml') {
@@ -4158,7 +4197,7 @@ final class WordPressBlockWriter
             'span' => $this->renderSpanInline($node),
             'quoted' => $this->renderQuotedInline($node),
             'math' => $this->renderMathInline($node),
-            'raw_tex', 'raw_tex_inline' => '<span class="pandoc-raw-tex">' . $this->esc((string) $node->attr('tex', $node->attr('text', ''))) . '</span>',
+            'raw_tex', 'raw_tex_inline' => '<span class="pandoc-raw-tex"' . $this->rawTexDiagnosticAttrs($node) . '>' . $this->esc((string) $node->attr('tex', $node->attr('text', ''))) . '</span>',
             'raw_html_inline' => (string) $node->attr('html', ''),
             'raw_inline' => $this->renderRawInlineNode($node),
             'code' => '<code' . $this->renderInlineCodeAttrs($node) . '>' . $this->esc((string) $node->attr('text', '')) . '</code>',

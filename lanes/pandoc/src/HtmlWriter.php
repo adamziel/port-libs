@@ -586,7 +586,8 @@ final class HtmlWriter
         $token = $this->rawFormatToken($format);
         $text = (string) $node->attr('text', $node->attr('tex', $node->attr('html', '')));
 
-        return '<pre class="pandoc-raw-' . $this->esc($token) . '" data-pandoc-raw-format="' . $this->esc($format) . '"><code class="language-'
+        return '<pre class="pandoc-raw-' . $this->esc($token) . '" data-pandoc-raw-format="' . $this->esc($format) . '"'
+            . $this->rawTexDiagnosticAttrs($node) . '><code class="language-'
             . $this->esc($token) . '">' . $this->esc($text) . '</code></pre>';
     }
 
@@ -1238,12 +1239,52 @@ final class HtmlWriter
             return (string) $node->attr('text', $node->attr('html', ''));
         }
 
-        $token = $this->rawFormatToken($format === '' ? 'raw' : $format);
+        $token = $this->rawFormatToken($format === '' && in_array($node->type, ['raw_tex', 'raw_tex_inline'], true) ? 'tex' : ($format === '' ? 'raw' : $format));
         $text = (string) $node->attr('text', $node->attr('tex', $node->attr('html', '')));
 
-        return '<span class="pandoc-raw-' . $this->esc($token) . '" data-pandoc-raw-format="' . $this->esc($format) . '">'
+        return '<span class="pandoc-raw-' . $this->esc($token) . '" data-pandoc-raw-format="' . $this->esc($format) . '"'
+            . $this->rawTexDiagnosticAttrs($node) . '>'
             . $this->esc($text)
             . '</span>';
+    }
+
+    private function rawTexDiagnosticAttrs(AstNode $node): string
+    {
+        $location = $node->attr('latexSourceLocation', []);
+        if (!is_array($location) || !is_string($location['source'] ?? null)) {
+            return '';
+        }
+        $source = trim($location['source']);
+        $line = max(0, (int) ($location['line'] ?? 0));
+        $column = max(0, (int) ($location['column'] ?? 0));
+        if ($source === '') {
+            return '';
+        }
+        $label = $source;
+        if ($line > 0) {
+            $label .= ':' . $line;
+            if ($column > 0) {
+                $label .= ':' . $column;
+            }
+        }
+        $command = trim((string) ($location['command'] ?? $location['environment'] ?? ''));
+        if ($command !== '') {
+            $label .= ' (' . $command . ')';
+        }
+        $diagnostic = trim((string) $node->attr('latexDiagnostic', ''));
+        if ($diagnostic !== '') {
+            $label .= ' - ' . $diagnostic;
+        }
+
+        $attrs = ' data-pandoc-latex-source="' . $this->esc($source) . '"';
+        if ($line > 0) {
+            $attrs .= ' data-pandoc-latex-line="' . $line . '"';
+        }
+        if ($column > 0) {
+            $attrs .= ' data-pandoc-latex-column="' . $column . '"';
+        }
+
+        return $attrs . ' title="' . $this->esc($label) . '"';
     }
 
     private function htmlWrapText(): string

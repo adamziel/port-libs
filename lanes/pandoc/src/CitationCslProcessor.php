@@ -726,8 +726,8 @@ final class CitationCslProcessor
             return '';
         }
 
-        if (count($entries) === 1 && ((string) $citations[0]->attr('mode', 'normal')) === 'author_in_text') {
-            return $entries[0];
+        if ($this->citationClusterSuppressesWrapper($citations)) {
+            return implode($this->style->citationDelimiter(), $entries);
         }
 
         return $this->style->citationPrefix()
@@ -779,8 +779,18 @@ final class CitationCslProcessor
             return [];
         }
 
-        if (count($entries) === 1 && ((string) $citations[0]->attr('mode', 'normal')) === 'author_in_text') {
-            return $entries[0];
+        if ($this->citationClusterSuppressesWrapper($citations)) {
+            $parts = [];
+            foreach ($entries as $index => $entryParts) {
+                if ($index > 0) {
+                    $this->appendCitationInlinePart($parts, $this->style->citationDelimiter());
+                }
+                foreach ($entryParts as $part) {
+                    $this->appendCitationInlinePart($parts, $part['text'], $part['formatting'] ?? []);
+                }
+            }
+
+            return $parts;
         }
 
         $parts = [];
@@ -797,6 +807,31 @@ final class CitationCslProcessor
         $this->appendCitationInlinePart($parts, $this->style->citationSuffix());
 
         return $parts;
+    }
+
+    /**
+     * @param list<AstNode> $citations
+     */
+    private function citationClusterSuppressesWrapper(array $citations): bool
+    {
+        if ($citations === []) {
+            return false;
+        }
+        if (count($citations) === 1 && in_array(
+            (string) $citations[0]->attr('mode', 'normal'),
+            ['author_in_text', 'author_only'],
+            true
+        )) {
+            return true;
+        }
+
+        foreach ($citations as $citation) {
+            if ($citation->attr('suppressWrapper') !== true) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     public function renderBibliographyEntry(string $id): string
@@ -7972,6 +8007,8 @@ final class CitationCslProcessor
 
         if ($mode === 'author_in_text') {
             $entry = $author . ' (' . $year . ($suffix === '' ? '' : ', ' . $suffix) . ')';
+        } elseif ($mode === 'author_only') {
+            $entry = $author;
         } elseif ($mode === 'suppress_author') {
             $entry = $year . ($suffix === '' ? '' : ', ' . $suffix);
         } else {

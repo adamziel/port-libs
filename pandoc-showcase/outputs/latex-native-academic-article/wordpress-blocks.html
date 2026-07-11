@@ -55,12 +55,17 @@
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p id="latex-eq:identity" class="latex-display-math"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mrow><mi>α</mi><mo>+</mo><mi>β</mi><mo>=</mo><mi>γ</mi></mrow><annotation encoding="application/x-tex">\alpha + \beta = \gamma</annotation></semantics></math></p>
+<p id="latex-eq:identity" class="latex-display-math"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mrow id="eq:identity"><mi>α</mi><mo>+</mo><mi>β</mi><mo>=</mo><mi>γ</mi></mrow><annotation encoding="application/x-tex">\begin{equation}
+\alpha + \beta = \gamma
+  \label{eq:identity}
+\end{equation}</annotation></semantics></math></p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p class="latex-display-math"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mrow><mi>f</mi><mo>(</mo><mi>x</mi><mo>)</mo><mo>&amp;</mo><mo>=</mo><msup><mi>x</mi><mn>2</mn></msup><mo>+</mo><mn>1</mn><mi>\\</mi><mi>g</mi><mo>(</mo><mi>x</mi><mo>)</mo><mo>&amp;</mo><mo>=</mo><mfrac><mn>1</mn><mi>x</mi></mfrac></mrow><annotation encoding="application/x-tex">f(x) &amp;= x^2 + 1 \\
-  g(x) &amp;= \frac{1}{x}</annotation></semantics></math></p>
+<p class="latex-display-math"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mtable columnalign="right left"><mtr><mtd><mi>f</mi><mo>(</mo><mi>x</mi><mo>)</mo></mtd><mtd><mo>=</mo><msup><mi>x</mi><mn>2</mn></msup><mo>+</mo><mn>1</mn></mtd></mtr><mtr><mtd><mi>g</mi><mo>(</mo><mi>x</mi><mo>)</mo></mtd><mtd><mo>=</mo><mfrac><mn>1</mn><mi>x</mi></mfrac></mtd></mtr></mtable><annotation encoding="application/x-tex">\begin{align}
+f(x) &amp;= x^2 + 1 \\
+  g(x) &amp;= \frac{1}{x}
+\end{align}</annotation></semantics></math></p>
 <!-- /wp:paragraph -->
 
 <!-- wp:list -->
@@ -84,7 +89,7 @@
 <!-- /wp:table -->
 
 <!-- wp:paragraph -->
-<p>As shown in <a href="#latex-fig:architecture">Figure 1</a>, the table in <a href="#latex-tab:gates">1</a> supports the method in <a href="#latex-sec:methods">Methods</a>. Equation <a href="#latex-eq:identity">1</a> remains math. (Knuth 1984, pp. 12--14; Lamport 1994, pp. 12--14)</p>
+<p>As shown in <a href="#latex-fig:architecture">Figure 1</a>, the table in <a href="#latex-tab:gates">1</a> supports the method in <a href="#latex-sec:methods">Methods</a>. Equation <a href="#latex-eq:identity">1</a> remains math. (Knuth 1984; Lamport 1994, pp. 12--14)</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:heading {"level":2} -->
@@ -92,9 +97,11 @@
 <!-- /wp:heading -->
 
 <!-- wp:paragraph -->
-<p>The local include is parsed through a bounded PHP file resolver. Unknown commands such as <span class="pandoc-raw-tex">\custompublisher{review}</span> remain visible raw TeX instead of being executed or discarded.</p>
+<p>The local include is parsed through a bounded PHP file resolver. Unknown commands such as <span class="pandoc-raw-tex" data-pandoc-latex-source="appendix.tex" data-pandoc-latex-line="3" data-pandoc-latex-column="18" title="appendix.tex:3:18 (custompublisher) - latex-unsupported-command:custompublisher">\custompublisher{review}</span> remain visible raw TeX instead of being executed or discarded.</p>
 <!-- /wp:paragraph -->
 
+<!-- wp:group -->
+<div class="wp-block-group pandoc-csl-bibliography">
 <!-- wp:heading {"level":2} -->
 <h2 id="references">References</h2>
 <!-- /wp:heading -->
@@ -116,6 +123,8 @@
 <!-- wp:list -->
 <ul class="pandoc-definition-values"><li>Lamport, Leslie. LaTeX: A Document Preparation System. Addison-Wesley, 1994.</li></ul>
 <!-- /wp:list -->
+</div>
+<!-- /wp:group -->
 </div>
 <!-- /wp:group -->
 

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\Pandoc\PandocConverter;
 use PortLibs\Pandoc\PandocFormatRegistry;
+use PortLibs\Pandoc\AstNode;
 
 require __DIR__ . '/bootstrap.php';
 
@@ -1543,6 +1544,80 @@ function aggregate_wordpress_block_counts(array $records): array
 }
 
 /**
+ * Importers sometimes preserve source-level metadata and generated semantic
+ * structures that fragment-mode reference HTML intentionally omits. Keep
+ * those structures auditable without treating their extra visible text as a
+ * body-content mismatch.
+ *
+ * @return array{format:string,metadata:array<string,list<string>>,structures:list<string>,comparisonExclusionClasses:list<string>}|null
+ */
+function showcase_source_import_semantics(string $sourcePath, string $format): ?array
+{
+    if (PandocConverter::canonicalInputFormat($format) !== 'latex') {
+        return null;
+    }
+
+    try {
+        $document = PandocConverter::readFile($sourcePath, $format);
+    } catch (Throwable) {
+        return null;
+    }
+    $meta = $document->attr('meta', []);
+    $meta = is_array($meta) ? $meta : [];
+    $latex = $document->attr('latex', []);
+    $latex = is_array($latex) ? $latex : [];
+    $metadata = [];
+    foreach (['title', 'date', 'abstract'] as $name) {
+        $value = trim((string) ($meta[$name] ?? ''));
+        if ($value !== '') {
+            $metadata[$name] = [$value];
+        }
+    }
+    foreach (['author', 'affiliations', 'authorNotes', 'keywords'] as $name) {
+        $values = is_array($meta[$name] ?? null) ? $meta[$name] : [];
+        $values = array_values(array_filter(array_map(
+            static fn (mixed $value): string => is_scalar($value) ? trim((string) $value) : '',
+            $values
+        ), static fn (string $value): bool => $value !== ''));
+        if ($values !== []) {
+            $metadata[$name] = $values;
+        }
+    }
+
+    $structures = [];
+    foreach (['latex-title-block', 'latex-abstract', 'latex-table-of-contents'] as $class) {
+        if (showcase_ast_has_class($document, $class)) {
+            $structures[] = $class;
+        }
+    }
+    if (($latex['bibliographyResolved'] ?? false) === true) {
+        $structures[] = 'pandoc-csl-bibliography';
+    }
+
+    return [
+        'format' => 'latex',
+        'metadata' => $metadata,
+        'structures' => $structures,
+        'comparisonExclusionClasses' => $structures,
+    ];
+}
+
+function showcase_ast_has_class(AstNode $node, string $class): bool
+{
+    $classes = $node->attr('classes', []);
+    if (is_array($classes) && in_array($class, $classes, true)) {
+        return true;
+    }
+    foreach ($node->children as $child) {
+        if (showcase_ast_has_class($child, $class)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+/**
  * @return array<string, mixed>
  */
 function showcase_record_faithfulness(string $siteDir, array $record): array
@@ -1576,11 +1651,19 @@ function showcase_record_faithfulness(string $siteDir, array $record): array
     }
 
     $comparisons = [];
+    $semantic = is_array($record['importSemantics'] ?? null) ? $record['importSemantics'] : [];
+    $comparisonExclusionClasses = is_array($semantic['comparisonExclusionClasses'] ?? null)
+        ? array_values(array_filter($semantic['comparisonExclusionClasses'], 'is_string'))
+        : [];
     foreach (['wpBlocks' => 'PHP WordPress blocks', 'phpHtml' => 'PHP HTML'] as $key => $label) {
         if ($key === $baselineKey || (($record[$key]['ok'] ?? false) !== true)) {
             continue;
         }
-        $text = showcase_output_text($siteDir, (string) ($record[$key]['path'] ?? ''));
+        $text = showcase_output_text(
+            $siteDir,
+            (string) ($record[$key]['path'] ?? ''),
+            $comparisonExclusionClasses
+        );
         if ($text === '') {
             $comparisons[$key] = [
                 'label' => $label,
@@ -1594,7 +1677,11 @@ function showcase_record_faithfulness(string $siteDir, array $record): array
             continue;
         }
         $textScore = showcase_text_similarity($baselineText, $text);
-        $actualVisual = showcase_output_visual_signature($siteDir, (string) ($record[$key]['path'] ?? ''));
+        $actualVisual = showcase_output_visual_signature(
+            $siteDir,
+            (string) ($record[$key]['path'] ?? ''),
+            $comparisonExclusionClasses
+        );
         $visualScore = null;
         $visualStatus = 'not_applicable';
         if (!$pdfKitTextGeometryReference) {
@@ -1727,11 +1814,14 @@ function showcase_citeproc_entry_count(string $siteDir, string $relativePath): ?
     return $xpath->query('//*[contains(concat(" ", normalize-space(@class), " "), " csl-entry ")]')?->length;
 }
 
-function showcase_output_text(string $siteDir, string $relativePath): string
+function showcase_output_text(string $siteDir, string $relativePath, array $excludeClasses = []): string
 {
     $html = showcase_output_html($siteDir, $relativePath);
     if ($html === '') {
         return '';
+    }
+    if ($excludeClasses !== []) {
+        $html = showcase_remove_elements_with_classes($html, $excludeClasses);
     }
     $html = showcase_visible_html($html);
     if (class_exists(DOMDocument::class)) {
@@ -1869,11 +1959,14 @@ function showcase_output_html(string $siteDir, string $relativePath): string
 /**
  * @return array<string, int>
  */
-function showcase_output_visual_signature(string $siteDir, string $relativePath): array
+function showcase_output_visual_signature(string $siteDir, string $relativePath, array $excludeClasses = []): array
 {
     $html = showcase_output_html($siteDir, $relativePath);
     if ($html === '') {
         return [];
+    }
+    if ($excludeClasses !== []) {
+        $html = showcase_remove_elements_with_classes($html, $excludeClasses);
     }
     $html = showcase_visible_html($html);
 
@@ -1894,6 +1987,50 @@ function showcase_output_visual_signature(string $siteDir, string $relativePath)
     ksort($counts);
 
     return $counts;
+}
+
+/**
+ * @param list<string> $classes
+ */
+function showcase_remove_elements_with_classes(string $html, array $classes): string
+{
+    $classes = array_values(array_filter(array_unique(array_map('strval', $classes)), static fn (string $class): bool => $class !== ''));
+    if ($classes === []) {
+        return $html;
+    }
+    if (!class_exists(DOMDocument::class)) {
+        return $html;
+    }
+
+    $dom = new DOMDocument();
+    $previous = libxml_use_internal_errors(true);
+    try {
+        $loaded = $dom->loadHTML('<!doctype html><html><head><meta charset="utf-8"></head><body>' . $html . '</body></html>', LIBXML_NONET);
+    } finally {
+        libxml_clear_errors();
+        libxml_use_internal_errors($previous);
+    }
+    if (!$loaded) {
+        return $html;
+    }
+    $xpath = new DOMXPath($dom);
+    $targets = [];
+    foreach ($classes as $class) {
+        $query = '//*[contains(concat(" ", normalize-space(@class), " "), " ' . $class . ' ")]';
+        foreach ($xpath->query($query) ?: [] as $node) {
+            if ($node instanceof DOMElement) {
+                $targets[] = $node;
+            }
+        }
+    }
+    foreach ($targets as $node) {
+        if ($node->parentNode !== null) {
+            $node->parentNode->removeChild($node);
+        }
+    }
+    $body = $dom->getElementsByTagName('body')->item(0);
+
+    return $body instanceof DOMElement ? (string) $dom->saveHTML($body) : $html;
 }
 
 /**
@@ -2314,7 +2451,11 @@ function showcase_record_import_quality(string $siteDir, array $record): array
     $baselineKey = (string) (($record['faithfulness']['baseline'] ?? '') ?: '');
     $hasBaseline = $baselineKey !== '';
     $baselinePath = $baselineKey !== '' ? (string) ($record[$baselineKey]['path'] ?? '') : '';
-    $wpVisual = showcase_output_visual_signature($siteDir, $wpPath);
+    $semantic = is_array($record['importSemantics'] ?? null) ? $record['importSemantics'] : [];
+    $comparisonExclusionClasses = is_array($semantic['comparisonExclusionClasses'] ?? null)
+        ? array_values(array_filter($semantic['comparisonExclusionClasses'], 'is_string'))
+        : [];
+    $wpVisual = showcase_output_visual_signature($siteDir, $wpPath, $comparisonExclusionClasses);
     $baselineVisual = $baselinePath === '' ? [] : showcase_output_visual_signature($siteDir, $baselinePath);
     $countGateWpVisual = $wpVisual;
     $countGateDetailSuffix = '';
@@ -2375,10 +2516,96 @@ function showcase_record_import_quality(string $siteDir, array $record): array
         'image count ratio' . $countGateDetailSuffix,
         $hasBaseline
     );
+    $semanticGate = showcase_import_semantic_metadata_gate($siteDir, $record);
+    if ($semanticGate !== null) {
+        $gates['source_metadata_semantics'] = $semanticGate;
+    }
 
     showcase_add_output_integrity_gates($gates, $siteDir, $record, $wpPath);
 
     return showcase_import_quality_result($gates);
+}
+
+/**
+ * @return array{status:string,expected:mixed,actual:mixed,detail:string}|null
+ */
+function showcase_import_semantic_metadata_gate(string $siteDir, array $record): ?array
+{
+    $semantics = is_array($record['importSemantics'] ?? null) ? $record['importSemantics'] : [];
+    $metadata = is_array($semantics['metadata'] ?? null) ? $semantics['metadata'] : [];
+    $structures = is_array($semantics['structures'] ?? null) ? $semantics['structures'] : [];
+    if ($metadata === [] && $structures === []) {
+        return null;
+    }
+    $wpPath = (string) ($record['wpBlocks']['path'] ?? '');
+    $html = showcase_output_html($siteDir, $wpPath);
+    $text = showcase_output_text($siteDir, $wpPath);
+    if ($html === '' || $text === '') {
+        return [
+            'status' => 'fail',
+            'expected' => count($structures) + array_sum(array_map('count', $metadata)),
+            'actual' => 0,
+            'detail' => 'source metadata and generated semantic structures retained in WordPress output',
+        ];
+    }
+
+    $expected = 0;
+    $matched = 0;
+    foreach ($metadata as $values) {
+        if (!is_array($values)) {
+            continue;
+        }
+        foreach ($values as $value) {
+            if (!is_string($value) || trim($value) === '') {
+                continue;
+            }
+            ++$expected;
+            if (showcase_semantic_text_present($text, $value)) {
+                ++$matched;
+            }
+        }
+    }
+    foreach ($structures as $class) {
+        if (!is_string($class) || $class === '') {
+            continue;
+        }
+        ++$expected;
+        if (showcase_html_has_class($html, $class)) {
+            ++$matched;
+        }
+    }
+    $score = $expected === 0 ? 1.0 : $matched / $expected;
+
+    $gate = showcase_score_gate(
+        $score,
+        1.0,
+        0.80,
+        'source metadata and generated semantic structures retained in WordPress output',
+        true
+    );
+    $gate['expected'] = $expected;
+    $gate['actual'] = $matched;
+
+    return $gate;
+}
+
+function showcase_semantic_text_present(string $haystack, string $needle): bool
+{
+    $normalize = static function (string $value): string {
+        $value = preg_replace('/\s+/u', ' ', trim($value)) ?? trim($value);
+
+        return function_exists('mb_strtolower') ? mb_strtolower($value, 'UTF-8') : strtolower($value);
+    };
+
+    return str_contains($normalize($haystack), $normalize($needle));
+}
+
+function showcase_html_has_class(string $html, string $class): bool
+{
+    return preg_match(
+        "/\\bclass=[\"'](?:[^\"']*\\s)?" . preg_quote($class, '/') . "(?:\\s[^\"']*)?[\"']/iu",
+        $html
+    ) === 1;
 }
 
 /**
@@ -3980,6 +4207,12 @@ HTML));
     $xmlFaithfulness = [];
     $preservedRawHtml = [];
     $unexpectedCustomHtml = [];
+    $nativeLatexSemantics = showcase_source_import_semantics(
+        dirname(__DIR__) . '/lanes/pandoc/fixtures/latex-reader/academic-article.tex',
+        'latex'
+    );
+    $semanticFaithfulness = [];
+    $semanticQuality = [];
     if (mkdir($unbenchmarkedDir, 0777, true)) {
         try {
             file_put_contents($unbenchmarkedDir . '/wordpress.html', '<p>Standalone entry</p>');
@@ -4057,9 +4290,52 @@ HTML));
                 'faithfulness' => ['baseline' => null],
                 'wpBlockCounts' => ['html' => 1, 'paragraph' => 1],
             ]);
+            file_put_contents($unbenchmarkedDir . '/semantic-haskell.html', '<p>Reference body.</p>');
+            file_put_contents(
+                $unbenchmarkedDir . '/semantic-wordpress.html',
+                '<div class="latex-title-block"><h1>Imported title</h1></div>'
+                . '<div class="latex-abstract"><p>Imported abstract.</p></div>'
+                . '<nav class="latex-table-of-contents"><ul><li>Introduction</li></ul></nav>'
+                . '<section class="pandoc-csl-bibliography"><p>Imported reference.</p></section>'
+                . '<p>Reference body.</p>'
+            );
+            $semanticRecord = [
+                'format' => 'latex',
+                'haskell' => ['ok' => true, 'path' => 'semantic-haskell.html'],
+                'wpBlocks' => [
+                    'ok' => true,
+                    'path' => 'semantic-wordpress.html',
+                    'mediaDiagnostics' => [],
+                ],
+                'wpBlockCounts' => ['paragraph' => 2, 'heading' => 1, 'list' => 1],
+                'importSemantics' => [
+                    'format' => 'latex',
+                    'metadata' => [
+                        'title' => ['Imported title'],
+                        'abstract' => ['Imported abstract.'],
+                    ],
+                    'structures' => [
+                        'latex-title-block',
+                        'latex-abstract',
+                        'latex-table-of-contents',
+                        'pandoc-csl-bibliography',
+                    ],
+                    'comparisonExclusionClasses' => [
+                        'latex-title-block',
+                        'latex-abstract',
+                        'latex-table-of-contents',
+                        'pandoc-csl-bibliography',
+                    ],
+                ],
+            ];
+            $semanticFaithfulness = showcase_record_faithfulness($unbenchmarkedDir, $semanticRecord);
+            $semanticRecord['faithfulness'] = $semanticFaithfulness;
+            $semanticQuality = showcase_record_import_quality($unbenchmarkedDir, $semanticRecord);
         } finally {
             @unlink($unbenchmarkedDir . '/wordpress.html');
             @unlink($unbenchmarkedDir . '/php.html');
+            @unlink($unbenchmarkedDir . '/semantic-haskell.html');
+            @unlink($unbenchmarkedDir . '/semantic-wordpress.html');
             @rmdir($unbenchmarkedDir);
         }
     }
@@ -4078,7 +4354,14 @@ HTML));
         && (($xmlFaithfulness['baseline'] ?? null) === null)
         && (($xmlWithoutReference['status'] ?? null) === 'unbenchmarked')
         && (($preservedRawHtml['gates']['custom_html_percentage']['status'] ?? null) === 'pass')
-        && (($unexpectedCustomHtml['gates']['custom_html_percentage']['status'] ?? null) === 'fail');
+        && (($unexpectedCustomHtml['gates']['custom_html_percentage']['status'] ?? null) === 'fail')
+        && (($nativeLatexSemantics['metadata']['title'][0] ?? null) === 'A Native LaTeX Import Study')
+        && in_array('latex-title-block', $nativeLatexSemantics['structures'] ?? [], true)
+        && in_array('latex-abstract', $nativeLatexSemantics['structures'] ?? [], true)
+        && in_array('latex-table-of-contents', $nativeLatexSemantics['structures'] ?? [], true)
+        && in_array('pandoc-csl-bibliography', $nativeLatexSemantics['structures'] ?? [], true)
+        && (($semanticFaithfulness['comparisons']['wpBlocks']['textScore'] ?? 0.0) === 1.0)
+        && (($semanticQuality['gates']['source_metadata_semantics']['status'] ?? null) === 'pass');
     fwrite(STDOUT, json_encode([
         'ok' => $ok,
         'baseline' => $baseline,
@@ -4096,6 +4379,9 @@ HTML));
         'xmlWithoutReferenceBaseline' => $xmlFaithfulness['baseline'] ?? null,
         'preservedRawHtmlStatus' => $preservedRawHtml['gates']['custom_html_percentage']['status'] ?? null,
         'unexpectedCustomHtmlStatus' => $unexpectedCustomHtml['gates']['custom_html_percentage']['status'] ?? null,
+        'nativeLatexSemanticStructures' => $nativeLatexSemantics['structures'] ?? [],
+        'semanticComparisonTextScore' => $semanticFaithfulness['comparisons']['wpBlocks']['textScore'] ?? null,
+        'semanticMetadataStatus' => $semanticQuality['gates']['source_metadata_semantics']['status'] ?? null,
     ], JSON_UNESCAPED_SLASHES) . PHP_EOL);
     exit($ok ? 0 : 1);
 }
@@ -4175,6 +4461,7 @@ foreach ($samples as $sample) {
     $bibliographySource = is_file($target) && showcase_bibliography_input_format($format)
         ? showcase_bibliography_source_summary($target, $format)
         : null;
+    $importSemantics = is_file($target) ? showcase_source_import_semantics($target, $format) : null;
     $preview = is_file($target) ? sample_preview_html($target) : '';
 
     $record = [
@@ -4194,6 +4481,7 @@ foreach ($samples as $sample) {
         'wpBlockCounts' => $wpBlockCounts,
         'sourceRawHtmlBlockCount' => $sourceRawHtmlBlockCount,
         'bibliographySource' => $bibliographySource,
+        'importSemantics' => $importSemantics,
     ];
     if ($externalReference !== null) {
         $record['externalReference'] = $externalReference;
