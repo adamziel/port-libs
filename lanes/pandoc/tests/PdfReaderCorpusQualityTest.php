@@ -450,6 +450,8 @@ return [
         $t->contains('In general, if loops are nested to depth k, and each loop has n paths (on geometric average), this naïve strategy yields O(n k)traces, which can easily fill the trace cache.', $blocks);
         $t->contains('We solve the nested loop problem by recording nested trace trees. Our system traces the inner loop exactly as the naïve version.', $blocks);
         $t->contains('After compiling T 45, TraceMonkey returns to the interpreter and loops back to line 1. i=3. Now the loop header at line 1 has become hot, so TraceMonkey starts recording.', $blocks);
+        $t->contains('nested trace T 45. T16 loops back to its own header', $blocks);
+        $t->true(!str_contains($blocks, 'T 45.T16 loops back to its own header'), 'TraceMonkey must restore numeric sentence boundaries in reconstructed prose.');
         $t->contains('We call the resulting tracing VM TraceMonkey. TraceMonkey supports all the JavaScript features of SpiderMonkey', $blocks);
         $t->true(!str_contains($blocks, 'Trace- Monkey'), 'TraceMonkey must join geometry-confirmed repeated compounds across line-end hyphens.');
         $t->contains('each loop is entered with m different type maps (on geometric average)', $blocks);

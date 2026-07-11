@@ -11683,7 +11683,25 @@ final class PdfReader
         $lineHasWordSpacing = preg_match('/\p{L}\s+\p{L}/u', $line) === 1;
         $line = preg_replace('/(?<=\S) +(?=[.,!?\)\]])/u', '', $line) ?? $line;
         $line = preg_replace('/([,;:!?])(?=\S)/u', '$1 ', $line) ?? $line;
-        $line = preg_replace('/(?<!\d)\.(?=\p{Lu})/u', '. ', $line) ?? $line;
+        // A decimal point is followed by a digit, not a capitalized prose
+        // token. Restore missing sentence/label boundaries, except where the
+        // matched punctuation itself belongs to an explicit URL.
+        $line = preg_replace_callback(
+            '/(?<=\S)\.(?=\p{Lu})/u',
+            function (array $matches) use ($line): string {
+                $text = $matches[0][0];
+                $offset = $matches[0][1];
+                if ($this->pdfOffsetIsWithinExplicitUrl($line, $offset)) {
+                    return $text;
+                }
+
+                return '. ';
+            },
+            $line,
+            -1,
+            $count,
+            PREG_OFFSET_CAPTURE
+        ) ?? $line;
         if ($lineHasWordSpacing) {
             // An all-caps acronym surrounded by ordinary prose is a reliable
             // glued-word boundary. Camel-case words and short plural suffixes
@@ -11786,6 +11804,13 @@ final class PdfReader
         $token = trim($token, "()[]{}<>,.;:'\"”’");
 
         return $this->lineLooksLikeUrlOnly($token) || $this->lineLooksLikeBareDomain($token);
+    }
+
+    private function pdfOffsetIsWithinExplicitUrl(string $line, int $offset): bool
+    {
+        $prefix = substr($line, 0, $offset);
+
+        return preg_match('~(?:https?://|www\.)[^\s]*$~iu', $prefix) === 1;
     }
 
     /**

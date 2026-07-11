@@ -1,5 +1,5 @@
 {
-    "generatedAt": "2026-07-11T04:06:00+00:00",
+    "generatedAt": "2026-07-11T05:03:22+00:00",
     "pandocVersion": "pandoc 3.10\nFeatures: +server +lua\nScripting engine: Lua 5.4\nUser data directory: $REPO\nCopyright (C) 2006-2025 John MacFarlane. Web:  https://pandoc.org\nThis is free software; see the source for copying conditions. There is no\nwarranty, not even for merchantability or fitness for a particular purpose.",
     "mediaImageMode": "important",
     "formats": [
@@ -15945,7 +15945,7 @@
             "id": "pdf-tracemonkey",
             "format": "pdf",
             "label": "TraceMonkey technical PDF",
-            "description": "Known hard untagged two-column PDF from Mozilla pdf.js tests; the local PDF bridge currently produces a diagnostic extraction preview, not a faithful final document.",
+            "description": "Untagged two-column PDF from Mozilla pdf.js tests, with dense prose, diagrams, code listings, and figures that exercise reading-order reconstruction.",
             "source": "mozilla/pdf.js test/pdfs/tracemonkey.pdf",
             "sourceUrl": "https://raw.githubusercontent.com/mozilla/pdf.js/master/test/pdfs/tracemonkey.pdf",
             "samplePath": "samples/pdf-tracemonkey-tracemonkey.pdf",

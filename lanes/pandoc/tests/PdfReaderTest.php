@@ -6822,6 +6822,16 @@ return [
         $t->same('Resources: www.bluefront.org 5gyres.org', $repair('Resources: www.bluefront.org 5gyres.org'));
         $t->same('The report includes 20 years of data.', $repair('The report includes 20years of data.'));
     },
+    'repairs numeric prose boundaries before capitalized continuations' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $repair = (function (string $line): string {
+            return $this->repairGluedProseLine($line);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($repair instanceof \Closure);
+
+        $t->same('Section 1. A capitalized continuation follows.', $repair('Section 1.A capitalized continuation follows.'));
+        $t->same('The trace T 45. T 16 loops back to its header.', $repair('The trace T 45.T16 loops back to its header.'));
+    },
     'keeps title-like pdf text in an unfinished wrapped body line' => static function (TestRunner $t): void {
         $reader = new PdfReader();
         $startsNewBlock = (function (string $previous, string $line, array $previousLayout, array $lineLayout): bool {

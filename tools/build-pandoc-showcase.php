@@ -1022,7 +1022,7 @@ RST;
                 'id' => 'pdf-tracemonkey',
                 'format' => 'pdf',
                 'label' => 'TraceMonkey technical PDF',
-                'description' => 'Known hard untagged two-column PDF from Mozilla pdf.js tests; the local PDF bridge currently produces a diagnostic extraction preview, not a faithful final document.',
+                'description' => 'Untagged two-column PDF from Mozilla pdf.js tests, with dense prose, diagrams, code listings, and figures that exercise reading-order reconstruction.',
                 'url' => 'https://raw.githubusercontent.com/mozilla/pdf.js/master/test/pdfs/tracemonkey.pdf',
                 'source' => 'mozilla/pdf.js test/pdfs/tracemonkey.pdf',
                 'filename' => 'tracemonkey.pdf',
@@ -4703,9 +4703,15 @@ foreach ($byFormat as $format => $formatRecords) {
             'phpHtml' => ['label' => 'PHP HTML', 'short' => 'PHP HTML'],
             'haskell' => ['label' => 'Haskell Pandoc HTML', 'short' => 'Haskell HTML'],
         ];
-        if (($record['externalReference']['ok'] ?? false) === true) {
+        $externalReference = is_array($record['externalReference'] ?? null) ? $record['externalReference'] : [];
+        // PDFKit exposes useful native source evidence, but its page text is
+        // deliberately raw: it has no document reading order or HTML semantics.
+        // Keep it in the manifest and quality gates without presenting it as a
+        // peer conversion preview.
+        if (($externalReference['ok'] ?? false) === true
+            && ($externalReference['kind'] ?? null) !== 'macos-pdfkit-text-geometry') {
             $tabs['externalReference'] = [
-                'label' => (string) ($record['externalReference']['label'] ?? 'External reference HTML'),
+                'label' => (string) ($externalReference['label'] ?? 'External reference HTML'),
                 'short' => 'External reference',
             ];
         }
