@@ -36,6 +36,38 @@ final class DelimitedTextReader
     }
 
     /**
+     * Read a file-backed CSV/TSV source without retaining rows that cannot be
+     * rendered. Complex input continues through the byte-string parser: that
+     * keeps its exact recovery and diagnostic behavior while the common,
+     * regular table case can stay bounded by the rendered-row limit.
+     *
+     * @param array{header?:bool, extension?:string, sourcePath?:string, delimiter?:string, quote?:string|null|false, escape?:string|null|false, keepSpace?:bool, strictParsing?:bool, allowBlankRecords?:bool, cellLineBreak?:string, maxRenderedRows?:int, maxRenderedCells?:int} $options
+     */
+    public function readFile(string $path, string $format = 'csv', array $options = []): AstNode
+    {
+        if (!is_file($path)) {
+            throw new \InvalidArgumentException("Delimited text source does not exist: '{$path}'.");
+        }
+        if (!isset($options['sourcePath'])) {
+            $options['sourcePath'] = $path;
+        }
+
+        $preview = $this->boundedFilePreview($path, $format, $options);
+        if ($preview !== null) {
+            $document = $this->read($preview['text'], $format, $options);
+
+            return $this->withBoundedFileReview($document, $preview);
+        }
+
+        $text = file_get_contents($path);
+        if (!is_string($text)) {
+            throw new \RuntimeException("Unable to read delimited text source '{$path}'.");
+        }
+
+        return $this->read($text, $format, $options);
+    }
+
+    /**
      * @param array{header?:bool, extension?:string, sourcePath?:string, delimiter?:string, quote?:string|null|false, escape?:string|null|false, keepSpace?:bool, strictParsing?:bool, allowBlankRecords?:bool, cellLineBreak?:string, maxRenderedRows?:int, maxRenderedCells?:int} $options
      */
     public function readAuto(string $text, array $options = []): AstNode
@@ -121,6 +153,280 @@ final class DelimitedTextReader
             'sourceFormat' => $format,
             'delimitedText' => $table->attr('delimitedText'),
         ], [$table]);
+    }
+
+    /**
+     * Return a bounded preview of a regular CSV/TSV file, or null when the
+     * source needs the complete recovery parser. The conservative fallback is
+     * intentional: quoted fields, control bytes, blank records, alternate
+     * dialect options, and carriage-return normalization all retain the
+     * established byte-string behavior.
+     *
+     * @param array<string, mixed> $options
+     * @return array{
+     *     text:string,
+     *     inputPrefix:array<string,mixed>,
+     *     sourceRowCount:int,
+     *     sourceFieldCount:int,
+     *     sourceMinFieldCount:int,
+     *     sourceMaxFieldCount:int,
+     *     finalRecordTerminated:bool,
+     *     trailingDelimiterRows:list<int>,
+     *     finalRowIndex:int,
+     *     finalRowFieldCount:int
+     * }|null
+     */
+    private function boundedFilePreview(string $path, string $format, array $options): ?array
+    {
+        if (!in_array($format, ['csv', 'tsv'], true)
+            || array_key_exists('delimiter', $options)
+            || array_key_exists('quote', $options)
+            || array_key_exists('escape', $options)) {
+            return null;
+        }
+
+        $maxStoredRows = $this->maxRenderedRowsOption($options);
+        $dialect = $this->dialectProfile($format, $options);
+        $delimiter = $dialect['delimiter'];
+        $handle = fopen($path, 'rb');
+        if ($handle === false) {
+            throw new \RuntimeException("Unable to open delimited text source '{$path}'.");
+        }
+
+        try {
+            $preview = '';
+            $sourceRowCount = 0;
+            $sourceFieldCount = 0;
+            $sourceMinFieldCount = 0;
+            $sourceMaxFieldCount = 0;
+            $trailingDelimiterRows = [];
+            $finalRecordTerminated = true;
+            $finalRowFieldCount = 0;
+            $firstLine = true;
+
+            while (($line = fgets($handle)) !== false) {
+                if (
+                    str_contains($line, "\r")
+                    || str_contains($line, "\0")
+                    || preg_match('/[\x01-\x08\x0B\x0C\x0E-\x1F\x7F]/', $line) === 1
+                    || ($format === 'csv' && str_contains($line, '"'))
+                ) {
+                    return null;
+                }
+
+                if ($firstLine && (str_starts_with($line, "\xEF\xBB\xBF") || preg_match('/^[ \t]*\n$/', $line) === 1)) {
+                    return null;
+                }
+                $firstLine = false;
+
+                $finalRecordTerminated = str_ends_with($line, "\n");
+                $record = $finalRecordTerminated ? substr($line, 0, -1) : $line;
+                if ($record === '') {
+                    return null;
+                }
+
+                $fields = explode($delimiter, $record);
+                $fieldCount = count($fields);
+                $rowIndex = $sourceRowCount;
+                $sourceRowCount++;
+                $sourceFieldCount += $fieldCount;
+                $sourceMinFieldCount = $sourceRowCount === 1
+                    ? $fieldCount
+                    : min($sourceMinFieldCount, $fieldCount);
+                $sourceMaxFieldCount = max($sourceMaxFieldCount, $fieldCount);
+                $finalRowFieldCount = $fieldCount;
+                if (str_ends_with($record, $delimiter)) {
+                    $trailingDelimiterRows[] = $rowIndex;
+                }
+                if ($rowIndex < $maxStoredRows) {
+                    $preview .= $line;
+                }
+            }
+
+            if ($sourceRowCount <= $maxStoredRows || $preview === '') {
+                return null;
+            }
+
+            $sourceBytes = filesize($path);
+            if (!is_int($sourceBytes) || $sourceBytes < 0) {
+                return null;
+            }
+
+            return [
+                'text' => $preview,
+                'inputPrefix' => $this->fileInputPrefixReview($path, $sourceBytes),
+                'sourceRowCount' => $sourceRowCount,
+                'sourceFieldCount' => $sourceFieldCount,
+                'sourceMinFieldCount' => $sourceMinFieldCount,
+                'sourceMaxFieldCount' => $sourceMaxFieldCount,
+                'finalRecordTerminated' => $finalRecordTerminated,
+                'trailingDelimiterRows' => $trailingDelimiterRows,
+                'finalRowIndex' => $sourceRowCount - 1,
+                'finalRowFieldCount' => $finalRowFieldCount,
+            ];
+        } finally {
+            fclose($handle);
+        }
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function fileInputPrefixReview(string $path, int $inputByteCount): array
+    {
+        $prefix = file_get_contents($path, false, null, 0, self::INPUT_PREFIX_BYTE_LIMIT);
+        if (!is_string($prefix)) {
+            throw new \RuntimeException("Unable to read delimited text source prefix '{$path}'.");
+        }
+        $preview = substr($prefix, 0, self::INPUT_PREFIX_PREVIEW_BYTE_LIMIT);
+        $controlReview = $this->inputPrefixControlReview($prefix);
+
+        return [
+            'policy' => 'bounded-input-prefix-review',
+            'encoding' => 'utf-8',
+            'bom' => 'none',
+            'bomByteCount' => 0,
+            'leadingWhitespaceByteCount' => 0,
+            'leadingWhitespaceLineCount' => 0,
+            'firstContentOffset' => 0,
+            'firstContentLine' => 1,
+            'inputByteCount' => $inputByteCount,
+            'inspectionByteLimit' => self::INPUT_PREFIX_BYTE_LIMIT,
+            'inspectedByteCount' => strlen($prefix),
+            'inspectionTruncated' => $inputByteCount > self::INPUT_PREFIX_BYTE_LIMIT,
+            'prefixPreviewByteLimit' => self::INPUT_PREFIX_PREVIEW_BYTE_LIMIT,
+            'prefixPreviewByteCount' => strlen($preview),
+            'prefixPreviewHex' => bin2hex($preview),
+            'sampleLimit' => self::CONTROL_CHARACTER_SAMPLE_LIMIT,
+            'nullByteCount' => $controlReview['nullByteCount'],
+            'nullBytes' => $controlReview['nullBytes'],
+            'controlCharacterCount' => $controlReview['controlCharacterCount'],
+            'controlCharacters' => $controlReview['controlCharacters'],
+            'carriageReturnNormalization' => [
+                'policy' => 'pandoc-sources-remove-carriage-returns',
+                'removedCount' => 0,
+            ],
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $preview
+     */
+    private function withBoundedFileReview(AstNode $document, array $preview): AstNode
+    {
+        $attrs = $document->attrs;
+        $review = $attrs['delimitedText'] ?? null;
+        $changed = false;
+        if (is_array($review)) {
+            $attrs['delimitedText'] = $this->boundedFileReview($review, $preview);
+            $changed = true;
+        }
+
+        $children = [];
+        foreach ($document->children as $child) {
+            $replacement = $this->withBoundedFileReviewNode($child, $preview);
+            $children[] = $replacement;
+            $changed = $changed || $replacement !== $child;
+        }
+
+        return $changed ? new AstNode($document->type, $attrs, $children) : $document;
+    }
+
+    /**
+     * @param array<string, mixed> $preview
+     */
+    private function withBoundedFileReviewNode(AstNode $node, array $preview): AstNode
+    {
+        $attrs = $node->attrs;
+        $review = $attrs['delimitedText'] ?? null;
+        if (!is_array($review)) {
+            return $node;
+        }
+
+        $attrs['delimitedText'] = $this->boundedFileReview($review, $preview);
+
+        return new AstNode($node->type, $attrs, $node->children);
+    }
+
+    /**
+     * @param array<string, mixed> $review
+     * @param array<string, mixed> $preview
+     * @return array<string, mixed>
+     */
+    private function boundedFileReview(array $review, array $preview): array
+    {
+        $renderedRowCount = (int) ($review['renderedRowCount'] ?? 0);
+        $renderedFieldCount = (int) ($review['renderedFieldCount'] ?? 0);
+        $sourceRowCount = (int) $preview['sourceRowCount'];
+        $sourceFieldCount = (int) $preview['sourceFieldCount'];
+        $omittedRowCount = max(0, $sourceRowCount - $renderedRowCount);
+        $rowWidths = is_array($review['rowWidthSummary']['rowWidths'] ?? null)
+            ? $review['rowWidthSummary']['rowWidths']
+            : [];
+        $referenceWidth = $rowWidths === [] ? 0 : max(array_map('intval', $rowWidths));
+        $partialFinalRecord = !(bool) $preview['finalRecordTerminated']
+            && (int) $preview['finalRowFieldCount'] < $referenceWidth;
+
+        $inputPrefix = $preview['inputPrefix'];
+        $existingInputPrefix = $review['inputPrefix'] ?? null;
+        if (is_array($existingInputPrefix)) {
+            foreach ($existingInputPrefix as $key => $value) {
+                if (!array_key_exists($key, $inputPrefix)) {
+                    $inputPrefix[$key] = $value;
+                }
+            }
+        }
+        $review['inputPrefix'] = $inputPrefix;
+        $review['rowCount'] = $sourceRowCount;
+        $review['bodyRowCount'] = ($review['headerRow'] ?? false) ? max(0, $sourceRowCount - 1) : $sourceRowCount;
+        $review['renderedRowCount'] = $renderedRowCount;
+        $review['renderedBodyRowCount'] = ($review['headerRow'] ?? false)
+            ? max(0, $renderedRowCount - 1)
+            : $renderedRowCount;
+        $review['omittedRowCount'] = $omittedRowCount;
+        $review['renderingTruncated'] = $omittedRowCount > 0;
+        $review['sourceMaxFieldCount'] = (int) $preview['sourceMaxFieldCount'];
+        $review['fieldCount'] = $sourceFieldCount;
+        $review['renderedFieldCount'] = $renderedFieldCount;
+        $review['minFieldCount'] = (int) $preview['sourceMinFieldCount'];
+        $review['maxFieldCount'] = (int) $preview['sourceMaxFieldCount'];
+        $review['finalRecordTerminated'] = (bool) $preview['finalRecordTerminated'];
+        $review['trailingDelimiterRowCount'] = count($preview['trailingDelimiterRows']);
+        $review['trailingDelimiterRows'] = $preview['trailingDelimiterRows'];
+        $review['partialFinalRecord'] = $partialFinalRecord;
+        $review['partialFinalRecordRow'] = $partialFinalRecord ? (int) $preview['finalRowIndex'] : null;
+        $review['partialFinalRecordFieldCount'] = $partialFinalRecord ? (int) $preview['finalRowFieldCount'] : null;
+
+        $diagnostics = is_array($review['diagnostics'] ?? null) ? $review['diagnostics'] : [];
+        if ($preview['trailingDelimiterRows'] !== []) {
+            $diagnostics[] = [
+                'code' => 'delimited-text-trailing-delimiter-empty-field',
+                'severity' => 'info',
+                'message' => 'One or more records end with a delimiter, producing an explicit empty final field.',
+                'rows' => $preview['trailingDelimiterRows'],
+            ];
+        }
+        if ($partialFinalRecord) {
+            $diagnostics[] = [
+                'code' => 'delimited-text-partial-final-record',
+                'severity' => 'warning',
+                'message' => 'The final unterminated source record has fewer fields than the widest parsed record and was padded in the table AST.',
+                'row' => (int) $preview['finalRowIndex'],
+                'fieldCount' => (int) $preview['finalRowFieldCount'],
+            ];
+        }
+        $diagnostics[] = [
+            'code' => 'delimited-text-rendered-table-truncated',
+            'severity' => 'info',
+            'message' => 'The source table was larger than the bounded rendered-table preview; later rows were omitted from the document tree to avoid exhausting memory.',
+            'sourceRowCount' => $sourceRowCount,
+            'renderedRowCount' => $renderedRowCount,
+            'omittedRowCount' => $omittedRowCount,
+        ];
+        $review['diagnostics'] = $diagnostics;
+        $review['diagnosticCount'] = count($diagnostics);
+
+        return $review;
     }
 
     /**

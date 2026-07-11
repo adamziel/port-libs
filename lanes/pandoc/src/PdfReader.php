@@ -43,14 +43,17 @@ final class PdfReader
         }
         $extractor = new PdfTextExtractor($extractorOptions);
         $textLineItems = $this->normalizePdfTextLineItems($extractor->extractTextLineItems($pdfBytes));
-        $lines = array_column($textLineItems, 'text');
         $geometryTablesEnabled = !$fastTextOnly && $this->geometryTablesEnabled();
         $proseRepairEnabled = !$fastTextOnly && $this->proseTextRepairEnabled();
         $runs = $fastTextOnly ? [] : $extractor->extractTextRuns($pdfBytes);
         $positionedRuns = (!$fastTextOnly && ($geometryTablesEnabled || $proseRepairEnabled)) ? $extractor->extractPositionedTextRuns($pdfBytes) : [];
         $filledRectangles = $geometryTablesEnabled ? $extractor->extractFilledRectangles($pdfBytes) : [];
         $diagnostics = $fastTextOnly ? $this->fastTextOnlyDiagnostics() : $extractor->diagnostics($pdfBytes);
-        $plainText = implode("\n", $lines);
+        $textLineCount = count($textLineItems);
+        $textRunCount = count($runs);
+        $positionedRunCount = count($positionedRuns);
+        $filledRectangleCount = count($filledRectangles);
+        $plainTextBytes = $this->pdfTextLineItemByteLength($textLineItems);
         $limitedTextLineItems = $this->limitPdfTextLineItems($textLineItems, $maxTextBytes);
         $limitedLines = array_column($limitedTextLineItems, 'text');
         $limitedPositionedRuns = $this->limitPositionedTextRuns($positionedRuns, $maxTextBytes);
@@ -59,6 +62,7 @@ final class PdfReader
         // for spacing; otherwise a raw adjacency can turn "a trace" into
         // "atrace" or join the end of one line to the next.
         $rawSplitWordHints = $this->pdfTextRunSplitWordHints($runs);
+        unset($textLineItems, $runs, $positionedRuns);
         $positionedSplitWordHints = $limitedPositionedRuns === []
             ? []
             : $this->pdfPositionedRunCorroboratedSplitFragmentHints(
@@ -97,6 +101,7 @@ final class PdfReader
         $geometryTableBlocks = $geometryTablesEnabled && $taggedBlocks === []
             ? $this->blocksFromPositionedTables($limitedPositionedRuns, $filledRectangles, $geometryTableBlocksByPage)
             : [];
+        unset($filledRectangles);
         $geometryTableCount = $this->countNodesOfType($geometryTableBlocks, 'table');
         $geometryTableFallback = false;
         if ($geometryTableBlocks !== [] && (
@@ -223,14 +228,14 @@ final class PdfReader
         $metadata = array_replace($structuralMetadata, [
             'pdfExtractor' => PdfTextExtractor::class,
             'pdfFastTextOnly' => $fastTextOnly,
-            'pdfTextLines' => count($lines),
-            'pdfTextRuns' => count($runs),
-            'pdfPositionedTextRuns' => count($positionedRuns),
+            'pdfTextLines' => $textLineCount,
+            'pdfTextRuns' => $textRunCount,
+            'pdfPositionedTextRuns' => $positionedRunCount,
             'pdfPositionedTextInsertedRuns' => count($limitedPositionedRuns),
-            'pdfFilledRectangles' => count($filledRectangles),
-            'pdfTextBytes' => strlen($plainText),
+            'pdfFilledRectangles' => $filledRectangleCount,
+            'pdfTextBytes' => $plainTextBytes,
             'pdfTextInsertedBytes' => strlen($insertedText),
-            'pdfTextLimited' => strlen($insertedText) < strlen($plainText),
+            'pdfTextLimited' => strlen($insertedText) < $plainTextBytes,
             'pdfMaxPages' => $this->pdfMaxPages(),
             'pdfTextRepair' => $repairedLines !== $limitedLines,
             'pdfTextRepairSource' => $repairedLines !== $limitedLines ? $repairSource : null,
@@ -541,6 +546,19 @@ final class PdfReader
         }
 
         return $limited;
+    }
+
+    /**
+     * @param list<array{page: int, stream: int, text: string}> $items
+     */
+    private function pdfTextLineItemByteLength(array $items): int
+    {
+        $bytes = 0;
+        foreach ($items as $index => $item) {
+            $bytes += strlen($item['text']) + ($index === 0 ? 0 : 1);
+        }
+
+        return $bytes;
     }
 
     /**

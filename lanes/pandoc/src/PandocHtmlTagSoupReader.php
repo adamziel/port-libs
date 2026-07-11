@@ -27,8 +27,7 @@ final class PandocHtmlTagSoupReader
 
     public function read(string $html): AstNode
     {
-        $parser = new TagSoupParser();
-        $tokens = TagSoupParser::canonicalizeTags($parser->parse($html));
+        $tokens = $this->tokenize($html);
         $this->htmlBaseHref = $this->firstBaseHref($tokens);
         $documentMeta = $this->documentMetadataFromTokens($tokens);
         $this->footnotes = (new PandocHtmlTagSoupTableReader())->footnoteDefinitionsFromTokens($tokens);
@@ -46,6 +45,9 @@ final class PandocHtmlTagSoupReader
                 'sourceFormat' => 'html',
                 'reader' => self::class,
                 'readerScope' => 'tagsoup-pandoc-html-reader-port',
+                // This records the public token semantics used by the AST.
+                // WP_HTML_Processor can supply that stream with a smaller
+                // working set, without changing exported provenance.
                 'htmlTokenizer' => TagSoupParser::class,
                 'sourceBytes' => strlen($html),
                 'sourceSha256' => hash('sha256', $html),
@@ -58,7 +60,21 @@ final class PandocHtmlTagSoupReader
      */
     public function tokenize(string $html): array
     {
+        if ($this->wordPressHtmlProcessorRequested() && WpHtmlProcessorTokenStream::available()) {
+            $tokens = WpHtmlProcessorTokenStream::tokenize($html);
+            if ($tokens !== null) {
+                return $tokens;
+            }
+        }
+
         return TagSoupParser::canonicalizeTags((new TagSoupParser())->parse($html));
+    }
+
+    private function wordPressHtmlProcessorRequested(): bool
+    {
+        $backend = $this->options['htmlTokenizerBackend'] ?? 'auto';
+
+        return $backend === 'auto' || $backend === 'wp-html-processor';
     }
 
     /**
