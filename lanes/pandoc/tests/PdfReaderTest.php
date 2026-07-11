@@ -7612,6 +7612,25 @@ return [
         $t->contains('<th>Left</th><th>Middle</th><th>Right</th>', $blocks);
         $t->contains('<td>A</td><td data-pdf-fill-color="#e6e6e6" style="background-color:#e6e6e6"></td><td>C</td>', $blocks);
     },
+    'does not treat thin positioned table rules as cell backgrounds' => static function (TestRunner $t) use ($pdfWithContent): void {
+        $pdf = $pdfWithContent(
+            'q 0 g 70 703.8 240 0.4 re f Q q 0.9 g 112 698 80 18 re f Q '
+            . 'BT /F1 10 Tf '
+            . '1 0 0 1 72 720 Tm (Left) Tj 1 0 0 1 152 720 Tm (Middle) Tj 1 0 0 1 232 720 Tm (Right) Tj '
+            . '1 0 0 1 72 704 Tm (A) Tj 1 0 0 1 232 704 Tm (C) Tj '
+            . 'ET'
+        );
+
+        $document = (new PdfReader())->read($pdf);
+        $blocks = PandocConverter::write($document, 'blocks');
+        $meta = $document->attr('meta');
+
+        $t->same('table', $document->children[0]->type);
+        $t->same(1, $meta['pdfGeometryTables']);
+        $t->same(2, $meta['pdfFilledRectangles']);
+        $t->contains('<td>A</td><td data-pdf-fill-color="#e6e6e6" style="background-color:#e6e6e6"></td><td>C</td>', $blocks);
+        $t->true(!str_contains($blocks, 'data-pdf-fill-color="#000000"'));
+    },
     'uses pdf simple font Widths for positioned text in pandoc ast blocks' => static function (TestRunner $t) use ($pdfWithSimpleFontWidthsForPositioning): void {
         $document = (new PdfReader())->read($pdfWithSimpleFontWidthsForPositioning());
         $blocks = PandocConverter::write($document, 'blocks');

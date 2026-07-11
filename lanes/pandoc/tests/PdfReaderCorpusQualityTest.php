@@ -30,6 +30,9 @@ $pdfSamplePaths = static function (): array {
         'grand-canyon-map' => $root . '/pandoc-showcase/samples/pdf-grand-canyon-north-rim-map-grand-canyon-north-rim-pocket-map.pdf',
         'irs-w4-form' => $root . '/pandoc-showcase/samples/pdf-irs-w4-irs-form-w4.pdf',
         'muir-brochure' => $root . '/pandoc-showcase/samples/pdf-muir-beach-brochure-muir-beach-brochure.pdf',
+        'quickbooks-invoice' => $root . '/pandoc-showcase/samples/pdf-quickbooks-invoice-template-quickbooks-invoice-template.pdf',
+        'spreadsheet-no-frame' => $root . '/pandoc-showcase/samples/pdf-tabula-spreadsheet-no-frame-crop-table-no-frame.pdf',
+        'multicolumn-table' => $root . '/pandoc-showcase/samples/pdf-tabula-multicolumn-multi-column.pdf',
         'tracemonkey-paper' => $root . '/pandoc-showcase/samples/pdf-tracemonkey-tracemonkey.pdf',
     ];
 };
@@ -163,6 +166,8 @@ return [
             $t->true(($meta['pdfTextBytes'] ?? 0) >= 300, "{$kind} should preserve a useful text payload.");
             $t->true(array_key_exists('pdfTableReconstruction', $meta), "{$kind} should report table reconstruction mode.");
             $t->true(array_key_exists('pdfDetectedTables', $meta), "{$kind} should report detected table count.");
+            unset($result);
+            gc_collect_cycles();
         }
     },
     'pdf corpus gate preserves real layout tables without using text fragments' => static function (TestRunner $t) use ($pdfSamplePaths, $readPdfSample): void {
@@ -179,7 +184,37 @@ return [
             $t->true($result['tables'] >= $expectation['minTables'], "{$kind} WordPress blocks should include table blocks.");
             $t->true(($meta['pdfTextLines'] ?? 0) >= $expectation['minLines'], "{$kind} should keep enough positioned text to avoid collapsed extraction.");
             $t->same($expectation['mode'], $meta['pdfTableReconstruction'], "{$kind} should report the selected table reconstruction mode.");
+            unset($result);
+            gc_collect_cycles();
         }
+    },
+    'pdf corpus gate preserves real invoice and borderless table structure' => static function (TestRunner $t) use ($pdfSamplePaths, $readPdfSample, $plainText): void {
+        $invoice = $readPdfSample($pdfSamplePaths()['quickbooks-invoice']);
+        $invoiceText = $plainText(PandocConverter::write($invoice['document'], 'html'));
+        $t->true($invoice['tables'] >= 5, 'The invoice template should retain its editable table structure.');
+        $t->contains('Invoice template', $invoiceText);
+        $t->contains('Bill to', $invoiceText);
+
+        $cropTable = $readPdfSample($pdfSamplePaths()['spreadsheet-no-frame']);
+        $cropText = $plainText(PandocConverter::write($cropTable['document'], 'html'));
+        $t->same(1, $cropTable['tables']);
+        $t->contains('<th>HARVEST</th>', $cropTable['blocks']);
+        $t->contains('<td>COTTON</td><td>1.393,4</td>', $cropTable['blocks']);
+        $t->contains('YIELD ESTIMATE', $cropText);
+        $t->true(!str_contains($cropTable['blocks'], 'data-pdf-fill-color="#000000"'), 'Thin table rules must not become black cell backgrounds.');
+        unset($invoice, $invoiceText, $cropTable, $cropText);
+        gc_collect_cycles();
+    },
+    'pdf corpus gate keeps adjacent numeric table groups together' => static function (TestRunner $t) use ($pdfSamplePaths, $readPdfSample): void {
+        $table = $readPdfSample($pdfSamplePaths()['multicolumn-table']);
+
+        $t->same(1, $table['tables']);
+        $t->same(0, $table['paragraphs']);
+        $t->contains('<th>1</th><th>100</th><th>200</th><th>25</th><th>124</th><th>224</th>', $table['blocks']);
+        $t->contains('<td>2</td><td>101</td><td>201</td><td>26</td><td>125</td><td>225</td>', $table['blocks']);
+        $t->contains('<td>24</td><td>123</td><td>223</td><td></td><td></td><td></td>', $table['blocks']);
+        unset($table);
+        gc_collect_cycles();
     },
     'pdf corpus gate keeps text only retry prose oriented' => static function (TestRunner $t) use ($pdfSamplePaths, $readPdfSample): void {
         $cases = [
@@ -197,6 +232,8 @@ return [
             $t->true($result['tables'] >= $expectation['minTables'], "{$kind} text-only retry should preserve text-detected tables.");
             $t->true($result['paragraphs'] >= $expectation['minParagraphs'], "{$kind} text-only retry should keep prose split into readable paragraphs.");
             $t->true($result['headings'] >= $expectation['minHeadings'], "{$kind} text-only retry should retain heading-like line structure.");
+            unset($result);
+            gc_collect_cycles();
         }
     },
     'pdf corpus gate keeps multi-column brochure flows separate' => static function (TestRunner $t) use ($pdfSamplePaths, $plainText): void {

@@ -1,5 +1,5 @@
 {
-    "generatedAt": "2026-07-11T05:03:22+00:00",
+    "generatedAt": "2026-07-11T10:58:09+00:00",
     "pandocVersion": "pandoc 3.10\nFeatures: +server +lua\nScripting engine: Lua 5.4\nUser data directory: $REPO\nCopyright (C) 2006-2025 John MacFarlane. Web:  https://pandoc.org\nThis is free software; see the source for copying conditions. There is no\nwarranty, not even for merchantability or fitness for a particular purpose.",
     "mediaImageMode": "important",
     "formats": [
@@ -88,28 +88,28 @@
     ],
     "missingFormats": [],
     "conversionSummary": {
-        "totalSamples": 90,
-        "totalConversions": 270,
-        "successfulConversions": 260,
-        "failedConversions": 10,
+        "totalSamples": 93,
+        "totalConversions": 279,
+        "successfulConversions": 266,
+        "failedConversions": 13,
         "byConverter": {
             "wpBlocks": {
                 "label": "PHP WordPress blocks",
-                "ok": 90,
+                "ok": 93,
                 "failed": 0,
-                "total": 90
+                "total": 93
             },
             "phpHtml": {
                 "label": "PHP HTML",
-                "ok": 90,
+                "ok": 93,
                 "failed": 0,
-                "total": 90
+                "total": 93
             },
             "haskell": {
                 "label": "Haskell Pandoc HTML",
                 "ok": 80,
-                "failed": 10,
-                "total": 90
+                "failed": 13,
+                "total": 93
             }
         },
         "byFormat": {
@@ -306,10 +306,10 @@
                 "total": 6
             },
             "pdf": {
-                "samples": 6,
-                "ok": 12,
-                "failed": 6,
-                "total": 18
+                "samples": 9,
+                "ok": 18,
+                "failed": 9,
+                "total": 27
             },
             "pptx": {
                 "samples": 4,
@@ -356,8 +356,8 @@
         }
     },
     "faithfulnessSummary": {
-        "comparisons": 160,
-        "faithfulEnough": 158,
+        "comparisons": 166,
+        "faithfulEnough": 164,
         "review": 2,
         "divergent": 0,
         "noText": 0,
@@ -366,7 +366,7 @@
         "visualReview": 0,
         "visualDivergent": 0,
         "visualNoStructure": 0,
-        "visualNotApplicable": 12
+        "visualNotApplicable": 18
     },
     "bibliographyComparisonSummary": {
         "samples": 10,
@@ -377,21 +377,21 @@
         "unavailable": 0
     },
     "importQualitySummary": {
-        "samples": 90,
-        "pass": 89,
+        "samples": 93,
+        "pass": 92,
         "review": 1,
         "fail": 0,
         "unbenchmarked": 0
     },
     "importQualitySegmentSummary": {
         "common": {
-            "samples": 44,
-            "pass": 43,
+            "samples": 47,
+            "pass": 46,
             "review": 1,
             "fail": 0,
             "unbenchmarked": 0,
             "wpFailures": 0,
-            "passReviewOrUnbenchmarked": 44,
+            "passReviewOrUnbenchmarked": 47,
             "formats": {
                 "csv": {
                     "samples": 2,
@@ -466,13 +466,13 @@
                     "passReviewOrUnbenchmarked": 3
                 },
                 "pdf": {
-                    "samples": 6,
-                    "pass": 5,
+                    "samples": 9,
+                    "pass": 8,
                     "review": 1,
                     "fail": 0,
                     "unbenchmarked": 0,
                     "wpFailures": 0,
-                    "passReviewOrUnbenchmarked": 6
+                    "passReviewOrUnbenchmarked": 9
                 },
                 "pptx": {
                     "samples": 4,
@@ -785,19 +785,19 @@
                     "maxFail": 5
                 },
                 "actual": {
-                    "samples": 44,
+                    "samples": 47,
                     "wpFailures": 0,
-                    "pass": 43,
+                    "pass": 46,
                     "review": 1,
                     "fail": 0,
                     "unbenchmarked": 0,
-                    "passReviewOrUnbenchmarked": 44
+                    "passReviewOrUnbenchmarked": 47
                 },
                 "checks": {
                     "minSamples": {
                         "status": "pass",
                         "expected": ">=44",
-                        "actual": 44
+                        "actual": 47
                     },
                     "maxWpFailures": {
                         "status": "pass",
@@ -807,12 +807,12 @@
                     "minPass": {
                         "status": "pass",
                         "expected": ">=29",
-                        "actual": 43
+                        "actual": 46
                     },
                     "minPassReviewOrUnbenchmarked": {
                         "status": "pass",
                         "expected": ">=39",
-                        "actual": 44
+                        "actual": 47
                     },
                     "maxFail": {
                         "status": "pass",
@@ -876,18 +876,18 @@
     "blockUsage": {
         "totals": {
             "code": 652,
-            "group": 308,
-            "heading": 4139,
+            "group": 310,
+            "heading": 4147,
             "html": 51,
-            "image": 286,
-            "list": 1389,
-            "paragraph": 16153,
+            "image": 295,
+            "list": 1390,
+            "paragraph": 16171,
             "quote": 54,
             "separator": 65,
-            "table": 574,
+            "table": 583,
             "verse": 2
         },
-        "sampleCount": 90
+        "sampleCount": 93
     },
     "records": [
         {
@@ -23119,6 +23119,758 @@
                 "summary": {
                     "pass": 6,
                     "review": 1,
+                    "fail": 0,
+                    "unbenchmarked": 0
+                }
+            }
+        },
+        {
+            "id": "pdf-quickbooks-invoice-template",
+            "format": "pdf",
+            "label": "QuickBooks invoice template PDF",
+            "description": "Public invoice template with explanatory prose, shaded table headers, line items, totals, and two editable invoice layouts.",
+            "source": "Intuit QuickBooks Invoice Template PDF",
+            "sourceUrl": "https://quickbooks.intuit.com/oidam/intuit/sbseg/en_au/quickbooks-online/web/content/QuickBooks-Invoice-Template-PDF.pdf",
+            "samplePath": "samples/pdf-quickbooks-invoice-template-quickbooks-invoice-template.pdf",
+            "sampleSize": 141704,
+            "preview": "",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\PdfReader",
+                "notes": "Project-local markerPDF bridge extracts searchable PDF text lines and structural provenance for simple PDFs. Complex multi-column or untagged PDFs may lose spacing/order or be exposed only as extraction diagnostics. PDF is not an upstream Pandoc input format."
+            },
+            "haskell": {
+                "ok": false,
+                "error": "Unknown input format 'pdf'\nPandoc can convert to PDF, but not from PDF.",
+                "path": "outputs/pdf-quickbooks-invoice-template/haskell.html.error.txt"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/pdf-quickbooks-invoice-template/php.html",
+                "media": [
+                    {
+                        "path": "outputs/pdf-quickbooks-invoice-template/media/pdf/image-25.png",
+                        "mediaPath": "pdf/image-25.png",
+                        "mimeType": "image/png",
+                        "byteLength": 326,
+                        "sha1": "d88f4345e3b1a35a32f7c41d709c6aff743f2aeb",
+                        "source": "pdf/image-25.png",
+                        "canonicalSource": "pdf/image-25.png",
+                        "sourcePath": "pdf/image-25.png",
+                        "pathRepairSummary": "safe-relative-path",
+                        "extractionPathRepairSummary": "safe-relative-path",
+                        "mimeTypeSource": "declared",
+                        "inferredMimeType": "image/png",
+                        "mimeRepairSummary": "declared-mime-matches-path"
+                    },
+                    {
+                        "path": "outputs/pdf-quickbooks-invoice-template/media/pdf/image-27.png",
+                        "mediaPath": "pdf/image-27.png",
+                        "mimeType": "image/png",
+                        "byteLength": 91,
+                        "sha1": "f3e6ac55a81dab1c8147f3ce7a95bf8e9137ac45",
+                        "source": "pdf/image-27.png",
+                        "canonicalSource": "pdf/image-27.png",
+                        "sourcePath": "pdf/image-27.png",
+                        "pathRepairSummary": "safe-relative-path",
+                        "extractionPathRepairSummary": "safe-relative-path",
+                        "mimeTypeSource": "declared",
+                        "inferredMimeType": "image/png",
+                        "mimeRepairSummary": "declared-mime-matches-path"
+                    },
+                    {
+                        "path": "outputs/pdf-quickbooks-invoice-template/media/pdf/image-28.png",
+                        "mediaPath": "pdf/image-28.png",
+                        "mimeType": "image/png",
+                        "byteLength": 11412,
+                        "sha1": "2c7da0bab7013b941b2a92806d7d33d6d95a506a",
+                        "source": "pdf/image-28.png",
+                        "canonicalSource": "pdf/image-28.png",
+                        "sourcePath": "pdf/image-28.png",
+                        "pathRepairSummary": "safe-relative-path",
+                        "extractionPathRepairSummary": "safe-relative-path",
+                        "mimeTypeSource": "declared",
+                        "inferredMimeType": "image/png",
+                        "mimeRepairSummary": "declared-mime-matches-path"
+                    },
+                    {
+                        "path": "outputs/pdf-quickbooks-invoice-template/media/pdf/image-29.png",
+                        "mediaPath": "pdf/image-29.png",
+                        "mimeType": "image/png",
+                        "byteLength": 7251,
+                        "sha1": "23872f9d251d54b4212316130976a831dfcd9504",
+                        "source": "pdf/image-29.png",
+                        "canonicalSource": "pdf/image-29.png",
+                        "sourcePath": "pdf/image-29.png",
+                        "pathRepairSummary": "safe-relative-path",
+                        "extractionPathRepairSummary": "safe-relative-path",
+                        "mimeTypeSource": "declared",
+                        "inferredMimeType": "image/png",
+                        "mimeRepairSummary": "declared-mime-matches-path"
+                    },
+                    {
+                        "path": "outputs/pdf-quickbooks-invoice-template/media/pdf/image-34.png",
+                        "mediaPath": "pdf/image-34.png",
+                        "mimeType": "image/png",
+                        "byteLength": 9651,
+                        "sha1": "333be8ad1e1229e11a20f4e7b756c42f15ba7efa",
+                        "source": "pdf/image-34.png",
+                        "canonicalSource": "pdf/image-34.png",
+                        "sourcePath": "pdf/image-34.png",
+                        "pathRepairSummary": "safe-relative-path",
+                        "extractionPathRepairSummary": "safe-relative-path",
+                        "mimeTypeSource": "declared",
+                        "inferredMimeType": "image/png",
+                        "mimeRepairSummary": "declared-mime-matches-path"
+                    },
+                    {
+                        "path": "outputs/pdf-quickbooks-invoice-template/media/pdf/image-35.png",
+                        "mediaPath": "pdf/image-35.png",
+                        "mimeType": "image/png",
+                        "byteLength": 6249,
+                        "sha1": "bd44700a8c7d213101379b92eee732259a215494",
+                        "source": "pdf/image-35.png",
+                        "canonicalSource": "pdf/image-35.png",
+                        "sourcePath": "pdf/image-35.png",
+                        "pathRepairSummary": "safe-relative-path",
+                        "extractionPathRepairSummary": "safe-relative-path",
+                        "mimeTypeSource": "declared",
+                        "inferredMimeType": "image/png",
+                        "mimeRepairSummary": "declared-mime-matches-path"
+                    }
+                ],
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important",
+                    "extract-media-pdf-image-unimportant:24:tiny",
+                    "extract-media-pdf-image-loaded:25:important",
+                    "extract-media-pdf-image-unimportant:26:tiny",
+                    "extract-media-pdf-image-loaded:27:important",
+                    "extract-media-pdf-image-loaded:28:important",
+                    "extract-media-pdf-image-loaded:29:important",
+                    "extract-media-pdf-image-loaded:34:important",
+                    "extract-media-pdf-image-loaded:35:important",
+                    "media-resource-mapped:pdf/image-25.png",
+                    "media-resource-mapped:pdf/image-27.png",
+                    "media-resource-mapped:pdf/image-28.png",
+                    "media-resource-mapped:pdf/image-29.png",
+                    "media-resource-mapped:pdf/image-34.png",
+                    "media-resource-mapped:pdf/image-35.png"
+                ]
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/pdf-quickbooks-invoice-template/wordpress-blocks.html",
+                "media": [
+                    {
+                        "path": "outputs/pdf-quickbooks-invoice-template/media/pdf/image-25.png",
+                        "mediaPath": "pdf/image-25.png",
+                        "mimeType": "image/png",
+                        "byteLength": 326,
+                        "sha1": "d88f4345e3b1a35a32f7c41d709c6aff743f2aeb",
+                        "source": "pdf/image-25.png",
+                        "canonicalSource": "pdf/image-25.png",
+                        "sourcePath": "pdf/image-25.png",
+                        "pathRepairSummary": "safe-relative-path",
+                        "extractionPathRepairSummary": "safe-relative-path",
+                        "mimeTypeSource": "declared",
+                        "inferredMimeType": "image/png",
+                        "mimeRepairSummary": "declared-mime-matches-path"
+                    },
+                    {
+                        "path": "outputs/pdf-quickbooks-invoice-template/media/pdf/image-27.png",
+                        "mediaPath": "pdf/image-27.png",
+                        "mimeType": "image/png",
+                        "byteLength": 91,
+                        "sha1": "f3e6ac55a81dab1c8147f3ce7a95bf8e9137ac45",
+                        "source": "pdf/image-27.png",
+                        "canonicalSource": "pdf/image-27.png",
+                        "sourcePath": "pdf/image-27.png",
+                        "pathRepairSummary": "safe-relative-path",
+                        "extractionPathRepairSummary": "safe-relative-path",
+                        "mimeTypeSource": "declared",
+                        "inferredMimeType": "image/png",
+                        "mimeRepairSummary": "declared-mime-matches-path"
+                    },
+                    {
+                        "path": "outputs/pdf-quickbooks-invoice-template/media/pdf/image-28.png",
+                        "mediaPath": "pdf/image-28.png",
+                        "mimeType": "image/png",
+                        "byteLength": 11412,
+                        "sha1": "2c7da0bab7013b941b2a92806d7d33d6d95a506a",
+                        "source": "pdf/image-28.png",
+                        "canonicalSource": "pdf/image-28.png",
+                        "sourcePath": "pdf/image-28.png",
+                        "pathRepairSummary": "safe-relative-path",
+                        "extractionPathRepairSummary": "safe-relative-path",
+                        "mimeTypeSource": "declared",
+                        "inferredMimeType": "image/png",
+                        "mimeRepairSummary": "declared-mime-matches-path"
+                    },
+                    {
+                        "path": "outputs/pdf-quickbooks-invoice-template/media/pdf/image-29.png",
+                        "mediaPath": "pdf/image-29.png",
+                        "mimeType": "image/png",
+                        "byteLength": 7251,
+                        "sha1": "23872f9d251d54b4212316130976a831dfcd9504",
+                        "source": "pdf/image-29.png",
+                        "canonicalSource": "pdf/image-29.png",
+                        "sourcePath": "pdf/image-29.png",
+                        "pathRepairSummary": "safe-relative-path",
+                        "extractionPathRepairSummary": "safe-relative-path",
+                        "mimeTypeSource": "declared",
+                        "inferredMimeType": "image/png",
+                        "mimeRepairSummary": "declared-mime-matches-path"
+                    },
+                    {
+                        "path": "outputs/pdf-quickbooks-invoice-template/media/pdf/image-34.png",
+                        "mediaPath": "pdf/image-34.png",
+                        "mimeType": "image/png",
+                        "byteLength": 9651,
+                        "sha1": "333be8ad1e1229e11a20f4e7b756c42f15ba7efa",
+                        "source": "pdf/image-34.png",
+                        "canonicalSource": "pdf/image-34.png",
+                        "sourcePath": "pdf/image-34.png",
+                        "pathRepairSummary": "safe-relative-path",
+                        "extractionPathRepairSummary": "safe-relative-path",
+                        "mimeTypeSource": "declared",
+                        "inferredMimeType": "image/png",
+                        "mimeRepairSummary": "declared-mime-matches-path"
+                    },
+                    {
+                        "path": "outputs/pdf-quickbooks-invoice-template/media/pdf/image-35.png",
+                        "mediaPath": "pdf/image-35.png",
+                        "mimeType": "image/png",
+                        "byteLength": 6249,
+                        "sha1": "bd44700a8c7d213101379b92eee732259a215494",
+                        "source": "pdf/image-35.png",
+                        "canonicalSource": "pdf/image-35.png",
+                        "sourcePath": "pdf/image-35.png",
+                        "pathRepairSummary": "safe-relative-path",
+                        "extractionPathRepairSummary": "safe-relative-path",
+                        "mimeTypeSource": "declared",
+                        "inferredMimeType": "image/png",
+                        "mimeRepairSummary": "declared-mime-matches-path"
+                    }
+                ],
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important",
+                    "extract-media-pdf-image-unimportant:24:tiny",
+                    "extract-media-pdf-image-loaded:25:important",
+                    "extract-media-pdf-image-unimportant:26:tiny",
+                    "extract-media-pdf-image-loaded:27:important",
+                    "extract-media-pdf-image-loaded:28:important",
+                    "extract-media-pdf-image-loaded:29:important",
+                    "extract-media-pdf-image-loaded:34:important",
+                    "extract-media-pdf-image-loaded:35:important",
+                    "media-resource-mapped:pdf/image-25.png",
+                    "media-resource-mapped:pdf/image-27.png",
+                    "media-resource-mapped:pdf/image-28.png",
+                    "media-resource-mapped:pdf/image-29.png",
+                    "media-resource-mapped:pdf/image-34.png",
+                    "media-resource-mapped:pdf/image-35.png"
+                ]
+            },
+            "wpBlockCounts": {
+                "group": 1,
+                "heading": 4,
+                "image": 6,
+                "paragraph": 15,
+                "table": 7
+            },
+            "sourceRawHtmlBlockCount": null,
+            "bibliographySource": null,
+            "externalReference": {
+                "ok": true,
+                "kind": "macos-pdfkit-text-geometry",
+                "label": "macOS PDFKit text and geometry reference",
+                "path": "outputs/pdf-quickbooks-invoice-template/pdfkit.html",
+                "dataPath": "outputs/pdf-quickbooks-invoice-template/pdfkit-reference.json",
+                "metrics": {
+                    "pageCount": 3,
+                    "textPageCount": 3,
+                    "lineCount": 86,
+                    "textBytes": 3007,
+                    "tokenCount": 504
+                }
+            },
+            "bibliographyComparison": {
+                "available": false
+            },
+            "faithfulness": {
+                "baseline": "externalReference",
+                "comparisons": {
+                    "wpBlocks": {
+                        "label": "PHP WordPress blocks",
+                        "status": "faithful_enough",
+                        "score": 0.9436,
+                        "textStatus": "faithful_enough",
+                        "textScore": 0.9436,
+                        "visualStatus": "not_applicable",
+                        "visualScore": null
+                    },
+                    "phpHtml": {
+                        "label": "PHP HTML",
+                        "status": "faithful_enough",
+                        "score": 0.9436,
+                        "textStatus": "faithful_enough",
+                        "textScore": 0.9436,
+                        "visualStatus": "not_applicable",
+                        "visualScore": null
+                    }
+                }
+            },
+            "importQuality": {
+                "status": "pass",
+                "gates": {
+                    "text_completeness": {
+                        "status": "pass",
+                        "expected": ">=0.8",
+                        "actual": 0.8705,
+                        "detail": "bidirectional stable body-text overlap with the independent macOS PDFKit reference"
+                    },
+                    "native_source_coverage": {
+                        "status": "pass",
+                        "expected": ">=0.65",
+                        "actual": 0.946,
+                        "detail": "native PDFKit source tokens retained in the WordPress output"
+                    },
+                    "pdf_geometry_reference": {
+                        "status": "pass",
+                        "expected": "native PDF page and line geometry",
+                        "actual": {
+                            "pages": 3,
+                            "textPages": 3,
+                            "lines": 86
+                        },
+                        "detail": "macOS PDFKit independently exposed source page boundaries and visual text lines; untagged PDFs do not expose an HTML heading/list/table/image tree."
+                    },
+                    "paragraph_merge_split": {
+                        "status": "pass",
+                        "expected": "at least 3 semantic text blocks and no more than 90% of 86 visual lines as paragraphs",
+                        "actual": {
+                            "textBlocks": 88,
+                            "paragraphs": 15,
+                            "sourceLines": 86
+                        },
+                        "detail": "native line geometry guards against collapsing a multi-page source or emitting one paragraph for every visual line."
+                    },
+                    "media_imported": {
+                        "status": "pass",
+                        "expected": 0,
+                        "actual": 0,
+                        "detail": "no media extraction problems reported"
+                    },
+                    "anchor_validity": {
+                        "status": "pass",
+                        "expected": 0,
+                        "actual": 0,
+                        "detail": "all local fragment links resolve"
+                    },
+                    "custom_html_percentage": {
+                        "status": "pass",
+                        "expected": "<=0.05",
+                        "actual": 0,
+                        "detail": "0/33 WordPress blocks are Custom HTML"
+                    }
+                },
+                "summary": {
+                    "pass": 7,
+                    "review": 0,
+                    "fail": 0,
+                    "unbenchmarked": 0
+                }
+            }
+        },
+        {
+            "id": "pdf-tabula-spreadsheet-no-frame",
+            "format": "pdf",
+            "label": "Ruling-free crop table PDF",
+            "description": "Public Tabula fixture with a data table inferred from aligned text rather than a boxed grid, followed by explanatory prose.",
+            "source": "tabulapdf/tabula-java spreadsheet_no_bounding_frame.pdf",
+            "sourceUrl": "https://raw.githubusercontent.com/tabulapdf/tabula-java/master/src/test/resources/technology/tabula/spreadsheet_no_bounding_frame.pdf",
+            "samplePath": "samples/pdf-tabula-spreadsheet-no-frame-crop-table-no-frame.pdf",
+            "sampleSize": 963925,
+            "preview": "",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\PdfReader",
+                "notes": "Project-local markerPDF bridge extracts searchable PDF text lines and structural provenance for simple PDFs. Complex multi-column or untagged PDFs may lose spacing/order or be exposed only as extraction diagnostics. PDF is not an upstream Pandoc input format."
+            },
+            "haskell": {
+                "ok": false,
+                "error": "Unknown input format 'pdf'\nPandoc can convert to PDF, but not from PDF.",
+                "path": "outputs/pdf-tabula-spreadsheet-no-frame/haskell.html.error.txt"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/pdf-tabula-spreadsheet-no-frame/php.html",
+                "media": [
+                    {
+                        "path": "outputs/pdf-tabula-spreadsheet-no-frame/media/pdf/image-5.jpg",
+                        "mediaPath": "pdf/image-5.jpg",
+                        "mimeType": "image/jpeg",
+                        "byteLength": 17606,
+                        "sha1": "b0b2a25a8244623cab1afd88006e3ea734d29d65",
+                        "source": "pdf/image-5.jpg",
+                        "canonicalSource": "pdf/image-5.jpg",
+                        "sourcePath": "pdf/image-5.jpg",
+                        "pathRepairSummary": "safe-relative-path",
+                        "extractionPathRepairSummary": "safe-relative-path",
+                        "mimeTypeSource": "declared",
+                        "inferredMimeType": "image/jpeg",
+                        "mimeRepairSummary": "declared-mime-matches-path"
+                    },
+                    {
+                        "path": "outputs/pdf-tabula-spreadsheet-no-frame/media/pdf/image-6.jpg",
+                        "mediaPath": "pdf/image-6.jpg",
+                        "mimeType": "image/jpeg",
+                        "byteLength": 806805,
+                        "sha1": "31c88c6ba2d138d04edf70cd651d2f3d5e522dc6",
+                        "source": "pdf/image-6.jpg",
+                        "canonicalSource": "pdf/image-6.jpg",
+                        "sourcePath": "pdf/image-6.jpg",
+                        "pathRepairSummary": "safe-relative-path",
+                        "extractionPathRepairSummary": "safe-relative-path",
+                        "mimeTypeSource": "declared",
+                        "inferredMimeType": "image/jpeg",
+                        "mimeRepairSummary": "declared-mime-matches-path"
+                    },
+                    {
+                        "path": "outputs/pdf-tabula-spreadsheet-no-frame/media/pdf/image-7.png",
+                        "mediaPath": "pdf/image-7.png",
+                        "mimeType": "image/png",
+                        "byteLength": 22596,
+                        "sha1": "f70545cb6e04ecda19d7b3d4be7c7580997dc66d",
+                        "source": "pdf/image-7.png",
+                        "canonicalSource": "pdf/image-7.png",
+                        "sourcePath": "pdf/image-7.png",
+                        "pathRepairSummary": "safe-relative-path",
+                        "extractionPathRepairSummary": "safe-relative-path",
+                        "mimeTypeSource": "declared",
+                        "inferredMimeType": "image/png",
+                        "mimeRepairSummary": "declared-mime-matches-path"
+                    }
+                ],
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important",
+                    "extract-media-pdf-image-loaded:5:important",
+                    "extract-media-pdf-image-loaded:6:important",
+                    "extract-media-pdf-image-loaded:7:important",
+                    "media-resource-mapped:pdf/image-5.jpg",
+                    "media-resource-mapped:pdf/image-6.jpg",
+                    "media-resource-mapped:pdf/image-7.png"
+                ]
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/pdf-tabula-spreadsheet-no-frame/wordpress-blocks.html",
+                "media": [
+                    {
+                        "path": "outputs/pdf-tabula-spreadsheet-no-frame/media/pdf/image-5.jpg",
+                        "mediaPath": "pdf/image-5.jpg",
+                        "mimeType": "image/jpeg",
+                        "byteLength": 17606,
+                        "sha1": "b0b2a25a8244623cab1afd88006e3ea734d29d65",
+                        "source": "pdf/image-5.jpg",
+                        "canonicalSource": "pdf/image-5.jpg",
+                        "sourcePath": "pdf/image-5.jpg",
+                        "pathRepairSummary": "safe-relative-path",
+                        "extractionPathRepairSummary": "safe-relative-path",
+                        "mimeTypeSource": "declared",
+                        "inferredMimeType": "image/jpeg",
+                        "mimeRepairSummary": "declared-mime-matches-path"
+                    },
+                    {
+                        "path": "outputs/pdf-tabula-spreadsheet-no-frame/media/pdf/image-6.jpg",
+                        "mediaPath": "pdf/image-6.jpg",
+                        "mimeType": "image/jpeg",
+                        "byteLength": 806805,
+                        "sha1": "31c88c6ba2d138d04edf70cd651d2f3d5e522dc6",
+                        "source": "pdf/image-6.jpg",
+                        "canonicalSource": "pdf/image-6.jpg",
+                        "sourcePath": "pdf/image-6.jpg",
+                        "pathRepairSummary": "safe-relative-path",
+                        "extractionPathRepairSummary": "safe-relative-path",
+                        "mimeTypeSource": "declared",
+                        "inferredMimeType": "image/jpeg",
+                        "mimeRepairSummary": "declared-mime-matches-path"
+                    },
+                    {
+                        "path": "outputs/pdf-tabula-spreadsheet-no-frame/media/pdf/image-7.png",
+                        "mediaPath": "pdf/image-7.png",
+                        "mimeType": "image/png",
+                        "byteLength": 22596,
+                        "sha1": "f70545cb6e04ecda19d7b3d4be7c7580997dc66d",
+                        "source": "pdf/image-7.png",
+                        "canonicalSource": "pdf/image-7.png",
+                        "sourcePath": "pdf/image-7.png",
+                        "pathRepairSummary": "safe-relative-path",
+                        "extractionPathRepairSummary": "safe-relative-path",
+                        "mimeTypeSource": "declared",
+                        "inferredMimeType": "image/png",
+                        "mimeRepairSummary": "declared-mime-matches-path"
+                    }
+                ],
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important",
+                    "extract-media-pdf-image-loaded:5:important",
+                    "extract-media-pdf-image-loaded:6:important",
+                    "extract-media-pdf-image-loaded:7:important",
+                    "media-resource-mapped:pdf/image-5.jpg",
+                    "media-resource-mapped:pdf/image-6.jpg",
+                    "media-resource-mapped:pdf/image-7.png"
+                ]
+            },
+            "wpBlockCounts": {
+                "group": 1,
+                "heading": 4,
+                "image": 3,
+                "list": 1,
+                "paragraph": 3,
+                "table": 1
+            },
+            "sourceRawHtmlBlockCount": null,
+            "bibliographySource": null,
+            "externalReference": {
+                "ok": true,
+                "kind": "macos-pdfkit-text-geometry",
+                "label": "macOS PDFKit text and geometry reference",
+                "path": "outputs/pdf-tabula-spreadsheet-no-frame/pdfkit.html",
+                "dataPath": "outputs/pdf-tabula-spreadsheet-no-frame/pdfkit-reference.json",
+                "metrics": {
+                    "pageCount": 1,
+                    "textPageCount": 1,
+                    "lineCount": 173,
+                    "textBytes": 1670,
+                    "tokenCount": 445
+                }
+            },
+            "bibliographyComparison": {
+                "available": false
+            },
+            "faithfulness": {
+                "baseline": "externalReference",
+                "comparisons": {
+                    "wpBlocks": {
+                        "label": "PHP WordPress blocks",
+                        "status": "faithful_enough",
+                        "score": 0.9726,
+                        "textStatus": "faithful_enough",
+                        "textScore": 0.9726,
+                        "visualStatus": "not_applicable",
+                        "visualScore": null
+                    },
+                    "phpHtml": {
+                        "label": "PHP HTML",
+                        "status": "faithful_enough",
+                        "score": 0.9726,
+                        "textStatus": "faithful_enough",
+                        "textScore": 0.9726,
+                        "visualStatus": "not_applicable",
+                        "visualScore": null
+                    }
+                }
+            },
+            "importQuality": {
+                "status": "pass",
+                "gates": {
+                    "text_completeness": {
+                        "status": "pass",
+                        "expected": ">=0.8",
+                        "actual": 1,
+                        "detail": "stable body-text coverage with a table-dominant WordPress output and the independent macOS PDFKit reference"
+                    },
+                    "native_source_coverage": {
+                        "status": "pass",
+                        "expected": ">=0.65",
+                        "actual": 0.998,
+                        "detail": "native PDFKit source tokens retained in the WordPress output"
+                    },
+                    "pdf_geometry_reference": {
+                        "status": "pass",
+                        "expected": "native PDF page and line geometry",
+                        "actual": {
+                            "pages": 1,
+                            "textPages": 1,
+                            "lines": 173
+                        },
+                        "detail": "macOS PDFKit independently exposed source page boundaries and visual text lines; untagged PDFs do not expose an HTML heading/list/table/image tree."
+                    },
+                    "paragraph_merge_split": {
+                        "status": "pass",
+                        "expected": "at least 1 semantic text blocks and no more than 90% of 173 visual lines as paragraphs",
+                        "actual": {
+                            "textBlocks": 194,
+                            "paragraphs": 3,
+                            "sourceLines": 173
+                        },
+                        "detail": "native line geometry guards against collapsing a multi-page source or emitting one paragraph for every visual line."
+                    },
+                    "media_imported": {
+                        "status": "pass",
+                        "expected": 0,
+                        "actual": 0,
+                        "detail": "no media extraction problems reported"
+                    },
+                    "anchor_validity": {
+                        "status": "pass",
+                        "expected": 0,
+                        "actual": 0,
+                        "detail": "all local fragment links resolve"
+                    },
+                    "custom_html_percentage": {
+                        "status": "pass",
+                        "expected": "<=0.05",
+                        "actual": 0,
+                        "detail": "0/13 WordPress blocks are Custom HTML"
+                    }
+                },
+                "summary": {
+                    "pass": 7,
+                    "review": 0,
+                    "fail": 0,
+                    "unbenchmarked": 0
+                }
+            }
+        },
+        {
+            "id": "pdf-tabula-multicolumn",
+            "format": "pdf",
+            "label": "Multi-column numeric table PDF",
+            "description": "Public Tabula fixture with six numeric columns arranged as two adjacent visual groups, exercising coordinate-based table grouping.",
+            "source": "tabulapdf/tabula-java MultiColumn.pdf",
+            "sourceUrl": "https://raw.githubusercontent.com/tabulapdf/tabula-java/master/src/test/resources/technology/tabula/MultiColumn.pdf",
+            "samplePath": "samples/pdf-tabula-multicolumn-multi-column.pdf",
+            "sampleSize": 8336,
+            "preview": "",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\PdfReader",
+                "notes": "Project-local markerPDF bridge extracts searchable PDF text lines and structural provenance for simple PDFs. Complex multi-column or untagged PDFs may lose spacing/order or be exposed only as extraction diagnostics. PDF is not an upstream Pandoc input format."
+            },
+            "haskell": {
+                "ok": false,
+                "error": "Unknown input format 'pdf'\nPandoc can convert to PDF, but not from PDF.",
+                "path": "outputs/pdf-tabula-multicolumn/haskell.html.error.txt"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/pdf-tabula-multicolumn/php.html",
+                "media": [],
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/pdf-tabula-multicolumn/wordpress-blocks.html",
+                "media": [],
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important"
+                ]
+            },
+            "wpBlockCounts": {
+                "table": 1
+            },
+            "sourceRawHtmlBlockCount": null,
+            "bibliographySource": null,
+            "externalReference": {
+                "ok": true,
+                "kind": "macos-pdfkit-text-geometry",
+                "label": "macOS PDFKit text and geometry reference",
+                "path": "outputs/pdf-tabula-multicolumn/pdfkit.html",
+                "dataPath": "outputs/pdf-tabula-multicolumn/pdfkit-reference.json",
+                "metrics": {
+                    "pageCount": 1,
+                    "textPageCount": 1,
+                    "lineCount": 44,
+                    "textBytes": 474,
+                    "tokenCount": 132
+                }
+            },
+            "bibliographyComparison": {
+                "available": false
+            },
+            "faithfulness": {
+                "baseline": "externalReference",
+                "comparisons": {
+                    "wpBlocks": {
+                        "label": "PHP WordPress blocks",
+                        "status": "faithful_enough",
+                        "score": 1,
+                        "textStatus": "faithful_enough",
+                        "textScore": 1,
+                        "visualStatus": "not_applicable",
+                        "visualScore": null
+                    },
+                    "phpHtml": {
+                        "label": "PHP HTML",
+                        "status": "faithful_enough",
+                        "score": 1,
+                        "textStatus": "faithful_enough",
+                        "textScore": 1,
+                        "visualStatus": "not_applicable",
+                        "visualScore": null
+                    }
+                }
+            },
+            "importQuality": {
+                "status": "pass",
+                "gates": {
+                    "text_completeness": {
+                        "status": "pass",
+                        "expected": ">=0.8",
+                        "actual": 1,
+                        "detail": "bidirectional stable body-text overlap with the independent macOS PDFKit reference"
+                    },
+                    "native_source_coverage": {
+                        "status": "pass",
+                        "expected": ">=0.65",
+                        "actual": 1,
+                        "detail": "native PDFKit source tokens retained in the WordPress output"
+                    },
+                    "pdf_geometry_reference": {
+                        "status": "pass",
+                        "expected": "native PDF page and line geometry",
+                        "actual": {
+                            "pages": 1,
+                            "textPages": 1,
+                            "lines": 44
+                        },
+                        "detail": "macOS PDFKit independently exposed source page boundaries and visual text lines; untagged PDFs do not expose an HTML heading/list/table/image tree."
+                    },
+                    "paragraph_merge_split": {
+                        "status": "pass",
+                        "expected": "at least 1 semantic text blocks and no more than 90% of 44 visual lines as paragraphs",
+                        "actual": {
+                            "textBlocks": 144,
+                            "paragraphs": 0,
+                            "sourceLines": 44
+                        },
+                        "detail": "native line geometry guards against collapsing a multi-page source or emitting one paragraph for every visual line."
+                    },
+                    "media_imported": {
+                        "status": "pass",
+                        "expected": 0,
+                        "actual": 0,
+                        "detail": "no media extraction problems reported"
+                    },
+                    "anchor_validity": {
+                        "status": "pass",
+                        "expected": 0,
+                        "actual": 0,
+                        "detail": "all local fragment links resolve"
+                    },
+                    "custom_html_percentage": {
+                        "status": "pass",
+                        "expected": "<=0.05",
+                        "actual": 0,
+                        "detail": "0/1 WordPress blocks are Custom HTML"
+                    }
+                },
+                "summary": {
+                    "pass": 7,
+                    "review": 0,
                     "fail": 0,
                     "unbenchmarked": 0
                 }

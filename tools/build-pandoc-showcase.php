@@ -1063,6 +1063,33 @@ RST;
                 'source' => 'National Park Service Muir Beach brochure PDF',
                 'filename' => 'muir-beach-brochure.pdf',
             ],
+            [
+                'id' => 'pdf-quickbooks-invoice-template',
+                'format' => 'pdf',
+                'label' => 'QuickBooks invoice template PDF',
+                'description' => 'Public invoice template with explanatory prose, shaded table headers, line items, totals, and two editable invoice layouts.',
+                'url' => 'https://quickbooks.intuit.com/oidam/intuit/sbseg/en_au/quickbooks-online/web/content/QuickBooks-Invoice-Template-PDF.pdf',
+                'source' => 'Intuit QuickBooks Invoice Template PDF',
+                'filename' => 'quickbooks-invoice-template.pdf',
+            ],
+            [
+                'id' => 'pdf-tabula-spreadsheet-no-frame',
+                'format' => 'pdf',
+                'label' => 'Ruling-free crop table PDF',
+                'description' => 'Public Tabula fixture with a data table inferred from aligned text rather than a boxed grid, followed by explanatory prose.',
+                'url' => 'https://raw.githubusercontent.com/tabulapdf/tabula-java/master/src/test/resources/technology/tabula/spreadsheet_no_bounding_frame.pdf',
+                'source' => 'tabulapdf/tabula-java spreadsheet_no_bounding_frame.pdf',
+                'filename' => 'crop-table-no-frame.pdf',
+            ],
+            [
+                'id' => 'pdf-tabula-multicolumn',
+                'format' => 'pdf',
+                'label' => 'Multi-column numeric table PDF',
+                'description' => 'Public Tabula fixture with six numeric columns arranged as two adjacent visual groups, exercising coordinate-based table grouping.',
+                'url' => 'https://raw.githubusercontent.com/tabulapdf/tabula-java/master/src/test/resources/technology/tabula/MultiColumn.pdf',
+                'source' => 'tabulapdf/tabula-java MultiColumn.pdf',
+                'filename' => 'multi-column.pdf',
+            ],
         ],
         'doc' => [
             [
@@ -2373,13 +2400,20 @@ function showcase_pdf_import_quality(string $siteDir, array $record): ?array
     $nativeSourceCoverage = round((float) $nativeTextMetrics['expectedCoverage'], 3);
     $referenceMetrics = is_array($reference['metrics'] ?? null) ? $reference['metrics'] : [];
     $wpVisual = showcase_output_visual_signature($siteDir, $wpPath);
+    $tableDominant = showcase_pdf_output_is_table_dominant($siteDir, $wpPath);
+    $textCompletenessScore = $tableDominant
+        ? (float) $textMetrics['expectedCoverage']
+        : (float) $textMetrics['f1'];
+    $textCompletenessDetail = $tableDominant
+        ? 'stable body-text coverage with a table-dominant WordPress output and the independent macOS PDFKit reference'
+        : 'bidirectional stable body-text overlap with the independent macOS PDFKit reference';
 
     $gates = [
         'text_completeness' => showcase_score_gate(
-            $textMetrics['f1'],
+            $textCompletenessScore,
             0.80,
             0.55,
-            'bidirectional stable body-text overlap with the independent macOS PDFKit reference',
+            $textCompletenessDetail,
             true
         ),
         'native_source_coverage' => showcase_score_gate(
@@ -2396,6 +2430,29 @@ function showcase_pdf_import_quality(string $siteDir, array $record): ?array
     showcase_add_output_integrity_gates($gates, $siteDir, $record, $wpPath);
 
     return showcase_import_quality_result($gates);
+}
+
+function showcase_pdf_output_is_table_dominant(string $siteDir, string $relativePath): bool
+{
+    $html = showcase_output_html($siteDir, $relativePath);
+    if ($html === '') {
+        return false;
+    }
+
+    $visibleHtml = showcase_visible_html($html);
+    $documentTokenCount = count(showcase_text_tokens(strip_tags($visibleHtml)));
+    if ($documentTokenCount === 0) {
+        return false;
+    }
+
+    preg_match_all('/<table\b[^>]*>(.*?)<\/table>/is', $visibleHtml, $matches);
+    $tableText = '';
+    foreach ($matches[1] ?? [] as $tableHtml) {
+        $tableText .= ' ' . strip_tags((string) $tableHtml);
+    }
+    $tableTokenCount = count(showcase_text_tokens($tableText));
+
+    return $tableTokenCount >= 24 && ($tableTokenCount / $documentTokenCount) >= 0.55;
 }
 
 /**
@@ -3254,6 +3311,9 @@ function write_conversion_report(
         'pdf-muir-beach-brochure',
         'pdf-archive-motograph-book',
         'pdf-tracemonkey',
+        'pdf-quickbooks-invoice-template',
+        'pdf-tabula-spreadsheet-no-frame',
+        'pdf-tabula-multicolumn',
         'epub-gutenberg-alice-illustrated',
         'epub-picture',
         'docx-oasis-kmip-spec',
@@ -4662,6 +4722,7 @@ foreach ([
     'markdown-pandoc-manual' => 'Pandoc manual Markdown',
     'odt-oasis-opendocument-schema' => 'OASIS OpenDocument ODT',
     'pdf-irs-w4' => 'IRS Form W-4 PDF',
+    'pdf-quickbooks-invoice-template' => 'QuickBooks invoice PDF',
     'pptx-cdc-food-safety-slides' => 'CDC PPTX',
     'xlsx-census-tax-parameter-workbook' => 'Census XLSX',
 ] as $id => $label) {

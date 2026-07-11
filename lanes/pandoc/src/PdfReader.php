@@ -14324,12 +14324,23 @@ final class PdfReader
             return null;
         }
 
-        $centerX = ($x1 + $x2) / 2.0;
-        $centerY = ($y1 + $y2) / 2.0;
+        $cellX1 = min($x1, $x2);
+        $cellY1 = min($y1, $y2);
+        $cellX2 = max($x1, $x2);
+        $cellY2 = max($y1, $y2);
+        $cellArea = ($cellX2 - $cellX1) * ($cellY2 - $cellY1);
+        if ($cellArea <= 0.0) {
+            return null;
+        }
+
         $bestColor = null;
         $bestArea = INF;
         foreach ($filledRectangles as $rectangle) {
-            if (!$this->pointInsideRectangle($centerX, $centerY, $rectangle, 2.0)) {
+            $overlapWidth = max(0.0, min($cellX2, $rectangle['x2']) - max($cellX1, $rectangle['x1']));
+            $overlapHeight = max(0.0, min($cellY2, $rectangle['y2']) - max($cellY1, $rectangle['y1']));
+            $coverage = ($overlapWidth * $overlapHeight) / $cellArea;
+            // A table rule can cross a cell center without being its fill.
+            if ($coverage < 0.6) {
                 continue;
             }
 
@@ -14341,17 +14352,6 @@ final class PdfReader
         }
 
         return $bestColor;
-    }
-
-    /**
-     * @param array{x1: float, y1: float, x2: float, y2: float} $rectangle
-     */
-    private function pointInsideRectangle(float $x, float $y, array $rectangle, float $tolerance): bool
-    {
-        return $x >= $rectangle['x1'] - $tolerance
-            && $x <= $rectangle['x2'] + $tolerance
-            && $y >= $rectangle['y1'] - $tolerance
-            && $y <= $rectangle['y2'] + $tolerance;
     }
 
     /**

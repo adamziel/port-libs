@@ -58,7 +58,7 @@ return [
         $expectedMinimums = [
             'doc' => 2,
             'docx' => 9,
-            'pdf' => 6,
+            'pdf' => 9,
             'html' => 4,
             'epub' => 5,
             'pptx' => 4,
@@ -105,9 +105,9 @@ return [
 
         $t->same([], $manifest['missingFormats'] ?? null);
         $t->same($formats, $coveredFormats);
-        $t->same(90, count($records));
-        $t->same(90, $qualitySummary['samples'] ?? null);
-        $t->same(89, $qualitySummary['pass'] ?? null);
+        $t->same(93, count($records));
+        $t->same(93, $qualitySummary['samples'] ?? null);
+        $t->same(92, $qualitySummary['pass'] ?? null);
         $t->same(1, $qualitySummary['review'] ?? null);
         $t->same(0, $qualitySummary['fail'] ?? null);
         $t->same(0, $qualitySummary['unbenchmarked'] ?? null);
@@ -267,6 +267,9 @@ return [
             'pdf-grand-canyon-north-rim-map',
             'pdf-archive-motograph-book',
             'pdf-muir-beach-brochure',
+            'pdf-quickbooks-invoice-template',
+            'pdf-tabula-spreadsheet-no-frame',
+            'pdf-tabula-multicolumn',
         ] as $id) {
             $record = $byId[$id] ?? null;
             $t->true(is_array($record), "{$id} should be present in the showcase manifest.");
@@ -305,6 +308,9 @@ return [
             'pdf-grand-canyon-north-rim-map',
             'pdf-archive-motograph-book',
             'pdf-muir-beach-brochure',
+            'pdf-quickbooks-invoice-template',
+            'pdf-tabula-spreadsheet-no-frame',
+            'pdf-tabula-multicolumn',
         ] as $id) {
             $t->true(
                 !str_contains($index, 'id="' . $id . '-externalReference"'),
