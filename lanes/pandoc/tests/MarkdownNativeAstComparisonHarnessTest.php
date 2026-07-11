@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\Pandoc\MarkdownNativeAstComparisonHarness;
+use PortLibs\Pandoc\AstNode;
 
 $fixtureRoot = static fn (): string => dirname(__DIR__) . '/fixtures';
 
@@ -246,5 +247,17 @@ return [
         $t->same(0, $decoded['unpairedMarkdownFixtureCount']);
         $t->same(137, $decoded['normalizedAstMatchCount']);
         $t->same(0, $decoded['normalizedAstMismatchCount']);
+    },
+    'ignores decoded input provenance when normalizing markdown ast comparisons' => static function (TestRunner $t): void {
+        $harness = new MarkdownNativeAstComparisonHarness();
+        $base = new AstNode('document', [], [
+            new AstNode('paragraph', ['text' => 'Same body'], [new AstNode('text', ['text' => 'Same body'])]),
+        ]);
+        $decoded = new AstNode('document', [
+            'sourceEncoding' => ['encoding' => 'UTF-8', 'bom' => false, 'repairs' => []],
+            'sourceLineEndings' => ['style' => 'crlf'],
+        ], $base->children);
+
+        $t->same($harness->normalizedDocument($base), $harness->normalizedDocument($decoded));
     },
 ];

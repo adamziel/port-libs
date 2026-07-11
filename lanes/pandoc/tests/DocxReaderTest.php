@@ -2844,4 +2844,49 @@ XML],
         $t->contains('data-docx-table-style-chain="BaseTable DerivedTable"', $blocks);
         $t->contains('data-docx-table-style-fill="D9EAF7"', $blocks);
     },
+    'resolves tracked paragraph marks according to the selected revision mode' => static function (TestRunner $t) use ($buildDocxReaderPackageBytes): void {
+        $bytes = $buildDocxReaderPackageBytes('<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:pPr><w:rPr><w:ins w:author="Editor" w:date="2026-07-11T00:00:00Z"/></w:rPr></w:pPr><w:r><w:t>This is a</w:t></w:r></w:p><w:p><w:pPr><w:rPr><w:del w:author="Editor" w:date="2026-07-11T00:00:00Z"/></w:rPr></w:pPr><w:r><w:t xml:space="preserve"> split</w:t></w:r></w:p><w:p><w:r><w:t>Paragraph.</w:t></w:r></w:p></w:body></w:document>');
+
+        $accept = (new DocxReader(['revisionMode' => 'accept']))->read($bytes);
+        $reject = (new DocxReader(['revisionMode' => 'reject']))->read($bytes);
+        $preserve = (new DocxReader(['revisionMode' => 'preserve']))->read($bytes);
+
+        $t->same(['This is a', 'split Paragraph.'], array_map(static fn (AstNode $node): string => (string) $node->attr('text'), $accept->children));
+        $t->same(['This is a split', 'Paragraph.'], array_map(static fn (AstNode $node): string => (string) $node->attr('text'), $reject->children));
+        $t->same(['This is a', 'split', 'Paragraph.'], array_map(static fn (AstNode $node): string => (string) $node->attr('text'), $preserve->children));
+        $t->same(['paragraph-insertion'], $preserve->children[0]->children[1]->attr('classes'));
+        $t->same(['paragraph-deletion'], $preserve->children[1]->children[1]->attr('classes'));
+        $t->same(['author' => 'Editor', 'date' => '2026-07-11T00:00:00Z'], $preserve->children[0]->children[1]->attr('attributes'));
+    },
+    'maps docx styles extension to pandoc custom-style divs and spans' => static function (TestRunner $t) use ($buildDocxReaderPackagePartsBytes): void {
+        $bytes = $buildDocxReaderPackagePartsBytes([
+            '[Content_Types].xml' => '<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/></Types>',
+            'word/styles.xml' => '<?xml version="1.0"?><w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:style w:type="paragraph" w:styleId="BodyText"><w:name w:val="Body Text"/></w:style><w:style w:type="paragraph" w:styleId="FirstParagraph"><w:name w:val="First Paragraph"/><w:basedOn w:val="BodyText"/></w:style><w:style w:type="paragraph" w:styleId="BlockText"><w:name w:val="Block Text"/></w:style><w:style w:type="paragraph" w:styleId="MyBlockStyle"><w:name w:val="My Block Style"/><w:basedOn w:val="BlockText"/></w:style><w:style w:type="character" w:styleId="Emphatic"><w:name w:val="Emphatic"/><w:rPr><w:i/></w:rPr></w:style><w:style w:type="character" w:styleId="Strengthened"><w:name w:val="Strengthened"/><w:rPr><w:b/></w:rPr></w:style></w:styles>',
+            'word/document.xml' => '<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:pPr><w:pStyle w:val="FirstParagraph"/></w:pPr><w:r><w:t>First.</w:t></w:r></w:p><w:p><w:pPr><w:pStyle w:val="BodyText"/></w:pPr><w:r><w:t xml:space="preserve">A </w:t></w:r><w:r><w:rPr><w:rStyle w:val="Emphatic"/></w:rPr><w:t>styled</w:t></w:r><w:r><w:t xml:space="preserve"> and </w:t></w:r><w:r><w:rPr><w:rStyle w:val="Strengthened"/></w:rPr><w:t>strong</w:t></w:r><w:r><w:t> run.</w:t></w:r></w:p><w:p><w:pPr><w:pStyle w:val="MyBlockStyle"/></w:pPr><w:r><w:t>Quoted.</w:t></w:r></w:p></w:body></w:document>',
+        ]);
+
+        $default = (new DocxReader())->read($bytes);
+        $document = (new DocxReader(['stylesExtension' => true]))->read($bytes);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $inlineStyles = array_values(array_filter(
+            $document->children[1]->children[0]->children,
+            static fn (AstNode $node): bool => $node->type === 'span'
+        ));
+
+        $t->same(['paragraph', 'paragraph', 'blockquote'], array_map(static fn (AstNode $node): string => $node->type, $default->children));
+        $t->same(['div', 'div', 'div'], array_map(static fn (AstNode $node): string => $node->type, $document->children));
+        $t->same('First Paragraph', $document->children[0]->attr('attributes')['custom-style']);
+        $t->same('Body Text', $document->children[1]->attr('attributes')['custom-style']);
+        $t->same('My Block Style', $document->children[2]->attr('attributes')['custom-style']);
+        $t->same('blockquote', $document->children[2]->children[0]->type);
+        $t->same(['Emphatic', 'Strengthened'], array_map(static fn (AstNode $node): string => (string) $node->attr('attributes')['custom-style'], $inlineStyles));
+        $t->same(['span', 'span'], array_map(static fn (AstNode $node): string => $node->type, $inlineStyles));
+        $t->contains('<div class="wp-block-group" data-pandoc-custom-style="Body Text">', $blocks);
+        $t->contains('<p>A <span data-pandoc-custom-style="Emphatic">styled</span> and <span data-pandoc-custom-style="Strengthened">strong</span> run.</p>', $blocks);
+
+        $viaFormat = PandocConverter::read($bytes, 'docx+styles');
+        $t->true(PandocConverter::canRead('docx+styles'));
+        $t->same(['div', 'div', 'div'], array_map(static fn (AstNode $node): string => $node->type, $viaFormat->children));
+        $t->same('Body Text', $viaFormat->children[1]->attr('attributes')['custom-style']);
+    },
 ];

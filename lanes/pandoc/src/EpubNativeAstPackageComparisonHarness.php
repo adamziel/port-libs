@@ -61,6 +61,8 @@ final class EpubNativeAstPackageComparisonHarness
         'columnSources' => true,
         'columnSpecs' => true,
         'header' => true,
+        'metaConstructorProvenance' => true,
+        'metaNativeValues' => true,
         'rowHeadColumns' => true,
         'tableGeometry' => true,
         'sourceFormat' => true,
@@ -6322,6 +6324,16 @@ final class EpubNativeAstPackageComparisonHarness
      */
     private function normalizedNode(AstNode $node): array
     {
+        if ($node->type === 'space') {
+            // Pandoc JSON exposes Space as its own inline constructor while
+            // textual Native parsing folds it into adjacent text nodes.
+            return [
+                'type' => 'text',
+                'attrs' => ['text' => ' '],
+                'children' => [],
+            ];
+        }
+
         $attrs = [];
         foreach ($node->attrs as $key => $value) {
             $key = (string) $key;

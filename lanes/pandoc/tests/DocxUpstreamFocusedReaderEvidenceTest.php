@@ -181,9 +181,9 @@ return [
         $t->same(36, $report['denominator']['denominatorCaseRows']);
         $t->same(36, $report['focusedCoverage']['coveredCaseCount']);
         $t->same(0, $report['focusedCoverage']['remainingOpenCaseCount']);
-        $t->same(32, $report['targetedFixtureChecks']['passedTargetedCaseCount']);
+        $t->same(36, $report['targetedFixtureChecks']['passedTargetedCaseCount']);
         $t->same(0, $report['targetedFixtureChecks']['failedTargetedCaseCount']);
-        $t->same(4, $report['targetedFixtureChecks']['mappedOnlyCaseCount']);
+        $t->same(0, $report['targetedFixtureChecks']['mappedOnlyCaseCount']);
         $t->same('valid-denominator-map', $report['mappingValidation']['status']);
         $t->true(in_array('that upstream Haskell/Cabal/Tasty tests were executed', $report['claimBoundaries']['doesNotAssert'], true));
         $t->true(in_array('that upstream testForWarningsWithOpts itself was executed locally', $report['claimBoundaries']['doesNotAssert'], true));
@@ -211,12 +211,13 @@ return [
             $t->same(false, $targeted['sourceDirectoryPresent']);
             $t->same(5, $coverage['coverageKindCounts']['focused-media-bag-native-php-check']);
             $t->same(4, $coverage['coverageKindCounts']['focused-citation-addin-native-php-check']);
+            $t->same(3, $coverage['coverageKindCounts']['focused-revision-mode-native-ast-php-check']);
             $t->same(12, $coverage['coverageKindCounts']['focused-revision-mode-native-php-check']);
             $t->same(3, $coverage['coverageKindCounts']['focused-comments-native-php-check']);
             $t->same(4, $coverage['coverageKindCounts']['focused-docx-warning-native-php-check']);
             $t->same(2, $coverage['coverageKindCounts']['focused-style-default-native-php-check']);
             $t->same(2, $coverage['coverageKindCounts']['focused-metadata-native-php-check']);
-            $t->same(4, $coverage['coverageKindCounts']['mapped-upstream-native-expectation-evidence']);
+            $t->same(1, $coverage['coverageKindCounts']['focused-style-native-ast-php-check']);
             $t->same([], $coverage['remainingOpenLabels']);
             $t->true(!in_array('comment warnings (accept -- no warnings)', $coverage['remainingOpenLabels'], true));
             $t->true(!in_array('comment warnings (reject -- no warnings)', $coverage['remainingOpenLabels'], true));

@@ -7,6 +7,8 @@ namespace PortLibs\Pandoc;
 final class DocxReader
 {
     private const INTERNAL_STYLE_ORIGIN_ATTR = '__docxStyleOrigin';
+    private const PARAGRAPH_END_REVISION_ATTR = '__docxParagraphEndRevision';
+    private const PARAGRAPH_STYLE_ATTR = '__docxParagraphStyle';
     private const MAX_WARNING_COUNT = 32;
     private const MAX_DOCX_WARNING_LENGTH = 240;
 
@@ -933,7 +935,176 @@ final class DocxReader
 
         $this->openRawBookmarkIds = $previousOpenRawBookmarkIds;
 
-        return $blocks;
+        return $this->applyDocxStylesExtensionBlocks(
+            $this->resolveParagraphEndRevisions($blocks)
+        );
+    }
+
+    /**
+     * @param list<AstNode> $blocks
+     * @return list<AstNode>
+     */
+    private function resolveParagraphEndRevisions(array $blocks): array
+    {
+        $resolved = [];
+        foreach ($blocks as $block) {
+            $children = $block->children === [] ? [] : $this->resolveParagraphEndRevisions($block->children);
+            if ($children !== $block->children) {
+                $block = new AstNode($block->type, $block->attrs, $children);
+            }
+
+            $previousIndex = array_key_last($resolved);
+            if ($previousIndex !== null) {
+                $previous = $resolved[$previousIndex];
+                $revision = $previous->attr(self::PARAGRAPH_END_REVISION_ATTR);
+                $previous = $this->withoutParagraphEndRevision($previous);
+                $resolved[$previousIndex] = $previous;
+
+                if (
+                    $previous->type === 'paragraph'
+                    && $block->type === 'paragraph'
+                    && $this->paragraphEndRevisionRemovesBoundary($revision)
+                ) {
+                    $resolved[$previousIndex] = $this->mergeParagraphsAcrossRevisedBoundary($previous, $block);
+                    continue;
+                }
+            }
+
+            $resolved[] = $block;
+        }
+
+        foreach ($resolved as $index => $block) {
+            $resolved[$index] = $this->withoutParagraphEndRevision($block);
+        }
+
+        return $resolved;
+    }
+
+    private function paragraphEndRevisionRemovesBoundary(mixed $revision): bool
+    {
+        if (!is_array($revision)) {
+            return false;
+        }
+
+        $kind = (string) ($revision['kind'] ?? '');
+        $isInsertion = in_array($kind, ['ins', 'moveTo'], true);
+        $isDeletion = in_array($kind, ['del', 'moveFrom'], true);
+
+        return match ($this->revisionMode) {
+            'accept' => $isDeletion,
+            'reject' => $isInsertion,
+            default => false,
+        };
+    }
+
+    private function withoutParagraphEndRevision(AstNode $node): AstNode
+    {
+        if (!array_key_exists(self::PARAGRAPH_END_REVISION_ATTR, $node->attrs)) {
+            return $node;
+        }
+
+        $attrs = $node->attrs;
+        unset($attrs[self::PARAGRAPH_END_REVISION_ATTR]);
+
+        return new AstNode($node->type, $attrs, $node->children);
+    }
+
+    private function mergeParagraphsAcrossRevisedBoundary(AstNode $left, AstNode $right): AstNode
+    {
+        $children = $left->children;
+        if ($this->paragraphBoundaryNeedsSpace($left, $right)) {
+            $children[] = new AstNode('text', ['text' => ' ']);
+        }
+        array_push($children, ...$right->children);
+        $children = $this->mergeAdjacentText($children);
+
+        // Pandoc applies the succeeding paragraph's presentation and style
+        // once a tracked paragraph mark is accepted or rejected away.
+        $attrs = $right->attrs;
+        $attrs['text'] = $this->plainText($children);
+
+        return new AstNode('paragraph', $attrs, $children);
+    }
+
+    private function paragraphBoundaryNeedsSpace(AstNode $left, AstNode $right): bool
+    {
+        $leftText = $this->plainText($left->children);
+        $rightText = $this->plainText($right->children);
+        if (trim($leftText) === '' || trim($rightText) === '') {
+            return false;
+        }
+
+        return preg_match('/\s$/u', $leftText) !== 1
+            && preg_match('/^\s/u', $rightText) !== 1;
+    }
+
+    /**
+     * @param list<AstNode> $blocks
+     * @return list<AstNode>
+     */
+    private function applyDocxStylesExtensionBlocks(array $blocks): array
+    {
+        if (!$this->stylesExtension) {
+            return $blocks;
+        }
+
+        return array_map(fn (AstNode $block): AstNode => $this->applyDocxStylesExtensionNode($block), $blocks);
+    }
+
+    private function applyDocxStylesExtensionNode(AstNode $node): AstNode
+    {
+        $blockQuoteStyle = $node->type === 'blockquote'
+            ? $this->singleParagraphStyleForBlockQuote($node->children)
+            : null;
+        if ($blockQuoteStyle !== null) {
+            $children = array_map(
+                fn (AstNode $child): AstNode => $this->applyDocxStylesExtensionNode($this->withoutParagraphStyle($child)),
+                $node->children
+            );
+            $quote = new AstNode($node->type, $node->attrs, $children);
+
+            return $this->docxCustomStyleDiv($quote, $blockQuoteStyle);
+        }
+
+        $children = array_map(
+            fn (AstNode $child): AstNode => $this->applyDocxStylesExtensionNode($child),
+            $node->children
+        );
+        $style = (string) $node->attr(self::PARAGRAPH_STYLE_ATTR, '');
+        $node = $this->withoutParagraphStyle(new AstNode($node->type, $node->attrs, $children));
+
+        return $style === '' ? $node : $this->docxCustomStyleDiv($node, $style);
+    }
+
+    /**
+     * @param list<AstNode> $blocks
+     */
+    private function singleParagraphStyleForBlockQuote(array $blocks): ?string
+    {
+        if (count($blocks) !== 1 || $blocks[0]->type !== 'paragraph') {
+            return null;
+        }
+
+        $style = trim((string) $blocks[0]->attr(self::PARAGRAPH_STYLE_ATTR, ''));
+
+        return $style === '' ? null : $style;
+    }
+
+    private function withoutParagraphStyle(AstNode $node): AstNode
+    {
+        if (!array_key_exists(self::PARAGRAPH_STYLE_ATTR, $node->attrs)) {
+            return $node;
+        }
+
+        $attrs = $node->attrs;
+        unset($attrs[self::PARAGRAPH_STYLE_ATTR]);
+
+        return new AstNode($node->type, $attrs, $node->children);
+    }
+
+    private function docxCustomStyleDiv(AstNode $node, string $style): AstNode
+    {
+        return new AstNode('div', ['attributes' => ['custom-style' => $style]], [$node]);
     }
 
     private function isTableCaptionParagraph(\DOMElement $paragraph, AstNode $node, string $styleId): bool
@@ -1542,6 +1713,7 @@ final class DocxReader
 
     private function paragraph(\DOMElement $paragraph): ?AstNode
     {
+        $paragraphEndRevision = $this->paragraphEndRevision($paragraph);
         $inlines = $this->inlineChildren($paragraph);
         $text = $this->plainText($inlines);
         $level = $this->headingLevel($paragraph);
@@ -1555,11 +1727,19 @@ final class DocxReader
 
         $figure = $this->figureFromImageWithTextboxCaption($inlines);
         if ($figure instanceof AstNode) {
-            return $figure;
+            return $this->withParagraphInternalMarkers($figure, $paragraph, $paragraphEndRevision);
+        }
+
+        if ($paragraphEndRevision !== null && $this->revisionMode === 'preserve') {
+            $inlines[] = $this->paragraphEndRevisionSpan($paragraphEndRevision);
         }
 
         if ($level !== null) {
-            return new AstNode('heading', $this->headingAttrs($paragraph, $level, $text), $inlines);
+            return $this->withParagraphInternalMarkers(
+                new AstNode('heading', $this->headingAttrs($paragraph, $level, $text), $inlines),
+                $paragraph,
+                $paragraphEndRevision
+            );
         }
 
         $attrs = ['text' => $text];
@@ -1576,7 +1756,103 @@ final class DocxReader
             $attrs['htmlAttributes'] = ['style' => $layoutStyle];
         }
 
-        return new AstNode('paragraph', $attrs, $inlines);
+        return $this->withParagraphInternalMarkers(
+            new AstNode('paragraph', $attrs, $inlines),
+            $paragraph,
+            $paragraphEndRevision
+        );
+    }
+
+    /**
+     * @return array{kind:string, author:string, date:string}|null
+     */
+    private function paragraphEndRevision(\DOMElement $paragraph): ?array
+    {
+        $pPr = $this->directChild($paragraph, 'pPr');
+        if (!$pPr instanceof \DOMElement) {
+            return null;
+        }
+
+        $containers = [$pPr];
+        $rPr = $this->directChild($pPr, 'rPr');
+        if ($rPr instanceof \DOMElement) {
+            $containers[] = $rPr;
+        }
+
+        foreach ($containers as $container) {
+            foreach ($container->childNodes as $child) {
+                if (!$child instanceof \DOMElement || !in_array($child->localName, ['ins', 'del', 'moveFrom', 'moveTo'], true)) {
+                    continue;
+                }
+
+                return [
+                    'kind' => $child->localName,
+                    'author' => $this->attr($child, self::W_NS, 'author'),
+                    'date' => $this->attr($child, self::W_NS, 'date'),
+                ];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array{kind:string, author:string, date:string} $revision
+     */
+    private function paragraphEndRevisionSpan(array $revision): AstNode
+    {
+        $classes = match ($revision['kind']) {
+            'del' => ['paragraph-deletion'],
+            'moveFrom' => ['paragraph-deletion', 'move-from'],
+            'moveTo' => ['paragraph-insertion', 'move-to'],
+            default => ['paragraph-insertion'],
+        };
+        $attributes = array_filter([
+            'author' => $revision['author'],
+            'date' => $revision['date'],
+        ], static fn (string $value): bool => $value !== '');
+
+        return new AstNode('span', [
+            'classes' => $classes,
+            'attributes' => $attributes,
+        ]);
+    }
+
+    /**
+     * @param array{kind:string, author:string, date:string}|null $paragraphEndRevision
+     */
+    private function withParagraphInternalMarkers(
+        AstNode $node,
+        \DOMElement $paragraph,
+        ?array $paragraphEndRevision
+    ): AstNode {
+        $attrs = $node->attrs;
+        if ($paragraphEndRevision !== null) {
+            $attrs[self::PARAGRAPH_END_REVISION_ATTR] = $paragraphEndRevision;
+        }
+
+        $style = $this->paragraphStyleForStylesExtension($paragraph);
+        if ($style !== '') {
+            $attrs[self::PARAGRAPH_STYLE_ATTR] = $style;
+        }
+
+        return $attrs === $node->attrs ? $node : new AstNode($node->type, $attrs, $node->children);
+    }
+
+    private function paragraphStyleForStylesExtension(\DOMElement $paragraph): string
+    {
+        if (!$this->stylesExtension) {
+            return '';
+        }
+
+        $styleId = $this->paragraphStyleId($paragraph);
+        if ($styleId === '') {
+            return '';
+        }
+
+        $style = $this->styles[$styleId] ?? [];
+
+        return trim((string) ($style['styleName'] ?? $styleId));
     }
 
     /**
@@ -5489,6 +5765,7 @@ final class DocxReader
         $style = [];
         $styleLayers = [];
         $directStyle = [];
+        $customStyleNames = [];
         foreach ($run->getElementsByTagNameNS(self::W_NS, 'rPr') as $rPr) {
             if (!$rPr instanceof \DOMElement || $rPr->parentNode !== $run) {
                 continue;
@@ -5499,6 +5776,11 @@ final class DocxReader
                 }
                 if ($prop->localName === 'rStyle') {
                     $styleId = $this->attr($prop, self::W_NS, 'val');
+                    $customStyleName = $this->runStyleForStylesExtension($styleId);
+                    if ($customStyleName !== '') {
+                        $customStyleNames[] = $customStyleName;
+                        continue;
+                    }
                     $style = array_replace($style, $this->styles[$styleId] ?? []);
                     $styleLayer = $this->trueRunStyleFlags($style);
                     if ($this->runStyleIsInlineCode($styleId)) {
@@ -5557,8 +5839,26 @@ final class DocxReader
         if ($layers !== []) {
             $flags['__layers'] = $layers;
         }
+        if ($customStyleNames !== []) {
+            $flags['__customStyles'] = array_values(array_unique($customStyleNames));
+        }
 
         return $flags;
+    }
+
+    private function runStyleForStylesExtension(string $styleId): string
+    {
+        if (!$this->stylesExtension || $styleId === '') {
+            return '';
+        }
+
+        $style = $this->styles[$styleId] ?? [];
+        $name = trim((string) ($style['styleName'] ?? $styleId));
+        if ($name === '' || strcasecmp($name, 'Hyperlink') === 0 || strcasecmp($styleId, 'Hyperlink') === 0) {
+            return '';
+        }
+
+        return $name;
     }
 
     private function runStyleIsInlineCode(string $styleId): bool
@@ -5962,12 +6262,34 @@ final class DocxReader
                 $nodes = $this->styledRunNodesForLayer($nodes, $layerStyle, $origin);
             }
 
-            return $this->styledRunInlineStyleNodes($nodes, $style);
+            return $this->withRunCustomStyleNodes($this->styledRunInlineStyleNodes($nodes, $style), $style);
         }
 
         $nodes = $this->styledRunNodesForLayer($nodes, $style, 'direct');
 
-        return $this->styledRunInlineStyleNodes($nodes, $style);
+        return $this->withRunCustomStyleNodes($this->styledRunInlineStyleNodes($nodes, $style), $style);
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     * @param array<string, mixed> $style
+     * @return list<AstNode>
+     */
+    private function withRunCustomStyleNodes(array $nodes, array $style): array
+    {
+        $styles = $style['__customStyles'] ?? [];
+        if (!is_array($styles) || $nodes === []) {
+            return $nodes;
+        }
+
+        foreach (array_reverse($styles) as $customStyle) {
+            $customStyle = trim((string) $customStyle);
+            if ($customStyle !== '') {
+                $nodes = [new AstNode('span', ['attributes' => ['custom-style' => $customStyle]], $nodes)];
+            }
+        }
+
+        return $nodes;
     }
 
     /**

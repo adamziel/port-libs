@@ -7,6 +7,7 @@ use PortLibs\Pandoc\EpubReader;
 use PortLibs\Pandoc\NativeWriter;
 use PortLibs\Pandoc\PandocConverter;
 use PortLibs\Pandoc\WordPressBlockWriter;
+use PortLibs\Pandoc\ZipPackage;
 
 return [
     'reads epub metadata and xhtml spine content into shared ast' => static function (TestRunner $t): void {
@@ -2924,6 +2925,87 @@ HTML);
         $t->contains('RawBlock (Format "html") "</summary>"', $native);
         $t->contains('BulletList [ [ Plain [ Str "Nested" , Space , Str "disclosure" , Space , Str "item." ]', $native);
         $t->contains('RawBlock (Format "html") "</details>"', $native);
+    },
+    'preserves CSS style attributes on EPUB nodes that Pandoc represents with Attr values' => static function (TestRunner $t): void {
+        $bytes = ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => '<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="EPUB/package.opf" media-type="application/oebps-package+xml"/></rootfiles></container>'],
+            ['name' => 'EPUB/package.opf', 'data' => '<package xmlns="http://www.idpf.org/2007/opf" xmlns:dc="http://purl.org/dc/elements/1.1/"><metadata><dc:identifier id="book">style-attrs</dc:identifier><dc:title>Style attributes</dc:title></metadata><manifest><item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/></manifest><spine><itemref idref="chapter"/></spine></package>'],
+            ['name' => 'EPUB/chapter.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><div style="text-align: center"><span style="font-size: large">Title</span></div><p><span>Separator</span></p><table style="width:70%; text-align: center"><tr><td>Cell</td></tr></table><p>Release<br/>' . "\n" . '  Updated</p></body></html>'],
+        ], 'epub style attribute regression')->bytes();
+        $document = (new EpubReader())->read($bytes);
+        $findStyled = static function (AstNode $node, string $type, string $style) use (&$findStyled): ?AstNode {
+            if ($node->type === $type && ($node->attr('attributes')['style'] ?? null) === $style) {
+                return $node;
+            }
+            foreach ($node->children as $child) {
+                $found = $findStyled($child, $type, $style);
+                if ($found instanceof AstNode) {
+                    return $found;
+                }
+            }
+
+            return null;
+        };
+
+        $t->true($findStyled($document, 'div', 'text-align: center') instanceof AstNode);
+        $t->true($findStyled($document, 'span', 'font-size: large') instanceof AstNode);
+        $t->true($findStyled($document, 'table', 'width:70%; text-align: center') instanceof AstNode);
+
+        $plainSpan = null;
+        $findPlainSpan = static function (AstNode $node) use (&$plainSpan, &$findPlainSpan): void {
+            if ($plainSpan instanceof AstNode) {
+                return;
+            }
+            if (
+                $node->type === 'span'
+                && $node->attrs === []
+                && (($node->children[0] ?? null)?->attr('text') === 'Separator')
+            ) {
+                $plainSpan = $node;
+                return;
+            }
+            foreach ($node->children as $child) {
+                $findPlainSpan($child);
+            }
+        };
+        $findPlainSpan($document);
+        $t->true($plainSpan instanceof AstNode);
+
+        $breakParagraph = null;
+        foreach ($document->children as $node) {
+            if ($node->type === 'paragraph' && array_map(static fn (AstNode $child): string => $child->type, $node->children) === ['text', 'linebreak', 'text']) {
+                $breakParagraph = $node;
+                break;
+            }
+        }
+        $t->same('Release', $breakParagraph?->children[0]->attr('text'));
+        $t->same('Updated', $breakParagraph?->children[2]->attr('text'));
+    },
+    'keeps valid xhtml self-closing non-void elements empty before the html bridge' => static function (TestRunner $t): void {
+        $chapter_xhtml = <<<'XHTML'
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE html PUBLIC '-//W3C//DTD XHTML 1.1//EN' 'http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd'>
+<html xmlns="http://www.w3.org/1999/xhtml"><body><div/><div class="figure"/><h1>Heading</h1><p>After.</p></body></html>
+XHTML;
+        $bytes = ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => '<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="EPUB/package.opf" media-type="application/oebps-package+xml"/></rootfiles></container>'],
+            ['name' => 'EPUB/package.opf', 'data' => '<package xmlns="http://www.idpf.org/2007/opf" xmlns:dc="http://purl.org/dc/elements/1.1/"><metadata><dc:identifier id="book">self-closing-xhtml</dc:identifier><dc:title>Self-closing XHTML</dc:title></metadata><manifest><item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/></manifest><spine><itemref idref="chapter"/></spine></package>'],
+            ['name' => 'EPUB/chapter.xhtml', 'data' => $chapter_xhtml],
+        ], 'epub self-closing xhtml regression')->bytes();
+
+        $document = (new EpubReader())->read($bytes);
+
+        $t->same(['paragraph', 'div', 'div', 'heading', 'paragraph'], array_map(
+            static fn (AstNode $node): string => $node->type,
+            $document->children,
+        ));
+        $t->same([], $document->children[1]->children);
+        $t->same([], $document->children[2]->children);
+        $t->same(['figure'], $document->children[2]->attr('classes'));
+        $t->same('Heading', $document->children[3]->attr('text'));
+        $t->same('After.', $document->children[4]->attr('text'));
     },
     'imports declared epub bytes that are actually xhtml as fallback content' => static function (TestRunner $t): void {
         $xhtml = <<<'HTML'

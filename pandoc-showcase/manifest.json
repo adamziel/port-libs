@@ -1,5 +1,5 @@
 {
-    "generatedAt": "2026-07-11T10:58:09+00:00",
+    "generatedAt": "2026-07-11T12:46:42+00:00",
     "pandocVersion": "pandoc 3.10\nFeatures: +server +lua\nScripting engine: Lua 5.4\nUser data directory: $REPO\nCopyright (C) 2006-2025 John MacFarlane. Web:  https://pandoc.org\nThis is free software; see the source for copying conditions. There is no\nwarranty, not even for merchantability or fitness for a particular purpose.",
     "mediaImageMode": "important",
     "formats": [
@@ -88,28 +88,28 @@
     ],
     "missingFormats": [],
     "conversionSummary": {
-        "totalSamples": 93,
-        "totalConversions": 279,
-        "successfulConversions": 266,
-        "failedConversions": 13,
+        "totalSamples": 94,
+        "totalConversions": 282,
+        "successfulConversions": 268,
+        "failedConversions": 14,
         "byConverter": {
             "wpBlocks": {
                 "label": "PHP WordPress blocks",
-                "ok": 93,
+                "ok": 94,
                 "failed": 0,
-                "total": 93
+                "total": 94
             },
             "phpHtml": {
                 "label": "PHP HTML",
-                "ok": 93,
+                "ok": 94,
                 "failed": 0,
-                "total": 93
+                "total": 94
             },
             "haskell": {
                 "label": "Haskell Pandoc HTML",
                 "ok": 80,
-                "failed": 13,
-                "total": 93
+                "failed": 14,
+                "total": 94
             }
         },
         "byFormat": {
@@ -186,10 +186,10 @@
                 "total": 6
             },
             "epub": {
-                "samples": 5,
-                "ok": 15,
+                "samples": 6,
+                "ok": 18,
                 "failed": 0,
-                "total": 15
+                "total": 18
             },
             "fb2": {
                 "samples": 2,
@@ -295,8 +295,8 @@
             },
             "odt": {
                 "samples": 3,
-                "ok": 9,
-                "failed": 0,
+                "ok": 8,
+                "failed": 1,
                 "total": 9
             },
             "opml": {
@@ -356,13 +356,13 @@
         }
     },
     "faithfulnessSummary": {
-        "comparisons": 166,
-        "faithfulEnough": 164,
+        "comparisons": 167,
+        "faithfulEnough": 165,
         "review": 2,
         "divergent": 0,
         "noText": 0,
-        "visualComparisons": 148,
-        "visualFaithfulEnough": 148,
+        "visualComparisons": 149,
+        "visualFaithfulEnough": 149,
         "visualReview": 0,
         "visualDivergent": 0,
         "visualNoStructure": 0,
@@ -377,21 +377,21 @@
         "unavailable": 0
     },
     "importQualitySummary": {
-        "samples": 93,
-        "pass": 92,
+        "samples": 94,
+        "pass": 93,
         "review": 1,
         "fail": 0,
         "unbenchmarked": 0
     },
     "importQualitySegmentSummary": {
         "common": {
-            "samples": 47,
-            "pass": 46,
+            "samples": 48,
+            "pass": 47,
             "review": 1,
             "fail": 0,
             "unbenchmarked": 0,
             "wpFailures": 0,
-            "passReviewOrUnbenchmarked": 47,
+            "passReviewOrUnbenchmarked": 48,
             "formats": {
                 "csv": {
                     "samples": 2,
@@ -412,13 +412,13 @@
                     "passReviewOrUnbenchmarked": 9
                 },
                 "epub": {
-                    "samples": 5,
-                    "pass": 5,
+                    "samples": 6,
+                    "pass": 6,
                     "review": 0,
                     "fail": 0,
                     "unbenchmarked": 0,
                     "wpFailures": 0,
-                    "passReviewOrUnbenchmarked": 5
+                    "passReviewOrUnbenchmarked": 6
                 },
                 "gfm": {
                     "samples": 1,
@@ -785,19 +785,19 @@
                     "maxFail": 5
                 },
                 "actual": {
-                    "samples": 47,
+                    "samples": 48,
                     "wpFailures": 0,
-                    "pass": 46,
+                    "pass": 47,
                     "review": 1,
                     "fail": 0,
                     "unbenchmarked": 0,
-                    "passReviewOrUnbenchmarked": 47
+                    "passReviewOrUnbenchmarked": 48
                 },
                 "checks": {
                     "minSamples": {
                         "status": "pass",
                         "expected": ">=44",
-                        "actual": 47
+                        "actual": 48
                     },
                     "maxWpFailures": {
                         "status": "pass",
@@ -807,12 +807,12 @@
                     "minPass": {
                         "status": "pass",
                         "expected": ">=29",
-                        "actual": 46
+                        "actual": 47
                     },
                     "minPassReviewOrUnbenchmarked": {
                         "status": "pass",
                         "expected": ">=39",
-                        "actual": 47
+                        "actual": 48
                     },
                     "maxFail": {
                         "status": "pass",
@@ -876,18 +876,18 @@
     "blockUsage": {
         "totals": {
             "code": 652,
-            "group": 310,
-            "heading": 4147,
-            "html": 51,
-            "image": 295,
-            "list": 1390,
-            "paragraph": 16171,
-            "quote": 54,
-            "separator": 65,
+            "group": 403,
+            "heading": 4237,
+            "html": 52,
+            "image": 298,
+            "list": 1391,
+            "paragraph": 23326,
+            "quote": 55,
+            "separator": 66,
             "table": 583,
             "verse": 2
         },
-        "sampleCount": 93
+        "sampleCount": 94
     },
     "records": [
         {
@@ -5708,6 +5708,21 @@
                         "mimeRepairSummary": "declared-mime-matches-path"
                     },
                     {
+                        "path": "outputs/epub-gutenberg-alice-illustrated/media/360840914614224901_endpapers.jpg",
+                        "mediaPath": "360840914614224901_endpapers.jpg",
+                        "mimeType": "image/jpeg",
+                        "byteLength": 36885,
+                        "sha1": "0512a760eb90165778515cb385a57bbff10ebf2b",
+                        "source": "360840914614224901_endpapers.jpg",
+                        "canonicalSource": "360840914614224901_endpapers.jpg",
+                        "sourcePath": "360840914614224901_endpapers.jpg",
+                        "pathRepairSummary": "safe-relative-path",
+                        "extractionPathRepairSummary": "safe-relative-path",
+                        "mimeTypeSource": "declared",
+                        "inferredMimeType": "image/jpeg",
+                        "mimeRepairSummary": "declared-mime-matches-path"
+                    },
+                    {
                         "path": "outputs/epub-gutenberg-alice-illustrated/media/360840914614224901_f.png",
                         "mediaPath": "360840914614224901_f.png",
                         "mimeType": "image/png",
@@ -6206,6 +6221,7 @@
                 "mediaDiagnostics": [
                     "extract-media-image-mode:important",
                     "extract-media-package-loaded:360840914614224901_cover.jpg",
+                    "extract-media-package-loaded:360840914614224901_endpapers.jpg",
                     "extract-media-package-loaded:360840914614224901_f0002-image.jpg",
                     "extract-media-package-loaded:360840914614224901_title.png",
                     "extract-media-package-loaded:360840914614224901_spine.jpg",
@@ -6242,6 +6258,7 @@
                     "extract-media-package-loaded:360840914614224901_h-quote.png",
                     "extract-media-package-loaded:360840914614224901_p0158-insert2.jpg",
                     "media-resource-mapped:360840914614224901_cover.jpg",
+                    "media-resource-mapped:360840914614224901_endpapers.jpg",
                     "media-resource-mapped:360840914614224901_f0002-image.jpg",
                     "media-resource-mapped:360840914614224901_title.png",
                     "media-resource-mapped:360840914614224901_spine.jpg",
@@ -6329,6 +6346,21 @@
                         "mimeRepairSummary": "declared-mime-matches-path"
                     },
                     {
+                        "path": "outputs/epub-gutenberg-alice-illustrated/media/360840914614224901_endpapers.jpg",
+                        "mediaPath": "360840914614224901_endpapers.jpg",
+                        "mimeType": "image/jpeg",
+                        "byteLength": 36885,
+                        "sha1": "0512a760eb90165778515cb385a57bbff10ebf2b",
+                        "source": "360840914614224901_endpapers.jpg",
+                        "canonicalSource": "360840914614224901_endpapers.jpg",
+                        "sourcePath": "360840914614224901_endpapers.jpg",
+                        "pathRepairSummary": "safe-relative-path",
+                        "extractionPathRepairSummary": "safe-relative-path",
+                        "mimeTypeSource": "declared",
+                        "inferredMimeType": "image/jpeg",
+                        "mimeRepairSummary": "declared-mime-matches-path"
+                    },
+                    {
                         "path": "outputs/epub-gutenberg-alice-illustrated/media/360840914614224901_f.png",
                         "mediaPath": "360840914614224901_f.png",
                         "mimeType": "image/png",
@@ -6827,6 +6859,7 @@
                 "mediaDiagnostics": [
                     "extract-media-image-mode:important",
                     "extract-media-package-loaded:360840914614224901_cover.jpg",
+                    "extract-media-package-loaded:360840914614224901_endpapers.jpg",
                     "extract-media-package-loaded:360840914614224901_f0002-image.jpg",
                     "extract-media-package-loaded:360840914614224901_title.png",
                     "extract-media-package-loaded:360840914614224901_spine.jpg",
@@ -6863,6 +6896,7 @@
                     "extract-media-package-loaded:360840914614224901_h-quote.png",
                     "extract-media-package-loaded:360840914614224901_p0158-insert2.jpg",
                     "media-resource-mapped:360840914614224901_cover.jpg",
+                    "media-resource-mapped:360840914614224901_endpapers.jpg",
                     "media-resource-mapped:360840914614224901_f0002-image.jpg",
                     "media-resource-mapped:360840914614224901_title.png",
                     "media-resource-mapped:360840914614224901_spine.jpg",
@@ -6902,9 +6936,9 @@
             },
             "wpBlockCounts": {
                 "code": 2,
-                "group": 155,
-                "heading": 7,
-                "image": 26,
+                "group": 157,
+                "heading": 8,
+                "image": 27,
                 "list": 1,
                 "paragraph": 903,
                 "quote": 1,
@@ -6922,20 +6956,20 @@
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "faithful_enough",
-                        "score": 0.9994,
+                        "score": 1,
                         "textStatus": "faithful_enough",
-                        "textScore": 0.9994,
+                        "textScore": 1,
                         "visualStatus": "faithful_enough",
-                        "visualScore": 0.8869
+                        "visualScore": 0.8895
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
                         "status": "faithful_enough",
-                        "score": 0.9994,
+                        "score": 1,
                         "textStatus": "faithful_enough",
-                        "textScore": 0.9994,
+                        "textScore": 1,
                         "visualStatus": "faithful_enough",
-                        "visualScore": 0.9961
+                        "visualScore": 1
                     }
                 }
             },
@@ -6945,13 +6979,13 @@
                     "text_completeness": {
                         "status": "pass",
                         "expected": ">=0.8",
-                        "actual": 0.9994,
+                        "actual": 1,
                         "detail": "visible text overlap with the baseline"
                     },
                     "visual_structure": {
                         "status": "pass",
                         "expected": ">=0.75",
-                        "actual": 0.8869,
+                        "actual": 0.8895,
                         "detail": "heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
@@ -6963,8 +6997,8 @@
                     "heading_count": {
                         "status": "pass",
                         "expected": "0.80-1.25",
-                        "actual": 0.875,
-                        "detail": "heading count ratio expected 8, got 7"
+                        "actual": 1,
+                        "detail": "heading count ratio expected 8, got 8"
                     },
                     "list_count": {
                         "status": "pass",
@@ -6987,8 +7021,8 @@
                     "image_count": {
                         "status": "pass",
                         "expected": "0.80-1.25",
-                        "actual": 0.9762,
-                        "detail": "image count ratio expected 42, got 41"
+                        "actual": 1,
+                        "detail": "image count ratio expected 42, got 42"
                     },
                     "media_imported": {
                         "status": "pass",
@@ -7006,7 +7040,195 @@
                         "status": "pass",
                         "expected": "<=0.05",
                         "actual": 0,
-                        "detail": "0/1131 WordPress blocks are Custom HTML"
+                        "detail": "0/1135 WordPress blocks are Custom HTML"
+                    }
+                },
+                "summary": {
+                    "pass": 11,
+                    "review": 0,
+                    "fail": 0,
+                    "unbenchmarked": 0
+                }
+            }
+        },
+        {
+            "id": "epub-gutenberg-ulysses",
+            "format": "epub",
+            "label": "Ulysses full-book EPUB",
+            "description": "A real Project Gutenberg book-scale EPUB with 31 XHTML spine documents, a long boilerplate section, a contents table, and dense literary prose.",
+            "source": "Project Gutenberg Ulysses EPUB without images",
+            "sourceUrl": "https://www.gutenberg.org/ebooks/4300.epub.noimages",
+            "samplePath": "samples/epub-gutenberg-ulysses-ulysses.epub",
+            "sampleSize": 764910,
+            "preview": "",
+            "support": {
+                "status": "reader-equivalent",
+                "implementation": "PortLibs\\Pandoc\\EpubReader",
+                "notes": "EPUB reader implementation-equivalence gate covers 76/76 checked-in package/native pairs plus the upstream media-bag tuples; the reader resolves the OPF rootfile, metadata, XHTML spine, package-relative href/src resources, EPUB3 nav, and NCX fallback entries through the shared HTML-capable reader path."
+            },
+            "haskell": {
+                "ok": true,
+                "path": "outputs/epub-gutenberg-ulysses/haskell.html",
+                "renderedWithCiteproc": false
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/epub-gutenberg-ulysses/php.html",
+                "media": [
+                    {
+                        "path": "outputs/epub-gutenberg-ulysses/media/3703879215274223467_cover.jpg",
+                        "mediaPath": "3703879215274223467_cover.jpg",
+                        "mimeType": "image/jpeg",
+                        "byteLength": 53425,
+                        "sha1": "44b97140f209d38f21092ffa10f9fec227abb1ae",
+                        "source": "3703879215274223467_cover.jpg",
+                        "canonicalSource": "3703879215274223467_cover.jpg",
+                        "sourcePath": "3703879215274223467_cover.jpg",
+                        "pathRepairSummary": "safe-relative-path",
+                        "extractionPathRepairSummary": "safe-relative-path",
+                        "mimeTypeSource": "declared",
+                        "inferredMimeType": "image/jpeg",
+                        "mimeRepairSummary": "declared-mime-matches-path"
+                    }
+                ],
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important",
+                    "extract-media-package-loaded:3703879215274223467_cover.jpg",
+                    "media-resource-mapped:3703879215274223467_cover.jpg"
+                ]
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/epub-gutenberg-ulysses/wordpress-blocks.html",
+                "media": [
+                    {
+                        "path": "outputs/epub-gutenberg-ulysses/media/3703879215274223467_cover.jpg",
+                        "mediaPath": "3703879215274223467_cover.jpg",
+                        "mimeType": "image/jpeg",
+                        "byteLength": 53425,
+                        "sha1": "44b97140f209d38f21092ffa10f9fec227abb1ae",
+                        "source": "3703879215274223467_cover.jpg",
+                        "canonicalSource": "3703879215274223467_cover.jpg",
+                        "sourcePath": "3703879215274223467_cover.jpg",
+                        "pathRepairSummary": "safe-relative-path",
+                        "extractionPathRepairSummary": "safe-relative-path",
+                        "mimeTypeSource": "declared",
+                        "inferredMimeType": "image/jpeg",
+                        "mimeRepairSummary": "declared-mime-matches-path"
+                    }
+                ],
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important",
+                    "extract-media-package-loaded:3703879215274223467_cover.jpg",
+                    "media-resource-mapped:3703879215274223467_cover.jpg"
+                ]
+            },
+            "wpBlockCounts": {
+                "group": 91,
+                "heading": 89,
+                "image": 2,
+                "list": 1,
+                "paragraph": 7155,
+                "quote": 1,
+                "separator": 1,
+                "table": 1
+            },
+            "sourceRawHtmlBlockCount": null,
+            "bibliographySource": null,
+            "bibliographyComparison": {
+                "available": false
+            },
+            "faithfulness": {
+                "baseline": "haskell",
+                "comparisons": {
+                    "wpBlocks": {
+                        "label": "PHP WordPress blocks",
+                        "status": "faithful_enough",
+                        "score": 1,
+                        "textStatus": "faithful_enough",
+                        "textScore": 1,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.9924
+                    },
+                    "phpHtml": {
+                        "label": "PHP HTML",
+                        "status": "faithful_enough",
+                        "score": 1,
+                        "textStatus": "faithful_enough",
+                        "textScore": 1,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 1
+                    }
+                }
+            },
+            "importQuality": {
+                "status": "pass",
+                "gates": {
+                    "text_completeness": {
+                        "status": "pass",
+                        "expected": ">=0.8",
+                        "actual": 1,
+                        "detail": "visible text overlap with the baseline"
+                    },
+                    "visual_structure": {
+                        "status": "pass",
+                        "expected": ">=0.75",
+                        "actual": 0.9924,
+                        "detail": "heading/list/table/image shape overlap with the baseline"
+                    },
+                    "paragraph_merge_split": {
+                        "status": "pass",
+                        "expected": "0.80-1.25",
+                        "actual": 1.0077,
+                        "detail": "paragraph count ratio expected 7101, got 7156"
+                    },
+                    "heading_count": {
+                        "status": "pass",
+                        "expected": "0.80-1.25",
+                        "actual": 1,
+                        "detail": "heading count ratio expected 89, got 89"
+                    },
+                    "list_count": {
+                        "status": "pass",
+                        "expected": "0.80-1.25",
+                        "actual": 1,
+                        "detail": "list count ratio expected 1, got 1"
+                    },
+                    "definition_list_count": {
+                        "status": "pass",
+                        "expected": "0",
+                        "actual": 0,
+                        "detail": "definition list count ratio"
+                    },
+                    "table_count": {
+                        "status": "pass",
+                        "expected": "0.80-1.25",
+                        "actual": 1,
+                        "detail": "table count ratio expected 1, got 1"
+                    },
+                    "image_count": {
+                        "status": "pass",
+                        "expected": "0.80-1.25",
+                        "actual": 1,
+                        "detail": "image count ratio expected 2, got 2"
+                    },
+                    "media_imported": {
+                        "status": "pass",
+                        "expected": 0,
+                        "actual": 0,
+                        "detail": "no media extraction problems reported"
+                    },
+                    "anchor_validity": {
+                        "status": "pass",
+                        "expected": 0,
+                        "actual": 0,
+                        "detail": "all local fragment links resolve"
+                    },
+                    "custom_html_percentage": {
+                        "status": "pass",
+                        "expected": "<=0.05",
+                        "actual": 0,
+                        "detail": "0/7341 WordPress blocks are Custom HTML"
                     }
                 },
                 "summary": {
@@ -7507,15 +7729,15 @@
                 "code": 8,
                 "group": 11,
                 "heading": 15,
-                "html": 8,
+                "html": 9,
                 "image": 2,
                 "list": 7,
                 "paragraph": 37,
                 "quote": 1,
                 "separator": 3,
-                "table": 3
+                "table": 2
             },
-            "sourceRawHtmlBlockCount": 8,
+            "sourceRawHtmlBlockCount": 9,
             "bibliographySource": null,
             "bibliographyComparison": {
                 "available": false
@@ -7530,7 +7752,7 @@
                         "textStatus": "faithful_enough",
                         "textScore": 0.9973,
                         "visualStatus": "faithful_enough",
-                        "visualScore": 0.945
+                        "visualScore": 0.9594
                     },
                     "phpHtml": {
                         "label": "PHP HTML",
@@ -7539,7 +7761,7 @@
                         "textStatus": "faithful_enough",
                         "textScore": 0.998,
                         "visualStatus": "faithful_enough",
-                        "visualScore": 0.9594
+                        "visualScore": 0.9692
                     }
                 }
             },
@@ -7555,7 +7777,7 @@
                     "visual_structure": {
                         "status": "pass",
                         "expected": ">=0.75",
-                        "actual": 0.945,
+                        "actual": 0.9594,
                         "detail": "heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
@@ -7610,7 +7832,7 @@
                         "status": "pass",
                         "expected": "<=0.05",
                         "actual": 0,
-                        "detail": "8/95 WordPress blocks are Custom HTML; 8 source raw HTML blocks, 0 unexpected"
+                        "detail": "9/95 WordPress blocks are Custom HTML; 9 source raw HTML blocks, 0 unexpected"
                     }
                 },
                 "summary": {
@@ -11628,9 +11850,9 @@
                 "notes": "Bounded ODT package reader parses content.xml, meta.xml, optional META-INF/manifest.xml package metadata, text/list styles, headings, paragraphs, ordered and bullet lists, tables, links, styled spans, line breaks, images, and image/resource package references into the shared AST. Full ODT parity remains open."
             },
             "haskell": {
-                "ok": true,
-                "path": "outputs/odt-oasis-opendocument-schema/haskell.html",
-                "renderedWithCiteproc": false
+                "ok": false,
+                "error": "Timed out after 300s.",
+                "path": "outputs/odt-oasis-opendocument-schema/haskell.html.error.txt"
             },
             "phpHtml": {
                 "ok": true,
@@ -12411,25 +12633,16 @@
                 "available": false
             },
             "faithfulness": {
-                "baseline": "haskell",
+                "baseline": "phpHtml",
                 "comparisons": {
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "faithful_enough",
-                        "score": 0.9976,
+                        "score": 1,
                         "textStatus": "faithful_enough",
-                        "textScore": 0.9976,
+                        "textScore": 1,
                         "visualStatus": "faithful_enough",
-                        "visualScore": 0.977
-                    },
-                    "phpHtml": {
-                        "label": "PHP HTML",
-                        "status": "faithful_enough",
-                        "score": 0.9976,
-                        "textStatus": "faithful_enough",
-                        "textScore": 0.9976,
-                        "visualStatus": "faithful_enough",
-                        "visualScore": 0.9778
+                        "visualScore": 0.9987
                     }
                 }
             },
@@ -12439,20 +12652,20 @@
                     "text_completeness": {
                         "status": "pass",
                         "expected": ">=0.8",
-                        "actual": 0.9976,
+                        "actual": 1,
                         "detail": "visible text overlap with the baseline"
                     },
                     "visual_structure": {
                         "status": "pass",
                         "expected": ">=0.75",
-                        "actual": 0.977,
+                        "actual": 0.9987,
                         "detail": "heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
                         "status": "pass",
                         "expected": "0.80-1.25",
-                        "actual": 1.0005,
-                        "detail": "paragraph count ratio expected 10583, got 10588"
+                        "actual": 1,
+                        "detail": "paragraph count ratio expected 10588, got 10588"
                     },
                     "heading_count": {
                         "status": "pass",
@@ -12463,8 +12676,8 @@
                     "list_count": {
                         "status": "pass",
                         "expected": "0.80-1.25",
-                        "actual": 0.9986,
-                        "detail": "list count ratio expected 732, got 731"
+                        "actual": 1,
+                        "detail": "list count ratio expected 731, got 731"
                     },
                     "definition_list_count": {
                         "status": "pass",
@@ -12475,8 +12688,8 @@
                     "table_count": {
                         "status": "pass",
                         "expected": "0.80-1.25",
-                        "actual": 1.1481,
-                        "detail": "table count ratio expected 27, got 31"
+                        "actual": 1,
+                        "detail": "table count ratio expected 31, got 31"
                     },
                     "image_count": {
                         "status": "pass",

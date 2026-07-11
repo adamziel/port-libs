@@ -41,7 +41,8 @@ Compares local PHP readers against a Haskell pandoc executable for a fixed-size
 sample from the hardened HTML, Markdown, EPUB, and PPTX reader fixture corpora.
 The default sample size is 20 documents per format. HTML/Markdown are compared
 directly against `pandoc -t native`; EPUB/PPTX reuse the existing executable
-native AST comparison harnesses.
+native AST comparison harnesses. Manifest EPUB entries use a low-memory Native
+round trip and compare Pandoc's canonical Native output byte-for-byte.
 
 With --manifest, compares the exact files listed in a JSON manifest. Manifest
 entries can include sourceKind, sourceUrl, description, features, readerOptions,
@@ -271,7 +272,10 @@ function runManifestEntry(string $repoRoot, string $pandoc, array $entry): array
     $label = (string) ($entry['id'] ?? pathinfo($path, PATHINFO_FILENAME));
 
     $localResult = readLocalManifestFixture($format, $path, $readerOptions);
-    $pandocResult = readPandocNative($pandoc, $pandocFormat, $path);
+    $epubNativeRoundTrip = PandocConverter::canonicalInputFormat($format) === 'epub' && $localResult['ok'];
+    $pandocResult = $epubNativeRoundTrip
+        ? compareEpubNativeRoundTrip($pandoc, $pandocFormat, $path, $localResult['document'])
+        : readPandocDocument($pandoc, $pandocFormat, $path);
 
     $row = [
         'fixture' => $label,
@@ -282,6 +286,7 @@ function runManifestEntry(string $repoRoot, string $pandoc, array $entry): array
         'expectedSha256' => is_string($entry['sha256'] ?? null) ? $entry['sha256'] : null,
         'sourceChecksumStatus' => checksumStatus($sourceMetadata['sha256'], $entry['sha256'] ?? null),
         'pandocFormat' => $pandocFormat,
+        'pandocSerialization' => $pandocResult['serialization'],
         'readerOptions' => $readerOptions,
         'sourceKind' => (string) ($entry['sourceKind'] ?? 'unknown'),
         'sourceUrl' => isset($entry['sourceUrl']) && is_string($entry['sourceUrl']) ? $entry['sourceUrl'] : null,
@@ -295,6 +300,12 @@ function runManifestEntry(string $repoRoot, string $pandoc, array $entry): array
         'status' => 'parse-failure',
     ];
 
+    if ($epubNativeRoundTrip) {
+        $row['comparisonMethod'] = 'pandoc-native-roundtrip-byte-equality';
+        $row['pandocNativeBytes'] = $pandocResult['pandocNativeBytes'] ?? null;
+        $row['localCanonicalNativeBytes'] = $pandocResult['localCanonicalNativeBytes'] ?? null;
+    }
+
     if (!$localResult['ok']) {
         $row['localError'] = $localResult['error'];
     }
@@ -307,7 +318,7 @@ function runManifestEntry(string $repoRoot, string $pandoc, array $entry): array
         $localDocument = $localResult['document'];
         $row['localMetrics'] = astMetrics($localDocument);
     }
-    if ($pandocResult['ok']) {
+    if ($pandocResult['ok'] && ($pandocResult['document'] ?? null) instanceof AstNode) {
         /** @var AstNode $pandocDocument */
         $pandocDocument = $pandocResult['document'];
         $row['pandocMetrics'] = astMetrics($pandocDocument);
@@ -316,7 +327,17 @@ function runManifestEntry(string $repoRoot, string $pandoc, array $entry): array
         $row['metricDelta'] = metricDelta($row['localMetrics'], $row['pandocMetrics']);
     }
 
-    if ($localResult['ok'] && $pandocResult['ok']) {
+    if ($epubNativeRoundTrip && $localResult['ok'] && $pandocResult['ok']) {
+        if (($pandocResult['matches'] ?? false) === true) {
+            $row['localPandocStatus'] = 'matched';
+            $row['status'] = 'matched';
+        } else {
+            $row['localPandocStatus'] = 'mismatched';
+            $row['status'] = 'mismatched';
+            $row['localPandocFirstDifference'] = $pandocResult['firstDifference'] ?? 'unknown-canonical-native-difference';
+            $row['localPandocFirstDifferenceCategory'] = differenceCategory((string) $row['localPandocFirstDifference']);
+        }
+    } elseif ($localResult['ok'] && $pandocResult['ok']) {
         /** @var AstNode $localDocument */
         $localDocument = $localResult['document'];
         /** @var AstNode $pandocDocument */
@@ -444,7 +465,7 @@ function runInlineExecutableComparison(string $format, string $fixtureDirectory,
         $pandocFormat = $format === 'html' ? htmlPandocFormat($options) : markdownPandocFormat($options);
 
         $localResult = readLocalInlineFixture($format, $sourcePath, $options);
-        $pandocResult = readPandocNative($pandoc, $pandocFormat, $sourcePath);
+        $pandocResult = readPandocDocument($pandoc, $pandocFormat, $sourcePath);
         $nativeResult = readNativeFixture($nativeReader, $nativePath);
 
         $row = [
@@ -749,23 +770,27 @@ function genericNormalizedDocument(AstNode $document): array
 }
 
 /**
- * @return array{ok: bool, document: ?AstNode, native: ?string, error: ?string}
+ * @return array{ok: bool, document: ?AstNode, serialization: string, payload: ?string, matches: ?bool, firstDifference: ?string, error: ?string}
  */
-function readPandocNative(string $pandoc, string $format, string $path): array
+function readPandocDocument(string $pandoc, string $format, string $path): array
 {
+    $serialization = 'native';
     $result = runCommand([
         $pandoc,
         '-f',
         $format,
         '-t',
-        'native',
+        $serialization,
         $path,
     ]);
     if ($result['exitCode'] !== 0) {
         return [
             'ok' => false,
             'document' => null,
-            'native' => null,
+            'serialization' => $serialization,
+            'payload' => null,
+            'matches' => null,
+            'firstDifference' => null,
             'error' => trim($result['stderr']) !== ''
                 ? trim($result['stderr'])
                 : 'pandoc exited with code ' . (string) $result['exitCode'],
@@ -773,17 +798,226 @@ function readPandocNative(string $pandoc, string $format, string $path): array
     }
 
     try {
-        $native = $result['stdout'];
+        $payload = $result['stdout'];
 
         return [
             'ok' => true,
-            'document' => (new NativeReader())->read($native),
-            'native' => $native,
+            'document' => (new NativeReader())->read($payload),
+            'serialization' => $serialization,
+            'payload' => $payload,
+            'matches' => null,
+            'firstDifference' => null,
             'error' => null,
         ];
     } catch (Throwable $exception) {
-        return ['ok' => false, 'document' => null, 'native' => $result['stdout'], 'error' => $exception::class . ': ' . $exception->getMessage()];
+        return [
+            'ok' => false,
+            'document' => null,
+            'serialization' => $serialization,
+            'payload' => $result['stdout'],
+            'matches' => null,
+            'firstDifference' => null,
+            'error' => $exception::class . ': ' . $exception->getMessage(),
+        ];
     }
+}
+
+/**
+ * Avoids holding both the local and Haskell EPUB ASTs in PHP memory. The
+ * local document is written as Pandoc Native, canonically re-read by Pandoc,
+ * then compared byte-for-byte with Pandoc's direct EPUB Native output.
+ *
+ * @return array{ok: bool, document: null, serialization: string, payload: null, matches: ?bool, firstDifference: ?string, pandocNativeBytes: ?int, localCanonicalNativeBytes: ?int, error: ?string}
+ */
+function compareEpubNativeRoundTrip(string $pandoc, string $format, string $path, AstNode $localDocument): array
+{
+    $localInputPath = tempnam(sys_get_temp_dir(), 'pandoc-epub-local-native-');
+    $pandocNativePath = tempnam(sys_get_temp_dir(), 'pandoc-epub-pandoc-native-');
+    $localCanonicalPath = tempnam(sys_get_temp_dir(), 'pandoc-epub-canonical-native-');
+    $paths = [$localInputPath, $pandocNativePath, $localCanonicalPath];
+
+    if (in_array(false, $paths, true)) {
+        foreach ($paths as $temporaryPath) {
+            if (is_string($temporaryPath)) {
+                @unlink($temporaryPath);
+            }
+        }
+
+        return [
+            'ok' => false,
+            'document' => null,
+            'serialization' => 'native-roundtrip',
+            'payload' => null,
+            'matches' => null,
+            'firstDifference' => null,
+            'pandocNativeBytes' => null,
+            'localCanonicalNativeBytes' => null,
+            'error' => 'Unable to allocate temporary Native comparison files.',
+        ];
+    }
+
+    try {
+        $localNative = (new NativeWriter(['standalone' => true]))->write($localDocument);
+        if (file_put_contents($localInputPath, $localNative) === false) {
+            throw new RuntimeException('Unable to write local Native comparison input.');
+        }
+        unset($localNative);
+
+        $pandocDirect = runCommandToFile([
+            $pandoc,
+            '-f',
+            $format,
+            '-t',
+            'native',
+            $path,
+        ], $pandocNativePath);
+        if ($pandocDirect['exitCode'] !== 0) {
+            throw new RuntimeException(commandError($pandocDirect, 'Pandoc EPUB reader'));
+        }
+
+        $pandocCanonical = runCommandToFile([
+            $pandoc,
+            '-f',
+            'native',
+            '-t',
+            'native',
+            $localInputPath,
+        ], $localCanonicalPath);
+        if ($pandocCanonical['exitCode'] !== 0) {
+            throw new RuntimeException(commandError($pandocCanonical, 'Pandoc local Native round-trip'));
+        }
+
+        $pandocNativeBytes = fileSizeOrNull($pandocNativePath);
+        $localCanonicalNativeBytes = fileSizeOrNull($localCanonicalPath);
+        $pandocHash = hash_file('sha256', $pandocNativePath);
+        $localHash = hash_file('sha256', $localCanonicalPath);
+        if (!is_string($pandocHash) || !is_string($localHash)) {
+            throw new RuntimeException('Unable to hash canonical Native comparison files.');
+        }
+
+        $matches = $pandocNativeBytes === $localCanonicalNativeBytes
+            && hash_equals($pandocHash, $localHash);
+
+        return [
+            'ok' => true,
+            'document' => null,
+            'serialization' => 'native-roundtrip',
+            'payload' => null,
+            'matches' => $matches,
+            'firstDifference' => $matches ? null : firstFileDifference($pandocNativePath, $localCanonicalPath),
+            'pandocNativeBytes' => $pandocNativeBytes,
+            'localCanonicalNativeBytes' => $localCanonicalNativeBytes,
+            'error' => null,
+        ];
+    } catch (Throwable $exception) {
+        return [
+            'ok' => false,
+            'document' => null,
+            'serialization' => 'native-roundtrip',
+            'payload' => null,
+            'matches' => null,
+            'firstDifference' => null,
+            'pandocNativeBytes' => null,
+            'localCanonicalNativeBytes' => null,
+            'error' => $exception::class . ': ' . $exception->getMessage(),
+        ];
+    } finally {
+        foreach ($paths as $temporaryPath) {
+            if (is_string($temporaryPath)) {
+                @unlink($temporaryPath);
+            }
+        }
+    }
+}
+
+/**
+ * @param array{stderr:string, exitCode:int} $result
+ */
+function commandError(array $result, string $label): string
+{
+    $stderr = trim($result['stderr']);
+
+    return $stderr === ''
+        ? $label . ' exited with code ' . (string) $result['exitCode']
+        : $stderr;
+}
+
+function fileSizeOrNull(string $path): ?int
+{
+    $size = filesize($path);
+
+    return is_int($size) ? $size : null;
+}
+
+function firstFileDifference(string $leftPath, string $rightPath): string
+{
+    $left = fopen($leftPath, 'rb');
+    $right = fopen($rightPath, 'rb');
+    if (!is_resource($left) || !is_resource($right)) {
+        if (is_resource($left)) {
+            fclose($left);
+        }
+        if (is_resource($right)) {
+            fclose($right);
+        }
+
+        return 'unable to inspect canonical Native difference';
+    }
+
+    try {
+        $offset = 0;
+        $line = 1;
+        while (!feof($left) || !feof($right)) {
+            $leftChunk = fread($left, 8192);
+            $rightChunk = fread($right, 8192);
+            if (!is_string($leftChunk) || !is_string($rightChunk)) {
+                return 'unable to inspect canonical Native difference';
+            }
+            if ($leftChunk === $rightChunk) {
+                $offset += strlen($leftChunk);
+                $line += substr_count($leftChunk, "\n");
+                continue;
+            }
+
+            $sharedLength = min(strlen($leftChunk), strlen($rightChunk));
+            for ($index = 0; $index < $sharedLength; $index++) {
+                if ($leftChunk[$index] === $rightChunk[$index]) {
+                    continue;
+                }
+
+                $line += substr_count(substr($leftChunk, 0, $index), "\n");
+
+                return sprintf(
+                    'canonical Native differs at byte %d, line %d (%s vs %s)',
+                    $offset + $index,
+                    $line,
+                    nativeBytePreview($leftChunk[$index]),
+                    nativeBytePreview($rightChunk[$index])
+                );
+            }
+
+            return sprintf(
+                'canonical Native length differs after byte %d (%d vs %d bytes)',
+                $offset + $sharedLength,
+                fileSizeOrNull($leftPath) ?? 0,
+                fileSizeOrNull($rightPath) ?? 0
+            );
+        }
+    } finally {
+        fclose($left);
+        fclose($right);
+    }
+
+    return 'canonical Native differs but no byte offset was found';
+}
+
+function nativeBytePreview(string $byte): string
+{
+    $code = ord($byte);
+
+    return $code >= 32 && $code <= 126
+        ? "'" . $byte . "'"
+        : sprintf('0x%02X', $code);
 }
 
 /**
@@ -848,6 +1082,36 @@ function runCommand(array $command): array
 
     return [
         'stdout' => is_string($stdout) ? $stdout : '',
+        'stderr' => is_string($stderr) ? $stderr : '',
+        'exitCode' => $exitCode,
+    ];
+}
+
+/**
+ * @param list<string> $command
+ * @return array{stderr: string, exitCode: int}
+ */
+function runCommandToFile(array $command, string $outputPath): array
+{
+    $commandLine = implode(' ', array_map('escapeshellarg', $command));
+    $pipes = [];
+    $process = proc_open(
+        $commandLine,
+        [
+            1 => ['file', $outputPath, 'w'],
+            2 => ['pipe', 'w'],
+        ],
+        $pipes
+    );
+    if (!is_resource($process)) {
+        return ['stderr' => 'proc_open failed', 'exitCode' => 127];
+    }
+
+    $stderr = stream_get_contents($pipes[2]);
+    fclose($pipes[2]);
+    $exitCode = proc_close($process);
+
+    return [
         'stderr' => is_string($stderr) ? $stderr : '',
         'exitCode' => $exitCode,
     ];
@@ -1261,7 +1525,7 @@ function renderHtmlReport(array $report): string
             . '<p class="metric">'
             . h((string) ($summary['localPandocMatchCount'] ?? 0)) . ' of '
             . h((string) ($summary['comparedCount'] ?? 0))
-            . ' local reader outputs matched Haskell pandoc normalized native AST.'
+            . ' ' . h(comparisonEvidenceSummary($summary))
             . '</p>'
             . '<p><strong>Metric delta totals:</strong> ' . h(metricDeltaSummary(is_array($summary['metricDeltaTotals'] ?? null) ? $summary['metricDeltaTotals'] : [])) . '</p>'
             . failureClusterHtml($summary)
@@ -1302,6 +1566,21 @@ function renderHtmlReport(array $report): string
         . '</tbody></table>'
         . $sections
         . '</main></body></html>';
+}
+
+/**
+ * @param array<string, mixed> $summary
+ */
+function comparisonEvidenceSummary(array $summary): string
+{
+    $rows = is_array($summary['fixtureComparisons'] ?? null) ? $summary['fixtureComparisons'] : [];
+    foreach ($rows as $row) {
+        if (is_array($row) && ($row['comparisonMethod'] ?? null) === 'pandoc-native-roundtrip-byte-equality') {
+            return "local reader outputs matched Pandoc's canonical Native output after a Native round trip.";
+        }
+    }
+
+    return 'local reader outputs matched Pandoc normalized native AST.';
 }
 
 /**

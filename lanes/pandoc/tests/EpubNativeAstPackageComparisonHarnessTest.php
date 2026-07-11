@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\Pandoc\EpubNativeAstPackageComparisonHarness;
 use PortLibs\Pandoc\EpubPackage;
+use PortLibs\Pandoc\AstNode;
 use PortLibs\Pandoc\ZipPackage;
 
 $makeTempDir = static function (): string {
@@ -112,6 +113,7 @@ HTML],
     }
 };
 
+
 $writeNavigationEvidenceEpub = static function (string $path): void {
     $bytes = ZipPackage::fromParts([
         ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
@@ -198,6 +200,27 @@ HTML],
 $fixtureRoot = static fn (): string => dirname(__DIR__) . '/fixtures/upstream-current-epub-reader/epub';
 
 return [
+    'normalizes Pandoc JSON whitespace and metadata provenance like textual Native output' => static function (TestRunner $t): void {
+        $native = new AstNode('document', [], [
+            new AstNode('paragraph', [], [
+                new AstNode('text', ['text' => 'Hello world']),
+            ]),
+        ]);
+        $json = new AstNode('document', [
+            'metaConstructorProvenance' => ['/title' => ['constructor' => 'MetaInlines']],
+            'metaNativeValues' => ['title' => ['t' => 'MetaInlines']],
+        ], [
+            new AstNode('paragraph', [], [
+                new AstNode('text', ['text' => 'Hello']),
+                new AstNode('space'),
+                new AstNode('text', ['text' => 'world']),
+            ]),
+        ]);
+
+        $harness = new EpubNativeAstPackageComparisonHarness();
+
+        $t->same($harness->normalizedDocument($native), $harness->normalizedDocument($json));
+    },
     'skips epub native package comparison when source directory is absent' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
         $root = $makeTempDir();
         try {

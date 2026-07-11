@@ -902,6 +902,10 @@ final class WordPressBlockWriter
         $htmlAttributes = [];
         foreach ($this->inlineHtmlAttributes($node) as $name => $value) {
             $name = strtolower((string) $name);
+            if ($name === 'custom-style') {
+                $htmlAttributes['data-pandoc-custom-style'] = (string) $value;
+                continue;
+            }
             if (!$this->isAllowedBlockHtmlAttr($name)) {
                 continue;
             }
@@ -944,7 +948,12 @@ final class WordPressBlockWriter
     {
         $htmlAttributes = [];
         foreach ($this->inlineHtmlAttributes($node) as $name => $value) {
-            $htmlAttributes[strtolower((string) $name)] = $value;
+            $name = strtolower((string) $name);
+            if ($name === 'custom-style') {
+                $htmlAttributes['data-pandoc-custom-style'] = (string) $value;
+                continue;
+            }
+            $htmlAttributes[$name] = $value;
         }
         $classes = $baseClasses;
         $existingClass = trim((string) ($htmlAttributes['class'] ?? ''));

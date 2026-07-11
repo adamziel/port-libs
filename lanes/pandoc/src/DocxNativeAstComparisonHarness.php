@@ -73,6 +73,22 @@ final class DocxNativeAstComparisonHarness
     ];
 
     /**
+     * @return array{matches:bool, firstDifference:?string}
+     */
+    public function compareDocuments(AstNode $localDocument, AstNode $nativeDocument): array
+    {
+        $local = $this->normalizedNode($localDocument);
+        $native = $this->normalizedNode($nativeDocument);
+
+        return [
+            'matches' => $local === $native,
+            'firstDifference' => $local === $native
+                ? null
+                : ($this->firstDifference($local, $native) ?? 'unknown-normalized-ast-difference'),
+        ];
+    }
+
+    /**
      * @param array{limit?: int, maxExamples?: int} $options
      * @return array<string, mixed>
      */

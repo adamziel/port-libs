@@ -326,6 +326,21 @@ final class DocxUpstreamFocusedReaderEvidence
                     ['insertion.move-to', 'deletion.move-from'],
                     []
                 ),
+                'revision:paragraph_insertion_deletion:accept' => $this->checkNativeAstFixture(
+                    'paragraph_insertion_deletion',
+                    ['revisionMode' => 'accept'],
+                    'paragraph_insertion_deletion_accept.native'
+                ),
+                'revision:paragraph_insertion_deletion:reject' => $this->checkNativeAstFixture(
+                    'paragraph_insertion_deletion',
+                    ['revisionMode' => 'reject'],
+                    'paragraph_insertion_deletion_reject.native'
+                ),
+                'revision:paragraph_insertion_deletion:preserve' => $this->checkNativeAstFixture(
+                    'paragraph_insertion_deletion',
+                    ['revisionMode' => 'preserve'],
+                    'paragraph_insertion_deletion_all.native'
+                ),
                 'revision:track_changes_scrubbed_metadata:preserve' => $this->checkScrubbedRevisionFixture(),
                 'comments:all' => $this->checkCommentsAllFixture(),
                 'comments:accept-no-comments' => $this->checkCommentsNoCommentsFixture('accept'),
@@ -335,6 +350,11 @@ final class DocxUpstreamFocusedReaderEvidence
                 'warning:comments_warning:all' => $this->checkCommentsWarningAllFixture(),
                 'warning:comments-with-styles' => $this->checkCommentsWithStylesWarningsFixture(),
                 'custom-style-reference:default' => $this->checkCustomStyleDefaultFixture(),
+                'custom-style-reference:styles' => $this->checkNativeAstFixture(
+                    'custom-style-reference',
+                    ['stylesExtension' => true],
+                    'custom-style-with-styles.native'
+                ),
                 'compact-style-removal:styles' => $this->checkCompactStyleFixture(),
                 'metadata:styles' => $this->checkMetadataFixture('metadata', false),
                 'metadata_after_normal:styles' => $this->checkMetadataFixture('metadata_after_normal', true),
@@ -477,6 +497,52 @@ final class DocxUpstreamFocusedReaderEvidence
                 'revisionMode' => $mode,
                 'blockTexts' => $texts,
                 'classes' => $classes,
+            ],
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $options
+     * @return array<string, mixed>
+     */
+    private function checkNativeAstFixture(string $stem, array $options, string $nativeFilename): array
+    {
+        $loaded = $this->readDocxFixture($stem, $options);
+        if (is_array($loaded['skipped'] ?? null)) {
+            return $loaded['skipped'];
+        }
+
+        $nativePath = $this->absoluteDocxDirectory() . DIRECTORY_SEPARATOR . $nativeFilename;
+        if (!is_file($nativePath)) {
+            return [
+                'status' => 'skipped-missing-fixture',
+                'fixture' => $nativeFilename,
+                'reason' => "Required upstream native expectation is missing: {$nativeFilename}",
+            ];
+        }
+
+        $native = file_get_contents($nativePath);
+        if (!is_string($native)) {
+            throw new \RuntimeException("Unable to read native fixture {$nativePath}");
+        }
+
+        /** @var AstNode $document */
+        $document = $loaded['document'];
+        $expected = (new NativeReader())->read($native);
+        $comparison = (new DocxNativeAstComparisonHarness())->compareDocuments($document, $expected);
+        $this->assertTrue(
+            $comparison['matches'],
+            "{$stem}.docx does not match {$nativeFilename}: " . (string) ($comparison['firstDifference'] ?? 'unknown difference')
+        );
+
+        return [
+            'status' => 'passed',
+            'fixture' => "{$stem}.docx",
+            'nativeFixture' => $nativeFilename,
+            'details' => [
+                'readerOptions' => $options,
+                'blockTexts' => self::blockTexts($document),
+                'normalizedAstFirstDifference' => $comparison['firstDifference'],
             ],
         ];
     }
@@ -873,14 +939,9 @@ final class DocxUpstreamFocusedReaderEvidence
         $add('testCompareWithOpts', 'move text (reject)', 'docx/track_changes_move.docx', 'docx/track_changes_move_reject.native', 'focused-revision-mode-native-php-check', ['local revisionMode=reject keeps moved-from text at the rejected position'], $revisionLocal, $revisionLimits, 'revision:track_changes_move:reject');
         $add('testCompareWithOpts', 'move text (all)', 'docx/track_changes_move.docx', 'docx/track_changes_move_all.native', 'focused-revision-mode-native-php-check', ['local revisionMode=preserve keeps paired move-from and move-to provenance'], $revisionLocal, $revisionLimits, 'revision:track_changes_move:preserve');
 
-        $nativeMappedLocal = [
-            'lanes/pandoc/tests/MarkdownReaderTest.php',
-            'lanes/pandoc/fixtures/upstream-native-docx-*.native',
-        ];
-        $nativeMappedLimits = ['mapped native expectation evidence only; does not prove local DOCX reader output equals upstream native'];
-        $add('testCompareWithOpts', 'paragraph insertion/deletion (accept)', 'docx/paragraph_insertion_deletion.docx', 'docx/paragraph_insertion_deletion_accept.native', 'mapped-upstream-native-expectation-evidence', ['checked-in upstream native accept fixture is parsed and rendered by NativeReader/WordPress handoff'], $nativeMappedLocal, $nativeMappedLimits);
-        $add('testCompareWithOpts', 'paragraph insertion/deletion (reject)', 'docx/paragraph_insertion_deletion.docx', 'docx/paragraph_insertion_deletion_reject.native', 'mapped-upstream-native-expectation-evidence', ['checked-in upstream native reject fixture is parsed and rendered by NativeReader/WordPress handoff'], $nativeMappedLocal, $nativeMappedLimits);
-        $add('testCompareWithOpts', 'paragraph insertion/deletion (all)', 'docx/paragraph_insertion_deletion.docx', 'docx/paragraph_insertion_deletion_all.native', 'mapped-upstream-native-expectation-evidence', ['checked-in upstream native all-changes fixture is parsed and rendered by NativeReader/WordPress handoff'], $nativeMappedLocal, $nativeMappedLimits);
+        $add('testCompareWithOpts', 'paragraph insertion/deletion (accept)', 'docx/paragraph_insertion_deletion.docx', 'docx/paragraph_insertion_deletion_accept.native', 'focused-revision-mode-native-ast-php-check', ['local DOCX revisionMode=accept matches the upstream native paragraph-break expectation'], $revisionLocal, $revisionLimits, 'revision:paragraph_insertion_deletion:accept');
+        $add('testCompareWithOpts', 'paragraph insertion/deletion (reject)', 'docx/paragraph_insertion_deletion.docx', 'docx/paragraph_insertion_deletion_reject.native', 'focused-revision-mode-native-ast-php-check', ['local DOCX revisionMode=reject matches the upstream native paragraph-break expectation'], $revisionLocal, $revisionLimits, 'revision:paragraph_insertion_deletion:reject');
+        $add('testCompareWithOpts', 'paragraph insertion/deletion (all)', 'docx/paragraph_insertion_deletion.docx', 'docx/paragraph_insertion_deletion_all.native', 'focused-revision-mode-native-ast-php-check', ['local DOCX revisionMode=preserve matches the upstream native paragraph-break expectation'], $revisionLocal, $revisionLimits, 'revision:paragraph_insertion_deletion:preserve');
         $add('testCompareWithOpts', 'paragraph insertion/deletion (all)', 'docx/track_changes_scrubbed_metadata.docx', 'docx/track_changes_scrubbed_metadata.native', 'focused-revision-mode-native-php-check', ['local DOCX reader preserves scrubbed review authors without inventing dates'], $revisionLocal, $revisionLimits, 'revision:track_changes_scrubbed_metadata:preserve');
 
         $commentsLocal = [
@@ -911,7 +972,7 @@ final class DocxUpstreamFocusedReaderEvidence
             'lanes/pandoc/tests/DocxUpstreamFocusedReaderEvidenceTest.php',
         ];
         $add('testCompare', 'custom styles (`+styles`) not enabled (default)', 'docx/custom-style-reference.docx', 'docx/custom-style-no-styles.native', 'focused-style-default-native-php-check', ['local DOCX reader default output does not leak custom-style attributes'], $styleLocal, ['does not prove Haskell default AST equality'], 'custom-style-reference:default');
-        $add('testCompareWithOpts', 'custom styles (`+styles`) enabled', 'docx/custom-style-reference.docx', 'docx/custom-style-with-styles.native', 'mapped-upstream-native-expectation-evidence', ['checked-in upstream native custom-style fixture is parsed and rendered with WordPress data-pandoc-custom-style attributes'], $nativeMappedLocal, $nativeMappedLimits);
+        $add('testCompareWithOpts', 'custom styles (`+styles`) enabled', 'docx/custom-style-reference.docx', 'docx/custom-style-with-styles.native', 'focused-style-native-ast-php-check', ['local DOCX stylesExtension output matches the upstream native custom-style expectation'], $styleLocal, ['local stylesExtension evidence is not an upstream Haskell ReaderOptions run'], 'custom-style-reference:styles');
         $add('testCompareWithOpts', 'custom styles (`+styles`): Compact style is removed from output', 'docx/compact-style-removal.docx', 'docx/compact-style-removal.native', 'focused-style-default-native-php-check', ['local DOCX reader parses Compact-style list output without leaking Compact as a class'], $styleLocal, ['does not prove Haskell +styles AST equality'], 'compact-style-removal:styles');
         $add('testCompareWithOpts', 'metadata fields', 'docx/metadata.docx', 'docx/metadata.native', 'focused-metadata-native-php-check', ['local DOCX reader collects leading Title/Author/Date/Abstract style paragraphs as metadata'], $styleLocal, ['does not prove Haskell +styles AST equality'], 'metadata:styles');
         $add('testCompareWithOpts', 'stop recording metadata with normal text', 'docx/metadata_after_normal.docx', 'docx/metadata_after_normal.native', 'focused-metadata-native-php-check', ['local DOCX reader stops metadata collection after normal text and keeps later metadata-styled paragraphs visible'], $styleLocal, ['does not prove Haskell +styles AST equality'], 'metadata_after_normal:styles');

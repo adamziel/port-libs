@@ -321,20 +321,31 @@ final class MarkdownReader
                 array_push($blocks, ...$htmlDocument->children);
                 continue;
             }
-            if ($paragraph === [] && $listStack === [] && $this->tryReadEmptyHtmlTableBlock($lines, $index)) {
+            if (
+                $this->semanticHtmlTableBlocksEnabled()
+                && $paragraph === []
+                && $listStack === []
+                && $this->tryReadEmptyHtmlTableBlock($lines, $index)
+            ) {
                 continue;
             }
-            $nestedHtmlDocumentTable = $paragraph === [] && $listStack === [] ? $this->tryReadStructuredHtmlDocumentTableBlock($lines, $index) : null;
+            $nestedHtmlDocumentTable = $this->semanticHtmlTableBlocksEnabled() && $paragraph === [] && $listStack === []
+                ? $this->tryReadStructuredHtmlDocumentTableBlock($lines, $index)
+                : null;
             if ($nestedHtmlDocumentTable !== null) {
                 $blocks[] = $nestedHtmlDocumentTable;
                 continue;
             }
-            $nestedHtmlTable = $paragraph === [] && $listStack === [] ? $this->tryReadStructuredHtmlTableBlock($lines, $index) : null;
+            $nestedHtmlTable = $this->semanticHtmlTableBlocksEnabled() && $paragraph === [] && $listStack === []
+                ? $this->tryReadStructuredHtmlTableBlock($lines, $index)
+                : null;
             if ($nestedHtmlTable !== null) {
                 $blocks[] = $nestedHtmlTable;
                 continue;
             }
-            $invalidHtmlTable = $paragraph === [] && $listStack === [] ? $this->tryReadInvalidHtmlTableBlock($lines, $index) : null;
+            $invalidHtmlTable = $this->semanticHtmlTableBlocksEnabled() && $paragraph === [] && $listStack === []
+                ? $this->tryReadInvalidHtmlTableBlock($lines, $index)
+                : null;
             if ($invalidHtmlTable !== null) {
                 array_push($blocks, ...$invalidHtmlTable);
                 continue;
@@ -5052,6 +5063,16 @@ final class MarkdownReader
         return (bool) ($this->options['htmlEpubExtensions'] ?? false);
     }
 
+    private function htmlPreserveStyleAttributes(): bool
+    {
+        return (bool) ($this->options['htmlPreserveStyleAttributes'] ?? false);
+    }
+
+    private function htmlPreserveEmptySpanNodes(): bool
+    {
+        return (bool) ($this->options['htmlPreserveEmptySpanNodes'] ?? false);
+    }
+
     private function htmlPlainInlineBlocksEnabled(): bool
     {
         return (bool) ($this->options['htmlPlainInlineBlocks'] ?? false);
@@ -9319,7 +9340,7 @@ final class MarkdownReader
             }
 
             if ($name === 'style') {
-                if (!$preserveStyle) {
+                if (!$preserveStyle && !$this->htmlPreserveStyleAttributes()) {
                     $value = $this->htmlTableNonAlignmentStyle($value);
                 }
                 if ($value === '') {
@@ -9425,10 +9446,10 @@ final class MarkdownReader
                 continue;
             }
 
-            array_push($children, ...$this->parseHtmlInlineNode($child));
+            $this->appendHtmlInlineNodes($children, $this->parseHtmlInlineNode($child));
         }
 
-        return $children;
+        return $this->trimHtmlBoundarySoftBreaks($children);
     }
 
     /**
@@ -9588,7 +9609,7 @@ final class MarkdownReader
         }
         if ($name === 'span') {
             $attrs = $this->htmlElementPandocAttrs($node);
-            if ($attrs !== []) {
+            if ($attrs !== [] || $this->htmlPreserveEmptySpanNodes()) {
                 return [new AstNode('span', $attrs, $children)];
             }
 
@@ -9706,6 +9727,13 @@ final class MarkdownReader
             }
             $nodes[] = new AstNode('text', ['text' => $text]);
             $seenText = true;
+        }
+
+        // A newline at the end of this text node may separate it from the
+        // following inline element. The enclosing inline parser trims it at
+        // a true container boundary, but it remains meaningful between nodes.
+        if ($seenText && str_ends_with($raw, "\n")) {
+            $nodes[] = new AstNode('softbreak');
         }
 
         return $nodes;
@@ -10791,6 +10819,16 @@ final class MarkdownReader
         foreach ($nodes as $node) {
             $lastKey = array_key_last($children);
             $last = $lastKey === null ? null : $children[$lastKey];
+            if ($last instanceof AstNode && $last->type === 'linebreak' && $node->type === 'softbreak') {
+                // Source indentation after an explicit <br> does not create
+                // another visible break in Pandoc's HTML reader.
+                continue;
+            }
+            if ($last instanceof AstNode && $last->type === 'softbreak' && $node->type === 'linebreak') {
+                array_pop($children);
+                $lastKey = array_key_last($children);
+                $last = $lastKey === null ? null : $children[$lastKey];
+            }
             if ($last instanceof AstNode && $last->type === 'linebreak' && $node->type === 'text') {
                 $text = ltrim((string) $node->attr('text', ''));
                 if ($text === '') {
@@ -14457,6 +14495,16 @@ final class MarkdownReader
         $canonical = MarkdownFormatProfile::canonicalFormat(is_scalar($format) ? (string) $format : 'markdown');
 
         return in_array($canonical, ['gfm', 'markdown_github'], true);
+    }
+
+    private function semanticHtmlTableBlocksEnabled(): bool
+    {
+        $format = $this->options['format'] ?? $this->options['variant'] ?? 'markdown';
+        $canonical = MarkdownFormatProfile::canonicalFormat(is_scalar($format) ? (string) $format : 'markdown');
+
+        // Pandoc keeps HTML table blocks raw in GFM instead of reinterpreting
+        // them as Pandoc table nodes.
+        return !in_array($canonical, ['gfm', 'markdown_github'], true);
     }
 
     private function listItemContinuationSource(string $line, int $contentIndent): string

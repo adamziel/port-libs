@@ -820,6 +820,15 @@ RST;
                 'source' => 'Project Gutenberg illustrated Alice EPUB3 with images',
                 'filename' => 'alice-illustrated.epub',
             ],
+            [
+                'id' => 'epub-gutenberg-ulysses',
+                'format' => 'epub',
+                'label' => 'Ulysses full-book EPUB',
+                'description' => 'A real Project Gutenberg book-scale EPUB with 31 XHTML spine documents, a long boilerplate section, a contents table, and dense literary prose.',
+                'url' => 'https://www.gutenberg.org/ebooks/4300.epub.noimages',
+                'source' => 'Project Gutenberg Ulysses EPUB without images',
+                'filename' => 'ulysses.epub',
+            ],
         ],
         'fb2' => [
             upstream_sample('fb2-basic', 'fb2', 'test/fb2/basic.fb2', 'FB2 basic book', 'FictionBook XML sample from upstream Pandoc tests.'),
@@ -4718,8 +4727,11 @@ $html .= '<div class="stat"><strong>' . gmdate('Y-m-d') . '</strong><span>genera
 $html .= '</div><ul class="stress-samples" aria-label="Real-world stress samples">';
 foreach ([
     'docx-oasis-kmip-spec' => 'OASIS KMIP DOCX',
+    'docx-microsoft-excel-migration' => 'Microsoft migration DOCX',
     'epub-gutenberg-alice-illustrated' => 'Illustrated Alice EPUB',
+    'epub-gutenberg-ulysses' => 'Ulysses full-book EPUB',
     'markdown-pandoc-manual' => 'Pandoc manual Markdown',
+    'markdown-github-rendered-syntax' => 'Full GitHub Markdown',
     'odt-oasis-opendocument-schema' => 'OASIS OpenDocument ODT',
     'pdf-irs-w4' => 'IRS Form W-4 PDF',
     'pdf-quickbooks-invoice-template' => 'QuickBooks invoice PDF',

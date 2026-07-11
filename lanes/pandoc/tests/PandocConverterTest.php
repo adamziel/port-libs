@@ -94,6 +94,16 @@ return [
         $t->contains('<a href="https://github.com/openai"', $html);
         $t->contains('<math', $html);
     },
+    'dispatches markdown extension profiles through the converter format string' => static function (TestRunner $t): void {
+        $document = PandocConverter::read('==marked==', 'markdown+mark');
+        $gfm = PandocConverter::read('<table><tr><td>raw</td></tr></table>', 'gfm+raw_html');
+
+        $t->true(PandocConverter::canRead('markdown+mark'));
+        $t->true(PandocConverter::canRead('gfm+raw_html'));
+        $t->same('span', $document->children[0]->children[0]->type);
+        $t->same(['mark'], $document->children[0]->children[0]->attr('classes'));
+        $t->same('raw_html', $gfm->children[0]->type);
+    },
     'converts rtf through the registered reader path' => static function (TestRunner $t): void {
         $blocks = PandocConverter::convert('{\\rtf1\\ansi\\pard RTF {\\b bold} import.\\par}', 'rtf', 'blocks');
 

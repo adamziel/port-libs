@@ -134,14 +134,14 @@ return [
         $t->same(36, $manifestFocusedReader['coveredCaseCount'] ?? null);
         $t->same(0, $manifestFocusedReader['remainingOpenCaseCount'] ?? null);
         $t->same('completed-targeted-docx-reader-checks', $manifestFocusedReader['targetedHydratedCacheStatus'] ?? null);
-        $t->same(32, $manifestFocusedReader['passedTargetedCaseCount'] ?? null);
+        $t->same(36, $manifestFocusedReader['passedTargetedCaseCount'] ?? null);
         $t->same(0, $manifestFocusedReader['failedTargetedCaseCount'] ?? null);
         $t->same(0, $manifestFocusedReader['skippedTargetedCaseCount'] ?? null);
-        $t->same(4, $manifestFocusedReader['mappedOnlyCaseCount'] ?? null);
+        $t->same(0, $manifestFocusedReader['mappedOnlyCaseCount'] ?? null);
         $t->same('valid-denominator-map', $manifestFocusedReader['mappingValidationStatus'] ?? null);
-        $t->same('requires-36-covered-32-targeted-and-zero-targeted-failures', $manifestFocusedReader['gateStatus'] ?? null);
+        $t->same('requires-36-covered-36-targeted-and-zero-targeted-failures', $manifestFocusedReader['gateStatus'] ?? null);
         $t->contains('36 covered, 0 remaining open', (string) ($manifestFocusedReader['claim'] ?? ''));
-        $t->contains('32 passed / 0 failed / 4 mapped-only', (string) ($manifestFocusedReader['claim'] ?? ''));
+        $t->contains('36 passed / 0 failed / 0 mapped-only', (string) ($manifestFocusedReader['claim'] ?? ''));
         $t->contains('not an upstream Haskell/Cabal/Tasty runner result', (string) ($manifestFocusedReader['claim'] ?? ''));
 
         $localNativeFixtures = $countTrackedFiles(['lanes/pandoc/fixtures/upstream-native-docx-*.native']);

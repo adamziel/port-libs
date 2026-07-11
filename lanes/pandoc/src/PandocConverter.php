@@ -38,12 +38,13 @@ final class PandocConverter
         // GFM feature profile while passing that narrow reader distinction.
         if (
             $entry['implementation'] === MarkdownReader::class
-            && preg_match('/^markdown_github(?:[+-]|$)/', $requestedFormat) === 1
+            && preg_match('/^markdown(?:_|-)github(?:[+-]|$)/', $requestedFormat) === 1
             && !isset($options['pandocMarkdownGithubMixedBulletMarkers'])
         ) {
             $options['pandocMarkdownGithubMixedBulletMarkers'] = true;
         }
 
+        $options = self::readerOptionsForRequestedFormat($entry['implementation'], $requestedFormat, $options);
         $reader = self::reader($entry['implementation'], $canonical, $options);
         if ($reader instanceof MarkdownReader) {
             $encoding = self::stringReaderOption($options, ['sourceEncoding', 'inputEncoding', 'encoding']);
@@ -194,13 +195,23 @@ final class PandocConverter
     {
         $format = self::normalizeFormat($format);
         $aliases = array_replace(PandocFormatRegistry::inputAliases(), self::EXTRA_INPUT_ALIASES);
+        $markdownFormat = MarkdownFormatProfile::canonicalMarkdownFormat($format);
+        if ($markdownFormat !== null) {
+            return $aliases[$markdownFormat] ?? $markdownFormat;
+        }
+
+        if (self::docxFormatExtensionOptions($format) !== null) {
+            return 'docx';
+        }
+
+        $format = str_replace('-', '_', $format);
 
         return $aliases[$format] ?? $format;
     }
 
     public static function canonicalOutputFormat(string $format): string
     {
-        $format = self::normalizeFormat($format);
+        $format = str_replace('-', '_', self::normalizeFormat($format));
         $aliases = array_replace(PandocFormatRegistry::outputAliases(), self::EXTRA_OUTPUT_ALIASES);
 
         return $aliases[$format] ?? $format;
@@ -208,7 +219,91 @@ final class PandocConverter
 
     private static function normalizeFormat(string $format): string
     {
-        return strtolower(str_replace('-', '_', trim($format)));
+        return strtolower(trim($format));
+    }
+
+    /**
+     * @param array<string, mixed> $options
+     * @return array<string, mixed>
+     */
+    private static function readerOptionsForRequestedFormat(string $implementation, string $requestedFormat, array $options): array
+    {
+        if ($implementation === MarkdownReader::class) {
+            if (!isset($options['format']) && !isset($options['variant'])) {
+                // The registry uses the base dialect for dispatch, while the
+                // reader must see its extension specification. Canonicalizing
+                // the base preserves the historical markdown_github-to-GFM
+                // dispatch while retaining explicit extension switches.
+                $options['format'] = self::markdownReaderFormat($requestedFormat);
+            }
+
+            return $options;
+        }
+
+        if ($implementation !== DocxReader::class) {
+            return $options;
+        }
+
+        $extensionOptions = self::docxFormatExtensionOptions($requestedFormat);
+        if ($extensionOptions === null) {
+            return $options;
+        }
+
+        foreach ($extensionOptions as $name => $value) {
+            if (!array_key_exists($name, $options)) {
+                $options[$name] = $value;
+            }
+        }
+
+        return $options;
+    }
+
+    private static function markdownReaderFormat(string $requestedFormat): string
+    {
+        $canonical = MarkdownFormatProfile::canonicalMarkdownFormat($requestedFormat);
+        if ($canonical === null) {
+            return $requestedFormat;
+        }
+
+        $extensionSuffix = MarkdownFormatProfile::markdownExtensionOptionSuffix(
+            MarkdownFormatProfile::markdownExtensionOverrides($requestedFormat)
+        );
+
+        return $canonical . $extensionSuffix;
+    }
+
+    /**
+     * Returns the local DocxReader options encoded by a Pandoc DOCX format
+     * specification, or null when the specification is not a supported DOCX
+     * format. Keeping this separate from registry lookup prevents a suffix
+     * such as docx+styles from being treated as an unknown format name.
+     *
+     * @return array<string, bool>|null
+     */
+    private static function docxFormatExtensionOptions(string $format): ?array
+    {
+        if (preg_match('/^docx((?:[+-][a-z0-9_]+)*)$/', $format, $matches) !== 1) {
+            return null;
+        }
+
+        $suffix = $matches[1] ?? '';
+        if ($suffix === '') {
+            return [];
+        }
+
+        $options = [];
+        if (preg_match_all('/([+-])([a-z0-9_]+)/', $suffix, $extensions, PREG_SET_ORDER) === false) {
+            return null;
+        }
+
+        foreach ($extensions as $extension) {
+            if (($extension[2] ?? '') !== 'styles') {
+                return null;
+            }
+            $options['stylesExtension'] = ($extension[1] ?? '') === '+';
+        }
+
+        return $options;
     }
 
     /**

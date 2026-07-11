@@ -10015,6 +10015,36 @@ HTML);
         $t->same('here.', $paragraph->children[2]->attr('text'));
         $t->contains('<p>There should be a hard line break<br/>here.</p>', $blocks);
     },
+    'normalizes html table cell indentation around explicit line breaks' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader(['htmlPreserveSoftBreaks' => true]))->read(<<<'HTML'
+<html><body><table><tr><td> <strong>Cell</strong><br/>
+        <br/>
+</td></tr></table></body></html>
+HTML);
+        $cell = $document->children[0]->children[1]->children[0]->children[0];
+        $inlines = $cell->children;
+
+        $t->same('table_cell', $cell->type);
+        $t->same(['strong', 'linebreak', 'linebreak'], array_map(
+            static fn (AstNode $node): string => $node->type,
+            $inlines,
+        ));
+        $t->same('Cell', $inlines[0]->children[0]->attr('text'));
+    },
+    'preserves html text-node line endings before following inline elements' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader(['htmlPreserveSoftBreaks' => true]))->read(<<<'HTML'
+<html><body><p>One
+<i>Two</i></p></body></html>
+HTML);
+        $paragraph = $document->children[0];
+
+        $t->same(['text', 'softbreak', 'emph'], array_map(
+            static fn (AstNode $node): string => $node->type,
+            $paragraph->children,
+        ));
+        $t->same('One', $paragraph->children[0]->attr('text'));
+        $t->same('Two', $paragraph->children[2]->children[0]->attr('text'));
+    },
     'maps upstream html reader line-block divs into line block ast' => static function (TestRunner $t): void {
         $nbsp = "\xC2\xA0";
         $reader = new MarkdownReader();
@@ -16143,5 +16173,21 @@ NATIVE;
         $t->contains('RawInline (Format "html") "<button class=\\"wp-action\\" data-source=\\"classic-editor\\">"', $native);
         $t->contains('Strong [ Str "Publish" ]', $native);
         $t->contains('<p><button class="wp-action" data-source="classic-editor"><strong>Publish</strong></button> remains actionable for migration review.</p>', $blocks);
+    },
+    'keeps raw html tables raw in gfm while retaining markdown pipe tables' => static function (TestRunner $t): void {
+        $source = <<<MD
+| Name | Value |
+| --- | --- |
+| Pipe | table |
+
+<table><tr><th>Raw</th></tr><tr><td>HTML</td></tr></table>
+MD;
+
+        $gfm = (new MarkdownReader(['format' => 'gfm']))->read($source);
+        $markdown = (new MarkdownReader(['format' => 'markdown']))->read($source);
+
+        $t->same(['table', 'raw_html'], array_map(static fn (AstNode $node): string => $node->type, $gfm->children));
+        $t->same('<table><tr><th>Raw</th></tr><tr><td>HTML</td></tr></table>', $gfm->children[1]->attr('html'));
+        $t->same(['table', 'table'], array_map(static fn (AstNode $node): string => $node->type, $markdown->children));
     },
 ];

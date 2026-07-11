@@ -2,7 +2,7 @@
     "schemaVersion": 1,
     "tool": "pandoc-docx-focused-reader-evidence",
     "status": "reported-focused-docx-reader-evidence",
-    "generatedAt": "2026-07-01",
+    "generatedAt": "2026-07-11",
     "upstream": {
         "name": "jgm/pandoc",
         "commit": "612e143fbe6d735b612c4800d21e61b7d44e4dca",
@@ -41,9 +41,10 @@
             "focused-docx-warning-native-php-check": 4,
             "focused-media-bag-native-php-check": 5,
             "focused-metadata-native-php-check": 2,
+            "focused-revision-mode-native-ast-php-check": 3,
             "focused-revision-mode-native-php-check": 12,
             "focused-style-default-native-php-check": 2,
-            "mapped-upstream-native-expectation-evidence": 4
+            "focused-style-native-ast-php-check": 1
         },
         "coveredPercentOf36CaseDenominator": 100,
         "remainingOpenLabels": []
@@ -52,10 +53,10 @@
         "status": "completed-targeted-docx-reader-checks",
         "sourceDirectoryPresent": true,
         "upstreamDocxDirectory": ".upstream-cache/pandoc-current/test/docx",
-        "passedTargetedCaseCount": 32,
+        "passedTargetedCaseCount": 36,
         "failedTargetedCaseCount": 0,
         "skippedTargetedCaseCount": 0,
-        "mappedOnlyCaseCount": 4,
+        "mappedOnlyCaseCount": 0,
         "caseCheckRows": [
             {
                 "caseKey": "testCompare|inline image|docx/image.docx|docx/image_no_embed.native",
@@ -376,20 +377,57 @@
             {
                 "caseKey": "testCompareWithOpts|paragraph insertion/deletion (accept)|docx/paragraph_insertion_deletion.docx|docx/paragraph_insertion_deletion_accept.native",
                 "label": "paragraph insertion/deletion (accept)",
-                "status": "not-applicable-mapped-evidence-only",
-                "reason": "This case is covered by checked-in mapped native evidence, not by an optional DOCX package check."
+                "targetedCheckId": "revision:paragraph_insertion_deletion:accept",
+                "status": "passed",
+                "fixture": "paragraph_insertion_deletion.docx",
+                "nativeFixture": "paragraph_insertion_deletion_accept.native",
+                "details": {
+                    "readerOptions": {
+                        "revisionMode": "accept"
+                    },
+                    "blockTexts": [
+                        "This is a",
+                        "split Paragraph."
+                    ],
+                    "normalizedAstFirstDifference": null
+                }
             },
             {
                 "caseKey": "testCompareWithOpts|paragraph insertion/deletion (reject)|docx/paragraph_insertion_deletion.docx|docx/paragraph_insertion_deletion_reject.native",
                 "label": "paragraph insertion/deletion (reject)",
-                "status": "not-applicable-mapped-evidence-only",
-                "reason": "This case is covered by checked-in mapped native evidence, not by an optional DOCX package check."
+                "targetedCheckId": "revision:paragraph_insertion_deletion:reject",
+                "status": "passed",
+                "fixture": "paragraph_insertion_deletion.docx",
+                "nativeFixture": "paragraph_insertion_deletion_reject.native",
+                "details": {
+                    "readerOptions": {
+                        "revisionMode": "reject"
+                    },
+                    "blockTexts": [
+                        "This is a split",
+                        "Paragraph."
+                    ],
+                    "normalizedAstFirstDifference": null
+                }
             },
             {
                 "caseKey": "testCompareWithOpts|paragraph insertion/deletion (all)|docx/paragraph_insertion_deletion.docx|docx/paragraph_insertion_deletion_all.native",
                 "label": "paragraph insertion/deletion (all)",
-                "status": "not-applicable-mapped-evidence-only",
-                "reason": "This case is covered by checked-in mapped native evidence, not by an optional DOCX package check."
+                "targetedCheckId": "revision:paragraph_insertion_deletion:preserve",
+                "status": "passed",
+                "fixture": "paragraph_insertion_deletion.docx",
+                "nativeFixture": "paragraph_insertion_deletion_all.native",
+                "details": {
+                    "readerOptions": {
+                        "revisionMode": "preserve"
+                    },
+                    "blockTexts": [
+                        "This is a",
+                        "split",
+                        "Paragraph."
+                    ],
+                    "normalizedAstFirstDifference": null
+                }
             },
             {
                 "caseKey": "testCompareWithOpts|paragraph insertion/deletion (all)|docx/track_changes_scrubbed_metadata.docx|docx/track_changes_scrubbed_metadata.native",
@@ -423,8 +461,21 @@
             {
                 "caseKey": "testCompareWithOpts|custom styles (`+styles`) enabled|docx/custom-style-reference.docx|docx/custom-style-with-styles.native",
                 "label": "custom styles (`+styles`) enabled",
-                "status": "not-applicable-mapped-evidence-only",
-                "reason": "This case is covered by checked-in mapped native evidence, not by an optional DOCX package check."
+                "targetedCheckId": "custom-style-reference:styles",
+                "status": "passed",
+                "fixture": "custom-style-reference.docx",
+                "nativeFixture": "custom-style-with-styles.native",
+                "details": {
+                    "readerOptions": {
+                        "stylesExtension": true
+                    },
+                    "blockTexts": [
+                        "",
+                        "",
+                        ""
+                    ],
+                    "normalizedAstFirstDifference": null
+                }
             },
             {
                 "caseKey": "testCompareWithOpts|custom styles (`+styles`): Compact style is removed from output|docx/compact-style-removal.docx|docx/compact-style-removal.native",
@@ -1026,17 +1077,18 @@
             "native": "docx/paragraph_insertion_deletion_accept.native",
             "inventoryReason": "different-native-expectation-stem-and-non-default-reader-options",
             "coverageStatus": "covered-by-focused-native-php-or-mapped-evidence",
-            "coverageKind": "mapped-upstream-native-expectation-evidence",
+            "coverageKind": "focused-revision-mode-native-ast-php-check",
             "focusedEvidence": [
-                "checked-in upstream native accept fixture is parsed and rendered by NativeReader/WordPress handoff"
+                "local DOCX revisionMode=accept matches the upstream native paragraph-break expectation"
             ],
             "localEvidence": [
-                "lanes/pandoc/tests/MarkdownReaderTest.php",
-                "lanes/pandoc/fixtures/upstream-native-docx-*.native"
+                "lanes/pandoc/src/DocxReader.php",
+                "lanes/pandoc/tests/DocxReaderTest.php",
+                "lanes/pandoc/tests/DocxUpstreamFocusedReaderEvidenceTest.php"
             ],
-            "targetedCheckId": null,
+            "targetedCheckId": "revision:paragraph_insertion_deletion:accept",
             "limitations": [
-                "mapped native expectation evidence only; does not prove local DOCX reader output equals upstream native"
+                "local explicit revisionMode evidence is not an upstream Haskell ReaderOptions run"
             ]
         },
         {
@@ -1047,17 +1099,18 @@
             "native": "docx/paragraph_insertion_deletion_reject.native",
             "inventoryReason": "different-native-expectation-stem-and-non-default-reader-options",
             "coverageStatus": "covered-by-focused-native-php-or-mapped-evidence",
-            "coverageKind": "mapped-upstream-native-expectation-evidence",
+            "coverageKind": "focused-revision-mode-native-ast-php-check",
             "focusedEvidence": [
-                "checked-in upstream native reject fixture is parsed and rendered by NativeReader/WordPress handoff"
+                "local DOCX revisionMode=reject matches the upstream native paragraph-break expectation"
             ],
             "localEvidence": [
-                "lanes/pandoc/tests/MarkdownReaderTest.php",
-                "lanes/pandoc/fixtures/upstream-native-docx-*.native"
+                "lanes/pandoc/src/DocxReader.php",
+                "lanes/pandoc/tests/DocxReaderTest.php",
+                "lanes/pandoc/tests/DocxUpstreamFocusedReaderEvidenceTest.php"
             ],
-            "targetedCheckId": null,
+            "targetedCheckId": "revision:paragraph_insertion_deletion:reject",
             "limitations": [
-                "mapped native expectation evidence only; does not prove local DOCX reader output equals upstream native"
+                "local explicit revisionMode evidence is not an upstream Haskell ReaderOptions run"
             ]
         },
         {
@@ -1068,17 +1121,18 @@
             "native": "docx/paragraph_insertion_deletion_all.native",
             "inventoryReason": "different-native-expectation-stem-and-non-default-reader-options",
             "coverageStatus": "covered-by-focused-native-php-or-mapped-evidence",
-            "coverageKind": "mapped-upstream-native-expectation-evidence",
+            "coverageKind": "focused-revision-mode-native-ast-php-check",
             "focusedEvidence": [
-                "checked-in upstream native all-changes fixture is parsed and rendered by NativeReader/WordPress handoff"
+                "local DOCX revisionMode=preserve matches the upstream native paragraph-break expectation"
             ],
             "localEvidence": [
-                "lanes/pandoc/tests/MarkdownReaderTest.php",
-                "lanes/pandoc/fixtures/upstream-native-docx-*.native"
+                "lanes/pandoc/src/DocxReader.php",
+                "lanes/pandoc/tests/DocxReaderTest.php",
+                "lanes/pandoc/tests/DocxUpstreamFocusedReaderEvidenceTest.php"
             ],
-            "targetedCheckId": null,
+            "targetedCheckId": "revision:paragraph_insertion_deletion:preserve",
             "limitations": [
-                "mapped native expectation evidence only; does not prove local DOCX reader output equals upstream native"
+                "local explicit revisionMode evidence is not an upstream Haskell ReaderOptions run"
             ]
         },
         {
@@ -1134,17 +1188,19 @@
             "native": "docx/custom-style-with-styles.native",
             "inventoryReason": "different-native-expectation-stem-and-non-default-reader-options",
             "coverageStatus": "covered-by-focused-native-php-or-mapped-evidence",
-            "coverageKind": "mapped-upstream-native-expectation-evidence",
+            "coverageKind": "focused-style-native-ast-php-check",
             "focusedEvidence": [
-                "checked-in upstream native custom-style fixture is parsed and rendered with WordPress data-pandoc-custom-style attributes"
+                "local DOCX stylesExtension output matches the upstream native custom-style expectation"
             ],
             "localEvidence": [
+                "lanes/pandoc/src/DocxReader.php",
+                "lanes/pandoc/tests/DocxReaderTest.php",
                 "lanes/pandoc/tests/MarkdownReaderTest.php",
-                "lanes/pandoc/fixtures/upstream-native-docx-*.native"
+                "lanes/pandoc/tests/DocxUpstreamFocusedReaderEvidenceTest.php"
             ],
-            "targetedCheckId": null,
+            "targetedCheckId": "custom-style-reference:styles",
             "limitations": [
-                "mapped native expectation evidence only; does not prove local DOCX reader output equals upstream native"
+                "local stylesExtension evidence is not an upstream Haskell ReaderOptions run"
             ]
         },
         {

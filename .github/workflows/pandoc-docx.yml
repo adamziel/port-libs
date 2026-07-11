@@ -143,7 +143,7 @@ jobs:
             --json \
             --docx-dir .upstream-cache/pandoc-current/test/docx \
             --require-covered 36 \
-            --require-targeted-checks 32 \
+            --require-targeted-checks 36 \
             --require-no-targeted-failures
 
       - name: Run optional upstream DOCX runner preflight plan

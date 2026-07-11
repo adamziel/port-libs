@@ -10,6 +10,22 @@ final class EpubReader
     private const DC_NAMESPACE = 'http://purl.org/dc/elements/1.1/';
     private const EPUB_FOOTNOTE_DEFINITION_LINK_ATTR = '_epubFootnoteDefinitionLink';
     private const EPUB_SEMANTIC_TYPES_ATTR = '_epubSemanticTypes';
+    /** @var array<string, true> */
+    private const HTML_VOID_ELEMENTS = [
+        'area' => true,
+        'base' => true,
+        'br' => true,
+        'col' => true,
+        'embed' => true,
+        'hr' => true,
+        'img' => true,
+        'input' => true,
+        'link' => true,
+        'meta' => true,
+        'source' => true,
+        'track' => true,
+        'wbr' => true,
+    ];
     /**
      * @var array<string, string>
      */
@@ -204,7 +220,8 @@ final class EpubReader
                 continue;
             }
             $resources[] = $href;
-            $content_dom = $this->contentDocumentDom($xhtml);
+            $content_document_was_xml = false;
+            $content_dom = $this->contentDocumentDom($xhtml, $content_document_was_xml);
             $content_base_href = $content_dom instanceof \DOMDocument
                 ? $this->epubContentDocumentBaseHref($content_dom)
                 : null;
@@ -220,7 +237,12 @@ final class EpubReader
                 $media_bag_resources,
                 $media_bag_sources
             );
-            $document = $this->epubContentHtmlReader()->read($this->contentDocumentMarkupForHtmlReader($xhtml, $content_dom, $content_base_href));
+            $document = $this->epubContentHtmlReader()->read($this->contentDocumentMarkupForHtmlReader(
+                $xhtml,
+                $content_dom,
+                $content_base_href,
+                $content_document_was_xml,
+            ));
             $document = $this->normalizeEpubMediaRawBlocks($document);
             $document = $this->normalizeEpubRawInlineVoidElements($document);
             if ($picture_raw_html_overlays !== []) {
@@ -1766,10 +1788,15 @@ final class EpubReader
         return Html5Dom::stripContentDocumentPreamble($xhtml);
     }
 
-    private function contentDocumentMarkupForHtmlReader(string $xhtml, ?\DOMDocument $dom, ?string $html_base_href): string
+    private function contentDocumentMarkupForHtmlReader(
+        string $xhtml,
+        ?\DOMDocument $dom,
+        ?string $html_base_href,
+        bool $document_was_xml,
+    ): string
     {
         $markup = $this->contentDocumentMarkup($xhtml);
-        if (!$dom instanceof \DOMDocument || $html_base_href !== null || !$this->epubContentDocumentHasXmlBase($dom)) {
+        if (!$dom instanceof \DOMDocument || !$dom->documentElement instanceof \DOMElement) {
             return $markup;
         }
 
@@ -1778,13 +1805,102 @@ final class EpubReader
             return $markup;
         }
 
-        $this->resolveEpubContentXmlBaseReferences($document->documentElement, null);
+        if ($html_base_href === null && $this->epubContentDocumentHasXmlBase($document)) {
+            $this->resolveEpubContentXmlBaseReferences($document->documentElement, null);
+        }
 
-        return XmlHtmlDom::serializeHtmlNode($document->documentElement);
+        // EPUB XHTML is XML. Re-serialize valid XML before the HTML bridge so
+        // `<div/>` stays an empty element instead of opening an HTML `<div>`.
+        if ($document_was_xml) {
+            $xml_markup = $this->xhtmlMarkupForHtmlReader($document);
+            if ($xml_markup !== null) {
+                return $xml_markup;
+            }
+        }
+
+        if ($html_base_href === null && $this->epubContentDocumentHasXmlBase($dom)) {
+            return XmlHtmlDom::serializeHtmlNode($document->documentElement);
+        }
+
+        return $markup;
     }
 
-    private function contentDocumentDom(string $xhtml): ?\DOMDocument
+    private function xhtmlMarkupForHtmlReader(\DOMDocument $document): ?string
     {
+        $root = $document->documentElement;
+        if (!$root instanceof \DOMElement) {
+            return null;
+        }
+
+        $markup = $document->saveXML($root);
+        if (!is_string($markup)) {
+            return null;
+        }
+
+        return $this->expandXhtmlSelfClosingNonVoidElements($markup);
+    }
+
+    private function expandXhtmlSelfClosingNonVoidElements(string $markup): string
+    {
+        $result = '';
+        $offset = 0;
+        $length = strlen($markup);
+        $opaqueSegments = [
+            ['prefix' => '<!--', 'suffix' => '-->'],
+            ['prefix' => '<![CDATA[', 'suffix' => ']]>'],
+            ['prefix' => '<?', 'suffix' => '?>'],
+        ];
+
+        while (($start = strpos($markup, '<', $offset)) !== false) {
+            $result .= substr($markup, $offset, $start - $offset);
+
+            foreach ($opaqueSegments as $opaque) {
+                if (substr_compare($markup, $opaque['prefix'], $start, strlen($opaque['prefix'])) !== 0) {
+                    continue;
+                }
+
+                $end = strpos($markup, $opaque['suffix'], $start + strlen($opaque['prefix']));
+                if ($end === false) {
+                    return $result . substr($markup, $start);
+                }
+
+                $next = $end + strlen($opaque['suffix']);
+                $result .= substr($markup, $start, $next - $start);
+                $offset = $next;
+                continue 2;
+            }
+
+            $tag = Html5Dom::rawHtmlOpeningTagAt($markup, $start);
+            if ($tag === null) {
+                $result .= '<';
+                $offset = $start + 1;
+                continue;
+            }
+
+            if ($tag['selfClosing'] && !isset(self::HTML_VOID_ELEMENTS[$tag['name']])) {
+                $result .= substr($tag['source'], 0, -2) . '></' . $tag['name'] . '>';
+            } else {
+                $result .= $tag['source'];
+            }
+            $offset = $tag['next'];
+        }
+
+        return $result . substr($markup, $offset, $length - $offset);
+    }
+
+    private function contentDocumentDom(string $xhtml, bool &$document_was_xml = false): ?\DOMDocument
+    {
+        try {
+            $document_was_xml = true;
+
+            return Html5Dom::parseXmlDocument(
+                $this->contentDocumentMarkup($xhtml),
+                'EPUB XHTML content document',
+            );
+        } catch (\Throwable) {
+            $document_was_xml = false;
+        }
+
         try {
             return Html5Dom::parseHtmlDocument($this->contentDocumentMarkup($xhtml));
         } catch (\Throwable) {
@@ -1798,6 +1914,8 @@ final class EpubReader
             'htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE,
             'htmlNativeDivs' => true,
             'htmlEpubExtensions' => true,
+            'htmlPreserveStyleAttributes' => true,
+            'htmlPreserveEmptySpanNodes' => true,
             'htmlImplicitHeadingIds' => false,
             'htmlPlainInlineBlocks' => true,
             'htmlPreserveSoftBreaks' => true,
