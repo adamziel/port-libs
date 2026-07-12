@@ -389,15 +389,6 @@ final class XlsxReader
 
     private function workbookRelationship(OpcRelationships $relationships): OpcRelationship
     {
-        foreach ($relationships->all() as $relationship) {
-            if (
-                str_contains($relationship->type, 'officeDocument')
-                && str_contains($relationship->target, 'workbook')
-            ) {
-                return $relationship;
-            }
-        }
-
         $relationship = $relationships->firstOfType(self::OFFICE_DOCUMENT_RELATIONSHIP);
         if ($relationship instanceof OpcRelationship) {
             return $relationship;

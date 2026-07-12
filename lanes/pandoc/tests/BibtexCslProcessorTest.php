@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\Pandoc\AstNode;
+use PortLibs\Pandoc\BibtexCslParser;
 use PortLibs\Pandoc\BibtexCslProcessor;
 use PortLibs\Pandoc\CitationCslProcessor;
 use PortLibs\Pandoc\MarkdownReader;
@@ -43,6 +44,28 @@ return [
         $t->same('book', $items['fielding2000']['type']);
         $t->same([2000], $items['fielding2000']['issued']['date-parts'][0]);
         $t->same('Irvine', $items['fielding2000']['publisher-place']);
+    },
+    'preserves escaped braces in braced BibTeX values' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@article{escaped-braces,
+  author = {Doe, Jane},
+  title = {A \} literal and \{ opener},
+  year = {2024}
+}
+BIB;
+
+        $item = BibtexCslParser::parse($source)[0];
+
+        $t->same('A \\} literal and \\{ opener', $item['rawBibtex']['fields']['title']);
+        $t->same('A } literal and { opener', $item['title']);
+    },
+    'does not confuse escaped-brace protection with literal private-use text' => static function (TestRunner $t): void {
+        $privateUse = "\u{E001}";
+        $source = "@article{private-use, title = {" . $privateUse . " literal and \\{ opener}, year = {2024}}";
+
+        $item = BibtexCslParser::parse($source)[0];
+
+        $t->same($privateUse . ' literal and { opener', $item['title']);
     },
     'supports quoted values comments and month macros for biblatex handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'

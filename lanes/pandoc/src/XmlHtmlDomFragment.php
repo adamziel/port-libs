@@ -609,7 +609,11 @@ final class XmlHtmlDomFragment
                 continue;
             }
 
-            if ($html && $name === 'style' && self::isUnsafeStyle($value)) {
+            // This legacy facade has no CSS parser. Do not try to recognize
+            // dangerous CSS with text matching: escapes, comments, and token
+            // boundaries make that unsafe. Html5DomFragment is the
+            // escape-aware path for callers that need reviewable style data.
+            if ($html && $name === 'style') {
                 $diagnostics[] = [
                     'code' => 'dropped-unsafe-style',
                     'element' => $elementName,
@@ -700,15 +704,6 @@ final class XmlHtmlDomFragment
         }
 
         return false;
-    }
-
-    private static function isUnsafeStyle(string $value): bool
-    {
-        $normalized = strtolower((string) preg_replace('/\s+/', '', html_entity_decode($value, ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5, 'UTF-8')));
-
-        return str_contains($normalized, 'expression(')
-            || str_contains($normalized, 'javascript:')
-            || str_contains($normalized, 'vbscript:');
     }
 
     /**

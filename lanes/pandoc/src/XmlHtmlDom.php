@@ -1450,22 +1450,15 @@ final class XmlHtmlDom
                 ? self::normalizeHtml5NamedCharacterReferences(self::protectHtmlCdataSections($html))
                 : $html;
         }
-        $patternNames = implode('|', array_map(
-            static fn (string $name): string => preg_quote($name, '~'),
-            array_keys($rawTextNames)
-        ));
-        $pattern = '~<(?P<name>' . $patternNames . ')(?=[\s/>])(?:[^>"\']+|"[^"]*"|\'[^\']*\')*>~is';
-
-        while (preg_match($pattern, $html, $matches, PREG_OFFSET_CAPTURE, $offset) === 1) {
-            $startTag = (string) $matches[0][0];
-            $startOffset = (int) $matches[0][1];
-            $name = strtolower((string) $matches['name'][0]);
-            $contentStart = $startOffset + strlen($startTag);
+        while (($startTag = self::nextHtmlRawTextStartTag($html, $offset, $rawTextNames)) !== null) {
+            $startOffset = $startTag['offset'];
+            $name = $startTag['name'];
+            $contentStart = $startOffset + strlen($startTag['source']);
 
             $unprotectedPrefix = substr($html, $offset, $startOffset - $offset);
             $protected .= ($onlyElementNames === null
                 ? self::normalizeHtml5NamedCharacterReferences(self::protectHtmlCdataSections($unprotectedPrefix))
-                : $unprotectedPrefix) . $startTag;
+                : $unprotectedPrefix) . $startTag['source'];
 
             if ($name === 'title' && self::isHtmlTitleStartInSvgContext($html, $startOffset)) {
                 $offset = $contentStart;
@@ -1498,6 +1491,125 @@ final class XmlHtmlDom
         return $protected . ($onlyElementNames === null
             ? self::normalizeHtml5NamedCharacterReferences(self::protectHtmlCdataSections($tail))
             : $tail);
+    }
+
+    /**
+     * Find the next raw-text opening tag in HTML data state. In particular,
+     * do not mistake tag-looking text in comments or in another tag's quoted
+     * attributes for a raw-text boundary: callers use this before declaration
+     * preflights, where that mistake could hide a live declaration.
+     *
+     * @param array<string, true> $rawTextNames
+     * @return array{name:string, source:string, offset:int}|null
+     */
+    private static function nextHtmlRawTextStartTag(string $html, int $offset, array $rawTextNames): ?array
+    {
+        $cursor = $offset;
+
+        while (($startOffset = strpos($html, '<', $cursor)) !== false) {
+            if (substr_compare($html, '<!--', $startOffset, 4) === 0) {
+                $commentEnd = strpos($html, '-->', $startOffset + 4);
+                if ($commentEnd === false) {
+                    return null;
+                }
+
+                $cursor = $commentEnd + 3;
+                continue;
+            }
+
+            if (strncasecmp(substr($html, $startOffset, 9), '<![CDATA[', 9) === 0) {
+                $cdataEnd = strpos($html, ']]>', $startOffset + 9);
+                if ($cdataEnd === false) {
+                    return null;
+                }
+
+                $cursor = $cdataEnd + 3;
+                continue;
+            }
+
+            if (substr_compare($html, '<!', $startOffset, 2) === 0 || substr_compare($html, '<?', $startOffset, 2) === 0) {
+                $declarationEnd = strpos($html, '>', $startOffset + 2);
+                if ($declarationEnd === false) {
+                    return null;
+                }
+
+                $cursor = $declarationEnd + 1;
+                continue;
+            }
+
+            $tag = self::htmlOpeningTagForRcdataProtectionAt($html, $startOffset);
+            if ($tag === null) {
+                $cursor = $startOffset + 1;
+                continue;
+            }
+
+            $cursor = $tag['next'];
+            if (!isset($rawTextNames[$tag['name']])) {
+                continue;
+            }
+
+            return [
+                'name' => $tag['name'],
+                'source' => $tag['source'],
+                'offset' => $startOffset,
+            ];
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array{name:string, source:string, next:int}|null
+     */
+    private static function htmlOpeningTagForRcdataProtectionAt(string $html, int $offset): ?array
+    {
+        $length = strlen($html);
+        if ($offset < 0 || $offset >= $length || ($html[$offset] ?? '') !== '<') {
+            return null;
+        }
+
+        $nameStart = $offset + 1;
+        $first = $html[$nameStart] ?? '';
+        if (!(($first >= 'A' && $first <= 'Z') || ($first >= 'a' && $first <= 'z'))) {
+            return null;
+        }
+
+        $cursor = $nameStart;
+        while ($cursor < $length) {
+            $char = $html[$cursor];
+            if ($char === '>' || $char === '/' || $char === "\t" || $char === "\n" || $char === "\f" || $char === "\r" || $char === ' ') {
+                break;
+            }
+            ++$cursor;
+        }
+
+        $name = strtolower(substr($html, $nameStart, $cursor - $nameStart));
+        if ($name === '') {
+            return null;
+        }
+
+        while ($cursor < $length) {
+            $char = $html[$cursor];
+            if ($char === '"' || $char === "'") {
+                $quoteEnd = strpos($html, $char, $cursor + 1);
+                if ($quoteEnd === false) {
+                    return null;
+                }
+                $cursor = $quoteEnd + 1;
+                continue;
+            }
+
+            ++$cursor;
+            if ($char === '>') {
+                return [
+                    'name' => $name,
+                    'source' => substr($html, $offset, $cursor - $offset),
+                    'next' => $cursor,
+                ];
+            }
+        }
+
+        return null;
     }
 
     /**

@@ -171,6 +171,9 @@ final class PdfMetadataExtractor
      *
      * @return array{
      *     source: list<string>,
+     *     object_count: int,
+     *     stream_count: int,
+     *     page_count?: int,
      *     xmp: array<string, mixed>,
      *     info: array<string, mixed>,
      *     catalog?: array<string, mixed>,
@@ -240,7 +243,51 @@ final class PdfMetadataExtractor
             : [];
         $trailerIds = $this->extractTrailerIdMetadata($pdfBytes);
 
-        return $this->mergedMetadata($xmp, $info, $outputIntents, $catalog, $trailerIds, $encryption);
+        $metadata = $this->mergedMetadata($xmp, $info, $outputIntents, $catalog, $trailerIds, $encryption);
+        foreach ($this->documentStructureSummary($pdfBytes, $objects) as $key => $value) {
+            $metadata[$key] = $value;
+        }
+
+        return $metadata;
+    }
+
+    /**
+     * Return only facts established from parsed indirect objects.  Consumers
+     * use this for import limits, so do not infer any of them by matching
+     * names that can occur inside strings or stream payloads.
+     *
+     * @param array<int, string> $objects
+     * @return array{object_count: int, stream_count: int, page_count?: int}
+     */
+    private function documentStructureSummary(string $pdfBytes, array $objects): array
+    {
+        $summary = [
+            'object_count' => count($objects),
+            'stream_count' => 0,
+        ];
+
+        foreach ($objects as $objectBody) {
+            if ($this->streamObjectHasStreamKeyword($objectBody)) {
+                $summary['stream_count']++;
+            }
+        }
+
+        $catalog = $this->catalogObjectBody($pdfBytes, $objects);
+        if ($catalog === null) {
+            return $summary;
+        }
+
+        $pagesRoot = $this->validObjectNumberFromReference(
+            $this->dictionaryTopLevelRawValue($catalog, 'Pages'),
+            $objects
+        );
+        if ($pagesRoot === null) {
+            return $summary;
+        }
+
+        $summary['page_count'] = count($this->destinationPageObjectNumbersFromTree($pagesRoot, $objects));
+
+        return $summary;
     }
 
     /**

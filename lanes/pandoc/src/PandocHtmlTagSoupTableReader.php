@@ -1459,15 +1459,14 @@ final class PandocHtmlTagSoupTableReader
     private function nonAlignmentStyle(string $style): string
     {
         $kept = [];
-        foreach (preg_split('/;/', $style) ?: [] as $declaration) {
-            $declaration = trim($declaration);
-            if ($declaration === '' || preg_match('/^text-align\s*:/i', $declaration) === 1) {
+        foreach (CssDeclarationScanner::declarations($style) as $declaration) {
+            if ($declaration['name'] === 'text-align') {
                 continue;
             }
             $kept[] = $declaration;
         }
 
-        return implode('; ', $kept);
+        return CssDeclarationScanner::render($kept);
     }
 
     private function tableAlignment(TagSoupTag $tag): string
@@ -1477,9 +1476,9 @@ final class PandocHtmlTagSoupTableReader
             return $align;
         }
 
-        $style = strtolower($this->attribute($tag, 'style'));
-        if (preg_match('/text-align\s*:\s*(left|right|center)\b/', $style, $m) === 1) {
-            return $m[1];
+        $textAlign = CssDeclarationScanner::firstValue($this->attribute($tag, 'style'), 'text-align');
+        if ($textAlign !== null && preg_match('/^(left|right|center)\b/i', $textAlign, $m) === 1) {
+            return strtolower($m[1]);
         }
 
         return 'default';
@@ -1492,9 +1491,9 @@ final class PandocHtmlTagSoupTableReader
             return $valign;
         }
 
-        $style = strtolower($this->attribute($tag, 'style'));
-        if (preg_match('/vertical-align\s*:\s*(baseline|top|middle|bottom)\b/', $style, $m) === 1) {
-            return $m[1];
+        $verticalAlign = CssDeclarationScanner::firstValue($this->attribute($tag, 'style'), 'vertical-align');
+        if ($verticalAlign !== null && preg_match('/^(baseline|top|middle|bottom)\b/i', $verticalAlign, $m) === 1) {
+            return strtolower($m[1]);
         }
 
         return 'default';
@@ -1502,8 +1501,8 @@ final class PandocHtmlTagSoupTableReader
 
     private function columnWidth(TagSoupTag $tag): ?float
     {
-        $style = strtolower($this->attribute($tag, 'style'));
-        if (preg_match('/width\s*:\s*([0-9]+(?:\.[0-9]+)?)\s*%/', $style, $m) === 1) {
+        $styleWidth = CssDeclarationScanner::firstValue($this->attribute($tag, 'style'), 'width');
+        if ($styleWidth !== null && preg_match('/^([0-9]+(?:\.[0-9]+)?)\s*%/', $styleWidth, $m) === 1) {
             return (float) $m[1] / 100;
         }
 

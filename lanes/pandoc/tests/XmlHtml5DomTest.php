@@ -135,6 +135,19 @@ HTML);
         $t->throws(InvalidArgumentException::class, static fn (): DOMDocument => XmlHtml5Dom::parseXmlDocument('<?xml-stylesheet href="https://example.invalid/review.xsl"?><pkg/>', 'stylesheet XML'));
         $t->throws(InvalidArgumentException::class, static fn (): DOMDocument => XmlHtml5Dom::parseXmlDocument("<pkg>bad\0packet</pkg>", 'NUL XML'));
     },
+    'does not mistake XML comment or CDATA text for a facade stylesheet instruction' => static function (TestRunner $t): void {
+        $document = XmlHtml5Dom::parseXmlDocument(
+            '<pkg><!-- <?xml-stylesheet href="https://example.invalid/review.xsl"?> -->'
+            . '<payload><![CDATA[<?xml-stylesheet href="https://example.invalid/review.xsl"?>]]></payload>'
+            . '<item>safe</item></pkg>',
+            'declaration-looking XML data'
+        );
+        $payload = $document->getElementsByTagName('payload')->item(0);
+
+        $t->true($payload instanceof DOMElement);
+        $t->same('<?xml-stylesheet href="https://example.invalid/review.xsl"?>', $payload instanceof DOMElement ? $payload->textContent : null);
+        $t->same('safe', $document->getElementsByTagName('item')->item(0)?->textContent);
+    },
     'keeps markdown html reader paths on the shared html5 fragment loader' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '<p>There should be a hard line break<br>',

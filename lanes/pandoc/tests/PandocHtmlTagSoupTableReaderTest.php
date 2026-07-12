@@ -121,6 +121,20 @@ HTML));
         $t->same(['bgcolor' => '#ccc'], $table->children[2]->children[0]->attr('attributes'));
     },
 
+    'recognizes CSS declarations separated by comments in tagsoup tables' => static function (TestRunner $t): void {
+        $reader = new PandocHtmlTagSoupTableReader();
+        $result = $reader->parseFirstTable($reader->tokenize(
+            '<table><tr><td style="/* review */ text-align/**/: /**/right; color: red">x</td></tr></table>'
+        ));
+
+        $t->true(is_array($result));
+        $table = $result['table'] ?? null;
+        $t->true($table instanceof AstNode);
+        $cell = $table->children[1]->children[0]->children[0];
+        $t->same('right', $cell->attr('align'));
+        $t->same('color: red', $cell->attr('htmlAttributes')['style'] ?? null);
+    },
+
     'degrades invalid table children and foster-parent text fixtures to paragraphs' => static function (TestRunner $t): void {
         $reader = new PandocHtmlTagSoupTableReader();
         $harness = new HtmlNativeAstComparisonHarness();

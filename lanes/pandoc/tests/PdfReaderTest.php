@@ -3627,6 +3627,32 @@ return [
         $t->same('markerPDF', $meta['producer']);
         $t->same('D:20260618000000Z', $meta['created']);
     },
+    'reads PDF metadata only from structural metadata objects' => static function (TestRunner $t): void {
+        $content = "BT /F1 12 Tf 72 720 Td (Metadata body) Tj ET\n"
+            . "/Title (Forged stream title)\n"
+            . "/Type /Page\n"
+            . "/Type /Page\n"
+            . "/Encrypt 99 0 R\n"
+            . "99 0 obj\n";
+        $pdf = "%PDF-1.7\n"
+            . "1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj\n"
+            . "2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj\n"
+            . "3 0 obj << /Type /Page /Parent 2 0 R /Contents 4 0 R >> endobj\n"
+            . '4 0 obj << /Length ' . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+            . "5 0 obj << /Title (Trusted \\) title) /Author (Trusted Author) >> endobj\n"
+            . "trailer << /Root 1 0 R /Info 5 0 R >>\n%%EOF";
+
+        $document = (new PdfReader(['pdfMaxPages' => 1]))->read($pdf);
+        $meta = $document->attr('meta');
+
+        $t->same('Trusted ) title', $meta['title']);
+        $t->same('Trusted Author', $meta['author']);
+        $t->same(1, $meta['pdfEstimatedPages']);
+        $t->same(false, $meta['pdfFastTextOnly']);
+        $t->same(5, $meta['pdfObjectCount']);
+        $t->same(1, $meta['pdfStreamCount']);
+        $t->same(false, $meta['pdfEncrypted']);
+    },
     'records tagged pdf role map and language semantics in pandoc metadata' => static function (TestRunner $t): void {
         $content = "BT /F1 12 Tf 72 720 Td "
             . "/Span << /MCID 0 >> BDC <3F504B4541> Tj EMC T* "

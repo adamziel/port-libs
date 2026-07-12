@@ -1998,4 +1998,40 @@ XML);
 
         $t->throws(RuntimeException::class, static fn (): AstNode => (new XlsxReader())->read($bytes));
     },
+    'requires an exact root officeDocument relationship for an XLSX workbook' => static function (TestRunner $t) use ($buildXlsxPackage): void {
+        $path = tempnam(sys_get_temp_dir(), 'pandoc-xlsx-root-office-document-');
+        if ($path === false) {
+            throw new RuntimeException('Unable to create temporary XLSX path');
+        }
+
+        try {
+            if (file_put_contents($path, $buildXlsxPackage()) === false) {
+                throw new RuntimeException('Unable to seed temporary XLSX package');
+            }
+
+            $zip = new ZipArchive();
+            if ($zip->open($path) !== true) {
+                throw new RuntimeException('Unable to open temporary XLSX package');
+            }
+            $zip->addFromString('_rels/.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdDecoy" Type="urn:example:xlsx-reader/officeDocument" Target="xl/decoy-workbook.xml"/>
+  <Relationship Id="rIdWorkbook" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>
+</Relationships>
+XML);
+            $zip->close();
+
+            $bytes = file_get_contents($path);
+            if (!is_string($bytes)) {
+                throw new RuntimeException('Unable to read temporary XLSX package');
+            }
+        } finally {
+            @unlink($path);
+        }
+
+        $document = (new XlsxReader())->read($bytes);
+
+        $t->same('Main', $document->children[0]->attr('text'));
+    },
 ];

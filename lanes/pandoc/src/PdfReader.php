@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PortLibs\Pandoc;
 
+use PortLibs\MarkerPDF\PdfMetadataExtractor;
 use PortLibs\MarkerPDF\PdfTextExtractor;
 
 final class PdfReader
@@ -569,33 +570,30 @@ final class PdfReader
     {
         $metadata = [
             'pdfHeader' => preg_match('/%PDF-\d\.\d/', substr($pdfBytes, 0, 64), $match) === 1 ? $match[0] : 'unknown',
-            'pdfEstimatedPages' => preg_match_all('/\/Type\s*\/Page\b/', $pdfBytes),
-            'pdfObjectCount' => preg_match_all('/\b\d+\s+\d+\s+obj\b/', $pdfBytes),
-            'pdfStreamCount' => preg_match_all('/\bstream\r?\n/', $pdfBytes),
-            'pdfEncrypted' => str_contains($pdfBytes, '/Encrypt'),
         ];
 
-        $title = $this->pdfInfoValue($pdfBytes, 'Title');
-        $xmpTitle = $this->xmpTitle($pdfBytes);
-        if ($title === '' && $xmpTitle !== '') {
-            $title = $xmpTitle;
-        }
+        $documentMetadata = $this->documentMetadata($pdfBytes);
+        $metadata['pdfEstimatedPages'] = max(0, (int) ($documentMetadata['page_count'] ?? 0));
+        $metadata['pdfObjectCount'] = max(0, (int) ($documentMetadata['object_count'] ?? 0));
+        $metadata['pdfStreamCount'] = max(0, (int) ($documentMetadata['stream_count'] ?? 0));
+        $metadata['pdfEncrypted'] = (($documentMetadata['encryption']['is_encrypted'] ?? false) === true);
+        $title = $this->metadataString($documentMetadata, 'title');
         if ($title !== '') {
             $metadata['title'] = $title;
             $metadata['titleInlines'] = [new AstNode('text', ['text' => $title])];
         }
 
-        $author = $this->pdfInfoValue($pdfBytes, 'Author');
+        $author = $this->firstMetadataString($documentMetadata['authors'] ?? null);
         if ($author !== '') {
             $metadata['author'] = $author;
         }
 
         foreach ([
-            'Creator' => 'creator',
-            'Producer' => 'producer',
-            'CreationDate' => 'created',
+            'creator_tool' => 'creator',
+            'producer' => 'producer',
+            'created_at' => 'created',
         ] as $key => $metadataKey) {
-            $value = $this->pdfInfoValue($pdfBytes, $key);
+            $value = $this->metadataString($documentMetadata, $key);
             if ($value !== '') {
                 $metadata[$metadataKey] = $value;
             }
@@ -17897,34 +17895,48 @@ final class PdfReader
         return $proseGrids >= max(3, (int) ceil(count($tables) * 0.25));
     }
 
-    private function pdfInfoValue(string $pdfBytes, string $key): string
+    /**
+     * @return array<string, mixed>
+     */
+    private function documentMetadata(string $pdfBytes): array
     {
-        if (preg_match('/\/' . preg_quote($key, '/') . '\s*\((.*?)\)/s', $pdfBytes, $match) !== 1) {
+        if (!class_exists(PdfMetadataExtractor::class)) {
+            return [];
+        }
+
+        try {
+            return (new PdfMetadataExtractor())->extractDocumentMetadata($pdfBytes);
+        } catch (\Throwable) {
+            // Metadata is optional import provenance.  Do not fall back to
+            // scanning arbitrary PDF bytes when the structural extractor
+            // cannot establish an Info dictionary or Metadata stream.
+            return [];
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $metadata
+     */
+    private function metadataString(array $metadata, string $key): string
+    {
+        return is_string($metadata[$key] ?? null)
+            ? $this->clipMetadataValue($metadata[$key])
+            : '';
+    }
+
+    private function firstMetadataString(mixed $value): string
+    {
+        if (!is_array($value)) {
             return '';
         }
 
-        return $this->clipMetadataValue($this->decodePdfLiteralString($match[1]));
-    }
-
-    private function decodePdfLiteralString(string $value): string
-    {
-        $value = str_replace(['\\(', '\\)', '\\\\'], ['(', ')', '\\'], $value);
-        $value = preg_replace('/\\\\[nrtbf]/', ' ', $value) ?? $value;
-        $value = preg_replace_callback('/\\\\([0-7]{1,3})/', static fn (array $match): string => chr(octdec($match[1])), $value) ?? $value;
-
-        return trim(preg_replace('/\s+/', ' ', $value) ?? $value);
-    }
-
-    private function xmpTitle(string $pdfBytes): string
-    {
-        if (preg_match('/<dc:title\b[^>]*>(.*?)<\/dc:title>/is', $pdfBytes, $outer) !== 1) {
-            return '';
-        }
-        if (preg_match('/<rdf:li\b[^>]*>(.*?)<\/rdf:li>/is', $outer[1], $inner) === 1) {
-            return $this->clipMetadataValue(html_entity_decode(strip_tags($inner[1]), ENT_QUOTES | ENT_XML1, 'UTF-8'));
+        foreach ($value as $item) {
+            if (is_string($item) && $item !== '') {
+                return $this->clipMetadataValue($item);
+            }
         }
 
-        return $this->clipMetadataValue(html_entity_decode(strip_tags($outer[1]), ENT_QUOTES | ENT_XML1, 'UTF-8'));
+        return '';
     }
 
     private function clipMetadataValue(string $value): string
