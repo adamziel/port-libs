@@ -3502,23 +3502,33 @@ final class EpubReader
      */
     private function readEpubMediaBag(EpubArchive $zip, string $base_path, array $manifest, array $media_bag_sources): array
     {
-        $bag = new MediaBag();
         $diagnostics = [];
+        $entries = [];
         $media_types = $this->manifestMediaTypesByResourcePath($base_path, $manifest);
 
         foreach ($media_bag_sources as $source => $resource) {
-            $bytes = $this->zipEntryContents($zip, $resource);
-            if (!is_string($bytes)) {
+            if (!$zip->has($resource)) {
                 $diagnostics[] = 'epub-media-resource-missing:' . $resource;
                 continue;
             }
 
-            $bag->insertMedia($source, $media_types[$resource] ?? null, $bytes);
+            try {
+                $digest = $zip->entryDigest($resource);
+            } catch (\Throwable) {
+                $diagnostics[] = 'epub-media-resource-missing:' . $resource;
+                continue;
+            }
+            $entries[] = MediaBag::directoryEntry(
+                $source,
+                $media_types[$resource] ?? null,
+                (int) $digest['byteLength'],
+                (string) $digest['sha1']
+            );
             $diagnostics[] = 'epub-media-resource-loaded:' . $resource;
         }
 
         return [
-            'directory' => $this->epubMediaResourceDirectory($bag->directory(), $media_bag_sources, $base_path),
+            'directory' => $this->epubMediaResourceDirectory($entries, $media_bag_sources, $base_path),
             'diagnostics' => $diagnostics,
         ];
     }

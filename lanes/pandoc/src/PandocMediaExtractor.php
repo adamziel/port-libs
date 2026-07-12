@@ -210,7 +210,9 @@ final class PandocMediaExtractor
         }
 
         try {
-            $zip = ZipPackage::fromString($bytes);
+            $zip = $format === 'epub'
+                ? EpubArchiveFactory::fromString($bytes)
+                : ZipPackage::fromString($bytes);
         } catch (\Throwable) {
             $diagnostics[] = 'extract-media-package-unreadable';
 
@@ -228,7 +230,7 @@ final class PandocMediaExtractor
             }
 
             try {
-                $contents = $zip->read($entryName, self::MAX_PACKAGE_MEDIA_BYTES);
+                $contents = $zip->readBounded($entryName, self::MAX_PACKAGE_MEDIA_BYTES);
             } catch (\Throwable) {
                 $diagnostics[] = 'extract-media-package-read-failed:' . $this->diagnosticToken($source);
                 continue;
