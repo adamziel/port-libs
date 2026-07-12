@@ -42,6 +42,10 @@ return [
             }
             $t->true($threw);
             unset($archive);
+
+            $fileArchive = EpubZipArchive::fromFile($path);
+            $t->same($payload, $fileArchive->read('OPS/images/cover.bin'));
+            unset($fileArchive);
         } finally {
             @unlink($path);
         }

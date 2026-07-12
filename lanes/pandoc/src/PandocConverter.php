@@ -61,6 +61,14 @@ final class PandocConverter
      */
     public static function readFile(string $path, string $format, array $options = []): AstNode
     {
+        if (self::canonicalInputFormat($format) === 'epub') {
+            if (!isset($options['sourcePath'])) {
+                $options['sourcePath'] = $path;
+            }
+
+            return (new EpubReader($options))->readEpubFile($path);
+        }
+
         $bytes = file_get_contents($path);
         if (!is_string($bytes)) {
             throw new \RuntimeException("Unable to read '{$path}'.");
@@ -186,6 +194,16 @@ final class PandocConverter
      */
     public static function convertFile(string $path, string $from, string $to, array $options = []): string
     {
+        if (self::canonicalInputFormat($from) === 'epub') {
+            $readerOptions = isset($options['readerOptions']) && is_array($options['readerOptions']) ? $options['readerOptions'] : [];
+            $writerOptions = isset($options['writerOptions']) && is_array($options['writerOptions']) ? $options['writerOptions'] : [];
+            if (!isset($readerOptions['sourcePath'])) {
+                $readerOptions['sourcePath'] = $path;
+            }
+
+            return self::write(self::readFile($path, $from, $readerOptions), $to, $writerOptions);
+        }
+
         $bytes = file_get_contents($path);
         if (!is_string($bytes)) {
             throw new \RuntimeException("Unable to read '{$path}'.");
@@ -198,6 +216,38 @@ final class PandocConverter
         }
 
         return self::convert($bytes, $from, $to, $options);
+    }
+
+    /**
+     * @param callable(string): void $sink
+     * @param array{readerOptions?: array<string, mixed>, writerOptions?: array<string, mixed>, extractMedia?: string|array<string, mixed>, extract-media?: string|array<string, mixed>} $options
+     */
+    public static function convertFileToSink(string $path, string $from, string $to, callable $sink, array $options = []): void
+    {
+        $readerOptions = isset($options['readerOptions']) && is_array($options['readerOptions']) ? $options['readerOptions'] : [];
+        $writerOptions = isset($options['writerOptions']) && is_array($options['writerOptions']) ? $options['writerOptions'] : [];
+        if (!isset($readerOptions['sourcePath'])) {
+            $readerOptions['sourcePath'] = $path;
+        }
+        if (
+            self::canonicalInputFormat($from) === 'epub'
+            && self::canonicalOutputFormat($to) === 'wordpress'
+            && self::extractMediaOptions($options) === null
+            && !(bool) ($writerOptions['includeMetadata'] ?? false)
+        ) {
+            (new WordPressBlockWriter($writerOptions))->writeNodesTo(
+                (new EpubReader($readerOptions))->streamEpubFileNodes($path),
+                $sink
+            );
+
+            return;
+        }
+
+        $bytes = file_get_contents($path);
+        if (!is_string($bytes)) {
+            throw new \RuntimeException("Unable to read '{$path}'.");
+        }
+        self::convertToSink($bytes, $from, $to, $sink, $options);
     }
 
     /**

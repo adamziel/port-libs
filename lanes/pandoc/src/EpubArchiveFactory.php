@@ -19,4 +19,23 @@ final class EpubArchiveFactory
 
         return ZipPackage::fromString($bytes);
     }
+
+    public static function fromFile(string $path): EpubArchive
+    {
+        if (class_exists(\ZipArchive::class)) {
+            try {
+                return EpubZipArchive::fromFile($path);
+            } catch (\RuntimeException) {
+                // The bounded pure-PHP package reader remains the fallback
+                // for ZIP variants the extension cannot open.
+            }
+        }
+
+        $bytes = @file_get_contents($path);
+        if ($bytes === false) {
+            throw new \RuntimeException("Unable to open EPUB package '{$path}'");
+        }
+
+        return ZipPackage::fromString($bytes);
+    }
 }

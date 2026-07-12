@@ -17,7 +17,7 @@ final class EpubZipArchive implements EpubArchive
     private function __construct(
         private readonly \ZipArchive $archive,
         private readonly array $entries,
-        private readonly string $temporaryPath,
+        private readonly ?string $temporaryPath,
     ) {
     }
 
@@ -56,10 +56,34 @@ final class EpubZipArchive implements EpubArchive
         }
     }
 
+    public static function fromFile(string $path): self
+    {
+        if (!is_file($path) || !is_readable($path)) {
+            throw new \RuntimeException("Unable to open EPUB archive '{$path}'");
+        }
+
+        $archive = new \ZipArchive();
+        $opened = $archive->open($path, \ZipArchive::RDONLY);
+        if ($opened !== true) {
+            throw new \RuntimeException("Unable to open EPUB ZIP package '{$path}'");
+        }
+
+        try {
+            $entries = self::indexEntries($archive);
+        } catch (\Throwable $exception) {
+            $archive->close();
+            throw $exception;
+        }
+
+        return new self($archive, $entries, null);
+    }
+
     public function __destruct()
     {
         $this->archive->close();
-        @unlink($this->temporaryPath);
+        if ($this->temporaryPath !== null) {
+            @unlink($this->temporaryPath);
+        }
     }
 
     public function has(string $partName): bool

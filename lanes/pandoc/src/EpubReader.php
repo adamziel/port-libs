@@ -80,12 +80,41 @@ final class EpubReader
 
     public function readEpubFile(string $path): AstNode
     {
-        $bytes = @file_get_contents($path);
-        if ($bytes === false) {
-            throw new \InvalidArgumentException("Unable to open EPUB package '{$path}'.");
+        try {
+            $package = EpubArchiveFactory::fromFile($path);
+        } catch (\RuntimeException|\InvalidArgumentException $exception) {
+            $bytes = @file_get_contents($path);
+            if ($bytes === false) {
+                throw new \InvalidArgumentException("Unable to open EPUB package '{$path}'.");
+            }
+
+            return $this->fallbackDocument($bytes, $exception->getMessage());
         }
 
-        return $this->read($bytes);
+        return $this->readZipPackage($package);
+    }
+
+    /**
+     * @return \Generator<int, AstNode, mixed, array<string, mixed>>
+     */
+    public function streamEpubFileNodes(string $path): \Generator
+    {
+        try {
+            $package = EpubArchiveFactory::fromFile($path);
+        } catch (\RuntimeException|\InvalidArgumentException $exception) {
+            $bytes = @file_get_contents($path);
+            if ($bytes === false) {
+                throw new \InvalidArgumentException("Unable to open EPUB package '{$path}'.");
+            }
+            $document = $this->fallbackDocument($bytes, $exception->getMessage());
+            foreach ($document->children as $child) {
+                yield $child;
+            }
+
+            return is_array($document->attr('meta', [])) ? $document->attr('meta', []) : [];
+        }
+
+        return yield from $this->streamZipPackageNodes($package);
     }
 
     private function fallbackDocument(string $bytes, string $error): AstNode

@@ -38,4 +38,15 @@ return [
 
         $t->same($expected, $actual);
     },
+
+    'streams EPUB file inputs without changing WordPress block markup' => static function (TestRunner $t): void {
+        $path = dirname(__DIR__, 3) . '/pandoc-showcase/samples/epub-gutenberg-ulysses-ulysses.epub';
+        $expected = PandocConverter::convertFile($path, 'epub', 'wordpress');
+        $actual = '';
+        PandocConverter::convertFileToSink($path, 'epub', 'wordpress', static function (string $chunk) use (&$actual): void {
+            $actual .= $chunk;
+        });
+
+        $t->same($expected, $actual);
+    },
 ];
