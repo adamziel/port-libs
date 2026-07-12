@@ -146,6 +146,19 @@ return [
         $t->same($shortValue, $stream->attributeAt(255, 'short'));
         $t->same($wideValue, $stream->tokenAt(255)?->attributes[1]['value'] ?? null);
         $t->same('tag254', $stream->tokenAt(256)?->name);
+
+        $replacement = new TagSoupTokenStream();
+        $replacement->append(TagSoupTag::open('before', [
+            ['name' => 'data-one', 'value' => 'one'],
+            ['name' => 'data-two', 'value' => 'two'],
+        ]));
+        $t->same('before', $replacement->tokenAt(0)?->name);
+        $replacement->replaceAt(0, TagSoupTag::open('after', [
+            ['name' => 'data-one', 'value' => 'three'],
+            ['name' => 'data-two', 'value' => 'four'],
+        ]));
+        $t->same('after', $replacement->tokenAt(0)?->name);
+        $t->same('four', $replacement->attributeAt(0, 'data-two'));
     },
 
     'renders tags with tagsoup-style escaping and br minimization' => static function (TestRunner $t): void {

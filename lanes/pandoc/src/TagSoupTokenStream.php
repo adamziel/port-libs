@@ -20,6 +20,7 @@ final class TagSoupTokenStream implements \Countable, \IteratorAggregate
 {
     private const PAYLOAD_CHUNK_SIZE = 1024;
     private const DESCRIPTOR_BYTES = 8;
+    private const HOT_ATTRIBUTE_CACHE_MIN_COUNT = 2;
     private const OPEN = "\x01";
     private const CLOSE = "\x02";
     private const TEXT = "\x03";
@@ -41,6 +42,9 @@ final class TagSoupTokenStream implements \Countable, \IteratorAggregate
     /** @var array<int, string> */
     private array $descriptorChunks = [];
 
+    /** @var array<int, array<int, list<array{name:string,value:string}>>> */
+    private array $openAttributeChunks = [];
+
     /** @var array<string, int> */
     private array $stringIds = [];
 
@@ -61,6 +65,7 @@ final class TagSoupTokenStream implements \Countable, \IteratorAggregate
         $nameId = $this->nameIdForStorage($token->type, $storage);
         $this->types .= self::codeForType($token->type);
         $this->nameCodes .= $this->nameCodeForId($index, $nameId);
+        $this->recordOpenAttributes($index, $token->type, $storage);
         $this->appendPayload($index, $this->encodePayload($token->type, $storage, $nameId));
     }
 
@@ -74,7 +79,11 @@ final class TagSoupTokenStream implements \Countable, \IteratorAggregate
         $nameId = $this->nameIdForStorage($token->type, $storage);
         $this->types[$index] = self::codeForType($token->type);
         $this->nameCodes[$index] = $this->nameCodeForId($index, $nameId);
+        $this->recordOpenAttributes($index, $token->type, $storage);
         $this->replacePayload($index, $this->encodePayload($token->type, $storage, $nameId));
+        if ($this->decodedTokenChunk === intdiv($index, self::PAYLOAD_CHUNK_SIZE)) {
+            unset($this->decodedTokens[$index % self::PAYLOAD_CHUNK_SIZE]);
+        }
     }
 
     public function tokenAt(int $index): ?TagSoupTag
@@ -104,6 +113,16 @@ final class TagSoupTokenStream implements \Countable, \IteratorAggregate
                 TagSoupTag::CLOSE,
                 $this->stringForId($nameId)
             );
+        }
+
+        if ($type === TagSoupTag::OPEN) {
+            $attributes = $this->openAttributesAt($index);
+            if ($attributes !== null) {
+                return $this->decodedTokens[$offset] = TagSoupTag::fromTokenStreamStorage(
+                    TagSoupTag::OPEN,
+                    [$this->stringForId($nameId ?? 0), $attributes]
+                );
+            }
         }
 
         $payload = $this->payloadAt($index);
@@ -165,6 +184,17 @@ final class TagSoupTokenStream implements \Countable, \IteratorAggregate
             return '';
         }
 
+        $cachedAttributes = $this->openAttributesAt($index);
+        if ($cachedAttributes !== null) {
+            foreach ($cachedAttributes as $attribute) {
+                if (($attribute['name'] ?? null) === $name && is_string($attribute['value'] ?? null)) {
+                    return $attribute['value'];
+                }
+            }
+
+            return '';
+        }
+
         $payload = $this->payloadAt($index);
         if ($payload === null) {
             return '';
@@ -222,6 +252,19 @@ final class TagSoupTokenStream implements \Countable, \IteratorAggregate
         foreach (array_keys($this->descriptorChunks) as $chunk) {
             if ($chunk < $firstChunkToRetain) {
                 unset($this->payloadChunks[$chunk], $this->descriptorChunks[$chunk]);
+            }
+        }
+        foreach (array_keys($this->openAttributeChunks) as $chunk) {
+            if ($chunk < $firstChunkToRetain) {
+                unset($this->openAttributeChunks[$chunk]);
+            }
+        }
+        $firstRetainedOffset = $limit % self::PAYLOAD_CHUNK_SIZE;
+        if ($firstRetainedOffset > 0 && isset($this->openAttributeChunks[$firstChunkToRetain])) {
+            foreach (array_keys($this->openAttributeChunks[$firstChunkToRetain]) as $offset) {
+                if ($offset < $firstRetainedOffset) {
+                    unset($this->openAttributeChunks[$firstChunkToRetain][$offset]);
+                }
             }
         }
 
@@ -502,6 +545,43 @@ final class TagSoupTokenStream implements \Countable, \IteratorAggregate
         }
 
         return null;
+    }
+
+    /**
+     * Retain only attribute-heavy opening tags in direct PHP form. These are
+     * expensive to rebuild and are released with their payload chunk once the
+     * reader has passed them; simpler tags stay in the compact byte payload.
+     *
+     * @param string|array<int, mixed>|null $storage
+     */
+    private function recordOpenAttributes(int $index, string $type, string|array|null $storage): void
+    {
+        $chunk = intdiv($index, self::PAYLOAD_CHUNK_SIZE);
+        $offset = $index % self::PAYLOAD_CHUNK_SIZE;
+        if (isset($this->openAttributeChunks[$chunk])) {
+            unset($this->openAttributeChunks[$chunk][$offset]);
+        }
+        if (
+            $type !== TagSoupTag::OPEN
+            || !is_array($storage)
+            || !is_array($storage[1] ?? null)
+            || count($storage[1]) < self::HOT_ATTRIBUTE_CACHE_MIN_COUNT
+        ) {
+            return;
+        }
+
+        $this->openAttributeChunks[$chunk][$offset] = $storage[1];
+    }
+
+    /**
+     * @return list<array{name:string,value:string}>|null
+     */
+    private function openAttributesAt(int $index): ?array
+    {
+        $chunk = intdiv($index, self::PAYLOAD_CHUNK_SIZE);
+        $offset = $index % self::PAYLOAD_CHUNK_SIZE;
+
+        return $this->openAttributeChunks[$chunk][$offset] ?? null;
     }
 
     private function nameCodeForId(int $index, ?int $nameId): string
