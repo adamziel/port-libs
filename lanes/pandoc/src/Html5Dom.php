@@ -149,6 +149,29 @@ final class Html5Dom
         return self::loadHtml($html, 'HTML document');
     }
 
+    /**
+     * Parse HTML that a caller has already accepted through a strict parser.
+     * EPUB uses this only after its XHTML content document has passed XML
+     * parsing, avoiding a second broad source preflight for every chapter.
+     */
+    public static function parsePrevalidatedHtmlDocument(string $html, string $label = 'HTML document'): \DOMDocument
+    {
+        self::assertNoNullByte($html, $label);
+        $html = self::normalizePandocHtmlInputEncoding($html);
+
+        return self::loadHtml($html, $label);
+    }
+
+    /**
+     * This is only a conservative source preflight: a false positive still
+     * takes the full DOM path, while a false result proves that no HTML
+     * microdata item can exist because every item needs `itemscope`.
+     */
+    public static function sourceMayContainMicrodataItemScope(string $html): bool
+    {
+        return stripos($html, 'itemscope') !== false;
+    }
+
     public static function parseHtmlDocumentPreservingSourceLines(string $html, string $label = 'HTML document'): \DOMDocument
     {
         self::assertSafeHtmlDocumentSource($html, $label);

@@ -9,6 +9,7 @@ final class PandocFormatRegistry
     public const UPSTREAM_MANUAL_DATE = '2026-06-03';
     public const UPSTREAM_MANUAL_URL = 'https://pandoc.org/demo/example2.html';
     public const UPSTREAM_SOURCE_COMMIT = '912bfa5e2e3f5c74eb125dfc19404f67c61ca58b';
+    private const MARKDOWN_READER_SELECTED_FIXTURE_COUNT = 137;
 
     /** @var list<string> */
     private const UPSTREAM_INPUT_FORMATS = [
@@ -278,12 +279,12 @@ final class PandocFormatRegistry
         'commonmark' => [
             'status' => 'reader-equivalent',
             'implementation' => MarkdownReader::class,
-            'notes' => 'Uses the shared Markdown reader; the Markdown reader implementation-equivalence gate covers ' . MarkdownUpstreamReaderEvidence::EXPECTED_SELECTED_FIXTURE_COUNT . '/137 checked-in Markdown/native pairs including CommonMark-oriented profile fixtures.',
+            'notes' => 'Uses the shared Markdown reader; the Markdown reader implementation-equivalence gate covers ' . self::MARKDOWN_READER_SELECTED_FIXTURE_COUNT . '/137 checked-in Markdown/native pairs including CommonMark-oriented profile fixtures.',
         ],
         'commonmark_x' => [
             'status' => 'reader-equivalent',
             'implementation' => MarkdownReader::class,
-            'notes' => 'Uses the shared Markdown reader; the Markdown reader implementation-equivalence gate covers ' . MarkdownUpstreamReaderEvidence::EXPECTED_SELECTED_FIXTURE_COUNT . '/137 checked-in Markdown/native pairs including CommonMark extension profile fixtures.',
+            'notes' => 'Uses the shared Markdown reader; the Markdown reader implementation-equivalence gate covers ' . self::MARKDOWN_READER_SELECTED_FIXTURE_COUNT . '/137 checked-in Markdown/native pairs including CommonMark extension profile fixtures.',
         ],
         'csljson' => [
             'status' => 'partial',
@@ -333,7 +334,7 @@ final class PandocFormatRegistry
         'gfm' => [
             'status' => 'reader-equivalent',
             'implementation' => MarkdownReader::class,
-            'notes' => 'Uses the shared Markdown reader; the Markdown reader implementation-equivalence gate covers ' . MarkdownUpstreamReaderEvidence::EXPECTED_SELECTED_FIXTURE_COUNT . '/137 checked-in Markdown/native pairs including GFM profile fixtures.',
+            'notes' => 'Uses the shared Markdown reader; the Markdown reader implementation-equivalence gate covers ' . self::MARKDOWN_READER_SELECTED_FIXTURE_COUNT . '/137 checked-in Markdown/native pairs including GFM profile fixtures.',
         ],
         'html' => [
             'status' => 'reader-equivalent',
@@ -373,7 +374,7 @@ final class PandocFormatRegistry
         'markdown' => [
             'status' => 'reader-equivalent',
             'implementation' => MarkdownReader::class,
-            'notes' => 'Primary native PHP reader; the Markdown reader implementation-equivalence gate covers ' . MarkdownUpstreamReaderEvidence::EXPECTED_SELECTED_FIXTURE_COUNT . '/137 checked-in Markdown/native pairs across the selected Pandoc Markdown dialect profiles.',
+            'notes' => 'Primary native PHP reader; the Markdown reader implementation-equivalence gate covers ' . self::MARKDOWN_READER_SELECTED_FIXTURE_COUNT . '/137 checked-in Markdown/native pairs across the selected Pandoc Markdown dialect profiles.',
         ],
         'markdown_github' => [
             'status' => 'reader-equivalent',

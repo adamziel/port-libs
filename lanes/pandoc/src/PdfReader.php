@@ -43,29 +43,42 @@ final class PdfReader
         }
         $extractor = new PdfTextExtractor($extractorOptions);
         $textLineItems = $this->normalizePdfTextLineItems($extractor->extractTextLineItems($pdfBytes));
-        $lines = array_column($textLineItems, 'text');
-        $geometryTablesEnabled = !$fastTextOnly && $this->geometryTablesEnabled();
-        $proseRepairEnabled = !$fastTextOnly && $this->proseTextRepairEnabled();
-        $runs = $fastTextOnly ? [] : $extractor->extractTextRuns($pdfBytes);
-        $positionedRuns = (!$fastTextOnly && ($geometryTablesEnabled || $proseRepairEnabled)) ? $extractor->extractPositionedTextRuns($pdfBytes) : [];
-        $filledRectangles = $geometryTablesEnabled ? $extractor->extractFilledRectangles($pdfBytes) : [];
-        $diagnostics = $fastTextOnly ? $this->fastTextOnlyDiagnostics() : $extractor->diagnostics($pdfBytes);
-        $plainText = implode("\n", $lines);
+        $pdfTextLineCount = count($textLineItems);
+        $pdfTextBytes = $this->pdfTextLineItemsByteLength($textLineItems);
         $limitedTextLineItems = $this->limitPdfTextLineItems($textLineItems, $maxTextBytes);
         $limitedLines = array_column($limitedTextLineItems, 'text');
-        $limitedPositionedRuns = $this->limitPositionedTextRuns($positionedRuns, $maxTextBytes);
+        $pdfTextInsertedBytes = $this->pdfTextLineItemsByteLength($limitedTextLineItems);
+        unset($textLineItems);
+        $this->releaseTransientPdfMemory();
+        $geometryTablesEnabled = !$fastTextOnly && $this->geometryTablesEnabled();
+        $proseRepairEnabled = !$fastTextOnly && $this->proseTextRepairEnabled();
+        // Finish object-graph-heavy diagnostics before geometry extraction so
+        // their transient allocator pages can be released between phases.
+        $diagnostics = $fastTextOnly ? $this->fastTextOnlyDiagnostics() : $extractor->diagnostics($pdfBytes);
+        $this->releaseTransientPdfMemory();
+        $runs = $fastTextOnly ? [] : $extractor->extractTextRuns($pdfBytes);
+        $pdfTextRunCount = count($runs);
         // Raw text-showing operators can cross a visual line or a font switch.
         // When positioned text is available, it is the only reliable evidence
         // for spacing; otherwise a raw adjacency can turn "a trace" into
         // "atrace" or join the end of one line to the next.
-        $rawSplitWordHints = [];
+        $rawSplitWordHints = $proseRepairEnabled ? $this->pdfTextRunSplitWordHints($runs) : [];
+        unset($runs);
+        $this->releaseTransientPdfMemory();
+        $positionedRuns = (!$fastTextOnly && ($geometryTablesEnabled || $proseRepairEnabled)) ? $extractor->extractPositionedTextRuns($pdfBytes) : [];
+        $pdfPositionedTextRunCount = count($positionedRuns);
+        $limitedPositionedRuns = $this->limitPositionedTextRuns($positionedRuns, $maxTextBytes);
+        $pdfPositionedTextInsertedRunCount = count($limitedPositionedRuns);
+        unset($positionedRuns);
+        $this->releaseTransientPdfMemory();
+        $filledRectangles = $geometryTablesEnabled ? $extractor->extractFilledRectangles($pdfBytes) : [];
+        $pdfFilledRectangleCount = count($filledRectangles);
         $repairSplitWordHints = [];
         // Split and spacing hints are only consumed by the prose-repair path.
         // Building them from every positioned glyph run can dominate memory on
         // otherwise ordinary PDF imports, so do not build that work when
         // prose repair is disabled.
         if ($proseRepairEnabled) {
-            $rawSplitWordHints = $this->pdfTextRunSplitWordHints($runs);
             $positionedSplitWordHints = $limitedPositionedRuns === []
                 ? []
                 : $this->pdfPositionedRunCorroboratedSplitFragmentHints(
@@ -81,7 +94,6 @@ final class PdfReader
                     $this->pdfPositionedRunSpacingHints($limitedPositionedRuns, $limitedTextLineItems)
                 );
         }
-        $insertedText = implode("\n", $limitedLines);
         $linkAnnotations = is_array($diagnostics['linkAnnotations'] ?? null) ? $diagnostics['linkAnnotations'] : [];
         $textAnnotations = is_array($diagnostics['textAnnotations'] ?? null) ? $diagnostics['textAnnotations'] : [];
         $fileAttachmentAnnotations = is_array($diagnostics['fileAttachmentAnnotations'] ?? null) ? $diagnostics['fileAttachmentAnnotations'] : [];
@@ -105,7 +117,24 @@ final class PdfReader
         $geometryTableBlocks = $geometryTablesEnabled && $taggedBlocks === []
             ? $this->blocksFromPositionedTables($limitedPositionedRuns, $filledRectangles, $geometryTableBlocksByPage)
             : [];
+        unset($filledRectangles);
         $geometryTableCount = $this->countNodesOfType($geometryTableBlocks, 'table');
+        $positionedLineItems = [];
+        $positionedLines = [];
+        $positionedRunsAreGlyphFragments = false;
+        if ($taggedBlocks === [] && $proseRepairEnabled && $limitedPositionedRuns !== []) {
+            $positionedRunsAreGlyphFragments = $this->positionedRunsArePredominantlyGlyphFragments(
+                $limitedPositionedRuns,
+                count($limitedLines)
+            );
+            $positionedLineItems = $this->positionedProseLineItemsFromTextRuns($limitedPositionedRuns);
+            $positionedLines = $this->positionedLineItemTexts($positionedLineItems);
+        }
+        // Geometry tables are now materialized and prose uses compact visual
+        // lines. Retaining every glyph-level record through matching and
+        // repair needlessly dominates the peak for dense technical PDFs.
+        unset($limitedPositionedRuns);
+        $this->releaseTransientPdfMemory();
         $geometryTableFallback = false;
         if ($geometryTableBlocks !== [] && (
             $this->blocksHaveSuspiciousPdfTableText($geometryTableBlocks)
@@ -113,11 +142,10 @@ final class PdfReader
         )) {
             $fallbackLines = $limitedLines;
             $fallbackLayouts = [];
-            if ($proseRepairEnabled && $limitedPositionedRuns !== []) {
-                $fallbackPositionedItems = $this->positionedProseLineItemsFromTextRuns($limitedPositionedRuns);
+            if ($proseRepairEnabled && $positionedLineItems !== []) {
                 $fallbackSourceOrder = $this->sourceTextLineItemsInVisualOrder(
                     $limitedTextLineItems,
-                    $fallbackPositionedItems,
+                    $positionedLineItems,
                     $repairSplitWordHints,
                     $rawSplitWordHints
                 );
@@ -149,8 +177,6 @@ final class PdfReader
         $repairSource = 'text';
         $positionedCodeBlocks = [];
         if ($taggedBlocks === [] && $proseRepairEnabled) {
-            $positionedLineItems = $this->positionedProseLineItemsFromTextRuns($limitedPositionedRuns);
-            $positionedLines = $this->positionedLineItemTexts($positionedLineItems);
             $positionedCodeBlocks = $this->positionedCodeBlocksFromLineItems($positionedLineItems);
             $sourceOrderedItems = $this->sourceTextLineItemsInVisualOrder(
                 $limitedTextLineItems,
@@ -162,7 +188,12 @@ final class PdfReader
                 $repairSourceLines = $this->positionedLineItemTexts($sourceOrderedItems['items']);
                 $repairSourceLayouts = $sourceOrderedItems['items'];
                 $repairSource = 'text-geometry';
-            } elseif ($this->positionedProseLinesLookUsable($positionedLines, $limitedLines, $limitedPositionedRuns)) {
+            } elseif ($this->positionedProseLinesLookUsable(
+                $positionedLines,
+                $limitedLines,
+                [],
+                $positionedRunsAreGlyphFragments
+            )) {
                 $repairSourceLines = $positionedLines;
                 $repairSourceLayouts = $positionedLineItems;
                 $repairSource = 'positioned';
@@ -172,6 +203,7 @@ final class PdfReader
                 $repairSource = 'text';
             }
         }
+        unset($positionedLineItems, $positionedLines, $sourceOrderedItems, $fallbackSourceOrder);
         if ($proseRepairEnabled) {
             $repairSplitWordHints = array_replace(
                 $repairSplitWordHints,
@@ -233,14 +265,14 @@ final class PdfReader
         $metadata = array_replace($structuralMetadata, [
             'pdfExtractor' => PdfTextExtractor::class,
             'pdfFastTextOnly' => $fastTextOnly,
-            'pdfTextLines' => count($lines),
-            'pdfTextRuns' => count($runs),
-            'pdfPositionedTextRuns' => count($positionedRuns),
-            'pdfPositionedTextInsertedRuns' => count($limitedPositionedRuns),
-            'pdfFilledRectangles' => count($filledRectangles),
-            'pdfTextBytes' => strlen($plainText),
-            'pdfTextInsertedBytes' => strlen($insertedText),
-            'pdfTextLimited' => strlen($insertedText) < strlen($plainText),
+            'pdfTextLines' => $pdfTextLineCount,
+            'pdfTextRuns' => $pdfTextRunCount,
+            'pdfPositionedTextRuns' => $pdfPositionedTextRunCount,
+            'pdfPositionedTextInsertedRuns' => $pdfPositionedTextInsertedRunCount,
+            'pdfFilledRectangles' => $pdfFilledRectangleCount,
+            'pdfTextBytes' => $pdfTextBytes,
+            'pdfTextInsertedBytes' => $pdfTextInsertedBytes,
+            'pdfTextLimited' => $pdfTextInsertedBytes < $pdfTextBytes,
             'pdfMaxPages' => $this->pdfMaxPages(),
             'pdfTextRepair' => $repairedLines !== $limitedLines,
             'pdfTextRepairSource' => $repairedLines !== $limitedLines ? $repairSource : null,
@@ -288,6 +320,18 @@ final class PdfReader
         ]);
 
         return new AstNode('document', ['meta' => $metadata], $blocks);
+    }
+
+    /**
+     * PHP retains allocator pages after large extraction buffers are unset.
+     * Releasing those pages between independent PDF passes keeps bounded
+     * imports within the memory limits common on shared hosting.
+     */
+    private function releaseTransientPdfMemory(): void
+    {
+        if (function_exists('gc_mem_caches')) {
+            gc_mem_caches();
+        }
     }
 
     private function geometryTablesEnabled(): bool
@@ -479,6 +523,22 @@ final class PdfReader
         }
 
         return $normalized;
+    }
+
+    /**
+     * @param list<array{page: int, stream: int, text: string}> $items
+     */
+    private function pdfTextLineItemsByteLength(array $items): int
+    {
+        $bytes = 0;
+        foreach ($items as $index => $item) {
+            $bytes += strlen($item['text']);
+            if ($index > 0) {
+                ++$bytes;
+            }
+        }
+
+        return $bytes;
     }
 
     /**
@@ -5938,9 +5998,77 @@ final class PdfReader
      */
     private function positionedProseLineItemsFromTextRuns(array $runs): array
     {
-        return $this->positionedProseLineItemsFromRunsByPage(
-            $this->positionedRunsByPageFromTextRuns($runs)
-        );
+        if ($runs === []) {
+            return [];
+        }
+        if (!$this->positionedTextRunsArePageOrdered($runs)) {
+            return $this->positionedProseLineItemsFromRunsByPage(
+                $this->positionedRunsByPageFromTextRuns($runs)
+            );
+        }
+
+        $items = [];
+        $pageRuns = [];
+        $pendingWhitespace = [];
+        $page = null;
+        foreach ($runs as $index => $run) {
+            $runPage = max(1, (int) ($run['page'] ?? 1));
+            if ($page !== null && $runPage !== $page) {
+                foreach ($this->positionedProseLineItemsForPage($pageRuns) as $item) {
+                    $items[] = $item;
+                }
+                $pageRuns = [];
+                $pendingWhitespace = [];
+            }
+            $page = $runPage;
+
+            $run['_order'] = $index;
+            $whitespaceKey = $runPage . ':' . max(0, (int) ($run['stream'] ?? 0));
+            $rawText = $this->normalizePdfTextEncoding((string) ($run['text'] ?? ''));
+            if ($rawText !== '' && trim($rawText) === '' && preg_match('/\s/u', $rawText) === 1) {
+                $pendingWhitespace[$whitespaceKey] = [
+                    'hardBoundary' => (bool) (($pendingWhitespace[$whitespaceKey]['hardBoundary'] ?? false)
+                        || preg_match('/[\t\r\n]/u', $rawText) === 1),
+                ];
+                continue;
+            }
+            $normalized = $this->positionedRun($run);
+            if ($normalized === null) {
+                continue;
+            }
+            if (isset($pendingWhitespace[$whitespaceKey])) {
+                $normalized['startsWithWhitespace'] = true;
+                $normalized['startsAfterTextBoundary'] = (bool) ($pendingWhitespace[$whitespaceKey]['hardBoundary'] ?? false);
+                unset($pendingWhitespace[$whitespaceKey]);
+            }
+            $pageRuns[] = $normalized;
+        }
+        foreach ($this->positionedProseLineItemsForPage($pageRuns) as $item) {
+            $items[] = $item;
+        }
+
+        return $items;
+    }
+
+    /**
+     * PDF page content contexts are emitted in page order. Keep an explicit
+     * fallback for callers that provide synthetic or otherwise unordered
+     * runs, where a page map is still needed to preserve the prior behavior.
+     *
+     * @param list<array<string, mixed>> $runs
+     */
+    private function positionedTextRunsArePageOrdered(array $runs): bool
+    {
+        $previousPage = 0;
+        foreach ($runs as $run) {
+            $page = max(1, (int) ($run['page'] ?? 1));
+            if ($page < $previousPage) {
+                return false;
+            }
+            $previousPage = $page;
+        }
+
+        return true;
     }
 
     /**
@@ -6893,7 +7021,12 @@ final class PdfReader
      * @param list<string> $textLines
      * @param list<array<string, mixed>> $positionedRuns
      */
-    private function positionedProseLinesLookUsable(array $positionedLines, array $textLines, array $positionedRuns = []): bool
+    private function positionedProseLinesLookUsable(
+        array $positionedLines,
+        array $textLines,
+        array $positionedRuns = [],
+        ?bool $positionedRunsAreGlyphFragments = null
+    ): bool
     {
         if (count($positionedLines) < 2) {
             return false;
@@ -6913,7 +7046,8 @@ final class PdfReader
             return false;
         }
         if (
-            $this->positionedRunsArePredominantlyGlyphFragments($positionedRuns, count($textLines))
+            ($positionedRunsAreGlyphFragments
+                ?? $this->positionedRunsArePredominantlyGlyphFragments($positionedRuns, count($textLines)))
             && $textSpacingDamage <= $positionedSpacingDamage + 1
         ) {
             return false;
@@ -10628,6 +10762,16 @@ final class PdfReader
         array $sourceItems = []
     ): array
     {
+        $fragmentHints = [];
+        foreach ($hints as $key => $replacement) {
+            if (is_string($replacement) && str_starts_with($key, "fragment\0")) {
+                $fragmentHints[$key] = $replacement;
+            }
+        }
+        if ($fragmentHints === []) {
+            return [];
+        }
+
         $positionedWords = $this->positionedRunContiguousWordKeys($runs);
         if ($positionedWords === []) {
             return [];
@@ -10635,16 +10779,13 @@ final class PdfReader
 
         $intralineHintKeys = $sourceItems === []
             ? null
-            : $this->sourcePdfSubstantialIntralineSplitFragmentHintKeys($sourceItems, $hints);
+            : $this->sourcePdfSubstantialIntralineSplitFragmentHintKeys($sourceItems, $fragmentHints);
         $clippedSourceLineEndHintKeys = $sourceItems === []
             ? []
-            : $this->positionedPdfClippedSourceLineEndSplitFragmentHintKeys($runs, $hints, $sourceItems);
+            : $this->positionedPdfClippedSourceLineEndSplitFragmentHintKeys($runs, $fragmentHints, $sourceItems);
 
         $corroborated = [];
-        foreach ($hints as $key => $replacement) {
-            if (!is_string($replacement) || !str_starts_with($key, "fragment\0")) {
-                continue;
-            }
+        foreach ($fragmentHints as $key => $replacement) {
             if ($intralineHintKeys !== null
                 && !isset($intralineHintKeys[$key])
                 && !isset($clippedSourceLineEndHintKeys[$key])) {
@@ -10886,8 +11027,7 @@ final class PdfReader
      */
     private function pdfPositionedRunSpacingHints(array $runs, array $sourceItems = []): array
     {
-        $runsByPage = $this->positionedRunsByPageFromTextRuns($runs);
-        if ($runsByPage === []) {
+        if ($runs === []) {
             return [];
         }
 
@@ -10897,86 +11037,198 @@ final class PdfReader
             ? $this->pdfSourceGluedTokensByPage($sourceItems)
             : [];
         if ($requireSourceEvidence) {
-            $match = $this->matchSourcePdfLinesToPositionedItems(
+            $matched = $this->matchSourcePdfLinesToPositionedItems(
                 $sourceItems,
-                $this->positionedProseLineItemsFromRunsByPage($runsByPage)
+                $this->positionedProseLineItemsFromTextRuns($runs)
             );
-            $matchedSourceItems = array_values($match['itemsBySourceIndex']);
+            $matchedSourceItems = array_values($matched['itemsBySourceIndex']);
+            unset($matched);
+        }
+
+        if (!$this->positionedTextRunsArePageOrdered($runs)) {
+            return $this->pdfPositionedRunSpacingHintsFromRunsByPage(
+                $this->positionedRunsByPageFromTextRuns($runs),
+                $sourceItems,
+                $sourceGluedTokensByPage,
+                $matchedSourceItems,
+                $requireSourceEvidence
+            );
         }
 
         $hints = [];
-        foreach ($runsByPage as $pageRuns) {
-            $fontSizes = array_map(static fn (array $run): float => $run['fontSize'], $pageRuns);
-            $medianFontSize = max(1.0, $this->median($fontSizes));
-            $rowTolerance = max(3.0, $medianFontSize * 0.55);
-            $rows = $this->clusterPositionedRows($pageRuns, $rowTolerance);
-            $spacingRows = array_values(array_filter(
-                $rows,
-                fn (array $row): bool => $this->positionedRowMaxNominalFontSize($row) >= 4.0
-            ));
-            foreach ($spacingRows as $row) {
-                $page = (int) ($row['runs'][0]['page'] ?? 0);
-                foreach ($this->positionedSpacingHintTokenSegments($row['runs']) as $tokens) {
-                    $tokenCount = count($tokens);
-                    for ($start = 0; $start < $tokenCount - 1; $start++) {
-                        $glued = '';
-                        $spaced = '';
-                        for ($end = $start; $end < $tokenCount && $end < $start + 8; $end++) {
-                            $token = $tokens[$end];
-                            $glued .= $token;
-                            $spaced .= ($spaced === '' ? '' : ' ') . $token;
-                            if ($end === $start) {
-                                continue;
-                            }
-                            if ($requireSourceEvidence && !isset($sourceGluedTokensByPage[$page][$glued])) {
-                                continue;
-                            }
-                            if ($end === $start + 1) {
-                                $pairTokens = array_slice($tokens, $start, 2);
-                                $hasSourceEvidence = !$requireSourceEvidence
-                                    || $this->positionedPdfRowHasMatchedSourceGluedText(
-                                        $row,
-                                        $glued,
-                                        $matchedSourceItems
-                                    );
-                                if (!$hasSourceEvidence
-                                    || $this->spacingHintTokensHaveAmbiguousTrailingLowercaseGlyph($pairTokens)
-                                    || (!$this->spacingHintTokenSequenceLooksUsable($pairTokens)
-                                        && !($requireSourceEvidence
-                                            && $this->spacingHintTokensHaveSingleLetterEdge($pairTokens)))) {
-                                    continue;
-                                }
-                                $hints[$this->spacingHintKey($glued)] = $spaced;
-                                continue;
-                            }
-                            if (!$this->spacingHintTokenSequenceLooksUsable(array_slice($tokens, $start, $end - $start + 1))) {
-                                continue;
-                            }
-                            if ($glued !== '' && $glued !== $spaced) {
-                                $hints[$this->spacingHintKey($glued)] = $spaced;
-                            }
-                        }
-                    }
+        $page = null;
+        $pageRuns = [];
+        $pendingWhitespace = [];
+        foreach ($runs as $index => $run) {
+            $runPage = max(1, (int) ($run['page'] ?? 1));
+            if ($page !== null && $runPage !== $page) {
+                foreach ($this->pdfPositionedRunSpacingHintsForPage(
+                    $pageRuns,
+                    $sourceItems,
+                    $sourceGluedTokensByPage,
+                    $matchedSourceItems,
+                    $requireSourceEvidence
+                ) as $key => $replacement) {
+                    $hints[$key] = $replacement;
                 }
+                $pageRuns = [];
+                $pendingWhitespace = [];
             }
-            foreach ($this->pdfPositionedRowBoundarySpacingHints(
-                $spacingRows,
-                $medianFontSize,
+            $page = $runPage;
+
+            $run['_order'] = $index;
+            $whitespaceKey = $runPage . ':' . max(0, (int) ($run['stream'] ?? 0));
+            $rawText = $this->normalizePdfTextEncoding((string) ($run['text'] ?? ''));
+            if ($rawText !== '' && trim($rawText) === '' && preg_match('/\s/u', $rawText) === 1) {
+                $pendingWhitespace[$whitespaceKey] = [
+                    'hardBoundary' => (bool) (($pendingWhitespace[$whitespaceKey]['hardBoundary'] ?? false)
+                        || preg_match('/[\t\r\n]/u', $rawText) === 1),
+                ];
+                continue;
+            }
+            $normalized = $this->positionedRun($run);
+            if ($normalized === null) {
+                continue;
+            }
+            if (isset($pendingWhitespace[$whitespaceKey])) {
+                $normalized['startsWithWhitespace'] = true;
+                $normalized['startsAfterTextBoundary'] = (bool) ($pendingWhitespace[$whitespaceKey]['hardBoundary'] ?? false);
+                unset($pendingWhitespace[$whitespaceKey]);
+            }
+            $pageRuns[] = $normalized;
+        }
+        foreach ($this->pdfPositionedRunSpacingHintsForPage(
+            $pageRuns,
+            $sourceItems,
+            $sourceGluedTokensByPage,
+            $matchedSourceItems,
+            $requireSourceEvidence
+        ) as $key => $replacement) {
+            $hints[$key] = $replacement;
+        }
+
+        return $hints;
+    }
+
+    /**
+     * @param array<int, list<array<string, mixed>>> $runsByPage
+     * @param list<array{page: int, stream: int, text: string}> $sourceItems
+     * @param array<int, array<string, true>> $sourceGluedTokensByPage
+     * @param list<array<string, mixed>> $matchedSourceItems
+     * @return array<string, string>
+     */
+    private function pdfPositionedRunSpacingHintsFromRunsByPage(
+        array $runsByPage,
+        array $sourceItems,
+        array $sourceGluedTokensByPage,
+        array $matchedSourceItems,
+        bool $requireSourceEvidence
+    ): array {
+        $hints = [];
+        foreach ($runsByPage as $pageRuns) {
+            foreach ($this->pdfPositionedRunSpacingHintsForPage(
+                $pageRuns,
+                $sourceItems,
+                $sourceGluedTokensByPage,
                 $matchedSourceItems,
                 $requireSourceEvidence
             ) as $key => $replacement) {
                 $hints[$key] = $replacement;
             }
-            foreach ($this->pdfPositionedSourceOrderSpacingHints(
-                $pageRuns,
-                $sourceItems,
-                $requireSourceEvidence
-            ) as $key => $replacement) {
-                $hints[$key] = $replacement;
+        }
+
+        return $hints;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $pageRuns
+     * @param list<array{page: int, stream: int, text: string}> $sourceItems
+     * @param array<int, array<string, true>> $sourceGluedTokensByPage
+     * @param list<array<string, mixed>> $matchedSourceItems
+     * @return array<string, string>
+     */
+    private function pdfPositionedRunSpacingHintsForPage(
+        array $pageRuns,
+        array $sourceItems,
+        array $sourceGluedTokensByPage,
+        array $matchedSourceItems,
+        bool $requireSourceEvidence
+    ): array {
+        if ($pageRuns === []) {
+            return [];
+        }
+
+        $fontSizes = array_map(static fn (array $run): float => $run['fontSize'], $pageRuns);
+        $medianFontSize = max(1.0, $this->median($fontSizes));
+        $rowTolerance = max(3.0, $medianFontSize * 0.55);
+        $rows = $this->clusterPositionedRows($pageRuns, $rowTolerance);
+        $spacingRows = array_values(array_filter(
+            $rows,
+            fn (array $row): bool => $this->positionedRowMaxNominalFontSize($row) >= 4.0
+        ));
+        $hints = [];
+        foreach ($spacingRows as $row) {
+            $page = (int) ($row['runs'][0]['page'] ?? 0);
+            foreach ($this->positionedSpacingHintTokenSegments($row['runs']) as $tokens) {
+                $tokenCount = count($tokens);
+                for ($start = 0; $start < $tokenCount - 1; $start++) {
+                    $glued = '';
+                    $spaced = '';
+                    for ($end = $start; $end < $tokenCount && $end < $start + 8; $end++) {
+                        $token = $tokens[$end];
+                        $glued .= $token;
+                        $spaced .= ($spaced === '' ? '' : ' ') . $token;
+                        if ($end === $start) {
+                            continue;
+                        }
+                        if ($requireSourceEvidence && !isset($sourceGluedTokensByPage[$page][$glued])) {
+                            continue;
+                        }
+                        if ($end === $start + 1) {
+                            $pairTokens = array_slice($tokens, $start, 2);
+                            $hasSourceEvidence = !$requireSourceEvidence
+                                || $this->positionedPdfRowHasMatchedSourceGluedText(
+                                    $row,
+                                    $glued,
+                                    $matchedSourceItems
+                                );
+                            if (!$hasSourceEvidence
+                                || $this->spacingHintTokensHaveAmbiguousTrailingLowercaseGlyph($pairTokens)
+                                || (!$this->spacingHintTokenSequenceLooksUsable($pairTokens)
+                                    && !($requireSourceEvidence
+                                        && $this->spacingHintTokensHaveSingleLetterEdge($pairTokens)))) {
+                                continue;
+                            }
+                            $hints[$this->spacingHintKey($glued)] = $spaced;
+                            continue;
+                        }
+                        if (!$this->spacingHintTokenSequenceLooksUsable(array_slice($tokens, $start, $end - $start + 1))) {
+                            continue;
+                        }
+                        if ($glued !== '' && $glued !== $spaced) {
+                            $hints[$this->spacingHintKey($glued)] = $spaced;
+                        }
+                    }
+                }
             }
-            foreach ($this->pdfPositionedSourceOrderLargeGapSpacingHints($pageRuns, $sourceItems) as $key => $replacement) {
-                $hints[$key] = $replacement;
-            }
+        }
+        foreach ($this->pdfPositionedRowBoundarySpacingHints(
+            $spacingRows,
+            $medianFontSize,
+            $matchedSourceItems,
+            $requireSourceEvidence
+        ) as $key => $replacement) {
+            $hints[$key] = $replacement;
+        }
+        foreach ($this->pdfPositionedSourceOrderSpacingHints(
+            $pageRuns,
+            $sourceItems,
+            $requireSourceEvidence
+        ) as $key => $replacement) {
+            $hints[$key] = $replacement;
+        }
+        foreach ($this->pdfPositionedSourceOrderLargeGapSpacingHints($pageRuns, $sourceItems) as $key => $replacement) {
+            $hints[$key] = $replacement;
         }
 
         return $hints;
@@ -13354,6 +13606,66 @@ final class PdfReader
             return [];
         }
 
+        $filledRectanglesByPage = [];
+        foreach ($filledRectangles as $rectangle) {
+            $normalized = $this->positionedFillRectangle($rectangle);
+            if ($normalized !== null) {
+                $filledRectanglesByPage[$normalized['page']][] = $normalized;
+            }
+        }
+
+        if (!$this->positionedTextRunsArePageOrdered($runs)) {
+            return $this->blocksFromPositionedTablesByPageMap($runs, $filledRectanglesByPage, $tableBlocksByPage);
+        }
+
+        $blocks = [];
+        $pageRuns = [];
+        $page = null;
+        $flush = function () use (&$blocks, &$pageRuns, &$tableBlocksByPage, &$page, $filledRectanglesByPage): void {
+            if ($page === null || $pageRuns === []) {
+                return;
+            }
+            $pageBlocks = $this->blocksFromPositionedPageTables(
+                $pageRuns,
+                $filledRectanglesByPage[$page] ?? []
+            );
+            if ($this->countNodesOfType($pageBlocks, 'table') > 0) {
+                $tableBlocksByPage[$page] = $pageBlocks;
+                foreach ($pageBlocks as $block) {
+                    $blocks[] = $block;
+                }
+            }
+            $pageRuns = [];
+        };
+        foreach ($runs as $index => $run) {
+            $runPage = max(1, (int) ($run['page'] ?? 1));
+            if ($page !== null && $runPage !== $page) {
+                $flush();
+            }
+            $page = $runPage;
+            $run['_order'] = $index;
+            $normalized = $this->positionedRun($run);
+            if ($normalized !== null) {
+                $pageRuns[] = $normalized;
+            }
+        }
+        $flush();
+
+        return $blocks;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $runs
+     * @param array<int, list<array<string, mixed>>> $filledRectanglesByPage
+     * @param array<int, list<AstNode>> $tableBlocksByPage
+     * @return list<AstNode>
+     */
+    private function blocksFromPositionedTablesByPageMap(
+        array $runs,
+        array $filledRectanglesByPage,
+        array &$tableBlocksByPage
+    ): array {
+
         $runsByPage = [];
         foreach ($runs as $index => $run) {
             $run['_order'] = $index;
@@ -13365,14 +13677,6 @@ final class PdfReader
         }
         if ($runsByPage === []) {
             return [];
-        }
-
-        $filledRectanglesByPage = [];
-        foreach ($filledRectangles as $rectangle) {
-            $normalized = $this->positionedFillRectangle($rectangle);
-            if ($normalized !== null) {
-                $filledRectanglesByPage[$normalized['page']][] = $normalized;
-            }
         }
 
         ksort($runsByPage);

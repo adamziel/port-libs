@@ -992,6 +992,10 @@ final class PdfTextExtractor
                 $failedStreams++;
             }
         }
+        // These raw object bodies can be several times larger than the
+        // resulting diagnostics. Do not retain them while later passes build
+        // positioned text and page-level geometry.
+        unset($diagnosticObjectBodies, $objectBody, $stream);
 
         $malformedXrefOffsets = [];
         $malformedXrefStreams = 0;
@@ -1000,7 +1004,8 @@ final class PdfTextExtractor
                 $malformedXrefOffsets[] = $offset;
             }
         }
-        if (preg_match_all('/\b(\d+)\s+(\d+)\s+obj\b(.*?)\bendobj/s', $pdfBytes, $xrefObjectMatches, PREG_SET_ORDER | PREG_OFFSET_CAPTURE)) {
+        $hasXrefStreamObjects = preg_match('/\/Type\s*\/XRef\b|\/Type\/XRef\b/', $pdfBytes) === 1;
+        if ($hasXrefStreamObjects && preg_match_all('/\b(\d+)\s+(\d+)\s+obj\b(.*?)\bendobj/s', $pdfBytes, $xrefObjectMatches, PREG_SET_ORDER | PREG_OFFSET_CAPTURE)) {
             foreach ($xrefObjectMatches as $xrefObjectMatch) {
                 $objectNumber = (int) $xrefObjectMatch[1][0];
                 $generation = (int) $xrefObjectMatch[2][0];
@@ -1021,15 +1026,17 @@ final class PdfTextExtractor
                 }
             }
         }
+        unset($xrefObjectMatches, $xrefObjectMatch, $decoded, $helperObjectMaxOffset);
 
         $textDiagnostics = $this->textSuppressionDiagnostics($pdfBytes);
-        $xObjectDiagnostics = $this->ignoredXObjectDiagnostics($pdfBytes);
+        $xObjectDiagnostics = $this->ignoredXObjectDiagnostics($objects);
         $taggedSemantics = $this->taggedPdfSemantics($objects);
-        $linkAnnotations = $this->linkAnnotations($objects);
-        $textAnnotations = $this->textAnnotations($objects);
-        $fileAttachmentAnnotations = $this->fileAttachmentAnnotations($objects);
-        $popupAnnotations = $this->popupAnnotations($objects);
-        $appearanceAnnotations = $this->appearanceAnnotations($objects);
+        $annotationPresence = $this->annotationPresence($objects);
+        $linkAnnotations = $annotationPresence['links'] ? $this->linkAnnotations($objects) : [];
+        $textAnnotations = $annotationPresence['annotations'] ? $this->textAnnotations($objects) : [];
+        $fileAttachmentAnnotations = $annotationPresence['annotations'] ? $this->fileAttachmentAnnotations($objects) : [];
+        $popupAnnotations = $annotationPresence['annotations'] ? $this->popupAnnotations($objects) : [];
+        $appearanceAnnotations = $annotationPresence['annotations'] ? $this->appearanceAnnotations($objects) : [];
         $pageExtractionIssues = $this->pageExtractionIssues($objects);
         $pagesWithExtractionIssues = [];
         foreach ($pageExtractionIssues as $issue) {
@@ -1184,6 +1191,40 @@ final class PdfTextExtractor
         }
 
         return $annotations;
+    }
+
+    /**
+     * Decide whether annotation passes can contribute any output before
+     * parsing positioned page text. Most ordinary PDFs have no annotations;
+     * in that case link discovery must not pay for a second glyph pass.
+     *
+     * @param array<int, string> $objects
+     * @return array{annotations: bool, links: bool}
+     */
+    private function annotationPresence(array $objects): array
+    {
+        $hasAnnotations = false;
+        $hasLinks = false;
+
+        foreach ($this->limitedPageObjectNumbers($objects) as $pageObjectNumber) {
+            $pageObjectBody = $objects[$pageObjectNumber] ?? null;
+            if (!is_string($pageObjectBody) || !$this->isPageObjectBody($pageObjectBody)) {
+                continue;
+            }
+
+            foreach ($this->annotationDictionariesForPage($pageObjectBody, $objects) as $annotation) {
+                $hasAnnotations = true;
+                if (strtoupper((string) $this->nameDictionaryValue($annotation['dictionary'], 'Subtype')) === 'LINK') {
+                    $hasLinks = true;
+                    break 2;
+                }
+            }
+        }
+
+        return [
+            'annotations' => $hasAnnotations,
+            'links' => $hasLinks,
+        ];
     }
 
     /**
@@ -5540,9 +5581,8 @@ final class PdfTextExtractor
     /**
      * @return array{ignoredXObjectSubtypes: list<string>, ignoredXObjectCount: int}
      */
-    private function ignoredXObjectDiagnostics(string $pdfBytes): array
+    private function ignoredXObjectDiagnostics(array $objects): array
     {
-        $objects = $this->pdfObjects($pdfBytes);
         $ignoredSubtypes = [];
         $ignoredCount = 0;
 

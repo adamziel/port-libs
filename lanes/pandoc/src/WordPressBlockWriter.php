@@ -40,19 +40,20 @@ final class WordPressBlockWriter
 
         $previousFootnotes = $this->footnotes;
         $this->footnotes = [];
-        $blocks = [];
+        $output = '';
+        $outputBlockCount = 0;
         $pendingList = [];
         if ((bool) ($this->options['includeMetadata'] ?? false)) {
             $metadataBlock = $this->renderMetadataReviewBlock($document);
             if ($metadataBlock !== '') {
-                $blocks[] = $metadataBlock;
+                $this->appendTopLevelBlock($output, $outputBlockCount, $metadataBlock);
             }
         }
         $children = $document->children;
         for ($index = 0, $count = count($children); $index < $count; $index++) {
             $node = $children[$index];
             if ($node->type !== 'list_item') {
-                $this->flushList($pendingList, $blocks);
+                $this->flushList($pendingList, $output, $outputBlockCount);
             }
             if ($this->shouldSkipEmptyParagraphLikeBlock($node)) {
                 continue;
@@ -65,56 +66,55 @@ final class WordPressBlockWriter
                     $headingAttrs['textAlign'] = $alignment;
                 }
                 $headingAttrs = array_replace($headingAttrs, $this->blockColorCommentAttrs($node));
-                $blocks[] = $this->blockComment('heading', $headingAttrs)
+                $this->appendTopLevelBlock($output, $outputBlockCount, $this->blockComment('heading', $headingAttrs)
                     . "\n" . '<h' . $level . $this->renderHeadingAttrs($node) . '>' . $this->renderInlines($node) . '</h' . $level . '>'
-                    . "\n" . '<!-- /wp:heading -->';
+                    . "\n" . '<!-- /wp:heading -->');
             } elseif ($node->type === 'paragraph') {
-                $blocks[] = $this->renderParagraphBlock($node);
+                $this->appendTopLevelBlock($output, $outputBlockCount, $this->renderParagraphBlock($node));
             } elseif ($node->type === 'plain') {
-                $blocks[] = '<!-- wp:paragraph -->'
+                $this->appendTopLevelBlock($output, $outputBlockCount, '<!-- wp:paragraph -->'
                     . "\n" . '<p>' . $this->renderInlines($node) . '</p>'
-                    . "\n" . '<!-- /wp:paragraph -->';
+                    . "\n" . '<!-- /wp:paragraph -->');
             } elseif ($node->type === 'bullet_list') {
-                $blocks[] = $this->renderList($node, false);
+                $this->appendTopLevelBlock($output, $outputBlockCount, $this->renderList($node, false));
             } elseif ($node->type === 'ordered_list') {
-                $blocks[] = $this->renderList($node, true);
+                $this->appendTopLevelBlock($output, $outputBlockCount, $this->renderList($node, true));
             } elseif ($node->type === 'definition_list') {
-                $blocks[] = $this->renderDefinitionList($node);
+                $this->appendTopLevelBlock($output, $outputBlockCount, $this->renderDefinitionList($node));
             } elseif ($node->type === 'table') {
-                $blocks[] = $this->renderTable($node);
+                $this->appendTopLevelBlock($output, $outputBlockCount, $this->renderTable($node));
             } elseif ($node->type === 'raw_html') {
                 $inlineContainer = $this->tryRenderRawHtmlInlineContainerParagraph($children, $index);
                 if ($inlineContainer !== null) {
-                    $blocks[] = $inlineContainer;
+                    $this->appendTopLevelBlock($output, $outputBlockCount, $inlineContainer);
                     continue;
                 }
-                $blocks[] = $this->renderRawHtmlBlock($node);
+                $this->appendTopLevelBlock($output, $outputBlockCount, $this->renderRawHtmlBlock($node));
             } elseif ($node->type === 'raw_tex') {
-                $blocks[] = $this->renderRawTexBlock($node);
+                $this->appendTopLevelBlock($output, $outputBlockCount, $this->renderRawTexBlock($node));
             } elseif ($node->type === 'raw_block') {
-                $blocks[] = $this->renderRawFormatBlock($node);
+                $this->appendTopLevelBlock($output, $outputBlockCount, $this->renderRawFormatBlock($node));
             } elseif ($node->type === 'code_block') {
-                $blocks[] = $this->renderCodeBlock($node);
+                $this->appendTopLevelBlock($output, $outputBlockCount, $this->renderCodeBlock($node));
             } elseif ($node->type === 'figure') {
-                $blocks[] = $this->renderFigureBlock($node);
+                $this->appendTopLevelBlock($output, $outputBlockCount, $this->renderFigureBlock($node));
             } elseif ($node->type === 'blockquote') {
-                $blocks[] = $this->renderBlockQuote($node);
+                $this->appendTopLevelBlock($output, $outputBlockCount, $this->renderBlockQuote($node));
             } elseif ($node->type === 'line_block') {
-                $blocks[] = $this->renderLineBlockBlock($node);
+                $this->appendTopLevelBlock($output, $outputBlockCount, $this->renderLineBlockBlock($node));
             } elseif ($node->type === 'div') {
-                $blocks[] = $this->renderDivBlock($node);
+                $this->appendTopLevelBlock($output, $outputBlockCount, $this->renderDivBlock($node));
             } elseif ($node->type === 'horizontal_rule') {
-                $blocks[] = $this->renderHorizontalRule();
+                $this->appendTopLevelBlock($output, $outputBlockCount, $this->renderHorizontalRule());
             } elseif ($node->type === 'list_item') {
                 $pendingList[] = '<li>' . $this->renderInlines($node) . '</li>';
             }
         }
-        $this->flushList($pendingList, $blocks);
+        $this->flushList($pendingList, $output, $outputBlockCount);
         if ($this->footnotes !== []) {
-            $blocks[] = $this->renderFootnotesBlock();
+            $this->appendTopLevelBlock($output, $outputBlockCount, $this->renderFootnotesBlock());
         }
 
-        $output = implode("\n\n", $blocks);
         $this->footnotes = $previousFootnotes;
 
         return $output;
@@ -559,15 +559,27 @@ final class WordPressBlockWriter
 
     /**
      * @param list<string> $items
-     * @param list<string> $blocks
      */
-    private function flushList(array &$items, array &$blocks): void
+    private function flushList(array &$items, string &$output, int &$outputBlockCount): void
     {
         if ($items === []) {
             return;
         }
-        $blocks[] = '<!-- wp:list -->' . "\n" . '<ul>' . implode('', $items) . '</ul>' . "\n" . '<!-- /wp:list -->';
+        $this->appendTopLevelBlock(
+            $output,
+            $outputBlockCount,
+            '<!-- wp:list -->' . "\n" . '<ul>' . implode('', $items) . '</ul>' . "\n" . '<!-- /wp:list -->'
+        );
         $items = [];
+    }
+
+    private function appendTopLevelBlock(string &$output, int &$outputBlockCount, string $block): void
+    {
+        if ($outputBlockCount > 0) {
+            $output .= "\n\n";
+        }
+        $output .= $block;
+        $outputBlockCount++;
     }
 
     private function renderList(AstNode $node, bool $ordered): string
@@ -1481,13 +1493,13 @@ final class WordPressBlockWriter
 
     private function renderTableColgroup(AstNode $node): string
     {
-        $columnCount = TableGeometry::columnCount($node);
         $sourceColumns = $node->attr('columnSources', []);
-        if (is_array($sourceColumns) && $sourceColumns !== [] && count($sourceColumns) < $columnCount) {
-            return '';
-        }
-
         if (is_array($sourceColumns) && $sourceColumns !== []) {
+            $columnCount = TableGeometry::columnCount($node);
+            if (count($sourceColumns) < $columnCount) {
+                return '';
+            }
+
             $html = '';
             foreach ($this->sourceColumnGroups($sourceColumns) as $group) {
                 $source = is_array($group['source'] ?? null) ? $group['source'] : [];
@@ -1737,6 +1749,10 @@ final class WordPressBlockWriter
      */
     private function tableAccessibilityByCell(AstNode $table): array
     {
+        if ($this->tableCanUseDirectLayout($table)) {
+            return [];
+        }
+
         if ($table->attributeResolver() instanceof CompactDelimitedTableAttributes) {
             return [];
         }
@@ -1814,6 +1830,10 @@ final class WordPressBlockWriter
      */
     private function tableVisualColumnsByCell(AstNode $table): array
     {
+        if ($this->tableCanUseDirectLayout($table)) {
+            return [];
+        }
+
         if ($table->attributeResolver() instanceof CompactDelimitedTableAttributes) {
             return [];
         }
@@ -1829,6 +1849,67 @@ final class WordPressBlockWriter
         }
 
         return $byCell;
+    }
+
+    /**
+     * A plain grid without headers or spans needs no geometric repair for the
+     * HTML WordPress writer: renderTableRow's running column is already the
+     * visual column. Keep the full geometry path for every richer table.
+     */
+    private function tableCanUseDirectLayout(AstNode $table): bool
+    {
+        $sourceColumns = $table->attr('columnSources', []);
+        if (is_array($sourceColumns) && $sourceColumns !== []) {
+            return false;
+        }
+
+        foreach ($table->children as $section) {
+            if ($section->type === 'table_head' || $section->type === 'table_foot') {
+                if ($section->children !== []) {
+                    return false;
+                }
+                continue;
+            }
+            if ($section->type !== 'table_body') {
+                return false;
+            }
+
+            if ((int) $section->attr('rowHeadColumns', 0) > 0) {
+                return false;
+            }
+            $headRows = $section->attr('headRows', []);
+            if (is_array($headRows) && $headRows !== []) {
+                return false;
+            }
+
+            foreach ($section->children as $row) {
+                if ($row->type !== 'table_row') {
+                    return false;
+                }
+                foreach ($row->children as $cell) {
+                    if ($cell->type !== 'table_cell') {
+                        continue;
+                    }
+                    if (
+                        (int) $cell->attr('colspan', 1) !== 1
+                        || (int) $cell->attr('renderRowspan', $cell->attr('rowspan', 1)) !== 1
+                        || $cell->attr('header') === true
+                    ) {
+                        return false;
+                    }
+                    $htmlAttributes = $cell->attr('htmlAttributes', []);
+                    if (
+                        is_array($htmlAttributes)
+                        && (trim((string) ($htmlAttributes['scope'] ?? '')) !== ''
+                            || trim((string) ($htmlAttributes['headers'] ?? '')) !== '')
+                    ) {
+                        return false;
+                    }
+                }
+            }
+        }
+
+        return true;
     }
 
     /**

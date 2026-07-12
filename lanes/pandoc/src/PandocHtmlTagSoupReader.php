@@ -1257,7 +1257,7 @@ final class PandocHtmlTagSoupReader
 
     private function resolveHtmlUrl(string $url): string
     {
-        return XmlHtmlDom::resolveHtmlResourceUrlReference($url, $this->htmlBaseHref) ?? $url;
+        return HtmlResourceUrlResolver::resolve($url, $this->htmlBaseHref) ?? $url;
     }
 
     /**
