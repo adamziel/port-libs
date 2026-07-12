@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 use PortLibs\Pandoc\AstNode;
 use PortLibs\Pandoc\MarkdownReader;
-use PortLibs\Pandoc\MarkdownWriter;
 use PortLibs\Pandoc\WordPressBlockWriter;
 
 $inlineText = null;
@@ -149,7 +148,7 @@ return [
                 $t->same($case['attributes'], $heading->attr('attributes', []), $label);
             }
         },
-    'round trips setext and thematic boundary cases through markdown and wordpress writers' =>
+    'renders setext and thematic boundary cases through WordPress blocks' =>
         static function (TestRunner $t): void {
             $markdown = implode("\n", [
                 'Review heading {#review-heading .source}',
@@ -162,14 +161,11 @@ return [
                 '===',
             ]);
             $document = (new MarkdownReader())->read($markdown);
-            $written = (new MarkdownWriter())->write($document);
             $blocks = (new WordPressBlockWriter())->write($document);
 
             $t->same(['heading', 'paragraph', 'horizontal_rule', 'heading'], array_map(static fn (AstNode $node): string => $node->type, $document->children));
             $t->same('review-heading', $document->children[0]->attr('id'));
             $t->same(['source'], $document->children[0]->attr('classes'));
-            $t->contains('Review heading {#review-heading .source}', $written);
-            $t->contains('* * *', $written);
             $t->contains('<h2 id="review-heading" class="source">Review heading</h2>', $blocks);
             $t->contains('<hr class="wp-block-separator has-alpha-channel-opacity"/>', $blocks);
             $t->contains('<h1 id="next-heading">Next heading</h1>', $blocks);

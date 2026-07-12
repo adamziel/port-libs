@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 use PortLibs\Pandoc\AstNode;
 use PortLibs\Pandoc\MarkdownReader;
-use PortLibs\Pandoc\MarkdownWriter;
 
 $inlineText = static function (AstNode $node) use (&$inlineText): string {
     if ($node->type === 'text' || $node->type === 'code') {
@@ -165,9 +164,6 @@ foreach ($labelCases as $labelName => $labelRoot) {
 
                 $t->same($label, $note->attr('label'), $label . ' source label');
                 $t->same($case['summary'], array_map($nodeSummary, $note->children), $label . ' normalized note body');
-
-                $roundTrip = (new MarkdownWriter())->write($document);
-                $t->contains('[^' . $label . ']', $roundTrip, $label . ' writer keeps source label');
             };
     }
 }

@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 use PortLibs\Pandoc\AstNode;
 use PortLibs\Pandoc\MarkdownReader;
-use PortLibs\Pandoc\MarkdownWriter;
 use PortLibs\Pandoc\MediaBag;
 use PortLibs\Pandoc\PandocMediaExtractor;
 use PortLibs\Pandoc\PandocJsonReader;
@@ -576,11 +575,6 @@ return [
         $t->same((string) strlen($bytes), $attributes['data-pandoc-media-bytes']);
         $t->same(sha1($bytes), $attributes['data-pandoc-media-sha1']);
 
-        $markdown = (new MarkdownWriter())->write($extracted['document']);
-        $t->contains('![Review image](media/Pictures/review.png "Review image"){', $markdown);
-        $t->contains('data-pandoc-media-source="Pictures/review.png"', $markdown);
-        $t->contains('data-pandoc-media-sha1="' . sha1($bytes) . '"', $markdown);
-
         $blocks = (new WordPressBlockWriter())->write($extracted['document']);
         $t->contains('<img src="media/Pictures/review.png"', $blocks);
         $t->contains('data-pandoc-media-source="Pictures/review.png"', $blocks);
@@ -627,10 +621,6 @@ return [
         $t->same('downloads/review.pdf', $mappedLink->attr('attributes')['data-pandoc-media-source']);
         $t->same('application/pdf', $mappedLink->attr('attributes')['data-pandoc-media-type']);
         $t->same(sha1($packetBytes), $mappedLink->attr('attributes')['data-pandoc-media-sha1']);
-
-        $markdown = (new MarkdownWriter())->write($extracted['document']);
-        $t->contains('[review packet](media/downloads/review.pdf "Review packet"){', $markdown);
-        $t->contains('data-pandoc-media-source="downloads/review.pdf"', $markdown);
         $blocks = (new WordPressBlockWriter())->write($extracted['document']);
         $t->contains('<a href="media/downloads/review.pdf" title="Review packet" data-pandoc-media-source="downloads/review.pdf"', $blocks);
         $t->contains('<img src="media/figures/chart.svg" alt="Chart"', $blocks);
@@ -737,10 +727,6 @@ return [
         $t->same('font/woff2', $mappedFont->attr('attributes')['data-pandoc-media-type']);
         $t->same('media/' . $jsonPath, $mappedJson->attr('url'));
         $t->same('application/json', $mappedJson->attr('attributes')['data-pandoc-media-type']);
-
-        $markdown = (new MarkdownWriter())->write($extracted['document']);
-        $t->contains('[stylesheet](media/' . $cssPath . ' "Stylesheet"){', $markdown);
-        $t->contains('data-pandoc-media-type="text/css"', $markdown);
         $blocks = (new WordPressBlockWriter())->write($extracted['document']);
         $t->contains('<a href="media/' . $fontSource . '" title="Font" data-pandoc-media-source="' . $fontSource . '"', $blocks);
         $t->contains('data-pandoc-media-type="font/woff2"', $blocks);
@@ -990,11 +976,8 @@ return [
         $t->same('application-pdf', $lowerAttrs['data-pandoc-media-linked-mime-group']);
         $t->same('4', $lowerAttrs['data-pandoc-media-linked-mime-group-size']);
         $t->same('safe-relative-path,casefold-path-collision-disambiguated', $lowerAttrs['data-pandoc-media-path-repair']);
-
-        $markdown = (new MarkdownWriter())->write($extracted['document']);
         $blocks = (new WordPressBlockWriter())->write($extracted['document']);
         $roundTrip = (new PandocJsonReader())->read((new PandocJsonWriter())->write($extracted['document']));
-        $t->contains('data-pandoc-media-path-repair="percent-decoded-path"', $markdown);
         $t->contains('data-pandoc-media-linked-mime-group="application-pdf"', $blocks);
         $t->same('casefold-path-collision-disambiguated', explode(',', $roundTrip->children[0]->children[8]->attr('attributes')['data-pandoc-media-path-repair'])[1]);
     },

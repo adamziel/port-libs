@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 use PortLibs\Pandoc\AstNode;
 use PortLibs\Pandoc\MarkdownReader;
-use PortLibs\Pandoc\MarkdownWriter;
 use PortLibs\Pandoc\WordPressBlockWriter;
 
 $makePositionedLine = static function (array $cells, array $starts): string {
@@ -130,7 +129,6 @@ foreach ($cases as $name => $case) {
         static function (TestRunner $t) use ($case, $firstTable, $cellText): void {
             $document = (new MarkdownReader())->read($case['markdown']);
             $table = $firstTable($document);
-            $markdown = (new MarkdownWriter())->write($document);
             $blocks = (new WordPressBlockWriter())->write($document);
 
             $t->same('table', $table->type);
@@ -141,7 +139,6 @@ foreach ($cases as $name => $case) {
             } else {
                 foreach ($case['headers'] as $column => $expected) {
                     $t->same($expected, $cellText($table, 'head', 0, $column));
-                    $t->contains($expected, $markdown);
                     $t->contains($expected, $blocks);
                 }
             }
@@ -149,7 +146,6 @@ foreach ($cases as $name => $case) {
             foreach ($case['rows'] as $row => $cells) {
                 foreach ($cells as $column => $expected) {
                     $t->same($expected, $cellText($table, 'body', $row, $column));
-                    $t->contains($expected, $markdown);
                     $t->contains($expected, $blocks);
                 }
             }

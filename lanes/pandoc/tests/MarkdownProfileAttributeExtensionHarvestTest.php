@@ -4,12 +4,6 @@ declare(strict_types=1);
 
 use PortLibs\Pandoc\AstNode;
 use PortLibs\Pandoc\MarkdownReader;
-use PortLibs\Pandoc\MarkdownWriter;
-
-$text = static fn (string $value): AstNode => new AstNode('text', ['text' => $value]);
-$plain = static fn (string $value): AstNode => new AstNode('plain', [], [new AstNode('text', ['text' => $value])]);
-$paragraph = static fn (array $children): AstNode => new AstNode('paragraph', [], $children);
-$document = static fn (array $children): AstNode => new AstNode('document', [], $children);
 
 $findFirst = static function (AstNode $node, string $type) use (&$findFirst): AstNode {
     if ($node->type === $type) {
@@ -127,69 +121,19 @@ $readerExampleFormats = [
     'markdown numbered examples disabled' => ['format' => 'markdown-numbered_examples', 'enabled' => false],
 ];
 
-$writerCodeFormats = [
-    'markdown default' => ['format' => 'markdown', 'enabled' => true],
-    'pandoc alias default' => ['format' => 'pandoc', 'enabled' => true],
-    'commonmark_x default' => ['format' => 'commonmark_x', 'enabled' => true],
-    'commonmark inline_code_attributes' => ['format' => 'commonmark+inline_code_attributes', 'enabled' => true],
-    'gfm inline_code_attributes' => ['format' => 'gfm+inline_code_attributes', 'enabled' => true],
-    'commonmark attributes umbrella' => ['format' => 'commonmark+attributes', 'enabled' => true],
-    'strict attributes umbrella' => ['format' => 'markdown_strict+attributes', 'enabled' => true],
-    'commonmark default disabled' => ['format' => 'commonmark', 'enabled' => false],
-    'gfm default disabled' => ['format' => 'gfm', 'enabled' => false],
-    'strict default disabled' => ['format' => 'markdown_strict', 'enabled' => false],
-    'phpextra default disabled' => ['format' => 'markdown_phpextra', 'enabled' => false],
-    'mmd default disabled' => ['format' => 'markdown_mmd', 'enabled' => false],
-    'markdown inline_code_attributes disabled' => ['format' => 'markdown-inline_code_attributes', 'enabled' => false],
-];
-
-$writerLinkFormats = [
-    'markdown default' => ['format' => 'markdown', 'enabled' => true],
-    'pandoc alias default' => ['format' => 'pandoc', 'enabled' => true],
-    'commonmark_x default' => ['format' => 'commonmark_x', 'enabled' => true],
-    'commonmark link_attributes' => ['format' => 'commonmark+link_attributes', 'enabled' => true],
-    'gfm link_attributes' => ['format' => 'gfm+link_attributes', 'enabled' => true],
-    'commonmark attributes umbrella' => ['format' => 'commonmark+attributes', 'enabled' => true],
-    'strict attributes umbrella' => ['format' => 'markdown_strict+attributes', 'enabled' => true],
-    'phpextra default' => ['format' => 'markdown_phpextra', 'enabled' => true],
-    'commonmark default disabled' => ['format' => 'commonmark', 'enabled' => false],
-    'gfm default disabled' => ['format' => 'gfm', 'enabled' => false],
-    'strict default disabled' => ['format' => 'markdown_strict', 'enabled' => false],
-    'mmd default disabled' => ['format' => 'markdown_mmd', 'enabled' => false],
-    'markdown link_attributes disabled' => ['format' => 'markdown-link_attributes', 'enabled' => false],
-];
-
-$writerExampleFormats = [
-    'commonmark example_lists' => ['format' => 'commonmark+example_lists', 'enabled' => true],
-    'commonmark numbered_examples' => ['format' => 'commonmark+numbered_examples', 'enabled' => true],
-    'gfm numbered_examples' => ['format' => 'gfm+numbered_examples', 'enabled' => true],
-    'strict numbered_example alias' => ['format' => 'markdown_strict+numbered_example', 'enabled' => true],
-    'strict numbered_example_list alias' => ['format' => 'markdown_strict+numbered_example_list', 'enabled' => true],
-    'phpextra numbered_example_lists alias' => ['format' => 'markdown_phpextra+numbered_example_lists', 'enabled' => true],
-    'commonmark default disabled' => ['format' => 'commonmark', 'enabled' => false],
-    'gfm default disabled' => ['format' => 'gfm', 'enabled' => false],
-    'markdown numbered examples disabled' => ['format' => 'markdown-numbered_examples', 'enabled' => false],
-];
-
 $tests = [
     'records markdown profile attribute extension harvest mapped-case count' =>
         static function (TestRunner $t) use (
             $readerCodeFormats,
             $readerLinkFormats,
             $readerLinkFixtures,
-            $readerExampleFormats,
-            $writerCodeFormats,
-            $writerLinkFormats,
-            $writerExampleFormats
+            $readerExampleFormats
         ): void {
             $t->same(
-                105,
+                70,
                 count($readerCodeFormats)
                     + count($readerLinkFormats) * count($readerLinkFixtures)
                     + count($readerExampleFormats)
-                    + count($writerCodeFormats)
-                    + count($writerLinkFormats)
-                    + count($writerExampleFormats)
             );
         },
 ];
@@ -245,75 +189,6 @@ foreach ($readerExampleFormats as $label => $case) {
             } else {
                 $t->same('missing', $list->type, $case['format']);
                 $t->contains('(@profile-a) Example packet', $plainText($document), $case['format']);
-            }
-        };
-}
-
-foreach ($writerCodeFormats as $label => $case) {
-    $tests['maps upstream markdown writer inline code attribute extension ' . $label] =
-        static function (TestRunner $t) use ($case, $document, $paragraph, $text): void {
-            $markdown = (new MarkdownWriter(['format' => $case['format']]))->write($document([
-                $paragraph([
-                    $text('Use '),
-                    new AstNode('code', [
-                        'text' => 'packet',
-                        'id' => 'code-id',
-                        'classes' => ['source'],
-                        'attributes' => ['data-kind' => 'profile'],
-                    ]),
-                    $text(' now.'),
-                ]),
-            ]));
-
-            $tupleEnabled = str_contains($markdown, '`packet`{#code-id');
-
-            $t->same($case['enabled'], $tupleEnabled, $case['format'] . ' markdown tuple');
-            if ($case['enabled']) {
-                $t->contains('.source', $markdown, $case['format'] . ' class');
-                $t->contains('data-kind', $markdown, $case['format'] . ' attribute');
-            }
-        };
-}
-
-foreach ($writerLinkFormats as $label => $case) {
-    $tests['maps upstream markdown writer link attribute extension ' . $label] =
-        static function (TestRunner $t) use ($case, $document, $paragraph, $text): void {
-            $markdown = (new MarkdownWriter(['format' => $case['format']]))->write($document([
-                $paragraph([
-                    $text('Visit '),
-                    new AstNode('link', [
-                        'url' => 'https://example.test/profile',
-                        'id' => 'link-id',
-                        'classes' => ['linked'],
-                        'attributes' => ['data-kind' => 'profile'],
-                    ], [$text('profile')]),
-                    $text('.'),
-                ]),
-            ]));
-
-            $tupleEnabled = str_contains($markdown, '](https://example.test/profile){#link-id');
-
-            $t->same($case['enabled'], $tupleEnabled, $case['format'] . ' markdown tuple');
-            if ($case['enabled']) {
-                $t->contains('.linked', $markdown, $case['format'] . ' class');
-                $t->contains('data-kind', $markdown, $case['format'] . ' attribute');
-            }
-        };
-}
-
-foreach ($writerExampleFormats as $label => $case) {
-    $tests['maps upstream markdown writer numbered example extension alias ' . $label] =
-        static function (TestRunner $t) use ($case, $document, $plain): void {
-            $markdown = (new MarkdownWriter(['format' => $case['format']]))->write($document([
-                new AstNode('ordered_list', ['style' => 'example'], [
-                    new AstNode('list_item', ['exampleLabel' => 'profile-a'], [$plain('Example packet')]),
-                ]),
-            ]));
-
-            if ($case['enabled']) {
-                $t->same('(@profile-a) Example packet', $markdown, $case['format']);
-            } else {
-                $t->same('1.  Example packet', $markdown, $case['format']);
             }
         };
 }

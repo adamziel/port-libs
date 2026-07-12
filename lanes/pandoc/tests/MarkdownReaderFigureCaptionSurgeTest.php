@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 use PortLibs\Pandoc\AstNode;
 use PortLibs\Pandoc\MarkdownReader;
-use PortLibs\Pandoc\MarkdownWriter;
 use PortLibs\Pandoc\WordPressBlockWriter;
 
 /**
@@ -157,7 +156,6 @@ foreach ($cases as $case) {
         $image = $figure->children[0] ?? new AstNode('missing');
         $captionInlines = $figure->attr('captionInlines', []);
         $blocks = (new WordPressBlockWriter())->write($document);
-        $markdown = (new MarkdownWriter())->write($document);
 
         $t->same(1, count($document->children), $case['caseId'] . ' should parse to one figure block');
         $t->same('figure', $figure->type, $case['caseId'] . ' figure type');
@@ -182,7 +180,6 @@ foreach ($cases as $case) {
         $t->same($case['expectedAttributes'], $figure->attr('attributes'), $case['caseId'] . ' figure attributes');
         $t->contains('<figcaption>' . $case['htmlCaption'] . '</figcaption>', $blocks);
         $t->contains($case['expectedFigureHtmlAttribute'], $blocks);
-        $t->contains('![' . $case['expectedMarkdownLabel'] . '](' . $source['url'], $markdown);
     };
 }
 
@@ -283,7 +280,6 @@ foreach ($adjacentFigureCaptionCases as $case) {
         $shortCaptionInlines = $figure->attr('shortCaptionInlines', []);
         $attributes = $figure->attr('attributes', []);
         $htmlAttributes = $figure->attr('htmlAttributes', []);
-        $markdown = (new MarkdownWriter())->write($document);
         $blocks = (new WordPressBlockWriter())->write($document);
 
         $t->same(1, count($document->children));
@@ -306,12 +302,7 @@ foreach ($adjacentFigureCaptionCases as $case) {
         $t->same('figure', $captionInlines[1]->children[0]->attr('text'));
         $t->same(['text'], array_map(static fn (AstNode $node): string => $node->type, $shortCaptionInlines));
         $t->same($case['shortCaption'], $shortCaptionInlines[0]->attr('text'));
-
-        $t->contains('![Review *figure* ' . $case['caseId'] . '](' . $case['url'] . ' "' . $case['title'] . '")', $markdown);
-        $t->contains('{#' . $case['id'] . ' .figure-surge .' . $case['caseClass'], $markdown);
-        $t->contains($case['attributeSource'], $markdown);
         if ($case['alt'] !== 'Review figure ' . $case['caseId']) {
-            $t->contains('alt="' . $case['alt'] . '"', $markdown);
         }
 
         $t->contains('<!-- wp:image -->', $blocks);
@@ -425,15 +416,12 @@ foreach ($imageFixtures as $imageName => $fixture) {
                         : "Attributed figure {$number} {#{$id} .review-figure .{$imageName} lang=\"en-US\" title=\"{$imageName} figure\"}";
                     $document = (new MarkdownReader())->read($captionedFigureMarkdown($fixture, $position, $marker, $caption));
                     $figure = $firstFigure($document);
-                    $markdown = (new MarkdownWriter())->write(new AstNode('document', [], [$figure]));
 
                     $assertFigureImage($t, $figure, $fixture);
                     $t->same("Attributed figure {$number}", $figure->attr('caption'));
                     $t->same($id, $figure->attr('id'));
                     $t->same($attributeName === 'data-source' ? "batch-{$number}" : 'en-US', $figure->attr('attributes')[$attributeName] ?? null);
                     $t->contains('review-figure', implode(',', $figure->attr('classes')));
-                    $t->contains("#{$id}", $markdown);
-                    $t->contains('.review-figure', $markdown);
                 };
         }
     }

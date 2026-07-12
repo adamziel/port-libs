@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 use PortLibs\Pandoc\AstNode;
 use PortLibs\Pandoc\MarkdownReader;
-use PortLibs\Pandoc\MarkdownWriter;
 use PortLibs\Pandoc\WordPressBlockWriter;
 
 $emojiExtensionSurgeCases = [
@@ -129,7 +128,6 @@ foreach ($emojiExtensionSurgeCases as $alias => $glyph) {
             $t->same(['emoji'], $emoji->attr('classes'));
             $t->same(['data-emoji' => $alias], $emoji->attr('attributes'));
             $t->same($glyph, $emoji->children[0]->attr('text'));
-            $t->same($markdown, (new MarkdownWriter())->write($document));
             $t->contains(
                 '<span class="emoji" data-emoji="' . $alias . '">' . $html($glyph) . '</span>',
                 $blocks

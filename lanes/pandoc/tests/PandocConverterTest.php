@@ -149,15 +149,42 @@ return [
         $t->true(PandocConverter::canWrite('opml'));
         $t->true(PandocConverter::canWrite('epub'));
         $t->true(PandocConverter::canWrite('epub3'));
+        $t->true(!PandocConverter::canWrite('markdown'));
+        $t->true(!PandocConverter::canWrite('gfm'));
+        $t->true(!PandocConverter::canWrite('commonmark'));
+        $t->true(!PandocConverter::canWrite('latex'));
         $t->true(!PandocConverter::canWrite('epub2'));
         $t->true(!PandocConverter::canWrite('pdf'));
+    },
+    'keeps Markdown and LaTeX as input-only formats' => static function (TestRunner $t): void {
+        $markdown = PandocConverter::read('# Input remains supported', 'markdown');
+        $latex = PandocConverter::read('\\section{Input remains supported}', 'latex');
+
+        $t->same('heading', $markdown->children[0]->type);
+        $t->same('heading', $latex->children[0]->type);
+        foreach ([
+            'commonmark',
+            'commonmark_x',
+            'gfm',
+            'latex',
+            'markdown',
+            'markdown_github',
+            'markdown_mmd',
+            'markdown_phpextra',
+            'markdown_strict',
+        ] as $format) {
+            $t->throws(
+                \InvalidArgumentException::class,
+                static fn (): string => PandocConverter::write($markdown, $format),
+            );
+        }
     },
     'converts markdown sections to opml through the registered writer path' => static function (TestRunner $t): void {
         $opml = PandocConverter::convert("# Root\n\nIntro **note**.\n\n## Child\n", 'markdown', 'opml', [
             'writerOptions' => ['standalone' => false],
         ]);
 
-        $t->contains('<outline text="Root" _note="Intro **note**.">', $opml);
+        $t->contains('<outline text="Root" _note="Intro note.">', $opml);
         $t->contains('  <outline text="Child">', $opml);
     },
     'extracts and rewrites package media beside converted output' => static function (TestRunner $t): void {

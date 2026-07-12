@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 use PortLibs\Pandoc\AstNode;
 use PortLibs\Pandoc\MarkdownReader;
-use PortLibs\Pandoc\MarkdownWriter;
 use PortLibs\Pandoc\WordPressBlockWriter;
 
 /**
@@ -175,7 +174,6 @@ foreach ($cases as $case) {
         $captionInlines = $figure->attr('captionInlines', []);
         $captionSource = $figure->attr('captionSource', []);
         $blocks = (new WordPressBlockWriter())->write($document);
-        $markdown = (new MarkdownWriter())->write($document);
 
         $t->same(1, count($document->children), $case['caseId'] . ' should parse to one implicit figure block');
         $t->same('figure', $figure->type, $case['caseId'] . ' implicit figure type');
@@ -203,7 +201,6 @@ foreach ($cases as $case) {
         $t->same($case['expectedAttributes'], $figure->attr('attributes'), $case['caseId'] . ' figure attributes');
         $t->contains('<figcaption>' . $case['htmlCaption'] . '</figcaption>', $blocks);
         $t->contains($case['expectedFigureHtmlAttribute'], $blocks);
-        $t->contains($source['expectedMarkdownFragment'], $markdown);
     };
 }
 

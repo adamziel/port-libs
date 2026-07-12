@@ -3,7 +3,6 @@
 declare(strict_types=1);
 
 use PortLibs\Pandoc\AstNode;
-use PortLibs\Pandoc\MarkdownWriter;
 use PortLibs\Pandoc\NativeReader;
 use PortLibs\Pandoc\NativeWriter;
 use PortLibs\Pandoc\PandocJsonReader;
@@ -78,7 +77,7 @@ $documents = static function () use ($packet): array {
 
 $tests = [];
 
-$tests['maps pandoc json native adjacent raw html aliases through markdown and wordpress boundaries'] =
+$tests['maps pandoc json native adjacent raw html aliases through native and wordpress boundaries'] =
     static function (TestRunner $t) use ($documents, $packet, $aside, $section, $span, $em, $disabledInline, $disabledBlock): void {
         foreach ($documents() as $source => $document) {
             $rawHtml4Block = $document->children[0] ?? new AstNode('missing');
@@ -92,7 +91,6 @@ $tests['maps pandoc json native adjacent raw html aliases through markdown and w
             $jsonPacket = (new PandocJsonWriter())->toArray($document);
             $nativeText = (new NativeWriter(['blocksOnly' => true]))->write($document);
             $nativeRoundTripPacket = (new PandocJsonWriter())->toArray((new NativeReader())->read($nativeText));
-            $markdown = (new MarkdownWriter(['format' => 'commonmark', 'rawAttribute' => false]))->write($document);
             $blocks = (new WordPressBlockWriter())->write($document);
 
             $t->same(['raw_html', 'raw_html', 'paragraph', 'raw_block'], array_map(static fn (AstNode $node): string => $node->type, $document->children), "{$source} block adjacency types");
@@ -130,10 +128,6 @@ $tests['maps pandoc json native adjacent raw html aliases through markdown and w
             $t->same(['xhtml', $em], $nativeRoundTripPacket['blocks'][2]['c'][1]['c'], "{$source} native round-trip xhtml inline payload");
             $t->same(['opml', $disabledInline], $nativeRoundTripPacket['blocks'][2]['c'][2]['c'], "{$source} native round-trip disabled inline diagnostic payload");
             $t->same(['opml', $disabledBlock], $nativeRoundTripPacket['blocks'][3]['c'], "{$source} native round-trip disabled block diagnostic payload");
-            $t->same($aside . "\n" . $section . "\n\n" . $span . $em . 'Tail', $markdown, "{$source} markdown keeps raw boundaries stable");
-            $t->true(!str_contains($markdown, '<outline'), "{$source} markdown suppresses unsupported raw fallback");
-            $t->true(!str_contains($markdown, '</aside><section'), "{$source} markdown keeps adjacent raw blocks separated");
-            $t->true(!str_contains($markdown, "\n\n\n"), "{$source} markdown avoids surplus raw block boundaries");
             $t->contains('<!-- wp:html -->' . "\n" . $aside . "\n" . '<!-- /wp:html -->', $blocks, "{$source} wordpress html4 raw block");
             $t->contains('<!-- wp:html -->' . "\n" . $section . "\n" . '<!-- /wp:html -->', $blocks, "{$source} wordpress xhtml raw block");
             $t->contains('<p>' . $span . $em . '<span class="pandoc-raw-opml" data-pandoc-raw-format="opml">&lt;outline text=&quot;disabled-inline&quot;/&gt;</span>Tail</p>', $blocks, "{$source} wordpress adjacent raw inlines and disabled diagnostic");

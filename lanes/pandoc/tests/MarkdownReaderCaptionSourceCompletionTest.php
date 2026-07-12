@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 use PortLibs\Pandoc\AstNode;
 use PortLibs\Pandoc\MarkdownReader;
-use PortLibs\Pandoc\MarkdownWriter;
 use PortLibs\Pandoc\TableGeometry;
 use PortLibs\Pandoc\WordPressBlockWriter;
 
@@ -165,18 +164,6 @@ $assertRenderedAttributes = static function (TestRunner $t, string $html, array 
     }
 };
 
-$assertMarkdownAttributes = static function (TestRunner $t, string $markdown, array $case): void {
-    if ($case['id'] !== null) {
-        $t->contains('#' . $case['id'], $markdown);
-    }
-    foreach ($case['classes'] as $class) {
-        $t->contains('.' . $class, $markdown);
-    }
-    foreach ($case['attributes'] as $name => $value) {
-        $t->contains($name . '="' . $value . '"', $markdown);
-    }
-};
-
 $tests = [];
 $tableCases = [];
 $tableCaseNumber = 1;
@@ -212,16 +199,13 @@ foreach ($tableCases as $case) {
         $firstNodeOfType,
         $assertCaptionSourceAttributes,
         $assertNodeAttributes,
-        $assertRenderedAttributes,
-        $assertMarkdownAttributes
+        $assertRenderedAttributes
     ): void {
         $captionLine = $case['marker'] . ' ' . $case['caption'] . ' ' . $case['source'];
         $document = (new MarkdownReader())->read($captionedTableMarkdown($case['fixture']['markdown'], $case['position'], $captionLine));
         $table = $firstNodeOfType($document, 'table');
         $captionSource = $table->attr('captionSource', []);
         $packet = TableGeometry::reviewPacket($table, ['accessibility' => false]);
-        $markdown = (new MarkdownWriter())->write(new AstNode('document', [], [$table]));
-        $htmlMarkdown = (new MarkdownWriter(['htmlTableAutoFallback' => true]))->write(new AstNode('document', [], [$table]));
         $blocks = (new WordPressBlockWriter())->write(new AstNode('document', [], [$table]));
 
         $t->same('table', $table->type);
@@ -240,11 +224,6 @@ foreach ($tableCases as $case) {
         foreach ($case['attributes'] as $name => $value) {
             $t->same($value, $sourceSummary['attributes'][$name] ?? null);
         }
-
-        $t->contains($case['caption'], $markdown);
-        $t->contains($case['source'], $markdown);
-        $t->contains('<caption', $htmlMarkdown);
-        $assertRenderedAttributes($t, $htmlMarkdown, $case);
         $t->contains('<figcaption', $blocks);
         $assertRenderedAttributes($t, $blocks, $case);
     };
@@ -285,15 +264,13 @@ foreach ($figureCases as $case) {
         $firstNodeOfType,
         $assertCaptionSourceAttributes,
         $assertNodeAttributes,
-        $assertRenderedAttributes,
-        $assertMarkdownAttributes
+        $assertRenderedAttributes
     ): void {
         $captionLine = $case['marker'] . ' ' . $case['caption'] . ' ' . $case['source'];
         $document = (new MarkdownReader())->read($captionedFigureMarkdown($case['fixture'], $case['position'], $captionLine));
         $figure = $firstNodeOfType($document, 'figure');
         $image = $figure->children[0] ?? new AstNode('missing');
         $captionSource = $figure->attr('captionSource', []);
-        $markdown = (new MarkdownWriter())->write(new AstNode('document', [], [$figure]));
         $blocks = (new WordPressBlockWriter())->write(new AstNode('document', [], [$figure]));
 
         $t->same('figure', $figure->type);
@@ -305,9 +282,6 @@ foreach ($figureCases as $case) {
         $t->same($case['marker'], $captionSource['marker'] ?? null);
         $assertCaptionSourceAttributes($t, $captionSource, $case);
         $assertNodeAttributes($t, $figure, $case);
-
-        $t->contains('![Figure **caption** ' . $case['caseId'] . '](' . $case['fixture']['url'], $markdown);
-        $assertMarkdownAttributes($t, $markdown, $case);
         $t->contains('<figcaption>Figure <strong>caption</strong> ' . $case['caseId'] . '</figcaption>', $blocks);
         $assertRenderedAttributes($t, $blocks, $case);
     };

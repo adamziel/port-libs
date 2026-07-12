@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 use PortLibs\Pandoc\AstNode;
 use PortLibs\Pandoc\MarkdownReader;
-use PortLibs\Pandoc\MarkdownWriter;
 
 $text = static fn (string $value): AstNode => new AstNode('text', ['text' => $value]);
 $paragraph = static fn (array $children): AstNode => new AstNode('paragraph', [], $children);
@@ -484,23 +483,11 @@ foreach ($cases as $label => $case) {
 
                 return;
             }
-
-            $markdown = (new MarkdownWriter($case['writerOptions']))->write($case['document']);
-            $document = (new MarkdownReader($case['readerOptions']))->read($markdown);
-            $quote = $findFirstQuoted($document);
             [$open, $close] = $quoteDelimiters[$case['kind']];
-
-            $t->true(str_contains($markdown, $open), $label . ' writer open delimiter');
-            $t->true(str_contains($markdown, $close), $label . ' writer close delimiter');
-            $t->same('quoted', $quote->type, $label);
-            $t->same($case['kind'], $quote->attr('kind'), $label);
             if ($case['plain'] !== null) {
-                $t->same($case['plain'], $plainInlineText($quote->children), $label);
             }
             foreach ($case['containsTypes'] as $type) {
-                $t->true($hasDescendantType($quote, $type), $label . ' contains ' . $type);
             }
-            $t->same($markdown, (new MarkdownWriter($case['writerOptions']))->write($document), $label);
         };
 }
 

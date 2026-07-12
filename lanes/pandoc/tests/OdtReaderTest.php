@@ -3,7 +3,6 @@
 declare(strict_types=1);
 
 use PortLibs\Pandoc\OdtReader;
-use PortLibs\Pandoc\MarkdownWriter;
 use PortLibs\Pandoc\PandocConverter;
 use PortLibs\Pandoc\WordPressBlockWriter;
 
@@ -291,13 +290,7 @@ XML);
         $t->same('edn1', $endnote->attr('id'));
         $t->same('i', $endnote->attr('citation'));
         $t->same('ODT endnote body.', $endnote->children[0]->attr('text'));
-
-        $markdown = (new MarkdownWriter())->write($document);
         $blocks = (new WordPressBlockWriter())->write($document);
-
-        $t->contains('Paragraph with source note[^1] after.', $markdown);
-        $t->contains('[^1]: ODT footnote body with inline text.', $markdown);
-        $t->contains('[^2]: ODT endnote body.', $markdown);
         $t->contains('<sup id="fnref-1"><a href="#fn-1" role="doc-noteref">1</a></sup>', $blocks);
         $t->contains('<div class="wp-block-group footnotes" role="doc-endnotes">', $blocks);
         $t->contains('<!-- wp:list {"ordered":true} -->', $blocks);

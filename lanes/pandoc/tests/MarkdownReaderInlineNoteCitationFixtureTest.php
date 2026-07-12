@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 use PortLibs\Pandoc\AstNode;
 use PortLibs\Pandoc\MarkdownReader;
-use PortLibs\Pandoc\MarkdownWriter;
 use PortLibs\Pandoc\NativeWriter;
 use PortLibs\Pandoc\WordPressBlockWriter;
 
@@ -91,7 +90,6 @@ $tests['serializes upstream markdown inline-note citations through native markdo
     static function (TestRunner $t) use ($inlineNoteCitationFixture): void {
         $document = (new MarkdownReader())->read($inlineNoteCitationFixture());
         $native = (new NativeWriter())->write($document);
-        $markdown = (new MarkdownWriter())->write($document);
         $blocks = (new WordPressBlockWriter())->write($document);
 
         $t->contains('Para [ Str "foo" , Note [ Para [ Str "bar"', $native);
@@ -104,13 +102,6 @@ $tests['serializes upstream markdown inline-note citations through native markdo
         $t->contains('citationId = "smith"', $native);
         $t->contains('citationPrefix = [ Str "see" ]', $native);
         $t->contains('citationMode = SuppressAuthor', $native);
-
-        $t->contains('foo[^1]', $markdown);
-        $t->contains('alpha[^2]', $markdown);
-        $t->contains('trail[^3]', $markdown);
-        $t->contains('[^1]: bar [@doe]', $markdown);
-        $t->contains('[^2]: note [packet](https://example.test/source "source title") and @roe [p. 9]', $markdown);
-        $t->contains('[^3]: code `]` and [@smith; see -@doe]', $markdown);
         $t->contains('<p>foo<sup id="fnref-1"><a href="#fn-1" role="doc-noteref">1</a></sup></p>', $blocks);
         $t->contains('<span class="pandoc-citation" data-pandoc-citation-id="doe"', $blocks);
         $t->contains('<a href="https://example.test/source" title="source title">packet</a>', $blocks);

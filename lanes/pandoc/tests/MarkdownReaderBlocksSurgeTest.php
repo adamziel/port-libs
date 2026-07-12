@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 use PortLibs\Pandoc\AstNode;
 use PortLibs\Pandoc\MarkdownReader;
-use PortLibs\Pandoc\MarkdownWriter;
 use PortLibs\Pandoc\WordPressBlockWriter;
 
 $inlineText = static function (AstNode $node) use (&$inlineText): string {
@@ -1048,7 +1047,6 @@ foreach ($tableCaptionSurgeCases as $case) {
         $shortCaptionInlines = $table->attr('shortCaptionInlines', []);
         $attributes = $table->attr('attributes', []);
         $htmlAttributes = $table->attr('htmlAttributes', []);
-        $markdown = (new MarkdownWriter())->write($document);
         $blocks = (new WordPressBlockWriter())->write($document);
 
         $t->same(1, count($document->children));
@@ -1067,12 +1065,6 @@ foreach ($tableCaptionSurgeCases as $case) {
         $t->same('Term', $table->children[0]->children[0]->children[0]->attr('text'));
         $t->same($case['rowLabel'], $table->children[1]->children[0]->children[0]->attr('text'));
         $t->same((string) $case['number'], $table->children[1]->children[0]->children[1]->attr('text'));
-        $t->contains(
-            ': [' . $case['shortCaption'] . '] ' . $case['caption']
-                . ' {#' . $case['id'] . ' .surge .' . $case['caseClass']
-                . ' ' . $case['attributeSource'] . '}',
-            $markdown
-        );
         $t->contains(
             '<figure class="wp-block-table" data-pandoc-short-caption="' . $case['shortCaption'] . '">',
             $blocks

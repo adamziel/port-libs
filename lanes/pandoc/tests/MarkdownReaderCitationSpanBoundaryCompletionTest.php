@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 use PortLibs\Pandoc\AstNode;
 use PortLibs\Pandoc\MarkdownReader;
-use PortLibs\Pandoc\MarkdownWriter;
 use PortLibs\Pandoc\WordPressBlockWriter;
 
 $inlineTypes = static fn (AstNode $node): array => array_map(
@@ -74,10 +73,7 @@ return [
     'serializes upstream citation span boundary through markdown and wordpress handoff' =>
         static function (TestRunner $t): void {
             $document = (new MarkdownReader())->read('@foo [test]{.bar}');
-            $markdown = (new MarkdownWriter())->write($document);
             $blocks = (new WordPressBlockWriter())->write($document);
-
-            $t->same('@foo [test]{.bar}', $markdown);
             $t->contains('<span class="pandoc-citation" data-pandoc-citation-id="foo"', $blocks);
             $t->contains('<span class="bar">test</span>', $blocks);
             $t->true(!str_contains($blocks, 'data-pandoc-citation-suffix="test"'));

@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 use PortLibs\Pandoc\AstNode;
 use PortLibs\Pandoc\MarkdownReader;
-use PortLibs\Pandoc\MarkdownWriter;
 use PortLibs\Pandoc\WordPressBlockWriter;
 
 /**
@@ -75,14 +74,12 @@ foreach ($cases as $name => $case) {
         static function (TestRunner $t) use ($case, $rawHtmlInlines): void {
             $document = (new MarkdownReader())->read('Lead ' . $case['source'] . ' trail');
             $paragraph = $document->children[0] ?? new AstNode('missing');
-            $markdown = (new MarkdownWriter())->write($document);
             $blocks = (new WordPressBlockWriter())->write($document);
 
             $t->same('paragraph', $paragraph->type);
             $t->same($case['raw'], $rawHtmlInlines($paragraph));
 
             foreach ($case['raw'] as $rawHtml) {
-                $t->contains($rawHtml, $markdown);
                 $t->contains($rawHtml, $blocks);
             }
         };

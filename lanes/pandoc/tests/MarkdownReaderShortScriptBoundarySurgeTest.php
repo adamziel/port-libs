@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 use PortLibs\Pandoc\AstNode;
 use PortLibs\Pandoc\MarkdownReader;
-use PortLibs\Pandoc\MarkdownWriter;
 
 $inlineText = static function (AstNode $node) use (&$inlineText): string {
     if ($node->type === 'text' || $node->type === 'code' || $node->type === 'math') {
@@ -109,14 +108,10 @@ return [
             foreach ($boundaryCases as $index => $case) {
                 $document = $reader->read($case['source']);
                 $paragraph = $document->children[0] ?? new AstNode('missing');
-                $markdown = (new MarkdownWriter())->write($document);
-                $roundTrip = $reader->read($markdown)->children[0] ?? new AstNode('missing');
 
                 $t->same('paragraph', $paragraph->type, 'case ' . $index);
                 $t->same($case['source'], $inlineText($paragraph), 'case ' . $index . ' source text');
                 $t->same(false, $containsInlineType($paragraph, $case['type']), 'case ' . $index . ' should not parse short script');
-                $t->same($case['source'], $inlineText($roundTrip), 'case ' . $index . ' writer round trip text');
-                $t->same(false, $containsInlineType($roundTrip, $case['type']), 'case ' . $index . ' writer round trip type');
                 $mapped++;
             }
 

@@ -27,7 +27,6 @@ XML;
 
         $document = PandocConverter::read($opml, 'opml');
         $blocks = PandocConverter::write($document, 'blocks');
-        $markdown = PandocConverter::write($document, 'markdown');
         $meta = $document->attr('meta');
 
         $t->same('opml', $document->attr('sourceFormat'));
@@ -54,9 +53,6 @@ XML;
         $t->contains('<h1><a href="https://example.test/ref">Reference</a></h1>', $blocks);
         $t->contains('<h2>Child item</h2>', $blocks);
         $t->contains('<ul><li>Check one</li><li>Check two</li></ul>', $blocks);
-        $t->contains('# Project *Plan*', $markdown);
-        $t->contains('# [Reference](https://example.test/ref)', $markdown);
-        $t->contains('## Child item', $markdown);
     },
     'maps the upstream opml reader fixture structure' => static function (TestRunner $t): void {
         $opml = <<<'XML'

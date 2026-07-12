@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 use PortLibs\Pandoc\AstNode;
 use PortLibs\Pandoc\MarkdownReader;
-use PortLibs\Pandoc\MarkdownWriter;
 use PortLibs\Pandoc\WordPressBlockWriter;
 
 return [
@@ -73,13 +72,11 @@ return [
             ));
             $rawHtml = array_map(static fn (AstNode $node): string => (string) $node->attr('html'), $rawNodes);
             $blocks = (new WordPressBlockWriter())->write($document);
-            $markdown = (new MarkdownWriter())->write($document);
 
             $t->same('paragraph', $paragraph->type, 'case ' . $index . ' should stay an inline paragraph');
             $t->same($case['raw'], $rawHtml, 'case ' . $index . ' raw inline HTML tokens');
             foreach ($case['raw'] as $html) {
                 $t->contains($html, $blocks, 'case ' . $index . ' WordPress output should preserve raw inline HTML');
-                $t->contains($html, $markdown, 'case ' . $index . ' Markdown output should preserve raw inline HTML');
             }
             $mapped++;
         }

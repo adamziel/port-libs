@@ -3,7 +3,6 @@
 declare(strict_types=1);
 
 use PortLibs\Pandoc\CitationCslProcessor;
-use PortLibs\Pandoc\MarkdownWriter;
 use PortLibs\Pandoc\OdfReader;
 use PortLibs\Pandoc\OpenDocumentPackage;
 use PortLibs\Pandoc\WordPressBlockWriter;
@@ -1044,7 +1043,6 @@ XML;
 
         $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithQuoteIndent, null, $stylesWithQuoteIndent));
         $blocks = $result['document']->children;
-        $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
 
         $t->same(3, count($blocks));
@@ -1064,10 +1062,6 @@ XML;
         $t->same('paragraph', $blocks[2]->type);
         $t->same('Indented but not quoted.', $blocks[2]->attr('text'));
         $t->same(2, $result['importReport']['content']['blockquoteCount']);
-
-        $t->contains('> Quoted migration decision.', $markdown);
-        $t->contains('> Inherited quoted detail.', $markdown);
-        $t->contains('Indented but not quoted.', $markdown);
         $t->contains('<blockquote class="wp-block-quote odf-blockquote"><p>Quoted migration decision.</p></blockquote>', $blocksHtml);
         $t->contains('<blockquote class="wp-block-quote odf-blockquote"><p>Inherited quoted detail.</p></blockquote>', $blocksHtml);
         $t->contains('<p>Indented but not quoted.</p>', $blocksHtml);
@@ -1118,12 +1112,7 @@ XML;
         $t->same('ReviewQuote', $listItemParagraph->attr('styleName'));
         $t->same('Indented checklist paragraph stays in the list item.', $listItemParagraph->attr('text'));
         $t->same(1, $result['importReport']['content']['blockquoteCount']);
-
-        $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-        $t->contains('> Top-level quote remains a quote.', $markdown);
-        $t->contains('1.  Indented checklist paragraph stays in the list item.', $markdown);
-        $t->true(!str_contains($markdown, "1.  >"), 'ODT list paragraph indentation must not become a nested blockquote');
         $t->contains('<blockquote class="wp-block-quote odf-blockquote"><p>Top-level quote remains a quote.</p></blockquote>', $blocksHtml);
         $t->contains('<ol><li>Indented checklist paragraph stays in the list item.</li></ol>', $blocksHtml);
         $t->true(!str_contains($blocksHtml, '<li><blockquote'), 'WordPress list output must not wrap the indented list paragraph in a quote');
@@ -1170,10 +1159,7 @@ XML;
         $t->same('paragraph', $paragraph->type);
         $t->same('Following review prose stays a paragraph.', $paragraph->attr('text'));
         $t->same(1, $result['importReport']['content']['preformattedCodeBlockCount']);
-
-        $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-        $t->contains("```{data-odf-preformatted=\"true\" data-odf-style-name=\"InheritedSourceCode\"}\ndefine('WP_DEBUG', true);\necho sanitize_text_field(\$title); // review\n```", $markdown);
         $t->contains('<pre class="wp-block-code" data-odf-preformatted="true" data-odf-style-name="InheritedSourceCode"><code>define(&#039;WP_DEBUG&#039;, true);', $blocksHtml);
         $t->contains("echo sanitize_text_field(\$title); // review</code></pre>", $blocksHtml);
         $t->contains('<p>Following review prose stays a paragraph.</p>', $blocksHtml);
@@ -1236,11 +1222,7 @@ XML;
 
         $t->same('text', $blocks[2]->children[0]->type);
         $t->same('Plain styled paragraph.', $blocks[2]->attr('text'));
-
-        $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-        $t->contains('**[Important [source](https://example.test/source) packet.]{data-odf-style-name="StrongParagraph"}**', $markdown);
-        $t->contains('[***[Inherited emphasis packet.]{data-odf-style-name="InheritedEmphasisParagraph"}***]{.smallcaps}', $markdown);
         $t->contains('<p><strong><span data-odf-style-name="StrongParagraph">Important <a href="https://example.test/source">source</a> packet.</span></strong></p>', $blocksHtml);
         $t->contains('<p><span style="font-variant:small-caps"><em><strong><span data-odf-style-name="InheritedEmphasisParagraph">Inherited emphasis packet.</span></strong></em></span></p>', $blocksHtml);
         $t->contains('<p>Plain styled paragraph.</p>', $blocksHtml);
@@ -1286,11 +1268,7 @@ XML;
         $t->same('Source_20_Text', $secondCode->attr('styleName'));
         $t->same('code', $headingCode->type);
         $t->same('do_shortcode', $headingCode->attr('text'));
-
-        $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-        $t->contains('Inline `wp_insert_post`{data-odf-style-name="Source_Text"} keeps `esc_html( $title)`{data-odf-style-name="Source_20_Text"}.', $markdown);
-        $t->contains('## Use `do_shortcode`{data-odf-style-name="Source_Text"}', $markdown);
         $t->contains('<p>Inline <code data-odf-style-name="Source_Text">wp_insert_post</code> keeps <code data-odf-style-name="Source_20_Text">esc_html( $title)</code>.</p>', $blocksHtml);
         $t->contains('<h2 id="use-do-shortcode">Use <code data-odf-style-name="Source_Text">do_shortcode</code></h2>', $blocksHtml);
     },
@@ -1403,13 +1381,7 @@ XML;
         $t->same('StyledHeading', $headings[2]->attr('styleName'));
         $t->same('section', $headings[3]->attr('id'));
         $t->same(3, $headings[3]->attr('level'));
-
-        $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-        $t->contains('# ODT Source Packet', $markdown);
-        $t->contains('## ODT Source Packet', $markdown);
-        $t->contains('## Styled packet title', $markdown);
-        $t->contains('### !!!', $markdown);
         $t->contains('<h1 id="odt-source-packet">ODT Source Packet</h1>', $blocksHtml);
         $t->contains('<h2 id="odt-source-packet-1">ODT Source Packet</h2>', $blocksHtml);
         $t->contains('<h2 id="styled-packet-title">Styled packet title</h2>', $blocksHtml);
@@ -1464,12 +1436,7 @@ XML;
 
         $t->same('source-review-anchor-1', $headings[2]->attr('id'));
         $t->same('Source Review Anchor', $headings[2]->attr('text'));
-
-        $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-        $t->contains('# Heading from source bookmark {#source-review-anchor data-odf-heading-anchor-source="bookmark" data-odf-heading-bookmark-name="Source Review Anchor" data-odf-heading-anchor-id="source-review-anchor"}', $markdown);
-        $t->contains('## Styled heading from bookmark {#styled-source-anchor data-odf-heading-anchor-source="bookmark" data-odf-heading-bookmark-name="Styled Source Anchor" data-odf-heading-anchor-id="styled-source-anchor"}', $markdown);
-        $t->contains('## Source Review Anchor {#source-review-anchor-1}', $markdown);
         $t->contains('<h1 id="source-review-anchor" data-odf-heading-anchor-source="bookmark" data-odf-heading-bookmark-name="Source Review Anchor" data-odf-heading-anchor-id="source-review-anchor">Heading from source bookmark</h1>', $blocksHtml);
         $t->contains('<h2 id="styled-source-anchor" data-odf-heading-anchor-source="bookmark" data-odf-heading-bookmark-name="Styled Source Anchor" data-odf-heading-anchor-id="styled-source-anchor">Styled heading from bookmark</h2>', $blocksHtml);
         $t->contains('<h2 id="source-review-anchor-1">Source Review Anchor</h2>', $blocksHtml);
@@ -1523,12 +1490,7 @@ XML;
         $t->same('source-review-id-1', $headings[2]->attr('id'));
         $t->same('source-review-id', $headings[2]->attr('odfHeadingAnchor')['sourceId']);
         $t->same('Duplicate source id', $headings[2]->attr('text'));
-
-        $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-        $t->contains('# Heading with text id {#source-review-id data-odf-heading-anchor-source="attribute" data-odf-heading-source-attribute="text:id" data-odf-heading-source-id="source-review-id" data-odf-heading-anchor-id="source-review-id"}', $markdown);
-        $t->contains('## Styled heading with XML id {#styled-source-id data-odf-heading-anchor-source="attribute" data-odf-heading-source-attribute="xml:id" data-odf-heading-source-id="styled-source-id" data-odf-heading-anchor-id="styled-source-id"}', $markdown);
-        $t->contains('## Duplicate source id {#source-review-id-1 data-odf-heading-anchor-source="attribute" data-odf-heading-source-attribute="text:id" data-odf-heading-source-id="source-review-id" data-odf-heading-anchor-id="source-review-id-1"}', $markdown);
         $t->contains('<h1 id="source-review-id" data-odf-heading-anchor-source="attribute" data-odf-heading-source-attribute="text:id" data-odf-heading-source-id="source-review-id" data-odf-heading-anchor-id="source-review-id">Heading with text id</h1>', $blocksHtml);
         $t->contains('<h2 id="styled-source-id" data-odf-heading-anchor-source="attribute" data-odf-heading-source-attribute="xml:id" data-odf-heading-source-id="styled-source-id" data-odf-heading-anchor-id="styled-source-id">Styled heading with XML id</h2>', $blocksHtml);
         $t->contains('<h2 id="source-review-id-1" data-odf-heading-anchor-source="attribute" data-odf-heading-source-attribute="text:id" data-odf-heading-source-id="source-review-id" data-odf-heading-anchor-id="source-review-id-1">Duplicate source id</h2>', $blocksHtml);
@@ -1583,10 +1545,7 @@ XML;
         $t->same(2, $geometry['columnCount'] ?? null);
         $t->same(2, $geometry['summary']['rowCount'] ?? null);
         $t->same('Migration desk', $geometry['coverage'][2]['text'] ?? null);
-
-        $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-        $t->contains(': Protected Review Matrix', $markdown);
         $t->contains('<table data-odf-table-name="Protected Review Matrix" data-odf-table-style-name="ReviewTable" data-odf-table-protected="true" data-odf-table-protection-key-present="true" data-odf-table-protection-key-digest-algorithm="urn:odf:sha1">', $blocksHtml);
         $t->contains('<figcaption class="wp-element-caption">Protected Review Matrix</figcaption>', $blocksHtml);
     },
@@ -1695,10 +1654,7 @@ XML;
         $t->same('2', $table->attr('htmlAttributes')['data-odf-table-print-range-count']);
         $t->same('PrintableReview.A1:PrintableReview.B2;PrintableReview.D1:PrintableReview.D4', $table->attr('htmlAttributes')['data-odf-table-print-ranges']);
         $t->same(2, $result['importReport']['content']['tablePrintRangeCount']);
-
-        $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-        $t->contains(': PrintableReview', $markdown);
         $t->contains('<table data-odf-table-name="PrintableReview" data-odf-table-print-range-count="2" data-odf-table-print-ranges="PrintableReview.A1:PrintableReview.B2;PrintableReview.D1:PrintableReview.D4">', $blocksHtml);
     },
     'maps ODT table scenarios into review metadata' => static function (TestRunner $t) use ($buildOdtPackage): void {
@@ -1772,10 +1728,7 @@ XML;
         $t->same('ScenarioReview.A2:ScenarioReview.B3;ScenarioReview.D2:ScenarioReview.D4;ScenarioReview.A5:ScenarioReview.B6', $table->attr('htmlAttributes')['data-odf-table-scenario-ranges']);
         $t->same(2, $result['importReport']['content']['tableScenarioCount']);
         $t->same(1, $result['importReport']['content']['activeTableScenarioCount']);
-
-        $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-        $t->contains(': ScenarioReview', $markdown);
         $t->contains('<table class="odf-table-scenario" data-odf-table-name="ScenarioReview" data-odf-table-scenario-count="2" data-odf-table-active-scenario-count="1" data-odf-table-scenario-names="ReadyImport,DraftFallback" data-odf-table-scenario-ranges="ScenarioReview.A2:ScenarioReview.B3;ScenarioReview.D2:ScenarioReview.D4;ScenarioReview.A5:ScenarioReview.B6">', $blocksHtml);
     },
     'preserves quoted ODT table range tokens in print scenarios and consolidation metadata' => static function (TestRunner $t) use ($buildOdtPackage): void {
@@ -2035,10 +1988,7 @@ XML;
         $t->same('Sheet Reviewer', $cell->attr('htmlAttributes')['data-odf-cell-annotation-authors']);
         $t->same('2026-06-09T01:11:00Z', $cell->attr('htmlAttributes')['data-odf-cell-annotation-dates']);
         $t->same(1, $result['importReport']['content']['tableCellAnnotationCount']);
-
-        $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-        $t->contains('Ready', $markdown);
         $t->contains('<td class="odf-table-cell-annotation" data-odf-cell-annotation-count="1" data-odf-cell-annotation-authors="Sheet Reviewer" data-odf-cell-annotation-dates="2026-06-09T01:11:00Z" data-odf-cell-annotation-text-count="1"><p>Ready</p></td>', $blocksHtml);
         $t->true(!str_contains($blocksHtml, 'Confirm imported source status.'), 'ODT cell annotation comments must remain review metadata, not visible table-cell content');
     },
@@ -2663,10 +2613,7 @@ XML;
         $t->same('true', $table->attr('htmlAttributes')['data-odf-table-template-exists']);
         $t->same('9', $table->attr('htmlAttributes')['data-odf-table-template-style-count']);
         $t->same(1, $result['importReport']['content']['tableTemplateReferenceCount']);
-
-        $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-        $t->contains(': Templated Review', $markdown);
         $t->contains('<table class="odf-table-template" data-odf-table-name="Templated Review" data-odf-table-template-name="ReviewTemplate" data-odf-table-template-exists="true" data-odf-table-template-style-count="9">', $blocksHtml);
     },
     'maps ODT table column repeats visibility and widths into review metadata' => static function (TestRunner $t) use ($buildOdtPackage): void {
@@ -2875,10 +2822,7 @@ XML;
         $t->same('span', $subscript->children[0]->type);
         $t->same('SourceSubscript', $subscript->children[0]->attr('styleName'));
         $t->same('2', $subscript->children[0]->children[0]->attr('text'));
-
-        $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-        $t->contains('Reviewed mark^[TM]{data-odf-style-name="InheritedSuperscript"}^ and H~[2]{data-odf-style-name="SourceSubscript"}~O survive.', $markdown);
         $t->contains('<sup><span data-odf-style-name="InheritedSuperscript">TM</span></sup>', $blocksHtml);
         $t->contains('<sub><span data-odf-style-name="SourceSubscript">2</span></sub>', $blocksHtml);
     },
@@ -2928,11 +2872,7 @@ XML;
         $t->same('span', $strikeout->children[0]->type);
         $t->same('DraftStrike', $strikeout->children[0]->attr('styleName'));
         $t->same('draft copy', $strikeout->children[0]->children[0]->attr('text'));
-
-        $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-        $t->contains('[**[Source Title]{data-odf-style-name="NumericBoldSmallCaps"}**]{.smallcaps}', $markdown);
-        $t->contains('~~[draft copy]{data-odf-style-name="DraftStrike"}~~', $markdown);
         $t->contains('<span style="font-variant:small-caps"><strong><span data-odf-style-name="NumericBoldSmallCaps">Source Title</span></strong></span>', $blocksHtml);
         $t->contains('<del><span data-odf-style-name="DraftStrike">draft copy</span></del>', $blocksHtml);
     },
@@ -3005,11 +2945,7 @@ XML;
         $t->same('wp_cli', $fixedSpan->children[0]->attr('text'));
         $t->same('DirectPitchSource', $directSpan->attr('styleName'));
         $t->same('AutomaticFixedPitchSource', $automaticSpan->attr('styleName'));
-
-        $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-        $t->contains('[wp_cli]{data-odf-style-name="FixedPitchSource"}', $markdown);
-        $t->contains('[auto style]{data-odf-style-name="AutomaticFixedPitchSource"}', $markdown);
         $t->contains('<span data-odf-style-name="FixedPitchSource">wp_cli</span>', $blocksHtml);
         $t->contains('<span data-odf-style-name="AutomaticFixedPitchSource">auto style</span>', $blocksHtml);
     },
@@ -3046,11 +2982,7 @@ XML;
         $t->same('Tokyo', $secondRuby->attr('rubyText'));
         $t->same('東京', $secondRuby->children[0]->attr('text'));
         $t->same(2, $result['importReport']['content']['rubyCount']);
-
-        $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-        $t->contains('[漢字]{.odf-ruby data-odf-ruby-text="kanji" data-odf-ruby-style-name="SourceRuby" data-odf-ruby-text-style-name="RubyText"}', $markdown);
-        $t->contains('[東京]{.odf-ruby data-odf-ruby-text="Tokyo"}', $markdown);
         $t->contains('<span class="odf-ruby" data-odf-ruby-text="kanji" data-odf-ruby-style-name="SourceRuby" data-odf-ruby-text-style-name="RubyText">漢字</span>', $blocksHtml);
         $t->contains('<span class="odf-ruby" data-odf-ruby-text="Tokyo">東京</span>', $blocksHtml);
     },
@@ -3124,13 +3056,7 @@ XML;
         $t->same(2, $resetList->attr('start'));
         $t->same('Reset review item', $resetList->children[0]->children[0]->attr('text'));
         $t->same(1, $result['importReport']['content']['continuedListCount']);
-
-        $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-        $t->contains('2.  First review item', $markdown);
-        $t->contains('  d.  Nested legal note', $markdown);
-        $t->contains('4.  Third review item', $markdown);
-        $t->contains('2.  Reset review item', $markdown);
         $t->contains('<ol start="2">', $blocksHtml);
         $t->contains('<ol start="4" type="a">', $blocksHtml);
         $t->contains('<ol start="4">', $blocksHtml);
@@ -3197,10 +3123,7 @@ XML;
         $t->same('true', $continuedList->attr('htmlAttributes')['data-odf-list-continued']);
         $t->same('Third source step', $continuedList->children[0]->children[0]->attr('text'));
         $t->same(1, $result['importReport']['content']['continuedListCount']);
-
-        $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-        $t->contains('3.  Third source step', $markdown);
         $t->contains('<ol data-odf-list-id="review-list-a" data-odf-list-id-attribute="text:id"><li>First source step</li><li>Second source step</li></ol>', $blocksHtml);
         $t->contains('<ol data-odf-list-id="unrelated-list" data-odf-list-id-attribute="text:id"><li>Unrelated inserted checklist</li></ol>', $blocksHtml);
         $t->contains('<ol start="3" data-odf-list-continue-list="review-list-a" data-odf-list-continued="true"><li>Third source step</li></ol>', $blocksHtml);
@@ -3286,14 +3209,11 @@ XML;
         $t->same('listtab', $htmlAttributes['data-odf-list-label-label-followed-by']);
         $t->same('0.35in', $htmlAttributes['data-odf-list-label-list-tab-stop-position']);
         $t->same(1, $result['importReport']['content']['imageListStyleCount']);
-
-        $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
         $manifestByPath = [];
         foreach ($result['manifest'] as $item) {
             $manifestByPath[$item['fullPath']] = $item;
         }
-        $t->contains('- Review packet with graphic bullet', $markdown);
         $t->contains('<ul data-odf-list-image-style="true" data-odf-list-image-href="Pictures/review-bullet.svg" data-odf-list-image-type="simple" data-odf-list-image-show="embed" data-odf-list-image-actuate="onLoad" data-odf-list-image-title="Review badge" data-odf-list-image-width="0.18in" data-odf-list-image-height="0.18in"', $blocksHtml);
         $t->contains('data-odf-list-level-min-label-width="0.28in"', $blocksHtml);
         $t->contains('data-odf-list-label-label-followed-by="listtab"', $blocksHtml);
@@ -3388,11 +3308,7 @@ XML;
         $t->same('true', $innerAttributes['data-odf-list-text-underline']);
         $t->same('true', $innerAttributes['data-odf-list-text-strikeout']);
         $t->same(2, $result['importReport']['content']['listTextPropertyCount']);
-
-        $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-        $t->contains('1.  Styled marker source item', $markdown);
-        $t->contains('- Nested marker style metadata', $markdown);
         $t->contains('<ol data-odf-list-text-property-count="7" data-odf-list-text-font-name="ListMono" data-odf-list-text-font-face-name="ListMono"', $blocksHtml);
         $t->contains('data-odf-list-text-font-face-font-family="&#039;List Mono&#039;"', $blocksHtml);
         $t->contains('data-odf-list-text-bold="true" data-odf-list-text-italic="true" data-odf-list-text-small-caps="true"', $blocksHtml);
@@ -3455,13 +3371,7 @@ XML;
         $t->same('style-start-value', $resetList->attr('startSource'));
         $t->same('Reset to style start', $resetList->children[0]->children[0]->attr('text'));
         $t->same(1, $result['importReport']['content']['continuedListCount']);
-
-        $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-        $t->contains('g.  Explicit source item', $markdown);
-        $t->contains('h.  Second explicit source item', $markdown);
-        $t->contains('i.  Continued after explicit source start', $markdown);
-        $t->contains('b.  Reset to style start', $markdown);
         $t->contains('<ol start="7" type="a"><li>Explicit source item</li><li>Second explicit source item</li></ol>', $blocksHtml);
         $t->contains('<ol start="9" type="a"><li>Continued after explicit source start</li></ol>', $blocksHtml);
         $t->contains('<ol start="2" type="a"><li>Reset to style start</li></ol>', $blocksHtml);
@@ -3512,11 +3422,7 @@ XML;
         $t->same('lower_alpha', $inner->attr('style'));
         $t->same(2, $inner->attr('listLevel'));
         $t->same('Inherited nested review item', $inner->children[0]->children[0]->attr('text'));
-
-        $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-        $t->contains('2.  Top-level review item', $markdown);
-        $t->contains('  d.  Inherited nested review item', $markdown);
         $t->contains('<ol start="2">', $blocksHtml);
         $t->contains('<ol start="4" type="a">', $blocksHtml);
     },
@@ -3595,13 +3501,7 @@ XML;
         $t->same(')', $level4->attr('numberSuffix'));
         $t->same(4, $level4->attr('listLevel'));
         $t->same('Deep sparse fallback item', $level4->children[0]->children[0]->attr('text'));
-
-        $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-        $t->contains('1.  Top sparse review item', $markdown);
-        $t->contains('1.  Missing level two fallback item', $markdown);
-        $t->contains('vii) Exact sparse level item', $markdown);
-        $t->contains('vii) Deep sparse fallback item', $markdown);
         $t->contains('<ol start="7" type="i">', $blocksHtml);
         $t->contains('<li>Deep sparse fallback item</li>', $blocksHtml);
     },
@@ -3687,13 +3587,7 @@ XML;
         $t->same('default', $level4->attr('delimiter'));
         $t->same('[', $level4->attr('numberPrefix'));
         $t->same(']', $level4->attr('numberSuffix'));
-
-        $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-        $t->contains('(2) Top-level review item', $markdown);
-        $t->contains('C)  Upper alpha nested item', $markdown);
-        $t->contains('iv. Roman period nested item', $markdown);
-        $t->contains('5.  Default delimiter nested item', $markdown);
         $t->contains('<ol start="2">', $blocksHtml);
         $t->contains('<ol start="3" type="A">', $blocksHtml);
         $t->contains('<ol start="4" type="i">', $blocksHtml);
@@ -3745,14 +3639,7 @@ XML;
         $t->same('First numbered item', $firstItem->children[0]->attr('text'));
         $t->same('Second numbered item', $secondItem->children[0]->attr('text'));
         $t->same(1, $result['importReport']['content']['listHeaderCount']);
-
-        $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-        $t->contains('::: {.odf-list-header data-odf-list-header="true" data-odf-list-level="1"}', $markdown);
-        $t->contains('Review scope introduction', $markdown);
-        $t->contains('c.  First numbered item', $markdown);
-        $t->contains('d.  Second numbered item', $markdown);
-        $t->true(!str_contains($markdown, 'd.  First numbered item'), 'List header must not advance ordered Markdown numbering');
         $t->contains('<div class="odf-list-header" data-odf-list-header="true" data-odf-list-level="1"><p>Review scope introduction</p></div>', $blocksHtml);
         $t->contains('<ol start="3" type="a"><li>First numbered item</li><li>Second numbered item</li></ol>', $blocksHtml);
     },
@@ -3808,13 +3695,7 @@ XML;
         $t->same(2, $result['importReport']['content']['noteCount']);
         $t->same(1, $result['importReport']['content']['bookmarkCount']);
         $t->same(1, $result['importReport']['content']['bookmarkReferenceCount']);
-
-        $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-        $t->contains('[]{#review-anchor .anchor .odf-bookmark data-odf-bookmark-name="Review Anchor"}', $markdown);
-        $t->contains('[jump back](#review-anchor){.odf-bookmark-ref data-odf-ref-name="Review Anchor" data-odf-reference-format="text"}', $markdown);
-        $t->contains('[^1]: ODF footnote body.', $markdown);
-        $t->contains('[^2]: ODF endnote body with [review link](https://example.test/review).', $markdown);
         $t->contains('<span id="review-anchor" class="anchor odf-bookmark" data-odf-bookmark-name="Review Anchor" data-pandoc-anchor="empty-target"></span>', $blocksHtml);
         $t->contains('<a href="#review-anchor" class="odf-bookmark-ref" data-odf-ref-name="Review Anchor" data-odf-reference-format="text">jump back</a>', $blocksHtml);
         $t->contains('<li id="fn-1"><p>ODF footnote body.</p>', $blocksHtml);
@@ -3843,10 +3724,7 @@ XML;
         $t->same('ODF source citation marker body.', $note->children[0]->attr('text'));
         $t->same('Reviewer note keeps source numbering metadata.', $paragraph->attr('text'));
         $t->same(1, $result['importReport']['content']['noteCount']);
-
-        $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-        $t->contains('[^1]: ODF source citation marker body.', $markdown);
         $t->contains('<li id="fn-1"><p>ODF source citation marker body.</p>', $blocksHtml);
     },
     'preserves ODT notes configuration metadata for footnote and endnote review' => static function (TestRunner $t) use ($buildOdtPackage): void {
@@ -3936,11 +3814,7 @@ XML;
         $t->same('ii', $endnote->attr('citation'));
         $t->same('Endnotes', $endnoteConfiguration['masterPageName']);
         $t->same('i', $endnoteConfiguration['numFormat']);
-
-        $markdown = (new MarkdownWriter())->write($document);
         $blocksHtml = (new WordPressBlockWriter())->write($document);
-        $t->contains('[^1]: Configured footnote body.', $markdown);
-        $t->contains('[^2]: Configured endnote body.', $markdown);
         $t->contains('<li id="fn-1"><p>Configured footnote body.</p>', $blocksHtml);
         $t->contains('<li id="fn-2"><p>Configured endnote body.</p>', $blocksHtml);
     },
@@ -3999,10 +3873,7 @@ XML;
         $t->same('25%', $result['importReport']['contentDeclarations']['noteConfigurationsByClass']['footnote']['footnoteSeparator']['relWidth']);
         $t->same('0.018cm', $footnoteConfiguration['footnoteSeparator']['width']);
         $t->same('25%', $footnoteConfiguration['footnoteSeparator']['relWidth']);
-
-        $markdown = (new MarkdownWriter())->write($document);
         $blocksHtml = (new WordPressBlockWriter())->write($document);
-        $t->contains('[^1]: Separator footnote body.', $markdown);
         $t->contains('<li id="fn-1"><p>Separator footnote body.</p>', $blocksHtml);
     },
     'maps ODT line numbering configuration into content declarations' => static function (TestRunner $t) use ($buildOdtPackage): void {
@@ -4105,10 +3976,7 @@ XML;
         $t->same('simple', $link->attr('attributes')['data-odf-link-type']);
         $t->same('new', $link->attr('attributes')['data-odf-link-show']);
         $t->same('onRequest', $link->attr('attributes')['data-odf-link-actuate']);
-
-        $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-        $t->contains('[review link](https://example.test/source.odt#review "Source ODT review"){.odf-link data-odf-link-name="Source Link" data-odf-link-style-name="SourceLink" data-odf-link-visited-style-name="VisitedSourceLink" data-odf-link-target-frame-name="_blank" data-odf-link-type="simple" data-odf-link-show="new" data-odf-link-actuate="onRequest"}', $markdown);
         $t->contains('<a href="https://example.test/source.odt#review" title="Source ODT review" class="odf-link" data-odf-link-name="Source Link" data-odf-link-style-name="SourceLink" data-odf-link-visited-style-name="VisitedSourceLink" data-odf-link-target-frame-name="_blank" data-odf-link-type="simple" data-odf-link-show="new" data-odf-link-actuate="onRequest">review link</a>', $blocksHtml);
     },
     'maps ODT link event listeners into inert review metadata' => static function (TestRunner $t) use ($buildOdtPackage): void {
@@ -4154,10 +4022,7 @@ XML;
         $t->same('dom:click', $link->attr('attributes')['data-odf-link-event-2-name']);
         $t->same('ReviewLinkClick', $link->attr('attributes')['data-odf-link-event-2-macro-name']);
         $t->same(2, $result['importReport']['content']['eventListenerCount']);
-
-        $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-        $t->contains('[review link](https://example.test/source.odt "Evented source"){.odf-link data-odf-link-type="simple" data-odf-link-event-listener-count="2" data-odf-link-event-1-name="dom:mouseover"', $markdown);
         $t->contains('<a href="https://example.test/source.odt" title="Evented source" class="odf-link" data-odf-link-type="simple" data-odf-link-event-listener-count="2" data-odf-link-event-1-name="dom:mouseover"', $blocksHtml);
         $t->true(!str_contains($blocksHtml, '<script:event-listener'), 'Expected raw ODT script event XML to stay out of WordPress output');
     },
@@ -4328,12 +4193,7 @@ XML;
         $t->same('link', $localLink->type);
         $t->same('./local.odt', $localLink->attr('url'));
         $t->same('local packet', $localLink->children[0]->attr('text'));
-
-        $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-
-        $t->contains('[review packet](media/source.odt?download=1#review "Parent source")', $markdown);
-        $t->contains('[local packet](./local.odt)', $markdown);
         $t->contains('<a href="media/source.odt?download=1#review" title="Parent source">review packet</a>', $blocksHtml);
         $t->contains('<a href="./local.odt">local packet</a>', $blocksHtml);
     },
@@ -4364,10 +4224,7 @@ XML;
         $t->same(7, $image->attr('bytes'));
         $t->same('Parent hero alt', $image->attr('alt'));
         $t->same('Parent hero title', $image->attr('title'));
-
-        $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-        $t->contains('![Parent hero alt](Pictures/hero.png?download=1#hero "Parent hero title")', $markdown);
         $t->contains('<img src="Pictures/hero.png?download=1#hero" alt="Parent hero alt" title="Parent hero title"/>', $blocksHtml);
         $t->true(!str_contains($blocksHtml, '../Pictures/hero.png'), 'Parent-relative image href should not leak into WordPress output');
     },
@@ -4406,11 +4263,7 @@ XML;
         $t->same('Range comment for the annotated source claim.', $note->children[0]->attr('text'));
         $t->same(1, $result['importReport']['content']['noteCount']);
         $t->same(1, $result['importReport']['content']['annotationRangeCount']);
-
-        $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-        $t->contains('[annotated claim[^1]]{.odf-annotation-range data-odf-annotation-name="ann-review-1" data-odf-annotation-author="Migration Reviewer" data-odf-annotation-date="2026-06-05T05:58:00Z"}', $markdown);
-        $t->contains('[^1]: Range comment for the annotated source claim.', $markdown);
         $t->contains('<span class="odf-annotation-range" data-odf-annotation-name="ann-review-1" data-odf-annotation-author="Migration Reviewer" data-odf-annotation-date="2026-06-05T05:58:00Z">annotated claim<sup id="fnref-1">', $blocksHtml);
         $t->contains('<li id="fn-1"><p>Range comment for the annotated source claim.</p>', $blocksHtml);
     },
@@ -4463,11 +4316,7 @@ XML;
 
         $t->same(2, $result['importReport']['content']['referenceMarkCount']);
         $t->same(2, $result['importReport']['content']['referenceReferenceCount']);
-
-        $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-        $t->contains('[source claim]{#source-claim .odf-reference-mark .odf-reference-mark-range data-odf-reference-name="Source Claim" data-odf-reference-range="true"}', $markdown);
-        $t->contains('[source claim](#source-claim){.odf-reference-ref data-odf-ref-name="Source Claim" data-odf-reference-format="text"}', $markdown);
         $t->contains('<span id="source-claim" class="odf-reference-mark odf-reference-mark-range" data-odf-reference-name="Source Claim" data-odf-reference-range="true">source claim</span>', $blocksHtml);
         $t->contains('<a href="#source-claim" class="odf-reference-ref" data-odf-ref-name="Source Claim" data-odf-reference-format="text">source claim</a>', $blocksHtml);
         $t->contains('<span id="point-review" class="anchor odf-reference-mark" data-odf-reference-name="Point Review" data-pandoc-anchor="empty-target"></span>marker.', $blocksHtml);
@@ -4507,11 +4356,7 @@ XML;
         $t->same('#styled-source-claim', $reference->attr('url'));
         $t->same(1, $result['importReport']['content']['referenceMarkCount']);
         $t->same(1, $result['importReport']['content']['referenceReferenceCount']);
-
-        $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-        $t->contains('[styled [source link](https://example.test/source-claim)]{#styled-source-claim .odf-reference-mark .odf-reference-mark-range data-odf-reference-name="Styled Source Claim" data-odf-reference-range="true"}', $markdown);
-        $t->contains('[styled claim](#styled-source-claim){.odf-reference-ref data-odf-ref-name="Styled Source Claim" data-odf-reference-format="text"}', $markdown);
         $t->contains('<span id="styled-source-claim" class="odf-reference-mark odf-reference-mark-range" data-odf-reference-name="Styled Source Claim" data-odf-reference-range="true">styled <a href="https://example.test/source-claim">source link</a></span>', $blocksHtml);
         $t->contains('<a href="#styled-source-claim" class="odf-reference-ref" data-odf-ref-name="Styled Source Claim" data-odf-reference-format="text">styled claim</a>', $blocksHtml);
     },
@@ -4552,11 +4397,7 @@ XML;
         $t->same('Chapter', $chapterSequence->attr('attributes')['data-odf-sequence-name']);
         $t->same('A', $chapterSequence->children[0]->attr('text'));
         $t->same(2, $result['importReport']['content']['sequenceCount']);
-
-        $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-        $t->contains('Caption [Figure 1]{.odf-sequence data-odf-sequence-name="Illustration" data-odf-sequence-formula="ooow:Illustration+1" data-odf-sequence-ref-name="seq-hero"}: Hero image.', $markdown);
-        $t->contains('## Appendix [A]{.odf-sequence data-odf-sequence-name="Chapter" data-odf-sequence-formula="ooow:Chapter+1"}', $markdown);
         $t->contains('<span class="odf-sequence" data-odf-sequence-name="Illustration" data-odf-sequence-formula="ooow:Illustration+1" data-odf-sequence-ref-name="seq-hero">Figure 1</span>', $blocksHtml);
         $t->contains('<h2 id="appendix-a">Appendix <span class="odf-sequence" data-odf-sequence-name="Chapter" data-odf-sequence-formula="ooow:Chapter+1">A</span></h2>', $blocksHtml);
     },
@@ -4599,11 +4440,7 @@ XML;
         $t->same('text', $noteRef->attr('attributes')['data-odf-field-reference-format']);
         $t->same('1', $noteRef->children[0]->attr('text'));
         $t->same(2, $result['importReport']['content']['fieldCount']);
-
-        $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-        $t->contains('[Figure 1]{.odf-field .odf-field-sequence-ref data-odf-field-type="sequence-ref" data-odf-field-ref-name="seq-hero" data-odf-field-reference-format="category-and-value"}', $markdown);
-        $t->contains('[1]{.odf-field .odf-field-note-ref data-odf-field-type="note-ref" data-odf-field-ref-name="ftn-review" data-odf-field-reference-format="text" data-odf-field-note-class="footnote"}', $markdown);
         $t->contains('<span class="odf-field odf-field-sequence-ref" data-odf-field-type="sequence-ref" data-odf-field-ref-name="seq-hero" data-odf-field-reference-format="category-and-value">Figure 1</span>', $blocksHtml);
         $t->contains('<span class="odf-field odf-field-note-ref" data-odf-field-type="note-ref" data-odf-field-ref-name="ftn-review" data-odf-field-reference-format="text" data-odf-field-note-class="footnote">1</span>', $blocksHtml);
     },
@@ -4638,11 +4475,7 @@ XML;
         $t->same('span', $headingBreak->type);
         $t->same(true, $headingBreak->attr('softPageBreak'));
         $t->same(2, $result['importReport']['content']['softPageBreakCount']);
-
-        $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-        $t->contains('Before source page boundary []{.odf-soft-page-break data-odf-soft-page-break="true"}after source page boundary.', $markdown);
-        $t->contains('## Appendix marker[]{.odf-soft-page-break data-odf-soft-page-break="true"}continued heading', $markdown);
         $t->contains('<span class="odf-soft-page-break" data-odf-soft-page-break="true"></span>after source page boundary.', $blocksHtml);
         $t->contains('<h2 id="appendix-markercontinued-heading">Appendix marker<span class="odf-soft-page-break" data-odf-soft-page-break="true"></span>continued heading</h2>', $blocksHtml);
     },
@@ -4669,11 +4502,7 @@ XML;
         $t->true(!str_contains($paragraph->attr('text'), "\t"), 'ODF tabs should normalize to Pandoc spaces in plain text');
         $t->same('Heading tab', $heading->children[0]->attr('text'));
         $t->true(!str_contains($heading->children[0]->attr('text'), "\t"), 'ODF tabs should normalize to Pandoc spaces in headings');
-
-        $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-        $t->contains('Before after and inner tab.', $markdown);
-        $t->contains('## Heading tab', $markdown);
         $t->contains('<p>Before after and inner tab.</p>', $blocksHtml);
         $t->contains('<h2 id="heading-tab">Heading tab</h2>', $blocksHtml);
     },
@@ -4744,12 +4573,7 @@ XML;
         $t->same('Ready to publish', $blockControl->children[0]->attr('text'));
         $t->same(3, $result['importReport']['content']['formControlCount']);
         $t->same(1, $result['importReport']['content']['missingFormControlCount']);
-
-        $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-        $t->contains('[Source title]{.odf-form-control .odf-control-text data-odf-control-id="ctrl-title" data-odf-control-type="text" data-odf-control-exists="true"', $markdown);
-        $t->contains('[ctrl-missing]{.odf-form-control .odf-missing-form-control data-odf-control-id="ctrl-missing" data-odf-control-exists="false"}', $markdown);
-        $t->contains('::: {.odf-form-control .odf-control-checkbox data-odf-control-id="ctrl-publish" data-odf-control-type="checkbox" data-odf-control-exists="true"', $markdown);
         $t->contains('<span class="odf-form-control odf-control-text" data-odf-control-id="ctrl-title" data-odf-control-type="text" data-odf-control-exists="true"', $blocksHtml);
         $t->contains('<span class="odf-form-control odf-missing-form-control" data-odf-control-id="ctrl-missing" data-odf-control-exists="false">ctrl-missing</span>', $blocksHtml);
         $t->contains('<div class="odf-form-control odf-control-checkbox" data-odf-control-id="ctrl-publish" data-odf-control-type="checkbox" data-odf-control-exists="true"', $blocksHtml);
@@ -4816,13 +4640,7 @@ XML;
         $t->same('table', $control->attr('attributes')['data-odf-control-form-command-type']);
         $t->same('true', $control->attr('attributes')['data-odf-control-form-apply-filter']);
         $t->same('false', $control->attr('attributes')['data-odf-control-form-ignore-result']);
-
-        $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-
-        $t->contains('data-odf-control-form-action="https://example.test/import-review"', $markdown);
-        $t->contains('data-odf-control-form-command="import_review_packets"', $markdown);
-        $t->contains('data-odf-control-form-datasource="wp_import_queue"', $markdown);
         $t->contains('<span class="odf-form-control odf-control-text" data-odf-control-id="ctrl-submit-title"', $blocksHtml);
         $t->contains('data-odf-control-form-target-frame="_blank"', $blocksHtml);
         $t->contains('data-odf-control-form-master-fields="source_id"', $blocksHtml);
@@ -4909,13 +4727,7 @@ XML;
         $t->same(2, $result['importReport']['content']['formControlCount']);
         $t->same(5, $result['importReport']['content']['formControlOptionCount']);
         $t->same(3, $result['importReport']['content']['selectedFormControlOptionCount']);
-
-        $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-        $t->contains('[Review disposition]{.odf-form-control .odf-control-combobox data-odf-control-id="ctrl-disposition" data-odf-control-type="combobox" data-odf-control-exists="true"', $markdown);
-        $t->contains('data-odf-control-selected-option-labels="Ready to publish"', $markdown);
-        $t->contains('[Posts, Media]{.odf-form-control .odf-control-listbox data-odf-control-id="ctrl-categories" data-odf-control-type="listbox" data-odf-control-exists="true"', $markdown);
-        $t->contains('data-odf-control-list-source="Source.A2:Source.A4"', $markdown);
         $t->contains('<span class="odf-form-control odf-control-combobox" data-odf-control-id="ctrl-disposition" data-odf-control-type="combobox" data-odf-control-exists="true"', $blocksHtml);
         $t->contains('data-odf-control-option-count="2" data-odf-control-selected-option-count="1" data-odf-control-selected-option-labels="Ready to publish"', $blocksHtml);
         $t->contains('<span class="odf-form-control odf-control-listbox" data-odf-control-id="ctrl-categories" data-odf-control-type="listbox" data-odf-control-exists="true"', $blocksHtml);
@@ -4996,11 +4808,7 @@ XML;
         $t->same(1, $result['importReport']['contentDeclarations']['variableDeclarationCount']);
         $t->same(2, $result['importReport']['contentDeclarations']['userFieldDeclarationCount']);
         $t->same('Migration Desk', $result['importReport']['contentDeclarations']['userFieldDeclarations']['Reviewer']['stringValue']);
-
-        $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-        $t->contains('[Migration Desk]{.odf-field .odf-field-user-field-get data-odf-field-type="user-field-get" data-odf-field-name="Reviewer" data-odf-field-value-type="string" data-odf-field-string-value="Migration Desk" data-odf-field-declared="true"}', $markdown);
-        $t->contains('[12]{.odf-field .odf-field-user-field-get data-odf-field-type="user-field-get" data-odf-field-name="SourcePage" data-odf-field-value-type="float" data-odf-field-value="12" data-odf-field-declared="true"}', $markdown);
         $t->contains('<span class="odf-field odf-field-user-field-get" data-odf-field-type="user-field-get" data-odf-field-name="Reviewer" data-odf-field-value-type="string" data-odf-field-string-value="Migration Desk" data-odf-field-declared="true">Migration Desk</span>', $blocksHtml);
         $t->contains('<span class="odf-field odf-field-user-field-get" data-odf-field-type="user-field-get" data-odf-field-name="SourcePage" data-odf-field-value-type="float" data-odf-field-value="12" data-odf-field-declared="true">12</span>', $blocksHtml);
     },
@@ -5052,11 +4860,7 @@ XML;
         $t->same(false, isset($unresolvedReference->attr('attributes')['data-odf-field-declared']));
         $t->same(2, $result['contentDeclarations']['sequenceDeclarationCount']);
         $t->same(2, $result['importReport']['content']['fieldCount']);
-
-        $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-        $t->contains('[Figure 1]{.odf-field .odf-field-sequence-ref data-odf-field-type="sequence-ref" data-odf-field-name="Illustration" data-odf-field-ref-name="fig-hero" data-odf-field-reference-format="category-and-value" data-odf-field-sequence-display-outline-level="0" data-odf-field-sequence-separation-character="." data-odf-field-declared="true"}', $markdown);
-        $t->contains('[unknown-1]{.odf-field .odf-field-sequence-ref data-odf-field-type="sequence-ref" data-odf-field-name="Unknown" data-odf-field-ref-name="unknown-1" data-odf-field-reference-format="text"}', $markdown);
         $t->contains('<span class="odf-field odf-field-sequence-ref" data-odf-field-type="sequence-ref" data-odf-field-name="Illustration" data-odf-field-ref-name="fig-hero" data-odf-field-reference-format="category-and-value" data-odf-field-sequence-display-outline-level="0" data-odf-field-sequence-separation-character="." data-odf-field-declared="true">Figure 1</span>', $blocksHtml);
         $t->contains('<span class="odf-field odf-field-sequence-ref" data-odf-field-type="sequence-ref" data-odf-field-name="Unknown" data-odf-field-ref-name="unknown-1" data-odf-field-reference-format="text">unknown-1</span>', $blocksHtml);
     },
@@ -5119,11 +4923,7 @@ XML;
         $t->same('12', $countGet->children[0]->attr('text'));
         $t->same(4, $result['importReport']['content']['fieldCount']);
         $t->same(2, $result['importReport']['contentDeclarations']['variableDeclarationCount']);
-
-        $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-        $t->contains('[Ready]{.odf-field .odf-field-variable-get data-odf-field-type="variable-get" data-odf-field-name="ReviewStatus" data-odf-field-value-type="string" data-odf-field-string-value="Ready" data-odf-field-declared="true"}', $markdown);
-        $t->contains('[12]{.odf-field .odf-field-variable-get data-odf-field-type="variable-get" data-odf-field-name="ApprovedCount" data-odf-field-value-type="float" data-odf-field-value="12" data-odf-field-declared="true"}', $markdown);
         $t->contains('<span class="odf-field odf-field-variable-get" data-odf-field-type="variable-get" data-odf-field-name="ReviewStatus" data-odf-field-value-type="string" data-odf-field-string-value="Ready" data-odf-field-declared="true">Ready</span>', $blocksHtml);
         $t->contains('<span class="odf-field odf-field-variable-get" data-odf-field-type="variable-get" data-odf-field-name="ApprovedCount" data-odf-field-value-type="float" data-odf-field-value="12" data-odf-field-declared="true">12</span>', $blocksHtml);
     },
@@ -5184,11 +4984,7 @@ XML;
         $t->same('variable-get', $statusGet->attr('fieldType'));
         $t->same('ReviewStatus', $statusGet->attr('attributes')['data-odf-field-name']);
         $t->same(5, $result['importReport']['content']['fieldCount']);
-
-        $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-        $t->contains('[Ready]{.odf-field .odf-field-variable-set data-odf-field-type="variable-set" data-odf-field-name="ReviewStatus" data-odf-field-value-type="string" data-odf-field-string-value="Ready"}', $markdown);
-        $t->contains('[2]{.odf-field .odf-field-page-number data-odf-field-type="page-number" data-odf-field-select-page="current" data-odf-field-page-adjust="1"}', $markdown);
         $t->contains('<span class="odf-field odf-field-variable-set" data-odf-field-type="variable-set" data-odf-field-name="ReviewStatus" data-odf-field-value-type="string" data-odf-field-string-value="Ready">Ready</span>', $blocksHtml);
         $t->contains('<span class="odf-field odf-field-user-field-get" data-odf-field-type="user-field-get" data-odf-field-name="Reviewer">Migration Desk</span>', $blocksHtml);
         $t->contains('<span class="odf-field odf-field-date" data-odf-field-type="date" data-odf-field-date-value="2026-06-05" data-odf-field-fixed="true">June 5, 2026</span>', $blocksHtml);
@@ -5242,12 +5038,7 @@ XML;
         $t->same('false', $needsReview->attr('attributes')['data-odf-field-boolean-value']);
         $t->same('false', $needsReview->children[0]->attr('text'));
         $t->same(3, $result['importReport']['content']['fieldCount']);
-
-        $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-        $t->contains('[true]{.odf-field .odf-field-variable-set data-odf-field-type="variable-set" data-odf-field-name="Approved" data-odf-field-value-type="boolean" data-odf-field-boolean-value="true"}', $markdown);
-        $t->contains('[42.50]{.odf-field .odf-field-expression data-odf-field-type="expression" data-odf-field-name="ApprovedBudget" data-odf-field-formula="ooow:approved-budget" data-odf-field-value-type="currency" data-odf-field-value="42.50" data-odf-field-currency="USD"}', $markdown);
-        $t->contains('[false]{.odf-field .odf-field-user-field-get data-odf-field-type="user-field-get" data-odf-field-name="NeedsLegalReview" data-odf-field-value-type="boolean" data-odf-field-boolean-value="false" data-odf-field-declared="true"}', $markdown);
         $t->contains('<span class="odf-field odf-field-variable-set" data-odf-field-type="variable-set" data-odf-field-name="Approved" data-odf-field-value-type="boolean" data-odf-field-boolean-value="true">true</span>', $blocksHtml);
         $t->contains('<span class="odf-field odf-field-expression" data-odf-field-type="expression" data-odf-field-name="ApprovedBudget" data-odf-field-formula="ooow:approved-budget" data-odf-field-value-type="currency" data-odf-field-value="42.50" data-odf-field-currency="USD">42.50</span>', $blocksHtml);
         $t->contains('<span class="odf-field odf-field-user-field-get" data-odf-field-type="user-field-get" data-odf-field-name="NeedsLegalReview" data-odf-field-value-type="boolean" data-odf-field-boolean-value="false" data-odf-field-declared="true">false</span>', $blocksHtml);
@@ -5294,11 +5085,7 @@ XML;
         $t->same('USD', $sourceBudget->attr('fieldMetadata')['currency']);
         $t->same('42.50', $sourceBudget->children[0]->attr('text'));
         $t->same(2, $result['importReport']['content']['fieldCount']);
-
-        $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-        $t->contains('[11]{.odf-field .odf-field-measure data-odf-field-type="measure" data-odf-field-name="ApprovedImports" data-odf-field-kind="value" data-odf-field-formula="ooow:COUNT([Review.B2:Review.B12])" data-odf-field-value-type="float" data-odf-field-value="11" data-odf-field-style-name="ReviewInteger"}', $markdown);
-        $t->contains('[42.50]{.odf-field .odf-field-measure data-odf-field-type="measure" data-odf-field-name="SourceBudget" data-odf-field-kind="unit" data-odf-field-value-type="currency" data-odf-field-value="42.50" data-odf-field-currency="USD"}', $markdown);
         $t->contains('<span class="odf-field odf-field-measure" data-odf-field-type="measure" data-odf-field-name="ApprovedImports" data-odf-field-kind="value" data-odf-field-formula="ooow:COUNT([Review.B2:Review.B12])" data-odf-field-value-type="float" data-odf-field-value="11" data-odf-field-style-name="ReviewInteger">11</span>', $blocksHtml);
         $t->contains('<span class="odf-field odf-field-measure" data-odf-field-type="measure" data-odf-field-name="SourceBudget" data-odf-field-kind="unit" data-odf-field-value-type="currency" data-odf-field-value="42.50" data-odf-field-currency="USD">42.50</span>', $blocksHtml);
     },
@@ -5344,12 +5131,7 @@ XML;
         $t->same('Reviewer', $userFieldInput->attr('fieldName'));
         $t->same('Migration Desk', $userFieldInput->children[0]->attr('text'));
         $t->same(3, $result['importReport']['content']['fieldCount']);
-
-        $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-        $t->contains('[Imported packet title]{.odf-field .odf-field-text-input data-odf-field-type="text-input" data-odf-field-description="Confirm source title"}', $markdown);
-        $t->contains('[Ready]{.odf-field .odf-field-variable-input data-odf-field-type="variable-input" data-odf-field-name="ReviewStatus" data-odf-field-value-type="string" data-odf-field-string-value="Ready"}', $markdown);
-        $t->contains('[Migration Desk]{.odf-field .odf-field-user-field-input data-odf-field-type="user-field-input" data-odf-field-name="Reviewer"}', $markdown);
         $t->contains('<span class="odf-field odf-field-text-input" data-odf-field-type="text-input" data-odf-field-description="Confirm source title">Imported packet title</span>', $blocksHtml);
         $t->contains('<span class="odf-field odf-field-variable-input" data-odf-field-type="variable-input" data-odf-field-name="ReviewStatus" data-odf-field-value-type="string" data-odf-field-string-value="Ready">Ready</span>', $blocksHtml);
         $t->contains('<span class="odf-field odf-field-user-field-input" data-odf-field-type="user-field-input" data-odf-field-name="Reviewer">Migration Desk</span>', $blocksHtml);
@@ -5394,11 +5176,7 @@ XML;
         $t->same(false, $fallback->attr('fieldMetadata')['labels'][0]['selected']);
         $t->same('Escalate', $fallback->children[0]->attr('text'));
         $t->same(2, $result['importReport']['content']['fieldCount']);
-
-        $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-        $t->contains('[Ready to publish]{.odf-field .odf-field-drop-down data-odf-field-type="drop-down" data-odf-field-name="ReviewDisposition" data-odf-field-label-count="3" data-odf-field-selected-value="Ready to publish"}', $markdown);
-        $t->contains('[Escalate]{.odf-field .odf-field-drop-down data-odf-field-type="drop-down" data-odf-field-name="FallbackDisposition" data-odf-field-label-count="2" data-odf-field-selected-value="Escalate"}', $markdown);
         $t->contains('<span class="odf-field odf-field-drop-down" data-odf-field-type="drop-down" data-odf-field-name="ReviewDisposition" data-odf-field-label-count="3" data-odf-field-selected-value="Ready to publish">Ready to publish</span>', $blocksHtml);
         $t->contains('<span class="odf-field odf-field-drop-down" data-odf-field-type="drop-down" data-odf-field-name="FallbackDisposition" data-odf-field-label-count="2" data-odf-field-selected-value="Escalate">Escalate</span>', $blocksHtml);
     },
@@ -5445,11 +5223,7 @@ XML;
         $t->same('ImportDS', $databaseName->attr('fieldMetadata')['databaseName']);
         $t->same('ImportDS', $databaseName->children[0]->attr('text'));
         $t->same(4, $result['importReport']['content']['fieldCount']);
-
-        $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-        $t->contains('[Imported post title]{.odf-field .odf-field-database-display data-odf-field-type="database-display" data-odf-field-database-name="ImportDS" data-odf-field-table-name="wp_posts" data-odf-field-table-type="table" data-odf-field-column-name="post_title"}', $markdown);
-        $t->contains('[12]{.odf-field .odf-field-database-row-number data-odf-field-type="database-row-number" data-odf-field-database-name="ImportDS" data-odf-field-table-name="wp_posts" data-odf-field-row-number="12"}', $markdown);
         $t->contains('<span class="odf-field odf-field-database-display" data-odf-field-type="database-display" data-odf-field-database-name="ImportDS" data-odf-field-table-name="wp_posts" data-odf-field-table-type="table" data-odf-field-column-name="post_title">Imported post title</span>', $blocksHtml);
         $t->contains('<span class="odf-field odf-field-database-next" data-odf-field-type="database-next" data-odf-field-condition="Status == &quot;ready&quot;" data-odf-field-database-name="ImportDS" data-odf-field-table-name="wp_posts">next record</span>', $blocksHtml);
         $t->contains('<span class="odf-field odf-field-database-name" data-odf-field-type="database-name" data-odf-field-database-name="ImportDS">ImportDS</span>', $blocksHtml);
@@ -5681,10 +5455,7 @@ XML;
         $t->same(2, $result['importReport']['content']['dataPilotSubtotalCount'] ?? null);
         $t->same(2, $result['importReport']['content']['dataPilotMemberCount'] ?? null);
         $t->same('Data pilot tables stay metadata-only.', $result['document']->children[0]->attr('text'));
-
-        $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-        $t->contains('Data pilot tables stay metadata-only.', $markdown);
         $t->contains('<p>Data pilot tables stay metadata-only.</p>', $blocksHtml);
     },
     'maps ODT data pilot field display sort layout and reference metadata' => static function (TestRunner $t) use ($buildOdtPackage): void {
@@ -5829,10 +5600,7 @@ XML;
         $t->same(2, $result['importReport']['content']['dataPilotGroupCount'] ?? null);
         $t->same(3, $result['importReport']['content']['dataPilotGroupMemberCount'] ?? null);
         $t->same('Data pilot grouping policy stays metadata-only.', $result['document']->children[0]->attr('text'));
-
-        $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-        $t->contains('Data pilot grouping policy stays metadata-only.', $markdown);
         $t->contains('<p>Data pilot grouping policy stays metadata-only.</p>', $blocksHtml);
     },
     'maps ODT named ranges and expressions into content declarations' => static function (TestRunner $t) use ($buildOdtPackage): void {
@@ -5885,10 +5653,7 @@ XML;
         $t->same(2, $result['importReport']['content']['namedRangeCount'] ?? null);
         $t->same(1, $result['importReport']['content']['namedFormulaExpressionCount'] ?? null);
         $t->same('Named expressions stay metadata-only.', $result['document']->children[0]->attr('text'));
-
-        $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-        $t->contains('Named expressions stay metadata-only.', $markdown);
         $t->contains('<p>Named expressions stay metadata-only.</p>', $blocksHtml);
     },
     'reports duplicate ODT named range names without hiding source declarations' => static function (TestRunner $t) use ($buildOdtPackage): void {
@@ -5931,10 +5696,7 @@ XML;
         $t->same(2, $result['importReport']['content']['namedExpressionDuplicateEntryCount'] ?? null);
         $t->same($declarations, $result['document']->attr('contentDeclarations'));
         $t->same('Duplicate named expressions stay reviewable.', $result['document']->children[0]->attr('text'));
-
-        $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-        $t->contains('Duplicate named expressions stay reviewable.', $markdown);
         $t->contains('<p>Duplicate named expressions stay reviewable.</p>', $blocksHtml);
     },
     'maps ODT label ranges into content declarations' => static function (TestRunner $t) use ($buildOdtPackage): void {
@@ -5975,10 +5737,7 @@ XML;
         $t->same(['column' => 1, 'row' => 1], $result['importReport']['contentDeclarations']['labelRangeOrientationCounts'] ?? null);
         $t->same(2, $result['importReport']['content']['labelRangeCount'] ?? null);
         $t->same('Label ranges stay metadata-only.', $result['document']->children[0]->attr('text'));
-
-        $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-        $t->contains('Label ranges stay metadata-only.', $markdown);
         $t->contains('<p>Label ranges stay metadata-only.</p>', $blocksHtml);
     },
     'maps ODT calculation settings into content declarations' => static function (TestRunner $t) use ($buildOdtPackage): void {
@@ -6026,10 +5785,7 @@ XML;
         $t->same('0.0001', $result['importReport']['contentDeclarations']['calculationSettings']['iterationTolerance'] ?? null);
         $t->same(1, $result['importReport']['content']['calculationSettingCount'] ?? null);
         $t->same('Calculation settings stay metadata-only.', $result['document']->children[0]->attr('text'));
-
-        $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-        $t->contains('Calculation settings stay metadata-only.', $markdown);
         $t->contains('<p>Calculation settings stay metadata-only.</p>', $blocksHtml);
     },
     'maps ODT consolidation declarations into content declarations' => static function (TestRunner $t) use ($buildOdtPackage): void {
@@ -6081,10 +5837,7 @@ XML;
         $t->same(2, $result['importReport']['content']['consolidationCount'] ?? null);
         $t->same(2, $result['importReport']['content']['consolidationSourceRangeCount'] ?? null);
         $t->same('Consolidations stay metadata-only.', $result['document']->children[0]->attr('text'));
-
-        $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-        $t->contains('Consolidations stay metadata-only.', $markdown);
         $t->contains('<p>Consolidations stay metadata-only.</p>', $blocksHtml);
     },
     'maps ODT source metadata fields into review spans' => static function (TestRunner $t) use ($buildOdtPackage): void {
@@ -6137,11 +5890,7 @@ XML;
         $t->same('keywords', $keywords->attr('fieldType'));
         $t->same('odt, review', $keywords->children[0]->attr('text'));
         $t->same(6, $result['importReport']['content']['fieldCount']);
-
-        $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-        $t->contains('[Source Packet]{.odf-field .odf-field-title data-odf-field-type="title"}', $markdown);
-        $t->contains('[June 5, 2026]{.odf-field .odf-field-creation-date data-odf-field-type="creation-date" data-odf-field-date-value="2026-06-05"}', $markdown);
         $t->contains('<span class="odf-field odf-field-title" data-odf-field-type="title">Source Packet</span>', $blocksHtml);
         $t->contains('<span class="odf-field odf-field-author-name" data-odf-field-type="author-name" data-odf-field-fixed="true">Migration Desk</span>', $blocksHtml);
         $t->contains('<span class="odf-field odf-field-creation-time" data-odf-field-type="creation-time" data-odf-field-time-value="PT09H30M00S">09:30</span>', $blocksHtml);
@@ -6226,12 +5975,7 @@ XML;
         $t->same('template-name', $template->attr('fieldType'));
         $t->same('Templates/import-review.ott', $template->attr('fieldMetadata')['stringValue']);
         $t->same(10, $result['importReport']['content']['fieldCount']);
-
-        $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-        $t->contains('[Source Packet]{.odf-field .odf-field-title data-odf-field-type="title" data-odf-field-string-value="Source Packet" data-odf-field-metadata-source="meta.xml"}', $markdown);
-        $t->contains('[packet-42]{.odf-field .odf-field-user-defined data-odf-field-type="user-defined" data-odf-field-name="wp-source-id" data-odf-field-value-type="string" data-odf-field-string-value="packet-42" data-odf-field-metadata-source="meta.xml"}', $markdown);
-        $t->contains('[true]{.odf-field .odf-field-user-defined data-odf-field-type="user-defined" data-odf-field-name="approved" data-odf-field-value-type="boolean" data-odf-field-boolean-value="true" data-odf-field-metadata-source="meta.xml"}', $markdown);
         $t->contains('<span class="odf-field odf-field-title" data-odf-field-type="title" data-odf-field-string-value="Source Packet" data-odf-field-metadata-source="meta.xml">Source Packet</span>', $blocksHtml);
         $t->contains('<span class="odf-field odf-field-creation-date" data-odf-field-type="creation-date" data-odf-field-date-value="2026-06-05" data-odf-field-metadata-source="meta.xml">2026-06-05</span>', $blocksHtml);
         $t->contains('<span class="odf-field odf-field-template-name" data-odf-field-type="template-name" data-odf-field-string-value="Templates/import-review.ott" data-odf-field-metadata-source="meta.xml">Templates/import-review.ott</span>', $blocksHtml);
@@ -6274,10 +6018,7 @@ XML;
         $t->same('PT09H30M15S', $result['metadata']['creationTime']);
         $t->same('PT09H30M15S', $result['importReport']['metadata']['creationTime']);
         $t->same(1, $result['importReport']['content']['fieldCount']);
-
-        $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-        $t->contains('[PT09H30M15S]{.odf-field .odf-field-creation-time data-odf-field-type="creation-time" data-odf-field-time-value="PT09H30M15S" data-odf-field-metadata-source="meta.xml"}', $markdown);
         $t->contains('<span class="odf-field odf-field-creation-time" data-odf-field-type="creation-time" data-odf-field-time-value="PT09H30M15S" data-odf-field-metadata-source="meta.xml">PT09H30M15S</span>', $blocksHtml);
     },
     'maps ODT template and line number fields into review spans' => static function (TestRunner $t) use ($buildOdtPackage): void {
@@ -6315,11 +6056,7 @@ XML;
         $t->same('1', $lineNumber->attr('attributes')['data-odf-field-num-format']);
         $t->same('37', $lineNumber->children[0]->attr('text'));
         $t->same(2, $result['importReport']['content']['fieldCount']);
-
-        $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-        $t->contains('[Templates/import-review.ott]{.odf-field .odf-field-template-name data-odf-field-type="template-name" data-odf-field-display="full"}', $markdown);
-        $t->contains('[37]{.odf-field .odf-field-line-number data-odf-field-type="line-number" data-odf-field-num-format="1"}', $markdown);
         $t->contains('<span class="odf-field odf-field-template-name" data-odf-field-type="template-name" data-odf-field-display="full">Templates/import-review.ott</span>', $blocksHtml);
         $t->contains('<span class="odf-field odf-field-line-number" data-odf-field-type="line-number" data-odf-field-num-format="1">37</span>', $blocksHtml);
     },
@@ -6375,12 +6112,7 @@ XML;
         $t->same('2026-06-08', $dateMeta->attr('attributes')['data-odf-meta-date-value']);
         $t->same(3, $result['importReport']['content']['metaSpanCount']);
         $t->same(0, $result['importReport']['content']['fieldCount']);
-
-        $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-        $t->contains('[source claim]{.odf-meta data-odf-meta-type="meta" data-odf-meta-source-id="source-claim-meta" data-odf-meta-name="review:claim" data-odf-meta-description="Curated import source" data-odf-meta-style-name="MetaSource"}', $markdown);
-        $t->contains('[98%]{.odf-meta .odf-meta-field data-odf-meta-type="meta-field" data-odf-meta-name="review-score" data-odf-meta-value-type="float" data-odf-meta-value="0.98"}', $markdown);
-        $t->contains('[2026-06-08]{.odf-meta .odf-meta-field data-odf-meta-type="meta-field" data-odf-meta-name="review-date" data-odf-meta-value-type="date" data-odf-meta-date-value="2026-06-08"}', $markdown);
         $t->contains('<span class="odf-meta" data-odf-meta-type="meta" data-odf-meta-source-id="source-claim-meta" data-odf-meta-name="review:claim" data-odf-meta-description="Curated import source" data-odf-meta-style-name="MetaSource">source claim</span>', $blocksHtml);
         $t->contains('<span class="odf-meta odf-meta-field" data-odf-meta-type="meta-field" data-odf-meta-name="review-score" data-odf-meta-value-type="float" data-odf-meta-value="0.98">98%</span>', $blocksHtml);
         $t->contains('<span class="odf-meta odf-meta-field" data-odf-meta-type="meta-field" data-odf-meta-name="review-date" data-odf-meta-value-type="date" data-odf-meta-date-value="2026-06-08">2026-06-08</span>', $blocksHtml);
@@ -6441,10 +6173,7 @@ XML;
         $t->same('dc:creator,wp:review-status', $sourceMeta->attr('attributes')['data-odf-meta-rdf-subject-predicates']);
         $t->same(1, $result['importReport']['content']['metaSpanCount']);
         $t->same(1, $result['rdfMetadata']['subjectCount']);
-
-        $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-        $t->contains('[source claim]{.odf-meta data-odf-meta-type="meta" data-odf-meta-source-id="source-claim-meta" data-odf-meta-name="review:claim" data-odf-meta-rdf-about="content.xml#source-claim-meta" data-odf-meta-rdf-property="wp:review-status" data-odf-meta-rdf-content="ready" data-odf-meta-rdf-datatype="xsd:string" data-odf-meta-rdf-subject="content.xml#source-claim-meta" data-odf-meta-rdf-subject-part-count="1" data-odf-meta-rdf-subject-triple-count="2" data-odf-meta-rdf-subject-literal-count="2" data-odf-meta-rdf-subject-resource-count="0" data-odf-meta-rdf-subject-parts="manifest.rdf" data-odf-meta-rdf-subject-predicates="dc:creator,wp:review-status"}', $markdown);
         $t->contains('<span class="odf-meta" data-odf-meta-type="meta" data-odf-meta-source-id="source-claim-meta" data-odf-meta-name="review:claim" data-odf-meta-rdf-about="content.xml#source-claim-meta" data-odf-meta-rdf-property="wp:review-status" data-odf-meta-rdf-content="ready" data-odf-meta-rdf-datatype="xsd:string" data-odf-meta-rdf-subject="content.xml#source-claim-meta" data-odf-meta-rdf-subject-part-count="1" data-odf-meta-rdf-subject-triple-count="2" data-odf-meta-rdf-subject-literal-count="2" data-odf-meta-rdf-subject-resource-count="0" data-odf-meta-rdf-subject-parts="manifest.rdf" data-odf-meta-rdf-subject-predicates="dc:creator,wp:review-status">source claim</span>', $blocksHtml);
     },
     'maps ODT user-defined content fields into review spans' => static function (TestRunner $t) use ($buildOdtPackage): void {
@@ -6494,12 +6223,7 @@ XML;
         $t->same('June 8, 2026', $reviewDate->children[0]->attr('text'));
         $t->same('2026-06-08', $reviewDate->attr('attributes')['data-odf-field-date-value']);
         $t->same(3, $result['importReport']['content']['fieldCount']);
-
-        $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-        $t->contains('[packet-42]{.odf-field .odf-field-user-defined data-odf-field-type="user-defined" data-odf-field-name="wp-source-id" data-odf-field-value-type="string" data-odf-field-string-value="packet-42" data-odf-field-fixed="true"}', $markdown);
-        $t->contains('[true]{.odf-field .odf-field-user-defined data-odf-field-type="user-defined" data-odf-field-name="review-state" data-odf-field-value-type="boolean" data-odf-field-boolean-value="true"}', $markdown);
-        $t->contains('[June 8, 2026]{.odf-field .odf-field-user-defined data-odf-field-type="user-defined" data-odf-field-name="review-date" data-odf-field-value-type="date" data-odf-field-date-value="2026-06-08"}', $markdown);
         $t->contains('<span class="odf-field odf-field-user-defined" data-odf-field-type="user-defined" data-odf-field-name="wp-source-id" data-odf-field-value-type="string" data-odf-field-string-value="packet-42" data-odf-field-fixed="true">packet-42</span>', $blocksHtml);
         $t->contains('<span class="odf-field odf-field-user-defined" data-odf-field-type="user-defined" data-odf-field-name="review-state" data-odf-field-value-type="boolean" data-odf-field-boolean-value="true">true</span>', $blocksHtml);
         $t->contains('<span class="odf-field odf-field-user-defined" data-odf-field-type="user-defined" data-odf-field-name="review-date" data-odf-field-value-type="date" data-odf-field-date-value="2026-06-08">June 8, 2026</span>', $blocksHtml);
@@ -6542,12 +6266,7 @@ XML;
         $t->same('SenderEmail', $email->attr('attributes')['data-odf-field-style-name']);
         $t->same('desk@example.test', $email->children[0]->attr('text'));
         $t->same(3, $result['importReport']['content']['fieldCount']);
-
-        $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-        $t->contains('[Migration Desk]{.odf-field .odf-field-author-name data-odf-field-type="author-name" data-odf-field-style-name="ReviewerField" data-odf-field-fixed="true"}', $markdown);
-        $t->contains('[7]{.odf-field .odf-field-page-number data-odf-field-type="page-number" data-odf-field-style-name="PageDigits"}', $markdown);
-        $t->contains('[desk@example.test]{.odf-field .odf-field-sender-email data-odf-field-type="sender-email" data-odf-field-style-name="SenderEmail"}', $markdown);
         $t->contains('<span class="odf-field odf-field-author-name" data-odf-field-type="author-name" data-odf-field-style-name="ReviewerField" data-odf-field-fixed="true">Migration Desk</span>', $blocksHtml);
         $t->contains('<span class="odf-field odf-field-page-number" data-odf-field-type="page-number" data-odf-field-style-name="PageDigits">7</span>', $blocksHtml);
         $t->contains('<span class="odf-field odf-field-sender-email" data-odf-field-type="sender-email" data-odf-field-style-name="SenderEmail">desk@example.test</span>', $blocksHtml);
@@ -6614,11 +6333,7 @@ XML;
         $t->same('WordPress Migration Desk', $company->attr('fieldMetadata')['stringValue']);
         $t->same('Company', $company->attr('fieldMetadata')['settingsName']);
         $t->same(4, $result['importReport']['content']['fieldCount']);
-
-        $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-        $t->contains('[Maya]{.odf-field .odf-field-sender-firstname data-odf-field-type="sender-firstname" data-odf-field-string-value="Maya" data-odf-field-settings-source="settings.xml" data-odf-field-settings-set="ooo:user-settings" data-odf-field-settings-name="FirstName"}', $markdown);
-        $t->contains('[desk@example.test]{.odf-field .odf-field-sender-email data-odf-field-type="sender-email" data-odf-field-string-value="desk@example.test" data-odf-field-settings-source="settings.xml" data-odf-field-settings-set="ooo:user-settings" data-odf-field-settings-name="EMail"}', $markdown);
         $t->contains('<span class="odf-field odf-field-sender-firstname" data-odf-field-type="sender-firstname" data-odf-field-string-value="Maya" data-odf-field-settings-source="settings.xml" data-odf-field-settings-set="ooo:user-settings" data-odf-field-settings-name="FirstName">Maya</span>', $blocksHtml);
         $t->contains('<span class="odf-field odf-field-sender-email" data-odf-field-type="sender-email" data-odf-field-string-value="desk@example.test" data-odf-field-settings-source="settings.xml" data-odf-field-settings-set="ooo:user-settings" data-odf-field-settings-name="EMail">desk@example.test</span>', $blocksHtml);
     },
@@ -6669,10 +6384,7 @@ XML;
         $t->same('ooo:user-settings', $initials->attr('attributes')['data-odf-field-settings-set']);
         $t->same('Initials', $initials->attr('attributes')['data-odf-field-settings-name']);
         $t->same(1, $result['importReport']['content']['fieldCount']);
-
-        $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-        $t->contains('[ME]{.odf-field .odf-field-author-initials data-odf-field-type="author-initials" data-odf-field-string-value="ME" data-odf-field-settings-source="settings.xml" data-odf-field-settings-set="ooo:user-settings" data-odf-field-settings-name="Initials"}', $markdown);
         $t->contains('<span class="odf-field odf-field-author-initials" data-odf-field-type="author-initials" data-odf-field-string-value="ME" data-odf-field-settings-source="settings.xml" data-odf-field-settings-set="ooo:user-settings" data-odf-field-settings-name="Initials">ME</span>', $blocksHtml);
     },
     'maps ODT field number date and time format metadata into review spans' => static function (TestRunner $t) use ($buildOdtPackage): void {
@@ -6723,12 +6435,7 @@ XML;
         $t->same('PT30M', $time->attr('attributes')['data-odf-field-time-adjust']);
         $t->same('14:15', $time->children[0]->attr('text'));
         $t->same(3, $result['importReport']['content']['fieldCount']);
-
-        $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-        $t->contains('[IV]{.odf-field .odf-field-page-number data-odf-field-type="page-number" data-odf-field-num-format="I" data-odf-field-num-prefix="p. " data-odf-field-num-suffix=" / source" data-odf-field-num-letter-sync="true"}', $markdown);
-        $t->contains('[June 9, 2026]{.odf-field .odf-field-date data-odf-field-type="date" data-odf-field-date-value="2026-06-08" data-odf-field-date-adjust="P1D" data-odf-field-style-name="ReviewDateFormat" data-odf-field-fixed="true"}', $markdown);
-        $t->contains('[14:15]{.odf-field .odf-field-time data-odf-field-type="time" data-odf-field-time-value="PT13H45M00S" data-odf-field-time-adjust="PT30M" data-odf-field-style-name="ReviewTimeFormat"}', $markdown);
         $t->contains('<span class="odf-field odf-field-page-number" data-odf-field-type="page-number" data-odf-field-num-format="I" data-odf-field-num-prefix="p. " data-odf-field-num-suffix=" / source" data-odf-field-num-letter-sync="true">IV</span>', $blocksHtml);
         $t->contains('<span class="odf-field odf-field-date" data-odf-field-type="date" data-odf-field-date-value="2026-06-08" data-odf-field-date-adjust="P1D" data-odf-field-style-name="ReviewDateFormat" data-odf-field-fixed="true">June 9, 2026</span>', $blocksHtml);
         $t->contains('<span class="odf-field odf-field-time" data-odf-field-type="time" data-odf-field-time-value="PT13H45M00S" data-odf-field-time-adjust="PT30M" data-odf-field-style-name="ReviewTimeFormat">14:15</span>', $blocksHtml);
@@ -6790,11 +6497,7 @@ XML;
         $t->same('image-count', $imageCount->attr('fieldType'));
         $t->same('object-count', $objectCount->attr('fieldType'));
         $t->same(11, $result['importReport']['content']['fieldCount']);
-
-        $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-        $t->contains('[4]{.odf-field .odf-field-page-variable-set data-odf-field-type="page-variable-set" data-odf-field-name="SourcePage" data-odf-field-current-value="4" data-odf-field-num-format="1"}', $markdown);
-        $t->contains('[2 Source review]{.odf-field .odf-field-chapter data-odf-field-type="chapter" data-odf-field-display="name-and-number" data-odf-field-outline-level="2"}', $markdown);
         $t->contains('<span class="odf-field odf-field-page-variable-get" data-odf-field-type="page-variable-get" data-odf-field-name="SourcePage" data-odf-field-current-value="4">4</span>', $blocksHtml);
         $t->contains('<span class="odf-field odf-field-chapter" data-odf-field-type="chapter" data-odf-field-display="name-and-number" data-odf-field-outline-level="2">2 Source review</span>', $blocksHtml);
         $t->contains('<span class="odf-field odf-field-file-name" data-odf-field-type="file-name" data-odf-field-display="full">source/review.odt</span>', $blocksHtml);
@@ -6909,11 +6612,7 @@ XML;
         $t->same('meta.xml', $syllableCount->attr('attributes')['data-odf-field-metadata-source']);
         $t->same('210', $syllableCount->children[0]->attr('text'));
         $t->same(2, $result['importReport']['content']['fieldCount']);
-
-        $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-        $t->contains('[600]{.odf-field .odf-field-non-whitespace-character-count data-odf-field-type="non-whitespace-character-count" data-odf-field-current-value="600" data-odf-field-metadata-source="meta.xml"}', $markdown);
-        $t->contains('[210]{.odf-field .odf-field-syllable-count data-odf-field-type="syllable-count" data-odf-field-current-value="210" data-odf-field-metadata-source="meta.xml"}', $markdown);
         $t->contains('<span class="odf-field odf-field-non-whitespace-character-count" data-odf-field-type="non-whitespace-character-count" data-odf-field-current-value="600" data-odf-field-metadata-source="meta.xml">600</span>', $blocksHtml);
         $t->contains('<span class="odf-field odf-field-syllable-count" data-odf-field-type="syllable-count" data-odf-field-current-value="210" data-odf-field-metadata-source="meta.xml">210</span>', $blocksHtml);
     },
@@ -6951,11 +6650,7 @@ XML;
         $t->same('previous', $previous->attr('attributes')['data-odf-field-select-page']);
         $t->same('continued from previous page', $previous->children[0]->attr('text'));
         $t->same(2, $result['importReport']['content']['fieldCount']);
-
-        $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-        $t->contains('[continued on next page]{.odf-field .odf-field-page-continuation data-odf-field-type="page-continuation" data-odf-field-string-value="continued on next page" data-odf-field-select-page="next"}', $markdown);
-        $t->contains('[continued from previous page]{.odf-field .odf-field-page-continuation data-odf-field-type="page-continuation" data-odf-field-string-value="continued from previous page" data-odf-field-select-page="previous"}', $markdown);
         $t->contains('<span class="odf-field odf-field-page-continuation" data-odf-field-type="page-continuation" data-odf-field-string-value="continued on next page" data-odf-field-select-page="next">continued on next page</span>', $blocksHtml);
         $t->contains('<span class="odf-field odf-field-page-continuation" data-odf-field-type="page-continuation" data-odf-field-string-value="continued from previous page" data-odf-field-select-page="previous">continued from previous page</span>', $blocksHtml);
     },
@@ -7007,12 +6702,7 @@ XML;
         $t->same('Archive Sheet', $fallback->attr('fieldMetadata')['tableName']);
         $t->same('Archive Sheet', $fallback->children[0]->attr('text'));
         $t->same(3, $result['importReport']['content']['fieldCount']);
-
-        $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-        $t->contains('[Review Sheet]{.odf-field .odf-field-sheet-name data-odf-field-type="sheet-name" data-odf-field-table-name="Review Sheet"}', $markdown);
-        $t->contains('[42]{.odf-field .odf-field-table-formula data-odf-field-type="table-formula" data-odf-field-formula="of:=SUM([.B2:.B4])" data-odf-field-cell-range-address="Review Sheet.B2:Review Sheet.B4" data-odf-field-value-type="float" data-odf-field-value="42" data-odf-field-style-name="ReviewFloat"}', $markdown);
-        $t->contains('[Archive Sheet]{.odf-field .odf-field-sheet-name data-odf-field-type="sheet-name" data-odf-field-table-name="Archive Sheet"}', $markdown);
         $t->contains('<span class="odf-field odf-field-sheet-name" data-odf-field-type="sheet-name" data-odf-field-table-name="Review Sheet">Review Sheet</span>', $blocksHtml);
         $t->contains('<span class="odf-field odf-field-table-formula" data-odf-field-type="table-formula" data-odf-field-formula="of:=SUM([.B2:.B4])" data-odf-field-cell-range-address="Review Sheet.B2:Review Sheet.B4" data-odf-field-value-type="float" data-odf-field-value="42" data-odf-field-style-name="ReviewFloat">42</span>', $blocksHtml);
         $t->contains('<span class="odf-field odf-field-sheet-name" data-odf-field-type="sheet-name" data-odf-field-table-name="Archive Sheet">Archive Sheet</span>', $blocksHtml);
@@ -7062,12 +6752,7 @@ XML;
         $t->same('archive paragraph marker', $hiddenParagraph->attr('fieldMetadata')['stringValue']);
         $t->same('archive paragraph marker', $hiddenParagraph->children[0]->attr('text'));
         $t->same(4, $result['importReport']['content']['fieldCount']);
-
-        $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-        $t->contains('[Ready to publish]{.odf-field .odf-field-conditional-text data-odf-field-type="conditional-text" data-odf-field-condition="ReviewStatus == \"ready\"" data-odf-field-string-value-if-true="Ready to publish" data-odf-field-string-value-if-false="Hold for review"}', $markdown);
-        $t->contains('[fallback audit note]{.odf-field .odf-field-hidden-text data-odf-field-type="hidden-text" data-odf-field-condition="AuditOnly" data-odf-field-string-value="fallback audit note"}', $markdown);
-        $t->contains('[archive paragraph marker]{.odf-field .odf-field-hidden-paragraph data-odf-field-type="hidden-paragraph" data-odf-field-condition="ArchiveOnly" data-odf-field-string-value="archive paragraph marker"}', $markdown);
         $t->contains('<span class="odf-field odf-field-conditional-text" data-odf-field-type="conditional-text" data-odf-field-condition="ReviewStatus == &quot;ready&quot;" data-odf-field-string-value-if-true="Ready to publish" data-odf-field-string-value-if-false="Hold for review">Ready to publish</span>', $blocksHtml);
         $t->contains('<span class="odf-field odf-field-hidden-text" data-odf-field-type="hidden-text" data-odf-field-condition="AuditOnly" data-odf-field-string-value="fallback audit note">fallback audit note</span>', $blocksHtml);
         $t->contains('<span class="odf-field odf-field-hidden-paragraph" data-odf-field-type="hidden-paragraph" data-odf-field-condition="ArchiveOnly" data-odf-field-string-value="archive paragraph marker">archive paragraph marker</span>', $blocksHtml);
@@ -7141,12 +6826,7 @@ XML;
         $t->same('keep-text', $ddeDeclaration['conversionMode'] ?? null);
         $t->same(3, $result['importReport']['content']['fieldCount']);
         $t->same(1, $result['importReport']['content']['ddeConnectionDeclarationCount']);
-
-        $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-        $t->contains('[Run import macro]{.odf-field .odf-field-script data-odf-field-type="script" data-odf-field-href="vnd.sun.star.script:Standard.Module.Main?language=Basic&location=document" data-odf-field-xlink-type="simple" data-odf-field-script-language="ooo:Basic"}', $markdown);
-        $t->contains('[Publish review]{.odf-field .odf-field-execute-macro data-odf-field-type="execute-macro" data-odf-field-name="Standard.Module.PublishReview"}', $markdown);
-        $t->contains('[Last approved row]{.odf-field .odf-field-dde-connection data-odf-field-type="dde-connection" data-odf-field-connection-name="ReviewSheet" data-odf-field-dde-application="soffice" data-odf-field-dde-topic="Documents/review.ods" data-odf-field-dde-item="Approved.A2" data-odf-field-automatic-update="false" data-odf-field-conversion-mode="keep-text" data-odf-field-declared="true"}', $markdown);
         $t->contains('<span class="odf-field odf-field-script" data-odf-field-type="script" data-odf-field-href="vnd.sun.star.script:Standard.Module.Main?language=Basic&amp;location=document" data-odf-field-xlink-type="simple" data-odf-field-script-language="ooo:Basic">Run import macro</span>', $blocksHtml);
         $t->contains('<span class="odf-field odf-field-execute-macro" data-odf-field-type="execute-macro" data-odf-field-name="Standard.Module.PublishReview">Publish review</span>', $blocksHtml);
         $t->contains('<span class="odf-field odf-field-dde-connection" data-odf-field-type="dde-connection" data-odf-field-connection-name="ReviewSheet" data-odf-field-dde-application="soffice" data-odf-field-dde-topic="Documents/review.ods" data-odf-field-dde-item="Approved.A2" data-odf-field-automatic-update="false" data-odf-field-conversion-mode="keep-text" data-odf-field-declared="true">Last approved row</span>', $blocksHtml);
@@ -7200,10 +6880,7 @@ XML;
         $t->same('placeholder', $headingPlaceholder->children[0]->attr('text'));
         $t->same(['odf-placeholder', 'odf-placeholder-text'], $headingPlaceholder->attr('classes'));
         $t->same(3, $result['importReport']['content']['placeholderCount']);
-
-        $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-        $t->contains('[migration summary]{.odf-placeholder .odf-placeholder-text data-odf-placeholder-type="text" data-odf-placeholder-description="Enter migration summary" data-odf-placeholder-style-name="PlaceholderStyle"}', $markdown);
         $t->contains('<span class="odf-placeholder odf-placeholder-text" data-odf-placeholder-type="text" data-odf-placeholder-description="Enter migration summary" data-odf-placeholder-style-name="PlaceholderStyle">migration summary</span>', $blocksHtml);
     },
     'maps ODT bibliography marks into citation handoff nodes' => static function (TestRunner $t) use ($buildOdtPackage): void {
@@ -7251,11 +6928,8 @@ XML;
         $t->same('[@missing-source]', $processed->children[0]->children[3]->attr('rendered'));
         $t->same(['smith1899', 'missing-source'], $processor->citationIds($result['document']));
         $t->same(['missing-source'], $processor->missingCitationIds($result['document']));
-
-        $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
         $processedBlocks = (new WordPressBlockWriter())->write($processed);
-        $t->contains('Source cites [@smith1899] and [@missing-source].', $markdown);
         $t->contains('<span class="pandoc-citation" data-pandoc-citation-id="smith1899"', $blocksHtml);
         $t->contains('<span class="pandoc-citation" data-pandoc-citation-id="missing-source"', $blocksHtml);
         $t->contains('<p>Source cites (Smith 1899) and [@missing-source].</p>', $processedBlocks);
@@ -7352,12 +7026,7 @@ XML;
         $t->same('ODT source packet', $body->children[0]->children[0]->children[0]->attr('text'));
         $t->same('#review', $body->children[1]->children[0]->attr('url'));
         $t->same(1, $result['importReport']['content']['tableOfContentsCount']);
-
-        $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-        $t->contains('::: {#source-navigation .odf-table-of-contents .odf-protected-table-of-contents data-odf-toc-name="Source Navigation"', $markdown);
-        $t->contains('data-odf-toc-source-use-index-marks="false"', $markdown);
-        $t->contains('[ODT source packet](#odt-source-packet)', $markdown);
         $t->contains('<div id="source-navigation" class="odf-table-of-contents odf-protected-table-of-contents" data-odf-toc-name="Source Navigation"', $blocksHtml);
         $t->contains('data-odf-toc-source-style-count="1"', $blocksHtml);
         $t->contains('<div class="odf-index-title" data-odf-index-title="true"><p>Contents</p></div>', $blocksHtml);
@@ -7477,12 +7146,7 @@ XML;
 
         $t->same(2, $result['importReport']['content']['generatedIndexCount']);
         $t->same(0, $result['importReport']['content']['tableOfContentsCount']);
-
-        $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-        $t->contains('::: {#figure-review .odf-generated-index .odf-illustration-index .odf-protected-generated-index data-odf-index-type="illustration"', $markdown);
-        $t->contains('data-odf-index-source-caption-sequence-name="Illustration"', $markdown);
-        $t->contains('[Figure 1](#source-hero-seq)', $markdown);
         $t->contains('<div id="figure-review" class="odf-generated-index odf-illustration-index odf-protected-generated-index" data-odf-index-type="illustration"', $blocksHtml);
         $t->contains('data-odf-index-source-use-caption="true"', $blocksHtml);
         $t->contains('<a href="#source-hero-seq">Figure 1</a>', $blocksHtml);
@@ -7570,11 +7234,7 @@ XML;
         $t->same('BibPage', $bibliographyComponents[3]['styleName']);
         $t->same(1, $result['importReport']['content']['tableOfContentsCount']);
         $t->same(1, $result['importReport']['content']['generatedIndexCount']);
-
-        $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-        $t->contains('::: {#detailed-navigation .odf-table-of-contents data-odf-toc-name="Detailed Navigation"', $markdown);
-        $t->contains('::: {#bibliography-review .odf-generated-index .odf-bibliography data-odf-index-type="bibliography"', $markdown);
         $t->contains('<div id="detailed-navigation" class="odf-table-of-contents" data-odf-toc-name="Detailed Navigation"', $blocksHtml);
         $t->contains('<div id="bibliography-review" class="odf-generated-index odf-bibliography" data-odf-index-type="bibliography"', $blocksHtml);
     },
@@ -7622,12 +7282,7 @@ XML;
         $t->same('Reviewer Terms', $userMark->attr('indexMarkMetadata')['indexName']);
         $t->same('Data Liberation', $userMark->children[0]->attr('text'));
         $t->same(3, $result['importReport']['content']['indexMarkCount']);
-
-        $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-        $t->contains('[ODT source packet]{.odf-index-mark .odf-index-mark-toc data-odf-index-mark-type="toc"', $markdown);
-        $t->contains('[source claim]{.odf-index-mark .odf-index-mark-alphabetical data-odf-index-mark-type="alphabetical"', $markdown);
-        $t->contains('data-odf-index-mark-main-entry="true"', $markdown);
         $t->contains('<span class="odf-index-mark odf-index-mark-toc" data-odf-index-mark-type="toc" data-odf-index-mark-element="toc-mark" data-odf-index-mark-string-value="ODT source packet" data-odf-index-mark-outline-level="1">ODT source packet</span>', $blocksHtml);
         $t->contains('<span class="odf-index-mark odf-index-mark-alphabetical" data-odf-index-mark-type="alphabetical" data-odf-index-mark-element="alphabetical-index-mark-start" data-odf-index-mark-id="idx-claim" data-odf-index-mark-string-value="source claim" data-odf-index-mark-key1="Migration" data-odf-index-mark-key2="ODT" data-odf-index-mark-main-entry="true">source claim</span>', $blocksHtml);
         $t->contains('<span class="odf-index-mark odf-index-mark-user" data-odf-index-mark-type="user" data-odf-index-mark-element="user-index-mark" data-odf-index-mark-index-name="Reviewer Terms" data-odf-index-mark-string-value="Data Liberation">Data Liberation</span>', $blocksHtml);
@@ -7669,11 +7324,7 @@ XML;
         $t->same('paragraph', $blocks[1]->type);
         $t->same('Following paragraph stays ordinary.', $blocks[1]->attr('text'));
         $t->same(1, $result['importReport']['content']['tableCaptionCount']);
-
-        $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-        $t->contains('::: {.caption .odf-table-caption data-odf-table-caption-style-name="Table"}', $markdown);
-        $t->contains('Table **[1]{data-odf-style-name="CaptionStrong"}**: Source media audit', $markdown);
         $t->contains('<div class="caption odf-table-caption" data-odf-table-caption-style-name="Table"><p>Table <strong><span data-odf-style-name="CaptionStrong">1</span></strong>: Source media audit</p></div>', $blocksHtml);
     },
     'attaches following ODT table caption paragraphs to table nodes like upstream post process' => static function (TestRunner $t) use ($buildOdtPackage): void {
@@ -7728,10 +7379,7 @@ XML;
         $t->same('text:p', $table->attr('tableGeometry')['captions']['long']['sourceElement']);
         $t->same('following-table', $table->attr('tableGeometry')['captions']['long']['sourcePosition']);
         $t->same(1, $result['importReport']['content']['tableCaptionCount']);
-
-        $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-        $t->contains(': Table **[1]{data-odf-style-name="CaptionStrong"}**: Source media audit', $markdown);
         $t->contains('<figcaption class="wp-element-caption odf-table-caption" data-odf-table-caption-source="following-paragraph" data-odf-table-caption-style-name="Table"><p>Table <strong><span data-odf-style-name="CaptionStrong">1</span></strong>: Source media audit</p></figcaption>', $blocksHtml);
         $t->true(!str_contains($blocksHtml, '<div class="caption odf-table-caption"'), 'Following ODT table captions should not remain standalone divs after a table');
     },
@@ -7791,12 +7439,7 @@ XML;
         $t->same(2, $result['importReport']['content']['sectionCount']);
         $t->same(1, $result['importReport']['content']['linkedSectionCount']);
         $t->same(1, $result['importReport']['content']['protectedSectionCount']);
-
-        $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-        $t->contains('::: {#imported-appendix .odf-section .odf-linked-section .odf-protected-section data-odf-section-name="Imported Appendix"', $markdown);
-        $t->contains('data-odf-section-source-href="Sections/appendix.odt"', $markdown);
-        $t->contains('data-odf-section-protection-key-present="true"', $markdown);
         $t->contains('<div id="imported-appendix" class="odf-section odf-linked-section odf-protected-section" data-odf-section-name="Imported Appendix"', $blocksHtml);
         $t->contains('data-odf-section-source-href="Sections/appendix.odt"', $blocksHtml);
         $t->contains('data-odf-section-protection-key-present="true"', $blocksHtml);
@@ -7846,11 +7489,7 @@ XML;
         $t->same(2, $result['importReport']['content']['sectionCount']);
         $t->same(2, $result['importReport']['content']['conditionalSectionCount']);
         $t->same(1, $result['importReport']['content']['hiddenSectionCount']);
-
-        $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-        $t->contains('::: {#conditional-appendix .odf-section .odf-conditional-section data-odf-section-name="Conditional Appendix"', $markdown);
-        $t->contains('data-odf-section-condition="ReviewStatus == \\"ready\\""', $markdown);
         $t->contains('data-odf-section-hidden="false"', $blocksHtml);
         $t->contains('<div id="draft-only" class="odf-section odf-conditional-section odf-hidden-section" data-odf-section-name="Draft Only" data-odf-section-condition="DraftOnly" data-odf-section-hidden="true">', $blocksHtml);
     },
@@ -7930,11 +7569,7 @@ XML;
 
         $t->same(3, $result['importReport']['trackedChanges']['count']);
         $t->same(3, $result['importReport']['content']['trackedChangeCount']);
-
-        $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-        $t->contains('[inserted review text]{.odf-change .odf-insertion data-odf-change-id="ct-ins" data-odf-change-type="insertion" data-odf-change-creator="Editor A" data-odf-change-date="2026-06-05T00:10:00Z"}', $markdown);
-        $t->contains('[legacy deleted claim]{.odf-change .odf-deletion data-odf-change-id="ct-del" data-odf-change-type="deletion" data-odf-change-creator="Editor B" data-odf-change-date="2026-06-05T00:12:00Z"}', $markdown);
         $t->contains('<span class="odf-change odf-insertion" data-odf-change-id="ct-ins" data-odf-change-type="insertion" data-odf-change-creator="Editor A" data-odf-change-date="2026-06-05T00:10:00Z">inserted review text</span>', $blocksHtml);
         $t->contains('<span class="odf-change odf-deletion" data-odf-change-id="ct-del" data-odf-change-type="deletion" data-odf-change-creator="Editor B" data-odf-change-date="2026-06-05T00:12:00Z">legacy deleted claim</span>', $blocksHtml);
     },
@@ -8107,11 +7742,7 @@ XML;
         $t->same(2, $result['importReport']['content']['mathCount']);
         $t->same(1, count($result['media']));
         $t->same('Pictures/hero.png', $result['media'][0]['part']);
-
-        $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-        $t->contains('Inline formula $$x=1$$ preserved.', $markdown);
-        $t->contains('$$a+b$$', $markdown);
         $t->contains('<span class="math display">\[x=1\]</span>', $blocksHtml);
         $t->contains('<span class="math display">\[a+b\]</span>', $blocksHtml);
         $t->same(false, str_contains($blocksHtml, 'ObjectReplacements/Object 1'));
@@ -8221,11 +7852,7 @@ XML;
         $t->same(1, $result['importReport']['content']['chartMetadataCount']);
         $t->same(1, $result['importReport']['content']['missingEmbeddedObjectCount']);
         $t->same(0, count($result['media']));
-
-        $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-        $t->contains('[Revenue chart placeholder]{.odf-embedded-object .odf-object-chart data-odf-object-type="chart" data-odf-object-href="./Object%20Chart" data-odf-object-path="Object Chart" data-odf-object-source-part="Object Chart/" data-odf-object-media-type="application/vnd.oasis.opendocument.chart" data-odf-object-exists="true" data-odf-object-contained-part-count="1" data-odf-object-contained-byte-length="' . strlen($chartObjectXml) . '" data-odf-object-can-expose-bytes="false" data-odf-chart-source-part="Object Chart/content.xml" data-odf-chart-class="bar" data-odf-chart-cell-range="Sheet1.A1:Sheet1.B4" data-odf-chart-data-source-has-labels="both" data-odf-chart-series-count="1" data-odf-chart-categories-range="Sheet1.A2:Sheet1.A4"}', $markdown);
-        $t->contains('::: {.odf-embedded-object .odf-object-chart data-odf-object-type="chart" data-odf-object-href="Object%20Missing" data-odf-object-path="Object Missing" data-odf-object-source-part="Object Missing/" data-odf-object-media-type="application/vnd.oasis.opendocument.chart" data-odf-object-exists="false" data-odf-object-contained-part-count="0" data-odf-object-can-expose-bytes="false"}', $markdown);
         $t->contains('<span class="odf-embedded-object odf-object-chart" data-odf-object-type="chart" data-odf-object-href="./Object%20Chart" data-odf-object-path="Object Chart" data-odf-object-source-part="Object Chart/" data-odf-object-media-type="application/vnd.oasis.opendocument.chart" data-odf-object-exists="true" data-odf-object-contained-part-count="1" data-odf-object-contained-byte-length="' . strlen($chartObjectXml) . '" data-odf-object-can-expose-bytes="false" data-odf-chart-source-part="Object Chart/content.xml" data-odf-chart-class="bar" data-odf-chart-cell-range="Sheet1.A1:Sheet1.B4" data-odf-chart-data-source-has-labels="both" data-odf-chart-series-count="1" data-odf-chart-categories-range="Sheet1.A2:Sheet1.A4">Revenue chart placeholder</span>', $blocksHtml);
         $t->contains('<div class="odf-embedded-object odf-object-chart" data-odf-object-type="chart" data-odf-object-href="Object%20Missing" data-odf-object-path="Object Missing" data-odf-object-source-part="Object Missing/" data-odf-object-media-type="application/vnd.oasis.opendocument.chart" data-odf-object-exists="false" data-odf-object-contained-part-count="0" data-odf-object-can-expose-bytes="false"><p>Missing chart placeholder</p></div>', $blocksHtml);
         $t->true(!str_contains($blocksHtml, 'chart:bar'), 'Opaque chart object XML must not render in WordPress output');
@@ -8493,11 +8120,7 @@ XML;
         $t->same(9, $olePayloadManifest['storedByteLength']);
         $t->same(false, $olePayloadInventory['canExposeBytes']);
         $t->same('embedded-object-package-bytes-blocked', $olePayloadInventory['byteExposurePolicy']);
-
-        $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-        $t->contains('[Inline spreadsheet]{.odf-embedded-object .odf-object-ole data-odf-object-type="ole" data-odf-object-href="./Object%20OLE" data-odf-object-path="Object OLE" data-odf-object-source-part="Object OLE/" data-odf-object-media-type="application/vnd.oasis.opendocument.spreadsheet" data-odf-object-exists="true" data-odf-object-contained-part-count="1" data-odf-object-contained-byte-length="9" data-odf-object-can-expose-bytes="false"}', $markdown);
-        $t->contains('::: {.odf-embedded-object .odf-object-ole data-odf-object-type="ole" data-odf-object-href="Object%20Missing" data-odf-object-path="Object Missing" data-odf-object-source-part="Object Missing/" data-odf-object-media-type="application/vnd.oasis.opendocument.chart" data-odf-object-exists="false" data-odf-object-contained-part-count="0" data-odf-object-can-expose-bytes="false"}', $markdown);
         $t->contains('<span class="odf-embedded-object odf-object-ole" data-odf-object-type="ole" data-odf-object-href="./Object%20OLE" data-odf-object-path="Object OLE" data-odf-object-source-part="Object OLE/" data-odf-object-media-type="application/vnd.oasis.opendocument.spreadsheet" data-odf-object-exists="true" data-odf-object-contained-part-count="1" data-odf-object-contained-byte-length="9" data-odf-object-can-expose-bytes="false">Inline spreadsheet</span>', $blocksHtml);
         $t->contains('<div class="odf-embedded-object odf-object-ole" data-odf-object-type="ole" data-odf-object-href="Object%20Missing" data-odf-object-path="Object Missing" data-odf-object-source-part="Object Missing/" data-odf-object-media-type="application/vnd.oasis.opendocument.chart" data-odf-object-exists="false" data-odf-object-contained-part-count="0" data-odf-object-can-expose-bytes="false"><p>Linked chart</p></div>', $blocksHtml);
         $t->true(!str_contains($blocksHtml, 'OLEBYTES!'), 'Opaque OLE bytes must not render in WordPress output');
@@ -8596,7 +8219,6 @@ XML;
         $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithTextBoxCaption));
         $paragraph = $result['document']->children[0];
         $image = $paragraph->children[1];
-        $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
 
         $t->same('paragraph', $paragraph->type);
@@ -8611,8 +8233,6 @@ XML;
         $t->same('true', $image->attr('attributes')['data-odf-text-box-caption']);
         $t->same('Captioned hero', $image->attr('attributes')['data-odf-text-box-frame-name']);
         $t->same('Recovered hero caption.', $image->children[0]->attr('text'));
-
-        $t->contains('![Recovered hero caption.](Pictures/hero.png "fig:Original hero title"){.odf-text-box-image-caption data-odf-text-box-caption="true" data-odf-text-box-frame-name="Captioned hero"}', $markdown);
         $t->contains('<img src="Pictures/hero.png" alt="Recovered hero caption." title="fig:Original hero title" class="odf-text-box-image-caption" data-odf-text-box-caption="true" data-odf-text-box-frame-name="Captioned hero"/>', $blocksHtml);
     },
     'maps block-level ODT frame text-box image captions into figure handoff' => static function (TestRunner $t) use ($buildOdtPackage): void {
@@ -8641,7 +8261,6 @@ XML;
         $figure = $blocks[0];
         $image = $figure->children[0];
         $paragraph = $blocks[1];
-        $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
 
         $t->same(2, count($blocks));
@@ -8659,7 +8278,6 @@ XML;
         $t->same('Block-level recovered caption.', $image->children[0]->attr('text'));
         $t->same('paragraph', $paragraph->type);
         $t->same('Following paragraph remains separate.', $paragraph->attr('text'));
-        $t->contains('![Block-level recovered caption.](Pictures/hero.png "Block hero title"){.odf-text-box-image-caption data-odf-text-box-caption="true" data-odf-text-box-frame-name="Block captioned hero"}', $markdown);
         $t->contains('<figure class="wp-block-image"><img src="Pictures/hero.png" alt="Block-level recovered caption." title="fig:Block hero title" class="odf-text-box-image-caption" data-odf-text-box-caption="true" data-odf-text-box-frame-name="Block captioned hero"/><figcaption>Block-level recovered caption.</figcaption></figure>', $blocksHtml);
     },
     'maps ODT draw frame captions into figure caption metadata' => static function (TestRunner $t) use ($buildOdtPackage): void {
@@ -8693,7 +8311,6 @@ XML;
         $image = $figure->children[0];
         $captionMetadata = $figure->attr('odfFrameCaption');
         $attributes = $figure->attr('attributes');
-        $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
 
         $t->same(2, count($blocks));
@@ -8713,8 +8330,6 @@ XML;
         $t->same(1, $result['importReport']['content']['frameCaptionCount'] ?? 0);
         $t->same('paragraph', $blocks[1]->type);
         $t->same('Following content remains separate.', $blocks[1]->attr('text'));
-        $t->contains('<figure class="odf-frame-caption" data-odf-frame-caption-source="draw:caption" data-odf-frame-caption-frame-name="Captioned draw frame">', $markdown);
-        $t->contains('<figcaption>Figure 2: Source hero caption.</figcaption>', $markdown);
         $t->contains('<figure class="wp-block-image odf-frame-caption" data-odf-frame-caption-source="draw:caption" data-odf-frame-caption-frame-name="Captioned draw frame"><img src="Pictures/hero.png" alt="Hero fallback alt" title="Hero source title"/><figcaption>Figure 2: Source hero caption.</figcaption></figure>', $blocksHtml);
     },
     'preserves ODT frame image dimensions for Markdown and WordPress handoff' => static function (TestRunner $t) use ($buildOdtPackage): void {
@@ -8764,11 +8379,7 @@ XML;
         $t->same('5cm', $figureImage->attr('attributes')['width']);
         $t->same('3cm', $figureImage->attr('attributes')['height']);
         $t->same('Block proof title', $figureImage->attr('title'));
-
-        $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-        $t->contains('![Inline proof alt](Pictures/hero.png "Inline proof title"){width="2.5cm" height="1.25cm"}', $markdown);
-        $t->contains('![Block proof alt](Pictures/hero.png "Block proof title"){width="5cm" height="3cm"}', $markdown);
         $t->contains('<img src="Pictures/hero.png" alt="Inline proof alt" title="Inline proof title" data-pandoc-width="2.5cm" data-pandoc-height="1.25cm" style="width:2.5cm; height:1.25cm"/>', $blocksHtml);
         $t->contains('<img src="Pictures/hero.png" alt="Block proof alt" title="Block proof title" data-pandoc-width="5cm" data-pandoc-height="3cm" style="width:5cm; height:3cm"/>', $blocksHtml);
     },
@@ -8810,10 +8421,7 @@ XML;
         $t->same('simple', $attributes['data-odf-image-xlink-type']);
         $t->same('embed', $attributes['data-odf-image-xlink-show']);
         $t->same('onLoad', $attributes['data-odf-image-xlink-actuate']);
-
-        $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-        $t->contains('![Linked hero alt](Pictures/hero.png "Linked hero title"){width="4cm" data-odf-image-xlink-type="simple" data-odf-image-xlink-show="embed" data-odf-image-xlink-actuate="onLoad"}', $markdown);
         $t->contains('<img src="Pictures/hero.png" alt="Linked hero alt" title="Linked hero title" data-pandoc-width="4cm" style="width:4cm" data-odf-image-xlink-type="simple" data-odf-image-xlink-show="embed" data-odf-image-xlink-actuate="onLoad"/>', $blocksHtml);
     },
     'preserves ODT image frame anchor metadata for review handoff' => static function (TestRunner $t) use ($buildOdtPackage): void {
@@ -8861,10 +8469,7 @@ XML;
         $t->same('1.25cm', $attributes['data-odf-frame-x']);
         $t->same('2cm', $attributes['data-odf-frame-y']);
         $t->same('7', $attributes['data-odf-frame-z-index']);
-
-        $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-        $t->contains('![Frame metadata alt](Pictures/hero.png "Frame metadata title"){width="4cm" data-odf-frame-name="Review image frame" data-odf-frame-style-name="FrameStyle" data-odf-frame-anchor-type="paragraph" data-odf-frame-anchor-page-number="4" data-odf-frame-x="1.25cm" data-odf-frame-y="2cm" data-odf-frame-z-index="7"}', $markdown);
         $t->contains('<img src="Pictures/hero.png" alt="Frame metadata alt" title="Frame metadata title" data-pandoc-width="4cm" style="width:4cm" data-odf-frame-name="Review image frame" data-odf-frame-style-name="FrameStyle" data-odf-frame-anchor-type="paragraph" data-odf-frame-anchor-page-number="4" data-odf-frame-x="1.25cm" data-odf-frame-y="2cm" data-odf-frame-z-index="7"/>', $blocksHtml);
     },
     'preserves ODT text box frame anchor metadata for review handoff' => static function (TestRunner $t) use ($buildOdtPackage): void {
@@ -8914,10 +8519,7 @@ XML;
         $t->same('6cm', $attributes['data-odf-frame-width']);
         $t->same('2cm', $attributes['data-odf-frame-height']);
         $t->same('9', $attributes['data-odf-frame-z-index']);
-
-        $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-        $t->contains('::: {.odf-text-box data-odf-frame-name="Reviewer aside frame" data-odf-frame-style-name="AsideFrame" data-odf-frame-anchor-type="paragraph" data-odf-frame-anchor-page-number="3" data-odf-frame-x="2cm" data-odf-frame-y="4cm" data-odf-frame-width="6cm" data-odf-frame-height="2cm" data-odf-frame-z-index="9"}', $markdown);
         $t->contains('<div class="odf-text-box" data-odf-frame-name="Reviewer aside frame" data-odf-frame-style-name="AsideFrame" data-odf-frame-anchor-type="paragraph" data-odf-frame-anchor-page-number="3" data-odf-frame-x="2cm" data-odf-frame-y="4cm" data-odf-frame-width="6cm" data-odf-frame-height="2cm" data-odf-frame-z-index="9"><p>Anchored reviewer aside.</p></div>', $blocksHtml);
     },
     'maps ODT drawing layers into frame review metadata' => static function (TestRunner $t) use ($buildOdtPackage): void {
@@ -8986,27 +8588,13 @@ XML;
         $t->same(1, $result['importReport']['content']['hiddenDrawLayerCount']);
         $t->same(1, $result['importReport']['content']['protectedDrawLayerCount']);
         $t->same(3, $result['importReport']['content']['frameLayerReferenceCount']);
-
-        $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-        $t->contains('![Layered hero alt](Pictures/hero.png "Layered hero title"){width="4cm" data-odf-frame-name="Layered hero" data-odf-frame-layer="review-media" data-odf-frame-layer-exists="true" data-odf-frame-layer-display="screen" data-odf-frame-layer-protected="true"}', $markdown);
         $t->contains('<img src="Pictures/hero.png" alt="Layered hero alt" title="Layered hero title" data-pandoc-width="4cm" style="width:4cm" data-odf-frame-name="Layered hero" data-odf-frame-layer="review-media" data-odf-frame-layer-exists="true" data-odf-frame-layer-display="screen" data-odf-frame-layer-protected="true"/>', $blocksHtml);
         $t->contains('<div class="odf-text-box" data-odf-frame-name="Layered aside" data-odf-frame-width="6cm" data-odf-frame-layer="draft-notes" data-odf-frame-layer-exists="true" data-odf-frame-layer-display="none" data-odf-frame-layer-hidden="true"><p>Draft layer note.</p></div>', $blocksHtml);
     },
-    'renders ODT handoff nodes through Markdown and WordPress writers' => static function (TestRunner $t) use ($buildOdtPackage): void {
+    'renders ODT handoff nodes through WordPress blocks' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $document = (new OdfReader())->readDocument($buildOdtPackage());
-        $markdown = (new MarkdownWriter())->write($document);
         $blocks = (new WordPressBlockWriter())->write($document);
-
-        $t->contains('# Imported ODT Packet', $markdown);
-        $t->contains('[source link](https://example.test/source.odt)', $markdown);
-        $t->contains('[summary]{data-odf-style-name="StrongEmphasis"}', $markdown);
-        $t->contains('[^1]', $markdown);
-        $t->contains('c.  Legal review', $markdown);
-        $t->contains('![Hero alt text](Pictures/hero.png "Hero title")', $markdown);
-        $t->contains('| Status                | Owner', $markdown);
-        $t->contains(': Audit', $markdown);
-        $t->contains('Ready for review', $markdown);
 
         $t->contains('<!-- wp:heading {"level":1} -->', $blocks);
         $t->contains('<span data-odf-style-name="StrongEmphasis">summary</span>', $blocks);

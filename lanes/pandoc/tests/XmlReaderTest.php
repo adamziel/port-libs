@@ -32,7 +32,6 @@ XML;
 
         $document = (new XmlReader('xml'))->read($xml);
         $blocks = PandocConverter::write($document, 'blocks');
-        $markdown = PandocConverter::write($document, 'markdown');
         $meta = $document->attr('meta');
 
         $t->same('xml', $document->attr('sourceFormat'));
@@ -46,8 +45,6 @@ XML;
         $t->contains('<!-- wp:list -->', $blocks);
         $t->contains('<th>Name</th><th>Value</th>', $blocks);
         $t->contains('<td>Alpha</td><td>10</td>', $blocks);
-        $t->contains('# XML Intake', $markdown);
-        $t->contains('| Name  | Value |', $markdown);
     },
     'retains non-media graphic elements in generic XML text flow' => static function (TestRunner $t): void {
         $document = PandocConverter::read('<doc><p>Before <graphic>fallback graphic text</graphic> after.</p></doc>', 'xml');

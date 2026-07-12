@@ -6,7 +6,6 @@ require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 use PortLibs\Pandoc\AstNode;
 use PortLibs\Pandoc\DocxReader;
-use PortLibs\Pandoc\MarkdownWriter;
 use PortLibs\Pandoc\WordPressBlockWriter;
 use PortLibs\Pandoc\ZipPackage;
 
@@ -111,7 +110,6 @@ XML],
 ]);
 
 $document = (new DocxReader())->readDocument($package);
-$markdown = (new MarkdownWriter())->write($document);
 $blocks = (new WordPressBlockWriter())->write($document);
 
 if (in_array('--self-test', $argv, true)) {
@@ -176,6 +174,5 @@ if (in_array('--self-test', $argv, true)) {
 }
 
 echo json_encode([
-    'markdown' => $markdown,
     'blocks' => $blocks,
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";

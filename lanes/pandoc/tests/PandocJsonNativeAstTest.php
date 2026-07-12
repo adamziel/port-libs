@@ -4,9 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\Pandoc\AstNode;
 use PortLibs\Pandoc\CitationCslProcessor;
-use PortLibs\Pandoc\LatexWriter;
 use PortLibs\Pandoc\MarkdownReader;
-use PortLibs\Pandoc\MarkdownWriter;
 use PortLibs\Pandoc\NativeReader;
 use PortLibs\Pandoc\NativeWriter;
 use PortLibs\Pandoc\PandocJsonReader;
@@ -5486,7 +5484,6 @@ return [
             }
             $jsonPacket = (new PandocJsonWriter())->toArray($document);
             $nativePacket = json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR);
-            $markdown = (new MarkdownWriter())->write($document);
             $blocks = (new WordPressBlockWriter())->write($document);
 
             $t->same('raw_html', $rawBlock->type, "{$source} block alias hydrates as raw html");
@@ -5498,9 +5495,6 @@ return [
             $t->same('raw_inline', $disabledInline->type, "{$source} unsupported raw inline stays generic");
             $t->same($packet['blocks'], $jsonPacket['blocks'], "{$source} json writer round-trips raw aliases");
             $t->same($packet['blocks'], $nativePacket['blocks'], "{$source} native writer round-trips raw aliases");
-            $t->contains($xhtml, $markdown);
-            $t->contains($html5, $markdown);
-            $t->contains('`<outline text="disabled"/>`{=opml}', $markdown, "{$source} markdown keeps unsupported raw round-trippable through raw attributes");
             $t->contains('<!-- wp:html -->' . "\n" . $xhtml . "\n" . '<!-- /wp:html -->', $blocks);
             $t->contains('<p>Before ' . $html5 . ' <span class="pandoc-raw-opml" data-pandoc-raw-format="opml">&lt;outline text=&quot;disabled&quot;/&gt;</span>after</p>', $blocks);
             $t->true(!str_contains($blocks, '<outline'), "{$source} wordpress keeps unsupported raw disabled");
@@ -14433,17 +14427,9 @@ return [
             $t->same(true, $list->children[1]->attr('taskChecked'), "{$source} checked item metadata");
             $t->same(true, $nestedList->attr('taskList'), "{$source} nested list task metadata");
             $t->same(true, $nestedList->children[0]->attr('taskChecked'), "{$source} nested checked item metadata");
-
-            $markdown = (new MarkdownWriter())->write($roundTrip);
             $wordpress = (new WordPressBlockWriter())->write($roundTrip);
-            $latex = (new LatexWriter())->write($roundTrip);
 
-            $t->contains('- [ ] Prepare media queue', $markdown, "{$source} markdown unchecked marker");
-            $t->contains('  - [x] Nested done', $markdown, "{$source} markdown nested checked marker");
-            $t->contains('- [x] Publish packet', $markdown, "{$source} markdown checked marker");
             $t->contains('<ul class="task-list"><li><label><input type="checkbox" />Prepare media queue</label><ul class="task-list"><li><label><input type="checkbox" checked="" />Nested done</label></li></ul></li><li><label><input type="checkbox" checked="" />Publish packet</label></li></ul>', $wordpress, "{$source} wordpress checkbox handoff");
-            $t->contains('\item[$\square$]', $latex, "{$source} latex unchecked task label");
-            $t->contains('\item[$\boxtimes$]', $latex, "{$source} latex checked task label");
         }
     },
     'writes generated labeled note constructors through json and native writers' => static function (TestRunner $t): void {

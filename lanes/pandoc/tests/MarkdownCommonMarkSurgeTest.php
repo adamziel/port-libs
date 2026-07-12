@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 use PortLibs\Pandoc\AstNode;
 use PortLibs\Pandoc\MarkdownReader;
-use PortLibs\Pandoc\MarkdownWriter;
 
 return [
     'maps commonmark atx heading boundary surge cases' => static function (TestRunner $t): void {
@@ -53,7 +52,6 @@ return [
             new AstNode('heading', ['level' => 1]),
             new AstNode('heading', ['level' => 2], [new AstNode('text', ['text' => 'Reviewed'])]),
         ]);
-        $t->same("# \n\n## Reviewed", (new MarkdownWriter())->write($roundTrip));
     },
 
     'maps commonmark multiline setext and interruption surge cases' => static function (TestRunner $t): void {

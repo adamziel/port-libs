@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 use PortLibs\Pandoc\AstNode;
 use PortLibs\Pandoc\MarkdownReader;
-use PortLibs\Pandoc\MarkdownWriter;
 use PortLibs\Pandoc\TableGeometry;
 use PortLibs\Pandoc\WordPressBlockWriter;
 
@@ -150,7 +149,6 @@ foreach ($tableFixtures as $tableName => $fixture) {
                     $document = (new MarkdownReader())->read($captionedTableMarkdown($fixture['markdown'], $position, $marker, $sourceCaption));
                     $table = $firstNodeOfType($document, 'table');
                     $packet = TableGeometry::reviewPacket($table, ['accessibility' => false]);
-                    $markdown = (new MarkdownWriter())->write($document);
                     $blocks = (new WordPressBlockWriter())->write($document);
                     $source = $table->attr('captionSource', []);
 
@@ -167,7 +165,6 @@ foreach ($tableFixtures as $tableName => $fixture) {
                     $t->same($marker, $source['marker'] ?? null);
                     $t->same($position === 'before-table' ? 'top' : 'bottom', $packet['summary']['captionSide'] ?? null);
                     $t->same($position === 'before-table' ? 'before-table' : 'after-table', $packet['summary']['captionPlacement'] ?? null);
-                    $t->contains('#' . $id, $markdown);
                     $t->contains('data-source="' . $dataSource . '"', $blocks);
                     $t->contains('Reader <em>table</em> caption', $blocks);
                 };
@@ -201,7 +198,6 @@ foreach (['inline', 'reference', 'shortcut'] as $syntax) {
                     $document = (new MarkdownReader())->read($captionedFigureMarkdown($case));
                     $figure = $document->children[0] ?? new AstNode('missing');
                     $image = $figure->children[0] ?? new AstNode('missing');
-                    $markdown = (new MarkdownWriter())->write($document);
                     $blocks = (new WordPressBlockWriter())->write($document);
 
                     $t->same(1, count($document->children));
@@ -219,8 +215,6 @@ foreach (['inline', 'reference', 'shortcut'] as $syntax) {
                     $t->same($case['url'], $image->attr('url'));
                     $t->same($case['title'], $image->attr('title'));
                     $t->same($case['label'], $image->attr('caption'));
-                    $t->contains('![Reader *figure* caption ' . $case['caseId'] . '](' . $case['url'], $markdown);
-                    $t->contains('#' . $case['id'], $markdown);
                     $t->contains('data-source="' . $case['dataSource'] . '"', $blocks);
                     $t->contains('<figcaption>Reader <em>figure</em> caption ' . $case['caseId'] . '</figcaption>', $blocks);
                 };

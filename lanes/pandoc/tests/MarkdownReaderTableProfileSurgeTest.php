@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 use PortLibs\Pandoc\AstNode;
 use PortLibs\Pandoc\MarkdownReader;
-use PortLibs\Pandoc\MarkdownWriter;
 use PortLibs\Pandoc\TableGeometry;
 use PortLibs\Pandoc\WordPressBlockWriter;
 
@@ -122,7 +121,6 @@ $assertTableParsed = static function (
 ) use ($firstTable, $cellText): void {
     $table = $firstTable($document);
     $packet = TableGeometry::reviewPacket($table, ['accessibility' => false]);
-    $markdown = (new MarkdownWriter())->write(new AstNode('document', [], [$table]));
     $blocks = (new WordPressBlockWriter())->write($document);
     [$head0, $head1, $body0, $body1] = $fixture['expected'];
     $expectedCaption ??= $caption;
@@ -143,17 +141,14 @@ $assertTableParsed = static function (
     $t->same($body0, $cellText($table, 'body', 0, 0));
     $t->same($body1, $cellText($table, 'body', 0, 1));
     if ($expectedCaption !== '') {
-        $t->contains($expectedCaption, $markdown);
         $t->contains('<figcaption', $blocks);
     }
 };
 
 $assertTableDisabled = static function (TestRunner $t, AstNode $document, string $sourceNeedle) use ($firstTable): void {
     $table = $firstTable($document);
-    $markdown = (new MarkdownWriter())->write($document);
 
     $t->same('missing', $table->type);
-    $t->contains($sourceNeedle, $markdown);
 };
 
 $profileCases = [

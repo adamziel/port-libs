@@ -5,7 +5,6 @@ declare(strict_types=1);
 use PortLibs\Pandoc\DelimitedTextReader;
 use PortLibs\Pandoc\DelimitedTextUpstreamReaderEvidence;
 use PortLibs\Pandoc\AstNode;
-use PortLibs\Pandoc\MarkdownWriter;
 use PortLibs\Pandoc\PandocConverter;
 use PortLibs\Pandoc\PandocJsonWriter;
 use PortLibs\Pandoc\TableGeometry;
@@ -84,7 +83,6 @@ return [
         $table = $document->children[0];
         $packet = $table->attr('delimitedText');
         $geometry = $table->attr('tableGeometry');
-        $markdown = (new MarkdownWriter())->write($document);
         $wordpress = (new WordPressBlockWriter())->write($document);
         $json = (new PandocJsonWriter())->toArray($document);
 
@@ -122,8 +120,6 @@ return [
         $t->same("Two\nline title", $table->children[1]->children[1]->children[1]->attr('text'));
         $t->same(3, $geometry['columnCount'] ?? null);
         $t->same('Legacy, "quoted" title', $geometry['coverage'][4]['text'] ?? null);
-        $t->contains('| source_id | title                    | published |', $markdown);
-        $t->contains('| 42        | Legacy, \\"quoted\\" title | true      |', $markdown);
         $t->contains('<th>source_id</th><th>title</th><th>published</th>', $wordpress);
         $t->contains('<td>Legacy, &quot;quoted&quot; title</td>', $wordpress);
         $t->same('Table', $json['blocks'][0]['t'] ?? null);
@@ -5842,7 +5838,6 @@ NATIVE;
         ]));
         $table = $document->children[0];
         $packet = $table->attr('delimitedText');
-        $markdown = (new MarkdownWriter())->write($document);
         $wordpress = (new WordPressBlockWriter())->write($document);
 
         $t->same('tsv', $document->attr('sourceFormat'));
@@ -5854,7 +5849,6 @@ NATIVE;
         $t->same(1, $packet['raggedRowCount'] ?? null);
         $t->same([2], $packet['raggedRows'] ?? null);
         $t->same('', $table->children[1]->children[1]->children[2]->attr('text'));
-        $t->contains('| 43        | Needs review  |           |', $markdown);
         $t->contains('<td>Needs review</td><td></td>', $wordpress);
     },
     'reads csv and tsv through the pandoc converter registry' => static function (TestRunner $t): void {
@@ -6048,7 +6042,6 @@ NATIVE;
         $tsvTable = $tsvDocument->children[0];
         $csvPacket = $csvTable->attr('delimitedText');
         $tsvPacket = $tsvTable->attr('delimitedText');
-        $csvMarkdown = (new MarkdownWriter())->write($csvDocument);
         $csvWordpress = (new WordPressBlockWriter())->write($csvDocument);
         $csvJson = (new PandocJsonWriter())->toArray($csvDocument);
 
@@ -6067,7 +6060,6 @@ NATIVE;
         $t->same('42', $csvTable->children[1]->children[0]->children[0]->attr('text'));
         $t->same('Legacy, "quoted" title', $csvTable->children[1]->children[0]->children[1]->attr('text'));
         $t->same('43', $csvTable->children[1]->children[1]->children[0]->attr('text'));
-        $t->contains('| 42 | Legacy, \\"quoted\\" title | true  |', $csvMarkdown);
         $t->contains('<tbody><tr><td>42</td><td>Legacy, &quot;quoted&quot; title</td><td>true</td></tr>', $csvWordpress);
         $t->true(!str_contains($csvWordpress, '<thead>'));
         $csvHead = $csvJson['blocks'][0]['c'][3]['c'] ?? $csvJson['blocks'][0]['c'][3];

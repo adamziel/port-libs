@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 use PortLibs\Pandoc\AstNode;
 use PortLibs\Pandoc\MarkdownReader;
-use PortLibs\Pandoc\MarkdownWriter;
 
 $findFirstNode = null;
 $findFirstNode = static function (AstNode $node, string $type) use (&$findFirstNode): AstNode {
@@ -129,8 +128,6 @@ return [
             $document = new AstNode('document', [], [
                 new AstNode('paragraph', [], [$span]),
             ]);
-            $roundTripSpan = $readSpanWithSpec(substr((new MarkdownWriter())->write($document), strlen('[token]')));
-            $assertAttributes($t, $roundTripSpan->attrs, $expectedId, $expectedClass, $expectedValue, $name . ' writer round trip');
             $mapped++;
         }
 

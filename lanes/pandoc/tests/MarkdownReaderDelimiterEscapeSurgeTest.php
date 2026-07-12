@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 use PortLibs\Pandoc\AstNode;
 use PortLibs\Pandoc\MarkdownReader;
-use PortLibs\Pandoc\MarkdownWriter;
 use PortLibs\Pandoc\WordPressBlockWriter;
 
 $inlineText = static function (AstNode $node) use (&$inlineText): string {
@@ -188,13 +187,9 @@ return [
             $document = $reader->read($case['markdown']);
             $node = $firstInlineOfType($document, $case['config']['type']);
             $blocks = (new WordPressBlockWriter())->write($document);
-            $markdown = (new MarkdownWriter($options))->write($document);
-            $roundTripped = $firstInlineOfType($reader->read($markdown), $case['config']['type']);
 
             $t->same($case['config']['type'], $node->type, $label);
             $t->same($case['text'], $inlineText($node), $label);
-            $t->same($case['config']['type'], $roundTripped->type, $label . ' writer round trip type');
-            $t->same($case['text'], $inlineText($roundTripped), $label . ' writer round trip text');
             if (isset($case['config']['classes'])) {
                 $t->same($case['config']['classes'], $node->attr('classes'), $label);
             }

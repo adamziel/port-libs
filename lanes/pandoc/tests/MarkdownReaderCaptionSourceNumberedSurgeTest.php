@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 use PortLibs\Pandoc\AstNode;
 use PortLibs\Pandoc\MarkdownReader;
-use PortLibs\Pandoc\MarkdownWriter;
 use PortLibs\Pandoc\WordPressBlockWriter;
 
 $firstNodeOfType = static function (AstNode $document, string $type): AstNode {
@@ -140,7 +139,6 @@ foreach ($tableCases as $case) {
             $document = (new MarkdownReader())->read($captionedTableMarkdown($case));
             $table = $firstNodeOfType($document, 'table');
             $captionSource = $table->attr('captionSource', []);
-            $markdown = (new MarkdownWriter())->write($document);
             $blocks = (new WordPressBlockWriter())->write($document);
 
             $t->same('table', $table->type);
@@ -154,7 +152,6 @@ foreach ($tableCases as $case) {
             $t->same($case['marker'], $captionSource['marker'] ?? null);
             $t->same($case['position'] === 'before-table' ? 'top' : 'bottom', $captionSource['captionSide'] ?? null);
             $t->same($case['rowLabel'], $table->children[1]->children[0]->children[0]->attr('text'));
-            $t->contains(': [' . $case['short'] . '] Numbered *table* caption', $markdown);
             $t->contains('data-pandoc-short-caption="' . $case['short'] . '"', $blocks);
         };
 }
@@ -166,7 +163,6 @@ foreach ($figureCases as $case) {
             $figure = $firstNodeOfType($document, 'figure');
             $image = $figure->children[0] ?? new AstNode('missing');
             $captionSource = $figure->attr('captionSource', []);
-            $markdown = (new MarkdownWriter())->write($document);
             $blocks = (new WordPressBlockWriter())->write($document);
 
             $t->same('figure', $figure->type);
@@ -182,7 +178,6 @@ foreach ($figureCases as $case) {
             $t->same($case['position'] === 'before-figure' ? 'top' : 'bottom', $captionSource['captionSide'] ?? null);
             $t->same($case['url'], $image->attr('url'));
             $t->same($case['title'], $image->attr('title'));
-            $t->contains('![Numbered *figure* caption ' . $case['caseId'] . '](' . $case['url'], $markdown);
             $t->contains('data-pandoc-short-caption="' . $case['short'] . '"', $blocks);
             $t->contains('<figcaption>Numbered <em>figure</em> caption ' . $case['caseId'] . '</figcaption>', $blocks);
         };

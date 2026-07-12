@@ -6,7 +6,6 @@ use PortLibs\Pandoc\AstNode;
 use PortLibs\Pandoc\BibtexCslProcessor;
 use PortLibs\Pandoc\CitationCslProcessor;
 use PortLibs\Pandoc\MarkdownReader;
-use PortLibs\Pandoc\MarkdownWriter;
 use PortLibs\Pandoc\WordPressBlockWriter;
 
 if (!function_exists('pandocTestAssertDefinitionEntry')) {
@@ -2214,7 +2213,6 @@ BIB;
         $document = (new MarkdownReader())->read('Rights source @rights-dataset and copyright snapshot [@copyright-snapshot] keep compact notices with license @license-note.');
         $handoff = $processor->citationHandoff($document, $source);
         $bibliographyDocument = new AstNode('document', [], [$handoff['bibliography']]);
-        $markdown = (new MarkdownWriter())->write($bibliographyDocument);
         $blocks = (new WordPressBlockWriter())->write($bibliographyDocument);
 
         $t->same(['rights-dataset', 'copyright-snapshot', 'license-note'], $handoff['citedKeys']);
@@ -2222,7 +2220,6 @@ BIB;
         $t->same('CC BY-SA 4.0 review required', $handoff['items'][0]['rights']);
         $t->same('Copyright 2025 Source Archive', $handoff['items'][1]['rights']);
         $t->same('Internal migration review only', $handoff['items'][2]['rights']);
-        $t->contains('Rights: CC BY-SA 4.0 review required', $markdown);
         $t->contains('Rights: Copyright 2025 Source Archive', $blocks);
         $t->contains('Rights: Internal migration review only', $blocks);
     },
@@ -2384,12 +2381,10 @@ BIB;
         $document = (new MarkdownReader())->read('Source locator review cites @source-locator and [@source-title-alias].');
         $handoff = $processor->citationHandoff($document, $source);
         $bibliographyDocument = new AstNode('document', [], [$handoff['bibliography']]);
-        $markdown = (new MarkdownWriter())->write($bibliographyDocument);
         $blocks = (new WordPressBlockWriter())->write($bibliographyDocument);
 
         $t->same('Migration Appendix', $handoff['bibliography']->children[0]->attr('cslItem')['source'] ?? null);
         $t->same('Archive Guide', $handoff['bibliography']->children[1]->attr('cslItem')['source'] ?? null);
-        $t->contains('Source: Migration Appendix', $markdown);
         $t->contains('Section: Review Shelf A', $blocks);
         $t->contains('Source: Archive Guide', $blocks);
     },
@@ -2432,12 +2427,10 @@ BIB;
         $document = (new MarkdownReader())->read('Archive review cites @compact-shelfmark and [@library-manual].');
         $handoff = $processor->citationHandoff($document, $source);
         $bibliographyDocument = new AstNode('document', [], [$handoff['bibliography']]);
-        $markdown = (new MarkdownWriter())->write($bibliographyDocument);
         $blocks = (new WordPressBlockWriter())->write($bibliographyDocument);
 
         $t->same('MS 42 Box 4', $handoff['bibliography']->children[0]->attr('cslItem')['call-number'] ?? null);
         $t->same('Reading Room Shelf B/12', $handoff['bibliography']->children[1]->attr('cslItem')['call-number'] ?? null);
-        $t->contains('Call number: MS 42 Box 4', $markdown);
         $t->contains('Call number: Reading Room Shelf B/12', $blocks);
     },
     'carries biblatex thesis school and type aliases in legacy csl handoff' => static function (TestRunner $t): void {
@@ -3086,14 +3079,12 @@ BIB;
         $document = (new MarkdownReader())->read('Alias review cites @legacy-source, [@alt-source], and @canonical-source.');
         $handoff = $processor->citationHandoff($document, $source);
         $bibliographyDocument = new AstNode('document', [], [$handoff['bibliography']]);
-        $markdown = (new MarkdownWriter())->write($bibliographyDocument);
         $blocks = (new WordPressBlockWriter())->write($bibliographyDocument);
 
         $t->same(['legacy-source', 'alt-source', 'canonical-source'], $handoff['citedKeys']);
         $t->same([], $handoff['missingKeys']);
         $t->same(['canonical-source'], array_map(static fn (array $item): string => (string) $item['id'], $handoff['items']));
         $t->same(['legacy-source', 'alt-source'], $handoff['bibliography']->children[0]->attr('cslItem')['citation-aliases'] ?? null);
-        $t->contains('Citation aliases: legacy-source; alt-source', $markdown);
         pandocTestAssertDefinitionTerm($t, $blocks, 'canonical-source');
         $t->contains('Citation aliases: legacy-source; alt-source', $blocks);
 
@@ -3933,17 +3924,12 @@ XML);
         $t->same(3, count($handoff['bibliography']->children));
         $t->true((bool) $handoff['bibliography']->children[2]->attr('missing'), 'Missing citation should be represented as a reviewable bibliography item');
     },
-    'renders bibliography nodes through markdown and wordpress writers' => static function (TestRunner $t): void {
+    'renders bibliography nodes through WordPress blocks' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read('Reviewer note cites @lovelace1843 and @fielding2000.');
         $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-bibtex-csl-review.bib');
         $handoff = (new BibtexCslProcessor())->citationHandoff($document, $fixture);
         $bibliographyDocument = new AstNode('document', [], [$handoff['bibliography']]);
-        $markdown = (new MarkdownWriter())->write($bibliographyDocument);
         $blocks = (new WordPressBlockWriter())->write($bibliographyDocument);
-
-        $t->contains('lovelace1843', $markdown);
-        $t->contains('Ada Lovelace and Luigi Federico Menabrea. Notes on the Analytical Engine.', $markdown);
-        $t->contains('fielding2000', $markdown);
         $t->contains('pandoc-definition-list', $blocks);
         pandocTestAssertDefinitionTerm($t, $blocks, 'lovelace1843');
         $t->contains('Journal of WordPress Migration Review 3(29). 1843. 691-731.', $blocks);
