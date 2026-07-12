@@ -89,6 +89,24 @@ final class PandocConverter
     }
 
     /**
+     * @param callable(string): void $sink
+     * @param array<string, mixed> $options
+     */
+    public static function writeTo(AstNode $document, string $format, callable $sink, array $options = []): void
+    {
+        $canonical = self::canonicalOutputFormat($format);
+        if ($canonical === 'wordpress') {
+            (new WordPressBlockWriter($options))->writeTo($document, $sink);
+
+            return;
+        }
+
+        $entry = self::outputSupport($canonical);
+        $writer = self::writer($entry['implementation'], $canonical, $options);
+        $sink($writer->write($document));
+    }
+
+    /**
      * @param array{readerOptions?: array<string, mixed>, writerOptions?: array<string, mixed>} $options
      */
     public static function convert(string $bytes, string $from, string $to, array $options = []): string
@@ -97,6 +115,37 @@ final class PandocConverter
         $writerOptions = isset($options['writerOptions']) && is_array($options['writerOptions']) ? $options['writerOptions'] : [];
 
         return self::write(self::read($bytes, $from, $readerOptions), $to, $writerOptions);
+    }
+
+    /**
+     * Convert into a caller-owned output sink. EPUB-to-WordPress uses its
+     * spine generator when no media rewrite or metadata review is requested.
+     *
+     * @param callable(string): void $sink
+     * @param array{readerOptions?: array<string, mixed>, writerOptions?: array<string, mixed>, extractMedia?: string|array<string, mixed>, extract-media?: string|array<string, mixed>} $options
+     */
+    public static function convertToSink(string $bytes, string $from, string $to, callable $sink, array $options = []): void
+    {
+        $readerOptions = isset($options['readerOptions']) && is_array($options['readerOptions']) ? $options['readerOptions'] : [];
+        $writerOptions = isset($options['writerOptions']) && is_array($options['writerOptions']) ? $options['writerOptions'] : [];
+        $input = self::canonicalInputFormat($from);
+        $output = self::canonicalOutputFormat($to);
+
+        if (
+            $input === 'epub'
+            && $output === 'wordpress'
+            && self::extractMediaOptions($options) === null
+            && !(bool) ($writerOptions['includeMetadata'] ?? false)
+        ) {
+            (new WordPressBlockWriter($writerOptions))->writeNodesTo(
+                (new EpubReader($readerOptions))->streamNodes($bytes),
+                $sink
+            );
+
+            return;
+        }
+
+        self::writeTo(self::read($bytes, $from, $readerOptions), $to, $sink, $writerOptions);
     }
 
     /**
