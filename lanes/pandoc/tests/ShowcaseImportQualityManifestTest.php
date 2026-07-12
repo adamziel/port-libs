@@ -47,6 +47,30 @@ $recordsById = static function (array $records): array {
     return $byId;
 };
 
+$sourceRawHtmlBlockCount = static function (\PortLibs\Pandoc\AstNode $document): int {
+    $count = 0;
+    $pending = [$document];
+    while ($pending !== []) {
+        $node = array_pop($pending);
+        if (!$node instanceof \PortLibs\Pandoc\AstNode) {
+            continue;
+        }
+        if ($node->type === 'raw_html') {
+            $count++;
+        } elseif ($node->type === 'raw_block') {
+            $format = strtolower((string) $node->attr('format', ''));
+            if (\PortLibs\Pandoc\MarkdownFormatProfile::rawFamily($format) === 'html') {
+                $count++;
+            }
+        }
+        foreach ($node->children as $child) {
+            $pending[] = $child;
+        }
+    }
+
+    return $count;
+};
+
 return [
     'showcase manifest keeps a normal user document corpus' => static function (TestRunner $t) use ($showcaseManifest, $recordsByFormat): void {
         $manifest = $showcaseManifest();
@@ -105,9 +129,9 @@ return [
 
         $t->same([], $manifest['missingFormats'] ?? null);
         $t->same($formats, $coveredFormats);
-        $t->same(93, count($records));
-        $t->same(93, $qualitySummary['samples'] ?? null);
-        $t->same(92, $qualitySummary['pass'] ?? null);
+        $t->true(count($records) >= 95, 'The complete supported-format corpus should not shrink.');
+        $t->same(count($records), $qualitySummary['samples'] ?? null);
+        $t->same(count($records) - 1, $qualitySummary['pass'] ?? null);
         $t->same(1, $qualitySummary['review'] ?? null);
         $t->same(0, $qualitySummary['fail'] ?? null);
         $t->same(0, $qualitySummary['unbenchmarked'] ?? null);
@@ -360,7 +384,7 @@ return [
         $t->true(in_array('extract-media-pdf-image-raster-loaded:00017:important', $diagnostics, true), 'A JBIG2Globals-backed page image should be recorded as a raster media import.');
         $t->same(false, in_array('extract-media-pdf-image-skipped:JBIG2Decode', $diagnostics, true), 'No supported JBIG2 image should be silently skipped.');
     },
-    'showcase manifest distinguishes source raw HTML from Custom HTML fallback' => static function (TestRunner $t) use ($showcaseManifest, $recordsById): void {
+    'showcase manifest distinguishes source raw HTML from Custom HTML fallback' => static function (TestRunner $t) use ($showcaseManifest, $recordsById, $sourceRawHtmlBlockCount): void {
         $manifest = $showcaseManifest();
         $records = is_array($manifest['records'] ?? null) ? $manifest['records'] : [];
         $byId = $recordsById($records);
@@ -371,8 +395,15 @@ return [
         $customHtml = is_array($quality['gates']['custom_html_percentage'] ?? null)
             ? $quality['gates']['custom_html_percentage']
             : [];
+        $samplePath = dirname(__DIR__, 3) . '/pandoc-showcase/' . ltrim((string) ($record['samplePath'] ?? ''), '/');
+        $t->true(is_file($samplePath), 'The rich GitHub Markdown source sample should be available for direct evidence checks.');
+        $sourceDocument = \PortLibs\Pandoc\PandocConverter::readFile($samplePath, (string) ($record['format'] ?? 'markdown_github'));
+        $sourceRawBlocks = $sourceRawHtmlBlockCount($sourceDocument);
+
         $t->same('pass', $quality['status'] ?? null, 'Source-preserved GitHub HTML should not lower import quality.');
-        $t->same(8, $record['sourceRawHtmlBlockCount'] ?? null, 'The source raw HTML block count should remain evidence-backed.');
+        $t->true($sourceRawBlocks >= 9, 'The full GFM syntax sample should retain its rich raw HTML packet.');
+        $t->same($sourceRawBlocks, $record['sourceRawHtmlBlockCount'] ?? null, 'The manifest source raw HTML count should be generated from the current source document.');
+        $t->same($sourceRawBlocks, $record['wpBlockCounts']['html'] ?? null, 'Every retained source raw HTML block should map to one expected WordPress Custom HTML block.');
         $t->same('pass', $customHtml['status'] ?? null, 'Source raw HTML should not count as an unsupported Custom HTML fallback.');
         $t->same(0.0, isset($customHtml['actual']) ? (float) $customHtml['actual'] : null, 'No unexpected Custom HTML fallback should remain.');
     },

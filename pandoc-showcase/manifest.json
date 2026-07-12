@@ -1,5 +1,5 @@
 {
-    "generatedAt": "2026-07-11T18:19:30+00:00",
+    "generatedAt": "2026-07-12T14:20:36+00:00",
     "pandocVersion": "pandoc 3.10\nFeatures: +server +lua\nScripting engine: Lua 5.4\nUser data directory: $REPO\nCopyright (C) 2006-2025 John MacFarlane. Web:  https://pandoc.org\nThis is free software; see the source for copying conditions. There is no\nwarranty, not even for merchantability or fitness for a particular purpose.",
     "mediaImageMode": "important",
     "formats": [
@@ -90,8 +90,8 @@
     "conversionSummary": {
         "totalSamples": 95,
         "totalConversions": 285,
-        "successfulConversions": 271,
-        "failedConversions": 14,
+        "successfulConversions": 272,
+        "failedConversions": 13,
         "byConverter": {
             "wpBlocks": {
                 "label": "PHP WordPress blocks",
@@ -107,8 +107,8 @@
             },
             "haskell": {
                 "label": "Haskell Pandoc HTML",
-                "ok": 81,
-                "failed": 14,
+                "ok": 82,
+                "failed": 13,
                 "total": 95
             }
         },
@@ -295,8 +295,8 @@
             },
             "odt": {
                 "samples": 3,
-                "ok": 8,
-                "failed": 1,
+                "ok": 9,
+                "failed": 0,
                 "total": 9
             },
             "opml": {
@@ -356,13 +356,13 @@
         }
     },
     "faithfulnessSummary": {
-        "comparisons": 169,
-        "faithfulEnough": 167,
+        "comparisons": 170,
+        "faithfulEnough": 168,
         "review": 2,
         "divergent": 0,
         "noText": 0,
-        "visualComparisons": 151,
-        "visualFaithfulEnough": 151,
+        "visualComparisons": 152,
+        "visualFaithfulEnough": 152,
         "visualReview": 0,
         "visualDivergent": 0,
         "visualNoStructure": 0,
@@ -12148,9 +12148,9 @@
                 "notes": "Bounded ODT package reader parses content.xml, meta.xml, optional META-INF/manifest.xml package metadata, text/list styles, headings, paragraphs, ordered and bullet lists, tables, links, styled spans, line breaks, images, and image/resource package references into the shared AST. Full ODT parity remains open."
             },
             "haskell": {
-                "ok": false,
-                "error": "Timed out after 300s.",
-                "path": "outputs/odt-oasis-opendocument-schema/haskell.html.error.txt"
+                "ok": true,
+                "path": "outputs/odt-oasis-opendocument-schema/haskell.html",
+                "renderedWithCiteproc": false
             },
             "phpHtml": {
                 "ok": true,
@@ -12932,16 +12932,25 @@
                 "available": false
             },
             "faithfulness": {
-                "baseline": "phpHtml",
+                "baseline": "haskell",
                 "comparisons": {
                     "wpBlocks": {
                         "label": "PHP WordPress blocks",
                         "status": "faithful_enough",
-                        "score": 1,
+                        "score": 0.9976,
                         "textStatus": "faithful_enough",
-                        "textScore": 1,
+                        "textScore": 0.9976,
                         "visualStatus": "faithful_enough",
-                        "visualScore": 0.9987
+                        "visualScore": 0.977
+                    },
+                    "phpHtml": {
+                        "label": "PHP HTML",
+                        "status": "faithful_enough",
+                        "score": 0.9976,
+                        "textStatus": "faithful_enough",
+                        "textScore": 0.9976,
+                        "visualStatus": "faithful_enough",
+                        "visualScore": 0.9778
                     }
                 }
             },
@@ -12951,20 +12960,20 @@
                     "text_completeness": {
                         "status": "pass",
                         "expected": ">=0.8",
-                        "actual": 1,
+                        "actual": 0.9976,
                         "detail": "visible text overlap with the baseline"
                     },
                     "visual_structure": {
                         "status": "pass",
                         "expected": ">=0.75",
-                        "actual": 0.9987,
+                        "actual": 0.977,
                         "detail": "heading/list/table/image shape overlap with the baseline"
                     },
                     "paragraph_merge_split": {
                         "status": "pass",
                         "expected": "0.80-1.25",
-                        "actual": 1,
-                        "detail": "paragraph count ratio expected 10588, got 10588"
+                        "actual": 1.0005,
+                        "detail": "paragraph count ratio expected 10583, got 10588"
                     },
                     "heading_count": {
                         "status": "pass",
@@ -12975,8 +12984,8 @@
                     "list_count": {
                         "status": "pass",
                         "expected": "0.80-1.25",
-                        "actual": 1,
-                        "detail": "list count ratio expected 731, got 731"
+                        "actual": 0.9986,
+                        "detail": "list count ratio expected 732, got 731"
                     },
                     "definition_list_count": {
                         "status": "pass",
@@ -12987,8 +12996,8 @@
                     "table_count": {
                         "status": "pass",
                         "expected": "0.80-1.25",
-                        "actual": 1,
-                        "detail": "table count ratio expected 31, got 31"
+                        "actual": 1.1481,
+                        "detail": "table count ratio expected 27, got 31"
                     },
                     "image_count": {
                         "status": "pass",

@@ -5,6 +5,7 @@ declare(strict_types=1);
 use PortLibs\Pandoc\PandocConverter;
 use PortLibs\Pandoc\PandocFormatRegistry;
 use PortLibs\Pandoc\AstNode;
+use PortLibs\Pandoc\ShowcaseHaskellReferenceTimeout;
 
 require __DIR__ . '/bootstrap.php';
 
@@ -52,6 +53,7 @@ $siteDir = $root . '/pandoc-showcase';
 $samplesDir = $siteDir . '/samples';
 $outputsDir = $siteDir . '/outputs';
 $rawBase = 'https://raw.githubusercontent.com/jgm/pandoc/' . PandocFormatRegistry::UPSTREAM_SOURCE_COMMIT . '/';
+$refreshSources = in_array('--refresh-sources', $argv, true);
 
 function raise_memory_limit(string $minimum): void
 {
@@ -1193,6 +1195,11 @@ function ensure_dir(string $path): void
 
 function download_file(string $url, string $target): bool
 {
+    ensure_dir(dirname($target));
+    $temporary = tempnam(dirname($target), '.' . basename($target) . '.download-');
+    if ($temporary === false) {
+        return false;
+    }
     $cmd = [
         'curl',
         '-L',
@@ -1204,12 +1211,21 @@ function download_file(string $url, string $target): bool
         '--max-time',
         '60',
         '-o',
-        $target,
+        $temporary,
         $url,
     ];
-    $result = run_process($cmd, 75);
+    try {
+        $result = run_process($cmd, 75);
+        if ($result['exitCode'] !== 0 || !is_file($temporary) || filesize($temporary) <= 0) {
+            return false;
+        }
 
-    return $result['exitCode'] === 0 && is_file($target) && filesize($target) > 0;
+        return rename($temporary, $target);
+    } finally {
+        if (is_file($temporary)) {
+            unlink($temporary);
+        }
+    }
 }
 
 /**
@@ -3758,18 +3774,7 @@ function write_conversion_report(
  */
 function haskell_pandoc_timeout_seconds(string $path): int
 {
-    $size = is_file($path) ? filesize($path) : false;
-    if (!is_int($size) || $size <= 131072) {
-        return 35;
-    }
-    if ($size <= 524288) {
-        return 90;
-    }
-
-    // Large office packages can expand into multi-megabyte XML trees inside
-    // Pandoc. Keep their reference conversion bounded, but do not silently
-    // downgrade a normal large document to a PHP-only comparison at 35s.
-    return 300;
+    return ShowcaseHaskellReferenceTimeout::secondsFor($path);
 }
 
 function run_haskell_pandoc(string $path, string $format, string $dir): array
@@ -4128,29 +4133,6 @@ function sanitize_generated_text(string $text): string
     return $text;
 }
 
-/**
- * @return array<string, string>
- */
-function existing_showcase_samples(string $samplesDir): array
-{
-    if (!is_dir($samplesDir)) {
-        return [];
-    }
-
-    $samples = [];
-    foreach (glob($samplesDir . '/*') ?: [] as $path) {
-        if (!is_file($path) || str_ends_with($path, '.download-error.txt')) {
-            continue;
-        }
-        $bytes = file_get_contents($path);
-        if (is_string($bytes)) {
-            $samples[basename($path)] = $bytes;
-        }
-    }
-
-    return $samples;
-}
-
 if (($argv[1] ?? '') === '--verify-quality-signature') {
     $baseline = showcase_html_visual_signature(showcase_visible_html(<<<'HTML'
 <header id="title-block-header"><h1>Generated title</h1><p>July 9, 2026</p></header>
@@ -4386,8 +4368,6 @@ HTML));
     exit($ok ? 0 : 1);
 }
 
-$existingSamples = existing_showcase_samples($samplesDir);
-
 ensure_dir($siteDir);
 ensure_dir($samplesDir);
 ensure_dir($outputsDir);
@@ -4416,14 +4396,6 @@ foreach ($samples as $sample) {
         if (!copy_local_resource_tree($resourceRoot, dirname($target))) {
             $downloadError = 'Unable to copy local resource tree ' . $sample['localResourceRoot'];
         }
-    } elseif (is_file($target)) {
-        unlink($target);
-    }
-    if (!is_string($resourceRoot) && is_file($target . '.download-error.txt')) {
-        unlink($target . '.download-error.txt');
-    }
-    if ($downloadError !== null) {
-        file_put_contents($target . '.download-error.txt', $downloadError);
     } elseif (isset($sample['content'])) {
         file_put_contents($target, (string) $sample['content']);
     } elseif (isset($sample['localPath'])) {
@@ -4431,18 +4403,22 @@ foreach ($samples as $sample) {
         if (is_file($localPath)) {
             copy($localPath, $target);
         } else {
+            @unlink($target);
             $downloadError = 'Unable to copy local sample ' . $sample['localPath'];
-            file_put_contents($target . '.download-error.txt', $downloadError);
         }
     } elseif (isset($sample['url'])) {
-        if (!download_file((string) $sample['url'], $target)) {
-            if (isset($existingSamples[basename($target)])) {
-                file_put_contents($target, $existingSamples[basename($target)]);
-            } else {
+        $hasCachedSource = is_file($target) && filesize($target) > 0;
+        if (($refreshSources || !$hasCachedSource) && !download_file((string) $sample['url'], $target)) {
+            if (!$hasCachedSource) {
+                @unlink($target);
                 $downloadError = 'Unable to download ' . $sample['url'];
-                file_put_contents($target . '.download-error.txt', $downloadError);
             }
         }
+    }
+    if ($downloadError !== null) {
+        file_put_contents($target . '.download-error.txt', $downloadError);
+    } elseif (is_file($target)) {
+        @unlink($target . '.download-error.txt');
     }
     $sourcePath = is_file($target) ? $target : $target . '.download-error.txt';
     $outDir = $outputsDir . '/' . $id;
