@@ -13,20 +13,47 @@ final class TagSoupParser
     private int $column = 1;
     private TagSoupParseOptions $options;
 
-    /** @var list<TagSoupTag> */
-    private array $tokens = [];
+    /** @var list<TagSoupTag>|TagSoupTokenStream */
+    private array|TagSoupTokenStream $tokens = [];
 
     /**
      * @return list<TagSoupTag>
      */
     public function parse(string $html, ?TagSoupParseOptions $options = null): array
     {
+        $tokens = $this->parseInto($html, $options, false);
+        if (!is_array($tokens)) {
+            throw new \LogicException('Array token parsing did not produce an array.');
+        }
+
+        return $tokens;
+    }
+
+    /**
+     * @return TagSoupTokenStream
+     */
+    public function parseCanonicalStream(string $html, ?TagSoupParseOptions $options = null): TagSoupTokenStream
+    {
+        $options ??= TagSoupParseOptions::defaults();
+        $tokens = $this->parseInto($html, $options->withCanonicalizedTags(), true);
+        if (!$tokens instanceof TagSoupTokenStream) {
+            throw new \LogicException('Compact token parsing did not produce a token stream.');
+        }
+
+        return $tokens;
+    }
+
+    /**
+     * @return list<TagSoupTag>|TagSoupTokenStream
+     */
+    private function parseInto(string $html, ?TagSoupParseOptions $options, bool $compactTokens): array|TagSoupTokenStream
+    {
         $this->source = $html;
         $this->length = strlen($html);
         $this->offset = 0;
         $this->row = 1;
         $this->column = 1;
-        $this->tokens = [];
+        $this->tokens = $compactTokens ? new TagSoupTokenStream() : [];
         $this->options = $options ?? TagSoupParseOptions::defaults();
 
         while ($this->offset < $this->length) {
@@ -49,6 +76,20 @@ final class TagSoupParser
     }
 
     /**
+     * Parse directly into the tag form consumed by the Pandoc-compatible HTML
+     * readers. This avoids retaining a second full token array just to lower
+     * tag and attribute names after tokenization.
+     *
+     * @return list<TagSoupTag>
+     */
+    public function parseCanonical(string $html, ?TagSoupParseOptions $options = null): array
+    {
+        $options ??= TagSoupParseOptions::defaults();
+
+        return $this->parse($html, $options->withCanonicalizedTags());
+    }
+
+    /**
      * @param list<TagSoupTag> $tokens
      * @return list<TagSoupTag>
      */
@@ -57,27 +98,15 @@ final class TagSoupParser
         $canonical = [];
         foreach ($tokens as $token) {
             if ($token->type === TagSoupTag::OPEN) {
-                $name = $token->name;
-                if (str_starts_with($name, '!')) {
-                    $name = '!' . strtoupper(substr($name, 1));
-                } else {
-                    $name = strtolower($name);
-                }
-                $name = self::stripTagNamespacePrefix($name);
-
-                $attrs = [];
-                foreach ($token->attributes as $attribute) {
-                    $attrs[] = [
-                        'name' => strtolower($attribute['name']),
-                        'value' => $attribute['value'],
-                    ];
-                }
-                $canonical[] = TagSoupTag::open($name, $attrs);
+                $canonical[] = TagSoupTag::open(
+                    self::canonicalOpenTagName($token->name),
+                    self::canonicalAttributes($token->attributes),
+                );
                 continue;
             }
 
             if ($token->type === TagSoupTag::CLOSE) {
-                $canonical[] = TagSoupTag::close(self::stripTagNamespacePrefix(strtolower($token->name)));
+                $canonical[] = TagSoupTag::close(self::canonicalCloseTagName($token->name));
                 continue;
             }
 
@@ -92,6 +121,43 @@ final class TagSoupParser
         $colon = strrpos($name, ':');
 
         return $colon === false ? $name : substr($name, $colon + 1);
+    }
+
+    private static function canonicalOpenTagName(string $name): string
+    {
+        if (str_starts_with($name, '!')) {
+            $name = '!' . strtoupper(substr($name, 1));
+        } else {
+            $name = strtolower($name);
+        }
+
+        return self::stripTagNamespacePrefix($name);
+    }
+
+    private static function canonicalCloseTagName(string $name): string
+    {
+        return self::stripTagNamespacePrefix(strtolower($name));
+    }
+
+    /**
+     * @param list<array{name:string,value:string}> $attributes
+     * @return list<array{name:string,value:string}>
+     */
+    private static function canonicalAttributes(array $attributes): array
+    {
+        if ($attributes === []) {
+            return [];
+        }
+
+        $canonical = [];
+        foreach ($attributes as $attribute) {
+            $canonical[] = [
+                'name' => strtolower($attribute['name']),
+                'value' => $attribute['value'],
+            ];
+        }
+
+        return $canonical;
     }
 
     private function parseText(): void
@@ -252,9 +318,13 @@ final class TagSoupParser
         $name = $prefix . substr($this->source, $nameStart, $cursor - $nameStart);
         [$attributes, $cursor, $selfClosing] = $this->parseAttributes($cursor, $xml, $prefix !== '');
         $this->advance($cursor - $this->offset);
-        $this->emit(TagSoupTag::open($name, $attributes), $row, $column);
+        $tagName = $this->options->canonicalizeTags ? self::canonicalOpenTagName($name) : $name;
+        if ($this->options->canonicalizeTags) {
+            $attributes = self::canonicalAttributes($attributes);
+        }
+        $this->emit(TagSoupTag::open($tagName, $attributes), $row, $column);
         if ($selfClosing) {
-            $this->emit(TagSoupTag::close($name), $row, $column);
+            $this->emit(TagSoupTag::close($this->options->canonicalizeTags ? self::canonicalCloseTagName($name) : $name), $row, $column);
             return;
         }
 
@@ -401,7 +471,7 @@ final class TagSoupParser
             $this->advance($end + 1 - $this->offset);
         }
 
-        $this->emit(TagSoupTag::close($name), $row, $column);
+        $this->emit(TagSoupTag::close($this->options->canonicalizeTags ? self::canonicalCloseTagName($name) : $name), $row, $column);
     }
 
     private function parseRawTextBody(string $name): void
@@ -552,15 +622,29 @@ final class TagSoupParser
             return;
         }
 
+        if ($this->tokens instanceof TagSoupTokenStream) {
+            if ($this->options->includePositions && $token->type !== TagSoupTag::POSITION) {
+                $this->tokens->append(TagSoupTag::position($row, $column));
+            }
+
+            if ($this->options->mergeAdjacentText && $token->type === TagSoupTag::TEXT && !$this->tokens->isEmpty()) {
+                $last = $this->tokens->lastToken();
+                if ($last instanceof TagSoupTag && $last->type === TagSoupTag::TEXT) {
+                    $this->tokens->replaceLast(TagSoupTag::text($last->text . $token->text));
+                    return;
+                }
+            }
+
+            $this->tokens->append($token);
+
+            return;
+        }
+
         if ($this->options->includePositions && $token->type !== TagSoupTag::POSITION) {
             $this->tokens[] = TagSoupTag::position($row, $column);
         }
 
-        if (
-            $this->options->mergeAdjacentText
-            && $token->type === TagSoupTag::TEXT
-            && $this->tokens !== []
-        ) {
+        if ($this->options->mergeAdjacentText && $token->type === TagSoupTag::TEXT && $this->tokens !== []) {
             $lastIndex = array_key_last($this->tokens);
             $last = $lastIndex === null ? null : $this->tokens[$lastIndex];
             if ($last instanceof TagSoupTag && $last->type === TagSoupTag::TEXT) {

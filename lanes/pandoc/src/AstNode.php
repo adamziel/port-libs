@@ -4,9 +4,13 @@ declare(strict_types=1);
 
 namespace PortLibs\Pandoc;
 
-final class AstNode
+class AstNode
 {
     private const COMPOUND_STORAGE_MARKER = "\0pandoc-ast-compound";
+    private const COMPACT_TEXT_CHILDREN_MARKER = "\0pandoc-ast-compact-text-children";
+    private const COMPACT_TEXT_CHILDREN_WITH_ATTRS_MARKER = "\0pandoc-ast-compact-text-children-attrs";
+    private const DERIVED_TEXT_CHILDREN_MARKER = "\0pandoc-ast-derived-text-children";
+    private const DERIVED_TEXT_CHILDREN_WITH_ATTRS_MARKER = "\0pandoc-ast-derived-text-children-attrs";
 
     /** @var \WeakMap<AstNode, array<string, mixed>>|null */
     private static ?\WeakMap $resolvedAttributes = null;
@@ -20,6 +24,7 @@ final class AstNode
      * - array<string, mixed>: attributes and no children;
      * - list{array<string, mixed>|string, AstNode|list<AstNode>|null, ?AstAttributeResolver}:
      *   attributes, children, and optional lazy attributes.
+     * - tagged lists: direct text children represented as strings.
      *
      * This keeps the common text leaf, wrapper, and container forms to two
      * object properties: `type` and this value. PHP arrays have a large
@@ -33,13 +38,22 @@ final class AstNode
     /**
      * @param array<string, mixed> $attrs
      * @param list<AstNode> $children
+     * @param list<AstNode|string>|null $compactTextChildren
      */
     public function __construct(
         public readonly string $type,
         array $attrs = [],
         array $children = [],
         ?AstAttributeResolver $attributeResolver = null,
+        ?array $compactTextChildren = null,
+        bool $deriveTextFromChildren = false,
     ) {
+        if ($compactTextChildren !== null) {
+            $this->storage = self::compactTextChildrenStorage($attrs, $compactTextChildren, $deriveTextFromChildren);
+
+            return;
+        }
+
         $text = count($attrs) === 1
             && isset($attrs['text'])
             && is_string($attrs['text'])
@@ -79,6 +93,52 @@ final class AstNode
         $this->storage = $childStorage;
     }
 
+    /**
+     * Keep the common HTML block shape as a direct child list and derive its
+     * redundant plain-text attribute on demand.
+     *
+     * @param array<string, mixed> $attrs
+     * @param list<AstNode> $children
+     */
+    public static function withTextFromChildren(string $type, array $attrs, array $children): self
+    {
+        unset($attrs['text']);
+
+        $singleText = $attrs === [] ? self::singlePlainTextChild($children) : null;
+        if ($singleText !== null) {
+            return new AstNodeWithDerivedTextChild($type, ['text' => $singleText]);
+        }
+
+        $compactChildren = self::compactTextChildren($children);
+        if ($compactChildren !== null) {
+            return new self($type, $attrs, compactTextChildren: $compactChildren, deriveTextFromChildren: true);
+        }
+
+        return new AstNodeWithDerivedText($type, $attrs, $children);
+    }
+
+    /**
+     * Store direct plain-text children as strings and recreate their public
+     * AstNode form only when a caller inspects the child list.
+     *
+     * @param array<string, mixed> $attrs
+     * @param list<AstNode> $children
+     */
+    public static function withCompactTextChildren(string $type, array $attrs, array $children): self
+    {
+        $singleText = $attrs === [] ? self::singlePlainTextChild($children) : null;
+        if ($singleText !== null) {
+            return new AstNodeWithTextChild($type, ['text' => $singleText]);
+        }
+
+        $compactChildren = self::compactTextChildren($children);
+        if ($compactChildren === null) {
+            return new self($type, $attrs, $children);
+        }
+
+        return new self($type, $attrs, compactTextChildren: $compactChildren);
+    }
+
     public function attr(string $name, mixed $default = null): mixed
     {
         $attrs = $this->directAttributes();
@@ -88,6 +148,10 @@ final class AstNode
             }
         } elseif (array_key_exists($name, $attrs)) {
             return $attrs[$name];
+        }
+
+        if ($name === 'text' && $this->derivesTextFromChildren()) {
+            return $this->textFromChildren();
         }
 
         $resolver = $this->attributeResolver();
@@ -101,7 +165,11 @@ final class AstNode
     public function hasAttr(string $name): bool
     {
         $attrs = $this->directAttributes();
-        if ((is_string($attrs) && $name === 'text') || (is_array($attrs) && array_key_exists($name, $attrs))) {
+        if (
+            (is_string($attrs) && $name === 'text')
+            || (is_array($attrs) && array_key_exists($name, $attrs))
+            || ($name === 'text' && $this->derivesTextFromChildren())
+        ) {
             return true;
         }
 
@@ -122,7 +190,15 @@ final class AstNode
     {
         $attrs = $this->directAttributes();
 
-        return is_string($attrs) ? ['text' => $attrs] : $attrs;
+        if (is_string($attrs)) {
+            return ['text' => $attrs];
+        }
+
+        if ($this->derivesTextFromChildren()) {
+            $attrs['text'] = $this->textFromChildren();
+        }
+
+        return $attrs;
     }
 
     public function attributeResolver(): ?AstAttributeResolver
@@ -142,12 +218,26 @@ final class AstNode
      */
     public function children(): array
     {
+        $textChild = $this->textChildValue();
+        if ($textChild !== null) {
+            return [new self('text', ['text' => $textChild])];
+        }
+
         $children = $this->directChildren();
         if ($children instanceof self) {
             return [$children];
         }
 
-        return $children ?? [];
+        if ($children === null) {
+            return [];
+        }
+
+        $materialized = [];
+        foreach ($children as $child) {
+            $materialized[] = is_string($child) ? new self('text', ['text' => $child]) : $child;
+        }
+
+        return $materialized;
     }
 
     /**
@@ -214,7 +304,18 @@ final class AstNode
     private function directAttributes(): array|string
     {
         if (is_string($this->storage)) {
+            if ($this->textChildValue() !== null) {
+                return [];
+            }
+
             return $this->storage;
+        }
+
+        $compactChildrenOffset = $this->compactChildrenOffset();
+        if ($compactChildrenOffset !== null) {
+            return $compactChildrenOffset === 2 && is_array($this->storage[1] ?? null)
+                ? $this->storage[1]
+                : [];
         }
 
         $offset = $this->compoundStorageOffset();
@@ -230,12 +331,17 @@ final class AstNode
     }
 
     /**
-     * @return AstNode|list<AstNode>|null
+     * @return AstNode|list<AstNode|string>|null
      */
     private function directChildren(): AstNode|array|null
     {
         if ($this->storage instanceof self) {
             return $this->storage;
+        }
+
+        $compactChildrenOffset = $this->compactChildrenOffset();
+        if ($compactChildrenOffset !== null && is_array($this->storage)) {
+            return array_slice($this->storage, $compactChildrenOffset);
         }
 
         $offset = $this->compoundStorageOffset();
@@ -256,6 +362,10 @@ final class AstNode
     private function compoundStorageOffset(): ?int
     {
         if (!is_array($this->storage)) {
+            return null;
+        }
+
+        if ($this->compactChildrenOffset() !== null) {
             return null;
         }
 
@@ -288,4 +398,153 @@ final class AstNode
 
         return false;
     }
+
+    private function derivesTextFromChildren(): bool
+    {
+        return $this instanceof AstNodeWithDerivedText
+            || (is_array($this->storage) && in_array(
+                $this->storage[0] ?? null,
+                [self::DERIVED_TEXT_CHILDREN_MARKER, self::DERIVED_TEXT_CHILDREN_WITH_ATTRS_MARKER],
+                true,
+            ));
+    }
+
+    private function textFromChildren(): string
+    {
+        return self::plainTextFromChildren($this->children());
+    }
+
+    /**
+     * @param list<AstNode> $children
+     */
+    private static function plainTextFromChildren(array $children): string
+    {
+        $text = '';
+        foreach ($children as $child) {
+            if ($child->type === 'text' || $child->type === 'code') {
+                $text .= (string) $child->attr('text', '');
+            } elseif ($child->type === 'linebreak') {
+                $text .= "\n";
+            } else {
+                $text .= self::plainTextFromChildren($child->children);
+            }
+        }
+
+        return trim(preg_replace('/[ \t\f\v]+/', ' ', $text) ?? $text);
+    }
+
+    /**
+     * @param list<AstNode> $children
+     * @return list<AstNode|string>|null
+     */
+    private static function compactTextChildren(array $children): ?array
+    {
+        $compact = [];
+        $textCount = 0;
+        foreach ($children as $child) {
+            $attrs = $child->baseAttrs();
+            if (
+                $child->type === 'text'
+                && $child->children === []
+                && count($attrs) === 1
+                && isset($attrs['text'])
+                && is_string($attrs['text'])
+            ) {
+                $compact[] = $attrs['text'];
+                ++$textCount;
+                continue;
+            }
+
+            $compact[] = $child;
+        }
+
+        // A tagged array is more compact than multiple text objects, but it
+        // costs more than AstNode's direct singleton-child storage. Restrict
+        // it to runs with at least two direct text leaves.
+        return $textCount >= 2 ? $compact : null;
+    }
+
+    /**
+     * @param list<AstNode> $children
+     */
+    private static function singlePlainTextChild(array $children): ?string
+    {
+        if (count($children) !== 1) {
+            return null;
+        }
+
+        $child = $children[0];
+        $attrs = $child->baseAttrs();
+        if (
+            $child->type !== 'text'
+            || $child->children !== []
+            || count($attrs) !== 1
+            || !isset($attrs['text'])
+            || !is_string($attrs['text'])
+        ) {
+            return null;
+        }
+
+        return $attrs['text'];
+    }
+
+    /**
+     * @param array<string, mixed> $attrs
+     * @param list<AstNode|string> $children
+     * @return list<AstNode|string|array<string, mixed>>
+     */
+    private static function compactTextChildrenStorage(array $attrs, array $children, bool $deriveText): array
+    {
+        $hasAttrs = $attrs !== [];
+        $marker = match ([$deriveText, $hasAttrs]) {
+            [false, false] => self::COMPACT_TEXT_CHILDREN_MARKER,
+            [false, true] => self::COMPACT_TEXT_CHILDREN_WITH_ATTRS_MARKER,
+            [true, false] => self::DERIVED_TEXT_CHILDREN_MARKER,
+            [true, true] => self::DERIVED_TEXT_CHILDREN_WITH_ATTRS_MARKER,
+        };
+
+        return $hasAttrs ? [$marker, $attrs, ...$children] : [$marker, ...$children];
+    }
+
+    private function compactChildrenOffset(): ?int
+    {
+        if (!is_array($this->storage)) {
+            return null;
+        }
+
+        return match ($this->storage[0] ?? null) {
+            self::COMPACT_TEXT_CHILDREN_MARKER,
+            self::DERIVED_TEXT_CHILDREN_MARKER => 1,
+            self::COMPACT_TEXT_CHILDREN_WITH_ATTRS_MARKER,
+            self::DERIVED_TEXT_CHILDREN_WITH_ATTRS_MARKER => 2,
+            default => null,
+        };
+    }
+
+    private function textChildValue(): ?string
+    {
+        if (
+            !$this instanceof AstNodeWithTextChild
+            && !$this instanceof AstNodeWithDerivedTextChild
+        ) {
+            return null;
+        }
+
+        return is_string($this->storage) ? $this->storage : null;
+    }
+}
+
+/** @internal Keeps a derived text attribute without a per-node marker. */
+class AstNodeWithDerivedText extends AstNode
+{
+}
+
+/** @internal Stores one direct text child in AstNode's existing string slot. */
+class AstNodeWithTextChild extends AstNode
+{
+}
+
+/** @internal Combines lazy block text with a direct singleton text child. */
+final class AstNodeWithDerivedTextChild extends AstNodeWithDerivedText
+{
 }

@@ -11,6 +11,7 @@ final class TagSoupParseOptions
         public readonly bool $includeWarnings = false,
         public readonly bool $decodeEntities = true,
         public readonly bool $mergeAdjacentText = true,
+        public readonly bool $canonicalizeTags = false,
     ) {
     }
 
@@ -31,6 +32,7 @@ final class TagSoupParseOptions
             includeWarnings: $this->includeWarnings,
             decodeEntities: $this->decodeEntities,
             mergeAdjacentText: $this->mergeAdjacentText,
+            canonicalizeTags: $this->canonicalizeTags,
         );
     }
 
@@ -41,6 +43,7 @@ final class TagSoupParseOptions
             includeWarnings: $includeWarnings,
             decodeEntities: $this->decodeEntities,
             mergeAdjacentText: $this->mergeAdjacentText,
+            canonicalizeTags: $this->canonicalizeTags,
         );
     }
 
@@ -51,6 +54,18 @@ final class TagSoupParseOptions
             includeWarnings: $this->includeWarnings,
             decodeEntities: false,
             mergeAdjacentText: $this->mergeAdjacentText,
+            canonicalizeTags: $this->canonicalizeTags,
+        );
+    }
+
+    public function withCanonicalizedTags(bool $canonicalizeTags = true): self
+    {
+        return new self(
+            includePositions: $this->includePositions,
+            includeWarnings: $this->includeWarnings,
+            decodeEntities: $this->decodeEntities,
+            mergeAdjacentText: $this->mergeAdjacentText,
+            canonicalizeTags: $canonicalizeTags,
         );
     }
 }
