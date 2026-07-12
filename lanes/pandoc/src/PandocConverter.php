@@ -256,6 +256,36 @@ final class PandocConverter
      */
     public static function convertFileWithMedia(string $path, string $from, string $to, array $options = []): array
     {
+        if (self::canonicalInputFormat($from) === 'epub') {
+            $readerOptions = isset($options['readerOptions']) && is_array($options['readerOptions']) ? $options['readerOptions'] : [];
+            $writerOptions = isset($options['writerOptions']) && is_array($options['writerOptions']) ? $options['writerOptions'] : [];
+            if (!isset($readerOptions['sourcePath'])) {
+                $readerOptions['sourcePath'] = $path;
+            }
+            $extractOptions = self::extractMediaOptions($options);
+            $document = self::readFile($path, $from, $readerOptions);
+            $entries = [];
+            $diagnostics = [];
+            if ($extractOptions !== null) {
+                if (!isset($extractOptions['sourcePath'])) {
+                    $extractOptions['sourcePath'] = $readerOptions['sourcePath'];
+                }
+                $extracted = (new PandocMediaExtractor())->extractFile($document, $path, $from, $extractOptions);
+                $document = $extracted['document'];
+                $entries = $extracted['entries'];
+                $diagnostics = $extracted['diagnostics'];
+                if (isset($extractOptions['outputDirectory']) && is_string($extractOptions['outputDirectory']) && $extractOptions['outputDirectory'] !== '') {
+                    self::writeMediaEntries($entries, $extractOptions['outputDirectory']);
+                }
+            }
+
+            return [
+                'output' => self::write($document, $to, $writerOptions),
+                'media' => self::publicMediaEntries($entries),
+                'diagnostics' => $diagnostics,
+            ];
+        }
+
         $bytes = file_get_contents($path);
         if (!is_string($bytes)) {
             throw new \RuntimeException("Unable to read '{$path}'.");
