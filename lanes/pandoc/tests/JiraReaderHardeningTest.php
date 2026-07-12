@@ -104,6 +104,46 @@ return [
         }
     },
 
+    'preserves Jira Unicode macro and greedy attachment semantics while prefiltering links' => static function (TestRunner $t) use ($nodesOfType): void {
+        foreach (["{anchor:\xFF}", "{color:\xFF}x{color}"] as $source) {
+            $document = (new JiraReader())->read($source);
+            $paragraph = $document->children[0] ?? new AstNode('missing');
+
+            $t->same(['text'], array_map(static fn (AstNode $node): string => $node->type, $paragraph->children), bin2hex($source));
+            $t->same([], $nodesOfType($document, 'span'), bin2hex($source));
+        }
+
+        $terminalCaret = (new JiraReader())->read('[a^b^]');
+        $terminalCaretLinks = $nodesOfType($terminalCaret, 'link');
+        $fuzz = 'x0a[_x.1kxp:{daahxz_jjj. e64aq6#2n|4.^hk9^]:928y}w6t.l113+~q:do3pj8k}hg#4{#f~2yh/[2*i!5d#r';
+        $fuzzLinks = $nodesOfType((new JiraReader())->read($fuzz), 'link');
+
+        $t->same(1, count($terminalCaretLinks));
+        $t->same('b^', $terminalCaretLinks[0]->attr('url'));
+        $t->same(['attachment'], $terminalCaretLinks[0]->attr('classes'));
+        $t->same(1, count($fuzzLinks));
+        $t->same('hk9^', $fuzzLinks[0]->attr('url'));
+        $t->same(['attachment'], $fuzzLinks[0]->attr('classes'));
+
+        $prefixInvalidAnchor = (new JiraReader())->read("\xFF{anchor:x}");
+        $suffixInvalidAnchor = (new JiraReader())->read("{anchor:x}\xFF");
+        $prefixInvalidColor = (new JiraReader())->read("\xFF{color:red}x{color}");
+        $suffixInvalidColor = (new JiraReader())->read("{color:red}x{color}\xFF");
+        $invalidAttachmentContent = (new JiraReader())->read("[label|~a^/\xFF]");
+        $validAttachmentAfterInvalidPrefix = (new JiraReader())->read("\xFF[label^file.pdf]");
+
+        $t->same(1, count($nodesOfType($prefixInvalidAnchor, 'span')));
+        $t->same([], $nodesOfType($suffixInvalidAnchor, 'span'));
+        $t->same(1, count($nodesOfType($prefixInvalidColor, 'span')));
+        $t->same([], $nodesOfType($suffixInvalidColor, 'span'));
+        $invalidAttachmentLinks = $nodesOfType($invalidAttachmentContent, 'link');
+        $validAttachmentLinks = $nodesOfType($validAttachmentAfterInvalidPrefix, 'link');
+        $t->same(1, count($invalidAttachmentLinks));
+        $t->same(['user-account'], $invalidAttachmentLinks[0]->attr('classes'));
+        $t->same(1, count($validAttachmentLinks));
+        $t->same('file.pdf', $validAttachmentLinks[0]->attr('url'));
+    },
+
     'preserves a large literal Jira paragraph without per-offset suffix copies' => static function (TestRunner $t): void {
         $source = rtrim(str_repeat('ordinary Jira prose ', 6000));
         $document = (new JiraReader())->read($source);
@@ -120,5 +160,49 @@ return [
         $t->same('paragraph', $bracketParagraph->type);
         $t->same(strlen($unmatchedBrackets), strlen((string) $bracketParagraph->attr('text')));
         $t->same(hash('sha256', $unmatchedBrackets), hash('sha256', (string) $bracketParagraph->attr('text')));
+    },
+
+    'keeps malformed Jira inline delimiter runs linear and literal' => static function (TestRunner $t): void {
+        $cases = [
+            'unclosed color prefixes' => str_repeat('{color:', 16_384),
+            'unclosed color headers' => str_repeat('{color:orange}', 16_384),
+            'unclosed code delimiters' => str_repeat('{{code', 16_384),
+            'nested brackets with one closer' => str_repeat('[', 65_536) . ']',
+            'independent bracket candidates without a target delimiter' => str_repeat('[x]', 16_384),
+            'nested brackets before an unsafe pipe target' => str_repeat('[', 65_536) . '|javascript:alert(1)]',
+            'nested brackets before an unsafe attachment target' => str_repeat('[', 65_536) . '^javascript:alert(1)]',
+            'escaped style delimiters' => str_repeat('*x\\', 16_384),
+        ];
+
+        foreach ($cases as $name => $source) {
+            $document = (new JiraReader())->read($source);
+            $paragraph = $document->children[0] ?? new AstNode('missing');
+
+            $t->same('paragraph', $paragraph->type, $name);
+            $t->same(strlen($source), strlen((string) $paragraph->attr('text')), $name);
+            $t->same(hash('sha256', $source), hash('sha256', (string) $paragraph->attr('text')), $name);
+        }
+    },
+
+    'retains Jira first-close and fallback semantics while caching inline searches' => static function (TestRunner $t) use ($nodesOfType): void {
+        $code = (new JiraReader())->read('{{outer {{inner}} tail}}');
+        $codeNode = $code->children[0]->children[0] ?? new AstNode('missing');
+        $nestedLink = (new JiraReader())->read('[[label|https://example.test]');
+        $nestedLinks = $nodesOfType($nestedLink, 'link');
+        $attachment = (new JiraReader())->read('[a|b^file.pdf]');
+        $attachmentLinks = $nodesOfType($attachment, 'link');
+        $imageFallback = (new JiraReader())->read('!javascript:alert(1)!https://example.test/a.png!');
+        $images = $nodesOfType($imageFallback, 'image');
+
+        $t->same('code', $codeNode->type);
+        $t->same('outer {{inner', $codeNode->attr('text'));
+        $t->same(1, count($nestedLinks));
+        $t->same('[label', $nestedLinks[0]->children[0]->attr('text'));
+        $t->same('https://example.test', $nestedLinks[0]->attr('url'));
+        $t->same(1, count($attachmentLinks));
+        $t->same(['attachment'], $attachmentLinks[0]->attr('classes'));
+        $t->same('file.pdf', $attachmentLinks[0]->attr('url'));
+        $t->same(1, count($images));
+        $t->same('https://example.test/a.png', $images[0]->attr('url'));
     },
 ];

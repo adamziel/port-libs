@@ -41,26 +41,36 @@ jobs:
         run: |
           php -r 'if (!class_exists("Dom\\HTMLDocument")) { fwrite(STDERR, "Dom\\HTMLDocument is required for explicit legacy HTML bridge tests\n"); exit(1); }'
           php -l lanes/pandoc/src/AstNode.php
+          php -l lanes/pandoc/src/CssDeclarationScanner.php
           php -l lanes/pandoc/src/DelimitedTextReader.php
           php -l lanes/pandoc/src/DelimitedTextUpstreamReaderEvidence.php
           php -l lanes/pandoc/src/Html5Dom.php
           php -l lanes/pandoc/src/Html5DomFragment.php
           php -l lanes/pandoc/src/HtmlNativeAstComparisonHarness.php
           php -l lanes/pandoc/src/HtmlReader.php
+          php -l lanes/pandoc/src/HtmlSourceScanner.php
           php -l lanes/pandoc/src/HtmlUpstreamReaderEvidence.php
           php -l lanes/pandoc/src/NativeReader.php
           php -l lanes/pandoc/src/NativeWriter.php
           php -l lanes/pandoc/src/PandocHtmlTagSoupReader.php
           php -l lanes/pandoc/src/PandocHtmlTagSoupTableReader.php
           php -l lanes/pandoc/src/TagSoupParser.php
+          php -l lanes/pandoc/src/XmlHtml5Dom.php
+          php -l lanes/pandoc/src/XmlHtmlDom.php
+          php -l lanes/pandoc/src/XmlHtmlDomFragment.php
           php -l lanes/pandoc/tests/DelimitedTextReaderTest.php
           php -l lanes/pandoc/tests/DelimitedTextUpstreamReaderEvidenceTest.php
           php -l lanes/pandoc/tests/Html5DomTest.php
+          php -l lanes/pandoc/tests/HtmlDeclarationPreflightBoundaryTest.php
           php -l lanes/pandoc/tests/HtmlNativeAstComparisonHarnessTest.php
+          php -l lanes/pandoc/tests/HtmlParserHeuristicHardeningTest.php
           php -l lanes/pandoc/tests/HtmlReaderTest.php
+          php -l lanes/pandoc/tests/HtmlSourceScannerTest.php
           php -l lanes/pandoc/tests/HtmlUpstreamReaderEvidenceTest.php
           php -l lanes/pandoc/tests/PandocHtmlTagSoupTableReaderTest.php
           php -l lanes/pandoc/tests/TagSoupParserTest.php
+          php -l lanes/pandoc/tests/XmlHtml5DomTest.php
+          php -l lanes/pandoc/tests/XmlHtmlDomFragmentTest.php
           php -l tools/pandoc-delimited-text-reader-evidence.php
           php -l tools/pandoc-html-native-ast.php
           php -l tools/pandoc-html-reader-evidence.php
@@ -166,8 +176,13 @@ jobs:
             lanes/pandoc/tests/DelimitedTextReaderTest.php \
             lanes/pandoc/tests/DelimitedTextUpstreamReaderEvidenceTest.php \
             lanes/pandoc/tests/Html5DomTest.php \
+            lanes/pandoc/tests/HtmlDeclarationPreflightBoundaryTest.php \
             lanes/pandoc/tests/HtmlNativeAstComparisonHarnessTest.php \
+            lanes/pandoc/tests/HtmlParserHeuristicHardeningTest.php \
             lanes/pandoc/tests/HtmlReaderTest.php \
+            lanes/pandoc/tests/HtmlSourceScannerTest.php \
             lanes/pandoc/tests/HtmlUpstreamReaderEvidenceTest.php \
             lanes/pandoc/tests/PandocHtmlTagSoupTableReaderTest.php \
-            lanes/pandoc/tests/TagSoupParserTest.php
+            lanes/pandoc/tests/TagSoupParserTest.php \
+            lanes/pandoc/tests/XmlHtml5DomTest.php \
+            lanes/pandoc/tests/XmlHtmlDomFragmentTest.php

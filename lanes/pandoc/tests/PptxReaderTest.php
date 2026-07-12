@@ -12418,7 +12418,7 @@ XML);
     }
 };
 
-$buildRootOfficeDocumentAliasPptxPackage = static function (): string {
+$buildStrictRootOfficeDocumentAliasPptxPackage = static function (): string {
     $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-root-office-doc-alias-');
     if ($path === false) {
         throw new RuntimeException('Unable to create temporary PPTX path');
@@ -12433,7 +12433,7 @@ $buildRootOfficeDocumentAliasPptxPackage = static function (): string {
     $zip->addFromString('_rels/.rels', <<<'XML'
 <?xml version="1.0" encoding="UTF-8"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-  <OfficeDocumentAlias Id="rIdPresentation" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/>
+  <OfficeDocumentAlias Id="rIdPresentation" Type="http://purl.oclc.org/ooxml/officeDocument/relationships/officeDocument" Target="ppt/presentation.xml"/>
 </Relationships>
 XML);
     $zip->addFromString('ppt/presentation.xml', <<<'XML'
@@ -17811,8 +17811,8 @@ return [
         $t->throws(RuntimeException::class, static fn (): AstNode => (new PptxReader())->read($buildFirstOfficeDocumentRelationshipPptxPackage()));
     },
 
-    'uses root officeDocument relationship children regardless of element name like upstream' => static function (TestRunner $t) use ($buildRootOfficeDocumentAliasPptxPackage, $nodesOfType): void {
-        $document = (new PptxReader())->read($buildRootOfficeDocumentAliasPptxPackage());
+    'accepts Strict root officeDocument relationship children regardless of element name' => static function (TestRunner $t) use ($buildStrictRootOfficeDocumentAliasPptxPackage, $nodesOfType): void {
+        $document = (new PptxReader())->read($buildStrictRootOfficeDocumentAliasPptxPackage());
         $review = $document->attr('pptx');
         $headings = $nodesOfType($document, 'heading');
         $native = PandocConverter::write($document, 'native');

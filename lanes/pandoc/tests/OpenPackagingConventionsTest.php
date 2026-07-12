@@ -5086,6 +5086,36 @@ XML;
         $t->same('image/png', $types->contentTypeForPart($documentRelationships->resolveTarget('rIdImage')));
         $t->throws(\RuntimeException::class, static fn (): OpcRelationships => OpcRelationships::fromPackage($package, '/word/missing.xml'));
     },
+    'loads bounded OPC relationship parts without expanding oversized XML' => static function (TestRunner $t): void {
+        $rootRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdStrict" Type="http://purl.oclc.org/ooxml/officeDocument/relationships/officeDocument" Target="word/strict-document.xml"/>
+  <Relationship Id="rIdDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+</Relationships>
+XML;
+        $oversizedDocumentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/image.png"/>
+</Relationships>
+XML;
+        $package = ZipPackage::fromParts([
+            ['name' => '_rels/.rels', 'data' => $rootRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $oversizedDocumentRelationshipsXml . str_repeat(' ', 1025)],
+        ]);
+
+        $rootRelationships = OpcRelationships::fromPackageBounded($package, '/', 1024);
+
+        $t->true(OpcRelationships::packageHasRelationshipsForSourceBounded($package, '/word/document.xml', 1024));
+        $t->same('rIdStrict', $rootRelationships->firstOfTypes([
+            'http://purl.oclc.org/ooxml/officeDocument/relationships/officeDocument',
+            'http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument',
+        ])?->id);
+        $t->throws(
+            \RuntimeException::class,
+            static fn (): OpcRelationships => OpcRelationships::fromPackageBounded($package, '/word/document.xml', 1024)
+        );
+    },
     'loads a ZIP backed OPC relationship graph by source part' => static function (TestRunner $t) use ($contentTypesXml, $packageRelationshipsXml, $documentRelationshipsXml, $footnotesRelationshipsXml): void {
         $package = ZipPackage::fromParts([
             ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],

@@ -6,7 +6,12 @@ namespace PortLibs\Pandoc;
 
 final class PptxReader
 {
-    private const OFFICE_DOCUMENT_RELATIONSHIP = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument';
+    private const TRANSITIONAL_OFFICE_DOCUMENT_RELATIONSHIP = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument';
+    private const STRICT_OFFICE_DOCUMENT_RELATIONSHIP = 'http://purl.oclc.org/ooxml/officeDocument/relationships/officeDocument';
+    private const OFFICE_DOCUMENT_RELATIONSHIP_TYPES = [
+        self::TRANSITIONAL_OFFICE_DOCUMENT_RELATIONSHIP,
+        self::STRICT_OFFICE_DOCUMENT_RELATIONSHIP,
+    ];
     private const MISSING_RELATIONSHIP_TYPE = 'urn:port-libs:pandoc:pptx:missing-relationship-type';
     private const RELATIONSHIP_NAMESPACE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
     private const PRESENTATION_NAMESPACE = 'http://schemas.openxmlformats.org/presentationml/2006/main';
@@ -389,7 +394,7 @@ final class PptxReader
             foreach ($this->childElements($root, null) as $relationshipElement) {
                 $relationshipCount++;
                 $type = $relationshipElement->getAttribute('Type');
-                if ($type !== self::OFFICE_DOCUMENT_RELATIONSHIP) {
+                if (!in_array($type, self::OFFICE_DOCUMENT_RELATIONSHIP_TYPES, true)) {
                     continue;
                 }
                 if (!$relationshipElement->hasAttribute('Target')) {

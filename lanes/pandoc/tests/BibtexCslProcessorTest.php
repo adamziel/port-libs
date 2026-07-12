@@ -59,6 +59,40 @@ BIB;
         $t->same('A \\} literal and \\{ opener', $item['rawBibtex']['fields']['title']);
         $t->same('A } literal and { opener', $item['title']);
     },
+    'treats braces after even backslash runs as BibTeX grouping braces' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@article{even-backslash-braces,
+  title = {X \\{Y} Z},
+  year = {2024}
+}
+@article{even-backslash-braces-quoted,
+  title = "X \\{Y} Z",
+  year = {2024}
+}
+BIB;
+
+        $items = BibtexCslParser::parse($source);
+        $braced = $items[0];
+        $quoted = $items[1];
+
+        $t->same('X \\\\{Y} Z', $braced['rawBibtex']['fields']['title']);
+        $t->same('X \\\\{Y} Z', $quoted['rawBibtex']['fields']['title']);
+        $t->same('X \\Y Z', $braced['title']);
+        $t->same('X \\Y Z', $quoted['title']);
+    },
+    'does not carry an even backslash brace escape into the next brace' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@article{consecutive-braces,
+  title = {X \\{{Y}} Z},
+  year = {2024}
+}
+BIB;
+
+        $item = BibtexCslParser::parse($source)[0];
+
+        $t->same('X \\\\{{Y}} Z', $item['rawBibtex']['fields']['title']);
+        $t->same('X \\Y Z', $item['title']);
+    },
     'does not confuse escaped-brace protection with literal private-use text' => static function (TestRunner $t): void {
         $privateUse = "\u{E001}";
         $source = "@article{private-use, title = {" . $privateUse . " literal and \\{ opener}, year = {2024}}";
@@ -66,6 +100,20 @@ BIB;
         $item = BibtexCslParser::parse($source)[0];
 
         $t->same($privateUse . ' literal and { opener', $item['title']);
+    },
+    'preserves legacy sentinel-shaped literal text without growing replacement markers' => static function (TestRunner $t): void {
+        $markers = [];
+        for ($depth = 1; $depth <= 8; $depth++) {
+            $separator = str_repeat("\x1E", $depth);
+            $markers[] = $separator . 'bibtex-escaped-open-brace' . $separator;
+            $markers[] = $separator . 'bibtex-escaped-close-brace' . $separator;
+        }
+        $literal = implode('', $markers);
+        $source = "@article{sentinel-shaped, title = {" . $literal . " \\{ opener}, year = {2024}}";
+
+        $item = BibtexCslParser::parse($source)[0];
+
+        $t->same($literal . ' { opener', $item['title']);
     },
     'supports quoted values comments and month macros for biblatex handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'

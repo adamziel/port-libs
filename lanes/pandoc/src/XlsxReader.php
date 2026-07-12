@@ -6,7 +6,12 @@ namespace PortLibs\Pandoc;
 
 final class XlsxReader
 {
-    private const OFFICE_DOCUMENT_RELATIONSHIP = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument';
+    private const TRANSITIONAL_OFFICE_DOCUMENT_RELATIONSHIP = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument';
+    private const STRICT_OFFICE_DOCUMENT_RELATIONSHIP = 'http://purl.oclc.org/ooxml/officeDocument/relationships/officeDocument';
+    private const OFFICE_DOCUMENT_RELATIONSHIP_TYPES = [
+        self::TRANSITIONAL_OFFICE_DOCUMENT_RELATIONSHIP,
+        self::STRICT_OFFICE_DOCUMENT_RELATIONSHIP,
+    ];
     private const RELATIONSHIP_NAMESPACE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
     private const COMMENTS_RELATIONSHIP = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments';
     private const THREADED_COMMENTS_RELATIONSHIP = 'http://schemas.microsoft.com/office/2017/10/relationships/threadedComment';
@@ -139,7 +144,7 @@ final class XlsxReader
 
     private function readPackage(ZipPackage $package, int $sourceBytes): AstNode
     {
-        $rootRelationships = OpcRelationships::fromPackage($package, '/');
+        $rootRelationships = OpcRelationships::fromPackageBounded($package, '/', self::MAX_XML_PART_BYTES);
         $workbookRelationship = $this->workbookRelationship($rootRelationships);
         $workbookPart = OpcPackagePath::stripQueryAndFragment($rootRelationships->resolveTarget($workbookRelationship));
         $workbook = $this->loadPackageXml($package, $workbookPart, 'XLSX workbook');
@@ -389,7 +394,7 @@ final class XlsxReader
 
     private function workbookRelationship(OpcRelationships $relationships): OpcRelationship
     {
-        $relationship = $relationships->firstOfType(self::OFFICE_DOCUMENT_RELATIONSHIP);
+        $relationship = $relationships->firstOfTypes(self::OFFICE_DOCUMENT_RELATIONSHIP_TYPES);
         if ($relationship instanceof OpcRelationship) {
             return $relationship;
         }
@@ -399,11 +404,11 @@ final class XlsxReader
 
     private function relationshipsOrEmpty(ZipPackage $package, string $sourcePart): OpcRelationships
     {
-        if (!OpcRelationships::packageHasRelationshipsForSource($package, $sourcePart)) {
+        if (!OpcRelationships::packageHasRelationshipsForSourceBounded($package, $sourcePart, self::MAX_XML_PART_BYTES)) {
             return new OpcRelationships($sourcePart);
         }
 
-        return OpcRelationships::fromPackage($package, $sourcePart);
+        return OpcRelationships::fromPackageBounded($package, $sourcePart, self::MAX_XML_PART_BYTES);
     }
 
     private function loadPackageXml(ZipPackage $package, string $partName, string $label): \DOMDocument
@@ -601,7 +606,7 @@ final class XlsxReader
                 $sets[] = [
                     'sourcePart' => $sourcePart,
                     'relationshipPart' => $relationshipPart,
-                    'relationships' => OpcRelationships::fromPackage($package, $sourcePart),
+                    'relationships' => OpcRelationships::fromPackageBounded($package, $sourcePart, self::MAX_XML_PART_BYTES),
                 ];
             } catch (\Throwable $exception) {
                 $parseErrors[] = [

@@ -3385,15 +3385,13 @@ final class BibtexCslParser
     private static function cleanBibtexText(string $value): string
     {
         $value = str_replace(["\r\n", "\r", "\n"], ' ', $value);
-        [$value, $openBraceMarker, $closeBraceMarker] = self::protectEscapedBibtexBraces($value);
         $value = self::decodeLatexText($value);
         $value = str_replace('~', ' ', $value);
         $value = self::restoreLatexLiteralTilde($value);
         $value = preg_replace('/\\\\([&%$#_])/', '$1', $value) ?? $value;
         $value = self::stripLatexTextWrappers($value);
         $value = preg_replace('/\\\\(?:textendash|textminus)\b/', '-', $value) ?? $value;
-        $value = preg_replace('/[{}]/', '', $value) ?? $value;
-        $value = str_replace([$openBraceMarker, $closeBraceMarker], ['{', '}'], $value);
+        $value = self::stripBibtexGroupingBraces($value);
 
         return trim(preg_replace('/\s+/', ' ', $value) ?? $value);
     }
@@ -3401,13 +3399,11 @@ final class BibtexCslParser
     private static function cleanBibtexDateText(string $value): string
     {
         $value = str_replace(["\r\n", "\r", "\n"], ' ', $value);
-        [$value, $openBraceMarker, $closeBraceMarker] = self::protectEscapedBibtexBraces($value);
         $value = self::decodeLatexText($value);
         $value = preg_replace('/\\\\([&%$#_])/', '$1', $value) ?? $value;
         $value = self::stripLatexTextWrappers($value);
         $value = preg_replace('/\\\\(?:textendash|textminus)\b/', '-', $value) ?? $value;
-        $value = preg_replace('/[{}]/', '', $value) ?? $value;
-        $value = str_replace([$openBraceMarker, $closeBraceMarker], ['{', '}'], $value);
+        $value = self::stripBibtexGroupingBraces($value);
         $value = preg_replace('/~(?!(?:\s*\/|\s*\z))/', ' ', $value) ?? $value;
         $value = self::restoreLatexLiteralTilde($value);
 
@@ -3415,26 +3411,55 @@ final class BibtexCslParser
     }
 
     /**
-     * Keep escaped braces literal while removing BibTeX grouping braces.
-     * The marker is chosen per value so valid source text cannot collide with
-     * a fixed private-use sentinel.
-     *
-     * @return array{0:string, 1:string, 2:string}
+     * Remove BibTeX grouping braces while preserving literal braces escaped
+     * by an odd run of backslashes. One trailing slash is consumed in either
+     * case, matching the historical TeX unescaping behavior for an even run
+     * such as `\\{`; this avoids collision-prone sentinel replacement.
      */
-    private static function protectEscapedBibtexBraces(string $value): array
+    private static function stripBibtexGroupingBraces(string $value): string
     {
-        $separator = "\x1E";
-        do {
-            $openBraceMarker = $separator . 'bibtex-escaped-open-brace' . $separator;
-            $closeBraceMarker = $separator . 'bibtex-escaped-close-brace' . $separator;
-            $separator .= "\x1E";
-        } while (str_contains($value, $openBraceMarker) || str_contains($value, $closeBraceMarker));
+        $out = '';
+        $pendingBackslashes = 0;
+        for ($index = 0, $length = strlen($value); $index < $length; $index++) {
+            $char = $value[$index];
+            if ($char === '\\') {
+                ++$pendingBackslashes;
+                continue;
+            }
+            if ($char !== '{' && $char !== '}') {
+                if ($pendingBackslashes > 0) {
+                    $out .= str_repeat('\\', $pendingBackslashes);
+                    $pendingBackslashes = 0;
+                }
+                $out .= $char;
+                continue;
+            }
 
-        return [
-            str_replace(['\\{', '\\}'], [$openBraceMarker, $closeBraceMarker], $value),
-            $openBraceMarker,
-            $closeBraceMarker,
-        ];
+            if ($pendingBackslashes === 0) {
+                continue;
+            }
+
+            // The final slash is the brace escape candidate. For an odd run
+            // the brace is literal; for an even run it remains a grouping
+            // brace and is discarded after collapsing that candidate slash.
+            // The remaining slashes precede this brace, not the next source
+            // byte, so flush them now and reset the run before continuing.
+            $escaped = ($pendingBackslashes % 2) === 1;
+            --$pendingBackslashes;
+            if ($pendingBackslashes > 0) {
+                $out .= str_repeat('\\', $pendingBackslashes);
+                $pendingBackslashes = 0;
+            }
+            if ($escaped) {
+                $out .= $char;
+            }
+        }
+
+        if ($pendingBackslashes > 0) {
+            $out .= str_repeat('\\', $pendingBackslashes);
+        }
+
+        return $out;
     }
 
     private static function decodeLatexText(string $value): string

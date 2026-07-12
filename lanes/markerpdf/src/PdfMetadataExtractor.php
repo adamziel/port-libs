@@ -108,6 +108,13 @@ final class PdfMetadataExtractor
         'XObject' => true,
         'XRef' => true,
     ];
+    // XMP is document metadata, not a document payload. Keep a compressed
+    // metadata stream from expanding without bound while establishing import
+    // provenance.
+    private const MAX_XMP_METADATA_DECODED_BYTES = 1_048_576;
+    // Page trees are untrusted object graphs. A generous cap covers ordinary
+    // documents while keeping malformed or intentionally huge graphs bounded.
+    private const MAX_PAGE_TREE_OBJECTS = 100_000;
 
     private const NS_DC = 'http://purl.org/dc/elements/1.1/';
     private const NS_PDF = 'http://ns.adobe.com/pdf/1.3/';
@@ -174,6 +181,7 @@ final class PdfMetadataExtractor
      *     object_count: int,
      *     stream_count: int,
      *     page_count?: int,
+     *     page_count_limited?: bool,
      *     xmp: array<string, mixed>,
      *     info: array<string, mixed>,
      *     catalog?: array<string, mixed>,
@@ -252,12 +260,64 @@ final class PdfMetadataExtractor
     }
 
     /**
+     * Return only bounded structural facts needed to choose an import mode.
+     * In particular, this deliberately does not decode XMP, attachment, or
+     * output-profile streams.
+     *
+     * @return array{object_count: int, stream_count: int, page_count?: int, page_count_limited?: bool, encryption?: array{is_encrypted: true}}
+     */
+    public function extractStructuralMetadata(string $pdfBytes): array
+    {
+        $pdfBytes = $this->bytesThroughCurrentEof($pdfBytes);
+        $objects = $this->pdfObjects($pdfBytes);
+        $metadata = $this->documentStructureSummary($pdfBytes, $objects);
+
+        if ($this->encryptionDictionaryEntry($pdfBytes, $objects) !== null) {
+            $metadata['encryption'] = ['is_encrypted' => true];
+        }
+
+        return $metadata;
+    }
+
+    /**
+     * Return the small metadata surface used by PDF importers. Unlike the
+     * full review API this avoids catalog, attachment, and output-profile
+     * traversal; root XMP decoding is explicitly bounded.
+     *
+     * @return array<string, mixed>
+     */
+    public function extractReaderMetadata(string $pdfBytes): array
+    {
+        $pdfBytes = $this->bytesThroughCurrentEof($pdfBytes);
+        $objects = $this->pdfObjects($pdfBytes);
+        $encryption = $this->extractEncryptionMetadata($pdfBytes, $objects);
+        $metadataSourcePolicy = $this->encryptedMetadataSourcePolicy($pdfBytes, $objects, $encryption);
+        if ($metadataSourcePolicy !== []) {
+            $encryption['metadata_source_policy'] = $metadataSourcePolicy;
+        }
+
+        $xmp = $this->shouldReadXmpMetadata($metadataSourcePolicy)
+            ? $this->extractXmpMetadata($pdfBytes, $objects)
+            : [];
+        $info = $this->shouldReadInfoMetadata($metadataSourcePolicy)
+            ? $this->extractInfoMetadata($pdfBytes, $objects)
+            : [];
+        $metadata = $this->mergedMetadata($xmp, $info, [], [], [], $encryption);
+
+        foreach ($this->documentStructureSummary($pdfBytes, $objects) as $key => $value) {
+            $metadata[$key] = $value;
+        }
+
+        return $metadata;
+    }
+
+    /**
      * Return only facts established from parsed indirect objects.  Consumers
      * use this for import limits, so do not infer any of them by matching
      * names that can occur inside strings or stream payloads.
      *
      * @param array<int, string> $objects
-     * @return array{object_count: int, stream_count: int, page_count?: int}
+     * @return array{object_count: int, stream_count: int, page_count?: int, page_count_limited?: bool}
      */
     private function documentStructureSummary(string $pdfBytes, array $objects): array
     {
@@ -267,7 +327,7 @@ final class PdfMetadataExtractor
         ];
 
         foreach ($objects as $objectBody) {
-            if ($this->streamObjectHasStreamKeyword($objectBody)) {
+            if ($this->streamObjectHasCompleteStream($objectBody, $objects)) {
                 $summary['stream_count']++;
             }
         }
@@ -285,7 +345,11 @@ final class PdfMetadataExtractor
             return $summary;
         }
 
-        $summary['page_count'] = count($this->destinationPageObjectNumbersFromTree($pagesRoot, $objects));
+        $pageTreeComplete = true;
+        $summary['page_count'] = count($this->destinationPageObjectNumbersFromTree($pagesRoot, $objects, $pageTreeComplete));
+        if (!$pageTreeComplete) {
+            $summary['page_count_limited'] = true;
+        }
 
         return $summary;
     }
@@ -774,10 +838,14 @@ final class PdfMetadataExtractor
             }
         }
 
-        $stream = $this->decodeStreamEntryObject($objectBody, $objects);
+        $stream = $this->decodeBoundedXmpStreamEntryObject($objectBody, $objects);
         if (
             $stream === null
-            || !$this->metadataStreamObjectConsumesSingleStreamToken($objectBody, $objects)
+            || !$this->metadataStreamObjectConsumesSingleStreamToken(
+                $objectBody,
+                $objects,
+                self::MAX_XMP_METADATA_DECODED_BYTES
+            )
             || !$this->isDocumentXmpMetadataStream($stream['dictionary'], $objects)
         ) {
             return [];
@@ -920,7 +988,7 @@ final class PdfMetadataExtractor
             }
         }
 
-        $stream = $this->decodeStreamEntryObject($objectBody, $objects);
+        $stream = $this->decodeBoundedXmpStreamEntryObject($objectBody, $objects);
         if ($stream === null) {
             $dictionary = $this->dictionaryObjectBody($objectBody);
             if ($dictionary !== null && !$this->streamObjectHasStreamKeyword($objectBody)) {
@@ -969,7 +1037,11 @@ final class PdfMetadataExtractor
             return $review;
         }
 
-        if (!$this->metadataStreamObjectConsumesSingleStreamToken($objectBody, $objects)) {
+        if (!$this->metadataStreamObjectConsumesSingleStreamToken(
+            $objectBody,
+            $objects,
+            self::MAX_XMP_METADATA_DECODED_BYTES
+        )) {
             $review = $base + [
                 'status' => 'rejected_malformed_metadata_stream_object',
                 'object_number' => $objectNumber,
@@ -1437,7 +1509,11 @@ final class PdfMetadataExtractor
      *
      * @param array<int, string> $objects
      */
-    private function metadataStreamObjectConsumesSingleStreamToken(string $objectBody, array $objects): bool
+    private function metadataStreamObjectConsumesSingleStreamToken(
+        string $objectBody,
+        array $objects,
+        ?int $maxDecodedBytes = null
+    ): bool
     {
         $dictionaryOffset = $this->skipPdfWhitespace($objectBody, 0);
         $dictionary = $this->readPdfDictionaryAt($objectBody, $dictionaryOffset);
@@ -1457,7 +1533,7 @@ final class PdfMetadataExtractor
             $streamStart++;
         }
 
-        $streamEnd = $this->streamPayloadEndOffset($objectBody, $streamStart, $dictionary, $objects);
+        $streamEnd = $this->streamPayloadEndOffset($objectBody, $streamStart, $dictionary, $objects, $maxDecodedBytes);
         if ($streamEnd === null || !$this->endstreamKeywordAt($objectBody, $streamEnd)) {
             return false;
         }
@@ -1478,6 +1554,45 @@ final class PdfMetadataExtractor
         $streamKeywordOffset = $this->skipPdfWhitespace($objectBody, $dictionaryOffset + strlen($dictionary) + 4);
 
         return $this->pdfKeywordAt($objectBody, $streamKeywordOffset, 'stream');
+    }
+
+    /**
+     * A stream count is structural provenance, so do not count a dictionary
+     * that merely starts a stream payload and never closes it.
+     *
+     * @param array<int, string> $objects
+     */
+    private function streamObjectHasCompleteStream(string $objectBody, array $objects): bool
+    {
+        $dictionaryOffset = $this->skipPdfWhitespace($objectBody, 0);
+        $dictionary = $this->readPdfDictionaryAt($objectBody, $dictionaryOffset);
+        if ($dictionary === null) {
+            return false;
+        }
+
+        $streamKeywordOffset = $this->skipPdfWhitespace($objectBody, $dictionaryOffset + strlen($dictionary) + 4);
+        if (!$this->pdfKeywordAt($objectBody, $streamKeywordOffset, 'stream')) {
+            return false;
+        }
+
+        $streamStart = $streamKeywordOffset + strlen('stream');
+        if (substr($objectBody, $streamStart, 2) === "\r\n") {
+            $streamStart += 2;
+        } elseif (($objectBody[$streamStart] ?? '') === "\n" || ($objectBody[$streamStart] ?? '') === "\r") {
+            $streamStart++;
+        }
+
+        $declaredLength = $this->streamLength($dictionary, $objects);
+        if ($declaredLength !== null) {
+            $declaredEnd = $streamStart + $declaredLength;
+            if ($declaredEnd <= strlen($objectBody) && $this->streamLengthTerminatorOffset($objectBody, $declaredEnd) !== null) {
+                return true;
+            }
+        }
+
+        // Do not verify a structural count by decoding a filtered payload.
+        // A syntactically delimited endstream is sufficient for this summary.
+        return $this->endstreamTerminatorOffset($objectBody, $streamStart, null) !== null;
     }
 
     /**
@@ -8714,7 +8829,7 @@ final class PdfMetadataExtractor
             }
         }
 
-        $stream = $this->decodeStreamEntryObject($objectBody, $objects);
+        $stream = $this->decodeBoundedXmpStreamEntryObject($objectBody, $objects);
         if ($stream === null) {
             $streamTailReview = $this->documentOutlineMetadataStreamTailReview($objectBody, $objects, $base, $referenceReview);
             if ($streamTailReview !== []) {
@@ -8744,7 +8859,11 @@ final class PdfMetadataExtractor
             return $review;
         }
 
-        if (!$this->metadataStreamObjectConsumesSingleStreamToken($objectBody, $objects)) {
+        if (!$this->metadataStreamObjectConsumesSingleStreamToken(
+            $objectBody,
+            $objects,
+            self::MAX_XMP_METADATA_DECODED_BYTES
+        )) {
             $review = $base + $referenceReview + [
                 'status' => 'rejected_malformed_outline_item_metadata_stream',
                 'metadata_reference_resolved' => true,
@@ -8940,7 +9059,11 @@ final class PdfMetadataExtractor
     ): array {
         if (
             !$this->streamObjectHasStreamKeyword($objectBody)
-            || $this->metadataStreamObjectConsumesSingleStreamToken($objectBody, $objects)
+            || $this->metadataStreamObjectConsumesSingleStreamToken(
+                $objectBody,
+                $objects,
+                self::MAX_XMP_METADATA_DECODED_BYTES
+            )
         ) {
             return [];
         }
@@ -9652,41 +9775,51 @@ final class PdfMetadataExtractor
     }
 
     /**
+     * Traverse an untrusted page graph once, in declared child order. PDF
+     * page trees are supposed to be trees, but malformed files can contain
+     * cycles or shared descendants; a recursive per-branch seen set turns a
+     * small DAG into exponential work and duplicate page counts.
+     *
      * @param array<int, string> $objects
-     * @param array<int, true> $seen
      * @return list<int>
      */
-    private function destinationPageObjectNumbersFromTree(int $objectNumber, array $objects, array $seen = []): array
-    {
-        if (isset($seen[$objectNumber]) || !isset($objects[$objectNumber])) {
-            return [];
-        }
-        $seen[$objectNumber] = true;
-
-        $dictionary = $this->dictionaryObjectBody($objects[$objectNumber]);
-        if ($dictionary === null) {
-            return [];
-        }
-
-        $type = $this->dictionaryStringValue($dictionary, 'Type');
-        if ($type === 'Page') {
-            return [$objectNumber];
-        }
-
-        $kids = $this->arrayItemsFromValue($this->dictionaryTopLevelRawValue($dictionary, 'Kids') ?? '', $objects);
-        if ($kids === []) {
-            return [];
-        }
-
+    private function destinationPageObjectNumbersFromTree(
+        int $objectNumber,
+        array $objects,
+        ?bool &$complete = null
+    ): array {
+        $complete = true;
         $pages = [];
-        foreach ($kids as $kid) {
-            $kidObjectNumber = $this->validObjectNumberFromReference($kid, $objects);
-            if ($kidObjectNumber === null) {
+        $seen = [];
+        $stack = [$objectNumber];
+
+        while ($stack !== []) {
+            $currentObjectNumber = array_pop($stack);
+            if (!is_int($currentObjectNumber) || isset($seen[$currentObjectNumber]) || !isset($objects[$currentObjectNumber])) {
+                continue;
+            }
+            if (count($seen) >= self::MAX_PAGE_TREE_OBJECTS) {
+                $complete = false;
+                break;
+            }
+            $seen[$currentObjectNumber] = true;
+
+            $dictionary = $this->dictionaryObjectBody($objects[$currentObjectNumber]);
+            if ($dictionary === null) {
                 continue;
             }
 
-            foreach ($this->destinationPageObjectNumbersFromTree($kidObjectNumber, $objects, $seen) as $pageObjectNumber) {
-                $pages[] = $pageObjectNumber;
+            if ($this->dictionaryStringValue($dictionary, 'Type') === 'Page') {
+                $pages[] = $currentObjectNumber;
+                continue;
+            }
+
+            $kids = $this->arrayItemsFromValue($this->dictionaryTopLevelRawValue($dictionary, 'Kids') ?? '', $objects);
+            for ($index = count($kids) - 1; $index >= 0; $index--) {
+                $kidObjectNumber = $this->validObjectNumberFromReference($kids[$index], $objects);
+                if ($kidObjectNumber !== null && !isset($seen[$kidObjectNumber])) {
+                    $stack[] = $kidObjectNumber;
+                }
             }
         }
 
@@ -19648,8 +19781,12 @@ final class PdfMetadataExtractor
             }
         }
 
-        return $this->filteredEndstreamTerminatorOffset($pdfBytes, $streamStart, $dictionary, [])
-            ?? $this->endstreamTerminatorOffset($pdfBytes, $streamStart, null);
+        // Object-boundary discovery runs before fast-mode selection. A stream
+        // without a trustworthy Length must therefore use the lexical
+        // endstream boundary only: trying to validate a filter here can
+        // inflate an arbitrary metadata stream before the bounded metadata
+        // reader has decided whether it needs XMP at all.
+        return $this->endstreamTerminatorOffset($pdfBytes, $streamStart, null);
     }
 
     private function lineCommentEndOffset(string $value, int $offset): int
@@ -23363,9 +23500,9 @@ final class PdfMetadataExtractor
     /**
      * @param array<int, string> $objects
      */
-    private function decodeStreamObject(string $objectBody, array $objects): ?string
+    private function decodeStreamObject(string $objectBody, array $objects, ?int $maxDecodedBytes = null): ?string
     {
-        $entry = $this->decodeStreamEntryObject($objectBody, $objects);
+        $entry = $this->decodeStreamEntryObject($objectBody, $objects, $maxDecodedBytes);
         return $entry['content'] ?? null;
     }
 
@@ -23373,7 +23510,7 @@ final class PdfMetadataExtractor
      * @param array<int, string> $objects
      * @return array{dictionary: string, content: string}|null
      */
-    private function decodeStreamEntryObject(string $objectBody, array $objects): ?array
+    private function decodeStreamEntryObject(string $objectBody, array $objects, ?int $maxDecodedBytes = null): ?array
     {
         $dictionaryOffset = $this->skipPdfWhitespace($objectBody, 0);
         $dictionary = $this->readPdfDictionaryAt($objectBody, $dictionaryOffset);
@@ -23393,13 +23530,13 @@ final class PdfMetadataExtractor
             $streamStart++;
         }
 
-        $streamEnd = $this->streamPayloadEndOffset($objectBody, $streamStart, $dictionary, $objects);
+        $streamEnd = $this->streamPayloadEndOffset($objectBody, $streamStart, $dictionary, $objects, $maxDecodedBytes);
         if ($streamEnd === null || $streamEnd < $streamStart) {
             return null;
         }
 
         $stream = $this->stripStreamTerminatingLineEnding(substr($objectBody, $streamStart, $streamEnd - $streamStart));
-        $content = $this->decodeStream($dictionary, $stream, $objects);
+        $content = $this->decodeStream($dictionary, $stream, $objects, $maxDecodedBytes);
         return $content === null ? null : [
             'dictionary' => $dictionary,
             'content' => $content,
@@ -23408,8 +23545,23 @@ final class PdfMetadataExtractor
 
     /**
      * @param array<int, string> $objects
+     * @return array{dictionary: string, content: string}|null
      */
-    private function streamPayloadEndOffset(string $value, int $streamStart, string $dictionary, array $objects): ?int
+    private function decodeBoundedXmpStreamEntryObject(string $objectBody, array $objects): ?array
+    {
+        return $this->decodeStreamEntryObject($objectBody, $objects, self::MAX_XMP_METADATA_DECODED_BYTES);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function streamPayloadEndOffset(
+        string $value,
+        int $streamStart,
+        string $dictionary,
+        array $objects,
+        ?int $maxDecodedBytes = null
+    ): ?int
     {
         $length = $this->streamLength($dictionary, $objects);
         if ($length !== null) {
@@ -23421,7 +23573,7 @@ final class PdfMetadataExtractor
             }
         }
 
-        return $this->filteredEndstreamTerminatorOffset($value, $streamStart, $dictionary, $objects)
+        return $this->filteredEndstreamTerminatorOffset($value, $streamStart, $dictionary, $objects, $maxDecodedBytes)
             ?? $this->endstreamTerminatorOffset($value, $streamStart, null);
     }
 
@@ -23459,7 +23611,13 @@ final class PdfMetadataExtractor
     /**
      * @param array<int, string> $objects
      */
-    private function filteredEndstreamTerminatorOffset(string $value, int $streamStart, string $dictionary, array $objects): ?int
+    private function filteredEndstreamTerminatorOffset(
+        string $value,
+        int $streamStart,
+        string $dictionary,
+        array $objects,
+        ?int $maxDecodedBytes = null
+    ): ?int
     {
         if (!$this->hasVerifiableStreamFilter($this->streamFilters($dictionary, $objects))) {
             return null;
@@ -23473,7 +23631,7 @@ final class PdfMetadataExtractor
             }
 
             $payload = $this->stripStreamTerminatingLineEnding(substr($value, $streamStart, $candidate - $streamStart));
-            if ($this->decodeStream($dictionary, $payload, $objects) !== null) {
+            if ($this->decodeStream($dictionary, $payload, $objects, $maxDecodedBytes) !== null) {
                 return $candidate;
             }
         }
@@ -23566,18 +23724,23 @@ final class PdfMetadataExtractor
     /**
      * @param array<int, string> $objects
      */
-    private function decodeStream(string $dict, string $stream, array $objects): ?string
+    private function decodeStream(
+        string $dict,
+        string $stream,
+        array $objects,
+        ?int $maxDecodedBytes = null
+    ): ?string
     {
         foreach ($this->streamFilters($dict, $objects) as $filter) {
-            if (!$this->metadataStreamFilterInputHasBoundedEndMarker($filter, $stream)) {
+            if (!$this->metadataStreamFilterInputHasBoundedEndMarker($filter, $stream, $maxDecodedBytes)) {
                 return null;
             }
 
             $decoded = match ($filter) {
-                'ASCIIHexDecode', 'AHx' => $this->decodeAsciiHexStream($stream),
-                'ASCII85Decode', 'A85' => $this->decodeAscii85Stream($stream),
-                'RunLengthDecode', 'RL' => $this->decodeRunLengthStream($stream),
-                'FlateDecode', 'Fl' => $this->decodeFlateStream($stream),
+                'ASCIIHexDecode', 'AHx' => $this->decodeAsciiHexStream($stream, $maxDecodedBytes),
+                'ASCII85Decode', 'A85' => $this->decodeAscii85Stream($stream, $maxDecodedBytes),
+                'RunLengthDecode', 'RL' => $this->decodeRunLengthStream($stream, $maxDecodedBytes),
+                'FlateDecode', 'Fl' => $this->decodeFlateStream($stream, $maxDecodedBytes),
                 default => null,
             };
             if ($decoded === null) {
@@ -23586,16 +23749,20 @@ final class PdfMetadataExtractor
             $stream = $decoded;
         }
 
-        return $stream;
+        return $maxDecodedBytes !== null && strlen($stream) > $maxDecodedBytes ? null : $stream;
     }
 
-    private function metadataStreamFilterInputHasBoundedEndMarker(string $filter, string $stream): bool
+    private function metadataStreamFilterInputHasBoundedEndMarker(
+        string $filter,
+        string $stream,
+        ?int $maxDecodedBytes = null
+    ): bool
     {
         $offset = match ($filter) {
             'ASCIIHexDecode', 'AHx' => (($offset = strpos($stream, '>')) !== false) ? $offset + 1 : null,
             'ASCII85Decode', 'A85' => (($offset = strpos($stream, '~>')) !== false) ? $offset + 2 : null,
             'RunLengthDecode', 'RL' => (($offset = $this->runLengthExplicitEndOffset($stream)) !== null) ? $offset + 1 : null,
-            'FlateDecode', 'Fl' => $this->metadataFlateExplicitEndByteOffset($stream),
+            'FlateDecode', 'Fl' => $this->metadataFlateExplicitEndByteOffset($stream, $maxDecodedBytes),
             default => null,
         };
 
@@ -23651,7 +23818,7 @@ final class PdfMetadataExtractor
         return true;
     }
 
-    private function metadataFlateExplicitEndByteOffset(string $stream): ?int
+    private function metadataFlateExplicitEndByteOffset(string $stream, ?int $maxDecodedBytes = null): ?int
     {
         if (
             !function_exists('inflate_init')
@@ -23670,6 +23837,7 @@ final class PdfMetadataExtractor
         }
 
         $finish = defined('ZLIB_FINISH') ? constant('ZLIB_FINISH') : 4;
+        $syncFlush = defined('ZLIB_SYNC_FLUSH') ? constant('ZLIB_SYNC_FLUSH') : 2;
         $streamEnd = defined('ZLIB_STREAM_END') ? constant('ZLIB_STREAM_END') : 1;
         foreach (array_unique($encodings) as $encoding) {
             $context = @inflate_init($encoding);
@@ -23677,14 +23845,48 @@ final class PdfMetadataExtractor
                 continue;
             }
 
-            $decoded = @inflate_add($context, $stream, $finish);
-            if ($decoded === false || @inflate_get_status($context) !== $streamEnd) {
+            if ($maxDecodedBytes === null) {
+                $decoded = @inflate_add($context, $stream, $finish);
+                if ($decoded === false || @inflate_get_status($context) !== $streamEnd) {
+                    continue;
+                }
+
+                $readLength = @inflate_get_read_len($context);
+                if (is_int($readLength) && $readLength > 0) {
+                    return $readLength;
+                }
                 continue;
             }
 
-            $readLength = @inflate_get_read_len($context);
-            if (is_int($readLength) && $readLength > 0) {
-                return $readLength;
+            $decodedBytes = 0;
+            $completed = false;
+            $streamLength = strlen($stream);
+            for ($offset = 0; $offset < $streamLength; $offset += 256) {
+                $chunkLength = min(256, $streamLength - $offset);
+                $decoded = @inflate_add(
+                    $context,
+                    substr($stream, $offset, $chunkLength),
+                    $offset + $chunkLength >= $streamLength ? $finish : $syncFlush
+                );
+                if ($decoded === false) {
+                    break;
+                }
+                $decodedBytes += strlen($decoded);
+                if ($decodedBytes > $maxDecodedBytes) {
+                    break;
+                }
+                if (@inflate_get_status($context) === $streamEnd) {
+                    $readLength = @inflate_get_read_len($context);
+                    if (is_int($readLength) && $readLength > 0) {
+                        return $readLength;
+                    }
+                    $completed = true;
+                    break;
+                }
+            }
+
+            if ($completed) {
+                continue;
             }
         }
 
@@ -24460,7 +24662,7 @@ final class PdfMetadataExtractor
             return [];
         }
 
-        $stream = $this->decodeStreamEntryObject($body, $objects);
+        $stream = $this->decodeBoundedXmpStreamEntryObject($body, $objects);
         if ($stream === null) {
             return [];
         }
@@ -26341,7 +26543,7 @@ final class PdfMetadataExtractor
         return $this->resolvePdfValue($value, $objects);
     }
 
-    private function decodeAsciiHexStream(string $stream): ?string
+    private function decodeAsciiHexStream(string $stream, ?int $maxDecodedBytes = null): ?string
     {
         $body = strstr($stream, '>', true);
         if ($body === false) {
@@ -26359,6 +26561,10 @@ final class PdfMetadataExtractor
                 return null;
             }
 
+            if ($maxDecodedBytes !== null && strlen($hex) >= ($maxDecodedBytes * 2) + 1) {
+                return null;
+            }
+
             $hex .= $char;
         }
 
@@ -26371,7 +26577,10 @@ final class PdfMetadataExtractor
         }
 
         $decoded = hex2bin($hex);
-        return $decoded === false ? null : $decoded;
+
+        return $decoded === false || ($maxDecodedBytes !== null && strlen($decoded) > $maxDecodedBytes)
+            ? null
+            : $decoded;
     }
 
     private function asciiHexStreamHasOnlyLengthBoundedData(string $stream): bool
@@ -26390,7 +26599,7 @@ final class PdfMetadataExtractor
         return true;
     }
 
-    private function decodeAscii85Stream(string $stream): ?string
+    private function decodeAscii85Stream(string $stream, ?int $maxDecodedBytes = null): ?string
     {
         $body = $this->trimPdfFilterWhitespace($stream);
         if (str_starts_with($body, '<~')) {
@@ -26414,6 +26623,9 @@ final class PdfMetadataExtractor
                 if ($group !== []) {
                     return null;
                 }
+                if ($maxDecodedBytes !== null && strlen($out) + 4 > $maxDecodedBytes) {
+                    return null;
+                }
                 $out .= "\0\0\0\0";
                 continue;
             }
@@ -26427,6 +26639,9 @@ final class PdfMetadataExtractor
             if (count($group) === 5) {
                 $decodedGroup = $this->decodeAscii85Group($group, 4);
                 if ($decodedGroup === null) {
+                    return null;
+                }
+                if ($maxDecodedBytes !== null && strlen($out) + strlen($decodedGroup) > $maxDecodedBytes) {
                     return null;
                 }
 
@@ -26446,6 +26661,9 @@ final class PdfMetadataExtractor
 
             $decodedGroup = $this->decodeAscii85Group($group, $groupLength - 1);
             if ($decodedGroup === null) {
+                return null;
+            }
+            if ($maxDecodedBytes !== null && strlen($out) + strlen($decodedGroup) > $maxDecodedBytes) {
                 return null;
             }
 
@@ -26490,20 +26708,23 @@ final class PdfMetadataExtractor
         return substr($bytes, 0, $bytesToReturn);
     }
 
-    private function decodeFlateStream(string $stream): ?string
+    private function decodeFlateStream(string $stream, ?int $maxDecodedBytes = null): ?string
     {
-        $inflated = @gzuncompress($stream);
+        $maximumLength = $maxDecodedBytes === null ? 0 : $maxDecodedBytes + 1;
+        $inflated = @gzuncompress($stream, $maximumLength);
         if ($inflated === false) {
-            $inflated = @gzinflate($stream);
+            $inflated = @gzinflate($stream, $maximumLength);
         }
         if ($inflated === false) {
-            $inflated = @gzdecode($stream);
+            $inflated = @gzdecode($stream, $maximumLength);
         }
 
-        return $inflated === false ? null : $inflated;
+        return $inflated === false || ($maxDecodedBytes !== null && strlen($inflated) > $maxDecodedBytes)
+            ? null
+            : $inflated;
     }
 
-    private function decodeRunLengthStream(string $stream): ?string
+    private function decodeRunLengthStream(string $stream, ?int $maxDecodedBytes = null): ?string
     {
         $out = '';
         $length = strlen($stream);
@@ -26518,6 +26739,9 @@ final class PdfMetadataExtractor
                 if ($offset + $copyLength >= $length) {
                     return null;
                 }
+                if ($maxDecodedBytes !== null && strlen($out) + $copyLength > $maxDecodedBytes) {
+                    return null;
+                }
                 $out .= substr($stream, $offset + 1, $copyLength);
                 $offset += $copyLength;
                 continue;
@@ -26526,7 +26750,11 @@ final class PdfMetadataExtractor
             if ($offset + 1 >= $length) {
                 return null;
             }
-            $out .= str_repeat($stream[$offset + 1], 257 - $control);
+            $repeatLength = 257 - $control;
+            if ($maxDecodedBytes !== null && strlen($out) + $repeatLength > $maxDecodedBytes) {
+                return null;
+            }
+            $out .= str_repeat($stream[$offset + 1], $repeatLength);
             $offset++;
         }
 

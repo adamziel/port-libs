@@ -64,8 +64,111 @@ return [
 
         $t->same(['content', 'background', 'text-align'], array_column($declarations, 'name'));
         $t->same('right', CssDeclarationScanner::firstValue("content:'text-align:center'; /* comment */ text-align/**/: /**/right", 'text-align'));
+        $t->same('left', CssDeclarationScanner::firstValue('text-align:left; text-align:right', 'text-align'));
         $t->same('right', $cell->attr('align', 'default'));
         $t->same("content:'text-align:center'", $cell->attr('htmlAttributes')['style'] ?? '');
         $t->same('default', $list->children[0]->attr('style'));
+    },
+
+    'resolves inline presentation hints by CSS cascade rather than last text match' => static function (TestRunner $t): void {
+        $validAlignment = static fn (string $value): bool => preg_match('/^(?:left|right|center)\s*$/i', $value) === 1;
+        $invalidLater = (new HtmlReader())->read(
+            '<table><tr><td style="text-align:left; text-align:bogus">x</td></tr></table>'
+        );
+        $importantEarlier = (new HtmlReader())->read(
+            '<table><tr><td style="text-align:left !important; text-align:right">x</td></tr></table>'
+        );
+        $list = (new HtmlReader())->read(
+            '<ol style="list-style-type:decimal; list-style-type:upper-roman"><li>x</li></ol>'
+        );
+        $listWithInvalidLaterValue = (new HtmlReader())->read(
+            '<ol style="list-style-type:decimal; list-style-type:upper-roman invalid"><li>x</li></ol>'
+        );
+
+        $t->same('left', CssDeclarationScanner::lastValidValue('text-align:left; text-align:bogus', 'text-align', $validAlignment));
+        $t->same('left', CssDeclarationScanner::lastValidValue('text-align:left !important; text-align:right', 'text-align', $validAlignment));
+        $t->same('left', $invalidLater->children[0]->children[1]->children[0]->children[0]->attr('align', 'default'));
+        $t->same('left', $importantEarlier->children[0]->children[1]->children[0]->children[0]->attr('align', 'default'));
+        $t->same('upper_roman', $list->children[0]->attr('style'));
+        $t->same('decimal', $listWithInvalidLaterValue->children[0]->attr('style'));
+    },
+
+    'preserves standalone doctypes and source after same-line HTML block closes' => static function (TestRunner $t): void {
+        $doctype = (new HtmlWriter())->write((new MarkdownReader(['format' => 'commonmark']))->read("<!DOCTYPE html>\nafter"));
+        $dtdDoctype = (new HtmlWriter())->write(
+            (new MarkdownReader(['format' => 'commonmark']))->read("<!DOCTYPE html [\n<!-- >\n-->\n]>\n\nAfter")
+        );
+        $doctypeDocument = (new MarkdownReader(['format' => 'commonmark']))->read(
+            "<!doctype html>\n<html><body><table><tr><td>x</td></tr></table></body></html>"
+        );
+        $divTail = (new HtmlWriter())->write((new MarkdownReader(['format' => 'commonmark']))->read('<div>x</div>tail'));
+        $documentTail = (new HtmlWriter())->write(
+            (new MarkdownReader(['format' => 'commonmark']))->read('<html><body><p>inside</p></body></html>tail')
+        );
+        $paragraphTail = (new HtmlWriter())->write((new MarkdownReader(['format' => 'commonmark']))->read('<p>x</p>tail'));
+        $headingTail = (new HtmlWriter())->write((new MarkdownReader(['format' => 'commonmark']))->read('<h2>x</h2>tail'));
+        $preTail = (new HtmlWriter())->write((new MarkdownReader(['format' => 'commonmark']))->read('<pre><code>x</code></pre>tail'));
+        $inlineTail = (new HtmlWriter())->write((new MarkdownReader(['format' => 'commonmark']))->read('<del>x</del> tail'));
+        $chainedTail = (new HtmlWriter())->write((new MarkdownReader(['format' => 'commonmark']))->read('<div>x</div><div>y</div>tail'));
+        $mainTail = (new HtmlWriter())->write(
+            (new MarkdownReader(['format' => 'commonmark', 'htmlNativeDivs' => true]))->read('<main><p>x</p></main>tail')
+        );
+        $docBookTail = (new HtmlWriter())->write(
+            (new MarkdownReader(['format' => 'commonmark']))->read(
+                '<informaltable><tgroup cols="1"><tbody><row><entry>x</entry></row></tbody></tgroup></informaltable>tail'
+            )
+        );
+
+        $t->same("<!DOCTYPE html>\n<p>after</p>", $doctype);
+        $t->same("<!DOCTYPE html [\n<!-- >\n-->\n]>\n<p>After</p>", $dtdDoctype);
+        $t->same(1, count($doctypeDocument->children));
+        $t->same('table', $doctypeDocument->children[0]->type);
+        $t->contains("<div>\nx\n</div>", $divTail);
+        $t->contains('<p>tail</p>', $divTail);
+        $t->contains('<p>inside</p>', $documentTail);
+        $t->contains('<p>tail</p>', $documentTail);
+        $t->contains("<p>x</p>\n<p>tail</p>", $paragraphTail);
+        $t->contains('<h2 id="x">x</h2>', $headingTail);
+        $t->contains('<p>tail</p>', $headingTail);
+        $t->contains("<pre><code>x</code></pre>\n<p>tail</p>", $preTail);
+        $t->same('<p><del>x</del> tail</p>', $inlineTail);
+        $t->contains("<div>\nx\n</div>\n<div>\ny\n</div>\n<p>tail</p>", $chainedTail);
+        $t->same("<p>x</p>\n<p>tail</p>", $mainTail);
+        $t->contains("<table>\n<tbody>\n<tr><td>x</td></tr>\n</tbody>\n</table>\n<p>tail</p>", $docBookTail);
+    },
+
+    'reads many adjacent balanced HTML blocks without rebuilding the remaining source' => static function (TestRunner $t): void {
+        $source = str_repeat("<div>x</div>\n", 1024);
+        $document = (new MarkdownReader(['format' => 'commonmark']))->read($source);
+
+        $t->same(1024, count($document->children));
+        $t->same('div', $document->children[0]->type);
+        $t->same('div', $document->children[1023]->type);
+    },
+
+    'keeps malformed HTML starts bounded by their first blank line' => static function (TestRunner $t): void {
+        $repetitions = 256;
+        foreach (['p', 'article', 'section', 'blockquote', 'figure', 'ol', 'button', 'del', 'ins', 'html'] as $tag) {
+            $source = str_repeat('<' . $tag . ">\n\n", $repetitions) . 'after';
+            $document = (new MarkdownReader(['format' => 'commonmark']))->read($source);
+
+            $t->same($repetitions + 1, count($document->children), $tag);
+        }
+
+        $closedArticle = (new HtmlWriter())->write(
+            (new MarkdownReader(['format' => 'commonmark']))->read("<article>\n\ninside\n</article>\n\nafter")
+        );
+
+        $t->contains("<article>\n\ninside\n</article>", $closedArticle);
+        $t->contains('<p>after</p>', $closedArticle);
+    },
+
+    'keeps boundary caches scoped to the main source lines' => static function (TestRunner $t): void {
+        $writer = new HtmlWriter();
+        $referenceBefore = $writer->write((new MarkdownReader(['format' => 'commonmark']))->read("[r]: /u\n<div>hello</div>"));
+        $referenceBetween = $writer->write((new MarkdownReader(['format' => 'commonmark']))->read("<div>a</div>\n[r]: /u\n<div>b</div>"));
+
+        $t->same("<div>\nhello\n</div>", $referenceBefore);
+        $t->same("<div>\na\n</div>\n<div>\nb\n</div>", $referenceBetween);
     },
 ];

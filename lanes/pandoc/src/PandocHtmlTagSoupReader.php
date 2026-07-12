@@ -509,14 +509,13 @@ final class PandocHtmlTagSoupReader
      */
     private function orderedListStyleDeclarations(string $style): array
     {
-        $values = [];
-        foreach (CssDeclarationScanner::declarations($style) as $declaration) {
-            if (in_array($declaration['name'], ['list-style-type', 'list-style'], true)) {
-                $values[] = $declaration['value'];
-            }
-        }
+        $value = CssDeclarationScanner::lastValidValue(
+            $style,
+            ['list-style-type', 'list-style'],
+            fn (string $value): bool => $this->orderedListStyleFromCssValue($value) !== 'default'
+        );
 
-        return $values;
+        return $value === null ? [] : [$value];
     }
 
     private function parseDefinitionListBlock(TagSoupTag $list): AstNode

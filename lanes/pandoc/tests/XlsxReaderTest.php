@@ -128,6 +128,40 @@ XML);
     }
 };
 
+$replaceXlsxPackagePart = static function (string $packageBytes, string $partName, string $contents): string {
+    $path = tempnam(sys_get_temp_dir(), 'pandoc-xlsx-rewrite-');
+    if ($path === false) {
+        throw new RuntimeException('Unable to create temporary XLSX rewrite path');
+    }
+
+    try {
+        if (file_put_contents($path, $packageBytes) === false) {
+            throw new RuntimeException('Unable to seed temporary XLSX package');
+        }
+
+        $zip = new ZipArchive();
+        if ($zip->open($path) !== true) {
+            throw new RuntimeException('Unable to open temporary XLSX package');
+        }
+        if ($zip->addFromString($partName, $contents) === false) {
+            $zip->close();
+            throw new RuntimeException('Unable to replace temporary XLSX part: ' . $partName);
+        }
+        if ($zip->close() !== true) {
+            throw new RuntimeException('Unable to save temporary XLSX package');
+        }
+
+        $rewrittenBytes = file_get_contents($path);
+        if (!is_string($rewrittenBytes)) {
+            throw new RuntimeException('Unable to read temporary XLSX package');
+        }
+
+        return $rewrittenBytes;
+    } finally {
+        @unlink($path);
+    }
+};
+
 $buildFormattedXlsxPackage = static function (): string {
     $path = tempnam(sys_get_temp_dir(), 'pandoc-xlsx-formatted-');
     if ($path === false) {
@@ -1998,40 +2032,59 @@ XML);
 
         $t->throws(RuntimeException::class, static fn (): AstNode => (new XlsxReader())->read($bytes));
     },
-    'requires an exact root officeDocument relationship for an XLSX workbook' => static function (TestRunner $t) use ($buildXlsxPackage): void {
-        $path = tempnam(sys_get_temp_dir(), 'pandoc-xlsx-root-office-document-');
-        if ($path === false) {
-            throw new RuntimeException('Unable to create temporary XLSX path');
-        }
-
-        try {
-            if (file_put_contents($path, $buildXlsxPackage()) === false) {
-                throw new RuntimeException('Unable to seed temporary XLSX package');
-            }
-
-            $zip = new ZipArchive();
-            if ($zip->open($path) !== true) {
-                throw new RuntimeException('Unable to open temporary XLSX package');
-            }
-            $zip->addFromString('_rels/.rels', <<<'XML'
+    'accepts the Strict root officeDocument relationship for an XLSX workbook only when the URI matches exactly' => static function (TestRunner $t) use ($buildXlsxPackage, $replaceXlsxPackagePart): void {
+        $bytes = $replaceXlsxPackagePart($buildXlsxPackage(), '_rels/.rels', <<<'XML'
 <?xml version="1.0" encoding="UTF-8"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-  <Relationship Id="rIdDecoy" Type="urn:example:xlsx-reader/officeDocument" Target="xl/decoy-workbook.xml"/>
-  <Relationship Id="rIdWorkbook" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>
+  <Relationship Id="rIdDecoy" Type="http://purl.oclc.org/ooxml/officeDocument/relationships/officeDocument/decoy" Target="xl/decoy-workbook.xml"/>
+  <Relationship Id="rIdWorkbook" Type="http://purl.oclc.org/ooxml/officeDocument/relationships/officeDocument" Target="xl/workbook.xml"/>
 </Relationships>
 XML);
-            $zip->close();
-
-            $bytes = file_get_contents($path);
-            if (!is_string($bytes)) {
-                throw new RuntimeException('Unable to read temporary XLSX package');
-            }
-        } finally {
-            @unlink($path);
-        }
 
         $document = (new XlsxReader())->read($bytes);
 
         $t->same('Main', $document->children[0]->attr('text'));
+    },
+
+    'rejects oversized root XLSX relationship parts before parsing' => static function (TestRunner $t) use ($buildXlsxPackage, $replaceXlsxPackagePart): void {
+        $bytes = $replaceXlsxPackagePart(
+            $buildXlsxPackage(),
+            '_rels/.rels',
+            str_repeat(' ', 8_388_609)
+        );
+
+        try {
+            (new XlsxReader())->read($bytes);
+        } catch (RuntimeException $exception) {
+            $t->same(
+                'ZIP entry _rels/.rels exceeds maximum uncompressed read size 8388608 bytes',
+                $exception->getMessage()
+            );
+
+            return;
+        }
+
+        throw new RuntimeException('Expected oversized root XLSX relationship part to be rejected');
+    },
+
+    'rejects oversized nested XLSX relationship parts before parsing' => static function (TestRunner $t) use ($buildXlsxPackage, $replaceXlsxPackagePart): void {
+        $bytes = $replaceXlsxPackagePart(
+            $buildXlsxPackage(),
+            'xl/_rels/workbook.xml.rels',
+            str_repeat(' ', 8_388_609)
+        );
+
+        try {
+            (new XlsxReader())->read($bytes);
+        } catch (RuntimeException $exception) {
+            $t->same(
+                'ZIP entry xl/_rels/workbook.xml.rels exceeds maximum uncompressed read size 8388608 bytes',
+                $exception->getMessage()
+            );
+
+            return;
+        }
+
+        throw new RuntimeException('Expected oversized nested XLSX relationship part to be rejected');
     },
 ];

@@ -15,7 +15,7 @@ namespace PortLibs\Pandoc;
 final class CssDeclarationScanner
 {
     /**
-     * @return list<array{name:string,value:string,source:string,normalized:string}>
+     * @return list<array{name:string,value:string,source:string,normalized:string,important:bool}>
      */
     public static function declarations(string $style): array
     {
@@ -82,18 +82,55 @@ final class CssDeclarationScanner
     public static function firstValue(string $style, string $name): ?string
     {
         $name = strtolower($name);
-        $value = null;
         foreach (self::declarations($style) as $declaration) {
             if ($declaration['name'] === $name) {
-                $value = $declaration['value'];
+                return $declaration['value'];
             }
         }
 
-        return $value;
+        return null;
     }
 
     /**
-     * @param list<array{name:string,value:string,source:string,normalized:string}> $declarations
+     * Resolve one inline-style property using CSS declaration order for the
+     * narrow presentation hints consumed by the readers.  Invalid values are
+     * ignored by the caller-provided validator, and an earlier !important
+     * value wins over later normal declarations.
+     *
+     * This is intentionally not a full CSS cascade: there is one inline
+     * declaration list and no selectors, origins, inheritance, or custom
+     * property resolution involved here.
+     *
+     * @param string|list<string> $names
+     * @param callable(string):bool $isValidValue
+     */
+    public static function lastValidValue(string $style, string|array $names, callable $isValidValue): ?string
+    {
+        $acceptedNames = [];
+        foreach ((array) $names as $name) {
+            $acceptedNames[strtolower($name)] = true;
+        }
+
+        $normal = null;
+        $important = null;
+        foreach (self::declarations($style) as $declaration) {
+            if (!isset($acceptedNames[$declaration['name']]) || !$isValidValue($declaration['value'])) {
+                continue;
+            }
+
+            if ($declaration['important']) {
+                $important = $declaration['value'];
+                continue;
+            }
+
+            $normal = $declaration['value'];
+        }
+
+        return $important ?? $normal;
+    }
+
+    /**
+     * @param list<array{name:string,value:string,source:string,normalized:string,important:bool}> $declarations
      */
     public static function render(array $declarations): string
     {
@@ -101,7 +138,7 @@ final class CssDeclarationScanner
     }
 
     /**
-     * @param list<array{name:string,value:string,source:string,normalized:string}> $declarations
+     * @param list<array{name:string,value:string,source:string,normalized:string,important:bool}> $declarations
      */
     private static function appendDeclaration(array &$declarations, string $source): void
     {
@@ -128,12 +165,69 @@ final class CssDeclarationScanner
             return;
         }
 
+        $value = trim(substr($normalized, $colon + 1));
+        [$value, $important] = self::valueAndImportance($value);
+        if ($value === '') {
+            return;
+        }
+
         $declarations[] = [
             'name' => $name,
-            'value' => trim(substr($normalized, $colon + 1)),
+            'value' => $value,
             'source' => $source,
             'normalized' => $normalized,
+            'important' => $important,
         ];
+    }
+
+    /**
+     * @return array{0:string, 1:bool}
+     */
+    private static function valueAndImportance(string $value): array
+    {
+        $length = strlen($value);
+        $quote = null;
+        $parentheses = 0;
+
+        for ($offset = 0; $offset < $length; $offset++) {
+            $char = $value[$offset];
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    ++$offset;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+            if ($char === '\\') {
+                ++$offset;
+                continue;
+            }
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+            if ($char === '(') {
+                ++$parentheses;
+                continue;
+            }
+            if ($char === ')' && $parentheses > 0) {
+                --$parentheses;
+                continue;
+            }
+            if ($char !== '!' || $parentheses !== 0) {
+                continue;
+            }
+
+            $suffix = substr($value, $offset);
+            if (preg_match('/^!\s*important\s*$/i', $suffix) === 1) {
+                return [rtrim(substr($value, 0, $offset)), true];
+            }
+        }
+
+        return [$value, false];
     }
 
     private static function withoutComments(string $source): string

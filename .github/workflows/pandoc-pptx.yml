@@ -45,8 +45,11 @@ jobs:
           php -l lanes/pandoc/src/PptxUpstreamReaderEvidence.php
           php -l lanes/pandoc/src/NativeReader.php
           php -l lanes/pandoc/src/NativeWriter.php
+          php -l lanes/pandoc/src/OpcRelationship.php
+          php -l lanes/pandoc/src/OpcRelationships.php
           php -l lanes/pandoc/src/ZipPackage.php
           php -l lanes/pandoc/src/ZipPackageEntry.php
+          php -l lanes/pandoc/tests/OpenPackagingConventionsTest.php
           php -l lanes/pandoc/tests/PptxReaderTest.php
           php -l lanes/pandoc/tests/PptxNativeAstComparisonHarnessTest.php
           php -l lanes/pandoc/tests/PptxExecutableNativeAstComparisonHarnessTest.php
@@ -157,6 +160,7 @@ jobs:
       - name: Run focused PPTX parity tests
         run: |
           php tools/run-tests.php \
+            lanes/pandoc/tests/OpenPackagingConventionsTest.php \
             lanes/pandoc/tests/PptxNativeAstComparisonHarnessTest.php \
             lanes/pandoc/tests/PptxExecutableNativeAstComparisonHarnessTest.php \
             lanes/pandoc/tests/PptxUpstreamReaderEvidenceTest.php \

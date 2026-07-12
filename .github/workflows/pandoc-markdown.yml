@@ -38,6 +38,8 @@ jobs:
       - name: Lint Markdown parity files
         run: |
           php -l lanes/pandoc/src/AstNode.php
+          php -l lanes/pandoc/src/CssDeclarationScanner.php
+          php -l lanes/pandoc/src/HtmlSourceScanner.php
           php -l lanes/pandoc/src/MarkdownFormatProfile.php
           php -l lanes/pandoc/src/MarkdownNativeAstComparisonHarness.php
           php -l lanes/pandoc/src/MarkdownReader.php
@@ -60,6 +62,8 @@ jobs:
           php -l lanes/pandoc/tests/MarkdownReaderMmdReferenceImageAttributeFixtureCompletionTest.php
           php -l lanes/pandoc/tests/MarkdownReaderMultipleMetadataBlockFixtureCompletionTest.php
           php -l lanes/pandoc/tests/MarkdownReaderNestedInlineLinkBoundaryFixtureCompletionTest.php
+          php -l lanes/pandoc/tests/MarkdownReaderPathologicalInputHardeningTest.php
+          php -l lanes/pandoc/tests/MarkdownReaderRawHtmlBlockSurgeTest.php
           php -l lanes/pandoc/tests/MarkdownReaderTableAttributeProfileFixtureCompletionTest.php
           php -l lanes/pandoc/tests/MarkdownReaderTwoSpaceLineBreakFixtureCompletionTest.php
           php -l lanes/pandoc/tests/MarkdownUpstreamReaderEvidenceTest.php
@@ -149,6 +153,8 @@ jobs:
             lanes/pandoc/tests/MarkdownReaderMultipleMetadataBlockFixtureCompletionTest.php \
             lanes/pandoc/tests/MarkdownReaderNestedInlineLinkBoundaryFixtureCompletionTest.php \
             lanes/pandoc/tests/MarkdownReaderOldDashesProfileFixtureCompletionTest.php \
+            lanes/pandoc/tests/MarkdownReaderPathologicalInputHardeningTest.php \
+            lanes/pandoc/tests/MarkdownReaderRawHtmlBlockSurgeTest.php \
             lanes/pandoc/tests/MarkdownReaderRawCodeProfileOverrideSurgeTest.php \
             lanes/pandoc/tests/MarkdownReaderStartnumProfileFixtureCompletionTest.php \
             lanes/pandoc/tests/MarkdownReaderTableAttributeProfileFixtureCompletionTest.php \

@@ -135,6 +135,18 @@ HTML));
         $t->same('color: red', $cell->attr('htmlAttributes')['style'] ?? null);
     },
 
+    'uses valid important CSS presentation hints before later invalid normal values' => static function (TestRunner $t): void {
+        $reader = new PandocHtmlTagSoupTableReader();
+        $result = $reader->parseFirstTable($reader->tokenize(
+            '<table><tr><td style="text-align:left !important; text-align:bogus">x</td></tr></table>'
+        ));
+
+        $t->true(is_array($result));
+        $table = $result['table'] ?? null;
+        $t->true($table instanceof AstNode);
+        $t->same('left', $table->children[1]->children[0]->children[0]->attr('align'));
+    },
+
     'degrades invalid table children and foster-parent text fixtures to paragraphs' => static function (TestRunner $t): void {
         $reader = new PandocHtmlTagSoupTableReader();
         $harness = new HtmlNativeAstComparisonHarness();

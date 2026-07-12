@@ -39,6 +39,8 @@ jobs:
 
       - name: Lint EPUB parity files
         run: |
+          php -l lanes/pandoc/src/CssDeclarationScanner.php
+          php -l lanes/pandoc/src/EpubPackageReader.php
           php -l lanes/pandoc/src/EpubReader.php
           php -l lanes/pandoc/src/EpubExecutableNativeAstComparisonHarness.php
           php -l lanes/pandoc/src/EpubMediaBagComparisonHarness.php
@@ -47,6 +49,7 @@ jobs:
           php -l lanes/pandoc/src/ZipPackage.php
           php -l lanes/pandoc/src/ZipPackageEntry.php
           php -l lanes/pandoc/tests/EpubReaderTest.php
+          php -l lanes/pandoc/tests/EpubPackageReaderTest.php
           php -l lanes/pandoc/tests/EpubExecutableNativeAstComparisonHarnessTest.php
           php -l lanes/pandoc/tests/EpubMediaBagComparisonHarnessTest.php
           php -l lanes/pandoc/tests/EpubNativeAstPackageComparisonHarnessTest.php

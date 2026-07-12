@@ -10,6 +10,7 @@ final class MarkdownReader
     private const MARKDOWN_CLASSIC_ESCAPABLE_PUNCTUATION = "\\`*_{}[]()>#+-.!";
     /** Preserves backslash-escaped entity delimiters through the final entity decode pass. */
     private const ESCAPED_ENTITY_DELIMITER_PREFIX = "\x1FMD_ESCAPED_ENTITY_DELIMITER\x1F";
+
     /**
      * Mirrored from upstream pandoc data/abbreviations for the bounded
      * markdown abbreviation spacing slice.
@@ -152,13 +153,29 @@ final class MarkdownReader
 
     private bool $forceLinkLabelMark = false;
 
+    /** @var array{replaceIndex:int, tail:string}|null */
+    private ?array $pendingCollectedHtmlTail = null;
+
+    /** @var array<string, array<int, array{source:string,end:int,tail:string,bounds:array{openStart:int,openEnd:int,closeStart:int,closeEnd:int}}>> */
+    private array $htmlElementBoundaryCache = [];
+
+    private bool $htmlElementBoundaryCacheActive = false;
+
+    /**
+     * A malformed div is permitted one semantic recovery pass over its
+     * remaining source. A later unclosed div in that pass retains its source
+     * verbatim, preventing suffix reparsing from becoming recursive.
+     */
+    private bool $unclosedDivFallbackRecoveryActive = false;
+
     /**
      * A cheap, exact bracket-pair cache is installed while parsing an inline
-     * run that has no syntax which can hide brackets (code, math, raw HTML,
-     * or escapes).  It lets the several link-like parsers reject unmatched
-     * opening brackets without each rescanning the remainder of the run.
+     * run that has no syntax which can hide brackets (code, math, or raw
+     * HTML). Escapes are handled by the pre-scan itself. It lets the several
+     * link-like parsers reject unmatched opening brackets without each
+     * rescanning the remainder of the run.
      *
-     * @var array<int, true>
+     * @var array<int, int> Opening offset => matching closing offset.
      */
     private array $inlineBracketPairCache = [];
 
@@ -260,7 +277,13 @@ final class MarkdownReader
         $previousHtmlQuoteDepth = $this->htmlQuoteDepth;
         $previousMetadataMarkdownExtensionSuffix = $this->metadataMarkdownExtensionSuffix;
         $previousDocumentHasYamlMetadata = $this->documentHasYamlMetadata;
+        $previousPendingCollectedHtmlTail = $this->pendingCollectedHtmlTail;
+        $previousHtmlElementBoundaryCache = $this->htmlElementBoundaryCache;
+        $previousHtmlElementBoundaryCacheActive = $this->htmlElementBoundaryCacheActive;
         $this->htmlQuoteDepth = 0;
+        $this->pendingCollectedHtmlTail = null;
+        $this->htmlElementBoundaryCache = [];
+        $this->htmlElementBoundaryCacheActive = false;
         $documentAttrs = [];
         if ($this->yamlMetadataEnabled()) {
             [$lines, $yamlAttrs] = $this->extractYamlMetadataBlock($lines);
@@ -273,15 +296,21 @@ final class MarkdownReader
         }
         [$lines, $mmdTitleBlock] = $this->mmdTitleBlockEnabled() ? $this->extractMmdTitleBlock($lines) : [$lines, null];
         [$lines, $titleBlock] = $this->titleBlockEnabled() ? $this->extractTitleBlock($lines) : [$lines, null];
-        [$lines, $references, $footnotes, $abbreviations] = $this->extractReferenceDefinitions(
-            $lines,
-            $this->footnoteExtensionEnabled()
-        );
+        // Normalize source-bound same-line HTML tails before every Markdown
+        // prepass. Reference definitions must see the same virtual lines as
+        // numbered examples, heading IDs, and the main block reader.
         $lines = $this->splitMixedHtmlFlowLines($lines);
+        [$lines, $references, $footnotes, $abbreviations] = $this->withHtmlElementBoundaryCacheScope(
+            fn (): array => $this->extractReferenceDefinitions($lines, $this->footnoteExtensionEnabled())
+        );
         [$exampleReferences, $exampleNumbersByLine] = $this->numberedExampleExtensionEnabled()
-            ? $this->collectNumberedExampleReferences($lines)
+            ? $this->withHtmlElementBoundaryCacheScope(fn (): array => $this->collectNumberedExampleReferences($lines))
             : [[], []];
-        [$markdownHeadingIds, $implicitHeadingReferences] = $this->collectMarkdownHeadingReferences($lines);
+        [$markdownHeadingIds, $implicitHeadingReferences] = $this->withHtmlElementBoundaryCacheScope(
+            fn (): array => $this->collectMarkdownHeadingReferences($lines)
+        );
+        $this->htmlElementBoundaryCache = [];
+        $this->htmlElementBoundaryCacheActive = true;
         $this->referenceLinks = array_replace($previousReferenceLinks, $implicitHeadingReferences, $references);
         $this->footnoteDefinitions = array_replace($previousFootnoteDefinitions, $footnotes);
         $this->abbreviationDefinitions = array_replace($previousAbbreviationDefinitions, $abbreviations);
@@ -294,7 +323,12 @@ final class MarkdownReader
             $documentAttrs = array_replace_recursive($documentAttrs, $this->buildTitleBlockAttrs($titleBlock));
         }
 
-        for ($index = 0, $count = count($lines); $index < $count; $index++) {
+        for (
+            $index = 0;
+            $index < count($lines) || (($this->pendingCollectedHtmlTail['replaceIndex'] ?? -2) === $index - 1);
+            $index++
+        ) {
+            $this->replaceConsumedHtmlLineWithTail($lines, $index);
             $line = $lines[$index];
             $codeBlock = $this->tryReadFencedCodeBlock($lines, $index);
             if ($codeBlock !== null) {
@@ -619,6 +653,9 @@ final class MarkdownReader
         $this->htmlQuoteDepth = $previousHtmlQuoteDepth;
         $this->metadataMarkdownExtensionSuffix = $previousMetadataMarkdownExtensionSuffix;
         $this->documentHasYamlMetadata = $previousDocumentHasYamlMetadata;
+        $this->pendingCollectedHtmlTail = $previousPendingCollectedHtmlTail;
+        $this->htmlElementBoundaryCache = $previousHtmlElementBoundaryCache;
+        $this->htmlElementBoundaryCacheActive = $previousHtmlElementBoundaryCacheActive;
 
         return $document;
     }
@@ -1378,10 +1415,21 @@ final class MarkdownReader
      */
     private function markdownReferenceBoundaryEndIndex(array $lines, int $index): ?int
     {
-        return $this->markdownFencedDivBoundaryEndIndex($lines, $index)
+        $boundary = $this->markdownFencedDivBoundaryEndIndex($lines, $index)
             ?? $this->markdownCodeFenceBoundaryEndIndex($lines, $index)
-            ?? $this->markdownNativeDivBoundaryEndIndex($lines, $index)
-            ?? $this->markdownRawHtmlBoundaryEndIndex($lines, $index)
+            ?? $this->markdownNativeDivBoundaryEndIndex($lines, $index);
+        if ($boundary !== null) {
+            return $boundary;
+        }
+
+        // splitMixedHtmlFlowLines() has already exposed the tail as a
+        // separate Markdown line. Keep the source-bound block itself opaque,
+        // but do not let blank-terminated raw HTML scanning consume that tail.
+        if ($this->lineStartsWithBalancedHtmlBlock($lines[$index] ?? '')) {
+            return $index;
+        }
+
+        return $this->markdownRawHtmlBoundaryEndIndex($lines, $index)
             ?? $this->markdownRawTexBoundaryEndIndex($lines, $index);
     }
 
@@ -1450,48 +1498,6 @@ final class MarkdownReader
 
     /**
      * @param list<string> $lines
-     * @return array{lines:list<string>, end:int}|null
-     */
-    private function markdownNativeDivContentLines(array $lines, int $index): ?array
-    {
-        $line = $lines[$index] ?? '';
-        $opening = Html5Dom::markdownRawHtmlOpeningTagBoundary($line);
-        if ($opening === null || $opening['name'] !== 'div' || $opening['selfClosing']) {
-            return null;
-        }
-
-        $collected = $this->collectHtmlElementBlockBySourceBounds($lines, $index, 'div');
-        if ($collected === null) {
-            return null;
-        }
-
-        [$html, $end, $bounds] = $collected;
-        $inner = substr($html, $bounds['openEnd'] + 1, $bounds['closeStart'] - $bounds['openEnd'] - 1);
-
-        return [
-            'lines' => $this->trimOuterBlankMarkdownLines(explode("\n", $inner)),
-            'end' => $end,
-        ];
-    }
-
-    /**
-     * @param list<string> $lines
-     * @return list<string>
-     */
-    private function trimOuterBlankMarkdownLines(array $lines): array
-    {
-        while ($lines !== [] && trim($lines[0]) === '') {
-            array_shift($lines);
-        }
-        while ($lines !== [] && trim($lines[array_key_last($lines)]) === '') {
-            array_pop($lines);
-        }
-
-        return $lines;
-    }
-
-    /**
-     * @param list<string> $lines
      */
     private function markdownRawHtmlBoundaryEndIndex(array $lines, int $index): ?int
     {
@@ -1513,7 +1519,7 @@ final class MarkdownReader
         }
 
         if ($this->rawHtmlLineStartsWithDeclaration($line)) {
-            return $this->markdownRawHtmlMarkerEndIndex($lines, $index, '>');
+            return $this->markdownRawHtmlDeclarationEndIndex($lines, $index);
         }
 
         if ($this->isAngleAutolinkOnlyLine($line)) {
@@ -1572,6 +1578,23 @@ final class MarkdownReader
         }
 
         return max($index, $count - 1);
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function markdownRawHtmlDeclarationEndIndex(array $lines, int $index): int
+    {
+        $end = HtmlSourceScanner::declarationEndLineInLines(
+            $lines,
+            $index,
+            fn (string $line): string => $this->normalizeRawHtmlLine($line)
+        );
+        if ($end === null) {
+            return max($index, count($lines) - 1);
+        }
+
+        return $end;
     }
 
     /**
@@ -1722,7 +1745,7 @@ final class MarkdownReader
         }
 
         if (str_starts_with(ltrim($line, " \t"), '<')) {
-            return [$line];
+            return $this->splitLeadingBalancedHtmlBlockTail($line);
         }
 
         $tagOffset = strpos($line, '<');
@@ -1746,6 +1769,63 @@ final class MarkdownReader
         $suffix = substr($line, $tagOffset);
 
         return ['<p>' . $prefix . '</p>', $suffix];
+    }
+
+    /**
+     * Split only source-bound HTML block readers which close before more
+     * Markdown on the same physical line. Prepasses then see the same tail
+     * the main reader will later process, without changing blank-terminated
+     * raw blocks (whose following lines remain opaque source).
+     *
+     * @return list<string>
+     */
+    private function splitLeadingBalancedHtmlBlockTail(string $line): array
+    {
+        $parts = [];
+        $remaining = $line;
+        while (true) {
+            $opening = Html5Dom::markdownRawHtmlOpeningTagBoundary($remaining);
+            if (
+                $opening === null
+                || $opening['selfClosing']
+                || !$this->htmlBlockTagCanHaveSameLineMarkdownTail($opening['name'])
+            ) {
+                break;
+            }
+
+            $bounds = HtmlSourceScanner::matchingElementBounds($remaining, $opening['name']);
+            $openingOffset = strpos($remaining, '<');
+            if ($bounds === null || $openingOffset === false || $bounds['openStart'] !== $openingOffset) {
+                break;
+            }
+
+            $tail = substr($remaining, $bounds['closeEnd'] + 1);
+            if (trim($tail) === '') {
+                break;
+            }
+
+            $parts[] = substr($remaining, 0, $bounds['closeEnd'] + 1);
+            $remaining = $tail;
+        }
+
+        if ($parts === []) {
+            return [$line];
+        }
+
+        $parts[] = $remaining;
+
+        return $parts;
+    }
+
+    private function htmlBlockTagCanHaveSameLineMarkdownTail(string $tag): bool
+    {
+        return in_array($tag, [
+            'article',
+            'details',
+            'div',
+            'p',
+            'table',
+        ], true);
     }
 
     private function inlineCodeSpanContainsOffset(string $line, int $offset): bool
@@ -1823,35 +1903,231 @@ final class MarkdownReader
         bool $recordLineNumbers
     ): void {
         $count = count($lines);
+        $nativeDivIndex = $recordLineNumbers
+            ? $this->markdownNativeDivExampleIndexByLine($lines)
+            : ['depths' => [], 'inlineMarkers' => []];
 
         for ($index = 0; $index < $count; $index++) {
-            $divContent = $this->markdownNativeDivContentLines($lines, $index);
-            if ($divContent !== null) {
-                $this->collectNumberedExampleReferencesInto($divContent['lines'], $references, $numbersByLine, $nextNumber, false);
-                $index = $divContent['end'];
-                continue;
-            }
-
-            $boundaryEnd = $this->markdownReferenceBoundaryEndIndex($lines, $index);
+            $boundaryEnd = $this->markdownNumberedExampleBoundaryEndIndex($lines, $index);
             if ($boundaryEnd !== null) {
                 $index = $boundaryEnd;
                 continue;
             }
 
             $line = $lines[$index];
-            $marker = $this->matchNumberedExampleMarker($line);
-            if ($marker === null || $marker['indent'] > 3) {
+            $inlineMarker = $nativeDivIndex['inlineMarkers'][$index] ?? null;
+            $handledInlineMarker = false;
+            if ($inlineMarker !== null && $inlineMarker['indent'] <= 3) {
+                $this->registerNumberedExampleMarker(
+                    $inlineMarker,
+                    null,
+                    $references,
+                    $numbersByLine,
+                    $nextNumber
+                );
+                $handledInlineMarker = true;
+            }
+
+            if (!$handledInlineMarker) {
+                $marker = $this->matchNumberedExampleMarker($line);
+                if ($marker !== null && $marker['indent'] <= 3) {
+                    $this->registerNumberedExampleMarker(
+                        $marker,
+                        $recordLineNumbers && ($nativeDivIndex['depths'][$index] ?? 0) === 0 ? $index : null,
+                        $references,
+                        $numbersByLine,
+                        $nextNumber
+                    );
+                }
+            }
+
+        }
+    }
+
+    /**
+     * @param array{indent:int,label:string,text:string,contentIndent:int,padding:int} $marker
+     * @param array<string, int> $references
+     * @param array<int, int> $numbersByLine
+     */
+    private function registerNumberedExampleMarker(
+        array $marker,
+        ?int $lineNumber,
+        array &$references,
+        array &$numbersByLine,
+        int &$nextNumber
+    ): void {
+        if ($lineNumber !== null) {
+            $numbersByLine[$lineNumber] = $nextNumber;
+        }
+        if ($marker['label'] !== '') {
+            $references[$marker['label']] = $nextNumber;
+        }
+        $nextNumber++;
+    }
+
+    /**
+     * Numbered examples inside native divs still contribute to the global
+     * reference sequence, but their line numbers belong to the nested reader.
+     * Build that containment map once from byte bounds instead of recursively
+     * rebuilding every nested div's source lines.
+     *
+     * @param list<string> $lines
+     * @return array{
+     *     depths:array<int, int>,
+     *     inlineMarkers:array<int, array{indent:int,label:string,text:string,contentIndent:int,padding:int}>
+     * }
+     */
+    private function markdownNativeDivExampleIndexByLine(array $lines): array
+    {
+        $normalized = [];
+        $lineOffsets = [];
+        $offset = 0;
+        foreach ($lines as $line) {
+            $lineOffsets[] = $offset;
+            $normalizedLine = $this->normalizeRawHtmlLine($line);
+            $normalized[] = $normalizedLine;
+            $offset += strlen($normalizedLine) + 1;
+        }
+        if ($normalized === []) {
+            return ['depths' => [], 'inlineMarkers' => []];
+        }
+
+        $source = implode("\n", $normalized);
+        $nativeBounds = [];
+        $lineIndex = 0;
+        $divStack = [];
+        foreach (HtmlSourceScanner::matchingElementBoundsAll($source, 'div') as $bounds) {
+            while ($divStack !== [] && $divStack[array_key_last($divStack)]['closeEnd'] < $bounds['openStart']) {
+                array_pop($divStack);
+            }
+            while (
+                $lineIndex + 1 < count($lineOffsets)
+                && $lineOffsets[$lineIndex + 1] <= $bounds['openStart']
+            ) {
+                $lineIndex++;
+            }
+            $line = $normalized[$lineIndex];
+            $opening = Html5Dom::markdownRawHtmlOpeningTagBoundary($line);
+            $openingOffset = strpos($line, '<');
+            $physicalOpening = !(
+                $opening === null
+                || $opening['name'] !== 'div'
+                || $opening['selfClosing']
+                || $openingOffset === false
+                || $lineOffsets[$lineIndex] + $openingOffset !== $bounds['openStart']
+            );
+            $parent = $divStack === [] ? null : $divStack[array_key_last($divStack)];
+            $virtualOpening = is_array($parent)
+                && $parent['native']
+                && $this->htmlSourceRangeIsWhitespace($source, $parent['openEnd'] + 1, $bounds['openStart']);
+            $native = $physicalOpening || $virtualOpening;
+            $divStack[] = [
+                'openEnd' => $bounds['openEnd'],
+                'closeEnd' => $bounds['closeEnd'],
+                'native' => $native,
+            ];
+            if (!$native) {
                 continue;
             }
 
-            if ($recordLineNumbers) {
-                $numbersByLine[$index] = $nextNumber;
-            }
-            if ($marker['label'] !== '') {
-                $references[$marker['label']] = $nextNumber;
-            }
-            $nextNumber++;
+            $bounds['line'] = $lineIndex;
+            $nativeBounds[] = $bounds;
         }
+
+        $inlineMarkers = [];
+        foreach ($nativeBounds as $bounds) {
+            $line = $bounds['line'];
+            if (isset($inlineMarkers[$line])) {
+                continue;
+            }
+            $start = $bounds['openEnd'] + 1;
+            $lineEnd = strpos($source, "\n", $start);
+            $end = min($lineEnd === false ? strlen($source) : $lineEnd, $bounds['closeStart']);
+            if ($end <= $start) {
+                continue;
+            }
+            $marker = $this->matchNumberedExampleMarker(substr($source, $start, $end - $start));
+            if ($marker !== null) {
+                $inlineMarkers[$line] = $marker;
+            }
+        }
+
+        $depths = [];
+        $active = [];
+        $next = 0;
+        foreach ($lineOffsets as $index => $lineStart) {
+            while ($active !== [] && $active[array_key_last($active)]['closeStart'] < $lineStart) {
+                array_pop($active);
+            }
+            while (isset($nativeBounds[$next]) && $nativeBounds[$next]['openEnd'] < $lineStart) {
+                $bounds = $nativeBounds[$next];
+                if ($bounds['closeStart'] >= $lineStart) {
+                    $active[] = $bounds;
+                }
+                $next++;
+            }
+            if ($active !== []) {
+                $depths[$index] = count($active);
+            }
+        }
+
+        return ['depths' => $depths, 'inlineMarkers' => $inlineMarkers];
+    }
+
+    /**
+     * Native divs are transparent to numbered-example discovery. Other raw
+     * boundaries remain opaque so markers in scripts, comments, and raw TeX
+     * cannot become examples.
+     *
+     * @param list<string> $lines
+     */
+    private function markdownNumberedExampleBoundaryEndIndex(array $lines, int $index): ?int
+    {
+        $fencedDiv = $this->markdownFencedDivBoundaryEndIndex($lines, $index);
+        if ($fencedDiv !== null) {
+            return $fencedDiv;
+        }
+        $codeFence = $this->markdownCodeFenceBoundaryEndIndex($lines, $index);
+        if ($codeFence !== null) {
+            return $codeFence;
+        }
+
+        $line = $lines[$index] ?? '';
+        $opening = Html5Dom::markdownRawHtmlOpeningTagBoundary($line);
+        $closing = Html5Dom::rawHtmlClosingTagAt(ltrim($line));
+        if (($opening !== null && $opening['name'] === 'div') || ($closing !== null && $closing['name'] === 'div')) {
+            return $this->markdownRawTexBoundaryEndIndex($lines, $index);
+        }
+
+        // splitMixedHtmlFlowLines() turns `<article>…</article>(@x)` into a
+        // balanced HTML line followed by a virtual Markdown tail line.  The
+        // blank-terminated HTML rule would otherwise swallow that tail before
+        // it can be registered.  A source-scanner match keeps this restricted
+        // to a complete element on this physical line (and avoids guessing at
+        // a textual closing tag inside attributes, comments, or raw text).
+        if ($this->lineStartsWithBalancedHtmlBlock($line)) {
+            return $index;
+        }
+
+        return $this->markdownRawHtmlBoundaryEndIndex($lines, $index)
+            ?? $this->markdownRawTexBoundaryEndIndex($lines, $index);
+    }
+
+    private function lineStartsWithBalancedHtmlBlock(string $line): bool
+    {
+        $opening = Html5Dom::markdownRawHtmlOpeningTagBoundary($line);
+        if (
+            $opening === null
+            || $opening['selfClosing']
+            || !$this->htmlBlockTagCanHaveSameLineMarkdownTail($opening['name'])
+        ) {
+            return false;
+        }
+
+        $bounds = HtmlSourceScanner::matchingElementBounds($line, $opening['name']);
+        $openingOffset = strpos($line, '<');
+
+        return $bounds !== null && $openingOffset !== false && $bounds['openStart'] === $openingOffset;
     }
 
     /**
@@ -1887,7 +2163,11 @@ final class MarkdownReader
         for ($index = 0, $count = count($lines); $index < $count; $index++) {
             if ($this->isBlockQuoteLine($lines[$index] ?? '')) {
                 [$content, $end] = $this->collectMarkdownBlockQuoteHeadingReferenceLines($lines, $index);
-                $this->collectMarkdownHeadingReferencesFromLines($content, $idsByLine, $references, $usedIds, true);
+                $this->withHtmlElementBoundaryCacheScope(
+                    function () use ($content, &$idsByLine, &$references, &$usedIds): void {
+                        $this->collectMarkdownHeadingReferencesFromLines($content, $idsByLine, $references, $usedIds, true);
+                    }
+                );
                 $index = $end;
                 continue;
             }
@@ -3232,9 +3512,18 @@ final class MarkdownReader
             [$html, $end, $bounds] = $collected;
             $content = explode("\n", substr($html, $bounds['openEnd'] + 1, $bounds['closeStart'] - $bounds['openEnd'] - 1));
             $closedOnOpeningLine = $end === $index;
+            $lineBlock = $this->isHtmlLineBlockOpeningTag($lines[$openingIndex]);
             $index = $end;
+            $this->queueCollectedHtmlTail($collected);
 
-            return $this->buildDivBlock($content, $closedOnOpeningLine, $this->isHtmlLineBlockOpeningTag($lines[$openingIndex]), $attrs);
+            if (!$lineBlock) {
+                $iterative = $this->buildClosedDivBlockWithLeadingChain($html, $bounds, $attrs);
+                if ($iterative instanceof AstNode) {
+                    return $iterative;
+                }
+            }
+
+            return $this->buildDivBlock($content, $closedOnOpeningLine, $lineBlock, $attrs);
         }
 
         // Preserve the existing permissive unclosed-container behavior, but
@@ -3243,7 +3532,32 @@ final class MarkdownReader
         $content = explode("\n", substr($html, $opening['next']));
         $index = count($lines) - 1;
 
-        return $this->buildDivBlock($content, false, $this->isHtmlLineBlockOpeningTag($lines[$openingIndex]), $attrs);
+        $lineBlock = $this->isHtmlLineBlockOpeningTag($lines[$openingIndex]);
+        if (!$lineBlock) {
+            if ($this->unclosedDivFallbackRecoveryActive) {
+                return $this->buildRawUnclosedDivBlock($content, $attrs);
+            }
+
+            $previousFallbackRecoveryActive = $this->unclosedDivFallbackRecoveryActive;
+            $this->unclosedDivFallbackRecoveryActive = true;
+            try {
+                $iterative = $this->buildUnclosedDivBlockWithLeadingChain(
+                    $lines,
+                    $openingIndex,
+                    $content,
+                    $attrs
+                );
+                if ($iterative instanceof AstNode) {
+                    return $iterative;
+                }
+
+                return $this->buildDivBlock($content, false, false, $attrs);
+            } finally {
+                $this->unclosedDivFallbackRecoveryActive = $previousFallbackRecoveryActive;
+            }
+        }
+
+        return $this->buildDivBlock($content, false, true, $attrs);
     }
 
     /**
@@ -3253,42 +3567,22 @@ final class MarkdownReader
     private function tryReadMarkdownInHtmlBlock(array $lines, int &$index): ?array
     {
         $line = $lines[$index] ?? '';
-        $tag = $this->htmlBlockStartTagName($line);
-        if ($tag === null) {
+        $openingTag = Html5Dom::markdownRawHtmlOpeningTagBoundary($this->expandTabsToSpaces($line));
+        if ($openingTag === null || $openingTag['selfClosing']) {
             return null;
         }
 
-        $collected = $this->collectMarkdownHtmlElementBlockBySourceBounds($lines, $index, $tag);
-        if ($collected === null) {
+        $tag = $openingTag['name'];
+        $verbatim = $this->isMarkdownInHtmlVerbatimTag($tag);
+        $container = $this->isMarkdownInHtmlBlockContainerTag($tag);
+        if (!$verbatim && !$container) {
             return null;
         }
 
-        if ($this->isMarkdownInHtmlVerbatimTag($tag)) {
-            if ($tag === 'pre') {
-                [$html, $endIndex] = $collected;
-                $codeBlock = $this->parseHtmlPreCodeBlock($html, false);
-                if ($codeBlock instanceof AstNode) {
-                    $index = $endIndex;
-
-                    return [$codeBlock];
-                }
-            }
-
-            return $this->rawHtmlBlockFromCollectedHtml($collected, $index);
-        }
-
-        if (!$this->isMarkdownInHtmlBlockContainerTag($tag)) {
-            return null;
-        }
-
-        [$html, $endIndex, $bounds] = $collected;
-        $openingSource = substr($html, $bounds['openStart'], $bounds['openEnd'] - $bounds['openStart'] + 1);
-        $closingSource = substr($html, $bounds['closeStart'], $bounds['closeEnd'] - $bounds['closeStart'] + 1);
-        $inner = substr($html, $bounds['openEnd'] + 1, $bounds['closeStart'] - $bounds['openEnd'] - 1);
+        $openingSource = $openingTag['source'];
         $element = $this->htmlElementFromOpeningTag($openingSource, $tag);
         $markdownAttribute = ($element instanceof \DOMElement ? $this->htmlMarkdownAttributeValue($element) : null)
             ?? $this->htmlOpeningTagAttributeValue($openingSource, 'markdown');
-
         $enabledByAttribute = $markdownAttribute !== null
             && $this->markdownAttributeExtensionEnabled()
             && $this->htmlMarkdownAttributeEnablesMarkdown($markdownAttribute);
@@ -3296,7 +3590,8 @@ final class MarkdownReader
         $enabledByHtmlBlocks = $markdownAttribute === null
             && $this->markdownInHtmlBlocksExtensionEnabled()
             && ($tag !== 'div' || $htmlBlocksOverride === true);
-        if (!$enabledByAttribute && !$enabledByHtmlBlocks) {
+
+        if (!$verbatim && !$enabledByAttribute && !$enabledByHtmlBlocks) {
             if ($markdownAttribute === null && $this->shouldDeferMarkdownHtmlBlockToSemanticReader($tag)) {
                 return null;
             }
@@ -3305,8 +3600,34 @@ final class MarkdownReader
                 return null;
             }
 
+            $collected = $this->collectMarkdownHtmlElementBlockBySourceBounds($lines, $index, $tag);
+
+            return $collected === null ? null : $this->rawHtmlBlockFromCollectedHtml($collected, $index);
+        }
+
+        $collected = $this->collectMarkdownHtmlElementBlockBySourceBounds($lines, $index, $tag);
+        if ($collected === null) {
+            return null;
+        }
+
+        if ($verbatim) {
+            if ($tag === 'pre') {
+                [$html, $endIndex] = $collected;
+                $codeBlock = $this->parseHtmlPreCodeBlock($html, false);
+                if ($codeBlock instanceof AstNode) {
+                    $index = $endIndex;
+                    $this->queueCollectedHtmlTail($collected);
+
+                    return [$codeBlock];
+                }
+            }
+
             return $this->rawHtmlBlockFromCollectedHtml($collected, $index);
         }
+
+        [$html, $endIndex, $bounds] = $collected;
+        $closingSource = substr($html, $bounds['closeStart'], $bounds['closeEnd'] - $bounds['closeStart'] + 1);
+        $inner = substr($html, $bounds['openEnd'] + 1, $bounds['closeStart'] - $bounds['openEnd'] - 1);
 
         $opening = $element instanceof \DOMElement
             ? $this->renderHtmlOpeningTag($element, $enabledByAttribute ? ['markdown'] : [])
@@ -3331,6 +3652,7 @@ final class MarkdownReader
         }
 
         $index = $endIndex;
+        $this->queueCollectedHtmlTail($collected);
 
         return $blocks;
     }
@@ -3355,7 +3677,7 @@ final class MarkdownReader
     }
 
     /**
-     * @param array{0:string, 1:int, 2:array{openStart:int, openEnd:int, closeStart:int, closeEnd:int}} $collected
+     * @param array{0:string, 1:int, 2:array{openStart:int, openEnd:int, closeStart:int, closeEnd:int}, 3:string} $collected
      * @return list<AstNode>|null
      */
     private function rawHtmlBlockFromCollectedHtml(array $collected, int &$index): ?array
@@ -3366,6 +3688,7 @@ final class MarkdownReader
 
         [$html, $endIndex] = $collected;
         $index = $endIndex;
+        $this->queueCollectedHtmlTail($collected);
 
         return [new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'text' => $html])];
     }
@@ -3409,7 +3732,7 @@ final class MarkdownReader
 
     /**
      * @param list<string> $lines
-     * @return array{0:string, 1:int, 2:array{openStart:int, openEnd:int, closeStart:int, closeEnd:int}}|null
+     * @return array{0:string, 1:int, 2:array{openStart:int, openEnd:int, closeStart:int, closeEnd:int}, 3:string}|null
      */
     private function collectMarkdownHtmlElementBlockBySourceBounds(array $lines, int $index, string $tag): ?array
     {
@@ -3483,12 +3806,7 @@ final class MarkdownReader
      */
     private function buildDivBlock(array $content, bool $closedOnOpeningLine, bool $lineBlock = false, array $attrs = []): AstNode
     {
-        while ($content !== [] && trim($content[0]) === '') {
-            array_shift($content);
-        }
-        while ($content !== [] && trim($content[array_key_last($content)]) === '') {
-            array_pop($content);
-        }
+        $content = $this->trimmedDivContentLines($content);
 
         if ($lineBlock) {
             return $this->buildHtmlLineBlockFromInlines(
@@ -3512,6 +3830,219 @@ final class MarkdownReader
         $inner = $this->read(implode("\n", $content));
 
         return new AstNode('div', $attrs, $inner->children);
+    }
+
+    /**
+     * Collapse the common malformed shape of one standalone unclosed div
+     * directly followed by another. The historic recovery path calls read()
+     * once per opening tag; a single source boundary index lets this retain
+     * the same nested div tree while parsing the remaining content only once.
+     *
+     * @param list<string> $lines
+     * @param list<string> $content
+     * @param array<string, mixed> $attrs
+     */
+    private function buildUnclosedDivBlockWithLeadingChain(
+        array $lines,
+        int $openingIndex,
+        array $content,
+        array $attrs
+    ): ?AstNode {
+        $matchedDivs = HtmlSourceScanner::matchingElementBoundsInLinesByOpeningLine(
+            $lines,
+            $openingIndex,
+            'div',
+            fn (string $line): string => $this->normalizeRawHtmlLine($line)
+        );
+        $start = 0;
+        $end = count($content) - 1;
+        while ($start <= $end && trim($content[$start]) === '') {
+            $start++;
+        }
+        while ($start <= $end && trim($content[$end]) === '') {
+            $end--;
+        }
+
+        $wrappers = [$attrs];
+        while ($start <= $end) {
+            $line = $content[$start];
+            $opening = Html5Dom::markdownRawHtmlOpeningTagBoundary($line);
+            $sourceLine = $openingIndex + $start;
+            if (
+                $opening === null
+                || $opening['name'] !== 'div'
+                || $opening['selfClosing']
+                || trim(substr($line, $opening['next'])) !== ''
+                || isset($matchedDivs[$sourceLine])
+                || (stripos($opening['source'], 'class') !== false && $this->isHtmlLineBlockOpeningTag($line))
+            ) {
+                break;
+            }
+
+            $wrappers[] = $this->htmlNativeDivsEnabled()
+                ? $this->htmlAttrsFromOpeningTag($opening['source'], 'div')
+                : [];
+            $start++;
+            while ($start <= $end && trim($content[$start]) === '') {
+                $start++;
+            }
+        }
+
+        if (count($wrappers) === 1) {
+            return null;
+        }
+
+        $remaining = $start > $end ? [] : array_slice($content, $start, $end - $start + 1);
+        $inner = $this->read(implode("\n", $remaining));
+        $children = $inner->children;
+        for ($wrapper = count($wrappers) - 1; $wrapper >= 0; $wrapper--) {
+            $children = [new AstNode('div', $wrappers[$wrapper], $children)];
+        }
+
+        return $children[0];
+    }
+
+    /**
+     * Collapse a fully closed chain of standalone nested divs. Each original
+     * layer would otherwise invoke a fresh read() for its shrinking inner
+     * source, which is quadratic for deeply nested imported HTML. Only peel
+     * a child which is the sole nonblank content of its parent; siblings and
+     * same-line content retain the existing semantic reader path.
+     *
+     * @param array{openStart:int,openEnd:int,closeStart:int,closeEnd:int} $outerBounds
+     * @param array<string, mixed> $attrs
+     */
+    private function buildClosedDivBlockWithLeadingChain(
+        string $html,
+        array $outerBounds,
+        array $attrs
+    ): ?AstNode {
+        $matches = HtmlSourceScanner::matchingElementBoundsAll($html, 'div');
+        $wrappers = [$attrs];
+        $currentBounds = $outerBounds;
+        $nextMatch = 0;
+
+        while (true) {
+            while (
+                isset($matches[$nextMatch])
+                && $matches[$nextMatch]['openStart'] <= $currentBounds['openEnd']
+            ) {
+                $nextMatch++;
+            }
+            $candidate = $matches[$nextMatch] ?? null;
+            if (
+                !is_array($candidate)
+                || $candidate['closeEnd'] >= $currentBounds['closeStart']
+            ) {
+                break;
+            }
+            $betweenOpeningsStart = $currentBounds['openEnd'] + 1;
+            $firstInnerLineBreak = strpos($html, "\n", $betweenOpeningsStart);
+            if (
+                $firstInnerLineBreak === false
+                || $firstInnerLineBreak >= $candidate['openStart']
+                || !$this->htmlSourceRangeIsWhitespace($html, $betweenOpeningsStart, $candidate['openStart'])
+            ) {
+                break;
+            }
+            $openingSource = substr(
+                $html,
+                $candidate['openStart'],
+                $candidate['openEnd'] - $candidate['openStart'] + 1
+            );
+            $opening = Html5Dom::markdownRawHtmlOpeningTagBoundary($openingSource);
+            $openingLineEnd = strpos($html, "\n", $candidate['openEnd'] + 1);
+            $closingLineEnd = strpos($html, "\n", $candidate['closeEnd'] + 1);
+            if (
+                $opening === null
+                || $opening['name'] !== 'div'
+                || $opening['selfClosing']
+                || $openingLineEnd === false
+                || $openingLineEnd >= $candidate['closeStart']
+                || !$this->htmlSourceRangeIsWhitespace($html, $candidate['openEnd'] + 1, $openingLineEnd)
+                || !$this->htmlSourceRangeIsWhitespace(
+                    $html,
+                    $candidate['closeEnd'] + 1,
+                    $closingLineEnd === false ? strlen($html) : $closingLineEnd
+                )
+                || !$this->htmlSourceRangeIsWhitespace($html, $candidate['closeEnd'] + 1, $currentBounds['closeStart'])
+                || (stripos($openingSource, 'class') !== false && $this->isHtmlLineBlockOpeningTag($openingSource))
+            ) {
+                break;
+            }
+            $wrappers[] = $this->htmlNativeDivsEnabled()
+                ? $this->htmlAttrsFromOpeningTag($opening['source'], 'div')
+                : [];
+            $currentBounds = $candidate;
+            $nextMatch++;
+        }
+
+        if (count($wrappers) === 1) {
+            return null;
+        }
+
+        $terminalSource = substr(
+            $html,
+            $currentBounds['openEnd'] + 1,
+            $currentBounds['closeStart'] - $currentBounds['openEnd'] - 1
+        );
+        $inner = $this->read(implode("\n", $this->trimmedDivContentLines(explode("\n", $terminalSource))));
+        $children = $inner->children;
+        for ($wrapper = count($wrappers) - 1; $wrapper >= 0; $wrapper--) {
+            $children = [new AstNode('div', $wrappers[$wrapper], $children)];
+        }
+
+        return $children[0];
+    }
+
+    private function htmlSourceRangeIsWhitespace(string $source, int $start, int $end): bool
+    {
+        $length = max(0, $end - $start);
+
+        return $length === 0
+            || strspn($source, " \t\n\r\0\x0B", $start, $length) === $length;
+    }
+
+    /**
+     * Preserve a later malformed-div suffix without recursively reparsing it.
+     *
+     * @param list<string> $content
+     * @param array<string, mixed> $attrs
+     */
+    private function buildRawUnclosedDivBlock(array $content, array $attrs): AstNode
+    {
+        $source = implode("\n", $this->trimmedDivContentLines($content));
+        if ($source === '') {
+            return new AstNode('div', $attrs);
+        }
+
+        if ($this->htmlRawHtmlEnabled()) {
+            return new AstNode('div', $attrs, [
+                new AstNode('raw_html', ['format' => 'html', 'html' => $source, 'text' => $source]),
+            ]);
+        }
+
+        return new AstNode('div', $attrs, [
+            new AstNode('paragraph', ['text' => $source], $this->parseInlines($source)),
+        ]);
+    }
+
+    /**
+     * @param list<string> $content
+     * @return list<string>
+     */
+    private function trimmedDivContentLines(array $content): array
+    {
+        $start = 0;
+        $end = count($content) - 1;
+        while ($start <= $end && trim($content[$start]) === '') {
+            $start++;
+        }
+        while ($start <= $end && trim($content[$end]) === '') {
+            $end--;
+        }
+
+        return $start > $end ? [] : array_slice($content, $start, $end - $start + 1);
     }
 
     /**
@@ -3610,7 +4141,7 @@ final class MarkdownReader
         }
 
         if ($this->rawHtmlLineStartsWithDeclaration($line)) {
-            return $this->readRawHtmlUntilMarker($lines, $index, '>');
+            return $this->readRawHtmlDeclarationBlock($lines, $index);
         }
 
         if ($this->isAngleAutolinkOnlyLine($line)) {
@@ -3859,6 +4390,22 @@ final class MarkdownReader
     /**
      * @param list<string> $lines
      */
+    private function readRawHtmlDeclarationBlock(array $lines, int &$index): AstNode
+    {
+        $end = $this->markdownRawHtmlDeclarationEndIndex($lines, $index);
+        $content = [];
+        for ($cursor = $index; $cursor <= $end; $cursor++) {
+            $content[] = $this->normalizeRawHtmlLine($lines[$cursor]);
+        }
+
+        $index = $end;
+
+        return new AstNode('raw_html', ['html' => implode("\n", $content)]);
+    }
+
+    /**
+     * @param list<string> $lines
+     */
     private function readRawHtmlUntilBlankLine(array $lines, int &$index): AstNode
     {
         $content = [];
@@ -3912,6 +4459,7 @@ final class MarkdownReader
         }
 
         $index = $endIndex;
+        $this->queueCollectedHtmlTail($collected);
 
         return $blocks;
     }
@@ -3952,6 +4500,7 @@ final class MarkdownReader
         }
 
         $index = $endIndex;
+        $this->queueCollectedHtmlTail($collected);
 
         return $blocks;
     }
@@ -4313,25 +4862,21 @@ final class MarkdownReader
             return null;
         }
 
-        $content = [];
-        $cursor = $index;
-        $count = count($lines);
-        while ($cursor < $count) {
-            $content[] = trim($lines[$cursor]);
-            if ($this->rawHtmlLineContainsClosingTag($lines[$cursor], 'informaltable')) {
-                $table = $this->parseDocBookInformalTable(implode("\n", $content));
-                if ($table === null) {
-                    return null;
-                }
-
-                $index = $cursor;
-
-                return $table;
-            }
-            $cursor++;
+        $collected = $this->collectHtmlElementBlockBySourceBounds($lines, $index, 'informaltable');
+        if ($collected === null) {
+            return null;
         }
 
-        return null;
+        [$html, $endIndex] = $collected;
+        $table = $this->parseDocBookInformalTable(implode("\n", array_map('trim', explode("\n", $html))));
+        if ($table === null) {
+            return null;
+        }
+
+        $index = $endIndex;
+        $this->queueCollectedHtmlTail($collected);
+
+        return $table;
     }
 
     private function parseDocBookInformalTable(string $xml): ?AstNode
@@ -4411,27 +4956,29 @@ final class MarkdownReader
     private function tryReadStructuredHtmlDocumentTableBlock(array $lines, int &$index): ?AstNode
     {
         $line = $lines[$index] ?? '';
-        if (!Html5Dom::htmlDocumentBoundaryAtStart($line, 3)) {
+        if (
+            !Html5Dom::htmlDocumentBoundaryAtStart($line, 3)
+            && !$this->rawHtmlLineStartsWithDeclaration($line)
+        ) {
             return null;
         }
 
-        $source = $this->normalizedRawHtmlSourceFromLines($lines, $index);
-        if (HtmlSourceScanner::rawTextContainsClosingTag($source, 'html')) {
-            return null;
-        }
-
-        $collected = $this->collectHtmlElementBlockBySourceBounds($lines, $index, 'html');
+        $collected = $this->collectHtmlDocumentBlockBySourceBounds($lines, $index);
         if ($collected === null) {
             return null;
         }
 
         [$html, $end] = $collected;
+        if (HtmlSourceScanner::rawTextContainsClosingTag($html, 'html')) {
+            return null;
+        }
         $table = $this->parseStructuredHtmlTable($html);
         if ($table === null) {
             return null;
         }
 
         $index = $end;
+        $this->queueCollectedHtmlTail($collected);
 
         return $table;
     }
@@ -4442,15 +4989,23 @@ final class MarkdownReader
     private function tryReadHtmlDocumentBlock(array $lines, int &$index): ?AstNode
     {
         $line = $lines[$index] ?? '';
-        if (!Html5Dom::htmlDocumentBoundaryAtStart($line, 3)) {
+        if (
+            !Html5Dom::htmlDocumentBoundaryAtStart($line, 3)
+            && !$this->rawHtmlLineStartsWithDeclaration($line)
+        ) {
             return null;
         }
 
-        $collected = $this->collectHtmlElementBlockBySourceBounds($lines, $index, 'html');
-        $html = $collected === null ? $this->normalizedRawHtmlSourceFromLines($lines, $index) : $collected[0];
+        $collected = $this->collectHtmlDocumentBlockBySourceBounds($lines, $index);
+        if ($collected === null) {
+            return null;
+        }
+
+        $html = $collected[0];
 
         if (HtmlSourceScanner::rawTextContainsClosingTag($html, 'html')) {
-            $index = $collected === null ? count($lines) - 1 : $collected[1];
+            $index = $collected[1];
+            $this->queueCollectedHtmlTail($collected);
 
             return new AstNode('document', [], [
                 new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'text' => $html]),
@@ -4462,9 +5017,64 @@ final class MarkdownReader
             return null;
         }
 
-        $index = $collected === null ? count($lines) - 1 : $collected[1];
+        $index = $collected[1];
+        $this->queueCollectedHtmlTail($collected);
 
         return $document;
+    }
+
+    /**
+     * A full HTML document may start with a standalone doctype line. The
+     * element boundary index is keyed by the `<html>` line, so preserve that
+     * prologue explicitly instead of treating it as an unrelated raw block.
+     *
+     * @param list<string> $lines
+     * @return array{0:string, 1:int, 2:array{openStart:int,openEnd:int,closeStart:int,closeEnd:int}, 3:string}|null
+     */
+    private function collectHtmlDocumentBlockBySourceBounds(array $lines, int $index): ?array
+    {
+        $collected = $this->collectHtmlElementBlockBySourceBounds($lines, $index, 'html');
+        if ($collected !== null) {
+            return $collected;
+        }
+
+        if (!$this->rawHtmlLineStartsWithDeclaration($lines[$index] ?? '')) {
+            return null;
+        }
+
+        $declarationEnd = $this->markdownRawHtmlDeclarationEndIndex($lines, $index);
+        $htmlIndex = $declarationEnd + 1;
+        $count = count($lines);
+        while ($htmlIndex < $count && trim($this->normalizeRawHtmlLine($lines[$htmlIndex])) === '') {
+            $htmlIndex++;
+        }
+        if (
+            $htmlIndex >= $count
+            || !Html5Dom::htmlDocumentBoundaryAtStart($lines[$htmlIndex], 3)
+        ) {
+            return null;
+        }
+
+        $html = $this->collectHtmlElementBlockBySourceBounds($lines, $htmlIndex, 'html');
+        if ($html === null) {
+            return null;
+        }
+
+        $preambleLines = [];
+        for ($cursor = $index; $cursor < $htmlIndex; $cursor++) {
+            $preambleLines[] = $this->normalizeRawHtmlLine($lines[$cursor]);
+        }
+        $preamble = implode("\n", $preambleLines);
+        $offset = strlen($preamble) + 1;
+        $bounds = $html[2];
+        $bounds = [
+            'openStart' => $bounds['openStart'] + $offset,
+            'openEnd' => $bounds['openEnd'] + $offset,
+            'closeStart' => $bounds['closeStart'] + $offset,
+            'closeEnd' => $bounds['closeEnd'] + $offset,
+        ];
+
+        return [$preamble . "\n" . $html[0], $html[1], $bounds, $html[3]];
     }
 
     private function parseHtmlDocument(string $html): ?AstNode
@@ -4959,15 +5569,36 @@ final class MarkdownReader
             return null;
         }
 
+        $collected = $this->collectHtmlElementBlockBySourceBounds(
+            $lines,
+            $index,
+            'main',
+            static fn (string $sourceLine, int $lineIndex): bool => trim($sourceLine) === ''
+        );
+        if ($collected !== null) {
+            [$html, $endIndex] = $collected;
+            $document = $this->parseHtmlNativeDivsFragment($html);
+            if (!$document instanceof AstNode) {
+                return null;
+            }
+
+            $index = $endIndex;
+            $this->queueCollectedHtmlTail($collected);
+
+            return $document;
+        }
+
+        // Preserve the existing blank-terminated fallback for unclosed main
+        // containers. Closed containers take the streaming collector above.
         $content = [];
         $count = count($lines);
         for ($cursor = $index; $cursor < $count; $cursor++) {
-            $line = $this->normalizeRawHtmlLine($lines[$cursor]);
-            if ($cursor > $index && trim($line) === '') {
+            $sourceLine = $this->normalizeRawHtmlLine($lines[$cursor]);
+            if ($cursor > $index && trim($sourceLine) === '') {
                 break;
             }
 
-            $content[] = $line;
+            $content[] = $sourceLine;
         }
 
         if ($content === []) {
@@ -4975,11 +5606,6 @@ final class MarkdownReader
         }
 
         $html = implode("\n", $content);
-        $bounds = HtmlSourceScanner::matchingElementBounds($html, 'main');
-        if ($bounds !== null) {
-            $html = substr($html, 0, $bounds['closeEnd'] + 1);
-            $content = array_slice($content, 0, substr_count($html, "\n") + 1);
-        }
 
         $document = $this->parseHtmlNativeDivsFragment($html);
         if (!$document instanceof AstNode) {
@@ -5032,6 +5658,7 @@ final class MarkdownReader
         }
 
         $index = $endIndex;
+        $this->queueCollectedHtmlTail($collected);
 
         return $header;
     }
@@ -5083,6 +5710,7 @@ final class MarkdownReader
         }
 
         $index = $endIndex;
+        $this->queueCollectedHtmlTail($collected);
 
         return $container;
     }
@@ -5280,6 +5908,7 @@ final class MarkdownReader
         }
 
         $index = $endIndex;
+        $this->queueCollectedHtmlTail($balanced);
 
         return $table;
     }
@@ -5311,6 +5940,7 @@ final class MarkdownReader
         }
 
         $index = $endIndex;
+        $this->queueCollectedHtmlTail($balanced);
 
         return $blocks;
     }
@@ -5336,6 +5966,7 @@ final class MarkdownReader
         }
 
         $index = $endIndex;
+        $this->queueCollectedHtmlTail($balanced);
 
         return true;
     }
@@ -5362,16 +5993,24 @@ final class MarkdownReader
         }
 
         $index = $endIndex;
+        $this->queueCollectedHtmlTail($collected);
 
         return $paragraph;
     }
 
     /**
      * @param list<string> $lines
-     * @return array{0:string, 1:int}|null
+     * @return array{0:string, 1:int}|array{0:string, 1:int, 2:array{openStart:int,openEnd:int,closeStart:int,closeEnd:int}, 3:string}|null
      */
     private function collectHtmlParagraphBlock(array $lines, int $index): ?array
     {
+        $explicit = $this->collectHtmlElementBlockBySourceBounds(
+            $lines,
+            $index,
+            'p',
+            fn (string $sourceLine, int $lineIndex): bool => $lineIndex > $index
+                && (trim($sourceLine) === '' || $this->htmlLineStartsImplicitParagraphClose($sourceLine))
+        );
         $content = [];
         $count = count($lines);
 
@@ -5385,10 +6024,11 @@ final class MarkdownReader
                 return [implode("\n", $content), $cursor - 1];
             }
 
-            $content[] = $line;
-            if ($this->rawHtmlLineContainsClosingTag($line, 'p')) {
-                return [implode("\n", $content), $cursor];
+            if ($explicit !== null && $cursor === $explicit[1]) {
+                return $explicit;
             }
+
+            $content[] = $line;
         }
 
         return null;
@@ -5401,22 +6041,17 @@ final class MarkdownReader
 
     /**
      * @param list<string> $lines
-     * @return array{0:string, 1:int}|null
+     * @param (callable(string,int): bool)|null $stopBeforeLine
+     * @return array{0:string, 1:int, 2:array{openStart:int,openEnd:int,closeStart:int,closeEnd:int}, 3:string}|null
      */
-    private function collectHtmlBlockUntilClosingTag(array $lines, int $index, string $tag): ?array
+    private function collectHtmlBlockUntilClosingTag(
+        array $lines,
+        int $index,
+        string $tag,
+        ?callable $stopBeforeLine = null
+    ): ?array
     {
-        $content = [];
-        $count = count($lines);
-
-        for ($cursor = $index; $cursor < $count; $cursor++) {
-            $line = $this->normalizeRawHtmlLine($lines[$cursor]);
-            $content[] = $line;
-            if ($this->rawHtmlLineContainsClosingTag($line, $tag)) {
-                return [implode("\n", $content), $cursor];
-            }
-        }
-
-        return null;
+        return $this->collectHtmlElementBlockBySourceBounds($lines, $index, $tag, $stopBeforeLine);
     }
 
     private function parseHtmlParagraphElement(string $html): ?AstNode
@@ -5503,6 +6138,7 @@ final class MarkdownReader
         }
 
         [$html, $endIndex] = $collected;
+        $html .= $collected[3];
         $paragraph = $this->parseHtmlInlineFragmentParagraph($html);
         if ($paragraph === null) {
             return null;
@@ -5582,6 +6218,7 @@ final class MarkdownReader
         }
 
         $index = $endIndex;
+        $this->queueCollectedHtmlTail($collected);
 
         return $quote;
     }
@@ -5608,6 +6245,7 @@ final class MarkdownReader
         }
 
         $index = $endIndex;
+        $this->queueCollectedHtmlTail($collected);
 
         return $figure;
     }
@@ -5634,6 +6272,7 @@ final class MarkdownReader
         }
 
         $index = $endIndex;
+        $this->queueCollectedHtmlTail($collected);
 
         return $iframe;
     }
@@ -5665,7 +6304,13 @@ final class MarkdownReader
         }
 
         $level = (int) $opening['name'][1];
-        $collected = $this->collectHtmlBlockUntilClosingTag($lines, $index, 'h' . $level);
+        $collected = $this->collectHtmlBlockUntilClosingTag(
+            $lines,
+            $index,
+            'h' . $level,
+            fn (string $sourceLine, int $lineIndex): bool => $lineIndex > $index
+                && $this->htmlLineStartsImplicitHeadingClose($sourceLine)
+        );
         if ($collected === null) {
             $collected = $this->collectHtmlHeadingBlockWithImpliedClose($lines, $index, $level);
             if ($collected === null) {
@@ -5680,6 +6325,7 @@ final class MarkdownReader
         }
 
         $index = $endIndex;
+        $this->queueCollectedHtmlTail($collected);
 
         return $heading;
     }
@@ -5784,6 +6430,7 @@ final class MarkdownReader
         }
 
         $index = $endIndex;
+        $this->queueCollectedHtmlTail($collected);
 
         return $list;
     }
@@ -5810,6 +6457,7 @@ final class MarkdownReader
         }
 
         $index = $endIndex;
+        $this->queueCollectedHtmlTail($collected);
 
         return $list;
     }
@@ -5836,6 +6484,7 @@ final class MarkdownReader
         }
 
         $index = $endIndex;
+        $this->queueCollectedHtmlTail($collected);
 
         return $codeBlock;
     }
@@ -7559,15 +8208,13 @@ final class MarkdownReader
             }
         }
 
-        foreach (CssDeclarationScanner::declarations($list->getAttribute('style')) as $declaration) {
-            if (!in_array($declaration['name'], ['list-style', 'list-style-type'], true)) {
-                continue;
-            }
-            if (preg_match('/^([a-z-]+)\b/i', $declaration['value'], $m) !== 1) {
-                continue;
-            }
-
-            $mapped = $this->htmlOrderedListStyleName(strtolower($m[1]));
+        $cssStyle = CssDeclarationScanner::lastValidValue(
+            $list->getAttribute('style'),
+            ['list-style', 'list-style-type'],
+            fn (string $value): bool => $this->htmlOrderedListStyleName(strtolower(trim($value))) !== null
+        );
+        if ($cssStyle !== null) {
+            $mapped = $this->htmlOrderedListStyleName(strtolower(trim($cssStyle)));
             if ($mapped !== null) {
                 return $mapped;
             }
@@ -7635,42 +8282,135 @@ final class MarkdownReader
 
     /**
      * @param list<string> $lines
-     * @return array{0:string, 1:int}|null
+     * @return array{0:string, 1:int, 2:array{openStart:int,openEnd:int,closeStart:int,closeEnd:int}, 3:string}|null
      */
     private function collectBalancedHtmlTableBlock(array $lines, int $index): ?array
     {
-        $collected = $this->collectHtmlElementBlockBySourceBounds($lines, $index, 'table');
-
-        return $collected === null ? null : [$collected[0], $collected[1]];
+        return $this->collectHtmlElementBlockBySourceBounds($lines, $index, 'table');
     }
 
     /**
      * @param list<string> $lines
-     * @return array{0:string, 1:int}|null
+     * @return array{0:string, 1:int, 2:array{openStart:int,openEnd:int,closeStart:int,closeEnd:int}, 3:string}|null
      */
     private function collectBalancedHtmlElementBlock(array $lines, int $index, string $tag): ?array
     {
-        $collected = $this->collectHtmlElementBlockBySourceBounds($lines, $index, $tag);
-
-        return $collected === null ? null : [$collected[0], $collected[1]];
+        return $this->collectHtmlElementBlockBySourceBounds($lines, $index, $tag);
     }
 
     /**
      * @param list<string> $lines
-     * @return array{0:string, 1:int, 2:array{openStart:int,openEnd:int,closeStart:int,closeEnd:int}}|null
+     * @param (callable(string,int): bool)|null $stopBeforeLine
+     * @return array{0:string, 1:int, 2:array{openStart:int,openEnd:int,closeStart:int,closeEnd:int}, 3:string}|null
      */
-    private function collectHtmlElementBlockBySourceBounds(array $lines, int $index, string $tag): ?array
+    private function collectHtmlElementBlockBySourceBounds(
+        array $lines,
+        int $index,
+        string $tag,
+        ?callable $stopBeforeLine = null
+    ): ?array
     {
-        $html = $this->normalizedRawHtmlSourceFromLines($lines, $index);
-        $bounds = HtmlSourceScanner::matchingElementBounds($html, $tag);
-        if ($bounds === null) {
+        $tag = strtolower($tag);
+        if (!$this->htmlElementBoundaryCacheActive) {
+            $streamed = HtmlSourceScanner::matchingElementBoundsInLines(
+                $lines,
+                $index,
+                $tag,
+                fn (string $line): string => $this->normalizeRawHtmlLine($line),
+                $stopBeforeLine
+            );
+            if ($streamed === null) {
+                return null;
+            }
+
+            return [
+                $streamed['source'],
+                $streamed['end'],
+                $streamed['bounds'],
+                $streamed['tail'],
+            ];
+        }
+
+        if (!isset($this->htmlElementBoundaryCache[$tag])) {
+            $this->htmlElementBoundaryCache[$tag] = HtmlSourceScanner::matchingElementBoundsInLinesByOpeningLine(
+                $lines,
+                $index,
+                $tag,
+                fn (string $line): string => $this->normalizeRawHtmlLine($line)
+            );
+        }
+
+        $collected = $this->htmlElementBoundaryCache[$tag][$index] ?? null;
+        if ($collected === null) {
             return null;
         }
 
-        $closeLength = $bounds['closeEnd'] + 1;
-        $end = $index + substr_count(substr($html, 0, $closeLength), "\n");
+        if ($stopBeforeLine !== null) {
+            for ($cursor = $index + 1; $cursor <= $collected['end']; $cursor++) {
+                $sourceLine = $this->normalizeRawHtmlLine($lines[$cursor]);
+                if ($stopBeforeLine($sourceLine, $cursor)) {
+                    return null;
+                }
+            }
+        }
 
-        return [substr($html, 0, $closeLength), $end, $bounds];
+        return [
+            $collected['source'],
+            $collected['end'],
+            $collected['bounds'],
+            $collected['tail'],
+        ];
+    }
+
+    /**
+     * @param array{0:string, 1:int}|array{0:string, 1:int, 2:array{openStart:int,openEnd:int,closeStart:int,closeEnd:int}, 3:string} $collected
+     */
+    private function queueCollectedHtmlTail(array $collected): void
+    {
+        $tail = $collected[3] ?? null;
+        if (!is_string($tail) || $tail === '') {
+            return;
+        }
+
+        $this->pendingCollectedHtmlTail = [
+            'replaceIndex' => $collected[1],
+            'tail' => $tail,
+        ];
+    }
+
+    private function withHtmlElementBoundaryCacheScope(callable $callback): mixed
+    {
+        $previousCache = $this->htmlElementBoundaryCache;
+        $previousActive = $this->htmlElementBoundaryCacheActive;
+        $this->htmlElementBoundaryCache = [];
+        $this->htmlElementBoundaryCacheActive = true;
+
+        try {
+            return $callback();
+        } finally {
+            $this->htmlElementBoundaryCache = $previousCache;
+            $this->htmlElementBoundaryCacheActive = $previousActive;
+        }
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function replaceConsumedHtmlLineWithTail(array &$lines, int &$index): void
+    {
+        $pending = $this->pendingCollectedHtmlTail;
+        if ($pending === null) {
+            return;
+        }
+
+        $this->pendingCollectedHtmlTail = null;
+        if ($pending['replaceIndex'] !== $index - 1 || $pending['tail'] === '') {
+            return;
+        }
+
+        $index = $pending['replaceIndex'];
+        $lines[$index] = $pending['tail'];
+        $this->htmlElementBoundaryCache = [];
     }
 
     /**
@@ -8622,7 +9362,11 @@ final class MarkdownReader
      */
     private function htmlCaptionSide(\DOMElement $caption): array
     {
-        $captionSide = CssDeclarationScanner::firstValue($caption->getAttribute('style'), 'caption-side');
+        $captionSide = CssDeclarationScanner::lastValidValue(
+            $caption->getAttribute('style'),
+            'caption-side',
+            static fn (string $value): bool => preg_match('/^(?:top|bottom|left|right)\s*$/i', $value) === 1
+        );
         if ($captionSide !== null && preg_match('/^(top|bottom|left|right)\b/i', $captionSide, $m) === 1) {
             return ['side' => strtolower($m[1]), 'source' => 'style'];
         }
@@ -8999,7 +9743,11 @@ final class MarkdownReader
 
     private function htmlColumnWidthPercent(\DOMElement $col): ?float
     {
-        $width = CssDeclarationScanner::firstValue($col->getAttribute('style'), 'width');
+        $width = CssDeclarationScanner::lastValidValue(
+            $col->getAttribute('style'),
+            'width',
+            static fn (string $value): bool => preg_match('/^[0-9]+(?:\.[0-9]+)?\s*%\s*$/', $value) === 1
+        );
         if ($width !== null && preg_match('/^([0-9]+(?:\.[0-9]+)?)\s*%/', $width, $m) === 1) {
             return (float) $m[1] / 100;
         }
@@ -9233,7 +9981,11 @@ final class MarkdownReader
             return $align;
         }
 
-        $textAlign = CssDeclarationScanner::firstValue($cell->getAttribute('style'), 'text-align');
+        $textAlign = CssDeclarationScanner::lastValidValue(
+            $cell->getAttribute('style'),
+            'text-align',
+            static fn (string $value): bool => preg_match('/^(?:left|right|center)\s*$/i', $value) === 1
+        );
         if ($textAlign !== null && preg_match('/^(left|right|center)\b/i', $textAlign, $m) === 1) {
             return strtolower($m[1]);
         }
@@ -9248,7 +10000,11 @@ final class MarkdownReader
             return $valign;
         }
 
-        $verticalAlign = CssDeclarationScanner::firstValue($element->getAttribute('style'), 'vertical-align');
+        $verticalAlign = CssDeclarationScanner::lastValidValue(
+            $element->getAttribute('style'),
+            'vertical-align',
+            static fn (string $value): bool => preg_match('/^(?:baseline|top|middle|bottom)\s*$/i', $value) === 1
+        );
         if ($verticalAlign !== null && preg_match('/^(baseline|top|middle|bottom)\b/i', $verticalAlign, $m) === 1) {
             return strtolower($m[1]);
         }
@@ -16208,14 +16964,17 @@ final class MarkdownReader
     }
 
     /**
-     * @return array{0:bool, 1:array<int, true>}
+     * @return array{0:bool, 1:array<int, int>}
      */
     private function inlineBracketPairCacheFor(string $text): array
     {
-        // Brackets inside escapes, code, math, or raw HTML have grammar that
-        // cannot be recovered by this lightweight pre-scan.  Fall back to the
-        // full parser for those runs rather than risk rejecting valid input.
-        if (strpbrk($text, '\\`$<') !== false) {
+        // Brackets inside code, math, or raw HTML have grammar that cannot be
+        // recovered by this lightweight pre-scan. Fall back to the full parser
+        // for those runs rather than risk rejecting valid input.
+        if (
+            strpbrk($text, '`$<') !== false
+            || $this->inlineBracketCacheHasBackslashInlineSpan($text)
+        ) {
             return [false, []];
         }
 
@@ -16227,16 +16986,64 @@ final class MarkdownReader
         $openOffsets = [];
         $length = strlen($text);
         for ($offset = 0; $offset < $length; $offset++) {
+            if ($text[$offset] === '\\') {
+                $offset++;
+                continue;
+            }
             if ($text[$offset] === '[') {
                 $openOffsets[] = $offset;
                 continue;
             }
             if ($text[$offset] === ']' && $openOffsets !== []) {
-                $pairs[array_pop($openOffsets)] = true;
+                $pairs[array_pop($openOffsets)] = $offset;
             }
         }
 
         return [true, $pairs];
+    }
+
+    private function inlineBracketCacheHasBackslashInlineSpan(string $text): bool
+    {
+        if (!str_contains($text, '\\')) {
+            return false;
+        }
+
+        // Raw TeX commands may own optional bracket arguments. Their grammar
+        // is intentionally delegated to the full inline parser.
+        if ($this->rawTexEnabled() && preg_match('/\\\\[A-Za-z]/', $text) === 1) {
+            return true;
+        }
+
+        $singleBackslashMath = $this->singleBackslashMathExtensionEnabled()
+            || $this->linkLabelSingleBackslashMathCompatibilityEnabled();
+        if (
+            $singleBackslashMath
+            && (
+                $this->inlineBracketCacheHasDelimitedMath($text, '\\(', '\\)')
+                || $this->inlineBracketCacheHasDelimitedMath($text, '\\[', '\\]')
+            )
+        ) {
+            return true;
+        }
+
+        if (
+            $this->doubleBackslashMathExtensionEnabled()
+            && (
+                $this->inlineBracketCacheHasDelimitedMath($text, '\\\\(', '\\\\)')
+                || $this->inlineBracketCacheHasDelimitedMath($text, '\\\\[', '\\\\]')
+            )
+        ) {
+            return true;
+        }
+
+        return false;
+    }
+
+    private function inlineBracketCacheHasDelimitedMath(string $text, string $open, string $close): bool
+    {
+        $start = strpos($text, $open);
+
+        return $start !== false && strpos($text, $close, $start + strlen($open)) !== false;
     }
 
     private function parseInlinesWithoutBracketPairCache(
@@ -19804,8 +20611,16 @@ final class MarkdownReader
             return null;
         }
 
-        if ($this->inlineBracketPairCacheExact && !isset($this->inlineBracketPairCache[$offset])) {
-            return null;
+        if ($this->inlineBracketPairCacheExact) {
+            $close = $this->inlineBracketPairCache[$offset] ?? null;
+            if (!is_int($close)) {
+                return null;
+            }
+
+            return [
+                'text' => substr($text, $offset + 1, $close - $offset - 1),
+                'next' => $close + 1,
+            ];
         }
 
         $start = $offset + 1;
