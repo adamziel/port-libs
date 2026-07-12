@@ -6,25 +6,85 @@ $root = dirname(__DIR__, 3);
 
 /**
  * @param array<string, mixed> $arguments
- * @return array<string, mixed>
+ * @return array{exitCode: int, raw: string, result: array<string, mixed>|null, timedOut: bool}
  */
-$measure = static function (string $memoryLimit, array $arguments) use ($root): array {
-    $command = escapeshellarg(PHP_BINARY)
-        . ' -d memory_limit=' . escapeshellarg($memoryLimit)
-        . ' ' . escapeshellarg($root . '/tools/measure-pandoc-import-memory.php');
+$measure = static function (string $memoryLimit, array $arguments, int $timeoutSeconds = 60) use ($root): array {
+    $command = [
+        PHP_BINARY,
+        '-d',
+        'memory_limit=' . $memoryLimit,
+        $root . '/tools/measure-pandoc-import-memory.php',
+    ];
     foreach ($arguments as $name => $value) {
-        $command .= ' --' . $name . '=' . escapeshellarg((string) $value);
+        $command[] = '--' . $name . '=' . (string) $value;
     }
-    $output = [];
-    $exitCode = 0;
-    exec($command . ' 2>&1', $output, $exitCode);
-    $raw = implode("\n", $output);
+
+    $process = proc_open($command, [
+        0 => ['pipe', 'r'],
+        1 => ['pipe', 'w'],
+        2 => ['pipe', 'w'],
+    ], $pipes, $root);
+    if (!is_resource($process)) {
+        return [
+            'exitCode' => 127,
+            'raw' => 'Unable to start memory measurement subprocess.',
+            'result' => null,
+            'timedOut' => false,
+        ];
+    }
+
+    fclose($pipes[0]);
+    stream_set_blocking($pipes[1], false);
+    stream_set_blocking($pipes[2], false);
+    $stdout = '';
+    $stderr = '';
+    $exitCode = null;
+    $timedOut = false;
+    $startedAt = microtime(true);
+
+    while (true) {
+        $stdout .= stream_get_contents($pipes[1]) ?: '';
+        $stderr .= stream_get_contents($pipes[2]) ?: '';
+        $status = proc_get_status($process);
+        if (!$status['running']) {
+            $exitCode = $status['exitcode'];
+            break;
+        }
+
+        if (microtime(true) - $startedAt >= $timeoutSeconds) {
+            $timedOut = true;
+            proc_terminate($process);
+            usleep(200000);
+            $status = proc_get_status($process);
+            if ($status['running']) {
+                proc_terminate($process, 9);
+            }
+            break;
+        }
+
+        usleep(100000);
+    }
+
+    $stdout .= stream_get_contents($pipes[1]) ?: '';
+    $stderr .= stream_get_contents($pipes[2]) ?: '';
+    fclose($pipes[1]);
+    fclose($pipes[2]);
+    $closedExitCode = proc_close($process);
+    if (!is_int($exitCode) || $exitCode < 0) {
+        $exitCode = $timedOut ? 124 : $closedExitCode;
+    }
+    if ($timedOut) {
+        $stderr = rtrim($stderr) . "\nMemory measurement timed out after {$timeoutSeconds} seconds.";
+    }
+
+    $raw = trim($stdout . ($stderr === '' ? '' : "\n" . $stderr));
     $result = json_decode($raw, true);
 
     return [
         'exitCode' => $exitCode,
         'raw' => $raw,
         'result' => is_array($result) ? $result : null,
+        'timedOut' => $timedOut,
     ];
 };
 
@@ -38,6 +98,7 @@ return [
         ]);
         $result = $run['result'];
 
+        $t->same(false, $run['timedOut'], $run['raw']);
         $t->same(0, $run['exitCode'], $run['raw']);
         $t->true(is_array($result), 'Expected JSON memory measurements for the HTML import.');
         $t->same(false, $result['streamOutput'] ?? null);
@@ -55,6 +116,7 @@ return [
         ]);
         $result = $run['result'];
 
+        $t->same(false, $run['timedOut'], $run['raw']);
         $t->same(0, $run['exitCode'], $run['raw']);
         $t->true(is_array($result), 'Expected JSON memory measurements for the EPUB import.');
         $t->same(true, $result['streamOutput'] ?? null);
@@ -78,6 +140,7 @@ return [
         ]);
         $result = $run['result'];
 
+        $t->same(false, $run['timedOut'], $run['raw']);
         $t->same(0, $run['exitCode'], $run['raw']);
         $t->true(is_array($result), 'Expected JSON memory measurements for the PDF import.');
         $t->same(93120, $result['outputBytes'] ?? null);

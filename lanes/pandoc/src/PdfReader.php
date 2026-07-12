@@ -34,6 +34,9 @@ final class PdfReader
 
         $structuralMetadata = $this->structuralMetadata($pdfBytes);
         $fastTextOnly = $this->fastTextOnlyMode($pdfBytes, $structuralMetadata);
+        if (!$fastTextOnly) {
+            $structuralMetadata = $this->withReaderMetadata($structuralMetadata, $pdfBytes);
+        }
         $maxTextBytes = max(0, (int) ($this->options['maxTextBytes'] ?? self::DEFAULT_MAX_TEXT_BYTES));
         $extractorOptions = $this->options;
         if ($fastTextOnly && $this->pdfMaxPages() === null) {
@@ -518,7 +521,8 @@ final class PdfReader
         $maxPages = $this->pdfMaxPages();
         $estimatedPages = (int) ($structuralMetadata['pdfEstimatedPages'] ?? 0);
 
-        return $maxPages !== null && $estimatedPages > $maxPages * 2;
+        return $maxPages !== null
+            && (($structuralMetadata['pdfPageCountLimited'] ?? false) === true || $estimatedPages > $maxPages * 2);
     }
 
     /**
@@ -572,28 +576,59 @@ final class PdfReader
             'pdfHeader' => preg_match('/%PDF-\d\.\d/', substr($pdfBytes, 0, 64), $match) === 1 ? $match[0] : 'unknown',
         ];
 
-        $documentMetadata = $this->documentMetadata($pdfBytes);
+        $documentMetadata = $this->documentStructuralMetadata($pdfBytes);
         $metadata['pdfEstimatedPages'] = max(0, (int) ($documentMetadata['page_count'] ?? 0));
         $metadata['pdfObjectCount'] = max(0, (int) ($documentMetadata['object_count'] ?? 0));
         $metadata['pdfStreamCount'] = max(0, (int) ($documentMetadata['stream_count'] ?? 0));
         $metadata['pdfEncrypted'] = (($documentMetadata['encryption']['is_encrypted'] ?? false) === true);
-        $title = $this->metadataString($documentMetadata, 'title');
+        if (($documentMetadata['page_count_limited'] ?? false) === true) {
+            $metadata['pdfPageCountLimited'] = true;
+        }
+
+        return $metadata;
+    }
+
+    /**
+     * Add small, bounded document metadata only after fast-mode selection.
+     * PDF Info retains the long-standing precedence over XMP for this reader.
+     *
+     * @param array<string, mixed> $metadata
+     * @return array<string, mixed>
+     */
+    private function withReaderMetadata(array $metadata, string $pdfBytes): array
+    {
+        $documentMetadata = $this->documentMetadata($pdfBytes);
+        $info = is_array($documentMetadata['info'] ?? null) ? $documentMetadata['info'] : [];
+
+        $title = $this->metadataString($info, 'Title');
+        if ($title === '') {
+            $title = $this->metadataString($documentMetadata, 'title');
+        }
         if ($title !== '') {
             $metadata['title'] = $title;
             $metadata['titleInlines'] = [new AstNode('text', ['text' => $title])];
         }
 
-        $author = $this->firstMetadataString($documentMetadata['authors'] ?? null);
+        $infoAuthor = $this->metadataString($info, 'Author');
+        $author = $infoAuthor === ''
+            ? ''
+            : $this->firstMetadataString(preg_split('/\s*;\s*/', $infoAuthor, -1, PREG_SPLIT_NO_EMPTY) ?: []);
+        if ($author === '') {
+            $author = $this->firstMetadataString($documentMetadata['authors'] ?? null);
+        }
         if ($author !== '') {
             $metadata['author'] = $author;
         }
 
         foreach ([
-            'creator_tool' => 'creator',
-            'producer' => 'producer',
-            'created_at' => 'created',
-        ] as $key => $metadataKey) {
-            $value = $this->metadataString($documentMetadata, $key);
+            'Creator' => ['creator_tool', 'creator'],
+            'Producer' => ['producer', 'producer'],
+            'CreationDate' => ['created_at', 'created'],
+        ] as $infoKey => [$documentKey, $metadataKey]) {
+            $value = $this->metadataString($info, $infoKey);
+            if ($value === '') {
+                $value = $this->metadataString($documentMetadata, $documentKey);
+            }
             if ($value !== '') {
                 $metadata[$metadataKey] = $value;
             }
@@ -17898,6 +17933,24 @@ final class PdfReader
     /**
      * @return array<string, mixed>
      */
+    private function documentStructuralMetadata(string $pdfBytes): array
+    {
+        if (!class_exists(PdfMetadataExtractor::class)) {
+            return [];
+        }
+
+        try {
+            return (new PdfMetadataExtractor())->extractReaderStructuralMetadata($pdfBytes);
+        } catch (\Throwable) {
+            // Structural provenance is optional. Do not fall back to scanning
+            // arbitrary PDF bytes when the parser cannot establish it.
+            return [];
+        }
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     private function documentMetadata(string $pdfBytes): array
     {
         if (!class_exists(PdfMetadataExtractor::class)) {
@@ -17905,11 +17958,11 @@ final class PdfReader
         }
 
         try {
-            return (new PdfMetadataExtractor())->extractDocumentMetadata($pdfBytes);
+            return (new PdfMetadataExtractor())->extractReaderMetadata($pdfBytes);
         } catch (\Throwable) {
             // Metadata is optional import provenance.  Do not fall back to
-            // scanning arbitrary PDF bytes when the structural extractor
-            // cannot establish an Info dictionary or Metadata stream.
+            // scanning arbitrary PDF bytes when the parser cannot establish
+            // a bounded Info dictionary or Metadata stream.
             return [];
         }
     }
