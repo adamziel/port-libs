@@ -162,6 +162,78 @@ $replaceXlsxPackagePart = static function (string $packageBytes, string $partNam
     }
 };
 
+$buildStrictCommentXlsxPackage = static function (): string {
+    return ZipPackage::build([
+        [
+            'name' => '[Content_Types].xml',
+            'data' => <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/xl/comments1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.comments+xml"/>
+</Types>
+XML,
+        ],
+        [
+            'name' => '_rels/.rels',
+            'data' => <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdWorkbook" Type="http://purl.oclc.org/ooxml/officeDocument/relationships/officeDocument" Target="xl/workbook.xml"/>
+</Relationships>
+XML,
+        ],
+        [
+            'name' => 'xl/workbook.xml',
+            'data' => <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<x:workbook xmlns:x="http://purl.oclc.org/ooxml/spreadsheetml/main"
+            xmlns:r="http://purl.oclc.org/ooxml/officeDocument/relationships">
+  <x:sheets><x:sheet name="Strict comments" sheetId="1" r:id="rIdSheet"/></x:sheets>
+</x:workbook>
+XML,
+        ],
+        [
+            'name' => 'xl/_rels/workbook.xml.rels',
+            'data' => <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdSheet" Type="http://purl.oclc.org/ooxml/officeDocument/relationships/worksheet" Target="worksheets/sheet1.xml"/>
+</Relationships>
+XML,
+        ],
+        [
+            'name' => 'xl/worksheets/sheet1.xml',
+            'data' => <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<x:worksheet xmlns:x="http://purl.oclc.org/ooxml/spreadsheetml/main">
+  <x:sheetData><x:row r="1"><x:c r="A1" t="inlineStr"><x:is><x:t>Text</x:t></x:is></x:c></x:row></x:sheetData>
+</x:worksheet>
+XML,
+        ],
+        [
+            'name' => 'xl/worksheets/_rels/sheet1.xml.rels',
+            'data' => <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdComment" Type="http://purl.oclc.org/ooxml/officeDocument/relationships/comments" Target="../comments1.xml"/>
+</Relationships>
+XML,
+        ],
+        [
+            'name' => 'xl/comments1.xml',
+            'data' => <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<x:comments xmlns:x="http://purl.oclc.org/ooxml/spreadsheetml/main">
+  <x:authors><x:author>Ada</x:author></x:authors>
+  <x:commentList><x:comment ref="A1" authorId="0"><x:text><x:t>Review note</x:t></x:text></x:comment></x:commentList>
+</x:comments>
+XML,
+        ],
+    ]);
+};
+
 $buildFormattedXlsxPackage = static function (): string {
     $path = tempnam(sys_get_temp_dir(), 'pandoc-xlsx-formatted-');
     if ($path === false) {
@@ -2044,6 +2116,58 @@ XML);
         $document = (new XlsxReader())->read($bytes);
 
         $t->same('Main', $document->children[0]->attr('text'));
+    },
+
+    'imports legacy comments through Strict XLSX relationship URIs' => static function (TestRunner $t) use ($buildStrictCommentXlsxPackage): void {
+        $document = (new XlsxReader())->read($buildStrictCommentXlsxPackage());
+        $review = $document->attr('xlsx');
+        $cell = $document->children[1]->children[0]->children[0]->children[0];
+
+        $t->same('Strict comments', $document->children[0]->attr('text'));
+        $t->same(1, $review['commentCount'] ?? null);
+        $t->same(1, $review['sheets'][0]['commentCount'] ?? null);
+        $t->same([], $review['sheets'][0]['commentDiagnostics'] ?? null);
+        $t->same('legacy', $review['sheets'][0]['comments'][0]['kind'] ?? null);
+        $t->same('A1', $review['sheets'][0]['comments'][0]['ref'] ?? null);
+        $t->same('Ada', $review['sheets'][0]['comments'][0]['author'] ?? null);
+        $t->same('Review note', $review['sheets'][0]['comments'][0]['text'] ?? null);
+        $t->same(1, $cell->attr('xlsxCommentCount'));
+        $t->same(['Ada'], $cell->attr('xlsxCommentAuthors'));
+        $t->same('Review note', $cell->attr('xlsxComments')[0]['text'] ?? null);
+        $t->same(true, $review['featureMetadata']['byKind']['comments']['items'][0]['validRoot'] ?? null);
+        $t->same([], $review['featureMetadata']['byKind']['comments']['items'][0]['issues'] ?? null);
+    },
+
+    'keeps malformed XLSX content types nonfatal as review diagnostics' => static function (TestRunner $t) use ($buildStrictCommentXlsxPackage, $replaceXlsxPackagePart): void {
+        $bytes = $replaceXlsxPackagePart(
+            $buildStrictCommentXlsxPackage(),
+            '[Content_Types].xml',
+            '<Types>'
+        );
+
+        $document = (new XlsxReader())->read($bytes);
+        $review = $document->attr('xlsx');
+
+        $t->same('Strict comments', $document->children[0]->attr('text'));
+        $t->same(true, $review['contentTypesAvailable'] ?? null);
+        $t->true(is_string($review['contentTypesParseError'] ?? null));
+        $t->same(1, $review['commentCount'] ?? null);
+    },
+
+    'reports malformed XLSX relationship-part candidates in feature metadata' => static function (TestRunner $t) use ($buildStrictCommentXlsxPackage, $replaceXlsxPackagePart): void {
+        $bytes = $replaceXlsxPackagePart(
+            $buildStrictCommentXlsxPackage(),
+            'xl./_rels/ignored.xml.rels',
+            '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"/>'
+        );
+
+        $review = (new XlsxReader())->read($bytes)->attr('xlsx');
+        $summary = $review['featureMetadata']['summary'] ?? [];
+
+        $t->same(1, $summary['relationshipParseErrorCount'] ?? null);
+        $t->same('xl./_rels/ignored.xml.rels', $summary['relationshipParseErrors'][0]['relationshipPart'] ?? null);
+        $t->same(null, $summary['relationshipParseErrors'][0]['sourcePart'] ?? null);
+        $t->contains('must not end with a dot', (string) ($summary['relationshipParseErrors'][0]['error'] ?? ''));
     },
 
     'rejects oversized root XLSX relationship parts before parsing' => static function (TestRunner $t) use ($buildXlsxPackage, $replaceXlsxPackagePart): void {

@@ -6,6 +6,14 @@ namespace PortLibs\Pandoc;
 
 final class BibtexCslParser
 {
+    // These are internal byte tokens, not user-visible sentinels. The
+    // protection pass byte-stuffs every source NUL, so no valid input can
+    // collide with them while later LaTeX normalization rewrites the text.
+    private const BIBTEX_PROTECTED_TOKEN_PREFIX = "\0";
+    private const BIBTEX_PROTECTED_NUL_TOKEN = "\0\0";
+    private const BIBTEX_PROTECTED_OPEN_BRACE_TOKEN = "\0\x01";
+    private const BIBTEX_PROTECTED_CLOSE_BRACE_TOKEN = "\0\x02";
+    private const BIBTEX_GENERATED_BACKSLASH_TOKEN = "\0\x03";
     private const BIBLATEX_CUSTOM_FIELDS = ['usera', 'userb', 'userc', 'userd', 'usere', 'userf', 'verba', 'verbb', 'verbc'];
     private const BIBLATEX_CUSTOM_LIST_FIELDS = ['lista', 'listb', 'listc', 'listd', 'liste', 'listf'];
     private const BIBLATEX_CUSTOM_NAME_FIELDS = ['namea', 'nameb', 'namec'];
@@ -3385,6 +3393,7 @@ final class BibtexCslParser
     private static function cleanBibtexText(string $value): string
     {
         $value = str_replace(["\r\n", "\r", "\n"], ' ', $value);
+        $value = self::protectEscapedBibtexBraces($value);
         $value = self::decodeLatexText($value);
         $value = str_replace('~', ' ', $value);
         $value = self::restoreLatexLiteralTilde($value);
@@ -3392,6 +3401,7 @@ final class BibtexCslParser
         $value = self::stripLatexTextWrappers($value);
         $value = preg_replace('/\\\\(?:textendash|textminus)\b/', '-', $value) ?? $value;
         $value = self::stripBibtexGroupingBraces($value);
+        $value = self::restoreProtectedBibtexTokens($value);
 
         return trim(preg_replace('/\s+/', ' ', $value) ?? $value);
     }
@@ -3399,11 +3409,13 @@ final class BibtexCslParser
     private static function cleanBibtexDateText(string $value): string
     {
         $value = str_replace(["\r\n", "\r", "\n"], ' ', $value);
+        $value = self::protectEscapedBibtexBraces($value);
         $value = self::decodeLatexText($value);
         $value = preg_replace('/\\\\([&%$#_])/', '$1', $value) ?? $value;
         $value = self::stripLatexTextWrappers($value);
         $value = preg_replace('/\\\\(?:textendash|textminus)\b/', '-', $value) ?? $value;
         $value = self::stripBibtexGroupingBraces($value);
+        $value = self::restoreProtectedBibtexTokens($value);
         $value = preg_replace('/~(?!(?:\s*\/|\s*\z))/', ' ', $value) ?? $value;
         $value = self::restoreLatexLiteralTilde($value);
 
@@ -3411,10 +3423,55 @@ final class BibtexCslParser
     }
 
     /**
-     * Remove BibTeX grouping braces while preserving literal braces escaped
-     * by an odd run of backslashes. One trailing slash is consumed in either
-     * case, matching the historical TeX unescaping behavior for an even run
-     * such as `\\{`; this avoids collision-prone sentinel replacement.
+     * Mark literal source braces before LaTeX expansion. A macro such as
+     * \textbackslash can itself produce a slash, which must never be treated
+     * as a source escape for the grouping brace that follows it.
+     */
+    private static function protectEscapedBibtexBraces(string $value): string
+    {
+        $out = '';
+        $pendingBackslashes = 0;
+        for ($index = 0, $length = strlen($value); $index < $length; $index++) {
+            $char = $value[$index];
+            if ($char === '\\') {
+                ++$pendingBackslashes;
+                continue;
+            }
+
+            if ($char === '{' || $char === '}') {
+                if (($pendingBackslashes % 2) === 1) {
+                    if ($pendingBackslashes > 1) {
+                        $out .= str_repeat('\\', $pendingBackslashes - 1);
+                    }
+                    $out .= $char === '{'
+                        ? self::BIBTEX_PROTECTED_OPEN_BRACE_TOKEN
+                        : self::BIBTEX_PROTECTED_CLOSE_BRACE_TOKEN;
+                    $pendingBackslashes = 0;
+                    continue;
+                }
+            }
+
+            if ($pendingBackslashes > 0) {
+                $out .= str_repeat('\\', $pendingBackslashes);
+                $pendingBackslashes = 0;
+            }
+
+            $out .= $char === self::BIBTEX_PROTECTED_TOKEN_PREFIX
+                ? self::BIBTEX_PROTECTED_NUL_TOKEN
+                : $char;
+        }
+
+        if ($pendingBackslashes > 0) {
+            $out .= str_repeat('\\', $pendingBackslashes);
+        }
+
+        return $out;
+    }
+
+    /**
+     * Remove the remaining BibTeX grouping braces. Source-literal braces and
+     * decoder-produced punctuation are carried as protected byte tokens so
+     * this pass only reasons about source grouping syntax.
      */
     private static function stripBibtexGroupingBraces(string $value): string
     {
@@ -3424,6 +3481,17 @@ final class BibtexCslParser
             $char = $value[$index];
             if ($char === '\\') {
                 ++$pendingBackslashes;
+                continue;
+            }
+            if ($char === self::BIBTEX_PROTECTED_TOKEN_PREFIX) {
+                if ($pendingBackslashes > 0) {
+                    $out .= str_repeat('\\', $pendingBackslashes);
+                    $pendingBackslashes = 0;
+                }
+                $out .= $char;
+                if ($index + 1 < $length) {
+                    $out .= $value[++$index];
+                }
                 continue;
             }
             if ($char !== '{' && $char !== '}') {
@@ -3462,6 +3530,29 @@ final class BibtexCslParser
         return $out;
     }
 
+    private static function restoreProtectedBibtexTokens(string $value): string
+    {
+        $out = '';
+        for ($index = 0, $length = strlen($value); $index < $length; $index++) {
+            $char = $value[$index];
+            if ($char !== self::BIBTEX_PROTECTED_TOKEN_PREFIX || $index + 1 >= $length) {
+                $out .= $char;
+                continue;
+            }
+
+            $token = $value[++$index];
+            $out .= match ($token) {
+                "\0" => "\0",
+                "\x01" => '{',
+                "\x02" => '}',
+                "\x03" => '\\',
+                default => self::BIBTEX_PROTECTED_TOKEN_PREFIX . $token,
+            };
+        }
+
+        return $out;
+    }
+
     private static function decodeLatexText(string $value): string
     {
         $value = self::decodeLatexAccentCommands($value);
@@ -3481,7 +3572,9 @@ final class BibtexCslParser
             'ldots' => "\u{2026}",
             'textasciicircum' => '^',
             'textasciitilde' => "\u{E000}",
-            'textbackslash' => '\\',
+            // This backslash was created by a macro rather than present in
+            // source, so keep it opaque until grouping braces are removed.
+            'textbackslash' => self::BIBTEX_GENERATED_BACKSLASH_TOKEN,
             'textbar' => '|',
             'textcopyright' => "\u{00A9}",
             'textdegree' => "\u{00B0}",

@@ -1512,7 +1512,8 @@ final class PandocHtmlTagSoupTableReader
         $styleWidth = CssDeclarationScanner::lastValidValue(
             $this->attribute($tag, 'style'),
             'width',
-            static fn (string $value): bool => preg_match('/^[0-9]+(?:\.[0-9]+)?\s*%\s*$/', $value) === 1
+            static fn (string $value): bool => preg_match('/^[0-9]+(?:\.[0-9]+)?\s*%\s*$/', $value) === 1,
+            static fn (string $value): bool => strcasecmp(trim($value), 'auto') === 0
         );
         if ($styleWidth !== null && preg_match('/^([0-9]+(?:\.[0-9]+)?)\s*%/', $styleWidth, $m) === 1) {
             return (float) $m[1] / 100;

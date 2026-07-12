@@ -14,10 +14,17 @@ final class XlsxReader
     ];
     private const RELATIONSHIP_NAMESPACE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
     private const COMMENTS_RELATIONSHIP = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments';
+    private const STRICT_COMMENTS_RELATIONSHIP = 'http://purl.oclc.org/ooxml/officeDocument/relationships/comments';
+    private const COMMENTS_RELATIONSHIP_TYPES = [
+        self::COMMENTS_RELATIONSHIP,
+        self::STRICT_COMMENTS_RELATIONSHIP,
+    ];
     private const THREADED_COMMENTS_RELATIONSHIP = 'http://schemas.microsoft.com/office/2017/10/relationships/threadedComment';
     private const THREADED_COMMENT_PERSON_RELATIONSHIP = 'http://schemas.microsoft.com/office/2017/10/relationships/person';
     private const THREADED_COMMENTS_NAMESPACE = 'http://schemas.microsoft.com/office/spreadsheetml/2018/threadedcomments';
     private const MAX_XML_PART_BYTES = 8_388_608;
+    private const MAX_RELATIONSHIP_INVENTORY_PARTS = 4_096;
+    private const MAX_RELATIONSHIP_INVENTORY_BYTES = 33_554_432;
     private const MAX_MEDIA_METADATA_BYTES = 16_777_216;
     private const EMUS_PER_PIXEL = 9525;
     private const FEATURE_SPECS = [
@@ -79,10 +86,14 @@ final class XlsxReader
             'rootLocalName' => 'slicerCaches',
         ],
         'comments' => [
-            'relationshipTypes' => [self::COMMENTS_RELATIONSHIP],
+            'relationshipTypes' => self::COMMENTS_RELATIONSHIP_TYPES,
             'contentTypes' => ['application/vnd.openxmlformats-officedocument.spreadsheetml.comments+xml'],
             'pathMarkers' => ['/comments'],
             'rootNamespace' => 'http://schemas.openxmlformats.org/spreadsheetml/2006/main',
+            'rootNamespaces' => [
+                'http://schemas.openxmlformats.org/spreadsheetml/2006/main',
+                'http://purl.oclc.org/ooxml/spreadsheetml/main',
+            ],
             'rootLocalName' => 'comments',
         ],
         'threadedComments' => [
@@ -144,17 +155,23 @@ final class XlsxReader
 
     private function readPackage(ZipPackage $package, int $sourceBytes): AstNode
     {
-        $rootRelationships = OpcRelationships::fromPackageBounded($package, '/', self::MAX_XML_PART_BYTES);
+        $relationshipInventory = OpcRelationshipInventory::fromPackage(
+            $package,
+            self::MAX_XML_PART_BYTES,
+            self::MAX_RELATIONSHIP_INVENTORY_PARTS,
+            self::MAX_RELATIONSHIP_INVENTORY_BYTES,
+        );
+        $rootRelationships = $relationshipInventory->relationshipsForSource('/');
         $workbookRelationship = $this->workbookRelationship($rootRelationships);
         $workbookPart = OpcPackagePath::stripQueryAndFragment($rootRelationships->resolveTarget($workbookRelationship));
         $workbook = $this->loadPackageXml($package, $workbookPart, 'XLSX workbook');
         $workbookInfo = $this->parseWorkbook($workbook);
         $sheets = $workbookInfo['sheets'];
-        $workbookRelationships = $this->relationshipsOrEmpty($package, $workbookPart);
+        $workbookRelationships = $this->relationshipsOrEmpty($relationshipInventory, $workbookPart);
         $sharedStrings = $this->readSharedStrings($package, $workbookRelationships);
         $styles = $this->readStyles($package, $workbookRelationships);
-        $contentTypeReview = $this->readContentTypesReview($package);
-        $featureMetadata = $this->readFeatureMetadata($package, $contentTypeReview['types']);
+        $contentTypeReview = $this->readContentTypesReview($relationshipInventory);
+        $featureMetadata = $this->readFeatureMetadata($package, $contentTypeReview['types'], $relationshipInventory);
 
         $blocks = [];
         $sheetReviews = [];
@@ -181,6 +198,7 @@ final class XlsxReader
         $dataValidationRangeCount = 0;
         $failedSheetCount = 0;
         $sheetAnchorIds = [];
+        $threadedCommentPersonReview = null;
         foreach ($sheets as $sheet) {
             $sheetAnchorIds[(string) $sheet['name']] = 'sheet-' . $sheet['index'];
         }
@@ -197,9 +215,15 @@ final class XlsxReader
 
                 $sheetPart = OpcPackagePath::stripQueryAndFragment($workbookRelationships->resolveTarget($relationship));
                 $sheetDocument = $this->loadPackageXml($package, $sheetPart, 'XLSX worksheet ' . $sheet['name']);
-                $sheetRelationships = $this->relationshipsOrEmpty($package, $sheetPart);
+                $sheetRelationships = $this->relationshipsOrEmpty($relationshipInventory, $sheetPart);
                 $sheetLayout = $this->parseSheetLayoutMetadata($sheetDocument);
-                $sheetComments = $this->parseSheetComments($package, $sheetPart, $sheetRelationships);
+                $sheetComments = $this->parseSheetComments(
+                    $package,
+                    $sheetPart,
+                    $sheetRelationships,
+                    $relationshipInventory,
+                    $threadedCommentPersonReview,
+                );
                 $sheetDiagnostics = $this->parseSheetDiagnostics($sheetDocument);
                 $sheetDataValidations = $this->parseSheetDataValidations($sheetDocument);
                 $sheetTableMetadata = $this->parseSheetTableMetadata($package, $sheetPart, $sheetDocument, $sheetRelationships);
@@ -402,13 +426,13 @@ final class XlsxReader
         throw new \RuntimeException('XLSX package does not declare a workbook relationship');
     }
 
-    private function relationshipsOrEmpty(ZipPackage $package, string $sourcePart): OpcRelationships
+    private function relationshipsOrEmpty(OpcRelationshipInventory $relationshipInventory, string $sourcePart): OpcRelationships
     {
-        if (!OpcRelationships::packageHasRelationshipsForSourceBounded($package, $sourcePart, self::MAX_XML_PART_BYTES)) {
+        if (!$relationshipInventory->hasRelationshipsForSource($sourcePart)) {
             return new OpcRelationships($sourcePart);
         }
 
-        return OpcRelationships::fromPackageBounded($package, $sourcePart, self::MAX_XML_PART_BYTES);
+        return $relationshipInventory->relationshipsForSource($sourcePart);
     }
 
     private function loadPackageXml(ZipPackage $package, string $partName, string $label): \DOMDocument
@@ -421,9 +445,9 @@ final class XlsxReader
     /**
      * @return array{available:bool, parseError:?string, types:?OpcContentTypes}
      */
-    private function readContentTypesReview(ZipPackage $package): array
+    private function readContentTypesReview(OpcRelationshipInventory $relationshipInventory): array
     {
-        if (!$package->has('[Content_Types].xml')) {
+        if (!$relationshipInventory->hasContentTypes()) {
             return [
                 'available' => false,
                 'parseError' => null,
@@ -431,19 +455,11 @@ final class XlsxReader
             ];
         }
 
-        try {
-            return [
-                'available' => true,
-                'parseError' => null,
-                'types' => OpcContentTypes::fromXml($package->read('[Content_Types].xml', self::MAX_XML_PART_BYTES)),
-            ];
-        } catch (\Throwable $exception) {
-            return [
-                'available' => true,
-                'parseError' => $exception->getMessage(),
-                'types' => null,
-            ];
-        }
+        return [
+            'available' => true,
+            'parseError' => $relationshipInventory->contentTypesParseError(),
+            'types' => $relationshipInventory->contentTypes(),
+        ];
     }
 
     /**
@@ -453,7 +469,11 @@ final class XlsxReader
      *     items:list<array<string, mixed>>
      * }
      */
-    private function readFeatureMetadata(ZipPackage $package, ?OpcContentTypes $contentTypes): array
+    private function readFeatureMetadata(
+        ZipPackage $package,
+        ?OpcContentTypes $contentTypes,
+        OpcRelationshipInventory $relationshipInventory,
+    ): array
     {
         $itemsByKey = [];
         foreach ($package->names() as $name) {
@@ -481,8 +501,8 @@ final class XlsxReader
             $itemsByKey[$key] = $this->featureItem($kind, $partName, null, true, false, $contentType);
         }
 
-        $relationshipInventory = $this->packageRelationshipSets($package);
-        foreach ($relationshipInventory['sets'] as $relationshipSet) {
+        $relationshipSets = $this->packageRelationshipSets($relationshipInventory);
+        foreach ($relationshipSets['sets'] as $relationshipSet) {
             $relationships = $relationshipSet['relationships'];
             foreach ($relationships->all() as $relationship) {
                 $kind = $this->featureKindForRelationship($relationship);
@@ -571,42 +591,24 @@ final class XlsxReader
             $items[$index] = $this->finalizeFeatureItem($package, $item);
         }
 
-        return $this->featureMetadataSummary($items, $relationshipInventory['parseErrors']);
+        return $this->featureMetadataSummary($items, $relationshipSets['parseErrors']);
     }
 
     /**
      * @return array{sets:list<array{sourcePart:string, relationshipPart:string, relationships:OpcRelationships}>, parseErrors:list<array{relationshipPart:string, sourcePart:?string, error:string}>}
      */
-    private function packageRelationshipSets(ZipPackage $package): array
+    private function packageRelationshipSets(OpcRelationshipInventory $relationshipInventory): array
     {
         $sets = [];
-        $parseErrors = [];
-        foreach ($package->names() as $name) {
-            if (str_ends_with($name, '/')) {
-                continue;
-            }
-
-            try {
-                $relationshipPart = OpcPackagePath::canonicalPartName($name);
-                if (!OpcRelationships::isRelationshipPartName($relationshipPart)) {
-                    continue;
-                }
-
-                $sourcePart = OpcRelationships::sourcePartNameForRelationshipPart($relationshipPart);
-            } catch (\Throwable $exception) {
-                $parseErrors[] = [
-                    'relationshipPart' => $name,
-                    'sourcePart' => null,
-                    'error' => $exception->getMessage(),
-                ];
-                continue;
-            }
-
+        $parseErrors = $relationshipInventory->parseErrors();
+        foreach ($relationshipInventory->sourceParts() as $part) {
+            $relationshipPart = $part['relationshipPartName'];
+            $sourcePart = $part['sourcePartName'];
             try {
                 $sets[] = [
                     'sourcePart' => $sourcePart,
                     'relationshipPart' => $relationshipPart,
-                    'relationships' => OpcRelationships::fromPackageBounded($package, $sourcePart, self::MAX_XML_PART_BYTES),
+                    'relationships' => $relationshipInventory->relationshipsForSource($sourcePart),
                 ];
             } catch (\Throwable $exception) {
                 $parseErrors[] = [
@@ -797,7 +799,8 @@ final class XlsxReader
             if ($root instanceof \DOMElement) {
                 $item['rootNamespace'] = $root->namespaceURI;
                 $item['rootLocalName'] = $root->localName;
-                $item['validRoot'] = $root->namespaceURI === $item['expectedRootNamespace']
+                $expectedRootNamespaces = self::FEATURE_SPECS[$kind]['rootNamespaces'] ?? [$item['expectedRootNamespace']];
+                $item['validRoot'] = in_array($root->namespaceURI, $expectedRootNamespaces, true)
                     && $root->localName === $item['expectedRootLocalName'];
                 if ($item['validRoot'] !== true) {
                     $item['issues'][] = 'unexpected-' . $issueStem . '-root';
@@ -3854,7 +3857,13 @@ final class XlsxReader
      *     commentDiagnostics:list<string>
      * }
      */
-    private function parseSheetComments(ZipPackage $package, string $sheetPart, OpcRelationships $relationships): array
+    private function parseSheetComments(
+        ZipPackage $package,
+        string $sheetPart,
+        OpcRelationships $relationships,
+        OpcRelationshipInventory $relationshipInventory,
+        ?array &$threadedCommentPersonReview,
+    ): array
     {
         $comments = [];
         $commentsByCell = [];
@@ -3862,7 +3871,7 @@ final class XlsxReader
         $threadedPersonsById = null;
 
         foreach ($relationships->all() as $relationship) {
-            if ($relationship->type === self::COMMENTS_RELATIONSHIP) {
+            if (in_array($relationship->type, self::COMMENTS_RELATIONSHIP_TYPES, true)) {
                 $this->appendLegacyCommentsForRelationship($package, $sheetPart, $relationships, $relationship, $comments, $commentsByCell, $diagnostics);
                 continue;
             }
@@ -3872,7 +3881,10 @@ final class XlsxReader
             }
 
             if ($threadedPersonsById === null) {
-                $personReview = $this->readThreadedCommentPersons($package);
+                if ($threadedCommentPersonReview === null) {
+                    $threadedCommentPersonReview = $this->readThreadedCommentPersons($package, $relationshipInventory);
+                }
+                $personReview = $threadedCommentPersonReview;
                 $threadedPersonsById = $personReview['personsById'];
                 $diagnostics = array_merge($diagnostics, $personReview['diagnostics']);
             }
@@ -4135,18 +4147,18 @@ final class XlsxReader
     /**
      * @return array{personsById:array<string, array<string, mixed>>, diagnostics:list<string>}
      */
-    private function readThreadedCommentPersons(ZipPackage $package): array
+    private function readThreadedCommentPersons(ZipPackage $package, OpcRelationshipInventory $relationshipInventory): array
     {
         $personsById = [];
         $diagnostics = [];
         $parsedParts = [];
-        $relationshipInventory = $this->packageRelationshipSets($package);
+        $relationshipSets = $this->packageRelationshipSets($relationshipInventory);
 
-        foreach ($relationshipInventory['parseErrors'] as $parseError) {
+        foreach ($relationshipSets['parseErrors'] as $parseError) {
             $diagnostics[] = 'threaded-comment-person-relationship-parse-error:' . $parseError['relationshipPart'];
         }
 
-        foreach ($relationshipInventory['sets'] as $relationshipSet) {
+        foreach ($relationshipSets['sets'] as $relationshipSet) {
             $relationships = $relationshipSet['relationships'];
             foreach ($relationships->all() as $relationship) {
                 if ($relationship->type !== self::THREADED_COMMENT_PERSON_RELATIONSHIP) {

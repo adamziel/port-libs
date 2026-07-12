@@ -93,9 +93,10 @@ final class CssDeclarationScanner
 
     /**
      * Resolve one inline-style property using CSS declaration order for the
-     * narrow presentation hints consumed by the readers.  Invalid values are
-     * ignored by the caller-provided validator, and an earlier !important
-     * value wins over later normal declarations.
+     * narrow presentation hints consumed by the readers. Invalid values are
+     * ignored by the caller-provided validator, while CSS-wide keywords and
+     * an optional property-specific reset value clear an earlier hint. An
+     * earlier !important value still wins over later normal declarations.
      *
      * This is intentionally not a full CSS cascade: there is one inline
      * declaration list and no selectors, origins, inheritance, or custom
@@ -103,8 +104,14 @@ final class CssDeclarationScanner
      *
      * @param string|list<string> $names
      * @param callable(string):bool $isValidValue
+     * @param null|callable(string):bool $isResetValue
      */
-    public static function lastValidValue(string $style, string|array $names, callable $isValidValue): ?string
+    public static function lastValidValue(
+        string $style,
+        string|array $names,
+        callable $isValidValue,
+        ?callable $isResetValue = null
+    ): ?string
     {
         $acceptedNames = [];
         foreach ((array) $names as $name) {
@@ -113,20 +120,42 @@ final class CssDeclarationScanner
 
         $normal = null;
         $important = null;
+        $hasNormal = false;
+        $hasImportant = false;
         foreach (self::declarations($style) as $declaration) {
-            if (!isset($acceptedNames[$declaration['name']]) || !$isValidValue($declaration['value'])) {
+            if (!isset($acceptedNames[$declaration['name']])) {
                 continue;
             }
+
+            $value = $declaration['value'];
+            $resetsValue = self::isCssWideResetValue($value)
+                || ($isResetValue !== null && $isResetValue($value));
+            if (!$resetsValue && !$isValidValue($value)) {
+                continue;
+            }
+
+            $resolvedValue = $resetsValue ? null : $value;
 
             if ($declaration['important']) {
-                $important = $declaration['value'];
+                $important = $resolvedValue;
+                $hasImportant = true;
                 continue;
             }
 
-            $normal = $declaration['value'];
+            $normal = $resolvedValue;
+            $hasNormal = true;
         }
 
-        return $important ?? $normal;
+        if ($hasImportant) {
+            return $important;
+        }
+
+        return $hasNormal ? $normal : null;
+    }
+
+    private static function isCssWideResetValue(string $value): bool
+    {
+        return in_array(strtolower(trim($value)), ['initial', 'inherit', 'unset', 'revert', 'revert-layer'], true);
     }
 
     /**
@@ -188,6 +217,7 @@ final class CssDeclarationScanner
         $length = strlen($value);
         $quote = null;
         $parentheses = 0;
+        $lastTopLevelBang = null;
 
         for ($offset = 0; $offset < $length; $offset++) {
             $char = $value[$offset];
@@ -221,10 +251,17 @@ final class CssDeclarationScanner
                 continue;
             }
 
-            $suffix = substr($value, $offset);
-            if (preg_match('/^!\s*important\s*$/i', $suffix) === 1) {
-                return [rtrim(substr($value, 0, $offset)), true];
-            }
+            // Check the suffix once after the scan.  Copying and matching the
+            // remaining suffix for every top-level ! makes an otherwise
+            // linear tokenizer quadratic on inputs such as "!!!!...".
+            $lastTopLevelBang = $offset;
+        }
+
+        if (
+            $lastTopLevelBang !== null
+            && preg_match('/^!\s*important\s*$/i', substr($value, $lastTopLevelBang)) === 1
+        ) {
+            return [rtrim(substr($value, 0, $lastTopLevelBang)), true];
         }
 
         return [$value, false];

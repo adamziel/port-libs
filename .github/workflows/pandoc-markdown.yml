@@ -62,6 +62,7 @@ jobs:
           php -l lanes/pandoc/tests/MarkdownReaderMmdReferenceImageAttributeFixtureCompletionTest.php
           php -l lanes/pandoc/tests/MarkdownReaderMultipleMetadataBlockFixtureCompletionTest.php
           php -l lanes/pandoc/tests/MarkdownReaderNestedInlineLinkBoundaryFixtureCompletionTest.php
+          php -l lanes/pandoc/tests/MarkdownReaderNumberedExampleRawBlockBoundarySurgeTest.php
           php -l lanes/pandoc/tests/MarkdownReaderPathologicalInputHardeningTest.php
           php -l lanes/pandoc/tests/MarkdownReaderRawHtmlBlockSurgeTest.php
           php -l lanes/pandoc/tests/MarkdownReaderTableAttributeProfileFixtureCompletionTest.php
@@ -152,6 +153,7 @@ jobs:
             lanes/pandoc/tests/MarkdownReaderMmdReferenceImageAttributeFixtureCompletionTest.php \
             lanes/pandoc/tests/MarkdownReaderMultipleMetadataBlockFixtureCompletionTest.php \
             lanes/pandoc/tests/MarkdownReaderNestedInlineLinkBoundaryFixtureCompletionTest.php \
+            lanes/pandoc/tests/MarkdownReaderNumberedExampleRawBlockBoundarySurgeTest.php \
             lanes/pandoc/tests/MarkdownReaderOldDashesProfileFixtureCompletionTest.php \
             lanes/pandoc/tests/MarkdownReaderPathologicalInputHardeningTest.php \
             lanes/pandoc/tests/MarkdownReaderRawHtmlBlockSurgeTest.php \

@@ -152,4 +152,40 @@ return [
         $reused = $reader->read('<div>x</div>');
         $t->same('plain', $reused->children[0]->children[0]->type);
     },
+
+    'keeps isolated prefix nested div chains out of recursive source reparsing' => static function (TestRunner $t): void {
+        $depth = 512;
+        $document = (new MarkdownReader(['format' => 'commonmark']))->read(
+            str_repeat("<div>\nprefix\n\n", $depth)
+            . "leaf\n"
+            . str_repeat("</div>\n", $depth)
+        );
+
+        $node = $document->children[0] ?? new AstNode('missing');
+        $seen = 0;
+        while ($node->type === 'div') {
+            $prefix = $node->children[0] ?? new AstNode('missing');
+            $next = $node->children[1] ?? new AstNode('missing');
+
+            $t->same('paragraph', $prefix->type, 'prefix at depth ' . $seen);
+            $t->same('prefix', $prefix->attr('text'), 'prefix text at depth ' . $seen);
+            $seen++;
+            $node = $next;
+        }
+
+        $t->same($depth, $seen);
+        $t->same('paragraph', $node->type);
+        $t->same('leaf', $node->attr('text'));
+
+        $implicitHeading = (new MarkdownReader())->read("<div>\n# Heading\n\n<div>\n[Heading]\n</div>\n</div>");
+        $implicitLink = $implicitHeading->children[0]->children[1]->children[0]->children[0] ?? new AstNode('missing');
+
+        $t->same('link', $implicitLink->type);
+        $t->same('#heading', $implicitLink->attr('url'));
+
+        $mmdTitle = (new MarkdownReader())->read("<div>\n% Title\n\n<div>\nleaf\n</div>\n</div>");
+        $mmdOuter = $mmdTitle->children[0] ?? new AstNode('missing');
+
+        $t->same(['div'], array_map(static fn (AstNode $child): string => $child->type, $mmdOuter->children));
+    },
 ];

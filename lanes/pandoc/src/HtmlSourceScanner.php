@@ -200,15 +200,47 @@ final class HtmlSourceScanner
     }
 
     /**
+     * Materialize one indexed element's source prefix on demand.
+     *
+     * Boundary indexes intentionally retain only offsets, not a source copy
+     * for every matching opening. A deeply nested document has one match per
+     * line, so retaining each nested substring would turn a linear index into
+     * quadratic memory. Callers materialize only the boundary they consume.
+     *
+     * @param list<string> $lines
+     * @param (callable(string): string)|null $normalizeLine
+     */
+    public static function sourcePrefixInLines(
+        array $lines,
+        int $start,
+        int $end,
+        int $endOffset,
+        ?callable $normalizeLine = null
+    ): string {
+        $start = max(0, $start);
+        $end = min(count($lines) - 1, $end);
+        if ($start > $end) {
+            return '';
+        }
+
+        $parts = [];
+        for ($index = $start; $index <= $end; $index++) {
+            $parts[] = $normalizeLine === null ? $lines[$index] : $normalizeLine($lines[$index]);
+        }
+
+        return substr(implode("\n", $parts), 0, max(0, $endOffset) + 1);
+    }
+
+    /**
      * Build a one-pass index of matched source elements, keyed by the line
      * containing each opening tag. At most one boundary is retained per line:
      * the first opening there, which is the only one a line-oriented Markdown
-     * reader can begin from.
+     * reader can begin from. Source is materialized on demand rather than
+     * retained once per match, preserving linear memory for nested elements.
      *
      * @param list<string> $lines
      * @param (callable(string): string)|null $normalizeLine
      * @return array<int, array{
-     *     source:string,
      *     end:int,
      *     tail:string,
      *     bounds:array{openStart:int,openEnd:int,closeStart:int,closeEnd:int}
@@ -257,7 +289,6 @@ final class HtmlSourceScanner
             ];
             $closeColumn = $bounds['closeEnd'] - $closeLineStart;
             $results[$absoluteLine] = [
-                'source' => substr($source, $openLineStart, $bounds['closeEnd'] - $openLineStart + 1),
                 'end' => $start + $closeLine,
                 'tail' => substr($normalized[$closeLine], $closeColumn + 1),
                 'bounds' => $relativeBounds,

@@ -72,11 +72,28 @@ return [
 
     'resolves inline presentation hints by CSS cascade rather than last text match' => static function (TestRunner $t): void {
         $validAlignment = static fn (string $value): bool => preg_match('/^(?:left|right|center)\s*$/i', $value) === 1;
+        $validWidth = static fn (string $value): bool => preg_match('/^[0-9]+(?:\.[0-9]+)?\s*%\s*$/', $value) === 1;
+        $isAutoWidth = static fn (string $value): bool => strcasecmp(trim($value), 'auto') === 0;
         $invalidLater = (new HtmlReader())->read(
             '<table><tr><td style="text-align:left; text-align:bogus">x</td></tr></table>'
         );
         $importantEarlier = (new HtmlReader())->read(
             '<table><tr><td style="text-align:left !important; text-align:right">x</td></tr></table>'
+        );
+        $initialLater = (new HtmlReader())->read(
+            '<table><tr><td style="text-align:right; text-align:initial">x</td></tr></table>'
+        );
+        $normalInitialAfterImportant = (new HtmlReader())->read(
+            '<table><tr><td style="text-align:right !important; text-align:initial">x</td></tr></table>'
+        );
+        $importantInitial = (new HtmlReader())->read(
+            '<table><tr><td style="text-align:right; text-align:initial !important">x</td></tr></table>'
+        );
+        $autoWidth = (new HtmlReader())->read(
+            '<table><col style="width:50%; width:auto !important"><tr><td>x</td></tr></table>'
+        );
+        $normalAutoAfterImportantWidth = (new HtmlReader())->read(
+            '<table><col style="width:50% !important; width:auto"><tr><td>x</td></tr></table>'
         );
         $list = (new HtmlReader())->read(
             '<ol style="list-style-type:decimal; list-style-type:upper-roman"><li>x</li></ol>'
@@ -87,10 +104,30 @@ return [
 
         $t->same('left', CssDeclarationScanner::lastValidValue('text-align:left; text-align:bogus', 'text-align', $validAlignment));
         $t->same('left', CssDeclarationScanner::lastValidValue('text-align:left !important; text-align:right', 'text-align', $validAlignment));
+        $t->same(null, CssDeclarationScanner::lastValidValue('text-align:right; text-align:initial', 'text-align', $validAlignment));
+        $t->same('right', CssDeclarationScanner::lastValidValue('text-align:right !important; text-align:initial', 'text-align', $validAlignment));
+        $t->same(null, CssDeclarationScanner::lastValidValue('text-align:right; text-align:initial !important', 'text-align', $validAlignment));
+        $t->same(null, CssDeclarationScanner::lastValidValue('width:50%; width:auto', 'width', $validWidth, $isAutoWidth));
+        $t->same('50%', CssDeclarationScanner::lastValidValue('width:50% !important; width:auto', 'width', $validWidth, $isAutoWidth));
+        $t->same(null, CssDeclarationScanner::lastValidValue('width:50%; width:auto !important', 'width', $validWidth, $isAutoWidth));
         $t->same('left', $invalidLater->children[0]->children[1]->children[0]->children[0]->attr('align', 'default'));
         $t->same('left', $importantEarlier->children[0]->children[1]->children[0]->children[0]->attr('align', 'default'));
+        $t->same('default', $initialLater->children[0]->children[1]->children[0]->children[0]->attr('align', 'default'));
+        $t->same('right', $normalInitialAfterImportant->children[0]->children[1]->children[0]->children[0]->attr('align', 'default'));
+        $t->same('default', $importantInitial->children[0]->children[1]->children[0]->children[0]->attr('align', 'default'));
+        $t->same([1], $autoWidth->children[0]->attr('widths'));
+        $t->same([0.5], $normalAutoAfterImportantWidth->children[0]->attr('widths'));
         $t->same('upper_roman', $list->children[0]->attr('style'));
         $t->same('decimal', $listWithInvalidLaterValue->children[0]->attr('style'));
+    },
+
+    'handles a large non-important CSS value without repeatedly rescanning its suffix' => static function (TestRunner $t): void {
+        $bangCount = 1_000_000;
+        $declarations = CssDeclarationScanner::declarations('width:' . str_repeat('!', $bangCount));
+
+        $t->same(1, count($declarations));
+        $t->same($bangCount, strlen($declarations[0]['value']));
+        $t->same(false, $declarations[0]['important']);
     },
 
     'preserves standalone doctypes and source after same-line HTML block closes' => static function (TestRunner $t): void {
@@ -170,5 +207,24 @@ return [
 
         $t->same("<div>\nhello\n</div>", $referenceBefore);
         $t->same("<div>\na\n</div>\n<div>\nb\n</div>", $referenceBetween);
+    },
+
+    'normalizes full-document doctypes through declaration-aware boundaries' => static function (TestRunner $t): void {
+        $reader = new MarkdownReader();
+        $writer = new HtmlWriter();
+        $sources = [
+            "<!DOCTYPE html [<!-- ]> -->]>\n<html><body><p>comment subset</p></body></html>",
+            "<!DOCTYPE html [<!ENTITY sample \"]>\">]>\n<html><body><p>quoted subset</p></body></html>",
+        ];
+
+        foreach ($sources as $source) {
+            $html = $writer->write($reader->readHtml($source));
+
+            $t->true(!str_contains($html, '--&gt;]&gt;'));
+            $t->true(!str_contains($html, '&quot;]&gt;'));
+        }
+
+        $t->same('<p>comment subset</p>', $writer->write($reader->readHtml($sources[0])));
+        $t->same('<p>quoted subset</p>', $writer->write($reader->readHtml($sources[1])));
     },
 ];

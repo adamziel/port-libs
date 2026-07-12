@@ -156,7 +156,7 @@ final class MarkdownReader
     /** @var array{replaceIndex:int, tail:string}|null */
     private ?array $pendingCollectedHtmlTail = null;
 
-    /** @var array<string, array<int, array{source:string,end:int,tail:string,bounds:array{openStart:int,openEnd:int,closeStart:int,closeEnd:int}}>> */
+    /** @var array<string, array<int, array{end:int,tail:string,bounds:array{openStart:int,openEnd:int,closeStart:int,closeEnd:int}}>> */
     private array $htmlElementBoundaryCache = [];
 
     private bool $htmlElementBoundaryCacheActive = false;
@@ -3521,6 +3521,11 @@ final class MarkdownReader
                 if ($iterative instanceof AstNode) {
                     return $iterative;
                 }
+
+                $iterative = $this->buildClosedDivBlockWithPrefixedChain($html, $bounds, $attrs);
+                if ($iterative instanceof AstNode) {
+                    return $iterative;
+                }
             }
 
             return $this->buildDivBlock($content, $closedOnOpeningLine, $lineBlock, $attrs);
@@ -3993,6 +3998,162 @@ final class MarkdownReader
         }
 
         return $children[0];
+    }
+
+    /**
+     * Collapse a nested div chain whose parent has isolated Markdown blocks
+     * before its sole child div. The whitespace-only chain above is common in
+     * generated HTML, while imported documents also commonly put a paragraph
+     * before the nested container:
+     *
+     * <div>
+     * prefix
+     *
+     * <div>...</div>
+     * </div>
+     *
+     * Calling read() on every shrinking parent source is quadratic. Each
+     * prefix below is isolated by a blank line and is parsed once, then the
+     * div wrappers are assembled from the inside out. Delimiters capable of
+     * carrying reader-wide definitions are deliberately left on the legacy
+     * path, where one nested read can still see the complete local source.
+     *
+     * @param array{openStart:int,openEnd:int,closeStart:int,closeEnd:int} $outerBounds
+     * @param array<string, mixed> $attrs
+     */
+    private function buildClosedDivBlockWithPrefixedChain(
+        string $html,
+        array $outerBounds,
+        array $attrs
+    ): ?AstNode {
+        $matches = HtmlSourceScanner::matchingElementBoundsAll($html, 'div');
+        $wrappers = [$attrs];
+        $prefixes = [];
+        $currentBounds = $outerBounds;
+        $nextMatch = 0;
+
+        while (true) {
+            while (
+                isset($matches[$nextMatch])
+                && $matches[$nextMatch]['openStart'] <= $currentBounds['openEnd']
+            ) {
+                $nextMatch++;
+            }
+            $candidate = $matches[$nextMatch] ?? null;
+            if (
+                !is_array($candidate)
+                || $candidate['closeEnd'] >= $currentBounds['closeStart']
+            ) {
+                break;
+            }
+
+            $prefixStart = $currentBounds['openEnd'] + 1;
+            $prefix = substr($html, $prefixStart, $candidate['openStart'] - $prefixStart);
+            if (
+                !$this->htmlDivChainPrefixEndsAtBlockBoundary($prefix)
+                || !$this->htmlDivChainPrefixCanBeParsedIndependently($prefix)
+                || !$this->htmlDivChainOpeningIsStandalone($html, $candidate)
+                || !$this->htmlSourceRangeIsWhitespace(
+                    $html,
+                    $candidate['closeEnd'] + 1,
+                    $currentBounds['closeStart']
+                )
+            ) {
+                break;
+            }
+
+            $openingSource = substr(
+                $html,
+                $candidate['openStart'],
+                $candidate['openEnd'] - $candidate['openStart'] + 1
+            );
+            $opening = Html5Dom::markdownRawHtmlOpeningTagBoundary($openingSource);
+            if (
+                $opening === null
+                || $opening['name'] !== 'div'
+                || $opening['selfClosing']
+                || (stripos($openingSource, 'class') !== false && $this->isHtmlLineBlockOpeningTag($openingSource))
+            ) {
+                break;
+            }
+
+            $prefixes[] = $prefix;
+            $wrappers[] = $this->htmlNativeDivsEnabled()
+                ? $this->htmlAttrsFromOpeningTag($opening['source'], 'div')
+                : [];
+            $currentBounds = $candidate;
+            $nextMatch++;
+        }
+
+        if (count($wrappers) === 1) {
+            return null;
+        }
+
+        $leafSource = substr(
+            $html,
+            $currentBounds['openEnd'] + 1,
+            $currentBounds['closeStart'] - $currentBounds['openEnd'] - 1
+        );
+        $node = $this->buildDivBlock(
+            explode("\n", $leafSource),
+            false,
+            false,
+            $wrappers[array_key_last($wrappers)]
+        );
+        for ($parent = count($prefixes) - 1; $parent >= 0; $parent--) {
+            $prefixSource = implode(
+                "\n",
+                $this->trimmedDivContentLines(explode("\n", $prefixes[$parent]))
+            );
+            $prefixBlocks = $this->read($prefixSource)->children;
+            $node = new AstNode('div', $wrappers[$parent], array_merge($prefixBlocks, [$node]));
+        }
+
+        return $node;
+    }
+
+    private function htmlDivChainPrefixEndsAtBlockBoundary(string $prefix): bool
+    {
+        return preg_match('/(?:^|\n)[ \t]*\n[ \t]*$/D', $prefix) === 1;
+    }
+
+    private function htmlDivChainPrefixCanBeParsedIndependently(string $prefix): bool
+    {
+        // Link, note, abbreviation, raw-TeX, and numbered-example definitions
+        // (including implicit heading references) may be consumed by a later
+        // child. Retain the complete-source reader path whenever any of those
+        // cross-segment grammars can be present.
+        if (
+            strpbrk($prefix, '[\\<`#') !== false
+            || str_contains($prefix, '(@')
+        ) {
+            return false;
+        }
+
+        return preg_match('/(?:^|\n) {0,3}(?:=+|-+)[ \t]*(?:\n|$)/', $prefix) !== 1;
+    }
+
+    /**
+     * @param array{openStart:int,openEnd:int,closeStart:int,closeEnd:int} $bounds
+     */
+    private function htmlDivChainOpeningIsStandalone(string $html, array $bounds): bool
+    {
+        $before = substr($html, 0, $bounds['openStart']);
+        $lineStart = strrpos($before, "\n");
+        $lineStart = $lineStart === false ? 0 : $lineStart + 1;
+        $lineEnd = strpos($html, "\n", $bounds['openStart']);
+        $lineEnd = $lineEnd === false ? strlen($html) : $lineEnd;
+        $line = substr($html, $lineStart, $lineEnd - $lineStart);
+        $opening = Html5Dom::markdownRawHtmlOpeningTagBoundary($line);
+        if ($opening === null || $opening['name'] !== 'div' || $opening['selfClosing']) {
+            return false;
+        }
+
+        $openingOffset = strpos($line, '<');
+
+        return $openingOffset !== false
+            && $lineStart + $openingOffset === $bounds['openStart']
+            && trim(substr($line, $opening['next'])) === '';
     }
 
     private function htmlSourceRangeIsWhitespace(string $source, int $start, int $end): bool
@@ -5280,16 +5441,8 @@ final class MarkdownReader
             return null;
         }
 
-        $declarationEnd = strpos($html, '>', $offset + 9);
-        $subsetStart = strpos($html, '[', $offset + 9);
-        if ($subsetStart !== false && ($declarationEnd === false || $subsetStart < $declarationEnd)) {
-            $subsetEnd = strpos($html, ']>', $subsetStart + 1);
-            if ($subsetEnd === false) {
-                return null;
-            }
-            $declarationEnd = $subsetEnd + 1;
-        }
-        if ($declarationEnd === false) {
+        $declarationEnd = HtmlSourceScanner::declarationEndOffset($html, $offset);
+        if ($declarationEnd === null) {
             return null;
         }
 
@@ -8354,8 +8507,16 @@ final class MarkdownReader
             }
         }
 
+        $source = HtmlSourceScanner::sourcePrefixInLines(
+            $lines,
+            $index,
+            $collected['end'],
+            $collected['bounds']['closeEnd'],
+            fn (string $line): string => $this->normalizeRawHtmlLine($line)
+        );
+
         return [
-            $collected['source'],
+            $source,
             $collected['end'],
             $collected['bounds'],
             $collected['tail'],
@@ -8863,16 +9024,8 @@ final class MarkdownReader
             return $html;
         }
 
-        $declarationEnd = strpos($html, '>', $offset + 9);
-        $subsetStart = strpos($html, '[', $offset + 9);
-        if ($subsetStart !== false && ($declarationEnd === false || $subsetStart < $declarationEnd)) {
-            $subsetEnd = strpos($html, ']>', $subsetStart + 1);
-            if ($subsetEnd === false) {
-                return $html;
-            }
-            $declarationEnd = $subsetEnd + 1;
-        }
-        if ($declarationEnd === false) {
+        $declarationEnd = HtmlSourceScanner::declarationEndOffset($html, $offset);
+        if ($declarationEnd === null) {
             return $html;
         }
 
@@ -9746,7 +9899,8 @@ final class MarkdownReader
         $width = CssDeclarationScanner::lastValidValue(
             $col->getAttribute('style'),
             'width',
-            static fn (string $value): bool => preg_match('/^[0-9]+(?:\.[0-9]+)?\s*%\s*$/', $value) === 1
+            static fn (string $value): bool => preg_match('/^[0-9]+(?:\.[0-9]+)?\s*%\s*$/', $value) === 1,
+            static fn (string $value): bool => strcasecmp(trim($value), 'auto') === 0
         );
         if ($width !== null && preg_match('/^([0-9]+(?:\.[0-9]+)?)\s*%/', $width, $m) === 1) {
             return (float) $m[1] / 100;

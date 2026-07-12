@@ -93,6 +93,18 @@ BIB;
         $t->same('X \\\\{{Y}} Z', $item['rawBibtex']['fields']['title']);
         $t->same('X \\Y Z', $item['title']);
     },
+    'keeps macro-produced backslashes separate from source brace escaping' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@article{macro-backslash-braces,
+  title = {\textbackslash{X} and \textbackslash\{Y and \textbackslash\}Z},
+  year = {2024}
+}
+BIB;
+
+        $item = BibtexCslParser::parse($source)[0];
+
+        $t->same('\\X and \\{Y and \\}Z', $item['title']);
+    },
     'does not confuse escaped-brace protection with literal private-use text' => static function (TestRunner $t): void {
         $privateUse = "\u{E001}";
         $source = "@article{private-use, title = {" . $privateUse . " literal and \\{ opener}, year = {2024}}";

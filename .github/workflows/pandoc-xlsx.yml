@@ -46,6 +46,7 @@ jobs:
           php -l lanes/pandoc/src/NativeReader.php
           php -l lanes/pandoc/src/NativeWriter.php
           php -l lanes/pandoc/src/OpcContentTypes.php
+          php -l lanes/pandoc/src/OpcRelationshipInventory.php
           php -l lanes/pandoc/src/OpcMarkupCompatibility.php
           php -l lanes/pandoc/src/OpcPackagePath.php
           php -l lanes/pandoc/src/OpcRelationship.php
