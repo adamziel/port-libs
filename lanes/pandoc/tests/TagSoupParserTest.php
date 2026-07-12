@@ -128,6 +128,26 @@ return [
         $t->same('token-1025', $chunked->tokenAt(1025)?->text);
     },
 
+    'compact token stream preserves wide name and attribute encodings' => static function (TestRunner $t): void {
+        $stream = new TagSoupTokenStream();
+        for ($index = 0; $index < 255; ++$index) {
+            $stream->append(TagSoupTag::open('tag' . $index));
+        }
+        $shortValue = str_repeat('s', 255);
+        $wideValue = str_repeat('w', 65535);
+        $stream->append(TagSoupTag::open('root', [
+            ['name' => 'short', 'value' => $shortValue],
+            ['name' => 'wide', 'value' => $wideValue],
+        ]));
+        $stream->append(TagSoupTag::close('tag254'));
+
+        $t->same('tag254', $stream->nameAt(254));
+        $t->same('root', $stream->tokenAt(255)?->name);
+        $t->same($shortValue, $stream->attributeAt(255, 'short'));
+        $t->same($wideValue, $stream->tokenAt(255)?->attributes[1]['value'] ?? null);
+        $t->same('tag254', $stream->tokenAt(256)?->name);
+    },
+
     'renders tags with tagsoup-style escaping and br minimization' => static function (TestRunner $t): void {
         $renderer = new TagSoupRenderer();
 

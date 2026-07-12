@@ -20,6 +20,7 @@ final class PandocHtmlTagSoupReader
     private array $footnotes = [];
     /** @var list<string> */
     private array $containerIdStack = [];
+    private ?PandocHtmlAttributeMapPool $attributeMapPool = null;
 
     /**
      * @param array<string, mixed> $options
@@ -30,6 +31,7 @@ final class PandocHtmlTagSoupReader
 
     public function read(string $html): AstNode
     {
+        $this->attributeMapPool = new PandocHtmlAttributeMapPool();
         $parser = new TagSoupParser();
         $tokens = $parser->parseCanonicalStream($html);
         // The stream retains payloads rather than one object per token. It can
@@ -38,7 +40,7 @@ final class PandocHtmlTagSoupReader
         unset($parser);
         $this->htmlBaseHref = $this->firstBaseHref($tokens);
         $documentMeta = $this->documentMetadataFromTokens($tokens);
-        $this->footnotes = (new PandocHtmlTagSoupTableReader())->footnoteDefinitionsFromTokenStream($tokens);
+        $this->footnotes = (new PandocHtmlTagSoupTableReader($this->attributeMapPool))->footnoteDefinitionsFromTokenStream($tokens);
         $this->tokens = $tokens;
         [$this->index, $this->tokenEnd] = $this->firstMainElementRange($tokens);
         $this->releasedTokenIndex = $this->index;
@@ -51,6 +53,7 @@ final class PandocHtmlTagSoupReader
         $this->tokens = null;
         $this->tokenEnd = 0;
         $this->releasedTokenIndex = 0;
+        $this->attributeMapPool = null;
 
         return new AstNode('document', [
             'sourceFormat' => 'html',
@@ -304,7 +307,7 @@ final class PandocHtmlTagSoupReader
         if (in_array($name, ['table'], true)) {
             $tableEnd = $this->balancedTokenStreamEnd($this->index, 'table');
             $tableTokens = $this->tokenStream()->slice($this->index, $tableEnd - $this->index);
-            $result = (new PandocHtmlTagSoupTableReader())->parseTableAt($tableTokens, 0, $this->footnotes);
+            $result = (new PandocHtmlTagSoupTableReader($this->attributeMapPool()))->parseTableAt($tableTokens, 0, $this->footnotes);
             if (is_array($result)) {
                 $this->index += max(1, (int) $result['nextIndex']);
 
@@ -1229,25 +1232,25 @@ final class PandocHtmlTagSoupReader
         return (new TagSoupRenderer())->render($tokens);
     }
 
-    private function firstBaseHref(iterable $tokens): ?string
+    private function firstBaseHref(TagSoupTokenStream $tokens): ?string
     {
         $insideHead = false;
-        foreach ($tokens as $index => $token) {
-            if (!$token instanceof TagSoupTag) {
-                continue;
-            }
-            if ($token->type === TagSoupTag::OPEN && $token->name === 'head') {
+        $count = count($tokens);
+        for ($index = 0; $index < $count; ++$index) {
+            $type = $tokens->typeAt($index);
+            $name = $tokens->nameAt($index);
+            if ($type === TagSoupTag::OPEN && $name === 'head') {
                 $insideHead = true;
                 continue;
             }
-            if ($token->type === TagSoupTag::CLOSE && $token->name === 'head') {
+            if ($type === TagSoupTag::CLOSE && $name === 'head') {
                 return null;
             }
-            if ($token->type === TagSoupTag::OPEN && $token->name === 'body') {
+            if ($type === TagSoupTag::OPEN && $name === 'body') {
                 return null;
             }
-            if ($token->type === TagSoupTag::OPEN && $token->name === 'base' && ($insideHead || $index === 0)) {
-                $href = trim($this->attribute($token, 'href'));
+            if ($type === TagSoupTag::OPEN && $name === 'base' && ($insideHead || $index === 0)) {
+                $href = trim($tokens->attributeAt($index, 'href'));
                 return $href === '' ? null : $href;
             }
         }
@@ -1263,35 +1266,35 @@ final class PandocHtmlTagSoupReader
     /**
      * @return array<string, mixed>
      */
-    private function documentMetadataFromTokens(iterable $tokens): array
+    private function documentMetadataFromTokens(TagSoupTokenStream $tokens): array
     {
         $meta = [];
         $insideHead = false;
         $titleDepth = 0;
         $titleText = '';
 
-        foreach ($tokens as $token) {
-            if (!$token instanceof TagSoupTag) {
-                continue;
-            }
+        $count = count($tokens);
+        for ($index = 0; $index < $count; ++$index) {
+            $type = $tokens->typeAt($index);
+            $name = $tokens->nameAt($index);
 
-            if ($token->type === TagSoupTag::OPEN && ($token->name === 'html' || $token->name === 'body')) {
-                $lang = $this->tagLanguage($token);
+            if ($type === TagSoupTag::OPEN && ($name === 'html' || $name === 'body')) {
+                $lang = $this->tokenLanguage($tokens, $index);
                 if ($lang !== '') {
                     $meta['lang'] = $lang;
                 }
             }
 
             if ($insideHead && $titleDepth > 0) {
-                if ($token->type === TagSoupTag::TEXT) {
-                    $titleText .= $token->text;
+                if ($type === TagSoupTag::TEXT) {
+                    $titleText .= $tokens->textAt($index) ?? '';
                     continue;
                 }
-                if ($token->type === TagSoupTag::OPEN && $token->name === 'title') {
+                if ($type === TagSoupTag::OPEN && $name === 'title') {
                     ++$titleDepth;
                     continue;
                 }
-                if ($token->type === TagSoupTag::CLOSE && $token->name === 'title') {
+                if ($type === TagSoupTag::CLOSE && $name === 'title') {
                     --$titleDepth;
                     if ($titleDepth <= 0) {
                         $title = trim(preg_replace('/\s+/', ' ', $titleText) ?? $titleText);
@@ -1304,28 +1307,28 @@ final class PandocHtmlTagSoupReader
                 }
             }
 
-            if ($token->type === TagSoupTag::OPEN && $token->name === 'head') {
+            if ($type === TagSoupTag::OPEN && $name === 'head') {
                 $insideHead = true;
                 continue;
             }
-            if ($token->type === TagSoupTag::CLOSE && $token->name === 'head') {
+            if ($type === TagSoupTag::CLOSE && $name === 'head') {
                 $insideHead = false;
                 continue;
             }
-            if (!$insideHead || $token->type !== TagSoupTag::OPEN) {
+            if (!$insideHead || $type !== TagSoupTag::OPEN) {
                 continue;
             }
 
-            if ($token->name === 'title') {
+            if ($name === 'title') {
                 $titleDepth = 1;
                 $titleText = '';
                 continue;
             }
 
-            if ($token->name === 'meta') {
-                $name = $this->attribute($token, 'name');
-                if ($name !== '') {
-                    $this->appendDocumentMetadataField($meta, $name, $this->attribute($token, 'content'));
+            if ($name === 'meta') {
+                $metaName = $tokens->attributeAt($index, 'name');
+                if ($metaName !== '') {
+                    $this->appendDocumentMetadataField($meta, $metaName, $tokens->attributeAt($index, 'content'));
                 }
             }
         }
@@ -1341,6 +1344,16 @@ final class PandocHtmlTagSoupReader
         }
 
         return $this->attribute($token, 'xml:lang');
+    }
+
+    private function tokenLanguage(TagSoupTokenStream $tokens, int $index): string
+    {
+        $lang = $tokens->attributeAt($index, 'lang');
+        if ($lang !== '') {
+            return $lang;
+        }
+
+        return $tokens->attributeAt($index, 'xml:lang');
     }
 
     /**
@@ -1382,17 +1395,19 @@ final class PandocHtmlTagSoupReader
      */
     private function firstMainElementRange(TagSoupTokenStream $tokens): array
     {
-        foreach ($tokens as $index => $token) {
-            if ($token instanceof TagSoupTag && $token->type === TagSoupTag::OPEN && $token->name === 'main') {
+        $count = count($tokens);
+        for ($index = 0; $index < $count; ++$index) {
+            if ($tokens->typeAt($index) === TagSoupTag::OPEN && $tokens->nameAt($index) === 'main') {
+                $token = $tokens->tokenAt($index);
                 if ($this->isTitlepageElement($token)) {
                     continue;
                 }
 
-                return [$index, $this->tokenStreamElementEnd($tokens, $index, 'main', count($tokens))];
+                return [$index, $this->tokenStreamElementEnd($tokens, $index, 'main', $count)];
             }
         }
 
-        return [0, count($tokens)];
+        return [0, $count];
     }
 
     private function tokenStream(): TagSoupTokenStream
@@ -1413,13 +1428,10 @@ final class PandocHtmlTagSoupReader
     {
         $depth = 0;
         for ($index = $start; $index < $limit; ++$index) {
-            $token = $tokens->tokenAt($index);
-            if (!$token instanceof TagSoupTag) {
-                continue;
-            }
-            if ($token->type === TagSoupTag::OPEN && $token->name === $name) {
+            $type = $tokens->typeAt($index);
+            if ($type === TagSoupTag::OPEN && $tokens->nameAt($index) === $name) {
                 ++$depth;
-            } elseif ($token->type === TagSoupTag::CLOSE && $token->name === $name) {
+            } elseif ($type === TagSoupTag::CLOSE && $tokens->nameAt($index) === $name) {
                 --$depth;
                 if ($depth <= 0) {
                     return $index + 1;
@@ -1856,18 +1868,15 @@ final class PandocHtmlTagSoupReader
     {
         $stream = $this->tokenStream();
         for ($index = $this->index + 1; $index < $this->tokenEnd; ++$index) {
-            $token = $stream->tokenAt($index);
-            if (!$token instanceof TagSoupTag) {
+            $type = $stream->typeAt($index);
+            if ($type === TagSoupTag::TEXT && trim($stream->textAt($index) ?? '') === '') {
                 continue;
             }
-            if ($token->type === TagSoupTag::TEXT && trim($token->text) === '') {
-                continue;
-            }
-            if (in_array($token->type, [TagSoupTag::POSITION, TagSoupTag::WARNING, TagSoupTag::COMMENT], true)) {
+            if (in_array($type, [TagSoupTag::POSITION, TagSoupTag::WARNING, TagSoupTag::COMMENT], true)) {
                 continue;
             }
 
-            return $token->type !== TagSoupTag::CLOSE;
+            return $type !== TagSoupTag::CLOSE;
         }
 
         return false;
@@ -1922,22 +1931,20 @@ final class PandocHtmlTagSoupReader
         $depth = 0;
         $stream = $this->tokenStream();
         for ($index = $this->index; $index < $this->tokenEnd; ++$index) {
-            $token = $stream->tokenAt($index);
-            if (!$token instanceof TagSoupTag) {
-                continue;
-            }
-            if ($token->type === TagSoupTag::OPEN && $token->name === $name) {
+            $type = $stream->typeAt($index);
+            $tokenName = $stream->nameAt($index);
+            if ($type === TagSoupTag::OPEN && $tokenName === $name) {
                 ++$depth;
                 continue;
             }
-            if ($token->type === TagSoupTag::CLOSE && $token->name === $name) {
+            if ($type === TagSoupTag::CLOSE && $tokenName === $name) {
                 --$depth;
                 if ($depth <= 0) {
                     return false;
                 }
                 continue;
             }
-            if ($depth === 1 && $token->type === TagSoupTag::OPEN && $this->isBlockElement($token->name)) {
+            if ($depth === 1 && $type === TagSoupTag::OPEN && $this->isBlockElement($tokenName ?? '')) {
                 return true;
             }
         }
@@ -1950,22 +1957,20 @@ final class PandocHtmlTagSoupReader
         $depth = 0;
         $stream = $this->tokenStream();
         for ($index = $this->index; $index < $this->tokenEnd; ++$index) {
-            $token = $stream->tokenAt($index);
-            if (!$token instanceof TagSoupTag) {
-                continue;
-            }
-            if ($token->type === TagSoupTag::OPEN && $token->name === $name) {
+            $type = $stream->typeAt($index);
+            $tokenName = $stream->nameAt($index);
+            if ($type === TagSoupTag::OPEN && $tokenName === $name) {
                 ++$depth;
                 continue;
             }
-            if ($token->type === TagSoupTag::CLOSE && $token->name === $name) {
+            if ($type === TagSoupTag::CLOSE && $tokenName === $name) {
                 --$depth;
                 if ($depth <= 0) {
                     return false;
                 }
                 continue;
             }
-            if ($depth > 0 && $token->type === TagSoupTag::OPEN && $token->name === $target) {
+            if ($depth > 0 && $type === TagSoupTag::OPEN && $tokenName === $target) {
                 return true;
             }
         }
@@ -2164,16 +2169,21 @@ final class PandocHtmlTagSoupReader
             $attrs['id'] = $id;
         }
         if ($classes !== []) {
-            $attrs['classes'] = $classes;
+            $attrs['classes'] = $this->attributeMapPool()->intern($classes);
         }
         if ($attributes !== []) {
-            $attrs['attributes'] = $attributes;
+            $attrs['attributes'] = $this->attributeMapPool()->intern($attributes);
         }
         if ($htmlAttributes !== []) {
-            $attrs['htmlAttributes'] = $htmlAttributes;
+            $attrs['htmlAttributes'] = $this->attributeMapPool()->intern($htmlAttributes);
         }
 
         return $attrs;
+    }
+
+    private function attributeMapPool(): PandocHtmlAttributeMapPool
+    {
+        return $this->attributeMapPool ??= new PandocHtmlAttributeMapPool();
     }
 
     private function isBlockElement(string $name): bool
