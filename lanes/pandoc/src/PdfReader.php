@@ -17940,7 +17940,7 @@ final class PdfReader
         }
 
         try {
-            return (new PdfMetadataExtractor())->extractStructuralMetadata($pdfBytes);
+            return (new PdfMetadataExtractor())->extractReaderStructuralMetadata($pdfBytes);
         } catch (\Throwable) {
             // Structural provenance is optional. Do not fall back to scanning
             // arbitrary PDF bytes when the parser cannot establish it.

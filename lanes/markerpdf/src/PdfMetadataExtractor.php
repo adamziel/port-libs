@@ -115,6 +115,15 @@ final class PdfMetadataExtractor
     // Page trees are untrusted object graphs. A generous cap covers ordinary
     // documents while keeping malformed or intentionally huge graphs bounded.
     private const MAX_PAGE_TREE_OBJECTS = 100_000;
+    // PdfReader needs only a conservative preflight before it chooses its
+    // import mode. Keep that hot path separate from the xref-rebuilding
+    // review parser and cap both source bytes and direct objects it retains.
+    private const MAX_READER_STRUCTURAL_SCAN_BYTES = 5_000_000;
+    private const MAX_READER_STRUCTURAL_OBJECTS = 100_000;
+    // A filtered stream without /Length is delimited lexically. Cap the
+    // number of plausible delimiters inspected while avoiding decompression
+    // before PdfReader has selected its fast mode.
+    private const MAX_FILTERED_DIRECT_STREAM_BOUNDARY_CANDIDATES = 64;
 
     private const NS_DC = 'http://purl.org/dc/elements/1.1/';
     private const NS_PDF = 'http://ns.adobe.com/pdf/1.3/';
@@ -280,6 +289,67 @@ final class PdfMetadataExtractor
     }
 
     /**
+     * Return bounded, conservative structural facts for PdfReader mode
+     * selection. This intentionally avoids current-xref reconstruction: that
+     * review work is disproportionate on otherwise ordinary PDFs and is not
+     * needed before the reader decides whether to take its bounded fast path.
+     *
+     * Direct objects are scanned lexically, with comments, strings,
+     * dictionaries, arrays, and length-delimited streams skipped as syntax.
+     * Page counts can therefore overestimate stale/orphan direct pages, but
+     * never promote raw stream payload into a page. An incomplete scan or an
+     * object-stream package is marked limited so a caller with a page budget
+     * can conservatively choose fast mode.
+     *
+     * @return array{object_count: int, stream_count: int, page_count: int, page_count_limited?: bool, encryption?: array{is_encrypted: true}}
+     */
+    public function extractReaderStructuralMetadata(string $pdfBytes): array
+    {
+        $scan = $this->readerStructuralSourceScan($pdfBytes);
+        $definitions = $scan['definitions'];
+        $objects = $this->latestDirectObjects($definitions);
+
+        $metadata = [
+            'object_count' => count($objects),
+            'stream_count' => 0,
+            'page_count' => 0,
+        ];
+        $hasObjectStreams = false;
+        foreach ($objects as $objectBody) {
+            if ($this->streamObjectHasCompleteStream($objectBody, $objects)) {
+                $metadata['stream_count']++;
+            }
+
+            $dictionary = $this->dictionaryObjectBody($objectBody);
+            if ($dictionary === null) {
+                continue;
+            }
+
+            $type = $this->dictionaryNameValue($dictionary, 'Type', []);
+            if ($type === 'Page') {
+                $metadata['page_count']++;
+            }
+            if ($type === 'ObjStm') {
+                $hasObjectStreams = true;
+            }
+        }
+
+        if ($scan['source_limited'] || $scan['limited'] || $hasObjectStreams) {
+            $metadata['page_count_limited'] = true;
+        }
+
+        $encryption = $this->readerStructuralEncryptionState(
+            $scan['lastTrailer'],
+            $this->readerStructuralLatestXrefDictionary($definitions)
+        );
+        if ($encryption === true) {
+            $metadata['encryption'] = ['is_encrypted' => true];
+        }
+
+        return $metadata;
+    }
+
+    /**
      * Return the small metadata surface used by PDF importers. Unlike the
      * full review API this avoids catalog, attachment, and output-profile
      * traversal; root XMP decoding is explicitly bounded.
@@ -288,23 +358,54 @@ final class PdfMetadataExtractor
      */
     public function extractReaderMetadata(string $pdfBytes): array
     {
-        $pdfBytes = $this->bytesThroughCurrentEof($pdfBytes);
-        $objects = $this->pdfObjects($pdfBytes);
-        $encryption = $this->extractEncryptionMetadata($pdfBytes, $objects);
-        $metadataSourcePolicy = $this->encryptedMetadataSourcePolicy($pdfBytes, $objects, $encryption);
-        if ($metadataSourcePolicy !== []) {
-            $encryption['metadata_source_policy'] = $metadataSourcePolicy;
+        $scan = $this->readerStructuralSourceScan($pdfBytes);
+        $definitions = $scan['definitions'];
+        $objects = $this->latestDirectObjects($definitions);
+        $summary = [
+            'object_count' => count($objects),
+            'stream_count' => 0,
+            'page_count' => 0,
+        ];
+        $hasObjectStreams = false;
+        foreach ($objects as $objectBody) {
+            if ($this->streamObjectHasCompleteStream($objectBody, $objects)) {
+                $summary['stream_count']++;
+            }
+
+            $dictionary = $this->dictionaryObjectBody($objectBody);
+            if ($dictionary === null) {
+                continue;
+            }
+
+            $type = $this->dictionaryNameValue($dictionary, 'Type', []);
+            if ($type === 'Page') {
+                $summary['page_count']++;
+            }
+            if ($type === 'ObjStm') {
+                $hasObjectStreams = true;
+            }
+        }
+        $metadataLimited = $scan['source_limited'] || $scan['limited'] || $hasObjectStreams;
+        if ($metadataLimited) {
+            $summary['page_count_limited'] = true;
         }
 
-        $xmp = $this->shouldReadXmpMetadata($metadataSourcePolicy)
-            ? $this->extractXmpMetadata($pdfBytes, $objects)
-            : [];
-        $info = $this->shouldReadInfoMetadata($metadataSourcePolicy)
-            ? $this->extractInfoMetadata($pdfBytes, $objects)
-            : [];
+        $xrefDictionary = $this->readerStructuralLatestXrefDictionary($definitions);
+        $encryption = $this->readerDirectEncryptionMetadata($scan['lastTrailer'], $xrefDictionary, $objects);
+        $xmp = [];
+        $info = [];
+        if (!$metadataLimited && $this->readerDirectMetadataReferencesAreUnambiguous($scan, $definitions)) {
+            $catalog = $this->readerDirectCatalogObjectBody($scan['lastTrailer'], $xrefDictionary, $objects);
+            if ($catalog !== null && ($encryption === [] || ($encryption['encrypt_metadata'] ?? true) === false)) {
+                $xmp = $this->extractReaderXmpMetadataFromCatalog($catalog, $objects);
+            }
+            if ($encryption === []) {
+                $info = $this->extractReaderInfoMetadataFromTrailer($scan['lastTrailer'], $xrefDictionary, $objects);
+            }
+        }
         $metadata = $this->mergedMetadata($xmp, $info, [], [], [], $encryption);
 
-        foreach ($this->documentStructureSummary($pdfBytes, $objects) as $key => $value) {
+        foreach ($summary as $key => $value) {
             $metadata[$key] = $value;
         }
 
@@ -19609,6 +19710,366 @@ final class PdfMetadataExtractor
     }
 
     /**
+     * @return array{
+     *     definitions: array<int, list<array{generation: int, offset: int, bodyStart: int, bodyEnd: int, body: string}>>,
+     *     lastTrailer: ?string,
+     *     limited: bool,
+     *     trailer_count: int,
+     *     source_limited: bool
+     * }
+     */
+    private function readerStructuralSourceScan(string $pdfBytes): array
+    {
+        $sourceLimited = strlen($pdfBytes) > self::MAX_READER_STRUCTURAL_SCAN_BYTES;
+        $scanBytes = $sourceLimited
+            ? substr($pdfBytes, 0, self::MAX_READER_STRUCTURAL_SCAN_BYTES)
+            : $pdfBytes;
+        $scan = $this->readerStructuralDirectScan($scanBytes, self::MAX_READER_STRUCTURAL_OBJECTS);
+        $scan['source_limited'] = $sourceLimited;
+
+        return $scan;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function readerDirectCatalogObjectBody(?string $trailer, ?string $xrefDictionary, array $objects): ?string
+    {
+        foreach ([$trailer, $xrefDictionary] as $dictionary) {
+            if ($dictionary === null) {
+                continue;
+            }
+
+            $rootValue = $this->dictionaryTopLevelRawValue($dictionary, 'Root');
+            if ($rootValue === null) {
+                continue;
+            }
+
+            $catalog = $this->objectBodyFromReferenceValue($rootValue, $objects);
+            $catalogDictionary = $catalog === null ? null : $this->dictionaryObjectBody($catalog);
+            if ($catalogDictionary !== null && $this->dictionaryNameValue($catalogDictionary, 'Type', []) === 'Catalog') {
+                return $catalog;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Reader metadata must not promote an Info or Catalog object from a stale
+     * incremental revision. The full review extractor resolves xref chains;
+     * this bounded path instead declines ambiguous direct revisions.
+     *
+     * @param array{trailer_count: int} $scan
+     * @param array<int, list<array{generation: int, offset: int, bodyStart: int, bodyEnd: int, body: string}>> $definitions
+     */
+    private function readerDirectMetadataReferencesAreUnambiguous(array $scan, array $definitions): bool
+    {
+        if (($scan['trailer_count'] ?? 0) > 1) {
+            return false;
+        }
+
+        foreach ($definitions as $entries) {
+            if (count($entries) > 1) {
+                return false;
+            }
+        }
+
+        $xrefCount = 0;
+        foreach ($definitions as $entries) {
+            foreach ($entries as $entry) {
+                $dictionary = $this->dictionaryObjectBody($entry['body']);
+                if ($dictionary !== null && $this->dictionaryNameValue($dictionary, 'Type', []) === 'XRef') {
+                    ++$xrefCount;
+                    if ($xrefCount > 1) {
+                        return false;
+                    }
+                }
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, mixed>
+     */
+    private function extractReaderXmpMetadataFromCatalog(string $catalog, array $objects): array
+    {
+        $metadataValues = $this->dictionaryTopLevelRawValues($catalog, 'Metadata');
+        if (count($metadataValues) !== 1 || $this->catalogMetadataMalformedOperandReview($catalog) !== []) {
+            return [];
+        }
+
+        $value = $metadataValues[0];
+        if ($value === null || $this->objectReferenceFromValue($value) === null) {
+            return [];
+        }
+
+        $objectBody = $this->objectBodyFromReferenceValue($value, $objects);
+        if ($objectBody === null) {
+            return [];
+        }
+
+        $dictionary = $this->dictionaryObjectBody($objectBody);
+        if ($dictionary !== null) {
+            if (
+                $this->metadataStreamFilterOperandBoundaryReview($dictionary, $objects) !== []
+                || $this->metadataStreamDecodeParmsOperandBoundaryReview($dictionary, $objects) !== []
+                || $this->metadataStreamLengthOperandBoundaryReview($dictionary, $objects) !== []
+                || $this->metadataStreamCcittFaxFilterBoundaryReview($dictionary, $objects) !== []
+            ) {
+                return [];
+            }
+        }
+
+        $stream = $this->decodeBoundedXmpStreamEntryObject($objectBody, $objects);
+        if (
+            $stream === null
+            || !$this->metadataStreamObjectConsumesSingleStreamToken(
+                $objectBody,
+                $objects,
+                self::MAX_XMP_METADATA_DECODED_BYTES
+            )
+            || !$this->isDocumentXmpMetadataStream($stream['dictionary'], $objects)
+        ) {
+            return [];
+        }
+
+        return $this->parseXmpPacket($stream['content']);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, string>
+     */
+    private function extractReaderInfoMetadataFromTrailer(?string $trailer, ?string $xrefDictionary, array $objects): array
+    {
+        foreach ([$trailer, $xrefDictionary] as $dictionary) {
+            if ($dictionary === null) {
+                continue;
+            }
+
+            $infoDictionary = $this->resolveDictionaryFromValue(
+                $this->dictionaryTopLevelRawValue($dictionary, 'Info'),
+                $objects
+            );
+            if ($infoDictionary === null) {
+                continue;
+            }
+
+            $fields = [];
+            foreach (['Title', 'Author', 'Subject', 'Keywords', 'Creator', 'Producer', 'CreationDate', 'ModDate'] as $key) {
+                $value = $this->dictionaryStringValue($infoDictionary['body'], $key);
+                if ($value !== null) {
+                    $fields[$key] = $value;
+                }
+            }
+
+            return $fields;
+        }
+
+        return [];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, mixed>
+     */
+    private function readerDirectEncryptionMetadata(?string $trailer, ?string $xrefDictionary, array $objects): array
+    {
+        foreach ([$trailer, $xrefDictionary] as $dictionary) {
+            if ($dictionary === null) {
+                continue;
+            }
+
+            $values = $this->dictionaryTopLevelRawValues($dictionary, 'Encrypt');
+            if ($values === []) {
+                continue;
+            }
+
+            foreach ($values as $value) {
+                if ($this->trimPdfWhitespaceAndComments($value) === 'null') {
+                    continue;
+                }
+
+                $encryptionDictionary = $this->resolveDictionaryFromValue($value, $objects);
+                $encryptMetadata = $encryptionDictionary === null
+                    ? true
+                    : strtolower($this->trimPdfWhitespaceAndComments(
+                        $this->dictionaryTopLevelRawValue($encryptionDictionary['body'], 'EncryptMetadata') ?? 'true'
+                    )) !== 'false';
+
+                return [
+                    'is_encrypted' => true,
+                    'encrypt_metadata' => $encryptMetadata,
+                ];
+            }
+
+            return [];
+        }
+
+        return [];
+    }
+
+    /**
+     * @return array{
+     *     definitions: array<int, list<array{generation: int, offset: int, bodyStart: int, bodyEnd: int, body: string}>>,
+     *     lastTrailer: ?string,
+     *     limited: bool,
+     *     trailer_count: int
+     * }
+     */
+    private function readerStructuralDirectScan(string $pdfBytes, int $maxObjects): array
+    {
+        $definitions = [];
+        $lastTrailer = null;
+        $limited = false;
+        $trailerCount = 0;
+        $definitionCount = 0;
+        $offset = 0;
+        $length = strlen($pdfBytes);
+
+        while ($offset < $length) {
+            $offset = $this->skipPdfWhitespace($pdfBytes, $offset);
+            if ($offset >= $length) {
+                break;
+            }
+
+            if ($this->pdfKeywordAt($pdfBytes, $offset, 'trailer')) {
+                $dictionaryOffset = $this->skipPdfWhitespace($pdfBytes, $offset + strlen('trailer'));
+                $trailer = $this->readPdfDictionaryAt($pdfBytes, $dictionaryOffset);
+                if ($trailer !== null) {
+                    $lastTrailer = $trailer;
+                    ++$trailerCount;
+                    $offset = $dictionaryOffset + strlen($trailer) + 4;
+                    continue;
+                }
+            }
+
+            if (
+                preg_match('/\G(\d+)\s+(\d+)\s+obj\b/s', $pdfBytes, $match, 0, $offset) === 1
+                && ($offset === 0 || $this->isPdfWhitespace($pdfBytes[$offset - 1]) || str_contains('[]()<>{}/%', $pdfBytes[$offset - 1]))
+            ) {
+                if ($definitionCount >= $maxObjects) {
+                    $limited = true;
+                    break;
+                }
+
+                $bodyStart = $offset + strlen($match[0]);
+                $bodyEnd = $this->pdfObjectEndOffset($pdfBytes, $bodyStart);
+                if ($bodyEnd === null) {
+                    $limited = true;
+                    break;
+                }
+
+                $definitions[(int) $match[1]][] = [
+                    'generation' => (int) $match[2],
+                    'offset' => $offset,
+                    'bodyStart' => $bodyStart,
+                    'bodyEnd' => $bodyEnd,
+                    'body' => substr($pdfBytes, $bodyStart, $bodyEnd - $bodyStart),
+                ];
+                ++$definitionCount;
+                $offset = $bodyEnd + strlen('endobj');
+                continue;
+            }
+
+            $char = $pdfBytes[$offset];
+            if ($char === '(') {
+                $offset = $this->literalTokenEndOffset($pdfBytes, $offset);
+                continue;
+            }
+
+            if ($char === '<') {
+                if (($pdfBytes[$offset + 1] ?? '') === '<') {
+                    $dictionary = $this->readPdfDictionaryAt($pdfBytes, $offset);
+                    if ($dictionary !== null) {
+                        $offset += strlen($dictionary) + 4;
+                        continue;
+                    }
+                } else {
+                    $hexEnd = strpos($pdfBytes, '>', $offset + 1);
+                    if ($hexEnd !== false) {
+                        $offset = $hexEnd + 1;
+                        continue;
+                    }
+                }
+            }
+
+            if ($char === '[') {
+                $array = $this->readPdfArrayAt($pdfBytes, $offset);
+                if ($array !== null) {
+                    $offset += strlen($array);
+                    continue;
+                }
+            }
+
+            $offset++;
+        }
+
+        ksort($definitions, SORT_NUMERIC);
+
+        return [
+            'definitions' => $definitions,
+            'lastTrailer' => $lastTrailer,
+            'limited' => $limited,
+            'trailer_count' => $trailerCount,
+        ];
+    }
+
+    /**
+     * @param array<int, list<array{generation: int, offset: int, bodyStart: int, bodyEnd: int, body: string}>> $definitions
+     */
+    private function readerStructuralLatestXrefDictionary(array $definitions): ?string
+    {
+        $latest = null;
+        $latestOffset = -1;
+        foreach ($definitions as $entries) {
+            foreach ($entries as $entry) {
+                if ($entry['offset'] <= $latestOffset) {
+                    continue;
+                }
+
+                $dictionary = $this->dictionaryObjectBody($entry['body']);
+                if ($dictionary === null || $this->dictionaryNameValue($dictionary, 'Type', []) !== 'XRef') {
+                    continue;
+                }
+
+                $latest = $dictionary;
+                $latestOffset = $entry['offset'];
+            }
+        }
+
+        return $latest;
+    }
+
+    private function readerStructuralEncryptionState(?string $trailer, ?string $xrefDictionary): ?bool
+    {
+        foreach ([$trailer, $xrefDictionary] as $dictionary) {
+            if ($dictionary === null) {
+                continue;
+            }
+
+            $values = $this->dictionaryTopLevelRawValues($dictionary, 'Encrypt');
+            if ($values === []) {
+                continue;
+            }
+
+            foreach ($values as $value) {
+                if ($this->trimPdfWhitespaceAndComments($value) !== 'null') {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        return null;
+    }
+
+    /**
      * @return array<int, string>
      */
     private function pdfObjects(string $pdfBytes): array
@@ -19781,12 +20242,68 @@ final class PdfMetadataExtractor
             }
         }
 
-        // Object-boundary discovery runs before fast-mode selection. A stream
-        // without a trustworthy Length must therefore use the lexical
-        // endstream boundary only: trying to validate a filter here can
-        // inflate an arbitrary metadata stream before the bounded metadata
-        // reader has decided whether it needs XMP at all.
+        // Object-boundary discovery runs before fast-mode selection, so do
+        // not inflate a filtered payload here. Still, an uncompressed DEFLATE
+        // block can legally contain a fake `endstream endobj` sequence. Pick
+        // the lexical delimiter that is followed by a plausible top-level PDF
+        // continuation before falling back to the first delimiter.
+        $filteredBoundary = $this->filteredDirectObjectStreamEndOffset($pdfBytes, $streamStart, $dictionary);
+        if ($filteredBoundary !== null) {
+            return $filteredBoundary;
+        }
+
         return $this->endstreamTerminatorOffset($pdfBytes, $streamStart, null);
+    }
+
+    private function filteredDirectObjectStreamEndOffset(
+        string $pdfBytes,
+        int $streamStart,
+        string $dictionary
+    ): ?int {
+        if (!$this->hasVerifiableStreamFilter($this->streamFilters($dictionary, []))) {
+            return null;
+        }
+
+        $offset = $streamStart;
+        $candidates = 0;
+        while (($candidate = strpos($pdfBytes, 'endstream', $offset)) !== false) {
+            $offset = $candidate + strlen('endstream');
+            if (!$this->endstreamTerminatorAt($pdfBytes, $candidate, $streamStart)) {
+                continue;
+            }
+
+            ++$candidates;
+            if ($candidates > self::MAX_FILTERED_DIRECT_STREAM_BOUNDARY_CANDIDATES) {
+                return null;
+            }
+
+            $endObjectOffset = $this->skipPdfWhitespace($pdfBytes, $offset);
+            if (!$this->pdfKeywordAt($pdfBytes, $endObjectOffset, 'endobj')) {
+                continue;
+            }
+
+            $afterEndObject = $this->skipPdfWhitespace($pdfBytes, $endObjectOffset + strlen('endobj'));
+            if ($this->looksLikeDirectObjectContinuation($pdfBytes, $afterEndObject)) {
+                return $candidate;
+            }
+        }
+
+        return null;
+    }
+
+    private function looksLikeDirectObjectContinuation(string $pdfBytes, int $offset): bool
+    {
+        if ($offset >= strlen($pdfBytes)) {
+            return true;
+        }
+
+        foreach (['xref', 'trailer', 'startxref'] as $keyword) {
+            if ($this->pdfKeywordAt($pdfBytes, $offset, $keyword)) {
+                return true;
+            }
+        }
+
+        return preg_match('/\d+\s+\d+\s+obj\b/A', substr($pdfBytes, $offset, 96)) === 1;
     }
 
     private function lineCommentEndOffset(string $value, int $offset): int
