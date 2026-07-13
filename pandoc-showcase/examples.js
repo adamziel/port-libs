@@ -1,49 +1,25 @@
 const catalogUrl = 'examples-index.json';
 const viewLabels = {
-  phpHtml: 'PHP HTML',
-  wpBlocks: 'WordPress blocks',
-  haskell: 'Pandoc HTML',
+  phpHtml: 'HTML',
+  wpBlocks: 'WordPress Block markup',
+  haskell: 'Pandoc baseline',
 };
 
-const formatFilter = document.getElementById('format-filter');
 const examplePicker = document.getElementById('example-picker');
 const previousButton = document.getElementById('previous-example');
 const nextButton = document.getElementById('next-example');
 const viewButtons = Array.from(document.querySelectorAll('[data-example-view]'));
-const catalogSummary = document.getElementById('catalog-summary');
-const formatBadge = document.getElementById('current-example-format');
-const title = document.getElementById('current-example-title');
-const description = document.getElementById('current-example-description');
-const viewSize = document.getElementById('view-size');
-const largeViewWarning = document.getElementById('large-view-warning');
 const viewerStatus = document.getElementById('viewer-status');
-const exampleLinks = document.getElementById('example-links');
 const downloadSource = document.getElementById('download-source');
-const sourceReference = document.getElementById('source-reference');
-const openOutput = document.getElementById('open-output');
-const openFullComparison = document.getElementById('open-full-comparison');
 const frame = document.getElementById('example-frame');
 
 const state = {
-  catalog: null,
   examples: [],
   selectedId: '',
   view: 'phpHtml',
+  automaticViewMaxBytes: 0,
   loadToken: 0,
 };
-
-function formatBytes(bytes) {
-  if (!Number.isFinite(bytes) || bytes <= 0) {
-    return 'unavailable';
-  }
-  if (bytes < 1024) {
-    return bytes + ' B';
-  }
-  if (bytes < 1024 * 1024) {
-    return (bytes / 1024).toFixed(bytes < 100 * 1024 ? 1 : 0) + ' KB';
-  }
-  return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
-}
 
 function selectedExample() {
   return state.examples.find((example) => example.id === state.selectedId) || null;
@@ -53,14 +29,13 @@ function selectedView(example = selectedExample()) {
   return example && example.views ? example.views[state.view] || null : null;
 }
 
-function filteredExamples() {
-  const format = formatFilter.value;
-  return state.examples.filter((example) => !format || example.format === format);
+function isBrowsableView(view) {
+  return Boolean(view && view.ok && view.path && view.bytes > 0
+    && view.bytes <= state.automaticViewMaxBytes);
 }
 
-function canAutoLoad(example) {
-  const view = selectedView(example);
-  return Boolean(view && view.ok && view.bytes > 0 && view.bytes <= state.catalog.automaticViewMaxBytes);
+function browsableExamples() {
+  return state.examples.filter((example) => isBrowsableView(example.views && example.views.phpHtml));
 }
 
 function setStatus(message) {
@@ -74,16 +49,14 @@ function createOption(value, label) {
   return option;
 }
 
-function populateFormats() {
-  const selected = formatFilter.value;
-  const formats = [...new Set(state.examples.map((example) => example.format).filter(Boolean))].sort();
-  formatFilter.replaceChildren(createOption('', 'All formats'));
-  formats.forEach((format) => formatFilter.append(createOption(format, format)));
-  formatFilter.value = formats.includes(selected) ? selected : '';
+function ensureBrowsableView() {
+  if (!isBrowsableView(selectedView())) {
+    state.view = 'phpHtml';
+  }
 }
 
 function populateExamples(preferredId = state.selectedId) {
-  const examples = filteredExamples();
+  const examples = browsableExamples();
   examplePicker.replaceChildren();
   examples.forEach((example) => {
     examplePicker.append(createOption(example.id, example.format + ' · ' + example.label));
@@ -94,8 +67,9 @@ function populateExamples(preferredId = state.selectedId) {
   } else {
     state.selectedId = examples[0] ? examples[0].id : '';
   }
+  ensureBrowsableView();
   examplePicker.value = state.selectedId;
-  updateExampleDetails();
+  updateDownloadSource();
   updateControls();
 }
 
@@ -106,60 +80,27 @@ function updateViewButtons() {
   });
 }
 
-function updateExampleDetails() {
+function updateDownloadSource() {
   const example = selectedExample();
-  const view = selectedView(example);
-  if (!example || !view) {
-    formatBadge.textContent = 'No example available';
-    title.textContent = 'No matching example';
-    description.textContent = 'Try another format.';
-    viewSize.textContent = '';
-    exampleLinks.hidden = true;
-    largeViewWarning.hidden = true;
+  if (!example || !example.samplePath) {
+    downloadSource.hidden = true;
+    downloadSource.removeAttribute('href');
     return;
   }
-
-  formatBadge.textContent = example.format + ' · ' + viewLabels[state.view];
-  title.textContent = example.label;
-  description.textContent = example.description || example.source || 'No description is available.';
-  viewSize.textContent = view.ok
-    ? viewLabels[state.view] + ' · ' + formatBytes(view.bytes)
-    : viewLabels[state.view] + ' unavailable';
-
-  exampleLinks.hidden = false;
-  downloadSource.href = example.samplePath || '#';
-  downloadSource.hidden = !example.samplePath;
-  openOutput.hidden = !view.ok || !view.path;
-  if (view.ok && view.path) {
-    openOutput.href = view.path;
-  } else {
-    openOutput.removeAttribute('href');
-  }
-  openFullComparison.href = 'index.html#' + encodeURIComponent(example.id);
-  sourceReference.hidden = !example.sourceUrl;
-  if (example.sourceUrl) {
-    sourceReference.href = example.sourceUrl;
-  } else {
-    sourceReference.removeAttribute('href');
-  }
-
-  const isLarge = view.ok && view.bytes > state.catalog.automaticViewMaxBytes;
-  largeViewWarning.hidden = !isLarge;
-  if (isLarge) {
-    largeViewWarning.textContent = 'This ' + formatBytes(view.bytes)
-      + ' result is larger than the automatic mobile browsing limit. It is loading because you selected it directly.';
-  }
+  downloadSource.href = example.samplePath;
+  downloadSource.hidden = false;
 }
 
 function updateControls() {
-  const ready = state.catalog !== null && filteredExamples().length > 0;
-  const automaticExamples = ready ? filteredExamples().filter(canAutoLoad) : [];
-  formatFilter.disabled = state.catalog === null;
+  const examples = browsableExamples();
+  const ready = examples.length > 0;
+  const example = selectedExample();
   examplePicker.disabled = !ready;
-  previousButton.disabled = automaticExamples.length < 2;
-  nextButton.disabled = automaticExamples.length < 2;
+  previousButton.disabled = examples.length < 2;
+  nextButton.disabled = examples.length < 2;
   viewButtons.forEach((button) => {
-    button.disabled = state.catalog === null;
+    const view = example && example.views ? example.views[button.dataset.exampleView] : null;
+    button.disabled = !ready || !isBrowsableView(view);
   });
   updateViewButtons();
 }
@@ -171,17 +112,10 @@ function unloadCurrentExample() {
   frame.hidden = true;
 }
 
-function writeSelectionToUrl(example) {
-  const url = new URL(window.location.href);
-  url.searchParams.set('example', example.id);
-  url.searchParams.set('view', state.view);
-  window.history.replaceState(null, '', url);
-}
-
 function loadSelectedExample() {
   const example = selectedExample();
   const view = selectedView(example);
-  if (!example || !view || !view.ok || !view.path) {
+  if (!example || !isBrowsableView(view)) {
     unloadCurrentExample();
     setStatus('No ' + viewLabels[state.view] + ' result is available for this example.');
     return;
@@ -195,7 +129,6 @@ function loadSelectedExample() {
   frame.removeAttribute('src');
   frame.src = 'about:blank';
   setStatus('Loading ' + example.label + '…');
-  writeSelectionToUrl(example);
 
   window.requestAnimationFrame(() => {
     if (token !== state.loadToken) {
@@ -206,9 +139,9 @@ function loadSelectedExample() {
 }
 
 function moveExample(direction) {
-  const examples = filteredExamples().filter(canAutoLoad);
+  const examples = browsableExamples();
   if (examples.length === 0) {
-    setStatus('No small enough result is available for this format and view.');
+    setStatus('No browsable example is available.');
     return;
   }
 
@@ -217,24 +150,11 @@ function moveExample(direction) {
     ? (direction > 0 ? 0 : examples.length - 1)
     : (current + direction + examples.length) % examples.length;
   state.selectedId = examples[nextIndex].id;
+  ensureBrowsableView();
   examplePicker.value = state.selectedId;
-  updateExampleDetails();
+  updateDownloadSource();
   updateControls();
   loadSelectedExample();
-}
-
-function syncSelectionFromUrl() {
-  const params = new URL(window.location.href).searchParams;
-  const requestedId = params.get('example');
-  const requestedView = params.get('view');
-  const requested = state.examples.find((example) => example.id === requestedId);
-  if (requested) {
-    formatFilter.value = requested.format;
-    state.selectedId = requested.id;
-  }
-  if (requestedView && viewLabels[requestedView]) {
-    state.view = requestedView;
-  }
 }
 
 async function initialize() {
@@ -247,35 +167,20 @@ async function initialize() {
     if (!Array.isArray(catalog.examples) || catalog.examples.length === 0 || !Number.isFinite(catalog.automaticViewMaxBytes)) {
       throw new Error('catalogue payload is incomplete');
     }
-    state.catalog = catalog;
+    state.automaticViewMaxBytes = catalog.automaticViewMaxBytes;
     state.examples = catalog.examples.filter((example) => example && example.id && example.views);
     state.selectedId = catalog.defaultExampleId || state.examples[0].id;
-    populateFormats();
-    syncSelectionFromUrl();
     populateExamples(state.selectedId);
-
-    const automaticCount = state.examples.filter((example) => {
-      const view = example.views.phpHtml;
-      return view && view.ok && view.bytes > 0 && view.bytes <= catalog.automaticViewMaxBytes;
-    }).length;
-    catalogSummary.textContent = state.examples.length + ' examples are available. '
-      + automaticCount + ' PHP-rendered examples are under the '
-      + formatBytes(catalog.automaticViewMaxBytes) + ' automatic mobile limit.';
     loadSelectedExample();
   } catch (error) {
-    catalogSummary.textContent = 'The lightweight example catalogue could not be loaded.';
     setStatus('Try reloading this page.');
   }
 }
 
-formatFilter.addEventListener('change', () => {
-  populateExamples();
-  loadSelectedExample();
-});
-
 examplePicker.addEventListener('change', () => {
   state.selectedId = examplePicker.value;
-  updateExampleDetails();
+  ensureBrowsableView();
+  updateDownloadSource();
   updateControls();
   loadSelectedExample();
 });
@@ -290,7 +195,6 @@ viewButtons.forEach((button) => {
       return;
     }
     state.view = nextView;
-    updateExampleDetails();
     updateControls();
     loadSelectedExample();
   });
