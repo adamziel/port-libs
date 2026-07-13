@@ -13,3 +13,4 @@ lanes/pandoc/fixtures/generated-current-tsv-reader/trailing-empty-fields.tsv -wh
 lanes/pandoc/fixtures/generated-current-tsv-reader/unquoted-final-formfeed.tsv -whitespace
 pandoc-showcase/samples/** -whitespace
 pandoc-showcase/outputs/** -whitespace
+lanes/difftastic/fixtures/upstream-sample-files/** -text -diff

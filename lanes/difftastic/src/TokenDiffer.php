@@ -277,6 +277,9 @@ final class TokenDiffer
         $splitNumbers = ($options['splitNumbers'] ?? false) === true;
         $a = $splitNumbers ? $this->splitWordsAndNumbers($old) : $this->splitWords($old);
         $b = $splitNumbers ? $this->splitWordsAndNumbers($new) : $this->splitWords($new);
+        if (count($a) * count($b) > 1_000_000) {
+            return $this->boundedSequenceDiff($a, $b);
+        }
 
         return $this->diffSequences($a, $b);
     }
@@ -525,7 +528,8 @@ final class TokenDiffer
 
             if (isset($closeToOpen[$token->text])) {
                 $expectedOpen = $closeToOpen[$token->text];
-                $lastOpen = $stack[array_key_last($stack)] ?? null;
+                $lastIndex = array_key_last($stack);
+                $lastOpen = $lastIndex === null ? null : $stack[$lastIndex];
                 if ($lastOpen instanceof Token && $lastOpen->text === $expectedOpen) {
                     array_pop($stack);
                     continue;
@@ -1389,6 +1393,46 @@ final class TokenDiffer
         }
         while ($j < count($b)) {
             $ops[] = ['op' => '+', 'text' => $b[$j++]];
+        }
+
+        return $ops;
+    }
+
+    /**
+     * @param list<string> $a
+     * @param list<string> $b
+     * @return list<array{op:string, text:string}>
+     */
+    private function boundedSequenceDiff(array $a, array $b): array
+    {
+        $aCount = count($a);
+        $bCount = count($b);
+        $prefix = 0;
+        while ($prefix < $aCount && $prefix < $bCount && $a[$prefix] === $b[$prefix]) {
+            $prefix++;
+        }
+
+        $suffix = 0;
+        while (
+            $suffix + $prefix < $aCount
+            && $suffix + $prefix < $bCount
+            && $a[$aCount - 1 - $suffix] === $b[$bCount - 1 - $suffix]
+        ) {
+            $suffix++;
+        }
+
+        $ops = [];
+        for ($i = 0; $i < $prefix; $i++) {
+            $ops[] = ['op' => '=', 'text' => $a[$i]];
+        }
+        for ($i = $prefix; $i < $aCount - $suffix; $i++) {
+            $ops[] = ['op' => '-', 'text' => $a[$i]];
+        }
+        for ($i = $prefix; $i < $bCount - $suffix; $i++) {
+            $ops[] = ['op' => '+', 'text' => $b[$i]];
+        }
+        for ($i = $aCount - $suffix; $i < $aCount; $i++) {
+            $ops[] = ['op' => '=', 'text' => $a[$i]];
         }
 
         return $ops;
