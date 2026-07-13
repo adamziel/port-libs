@@ -42,6 +42,20 @@ CSS
             )
         );
     },
+    'css minifier rejects upstream invalid residual rows' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn () => $minifier->minify('.a{color: hsla(120, 62.32%;}'),
+            'upstream src/lib.rs::test_invalid line 30189'
+        );
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn () => $minifier->minify('.a{--foo: url(foo\\) b\\)ar)}'),
+            'upstream src/lib.rs::test_invalid line 30193'
+        );
+    },
     'css minifier preserves descendant spaces before functional pseudo classes' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
         $css = '.scope :is(.title, .summary) { color: blue; } .scope:not(.is-hidden) { color: red; }';
@@ -120,6 +134,307 @@ CSS
         $t->same('[foo=""]{color:red}', $minifier->minify('[foo=""] { color: red }'));
         $t->same('.test:not([foo=bar]){color:red}', $minifier->minify('.test:not([foo="bar"]) { color: red }'));
     },
+    'css minifier maps upstream selector structural compaction' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $cases = [
+            // Pinned upstream 22bdda3d node/test/transform.test.mjs::can enable non-standard syntax line 19.
+            ':nth-col(2n) {width: 20px}' => ':nth-col(2n){width:20px}',
+            ':nth-col(10n-1) {width: 20px}' => ':nth-col(10n-1){width:20px}',
+            ':nth-col(-n+2) {width: 20px}' => ':nth-col(-n+2){width:20px}',
+            ':nth-col(even) {width: 20px}' => ':nth-col(2n){width:20px}',
+            ':nth-col(odd) {width: 20px}' => ':nth-col(odd){width:20px}',
+            ':nth-last-col(2n) {width: 20px}' => ':nth-last-col(2n){width:20px}',
+            ':nth-last-col(10n-1) {width: 20px}' => ':nth-last-col(10n-1){width:20px}',
+            ':nth-last-col(-n+2) {width: 20px}' => ':nth-last-col(-n+2){width:20px}',
+            ':nth-last-col(even) {width: 20px}' => ':nth-last-col(2n){width:20px}',
+            ':nth-last-col(odd) {width: 20px}' => ':nth-last-col(odd){width:20px}',
+            ':nth-child(odd) {width: 20px}' => ':nth-child(odd){width:20px}',
+            ':nth-child(2n) {width: 20px}' => ':nth-child(2n){width:20px}',
+            ':nth-child(2n+1) {width: 20px}' => ':nth-child(odd){width:20px}',
+            ':first-child {width: 20px}' => ':first-child{width:20px}',
+            ':nth-child(1) {width: 20px}' => ':first-child{width:20px}',
+            ':nth-last-child(1) {width: 20px}' => ':last-child{width:20px}',
+            ':nth-of-type(1) {width: 20px}' => ':first-of-type{width:20px}',
+            ':nth-last-of-type(1) {width: 20px}' => ':last-of-type{width:20px}',
+            ':nth-child(even of li.important) {width: 20px}' => ':nth-child(2n of li.important){width:20px}',
+            ':nth-child(1 of li.important) {width: 20px}' => ':nth-child(1 of li.important){width:20px}',
+            ':nth-last-child(even of li.important) {width: 20px}' => ':nth-last-child(2n of li.important){width:20px}',
+            ':nth-last-child(1 of li.important) {width: 20px}' => ':nth-last-child(1 of li.important){width:20px}',
+            ':nth-last-child(1 of.important) {width: 20px}' => ':nth-last-child(1 of .important){width:20px}',
+            '.test + .foo {color:red}' => '.test+.foo{color:red}',
+            '.test ~ .foo {color:red}' => '.test~.foo{color:red}',
+            '.test .foo {color:red}' => '.test .foo{color:red}',
+            '.test:not(.foo, .bar) {color:red}' => '.test:not(.foo,.bar){color:red}',
+            '.test:is(.foo, .bar) {color:red}' => '.test:is(.foo,.bar){color:red}',
+            '.test:where(.foo, .bar) {color:red}' => '.test:where(.foo,.bar){color:red}',
+            ':host {color:red}' => ':host{color:red}',
+            ':host(.foo) {color:red}' => ':host(.foo){color:red}',
+            'custom-element::part(foo) {color:red}' => 'custom-element::part(foo){color:red}',
+            '.sm\\:text-5xl { font-size: 3rem }' => '.sm\\:text-5xl{font-size:3rem}',
+            'a:has(> img) {color:red}' => 'a:has(>img){color:red}',
+            'dt:has(+ dt) {color:red}' => 'dt:has(+dt){color:red}',
+            'section:not(:has(h1, h2, h3, h4, h5, h6)) {color:red}' => 'section:not(:has(h1,h2,h3,h4,h5,h6)){color:red}',
+            ':has(.sibling ~ .target) {color:red}' => ':has(.sibling~.target){color:red}',
+            '.x:has(> .a > .b) {color:red}' => '.x:has(>.a>.b){color:red}',
+            '.x:has(.bar, #foo) {color:red}' => '.x:has(.bar,#foo){color:red}',
+            '.x:has(span + span) {color:red}' => '.x:has(span+span){color:red}',
+            'a:has(:visited) {color:red}' => 'a:has(:visited){color:red}',
+        ];
+
+        foreach ($cases as $input => $expected) {
+            $t->same($expected, $minifier->minify($input));
+        }
+
+        $t->same(
+            '.foo>>>.bar{color:red}',
+            $minifier->minify('.foo >>> .bar { color: red }', allowDeepSelectorCombinator: true)
+        );
+    },
+    'css minifier maps upstream state selector with pseudo element part' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        // Pinned upstream 22bdda3d src/lib.rs::test_selectors lines 7346, 7350, 7353, and 7357.
+        $cases = [
+            [7346, 'wa-checkbox:state(disabled) {color:red}', 'wa-checkbox:state(disabled){color:red}'],
+            [7350, 'button:state(checked) {background:blue}', 'button:state(checked){background:#00f}'],
+            [7353, 'input:state(custom-state) {border:1px solid}', 'input:state(custom-state){border:1px solid}'],
+            [7357, 'button:active:not(:state(disabled))::part(control) {border:1px solid}', 'button:active:not(:state(disabled))::part(control){border:1px solid}'],
+        ];
+
+        foreach ($cases as [$line, $input, $expected]) {
+            $t->same($expected, $minifier->minify($input), 'upstream src/lib.rs::test_selectors line ' . $line);
+        }
+    },
+    'css minifier maps upstream cue pseudo element selectors' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        // Pinned upstream 22bdda3d src/lib.rs::test_selectors lines 7213, 7214, 7215, 7216, and 7218.
+        $cases = [
+            [7213, '.foo::cue {color: red}', '.foo::cue{color:red}'],
+            [7214, '.foo::cue-region {color: red}', '.foo::cue-region{color:red}'],
+            [7215, '.foo::cue(b) {color: red}', '.foo::cue(b){color:red}'],
+            [7216, '.foo::cue-region(b) {color: red}', '.foo::cue-region(b){color:red}'],
+            [7218, "::cue(v[voice='active']) {color: yellow;}", '::cue(v[voice=active]){color:#ff0}'],
+        ];
+
+        foreach ($cases as [$line, $input, $expected]) {
+            $t->same($expected, $minifier->minify($input), 'upstream src/lib.rs::test_selectors line ' . $line);
+        }
+    },
+    'css minifier maps upstream unknown functional pseudo selectors' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        // Pinned upstream 22bdda3d src/lib.rs::test_selectors lines 7221, 7222, and 7223.
+        $cases = [
+            [7221, ':foo(bar) { color: yellow }', ':foo(bar){color:#ff0}'],
+            [7222, '::foo(bar) { color: yellow }', '::foo(bar){color:#ff0}'],
+            [7223, '::foo(*) { color: yellow }', '::foo(*){color:#ff0}'],
+        ];
+
+        foreach ($cases as [$line, $input, $expected]) {
+            $t->same($expected, $minifier->minify($input), 'upstream src/lib.rs::test_selectors line ' . $line);
+        }
+    },
+    'css minifier maps upstream singleton is selector simplification' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        // Pinned upstream 22bdda3d src/lib.rs::test_selectors lines 7225-7241.
+        $cases = [
+            [7225, ':is(.foo) { color: yellow }', '.foo{color:#ff0}'],
+            [7226, ':is(#foo) { color: yellow }', '#foo{color:#ff0}'],
+            [7227, 'a:is(.foo) { color: yellow }', 'a.foo{color:#ff0}'],
+            [7228, 'a:is([data-test]) { color: yellow }', 'a[data-test]{color:#ff0}'],
+            [7229, '.foo:is(a) { color: yellow }', '.foo:is(a){color:#ff0}'],
+            [7230, '.foo:is(*|a) { color: yellow }', '.foo:is(*|a){color:#ff0}'],
+            [7231, '.foo:is(*) { color: yellow }', '.foo:is(*){color:#ff0}'],
+            [7232, '@namespace svg url(http://www.w3.org/2000/svg); .foo:is(svg|a) { color: yellow }', '@namespace svg "http://www.w3.org/2000/svg";.foo:is(svg|a){color:#ff0}'],
+            [7236, 'a:is(.foo .bar) { color: yellow }', 'a:is(.foo .bar){color:#ff0}'],
+            [7237, ':is(.foo, .bar) { color: yellow }', ':is(.foo,.bar){color:#ff0}'],
+            [7238, 'a:is(:not(.foo)) { color: yellow }', 'a:not(.foo){color:#ff0}'],
+            [7239, 'a:is(:first-child) { color: yellow }', 'a:first-child{color:#ff0}'],
+            [7240, 'a:is(:has(.foo)) { color: yellow }', 'a:has(.foo){color:#ff0}'],
+            [7241, 'a:is(:is(.foo)) { color: yellow }', 'a.foo{color:#ff0}'],
+        ];
+
+        foreach ($cases as [$line, $input, $expected]) {
+            $t->same($expected, $minifier->minify($input), 'upstream src/lib.rs::test_selectors line ' . $line);
+        }
+    },
+    'css minifier preserves upstream unknown pseudo element selector boundaries' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        // Pinned upstream 22bdda3d src/lib.rs::test_selectors lines 7398, 7400, 7404, 7408, 7412, 7416, and 7420.
+        $cases = [
+            [7398, '.foo ::unknown .bar {width: 20px}', '.foo ::unknown .bar{width:20px}'],
+            [7400, '.foo ::unknown(foo) .bar {width: 20px}', '.foo ::unknown(foo) .bar{width:20px}'],
+            [7404, '.foo ::unknown:only-child {width: 20px}', '.foo ::unknown:only-child{width:20px}'],
+            [7408, '.foo ::unknown(.foo) .bar {width: 20px}', '.foo ::unknown(.foo) .bar{width:20px}'],
+            [7412, '.foo ::unknown(.foo .bar / .baz) .bar {width: 20px}', '.foo ::unknown(.foo .bar / .baz) .bar{width:20px}'],
+            [7416, '.foo ::unknown(something(foo)) .bar {width: 20px}', '.foo ::unknown(something(foo)) .bar{width:20px}'],
+            [7420, '.foo ::unknown([abc]) .bar {width: 20px}', '.foo ::unknown([abc]) .bar{width:20px}'],
+        ];
+
+        foreach ($cases as [$line, $input, $expected]) {
+            $t->same($expected, $minifier->minify($input), 'upstream src/lib.rs::test_selectors line ' . $line);
+        }
+    },
+    'css minifier preserves upstream deep pseudo element selector spacing' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        // Pinned upstream 22bdda3d src/lib.rs::test_selectors lines 7395, 7396, and 7397.
+        $cases = [
+            [7395, '.foo ::deep .bar {width: 20px}', '.foo ::deep .bar{width:20px}'],
+            [7396, '.foo::deep .bar {width: 20px}', '.foo::deep .bar{width:20px}'],
+            [7397, '.foo ::deep.bar {width: 20px}', '.foo ::deep.bar{width:20px}'],
+        ];
+
+        foreach ($cases as [$line, $input, $expected]) {
+            $t->same($expected, $minifier->minify($input), 'upstream src/lib.rs::test_selectors line ' . $line);
+        }
+    },
+    'css minifier maps upstream deep selector combinator parser option rows' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        // Pinned upstream 22bdda3d src/lib.rs::test_selectors lines 7429, 7433, 7437, and 7442.
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn () => $minifier->minify('.foo >>> .bar {width: 20px}'),
+            'upstream src/lib.rs::test_selectors line 7429'
+        );
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn () => $minifier->minify('.foo /deep/ .bar {width: 20px}'),
+            'upstream src/lib.rs::test_selectors line 7433'
+        );
+        $t->same(
+            '.foo>>>.bar{width:20px}',
+            $minifier->minify('.foo >>> .bar {width: 20px}', allowDeepSelectorCombinator: true),
+            'upstream src/lib.rs::test_selectors line 7437'
+        );
+        $t->same(
+            '.foo /deep/ .bar{width:20px}',
+            $minifier->minify('.foo /deep/ .bar {width: 20px}', allowDeepSelectorCombinator: true),
+            'upstream src/lib.rs::test_selectors line 7442'
+        );
+    },
+    'css minifier rejects upstream selectors after terminal pseudo-elements' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        // Pinned upstream 22bdda3d src/lib.rs::test_selectors lines 7562, 7568, 7573, 7577, 7583, 7589, and 7595.
+        $cases = [
+            [7562, 'input.defaultCheckbox::before h1 {width: 20px}'],
+            [7568, 'input.defaultCheckbox::before .my-class {width: 20px}'],
+            [7573, 'input.defaultCheckbox::before.my-class {width: 20px}'],
+            [7577, 'input.defaultCheckbox::before #id {width: 20px}'],
+            [7583, 'input.defaultCheckbox::before#id {width: 20px}'],
+            [7589, 'input.defaultCheckbox::before [attr] {width: 20px}'],
+            [7595, 'input.defaultCheckbox::before[attr] {width: 20px}'],
+        ];
+
+        foreach ($cases as [$line, $input]) {
+            $t->throws(InvalidArgumentException::class, static fn () => $minifier->minify($input), 'upstream src/lib.rs::test_selectors line ' . $line);
+        }
+    },
+    'css minifier maps upstream host slotted and view transition selector tail' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        // Pinned upstream 22bdda3d src/lib.rs::test_selectors lines 7242, 7243, 7246, 7250, 7254, and 7258.
+        $cases = [
+            [7242, ':host(:hover) {color: red}', ':host(:hover){color:red}'],
+            [7243, '::slotted(:hover) {color: red}', '::slotted(:hover){color:red}'],
+            [7246, ':root::view-transition {position: fixed}', ':root::view-transition{position:fixed}'],
+            [7250, ':root:active-view-transition {position: fixed}', ':root:active-view-transition{position:fixed}'],
+            [7254, ':root:active-view-transition-type(slide-in) {position: fixed}', ':root:active-view-transition-type(slide-in){position:fixed}'],
+            [7258, ':root:active-view-transition-type(slide-in, reverse) {position: fixed}', ':root:active-view-transition-type(slide-in,reverse){position:fixed}'],
+        ];
+
+        foreach ($cases as [$line, $input, $expected]) {
+            $t->same($expected, $minifier->minify($input), 'upstream src/lib.rs::test_selectors line ' . $line);
+        }
+    },
+    'css minifier maps upstream view transition pseudo-element function selector tail' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        // Pinned upstream 22bdda3d src/lib.rs::test_selectors lines 7262-7311.
+        $names = [
+            [7263, 'view-transition-group'],
+            [7264, 'view-transition-image-pair'],
+            [7265, 'view-transition-new'],
+            [7266, 'view-transition-old'],
+        ];
+        $argumentCases = [
+            [7268, '*', '*', ''],
+            [7272, '*.class', '*.class', ''],
+            [7276, '*.class.class', '*.class.class', ''],
+            [7280, 'foo', 'foo', ''],
+            [7284, 'foo.class', 'foo.class', ''],
+            [7288, 'foo.bar.baz', 'foo.bar.baz', ''],
+            [7292, 'foo', 'foo', ':only-child'],
+            [7296, 'foo.bar.baz', 'foo.bar.baz', ':only-child'],
+            [7300, '.foo', '.foo', ''],
+            [7304, '.foo.bar', '.foo.bar', ''],
+            [7308, '  .foo.bar  ', '.foo.bar', ''],
+        ];
+
+        foreach ($names as [$nameLine, $name]) {
+            foreach ($argumentCases as [$line, $argument, $expectedArgument, $tail]) {
+                $input = sprintf(':root::%s(%s)%s {position: fixed}', $name, $argument, $tail);
+                $expected = sprintf(':root::%s(%s)%s{position:fixed}', $name, $expectedArgument, $tail);
+
+                $t->same(
+                    $expected,
+                    $minifier->minify($input),
+                    sprintf('upstream src/lib.rs::test_selectors line %d with name line %d', $line, $nameLine)
+                );
+            }
+        }
+    },
+    'css minifier rejects upstream invalid view transition pseudo-element function selectors' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        // Pinned upstream 22bdda3d src/lib.rs::test_selectors lines 7312-7343.
+        $names = [
+            [7263, 'view-transition-group'],
+            [7264, 'view-transition-image-pair'],
+            [7265, 'view-transition-new'],
+            [7266, 'view-transition-old'],
+        ];
+        $cases = [
+            [7312, 'foo', ':first-child'],
+            [7316, 'foo', '::before'],
+            [7320, '*.*', ''],
+            [7324, '*. cls', ''],
+            [7328, 'foo .bar', ''],
+            [7332, '*.cls. c', ''],
+            [7336, '*.cls>cls', ''],
+            [7340, '*.cls.foo.*', ''],
+        ];
+
+        foreach ($names as [$nameLine, $name]) {
+            foreach ($cases as [$line, $argument, $tail]) {
+                $input = sprintf(':root::%s(%s)%s {position: fixed}', $name, $argument, $tail);
+
+                $t->throws(
+                    InvalidArgumentException::class,
+                    static fn () => $minifier->minify($input)
+                );
+            }
+        }
+    },
+    'css minifier maps upstream quoted and unquoted url tokens' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        // Pinned upstream 22bdda3d src/lib.rs::test_quoting_unquoting_urls lines 29954-29977.
+        $cases = [
+            [29954, '.foo { background-image: url("0123abcd"); }', '.foo{background-image:url(0123abcd)}'],
+            [29973, '.foo { background-image: url(0123abcd); }', '.foo{background-image:url(0123abcd)}'],
+        ];
+
+        foreach ($cases as [$line, $input, $expected]) {
+            $t->same($expected, $minifier->minify($input), 'upstream src/lib.rs line ' . $line);
+        }
+    },
     'css minifier shortens upstream color keywords in declaration values' => static function (TestRunner $t): void {
         $css = '.foo { color: yellow; background: linear-gradient(blue, white); border-color: black; }';
         $t->same('.foo{color:#ff0;background:linear-gradient(#00f,#fff);border-color:#000}', (new CssMinifier())->minify($css));
@@ -156,15 +471,100 @@ CSS
             $t->same($expected, $minifier->minify($input));
         }
     },
+    'css minifier maps upstream vertical-align value minification' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        // Pinned upstream 22bdda3d src/lib.rs::test_vertical_align lines 6672-6673.
+        $cases = [
+            [6672, '.foo { vertical-align: middle }', '.foo{vertical-align:middle}'],
+            [6673, '.foo { vertical-align: 0.3em }', '.foo{vertical-align:.3em}'],
+        ];
+
+        foreach ($cases as [$line, $input, $expected]) {
+            $t->same($expected, $minifier->minify($input), 'upstream src/lib.rs::test_vertical_align line ' . $line);
+        }
+    },
     'css minifier maps upstream border spacing value minification' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 
-        $t->same('.foo{border-spacing:0}', $minifier->minify('.foo { border-spacing: 0px; }'));
-        $t->same('.foo{border-spacing:0}', $minifier->minify('.foo { border-spacing: 0px 0px; }'));
-        $t->same('.foo{border-spacing:12px 0}', $minifier->minify('.foo { border-spacing: 12px   0px; }'));
-        $t->same('.foo{border-spacing:6px 0}', $minifier->minify('.foo { border-spacing: calc(3px * 2) calc(5px * 0); }'));
-        $t->same('.foo{border-spacing:6px 8px}', $minifier->minify('.foo { border-spacing: calc(3px * 2) max(0px, 8px); }'));
-        $t->same('.foo{border-spacing:-20px}', $minifier->minify('.foo { border-spacing: -20px; }'));
+        // Pinned upstream 22bdda3d src/lib.rs::test_border_spacing lines 438-502.
+        $cases = [
+            [439, '.foo { border-spacing: 0px; }', '.foo{border-spacing:0}'],
+            [443, '.foo { border-spacing: 0px 0px; }', '.foo{border-spacing:0}'],
+            [447, '.foo { border-spacing: 12px   0px; }', '.foo{border-spacing:12px 0}'],
+            [451, '.foo { border-spacing: calc(3px * 2) calc(5px * 0); }', '.foo{border-spacing:6px 0}'],
+            [457, '.foo { border-spacing: calc(3px * 2) max(0px, 8px); }', '.foo{border-spacing:6px 8px}'],
+            [496, '.foo { border-spacing: -20px; }', '.foo{border-spacing:-20px}'],
+        ];
+
+        foreach ($cases as [$line, $input, $expected]) {
+            $t->same($expected, $minifier->minify($input), 'upstream src/lib.rs::test_border_spacing line ' . $line);
+        }
+    },
+    'css minifier maps upstream math function declaration rows' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        // Pinned upstream 22bdda3d src/lib.rs::test_math_fn lines 507-607.
+        $cases = [
+            [507, '.foo { color: rgb(max(255, 100), 0, 0); }', '.foo{color:red}'],
+            [517, '.foo { color: rgb(min(255, 500), 0, 0); }', '.foo{color:red}'],
+            [527, '.foo { color: rgb(abs(-255), 0, 0); }', '.foo{color:red}'],
+            [537, '.foo { flex: clamp(1, 5.20, 20); color: rgb(clamp(0, 255, 300), 0, 0); }', '.foo{flex:5.2;color:red}'],
+            [548, '.round-color { color: rgb(round(down, 255.6, 1), 0, 0); }', '.round-color{color:red}'],
+            [558, '.hypot-color { color: rgb(hypot(255, 0), 0, 0); }', '.hypot-color{color:red}'],
+            [568, '.sign-color { color: rgb(sign(50), 0, 0); }', '.sign-color{color:#010000}'],
+            [578, '.rem-color { color: rgb(rem(21, 2), 0, 0); }', '.rem-color{color:#010000}'],
+            [588, '.foo { width: max(200px,   5px); }', '.foo{width:200px}'],
+            [598, '.foo { opacity: max(1, 0.2); filter: invert(min(1, 0.5)); }', '.foo{opacity:1;filter:invert(.5)}'],
+        ];
+
+        foreach ($cases as [$line, $input, $expected]) {
+            $t->same($expected, $minifier->minify($input), 'upstream src/lib.rs::test_math_fn line ' . $line);
+        }
+    },
+    'css minifier maps upstream border shorthand none style omission' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same(
+            '.foo{border:none}',
+            $minifier->minify(<<<'CSS'
+.foo {
+  border: none;
+}
+CSS)
+        );
+        $t->same(
+            '.foo{border:1px solid}',
+            $minifier->minify(<<<'CSS'
+.foo {
+  border: 1px solid currentColor;
+}
+CSS)
+        );
+        $t->same('.foo{border-width:0 0 1px}', $minifier->minify('.foo { border-width: 0 0 1px; }'));
+        $t->same(
+            '.foo{border-bottom:1px solid var(--spectrum-global-color-gray-200)}',
+            $minifier->minify('.foo { border-bottom: 1px solid var(--spectrum-global-color-gray-200)}')
+        );
+        $t->same(
+            '.foo{border:green}',
+            $minifier->minify('.foo { border: none green }')
+        );
+    },
+    'css minifier maps upstream outline shorthand composition' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        // Pinned upstream 22bdda3d src/lib.rs::test_outline lines 3143-3199.
+        $cases = [
+            [3143, '.foo { outline-width: 2px; outline-style: solid; outline-color: blue; }', '.foo{outline:2px solid #00f}'],
+            [3160, '.foo { outline: 2px solid blue; }', '.foo{outline:2px solid #00f}'],
+            [3174, '.foo { outline: 2px solid red; outline-color: blue; }', '.foo{outline:2px solid #00f}'],
+            [3189, '.foo { outline: 2px solid yellow; outline-color: var(--color); }', '.foo{outline:2px solid #ff0;outline-color:var(--color)}'],
+        ];
+
+        foreach ($cases as [$line, $input, $expected]) {
+            $t->same($expected, $minifier->minify($input), 'upstream src/lib.rs::test_outline line ' . $line);
+        }
     },
     'css minifier maps upstream basic color value minification' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
@@ -804,6 +1204,26 @@ CSS
             $minifier->minify('.foo { color: lch(from currentColor l c sin(h)); }')
         );
     },
+    'css minifier maps upstream residual relative color rows' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+        $cases = [
+            [19258, 'rgb(from indianred 255 g b)', '#ff5c5c'],
+            [19259, 'rgb(from indianred r g b / .5)', '#cd5c5c80'],
+            [19260, 'rgb(from rgba(205, 92, 92, .5) r g b / calc(alpha + .2))', '#cd5c5cb3'],
+            [19264, 'rgb(from rgba(205, 92, 92, .5) r g b / calc(alpha + .2))', '#cd5c5cb3'],
+            [19564, 'hsl(from rebeccapurple h s none / alpha)', '#000'],
+            [19581, 'hsl(from hsl(none none none / none) h s l / alpha)', '#0000'],
+            [19714, 'hwb(from rebeccapurple h w none / alpha)', '#93f'],
+        ];
+
+        foreach ($cases as [$line, $input, $expectedColor]) {
+            $t->same(
+                '.foo{color:' . $expectedColor . '}',
+                $minifier->minify('.foo { color: ' . $input . '; }'),
+                'upstream src/lib.rs::test_relative_color line ' . $line
+            );
+        }
+    },
     'css minifier maps upstream color calc components in custom property values' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 
@@ -845,6 +1265,66 @@ CSS
         $t->same('.foo{--theme-sizes-1\\/12:2}', $minifier->minify('.foo { --theme-sizes-1\\/12: 2 }'));
         $t->same('.foo{--test:0px}', $minifier->minify('.foo { --test: 0px; }'));
     },
+    'css minifier maps upstream moz-document and unknown at-rule statements' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same(
+            '@-moz-document url-prefix(){h1{color:#ff0}}',
+            $minifier->minify('@-moz-document url-prefix() { h1 { color: yellow; } }')
+        );
+        $t->same(
+            '@-moz-document url-prefix(){h1{color:#ff0}}',
+            $minifier->minify('@-moz-document url-prefix("") { h1 { color: yellow; } }')
+        );
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn () => $minifier->minify('@-moz-document url-prefix(foo) {}'),
+            'upstream src/lib.rs::test_moz_document line 23553'
+        );
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn () => $minifier->minify('@-moz-document url-prefix("foo") {}'),
+            'upstream src/lib.rs::test_moz_document line 23557'
+        );
+        $t->same('@foo;', $minifier->minify('@foo;'));
+        $t->same('@foo bar;', $minifier->minify('@foo bar;'));
+        $t->same('@foo (bar: baz);', $minifier->minify('@foo (bar: baz);'), 'upstream src/lib.rs::test_unknown_at_rules line 30674');
+        $t->same(
+            '@foo test{div { color: red; }}',
+            $minifier->minify(
+                <<<'CSS'
+@foo test {
+  div {
+    color: red;
+  }
+}
+CSS
+            ),
+            'upstream src/lib.rs::test_unknown_at_rules line 30688'
+        );
+        $t->same(
+            '@foo test{foo: bar;}',
+            $minifier->minify(
+                <<<'CSS'
+@foo test {
+  foo: bar;
+}
+CSS
+            ),
+            'upstream src/lib.rs::test_unknown_at_rules line 30696'
+        );
+        $t->same(
+            '@foo{foo: bar;}',
+            $minifier->minify(
+                <<<'CSS'
+@foo {
+  foo: bar;
+}
+CSS
+            ),
+            'upstream src/lib.rs::test_unknown_at_rules line 30712'
+        );
+    },
     'css minifier maps upstream custom property substitution fallbacks and cycles' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 
@@ -864,11 +1344,62 @@ CSS
         $t->same('.foo{aspect-ratio:auto 2/3}', $minifier->minify('.foo { aspect-ratio: auto 2 / 3 }'));
         $t->same('.foo{aspect-ratio:auto 2/3}', $minifier->minify('.foo { aspect-ratio: 2 / 3 auto }'));
     },
+    'css minifier preserves upstream concrete and variable size override order' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        // Pinned upstream 22bdda3d src/lib.rs::test_size lines 4266 and 4270.
+        $cases = [
+            [4266, '.foo { width: 200px; width: var(--foo); }', '.foo{width:200px;width:var(--foo)}'],
+            [4270, '.foo { width: var(--foo); width: 200px; }', '.foo{width:var(--foo);width:200px}'],
+        ];
+
+        foreach ($cases as [$line, $input, $expected]) {
+            $t->same($expected, $minifier->minify($input), 'upstream src/lib.rs::test_size line ' . $line);
+        }
+    },
     'css minifier maps upstream vertical-align value minification' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 
         $t->same('.foo{vertical-align:middle}', $minifier->minify('.foo { vertical-align: middle }'));
         $t->same('.foo{vertical-align:.3em}', $minifier->minify('.foo { vertical-align: 0.3em }'));
+    },
+    'css minifier maps upstream env media query value minification' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same(
+            '@media (width<=env(--branding-small)){body{padding:env(--branding-padding)}}',
+            $minifier->minify('@media (max-width: env(--branding-small)) { body { padding: env(--branding-padding); } }')
+        );
+        $t->same(
+            '@media (width<=env(--branding-small 1)){body{padding:env(--branding-padding 2)}}',
+            $minifier->minify('@media (max-width: env(--branding-small 1)) { body { padding: env(--branding-padding 2); } }')
+        );
+        $t->same(
+            '@media (width<=env(--branding-small 1,20px)){body{padding:env(--branding-padding 2,20px)}}',
+            $minifier->minify('@media (max-width: env(--branding-small 1, 20px)) { body { padding: env(--branding-padding 2, 20px); } }')
+        );
+        $t->same(
+            '@media (width<=env(safe-area-inset-top)){body{padding:env(safe-area-inset-top)}}',
+            $minifier->minify('@media (max-width: env(safe-area-inset-top)) { body { padding: env(safe-area-inset-top); } }')
+        );
+        $t->same(
+            '@media (width<=env(unknown)){body{padding:env(unknown)}}',
+            $minifier->minify('@media (max-width: env(unknown)) { body { padding: env(unknown); } }')
+        );
+    },
+    'css minifier maps upstream z-index integer serialization' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same('.foo{z-index:2}', $minifier->minify('.foo { z-index: 2 }'));
+        $t->same('.foo{z-index:-2}', $minifier->minify('.foo { z-index: -2 }'));
+        $t->same('.foo{z-index:999999}', $minifier->minify('.foo { z-index: 999999 }'));
+        $t->same('.foo{z-index:9999999}', $minifier->minify('.foo { z-index: 9999999 }'));
+        $t->same('.foo{z-index:-9999999}', $minifier->minify('.foo { z-index: -9999999 }'));
+        $t->same(
+            '.foo{z-index:100}',
+            $minifier->minify('.foo { z-index: max(100,    20); }'),
+            'upstream src/lib.rs::test_math_fn line 609'
+        );
     },
     'css minifier maps upstream srgb color-mix value normalization' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
@@ -1384,6 +1915,11 @@ CSS
             '.foo{font-family:Helvetica,Times New Roman,sans-serif;font-size:12px;font-stretch:125%}',
             $minifier->minify('.foo { font-family: "Helvetica", "Times New Roman", sans-serif; font-size: 12px; font-stretch: expanded; }')
         );
+        $t->same(
+            '.foo{font-family:SFMono-Regular,Menlo,Monaco,Consolas,Liberation Mono,Courier New,monospace!important}',
+            $minifier->minify('.foo { font-family: SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace !important; }'),
+            'upstream src/lib.rs::test_important lines 8052-8059'
+        );
         $t->same('.foo{font-stretch:100%}', $minifier->minify('.foo { font-stretch: normal; }'));
         $t->same('.foo{font-family:Helvetica,sans-serif}', $minifier->minify('.foo { font-family: Helvetica, Helvetica, sans-serif; }'));
         $t->same(
@@ -1604,13 +2140,15 @@ CSS
             '@position-try --outside-right-to-bottom{left:anchor(left);margin:0;width:auto}',
             $minifier->minify(
                 '@position-try --outside-right-to-bottom { left: anchor(left); margin: 0; width: auto; }'
-            )
+            ),
+            'upstream src/lib.rs::test_position_try line 14824'
         );
         $t->same(
             '@supports (anchor-name:--foo){@position-try --bar{top:anchor(bottom)}}',
             $minifier->minify(
                 '@supports (anchor-name: --foo) { @position-try --bar { top: anchor(bottom); } }'
-            )
+            ),
+            'upstream src/lib.rs::test_position_try line 14845'
         );
         $t->same(
             '.wp-block-popover{position-try-fallbacks:--wp-popover-below,--wp-popover-above flip-block;position-anchor:--wp-toolbar}@supports (anchor-name:--wp-toolbar){@position-try --wp-popover-above{bottom:anchor(top);margin:0}}',
@@ -2239,6 +2777,15 @@ CSS
         $t->throws(InvalidArgumentException::class, static fn () => $minifier->minify('@property --property-name { inherits: false; }'));
         $t->throws(InvalidArgumentException::class, static fn () => $minifier->minify("@property property-name { syntax: '*'; inherits: false; }"));
     },
+    'css minifier maps upstream position declaration override rows' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same('.foo{position:absolute}', $minifier->minify('.foo { position: relative; position: absolute; }'));
+        $t->same(
+            '.foo{position:-webkit-sticky;position:sticky}',
+            $minifier->minify('.foo { position: -webkit-sticky; position: sticky; }')
+        );
+    },
     'css minifier maps upstream physical and logical inset composition' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 
@@ -2332,6 +2879,46 @@ CSS
             '@scope(.card,.panel) to (.footer,.aside){.title{color:#ff0}}',
             $minifier->minify('@scope (.card, .panel) to (.footer, .aside) { .title { color: yellow; } }')
         );
+    },
+    'css minifier maps upstream scope rule residual rows' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $cases = [
+            [
+                28472,
+                '@scope { .foo { display: flex; } }',
+                '@scope{.foo{display:flex}}',
+            ],
+            [
+                28482,
+                '@scope { :scope { display: flex; color: lightblue; } }',
+                '@scope{:scope{color:#add8e6;display:flex}}',
+            ],
+            [
+                28508,
+                '@scope to (.content > *) { a { color: yellow; } }',
+                '@scope to (.content>*){a{color:#ff0}}',
+            ],
+            [
+                28516,
+                '@scope (#my-component) { & { color: yellow; } }',
+                '@scope(#my-component){&{color:#ff0}}',
+            ],
+            [
+                28524,
+                '@scope (.parent-scope) { @scope (:scope > .child-scope) to (:scope .limit) { .content { color: yellow; } } }',
+                '@scope(.parent-scope){@scope(:scope>.child-scope) to (:scope .limit){.content{color:#ff0}}}',
+            ],
+            [
+                28534,
+                '.foo { @scope (.bar) { color: yellow; } }',
+                '.foo{@scope(.bar){color:#ff0}}',
+            ],
+        ];
+
+        foreach ($cases as [$line, $input, $expected]) {
+            $t->same($expected, $minifier->minify($input), 'upstream src/lib.rs::test_at_scope line ' . $line);
+        }
     },
     'css minifier maps upstream starting-style rule minification' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
@@ -2452,6 +3039,11 @@ CSS
         $t->same('@import "test.css" layer(foo\\ bar);', $minifier->minify("@import 'test.css' layer(foo\\20 bar);"));
         $t->same('@import "test.css" layer(foo\\.bar);', $minifier->minify("@import 'test.css' layer(foo\\2e bar);"));
         $t->same('@import "test.css" layer(foo\\,bar);', $minifier->minify("@import 'test.css' layer(foo\\2c bar);"));
+        // Pinned upstream 22bdda3d src/lib.rs::test_import lines 15543-15557.
+        $t->throws(InvalidArgumentException::class, static fn () => $minifier->minify('.foo { color: red } @import url(bar.css);'));
+        $t->throws(InvalidArgumentException::class, static fn () => $minifier->minify('@namespace "http://example.com/foo"; @import url(bar.css);'));
+        $t->throws(InvalidArgumentException::class, static fn () => $minifier->minify('@media print { .foo { color: red }} @import url(bar.css);'));
+        $t->throws(InvalidArgumentException::class, static fn () => $minifier->minify('@layer foo; @import url(foo.css); @layer bar; @import url(bar.css)'));
         $t->throws(InvalidArgumentException::class, static fn () => $minifier->minify("@import 'test.css' layer(foo, bar) {};"));
         $t->throws(InvalidArgumentException::class, static fn () => $minifier->minify('@import "foo.css" supports(display:grid) layer(theme.blocks) (width >= 240px);'));
         $t->throws(InvalidArgumentException::class, static fn () => $minifier->minify('@import "foo.css" layer(theme.blocks) layer(other.blocks);'));
@@ -2511,6 +3103,11 @@ CSS
             '@layer a,b;@import "a.css" layer(x);@layer c;@layer d{foo{color:red}}',
             $minifier->minify('@layer a; @layer b; @import "a.css" layer(x); @layer c; @layer d { foo { color: red; } }')
         );
+        $t->same(
+            '@layer one{body{background:#ff0}}body{background:red}@layer two{body{background:green}}',
+            $minifier->minify('@layer one { body { background: red; } } body { background: red; } @layer two { body { background: green; } } @layer one { body { background: yellow; } }'),
+            'upstream src/lib.rs::test_layer line 29576'
+        );
         $t->throws(InvalidArgumentException::class, static fn () => $minifier->minify('@layer;'));
         $t->throws(InvalidArgumentException::class, static fn () => $minifier->minify('@layer foo, bar {};'));
     },
@@ -2525,9 +3122,18 @@ CSS
             '@supports not (foo:bar){.test{foo:bar}}',
             $minifier->minify('@supports not (foo: bar) { .test { foo: bar; } }')
         );
+        // Pinned upstream 22bdda3d src/lib.rs::test_supports_rule lines 15113 and 15145.
+        $t->same(
+            '@supports (foo:bar) or (bar:baz){.test{foo:bar}}',
+            $minifier->minify('@supports (foo: bar) or (bar: baz) { .test { foo: bar; } }')
+        );
         $t->same(
             '@supports (foo:bar) or (bar:baz){.test{foo:bar}}',
             $minifier->minify('@supports (((foo: bar) or (bar: baz))) { .test { foo: bar; } }')
+        );
+        $t->same(
+            '@supports (foo:bar) and (bar:baz){.test{foo:bar}}',
+            $minifier->minify('@supports (foo: bar) and (bar: baz) { .test { foo: bar; } }')
         );
         $t->same(
             '@supports (foo:bar) and (bar:baz){.test{foo:bar}}',
@@ -2566,6 +3172,46 @@ CSS
             $minifier->minify('@supports (display: grid) and (not (display: inline-grid)) { .test { foo: bar; } }')
         );
     },
+    'css minifier maps upstream merge-rule residual boundaries' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        // Pinned upstream 22bdda3d src/lib.rs::test_merge_rules.
+        $cases = [
+            [9852, '.foo { color: red; } .bar { color: red; }', '.foo,.bar{color:red}'],
+            [9867, '.foo { color: red; } .foo { background: green; }', '.foo{color:red;background:green}'],
+            [9883, '.foo { color: red; } .foo { background: green !important; }', '.foo{color:red;background:green!important}'],
+            [9899, '.foo { background: red; } .foo { background: green; }', '.foo{background:green}'],
+            [9914, '.foo { --foo: red; --foo: purple; } .foo { --foo: green; }', '.foo{--foo:green}'],
+            [9930, '.foo { color: red; } .bar { background: green; }', '.foo{color:red}.bar{background:green}'],
+            [9950, '.foo { color: red; } .baz { color: blue; } .bar { color: red; }', '.foo{color:red}.baz{color:#00f}.bar{color:red}'],
+            [10041, '[foo="bar"] { color: red; } .bar { color: red; }', '[foo=bar],.bar{color:red}'],
+            [10056, '.a { color: red; } .b { color: green; } .a { color: red; }', '.b{color:green}.a{color:red}'],
+            [10078, '.a { color: red; } .b { color: green; } .a { color: pink; }', '.b{color:green}.a{color:pink}'],
+            [10100, '.a:foo(#000) { color: red; } .b { color: green; } .a:foo(#ff0) { color: pink; }', '.a:foo(#000){color:red}.b{color:green}.a:foo(#ff0){color:pink}'],
+            [10126, '.a { border-radius: 10px; } .b { color: green; } .a { border-radius: 10px; }', '.b{color:green}.a{border-radius:10px}'],
+            [10148, '.a { border-radius: 10px; } .b { color: green; } .a { -webkit-border-radius: 10px; }', '.a{border-radius:10px}.b{color:green}.a{-webkit-border-radius:10px}'],
+            [10174, '.a { border-radius: 10px; } .b { color: green; } .a { border-radius: var(--foo); }', '.b{color:green}.a{border-radius:var(--foo)}'],
+            [10196, '.a { border-radius: 10px; } .b { color: green; } .c { border-radius: 20px; }', '.a{border-radius:10px}.b{color:green}.c{border-radius:20px}'],
+            [10222, '@media print { .a { color: red; } .b { color: green; } .a { color: red; } }', '@media print{.b{color:green}.a{color:red}}'],
+            [10276, '.a { color: red; } .b { color: green; } .a { color: red; } .b { color: green; }', '.a{color:red}.b{color:green}'],
+            [10346, '.foo:-moz-read-only { color: red; }', '.foo:-moz-read-only{color:red}'],
+            [10359, '.foo:-moz-read-only { color: red; } .foo:read-only { color: red; }', '.foo:-moz-read-only{color:red}.foo:read-only{color:red}'],
+            [10700, '.foo:placeholder-shown .bar, .foo:-webkit-autofill .baz { color: red; } .foo:placeholder-shown .bar, .foo:autofill .baz { color: red; }', '.foo:placeholder-shown .bar,.foo:-webkit-autofill .baz{color:red}.foo:placeholder-shown .bar,.foo:autofill .baz{color:red}'],
+        ];
+
+        foreach ($cases as [$line, $input, $expected]) {
+            $t->same($expected, $minifier->minify($input), 'upstream src/lib.rs::test_merge_rules line ' . $line);
+        }
+    },
+    'css minifier maps upstream merge-rule any selector preservation row' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same(
+            '.foo:-webkit-any(.bar,.baz):after{color:red}.foo:is(.bar,.baz):after{color:red}',
+            $minifier->minify('.foo:-webkit-any(.bar, .baz):after { color: red; } .foo:is(.bar, .baz):after { color: red; }'),
+            'upstream src/lib.rs::test_merge_rules line 11065'
+        );
+    },
     'css minifier maps upstream adjacent supports rule merging' => static function (TestRunner $t): void {
         $css = <<<'CSS'
 @supports (flex: 1) {
@@ -2586,6 +3232,28 @@ CSS;
         $t->same(
             '@supports (flex:1){.foo{color:red;background:#fff}.baz{color:#fff}}',
             (new CssMinifier())->minify($css)
+        );
+
+        // Pinned upstream 22bdda3d src/lib.rs::test_merge_supports line 11299.
+        $differentConditions = <<<'CSS'
+@supports (flex: 1) {
+  .foo {
+    color: red;
+  }
+}
+@supports (display: grid) {
+  .foo {
+    background: #fff;
+  }
+  .baz {
+    color: #fff;
+  }
+}
+CSS;
+
+        $t->same(
+            '@supports (flex:1){.foo{color:red}}@supports (display:grid){.foo{background:#fff}.baz{color:#fff}}',
+            (new CssMinifier())->minify($differentConditions)
         );
     },
     'css minifier maps upstream supports rule declaration value minification boundary' => static function (TestRunner $t): void {
@@ -2672,6 +3340,21 @@ CSS;
         $css = '.asset { background: url("/yellow/blue.svg"); content: "yellow"; --brand-color: yellow; color: var(--yellow); width: calc(100% + 8px); }';
         $t->same('.asset{background:url("/yellow/blue.svg");content:"yellow";--brand-color:yellow;color:var(--yellow);width:calc(100% + 8px)}', (new CssMinifier())->minify($css));
     },
+    'css minifier maps upstream residual simple calc rows' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        // Pinned upstream 22bdda3d src/lib.rs::test_calc lines 8064, 8065, 8067, and 8069.
+        $cases = [
+            [8064, '.foo { width: calc(20px * 2) }', '.foo{width:40px}'],
+            [8065, '.foo { font-size: calc(100vw / 35) }', '.foo{font-size:2.85714vw}'],
+            [8067, '.foo { width: calc(20px + 30px) }', '.foo{width:50px}'],
+            [8069, '.foo { width: calc(100% - 30px) }', '.foo{width:calc(100% - 30px)}'],
+        ];
+
+        foreach ($cases as [$line, $input, $expected]) {
+            $t->same($expected, $minifier->minify($input), 'upstream src/lib.rs::test_calc line ' . $line);
+        }
+    },
     'css minifier maps upstream linear calc arithmetic cluster' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 
@@ -2700,6 +3383,27 @@ CSS;
         $t->same('.foo{border-width:calc(3em + 5px)}', $minifier->minify('.foo { border-width: calc(1em + 2px + 2em + 3px) }'));
         $t->same('.foo{width:calc(1x + 2x)}', $minifier->minify('.foo { width: calc(1x + 2x) }'));
         $t->same('.foo{width:calc(var(--gap) + 2px)}', $minifier->minify('.foo { width: calc(var(--gap) + 2px) }'));
+    },
+    'css minifier maps upstream residual calc unit folding rows' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        // Pinned upstream 22bdda3d src/lib.rs::test_calc lines 8304 and 8332-8340.
+        $cases = [
+            [8304, '.foo { width: max(0px, 1vw) }', '.foo{width:max(0px,1vw)}'],
+            [8332, '.foo { width: calc(1vh + 2vh) }', '.foo{width:3vh}'],
+            [8333, '.foo { width: calc(1dvh + 2dvh) }', '.foo{width:3dvh}'],
+            [8334, '.foo { width: calc(1lvh + 2lvh) }', '.foo{width:3lvh}'],
+            [8335, '.foo { width: calc(1svh + 2svh) }', '.foo{width:3svh}'],
+            [8336, '.foo { width: calc(1sVmin + 2Svmin) }', '.foo{width:3svmin}'],
+            [8337, '.foo { width: calc(1ic + 2ic) }', '.foo{width:3ic}'],
+            [8338, '.foo { width: calc(1ric + 2ric) }', '.foo{width:3ric}'],
+            [8339, '.foo { width: calc(1cap + 2cap) }', '.foo{width:3cap}'],
+            [8340, '.foo { width: calc(1lh + 2lh) }', '.foo{width:3lh}'],
+        ];
+
+        foreach ($cases as [$line, $input, $expected]) {
+            $t->same($expected, $minifier->minify($input), 'upstream src/lib.rs::test_calc line ' . $line);
+        }
     },
     'css minifier maps upstream min max and clamp math function cluster' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
@@ -2790,6 +3494,21 @@ CSS;
         $t->same('.foo{width:abs(1%)}', $minifier->minify('.foo { width: abs(1%) }'));
         $t->same('.foo{width:-10px}', $minifier->minify('.foo { width: calc(10px * sign(-1vw)) }'));
         $t->same('.foo{width:calc(10px * sign(1%))}', $minifier->minify('.foo { width: calc(10px * sign(1%)) }'));
+    },
+    'css minifier maps upstream pi trigonometric math rows' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        // Pinned upstream 22bdda3d src/lib.rs::test_trig lines 8426, 8431, 8432, and 8436.
+        $cases = [
+            [8426, '.foo { width: calc(2px * pi); }', '.foo{width:6.28319px}'],
+            [8431, '.foo { width: calc(2px / pi); }', '.foo{width:.63662px}'],
+            [8432, '.foo { width: calc(2px * infinity); }', '.foo{width:calc(2px*infinity)}'],
+            [8436, '.foo { width: calc(2px * -infinity); }', '.foo{width:calc(2px*-infinity)}'],
+        ];
+
+        foreach ($cases as [$line, $input, $expected]) {
+            $t->same($expected, $minifier->minify($input), 'upstream src/lib.rs::test_trig line ' . $line);
+        }
     },
     'css minifier maps upstream nested math functions inside calc' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
@@ -3230,6 +3949,10 @@ CSS;
             $minifier->minify('@container my-layout ( not (width > 500px) ) { .foo { color: red; } }')
         );
         $t->same(
+            '@container my-layout not (width>500px){.foo{color:red}}',
+            $minifier->minify('@container my-layout not (width > 500px) { .foo { color: red; } }')
+        );
+        $t->same(
             '@container not (width>500px){.foo{color:red}}',
             $minifier->minify('@container not (width > 500px) { .foo { color: red; } }')
         );
@@ -3238,16 +3961,44 @@ CSS;
             $minifier->minify('@container my-layout ((width: 100px) and (not (height: 100px))) { .foo { color: red; } }')
         );
         $t->same(
+            '@container my-layout (width=max(10px,10em)){.foo{color:red}}',
+            $minifier->minify('@container my-layout (width = max(10px, 10em)) { .foo { color: red; } }')
+        );
+        $t->same(
+            '@container (inline-size>45em){.foo{color:red}}',
+            $minifier->minify('@container (inline-size > 45em) { .foo { color: red; } }')
+        );
+        $t->same(
             '@container (inline-size>45em) and (inline-size<100em){.foo{color:red}}',
             $minifier->minify('@container (inline-size > 45em) and (inline-size < 100em) { .foo { color: red; } }')
+        );
+        $t->same(
+            '@container (width>calc(100vw - 50px)){.foo{color:red}}',
+            $minifier->minify('@container (width > calc(100vw - 50px)) { .foo { color: red; } }')
         );
         $t->same(
             '@container (height>=calc(100vh - 50px)){.foo{color:red}}',
             $minifier->minify('@container (calc(100vh - 50px) <= height) { .foo { color: red; } }')
         );
         $t->same(
+            '@container style(--responsive:true){.foo{color:red}}',
+            $minifier->minify('@container style(--responsive: true) { .foo { color: red; } }')
+        );
+        $t->same(
             '@container style(--responsive:true) and style(color:#ff0){.foo{color:red}}',
             $minifier->minify('@container style(--responsive: true) and style(color: yellow) { .foo { color: red; } }')
+        );
+        $t->same(
+            '@container not style(--responsive:true){.foo{color:red}}',
+            $minifier->minify('@container not style(--responsive: true) { .foo { color: red; } }')
+        );
+        $t->same(
+            '@container (inline-size>45em) and style(--responsive:true){.foo{color:red}}',
+            $minifier->minify('@container (inline-size > 45em) and style(--responsive: true) { .foo { color: red; } }')
+        );
+        $t->same(
+            '@container style((accent-color:#ff0) or (--bar:10px)){.foo{color:red}}',
+            $minifier->minify('@container style((accent-color: yellow) or (--bar: 10px)) { .foo { color: red; } }')
         );
         $t->same(
             '@container style(color:yellow){.foo{color:red}}',
@@ -3258,8 +4009,45 @@ CSS;
             $minifier->minify('@container style(not ((width: calc(10px + 20px)) and ((--bar: url(x))))) { .foo { color: red; } }')
         );
         $t->same(
+            '@container style(--foo:){.foo{color:red}}',
+            $minifier->minify('@container style(--foo:) { .foo { color: red; } }')
+        );
+        $t->same(
+            '@container style(--foo:){.foo{color:red}}',
+            $minifier->minify('@container style(--foo: ) { .foo { color: red; } }')
+        );
+        // Pinned upstream 22bdda3d src/lib.rs::test_container_queries line 30513.
+        $t->same(
+            '@container style(--my-prop:foo - bar ()){.foo{color:red}}',
+            $minifier->minify('@container style(--my-prop: foo - bar ()) { .foo { color: red; } }')
+        );
+        $t->same(
+            '@container style(--test){.foo{color:red}}',
+            $minifier->minify('@container style(--test) { .foo { color: red; } }')
+        );
+        $t->same(
+            '@container style(width){.foo{color:red}}',
+            $minifier->minify('@container style(width) { .foo { color: red; } }')
+        );
+        $t->same(
+            '@container scroll-state(scrollable:top){.foo{color:red}}',
+            $minifier->minify('@container scroll-state(scrollable: top) { .foo { color: red; } }')
+        );
+        $t->same(
             '@container scroll-state((stuck:top) and (stuck:left)){.foo{color:red}}',
             $minifier->minify('@container scroll-state((stuck: top) and (stuck: left)) { .foo { color: red; } }')
+        );
+        $t->same(
+            '@container scroll-state(not ((scrollable:bottom) and (scrollable:right))){.foo{color:red}}',
+            $minifier->minify('@container scroll-state(not ((scrollable: bottom) and (scrollable: right))) { .foo { color: red; } }')
+        );
+        $t->same(
+            '@container scroll-state(scrollable:inline-end){.foo{color:red}}',
+            $minifier->minify('@container (scroll-state(scrollable: inline-end)) { .foo { color: red; } }')
+        );
+        $t->same(
+            '@container not scroll-state(scrollable:top){.foo{color:red}}',
+            $minifier->minify('@container not scroll-state(scrollable: top) { .foo { color: red; } }')
         );
     },
     'css minifier maps upstream container declaration composition' => static function (TestRunner $t): void {
@@ -3346,7 +4134,97 @@ CSS;
     'css minifier maps upstream media and container error recovery option' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 
+        // Pinned upstream 22bdda3d src/lib.rs::test_import line 15559.
+        $validImport = $minifier->minifyWithErrorRecovery("@import './actual-styles.css';", 'import.css');
+        $t->same('@import "./actual-styles.css";', $validImport['code']);
+        $t->same([], $validImport['warnings']);
+
+        // Pinned upstream 22bdda3d src/lib.rs::test_error_recovery line 30075.
+        $invalidSelectors = $minifier->minifyWithErrorRecovery(
+            <<<'CSS'
+h1(>h1) {
+  color: red;
+}
+
+.foo {
+  color: red;
+}
+
+.clearfix {
+  *zoom: 1;
+  background: red;
+}
+
+@media (hover) {
+  h1(>h1) {
+    color: red;
+  }
+
+  .bar {
+    color: red;
+  }
+}
+
+input:placeholder {
+  color: red;
+}
+
+input::hover {
+  color: red;
+}
+CSS,
+            'test.css'
+        );
+        $t->same(
+            '.foo{color:red}.clearfix{background:red}@media (hover){.bar{color:red}}input:placeholder{color:red}input::hover{color:red}',
+            $invalidSelectors['code']
+        );
+        $t->same(
+            [
+                [
+                    'message' => 'Empty selector',
+                    'type' => 'EmptySelector',
+                    'loc' => ['filename' => 'test.css', 'line' => 1, 'column' => 7],
+                ],
+                [
+                    'message' => 'Unexpected token Semicolon',
+                    'type' => 'UnexpectedToken',
+                    'loc' => ['filename' => 'test.css', 'line' => 10, 'column' => 10],
+                ],
+                [
+                    'message' => 'Empty selector',
+                    'type' => 'EmptySelector',
+                    'loc' => ['filename' => 'test.css', 'line' => 15, 'column' => 9],
+                ],
+                [
+                    'message' => 'Unsupported pseudo-class placeholder',
+                    'type' => 'UnsupportedPseudoClass',
+                    'loc' => ['filename' => 'test.css', 'line' => 24, 'column' => 6],
+                ],
+                [
+                    'message' => 'Unsupported pseudo-element hover',
+                    'type' => 'UnsupportedPseudoElement',
+                    'loc' => ['filename' => 'test.css', 'line' => 28, 'column' => 7],
+                ],
+            ],
+            $invalidSelectors['warnings']
+        );
+
         $t->throws(InvalidArgumentException::class, static fn () => $minifier->minify('@container unknown(foo) {}'));
+
+        // Pinned upstream 22bdda3d src/lib.rs::test_container_queries line 30659.
+        $standaloneContainer = $minifier->minifyWithErrorRecovery('@container unknown(foo) {}', 'container.css');
+        $t->same('', $standaloneContainer['code']);
+        $t->same(
+            [
+                [
+                    'message' => 'Unexpected token Function("unknown")',
+                    'type' => 'UnexpectedToken',
+                    'loc' => ['filename' => 'container.css', 'line' => 1, 'column' => 11],
+                ],
+            ],
+            $standaloneContainer['warnings']
+        );
 
         $container = $minifier->minifyWithErrorRecovery("\n@container unknown(foo) {}\n.ok { color: yellow; }", 'wp.css');
         $t->same('.ok{color:#ff0}', $container['code']);
@@ -3483,6 +4361,71 @@ CSS;
             $compactNot['warnings']
         );
     },
+    'css minifier maps upstream opacity value minification' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        // Pinned upstream 22bdda3d src/lib.rs::test_opacity lines 11352-11357.
+        foreach ([
+            [11352, '.foo { opacity: 0 }', '.foo{opacity:0}'],
+            [11353, '.foo { opacity: 0% }', '.foo{opacity:0}'],
+            [11354, '.foo { opacity: 0.5 }', '.foo{opacity:.5}'],
+            [11355, '.foo { opacity: 50% }', '.foo{opacity:.5}'],
+            [11356, '.foo { opacity: 1 }', '.foo{opacity:1}'],
+            [11357, '.foo { opacity: 100% }', '.foo{opacity:1}'],
+        ] as [$line, $source, $expected]) {
+            $t->same($expected, $minifier->minify($source), 'src/lib.rs::test_opacity line ' . $line);
+        }
+    },
+    'css minifier maps upstream display pair value minification' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        // Pinned upstream 22bdda3d src/lib.rs::test_display minify_test rows.
+        foreach ([
+            [15603, '.foo { display: block }', '.foo{display:block}'],
+            [15604, '.foo { display: block flow }', '.foo{display:block}'],
+            [15605, '.foo { display: flow-root }', '.foo{display:flow-root}'],
+            [15606, '.foo { display: block flow-root }', '.foo{display:flow-root}'],
+            [15607, '.foo { display: inline }', '.foo{display:inline}'],
+            [15608, '.foo { display: inline flow }', '.foo{display:inline}'],
+            [15609, '.foo { display: inline-block }', '.foo{display:inline-block}'],
+            [15610, '.foo { display: inline flow-root }', '.foo{display:inline-block}'],
+            [15611, '.foo { display: run-in }', '.foo{display:run-in}'],
+            [15612, '.foo { display: run-in flow }', '.foo{display:run-in}'],
+            [15613, '.foo { display: list-item }', '.foo{display:list-item}'],
+            [15614, '.foo { display: block flow list-item }', '.foo{display:list-item}'],
+            [15615, '.foo { display: inline list-item }', '.foo{display:inline list-item}'],
+            [15617, '.foo { display: inline flow list-item }', '.foo{display:inline list-item}'],
+            [15620, '.foo { display: flex }', '.foo{display:flex}'],
+            [15621, '.foo { display: block flex }', '.foo{display:flex}'],
+            [15622, '.foo { display: inline-flex }', '.foo{display:inline-flex}'],
+            [15623, '.foo { display: inline flex }', '.foo{display:inline-flex}'],
+            [15624, '.foo { display: grid }', '.foo{display:grid}'],
+            [15625, '.foo { display: block grid }', '.foo{display:grid}'],
+            [15626, '.foo { display: inline-grid }', '.foo{display:inline-grid}'],
+            [15627, '.foo { display: inline grid }', '.foo{display:inline-grid}'],
+            [15628, '.foo { display: ruby }', '.foo{display:ruby}'],
+            [15629, '.foo { display: inline ruby }', '.foo{display:ruby}'],
+            [15630, '.foo { display: block ruby }', '.foo{display:block ruby}'],
+            [15631, '.foo { display: table }', '.foo{display:table}'],
+            [15632, '.foo { display: block table }', '.foo{display:table}'],
+            [15633, '.foo { display: inline-table }', '.foo{display:inline-table}'],
+            [15634, '.foo { display: inline table }', '.foo{display:inline-table}'],
+            [15635, '.foo { display: table-row-group }', '.foo{display:table-row-group}'],
+            [15636, '.foo { display: contents }', '.foo{display:contents}'],
+            [15637, '.foo { display: none }', '.foo{display:none}'],
+            [15638, '.foo { display: -webkit-flex }', '.foo{display:-webkit-flex}'],
+            [15639, '.foo { display: -ms-flexbox }', '.foo{display:-ms-flexbox}'],
+            [15640, '.foo { display: -webkit-box }', '.foo{display:-webkit-box}'],
+            [15641, '.foo { display: -moz-box }', '.foo{display:-moz-box}'],
+            [15642, '.foo { display: -webkit-flex; display: -moz-box; display: flex }', '.foo{display:-webkit-flex;display:-moz-box;display:flex}'],
+            [15646, '.foo { display: -webkit-flex; display: flex; display: -moz-box }', '.foo{display:-webkit-flex;display:flex;display:-moz-box}'],
+            [15650, '.foo { display: flex; display: grid }', '.foo{display:grid}'],
+            [15651, '.foo { display: -webkit-inline-flex; display: -moz-inline-box; display: inline-flex }', '.foo{display:-webkit-inline-flex;display:-moz-inline-box;display:inline-flex}'],
+            [15655, '.foo { display: flex; display: var(--grid); }', '.foo{display:flex;display:var(--grid)}'],
+        ] as [$line, $source, $expected]) {
+            $t->same($expected, $minifier->minify($source), 'src/lib.rs::test_display line ' . $line);
+        }
+    },
     'css minifier maps upstream transition longhand value minification' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 
@@ -3522,6 +4465,29 @@ CSS;
             '.foo{transition-timing-function:cubic-bezier(.58,.2,.11,1.2)}',
             $minifier->minify('.foo { transition-timing-function: cubic-bezier(0.58, 0.2, 0.11, 1.2) }')
         );
+
+        // Pinned upstream 22bdda3d src/lib.rs::test_transitions lines 11476, 11480, and 11484.
+        $cases = [
+            [
+                11476,
+                '.foo { transition-timing-function: ease-in-out, cubic-bezier(0.42, 0, 1, 1) }',
+                '.foo{transition-timing-function:ease-in-out,ease-in}',
+            ],
+            [
+                11480,
+                '.foo { transition-timing-function: cubic-bezier(0.42, 0, 1, 1), cubic-bezier(0.58, 0.2, 0.11, 1.2) }',
+                '.foo{transition-timing-function:ease-in,cubic-bezier(.58,.2,.11,1.2)}',
+            ],
+            [
+                11484,
+                '.foo { transition-timing-function: step-start, steps(5, jump-start) }',
+                '.foo{transition-timing-function:step-start,steps(5,start)}',
+            ],
+        ];
+
+        foreach ($cases as [$line, $input, $expected]) {
+            $t->same($expected, $minifier->minify($input), 'upstream src/lib.rs::test_transitions line ' . $line);
+        }
     },
     'css minifier maps upstream transition shorthand value minification' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
@@ -3653,6 +4619,85 @@ CSS;
             $minifier->minify('.foo { transition: padding-block 200ms; }')
         );
     },
+    'css minifier maps upstream svg paint and stroke dasharray values' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same('.foo{fill:#ff0}', $minifier->minify('.foo { fill: yellow; }'));
+        $t->same('.foo{fill:url(#foo)}', $minifier->minify('.foo { fill: url(#foo); }'));
+        $t->same('.foo{fill:url(#foo) none}', $minifier->minify('.foo { fill: url(#foo) none; }'));
+        $t->same('.foo{fill:url(#foo) #ff0}', $minifier->minify('.foo { fill: url(#foo) yellow; }'));
+        $t->same('.foo{fill:none}', $minifier->minify('.foo { fill: none; }'));
+        $t->same('.foo{fill:context-fill}', $minifier->minify('.foo { fill: context-fill; }'));
+        $t->same('.foo{fill:context-stroke}', $minifier->minify('.foo { fill: context-stroke; }'));
+        $t->same('.foo{stroke:#ff0}', $minifier->minify('.foo { stroke: yellow; }'));
+        $t->same('.foo{stroke:url(#foo)}', $minifier->minify('.foo { stroke: url(#foo); }'));
+        $t->same('.foo{stroke:url(#foo) none}', $minifier->minify('.foo { stroke: url(#foo) none; }'));
+        $t->same('.foo{stroke:url(#foo) #ff0}', $minifier->minify('.foo { stroke: url(#foo) yellow; }'));
+        $t->same('.foo{stroke:none}', $minifier->minify('.foo { stroke: none; }'));
+        $t->same('.foo{stroke:context-fill}', $minifier->minify('.foo { stroke: context-fill; }'));
+        $t->same('.foo{stroke:context-stroke}', $minifier->minify('.foo { stroke: context-stroke; }'));
+        $t->same('.foo{marker-start:url(#foo)}', $minifier->minify('.foo { marker-start: url(#foo); }'));
+        $t->same('.foo{stroke-dasharray:4 1 2}', $minifier->minify('.foo { stroke-dasharray: 4 1 2; }'));
+        $t->same('.foo{stroke-dasharray:4 1 2}', $minifier->minify('.foo { stroke-dasharray: 4,1,2; }'));
+        $t->same('.foo{stroke-dasharray:4 1 2}', $minifier->minify('.foo { stroke-dasharray: 4, 1, 2; }'));
+        $t->same('.foo{stroke-dasharray:4 1 2}', $minifier->minify('.foo { stroke-dasharray: 4px, 1px, 2px; }'));
+    },
+    'css minifier maps upstream svg mask values' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $cases = [
+            ".foo { mask: url('foo.svg'); }" => '.foo{mask:url(foo.svg)}',
+            '.foo { mask: url(masks.svg#star) luminance }' => '.foo{mask:url(masks.svg#star) luminance}',
+            '.foo { mask: url(masks.svg#star) 40px 20px }' => '.foo{mask:url(masks.svg#star) 40px 20px}',
+            '.foo { mask: url(masks.svg#star) 0 0 / 50px 50px }' => '.foo{mask:url(masks.svg#star) 0 0/50px 50px}',
+            '.foo { mask: url(masks.svg#star) repeat-x }' => '.foo{mask:url(masks.svg#star) repeat-x}',
+            '.foo { mask: url(masks.svg#star) stroke-box }' => '.foo{mask:url(masks.svg#star) stroke-box}',
+            '.foo { mask: url(masks.svg#star) stroke-box stroke-box }' => '.foo{mask:url(masks.svg#star) stroke-box}',
+            '.foo { mask: url(masks.svg#star) border-box }' => '.foo{mask:url(masks.svg#star)}',
+            '.foo { mask: url(masks.svg#star) left / 16px repeat-y, url(masks.svg#circle) right / 16px repeat-y }' => '.foo{mask:url(masks.svg#star) 0/16px repeat-y,url(masks.svg#circle) 100%/16px repeat-y}',
+            ".foo { mask-border: url('border-mask.png') 25; }" => '.foo{mask-border:url(border-mask.png) 25}',
+            ".foo { mask-border: url('border-mask.png') 25 / 35px / 12px space alpha; }" => '.foo{mask-border:url(border-mask.png) 25/35px/12px space}',
+            ".foo { mask-border: url('border-mask.png') 25 / 35px / 12px space luminance; }" => '.foo{mask-border:url(border-mask.png) 25/35px/12px space luminance}',
+            ".foo { mask-border: url('border-mask.png') luminance 25 / 35px / 12px space; }" => '.foo{mask-border:url(border-mask.png) 25/35px/12px space luminance}',
+        ];
+
+        foreach ($cases as $input => $expected) {
+            $t->same($expected, $minifier->minify($input));
+        }
+    },
+    'css minifier maps upstream clip path values' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $cases = [
+            ".foo { clip-path: url('clip.svg#star'); }" => '.foo{clip-path:url(clip.svg#star)}',
+            '.foo { clip-path: margin-box; }' => '.foo{clip-path:margin-box}',
+            '.foo { clip-path: inset(100px 50px); }' => '.foo{clip-path:inset(100px 50px)}',
+            '.foo { clip-path: inset(100px 50px round 5px); }' => '.foo{clip-path:inset(100px 50px round 5px)}',
+            '.foo { clip-path: inset(100px 50px round 5px 5px 5px 5px); }' => '.foo{clip-path:inset(100px 50px round 5px)}',
+            '.foo { clip-path: circle(50px); }' => '.foo{clip-path:circle(50px)}',
+            '.foo { clip-path: circle(50px at center center); }' => '.foo{clip-path:circle(50px)}',
+            '.foo { clip-path: circle(50px at 50% 50%); }' => '.foo{clip-path:circle(50px)}',
+            '.foo { clip-path: circle(50px at 0 100px); }' => '.foo{clip-path:circle(50px at 0 100px)}',
+            '.foo { clip-path: circle(closest-side at 0 100px); }' => '.foo{clip-path:circle(at 0 100px)}',
+            '.foo { clip-path: circle(farthest-side at 0 100px); }' => '.foo{clip-path:circle(farthest-side at 0 100px)}',
+            '.foo { clip-path: circle(closest-side at 50% 50%); }' => '.foo{clip-path:circle()}',
+            '.foo { clip-path: ellipse(50px 60px at 0 10% 20%); }' => '.foo{clip-path:ellipse(50px 60px at 0 10% 20%)}',
+            '.foo { clip-path: ellipse(50px 60px at center center); }' => '.foo{clip-path:ellipse(50px 60px)}',
+            '.foo { clip-path: ellipse(closest-side closest-side at 50% 50%); }' => '.foo{clip-path:ellipse()}',
+            '.foo { clip-path: ellipse(closest-side closest-side at 10% 20%); }' => '.foo{clip-path:ellipse(at 10% 20%)}',
+            '.foo { clip-path: ellipse(farthest-side closest-side at 10% 20%); }' => '.foo{clip-path:ellipse(farthest-side closest-side at 10% 20%)}',
+            '.foo { clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%); }' => '.foo{clip-path:polygon(50% 0%,100% 50%,50% 100%,0% 50%)}',
+            '.foo { clip-path: polygon(nonzero, 50% 0%, 100% 50%, 50% 100%, 0% 50%); }' => '.foo{clip-path:polygon(50% 0%,100% 50%,50% 100%,0% 50%)}',
+            '.foo { clip-path: polygon(evenodd, 50% 0%, 100% 50%, 50% 100%, 0% 50%); }' => '.foo{clip-path:polygon(evenodd,50% 0%,100% 50%,50% 100%,0% 50%)}',
+            '.foo { clip-path: padding-box circle(50px at 0 100px); }' => '.foo{clip-path:circle(50px at 0 100px) padding-box}',
+            '.foo { clip-path: circle(50px at 0 100px) padding-box; }' => '.foo{clip-path:circle(50px at 0 100px) padding-box}',
+            '.foo { clip-path: circle(50px at 0 100px) border-box; }' => '.foo{clip-path:circle(50px at 0 100px)}',
+        ];
+
+        foreach ($cases as $input => $expected) {
+            $t->same($expected, $minifier->minify($input));
+        }
+    },
     'css minifier maps upstream filter value minification' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 
@@ -3673,6 +4718,38 @@ CSS;
             $minifier->minify('.foo { filter: contrast(175%) brightness(3%); }')
         );
         $t->same('.foo{filter:hue-rotate()}', $minifier->minify('.foo { filter: hue-rotate(0) }'));
+    },
+    'css minifier maps upstream mix blend mode values' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        foreach ([
+            'normal',
+            'multiply',
+            'screen',
+            'overlay',
+            'darken',
+            'lighten',
+            'color-dodge',
+            'color-burn',
+            'hard-light',
+            'soft-light',
+            'difference',
+            'exclusion',
+            'hue',
+            'saturation',
+            'color',
+            'luminosity',
+            'plus-darker',
+            'plus-lighter',
+        ] as $mode) {
+            $t->same(".foo{mix-blend-mode:{$mode}}", $minifier->minify(".foo { mix-blend-mode: {$mode} }"));
+        }
+    },
+    'css minifier maps upstream viewport rule minification' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same('@viewport{width:100vw}', $minifier->minify('@viewport { width: 100vw; }'));
+        $t->same('@-ms-viewport{width:device-width}', $minifier->minify('@-ms-viewport { width: device-width; }'));
     },
     'css minifier maps upstream box shadow value minification' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
@@ -3725,6 +4802,245 @@ CSS;
             '.foo{text-shadow:1px 1px #ff0,2px 3px red}',
             $minifier->minify('.foo { text-shadow: 1px 1px yellow, 2px 3px red; }')
         );
+    },
+    'css minifier maps upstream visibility text-transform and white-space values' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $cases = [
+            '.foo { visibility: visible }' => '.foo{visibility:visible}',
+            '.foo { visibility: hidden }' => '.foo{visibility:hidden}',
+            '.foo { visibility: collapse }' => '.foo{visibility:collapse}',
+            '.foo { visibility: Visible }' => '.foo{visibility:visible}',
+            '.foo { text-transform: uppercase }' => '.foo{text-transform:uppercase}',
+            '.foo { text-transform: lowercase }' => '.foo{text-transform:lowercase}',
+            '.foo { text-transform: capitalize }' => '.foo{text-transform:capitalize}',
+            '.foo { text-transform: none }' => '.foo{text-transform:none}',
+            '.foo { text-transform: full-width }' => '.foo{text-transform:full-width}',
+            '.foo { text-transform: full-size-kana }' => '.foo{text-transform:full-size-kana}',
+            '.foo { text-transform: uppercase full-width }' => '.foo{text-transform:uppercase full-width}',
+            '.foo { text-transform: full-width uppercase }' => '.foo{text-transform:uppercase full-width}',
+            '.foo { text-transform: uppercase full-width full-size-kana }' => '.foo{text-transform:uppercase full-width full-size-kana}',
+            '.foo { text-transform: full-width uppercase full-size-kana }' => '.foo{text-transform:uppercase full-width full-size-kana}',
+            '.foo { white-space: normal }' => '.foo{white-space:normal}',
+            '.foo { white-space: pre }' => '.foo{white-space:pre}',
+            '.foo { white-space: nowrap }' => '.foo{white-space:nowrap}',
+            '.foo { white-space: pre-wrap }' => '.foo{white-space:pre-wrap}',
+            '.foo { white-space: break-spaces }' => '.foo{white-space:break-spaces}',
+            '.foo { white-space: pre-line }' => '.foo{white-space:pre-line}',
+            '.foo { white-space: NoWrAp }' => '.foo{white-space:nowrap}',
+        ];
+
+        foreach ($cases as $input => $expected) {
+            $t->same($expected, $minifier->minify($input));
+        }
+    },
+    'css minifier maps upstream tab-size word-break and hyphens values' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $cases = [
+            '.foo { tab-size: 8 }' => '.foo{tab-size:8}',
+            '.foo { tab-size: 4px }' => '.foo{tab-size:4px}',
+            '.foo { -moz-tab-size: 4px }' => '.foo{-moz-tab-size:4px}',
+            '.foo { -o-tab-size: 4px }' => '.foo{-o-tab-size:4px}',
+            '.foo { word-break: normal }' => '.foo{word-break:normal}',
+            '.foo { word-break: keep-all }' => '.foo{word-break:keep-all}',
+            '.foo { word-break: break-all }' => '.foo{word-break:break-all}',
+            '.foo { word-break: break-word }' => '.foo{word-break:break-word}',
+            '.foo { hyphens: manual }' => '.foo{hyphens:manual}',
+            '.foo { hyphens: auto }' => '.foo{hyphens:auto}',
+            '.foo { hyphens: none }' => '.foo{hyphens:none}',
+            '.foo { -webkit-hyphens: manual }' => '.foo{-webkit-hyphens:manual}',
+            '.foo { -moz-hyphens: manual }' => '.foo{-moz-hyphens:manual}',
+            '.foo { -ms-hyphens: manual }' => '.foo{-ms-hyphens:manual}',
+        ];
+
+        foreach ($cases as $input => $expected) {
+            $t->same($expected, $minifier->minify($input));
+        }
+    },
+    'css minifier maps upstream line-break and wrap keyword values' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $cases = [
+            '.foo { line-break: auto }' => '.foo{line-break:auto}',
+            '.foo { line-break: Loose }' => '.foo{line-break:loose}',
+            '.foo { line-break: anywhere }' => '.foo{line-break:anywhere}',
+            '.foo { overflow-wrap: nOrmal }' => '.foo{overflow-wrap:normal}',
+            '.foo { overflow-wrap: break-Word }' => '.foo{overflow-wrap:break-word}',
+            '.foo { overflow-wrap: Anywhere }' => '.foo{overflow-wrap:anywhere}',
+            '.foo { word-wrap: Normal }' => '.foo{word-wrap:normal}',
+            '.foo { word-wrap: Break-wOrd }' => '.foo{word-wrap:break-word}',
+            '.foo { word-wrap: Anywhere }' => '.foo{word-wrap:anywhere}',
+        ];
+
+        foreach ($cases as $input => $expected) {
+            $t->same($expected, $minifier->minify($input));
+        }
+    },
+    'css minifier maps upstream text-justify keyword values' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same('.foo{text-justify:auto}', $minifier->minify('.foo { text-justify: auto }'));
+        $t->same('.foo{text-justify:inter-word}', $minifier->minify('.foo { text-justify: inter-word }'));
+    },
+    'css minifier maps upstream overflow shorthand values and composition' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        // Pinned upstream 22bdda3d src/lib.rs::test_overflow lines 17533-17577.
+        $cases = [
+            [17533, '.foo { overflow: hidden }', '.foo{overflow:hidden}'],
+            [17534, '.foo { overflow: hidden hidden }', '.foo{overflow:hidden}'],
+            [17535, '.foo { overflow: hidden auto }', '.foo{overflow:hidden auto}'],
+            [17537, '.foo { overflow-x: hidden; overflow-y: auto; }', '.foo{overflow:hidden auto}'],
+            [17551, '.foo { overflow: hidden; overflow-y: auto; }', '.foo{overflow:hidden auto}'],
+            [17564, '.foo { overflow: hidden; overflow-y: var(--y); }', '.foo{overflow:hidden;overflow-y:var(--y)}'],
+        ];
+
+        foreach ($cases as [$line, $input, $expected]) {
+            $t->same($expected, $minifier->minify($input), 'upstream src/lib.rs line ' . $line);
+        }
+    },
+    'css minifier maps upstream text-overflow keyword value' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        // Pinned upstream 22bdda3d src/lib.rs::test_overflow line 17628.
+        $t->same(
+            '.foo{text-overflow:ellipsis}',
+            $minifier->minify('.foo { text-overflow: ellipsis }')
+        );
+    },
+    'css minifier maps upstream text-align keyword values' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        // Pinned upstream 22bdda3d src/lib.rs::test_text_align lines 15981-15984
+        // and src/lib.rs::test_text_align_last lines 16117-16118.
+        $cases = [
+            [15981, '.foo { text-align: left }', '.foo{text-align:left}'],
+            [15982, '.foo { text-align: Left }', '.foo{text-align:left}'],
+            [15983, '.foo { text-align: END }', '.foo{text-align:end}'],
+            [15984, '.foo { text-align: left }', '.foo{text-align:left}'],
+            [16117, '.foo { text-align-last: left }', '.foo{text-align-last:left}'],
+            [16118, '.foo { text-align-last: justify }', '.foo{text-align-last:justify}'],
+        ];
+
+        foreach ($cases as [$line, $input, $expected]) {
+            $t->same($expected, $minifier->minify($input), 'upstream src/lib.rs line ' . $line);
+        }
+    },
+    'css minifier maps upstream UI keyword and URL values' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        // Pinned upstream 22bdda3d src/lib.rs::test_ui lines 17670-17700.
+        $cases = [
+            [17670, '.foo { resize: both }', '.foo{resize:both}'],
+            [17671, '.foo { resize: Horizontal }', '.foo{resize:horizontal}'],
+            [17672, '.foo { cursor: ew-resize }', '.foo{cursor:ew-resize}'],
+            [17673, '.foo { cursor: url("test.cur"), ew-resize }', '.foo{cursor:url(test.cur),ew-resize}'],
+            [17677, '.foo { cursor: url("test.cur"), url("foo.cur"), ew-resize }', '.foo{cursor:url(test.cur),url(foo.cur),ew-resize}'],
+            [17692, '.foo { user-select: none }', '.foo{user-select:none}'],
+            [17693, '.foo { -webkit-user-select: none }', '.foo{-webkit-user-select:none}'],
+            [17694, '.foo { accent-color: auto }', '.foo{accent-color:auto}'],
+            [17695, '.foo { accent-color: yellow }', '.foo{accent-color:#ff0}'],
+            [17696, '.foo { appearance: None }', '.foo{appearance:none}'],
+            [17697, '.foo { -webkit-appearance: textfield }', '.foo{-webkit-appearance:textfield}'],
+        ];
+
+        foreach ($cases as [$line, $input, $expected]) {
+            $t->same($expected, $minifier->minify($input), 'upstream src/lib.rs line ' . $line);
+        }
+    },
+    'css minifier maps upstream word spacing letter spacing and text indent values' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $cases = [
+            '.foo { word-spacing: normal }' => '.foo{word-spacing:normal}',
+            '.foo { word-spacing: 3px }' => '.foo{word-spacing:3px}',
+            '.foo { letter-spacing: normal }' => '.foo{letter-spacing:normal}',
+            '.foo { letter-spacing: 3px }' => '.foo{letter-spacing:3px}',
+            '.foo { text-indent: 20px }' => '.foo{text-indent:20px}',
+            '.foo { text-indent: 10% }' => '.foo{text-indent:10%}',
+            '.foo { text-indent: 3em hanging }' => '.foo{text-indent:3em hanging}',
+            '.foo { text-indent: 3em each-line }' => '.foo{text-indent:3em each-line}',
+            '.foo { text-indent: 3em hanging each-line }' => '.foo{text-indent:3em hanging each-line}',
+            '.foo { text-indent: 3em each-line hanging }' => '.foo{text-indent:3em hanging each-line}',
+            '.foo { text-indent: each-line 3em hanging }' => '.foo{text-indent:3em hanging each-line}',
+            '.foo { text-indent: each-line hanging 3em }' => '.foo{text-indent:3em hanging each-line}',
+        ];
+
+        foreach ($cases as $input => $expected) {
+            $t->same($expected, $minifier->minify($input));
+        }
+    },
+    'css minifier maps upstream text-size-adjust values' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same('.foo{text-size-adjust:none}', $minifier->minify('.foo { text-size-adjust: none }'));
+        $t->same('.foo{text-size-adjust:auto}', $minifier->minify('.foo { text-size-adjust: auto }'));
+        $t->same('.foo{text-size-adjust:80%}', $minifier->minify('.foo { text-size-adjust: 80% }'));
+    },
+    'css minifier maps upstream text-decoration values' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        // Pinned upstream 22bdda3d src/lib.rs::test_text_decoration minify_test rows.
+        $cases = [
+            [16242, '.foo { text-decoration-line: none }', '.foo{text-decoration-line:none}'],
+            [16260, '.foo { text-decoration-line: underline overline }', '.foo{text-decoration-line:underline overline}'],
+            [16264, '.foo { text-decoration-line: overline underline }', '.foo{text-decoration-line:underline overline}'],
+            [16268, '.foo { text-decoration-line: overline line-through underline }', '.foo{text-decoration-line:underline overline line-through}'],
+            [16272, '.foo { text-decoration-line: spelling-error }', '.foo{text-decoration-line:spelling-error}'],
+            [16276, '.foo { text-decoration-line: grammar-error }', '.foo{text-decoration-line:grammar-error}'],
+            [16280, '.foo { -webkit-text-decoration-line: overline underline }', '.foo{-webkit-text-decoration-line:underline overline}'],
+            [16284, '.foo { -moz-text-decoration-line: overline underline }', '.foo{-moz-text-decoration-line:underline overline}'],
+            [16289, '.foo { text-decoration-style: solid }', '.foo{text-decoration-style:solid}'],
+            [16293, '.foo { text-decoration-style: dotted }', '.foo{text-decoration-style:dotted}'],
+            [16297, '.foo { -webkit-text-decoration-style: solid }', '.foo{-webkit-text-decoration-style:solid}'],
+            [16302, '.foo { text-decoration-color: yellow }', '.foo{text-decoration-color:#ff0}'],
+            [16306, '.foo { -webkit-text-decoration-color: yellow }', '.foo{-webkit-text-decoration-color:#ff0}'],
+            [16310, '.foo { text-decoration: none }', '.foo{text-decoration:none}'],
+            [16312, '.foo { text-decoration: underline dotted }', '.foo{text-decoration:underline dotted}'],
+            [16316, '.foo { text-decoration: underline dotted yellow }', '.foo{text-decoration:underline dotted #ff0}'],
+            [16320, '.foo { text-decoration: yellow dotted underline }', '.foo{text-decoration:underline dotted #ff0}'],
+            [16324, '.foo { text-decoration: underline overline dotted yellow }', '.foo{text-decoration:underline overline dotted #ff0}'],
+            [16328, '.foo { -webkit-text-decoration: yellow dotted underline }', '.foo{-webkit-text-decoration:underline dotted #ff0}'],
+            [16332, '.foo { -moz-text-decoration: yellow dotted underline }', '.foo{-moz-text-decoration:underline dotted #ff0}'],
+            [16588, '.foo { text-decoration-skip-ink: all }', '.foo{text-decoration-skip-ink:all}'],
+            [16592, '.foo { -webkit-text-decoration-skip-ink: all }', '.foo{-webkit-text-decoration-skip-ink:all}'],
+        ];
+
+        foreach ($cases as [$line, $input, $expected]) {
+            $t->same($expected, $minifier->minify($input), 'upstream src/lib.rs::test_text_decoration line ' . $line);
+        }
+    },
+    'css minifier maps upstream text-decoration composition rows' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        // Pinned upstream 22bdda3d src/lib.rs::test_text_decoration test() rows.
+        $cases = [
+            [
+                16336,
+                '.foo { text-decoration-line: underline; text-decoration-style: dotted; text-decoration-color: yellow; text-decoration-thickness: 2px; }',
+                '.foo{text-decoration:underline 2px dotted #ff0}',
+            ],
+            [
+                16352,
+                '.foo { text-decoration: underline; text-decoration-style: dotted; }',
+                '.foo{text-decoration:underline dotted}',
+            ],
+            [
+                16366,
+                '.foo { text-decoration: underline; text-decoration-style: var(--style); }',
+                '.foo{text-decoration:underline;text-decoration-style:var(--style)}',
+            ],
+            [
+                16381,
+                '.foo { -webkit-text-decoration: underline; -webkit-text-decoration-style: dotted; }',
+                '.foo{-webkit-text-decoration:underline dotted}',
+            ],
+        ];
+
+        foreach ($cases as [$line, $input, $expected]) {
+            $t->same($expected, $minifier->minify($input), 'upstream src/lib.rs::test_text_decoration line ' . $line);
+        }
     },
     'css minifier maps upstream caret values' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();

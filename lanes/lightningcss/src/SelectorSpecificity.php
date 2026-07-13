@@ -150,6 +150,13 @@ final class SelectorSpecificity
                 return $close + 1;
             }
 
+            if ($lowerName === 'lang') {
+                self::validateLangSelectorArgument($argument);
+                $specificity['classes']++;
+
+                return $close + 1;
+            }
+
             $specificity['classes']++;
 
             return $close + 1;
@@ -338,6 +345,81 @@ final class SelectorSpecificity
         }
 
         return null;
+    }
+
+    private static function validateLangSelectorArgument(string $argument): void
+    {
+        $ranges = self::splitSelectorList($argument);
+        if ($ranges === []) {
+            throw new \InvalidArgumentException('Invalid :lang() selector argument');
+        }
+
+        foreach ($ranges as $range) {
+            if (!self::isValidLangRange($range)) {
+                throw new \InvalidArgumentException('Invalid :lang() selector argument');
+            }
+        }
+    }
+
+    private static function isValidLangRange(string $range): bool
+    {
+        $range = trim($range);
+        if ($range === '') {
+            return false;
+        }
+
+        if ($range[0] === '"' || $range[0] === "'") {
+            return self::isCompleteQuotedString($range);
+        }
+
+        $length = strlen($range);
+        $sawLanguageCharacter = false;
+        for ($i = 0; $i < $length; $i++) {
+            $char = $range[$i];
+            if ($char === '\\') {
+                if ($i + 1 >= $length) {
+                    return false;
+                }
+                $i++;
+                $sawLanguageCharacter = true;
+                continue;
+            }
+
+            if ($char === '*') {
+                $sawLanguageCharacter = true;
+                continue;
+            }
+
+            if (!$sawLanguageCharacter && preg_match('/[0-9]/', $char) === 1) {
+                return false;
+            }
+
+            if (!self::isIdentifierChar($char)) {
+                return false;
+            }
+
+            $sawLanguageCharacter = true;
+        }
+
+        return $sawLanguageCharacter;
+    }
+
+    private static function isCompleteQuotedString(string $value): bool
+    {
+        $quote = $value[0];
+        $length = strlen($value);
+        for ($i = 1; $i < $length; $i++) {
+            if ($value[$i] === '\\') {
+                $i++;
+                continue;
+            }
+
+            if ($value[$i] === $quote) {
+                return $i === $length - 1;
+            }
+        }
+
+        return false;
     }
 
     private static function findMatchingDelimiter(string $source, int $open, string $left, string $right): int

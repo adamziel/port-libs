@@ -21,7 +21,10 @@ return [
         $t->same($specificity(0, 1, 0), SelectorSpecificity::packed('[Foo]'));
     },
     'selector specificity maps upstream pseudo selectors' => static function (TestRunner $t) use ($specificity): void {
-        $t->same($specificity(0, 0, 1), SelectorSpecificity::packed('::before'));
+        $t->same($specificity(0, 1, 0), SelectorSpecificity::packed(':empty'), 'upstream selectors/parser.rs::tests::test_empty');
+        $t->same($specificity(0, 0, 2), SelectorSpecificity::packed('q::before'), 'upstream selectors/parser.rs::tests::test_pseudo_iter lines 3955-3965');
+        $t->same($specificity(0, 0, 1), SelectorSpecificity::packed('*|*::before'), 'upstream selectors/parser.rs::tests::test_universal lines 3969-3976');
+        $t->same($specificity(0, 0, 1), SelectorSpecificity::packed('::before'), 'upstream selectors/parser.rs::tests::test_empty_pseudo_iter lines 3980-3988');
         $t->same($specificity(0, 1, 1), SelectorSpecificity::packed('::before:hover'));
         $t->same($specificity(0, 2, 1), SelectorSpecificity::packed('::before:hover:hover'));
         $t->same($specificity(0, 1, 0), SelectorSpecificity::packed(':not(.cl)'));
@@ -30,6 +33,32 @@ return [
         $t->same($specificity(0, 0, 1), SelectorSpecificity::packed('foo:where(#bar, .baz)'));
         $t->same($specificity(0, 1, 2), SelectorSpecificity::packed('article:has(.wp-block-image img)'));
         $t->same($specificity(1, 1, 1), SelectorSpecificity::packed('li:nth-child(2n of .current, #featured)'));
+    },
+    'selector specificity maps additional upstream parser specificity rows' => static function (TestRunner $t) use ($specificity): void {
+        $t->same($specificity(0, 0, 0), SelectorSpecificity::packed('svg|*'));
+        $t->same($specificity(0, 0, 1), SelectorSpecificity::packed(':not(e)'));
+        $t->same($specificity(0, 1, 0), SelectorSpecificity::packed('[attr|="foo"]'));
+        $t->same($specificity(0, 0, 2), SelectorSpecificity::packed('div ::after'));
+        $t->same($specificity(1, 1, 0), SelectorSpecificity::packed('#d1 > .ok'));
+        $t->same($specificity(0, 0, 0), SelectorSpecificity::packed(':not(|*)'));
+    },
+    'selector specificity maps upstream parser test_parsing row' => static function (TestRunner $t) use ($specificity): void {
+        $expectInvalid = static function (string $selector, string $message) use ($t): void {
+            try {
+                SelectorSpecificity::packed($selector);
+            } catch (InvalidArgumentException) {
+                $t->true(true, $message);
+                return;
+            }
+
+            $t->true(false, $message);
+        };
+
+        $expectInvalid('', 'upstream selectors/parser.rs::tests::test_parsing line 3464');
+        $expectInvalid(':lang(4)', 'upstream selectors/parser.rs::tests::test_parsing line 3465');
+        $expectInvalid(':lang(en US)', 'upstream selectors/parser.rs::tests::test_parsing line 3466');
+        $t->same($specificity(0, 0, 1), SelectorSpecificity::packed('EeÉ'), 'upstream selectors/parser.rs::tests::test_parsing lines 3467-3477');
+        $t->same($specificity(0, 0, 1), SelectorSpecificity::packed('|e'), 'upstream selectors/parser.rs::tests::test_parsing lines 3478-3490');
     },
     'selector specificity compares WordPress override selectors' => static function (TestRunner $t): void {
         $t->true(SelectorSpecificity::compare('.wp-block-button .wp-element-button:hover', '.wp-block-button .wp-element-button') > 0);

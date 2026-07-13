@@ -7,6 +7,7 @@ namespace PortLibs\LightningCSS;
 final class CustomAtRuleTransformer
 {
     private const CUSTOM_PRELUDE_TOKEN_REVISIT_LIMIT = 8;
+    private const COMPOSE_VISITOR_METADATA = '__composeVisitorMetadata';
 
     /** @var array<string, array<string, mixed>> */
     private array $customAtRules = [];
@@ -195,6 +196,13 @@ final class CustomAtRuleTransformer
     /** @var array<string, bool> */
     private array $rawValueVisitorReplacementProperties = [];
 
+    /** @var array<string, list<string>> */
+    private array $rawValueVisitorReplacementDeclarationValues = [];
+
+    private bool $activeDeclarationHadRawValueVisitorReplacement = false;
+
+    private bool $preferColorBeforeVisitedWidthDeclarations = false;
+
     private ?string $activeDeclarationProperty = null;
 
     private DeclarationBlock $declarationBlock;
@@ -247,7 +255,10 @@ final class CustomAtRuleTransformer
             return $visitors[0];
         }
 
+        $tokenVisitorConfig = self::composeTokenVisitorConfig($visitors);
+
         return [
+            self::COMPOSE_VISITOR_METADATA => self::composeVisitorMetadata($visitors),
             'Rule' => [
                 'custom' => static function (array $rule, self $transformer) use ($visitors): mixed {
                     return self::applyComposedRuleVisitors(
@@ -734,21 +745,7 @@ final class CustomAtRuleTransformer
 
                 return $changed ? $current : null;
             },
-            'Token' => [
-                'ident' => static fn (array $token, self $transformer): mixed => self::callComposedTokenVisitors($visitors, 'ident', $token, $transformer),
-                'at-keyword' => static fn (array $token, self $transformer): mixed => self::callComposedTokenVisitors($visitors, 'at-keyword', $token, $transformer),
-                'hash' => static fn (array $token, self $transformer): mixed => self::callComposedTokenVisitors($visitors, 'hash', $token, $transformer),
-                'id-hash' => static fn (array $token, self $transformer): mixed => self::callComposedTokenVisitors($visitors, 'id-hash', $token, $transformer),
-                'string' => static fn (array $token, self $transformer): mixed => self::callComposedTokenVisitors($visitors, 'string', $token, $transformer),
-                'number' => static fn (array $token, self $transformer): mixed => self::callComposedTokenVisitors($visitors, 'number', $token, $transformer),
-                'percentage' => static fn (array $token, self $transformer): mixed => self::callComposedTokenVisitors($visitors, 'percentage', $token, $transformer),
-                'dimension' => static fn (array $token, self $transformer): mixed => self::callComposedTokenVisitors($visitors, 'dimension', $token, $transformer),
-                'include-match' => static fn (array $token, self $transformer): mixed => self::callComposedTokenVisitors($visitors, 'include-match', $token, $transformer),
-                'dash-match' => static fn (array $token, self $transformer): mixed => self::callComposedTokenVisitors($visitors, 'dash-match', $token, $transformer),
-                'prefix-match' => static fn (array $token, self $transformer): mixed => self::callComposedTokenVisitors($visitors, 'prefix-match', $token, $transformer),
-                'suffix-match' => static fn (array $token, self $transformer): mixed => self::callComposedTokenVisitors($visitors, 'suffix-match', $token, $transformer),
-                'substring-match' => static fn (array $token, self $transformer): mixed => self::callComposedTokenVisitors($visitors, 'substring-match', $token, $transformer),
-            ],
+            'Token' => $tokenVisitorConfig,
             'Selector' => static function (array $selector, self $transformer) use ($visitors): mixed {
                 $current = $selector;
                 $changed = false;
@@ -1015,6 +1012,52 @@ final class CustomAtRuleTransformer
     }
 
     /**
+     * @param list<array<string, mixed>> $visitors
+     * @return array{hasFunctionValueVisitors:bool}
+     */
+    private static function composeVisitorMetadata(array $visitors): array
+    {
+        $hasFunctionValueVisitors = false;
+        foreach ($visitors as $visitor) {
+            if (self::visitorDefinesFunctionValueVisitors($visitor)) {
+                $hasFunctionValueVisitors = true;
+                break;
+            }
+        }
+
+        return [
+            'hasFunctionValueVisitors' => $hasFunctionValueVisitors,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $visitor
+     */
+    private static function visitorDefinesFunctionValueVisitors(array $visitor): bool
+    {
+        return self::visitorConfigDefinesCallbacks($visitor['Function'] ?? null)
+            || self::visitorConfigDefinesCallbacks($visitor['FunctionExit'] ?? null);
+    }
+
+    private static function visitorConfigDefinesCallbacks(mixed $config): bool
+    {
+        if (is_callable($config)) {
+            return true;
+        }
+        if (!is_array($config)) {
+            return false;
+        }
+
+        foreach ($config as $callback) {
+            if (is_callable($callback)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * @param array<string, array{prelude?:string, body?:string}> $customAtRules
      * @param array<string, mixed>|callable(array<string, mixed>): array<string, mixed> $visitor
      * @param array<string, callable> $functionVisitors
@@ -1183,7 +1226,17 @@ final class CustomAtRuleTransformer
     {
         $visitor = $this->resolveVisitor($visitor);
         $this->rawValueVisitorReplacementProperties = [];
+        $this->rawValueVisitorReplacementDeclarationValues = [];
+        $this->activeDeclarationHadRawValueVisitorReplacement = false;
+        $this->preferColorBeforeVisitedWidthDeclarations = false;
         $this->activeDeclarationProperty = null;
+        $composeMetadata = is_array($visitor[self::COMPOSE_VISITOR_METADATA] ?? null)
+            ? $visitor[self::COMPOSE_VISITOR_METADATA]
+            : null;
+        $hasFunctionValueVisitors = $functionVisitors !== []
+            || ($composeMetadata !== null
+                ? (bool) ($composeMetadata['hasFunctionValueVisitors'] ?? false)
+                : self::visitorDefinesFunctionValueVisitors($visitor));
 
         $this->customAtRules = [];
         foreach ($customAtRules as $name => $definition) {
@@ -1444,6 +1497,9 @@ final class CustomAtRuleTransformer
         $this->imageExitVisitor = is_callable($visitor['ImageExit'] ?? null) ? $visitor['ImageExit'] : null;
         $this->dashedIdentVisitor = is_callable($visitor['DashedIdent'] ?? null) ? $visitor['DashedIdent'] : null;
         $this->customIdentVisitor = is_callable($visitor['CustomIdent'] ?? null) ? $visitor['CustomIdent'] : null;
+        $this->preferColorBeforeVisitedWidthDeclarations = $this->lengthVisitor !== null
+            && $this->colorVisitor !== null
+            && !$hasFunctionValueVisitors;
 
         $this->tokenVisitors = [];
         $this->genericTokenVisitor = null;
@@ -5610,24 +5666,42 @@ final class CustomAtRuleTransformer
      */
     private function returnedDeclarationBlockEntries(array $block): array
     {
-        $entries = [];
-        foreach (['declarations', 'importantDeclarations'] as $key) {
-            $declarations = $block[$key] ?? [];
-            if (!is_array($declarations)) {
-                continue;
-            }
+        $customEntries = [];
+        $normalEntries = [];
+        $importantEntries = [];
+
+        $declarations = $block['declarations'] ?? [];
+        if (is_array($declarations)) {
             foreach ($declarations as $declaration) {
                 if (!is_array($declaration)) {
                     continue;
                 }
-                if ($key === 'importantDeclarations') {
-                    $declaration['important'] = true;
+                if (str_starts_with((string) ($declaration['property'] ?? ''), '--')) {
+                    $customEntries[] = $declaration;
+                    continue;
                 }
-                $entries[] = $declaration;
+                $normalEntries[] = $declaration;
             }
         }
 
-        return $entries;
+        $importantDeclarations = $block['importantDeclarations'] ?? [];
+        if (is_array($importantDeclarations)) {
+            foreach ($importantDeclarations as $declaration) {
+                if (!is_array($declaration)) {
+                    continue;
+                }
+                $declaration['important'] = true;
+                $importantEntries[] = $declaration;
+            }
+        }
+
+        if ($customEntries !== [] && count($normalEntries) > 1) {
+            $firstNormalEntry = array_shift($normalEntries);
+
+            return [$firstNormalEntry, ...$customEntries, ...$normalEntries, ...$importantEntries];
+        }
+
+        return [...$normalEntries, ...$customEntries, ...$importantEntries];
     }
 
     /**
@@ -5929,6 +6003,50 @@ final class CustomAtRuleTransformer
         }
 
         return trim($fallback);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $visitors
+     * @return array<string, callable>|callable
+     */
+    private static function composeTokenVisitorConfig(array $visitors): array|callable
+    {
+        $hasFunction = false;
+        $keys = [];
+        foreach ($visitors as $visitor) {
+            $tokenConfig = $visitor['Token'] ?? null;
+            if (is_callable($tokenConfig)) {
+                $hasFunction = true;
+                continue;
+            }
+            if (!is_array($tokenConfig)) {
+                continue;
+            }
+
+            foreach ($tokenConfig as $key => $callback) {
+                if (is_callable($callback)) {
+                    $keys[strtolower((string) $key)] = true;
+                }
+            }
+        }
+
+        if ($hasFunction) {
+            return static function (array $token, self $transformer) use ($visitors): mixed {
+                $tokenType = (string) ($token['type'] ?? '');
+                if ($tokenType === '') {
+                    return null;
+                }
+
+                return self::callComposedTokenVisitors($visitors, $tokenType, $token, $transformer);
+            };
+        }
+
+        $callbacks = [];
+        foreach (array_keys($keys) as $key) {
+            $callbacks[$key] = static fn (array $token, self $transformer): mixed => self::callComposedTokenVisitors($visitors, $key, $token, $transformer);
+        }
+
+        return $callbacks;
     }
 
     /**
@@ -7027,7 +7145,53 @@ final class CustomAtRuleTransformer
             $entries = $this->applyDeclarationVisitorConfig($entries, $this->declarationExitVisitorConfig);
         }
 
+        if ($this->preferColorBeforeVisitedWidthDeclarations) {
+            $entries = $this->orderColorBeforeVisitedWidthEntries($entries);
+        }
+
         return $this->orderVendorOverflowScrollingEntries($entries);
+    }
+
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     * @return list<array{property:string, value:string, important:bool}>
+     */
+    private function orderColorBeforeVisitedWidthEntries(array $entries): array
+    {
+        for ($index = 0, $count = count($entries); $index < $count - 1; $index++) {
+            if (!$this->isVisitedWidthBeforeColorPair($entries[$index], $entries[$index + 1])) {
+                continue;
+            }
+
+            [$entries[$index], $entries[$index + 1]] = [$entries[$index + 1], $entries[$index]];
+            $index++;
+        }
+
+        return $entries;
+    }
+
+    /**
+     * @param array{property:string, value:string, important:bool} $widthEntry
+     * @param array{property:string, value:string, important:bool} $colorEntry
+     */
+    private function isVisitedWidthBeforeColorPair(array $widthEntry, array $colorEntry): bool
+    {
+        return strtolower((string) ($widthEntry['property'] ?? '')) === 'width'
+            && strtolower((string) ($colorEntry['property'] ?? '')) === 'color'
+            && empty($widthEntry['important'])
+            && empty($colorEntry['important'])
+            && $this->isStandaloneLengthDeclarationValue((string) ($widthEntry['value'] ?? ''))
+            && $this->isColorDeclarationCandidate((string) ($colorEntry['value'] ?? ''));
+    }
+
+    private function isStandaloneLengthDeclarationValue(string $value): bool
+    {
+        return preg_match('/^[+-]?(?:\d+|\d*\.\d+)(?:[a-z]+|%)$/i', trim($value)) === 1;
+    }
+
+    private function isColorDeclarationCandidate(string $value): bool
+    {
+        return preg_match('/^(?:#[0-9a-f]{3,8}|[a-z]+|(?:rgb|rgba|hsl|hsla|hwb|lab|lch|oklab|oklch|color)\()/i', trim($value)) === 1;
     }
 
     /**
@@ -8189,7 +8353,9 @@ final class CustomAtRuleTransformer
     private function rewriteDeclarationValue(string $value, ?string $property = null): string
     {
         $previousProperty = $this->activeDeclarationProperty;
+        $previousRawValueVisitorReplacement = $this->activeDeclarationHadRawValueVisitorReplacement;
         $this->activeDeclarationProperty = $property === null ? null : strtolower($property);
+        $this->activeDeclarationHadRawValueVisitorReplacement = false;
         $this->functionReplacementAppliedColorVisitor = false;
         try {
             $rewritten = $this->rewriteValueTokens($this->rewriteValueFunctions($this->rewriteStandaloneLengths($value)));
@@ -8197,9 +8363,16 @@ final class CustomAtRuleTransformer
                 $rewritten = $this->rewriteColorDeclarationValue($rewritten, $property);
             }
 
-            return $property === null ? $rewritten : $this->rewriteAnimationCustomIdents($property, $rewritten);
+            $serialized = $property === null ? $rewritten : $this->rewriteAnimationCustomIdents($property, $rewritten);
+            if ($property !== null && $this->activeDeclarationHadRawValueVisitorReplacement) {
+                $propertyKey = strtolower($property);
+                $this->rawValueVisitorReplacementDeclarationValues[$propertyKey][] = $this->restoreRawValueVisitorDeclarationSpacing($propertyKey, $serialized);
+            }
+
+            return $serialized;
         } finally {
             $this->activeDeclarationProperty = $previousProperty;
+            $this->activeDeclarationHadRawValueVisitorReplacement = $previousRawValueVisitorReplacement;
         }
     }
 
@@ -8209,15 +8382,28 @@ final class CustomAtRuleTransformer
             return $code;
         }
 
+        $rawDeclarationValues = $this->rawValueVisitorReplacementDeclarationValues;
+
         return preg_replace_callback(
             '/([\\{;])([-_a-zA-Z][-_a-zA-Z0-9]*):([^;{}]+)/',
-            function (array $matches): string {
+            function (array $matches) use (&$rawDeclarationValues): string {
                 $property = strtolower($matches[2]);
                 if (!isset($this->rawValueVisitorReplacementProperties[$property])) {
                     return $matches[0];
                 }
 
-                return $matches[1] . $matches[2] . ':' . $this->restoreRawValueVisitorDeclarationSpacing($property, $matches[3]);
+                $value = $matches[3];
+                if (($rawDeclarationValues[$property] ?? []) !== []) {
+                    $rawValue = array_shift($rawDeclarationValues[$property]);
+                    if (is_string($rawValue)) {
+                        $value = $rawValue;
+                        if (preg_match('/!\\s*important\\s*$/i', $matches[3]) === 1 && preg_match('/!\\s*important\\s*$/i', $value) !== 1) {
+                            $value .= '!important';
+                        }
+                    }
+                }
+
+                return $matches[1] . $matches[2] . ':' . $this->restoreRawValueVisitorDeclarationSpacing($property, $value);
             },
             $code
         ) ?? $code;
@@ -8225,6 +8411,8 @@ final class CustomAtRuleTransformer
 
     private function restoreRawValueVisitorDeclarationSpacing(string $property, string $value): string
     {
+        $value = $this->restoreRawValueVisitorGradientCommaSpacing($value);
+
         if ($property === 'content') {
             return $this->restoreAdjacentStringTokenSpacing($value);
         }
@@ -8242,6 +8430,104 @@ final class CustomAtRuleTransformer
         }
 
         return $value;
+    }
+
+    private function restoreRawValueVisitorGradientCommaSpacing(string $value): string
+    {
+        $output = '';
+        $cursor = 0;
+        $length = strlen($value);
+
+        while ($cursor < $length) {
+            $char = $value[$cursor];
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                $output .= $char;
+                $cursor++;
+                while ($cursor < $length) {
+                    $output .= $value[$cursor];
+                    if ($value[$cursor] === '\\' && $cursor + 1 < $length) {
+                        $cursor++;
+                        $output .= $value[$cursor];
+                    } elseif ($value[$cursor] === $quote) {
+                        $cursor++;
+                        break;
+                    }
+                    $cursor++;
+                }
+                continue;
+            }
+
+            if (preg_match('/(?:repeating-)?(?:linear|radial|conic)-gradient(?=\\()/Ai', substr($value, $cursor), $matches) !== 1) {
+                $output .= $char;
+                $cursor++;
+                continue;
+            }
+
+            $name = $matches[0];
+            $open = $cursor + strlen($name);
+            $close = $this->findMatchingParen($value, $open);
+            if ($close === null) {
+                $output .= $char;
+                $cursor++;
+                continue;
+            }
+
+            $arguments = substr($value, $open + 1, $close - $open - 1);
+            $output .= $name . '(' . $this->restoreTopLevelCommaSpacing($arguments) . ')';
+            $cursor = $close + 1;
+        }
+
+        return $output;
+    }
+
+    private function restoreTopLevelCommaSpacing(string $value): string
+    {
+        $output = '';
+        $quote = null;
+        $parenDepth = 0;
+        $bracketDepth = 0;
+        $length = strlen($value);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $value[$i];
+            if ($quote !== null) {
+                $output .= $char;
+                if ($char === '\\' && $i + 1 < $length) {
+                    $output .= $value[++$i];
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                $output .= $char;
+                continue;
+            }
+            if ($char === '(') {
+                $parenDepth++;
+            } elseif ($char === ')') {
+                $parenDepth = max(0, $parenDepth - 1);
+            } elseif ($char === '[') {
+                $bracketDepth++;
+            } elseif ($char === ']') {
+                $bracketDepth = max(0, $bracketDepth - 1);
+            } elseif ($char === ',' && $parenDepth === 0 && $bracketDepth === 0) {
+                $output = rtrim($output) . ', ';
+                while (isset($value[$i + 1]) && ctype_space($value[$i + 1])) {
+                    $i++;
+                }
+                continue;
+            }
+
+            $output .= $char;
+        }
+
+        return rtrim($output);
     }
 
     private function restoreAdjacentStringTokenSpacing(string $value): string
@@ -8675,6 +8961,7 @@ final class CustomAtRuleTransformer
         }
 
         $this->rawValueVisitorReplacementProperties[$this->activeDeclarationProperty] = true;
+        $this->activeDeclarationHadRawValueVisitorReplacement = true;
     }
 
     private function visitorValueContainsRawCss(mixed $value): bool
@@ -8991,6 +9278,13 @@ final class CustomAtRuleTransformer
                 if ($replacement !== null) {
                     return $this->customPreludeTokenListCssReplacement($replacement, $originalCss, $depth, $tokenType);
                 }
+            }
+        }
+
+        if ($type === 'raw' && is_string($component['value'] ?? null)) {
+            $rewritten = $this->rewriteValueTokens($this->rewriteRawVisitorFunctions($component['value']));
+            if ($rewritten !== $component['value']) {
+                return $this->customPreludeTokenListCssReplacement($rewritten, $originalCss, $depth, $skipTokenType);
             }
         }
 

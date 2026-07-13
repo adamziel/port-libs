@@ -36,6 +36,23 @@ CSS;
             (new NestingTransformer())->lower($css)
         );
     },
+    'nesting transformer maps upstream repeated parent reference selectors' => static function (TestRunner $t): void {
+        $transformer = new NestingTransformer();
+
+        // Pinned upstream 22bdda3d src/lib.rs::test_nesting nesting_test lines 24569, 24587, and 24636.
+        $t->same(
+            '.foo{color:#00f}.foo .bar .foo .baz .foo .qux{color:red}',
+            $transformer->lower('.foo { color: blue; & .bar & .baz & .qux { color: red; } }')
+        );
+        $t->same(
+            '.foo{color:#00f;padding:2ch}',
+            $transformer->lower('.foo { color: blue; & { padding: 2ch; } }')
+        );
+        $t->same(
+            '.foo:is(.bar,.foo.baz){color:red}',
+            $transformer->lower('.foo { &:is(.bar, &.baz) { color: red; } }')
+        );
+    },
     'nesting transformer maps upstream nested attached selector list lowering' => static function (TestRunner $t): void {
         $css = <<<'CSS'
 .a {
@@ -91,6 +108,31 @@ CSS;
             (new NestingTransformer())->lower($css)
         );
     },
+    'nesting transformer maps upstream nested state selector lowering' => static function (TestRunner $t): void {
+        $css = <<<'CSS'
+custom-element {
+  color: blue;
+
+  &:state(loading) {
+    opacity: 0.5;
+
+    & .spinner {
+      display: block;
+    }
+  }
+
+  &:state(error) {
+    border: 2px solid red;
+  }
+}
+CSS;
+
+        // Pinned upstream 22bdda3d src/lib.rs::test_selectors nesting_test line 7362.
+        $t->same(
+            'custom-element{color:#00f}custom-element:state(loading){opacity:.5}custom-element:state(loading) .spinner{display:block}custom-element:state(error){border:2px solid red}',
+            (new NestingTransformer())->lower($css)
+        );
+    },
     'nesting transformer maps upstream attached type selector lowering' => static function (TestRunner $t): void {
         $transformer = new NestingTransformer();
 
@@ -129,6 +171,11 @@ CSS;
         $t->same(
             '.foo{display:grid}@media (orientation:landscape){.foo{grid-auto-flow:column}}',
             $transformer->lower('.foo { display: grid; @media (orientation: landscape) { grid-auto-flow: column; } }')
+        );
+        // Pinned upstream 22bdda3d src/lib.rs::test_nesting nesting_test line 24734.
+        $t->same(
+            '@media (width>=640px){.foo{color:red!important}}',
+            $transformer->lower('.foo { @media (min-width: 640px) { color: red !important; } }')
         );
         $t->same(
             '.foo{color:red}.parent .foo{color:#00f}',
@@ -429,6 +476,15 @@ CSS;
         $t->same(
             '.wp-block-cover{--wp--custom--cover-offset:--styled-jsx-placeholder-0__;background:linear-gradient(to bottom,--styled-jsx-placeholder-1__,var(--wp--preset--color--base))}.wp-block-cover .wp-block-cover__inner-container{transform:translateY(calc(var(--wp--style--block-gap) + --styled-jsx-placeholder-2__px))}@media (width<=--styled-jsx-placeholder-3__){.wp-block-cover .wp-block-heading{margin-block-start:calc(10px + --styled-jsx-placeholder-4__px)}}',
             (new NestingTransformer())->lower($css)
+        );
+    },
+    'nesting transformer maps upstream node transform include nesting row' => static function (TestRunner $t): void {
+        $t->same(
+            '.foo .bar{color:red}',
+            (new NestingTransformer())->transformForTargets('.foo { .bar { color: red }}', [
+                'include' => ['Nesting'],
+            ]),
+            'upstream node/test/transform.test.mjs line 46'
         );
     },
 ];

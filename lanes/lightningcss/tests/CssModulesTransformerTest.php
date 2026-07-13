@@ -690,6 +690,20 @@ CSS);
         ], $result['exports']);
         $t->same([], $result['references']);
         $t->same('EgL3uq_button EgL3uq_card', CssModulesTransformer::exportClassList($result['exports'], 'button'));
+
+        $simpleNthChild = (new CssModulesTransformer())->transform(':nth-child(1 of .foo) {width: 20px}');
+        $t->same(':nth-child(1 of .EgL3uq_foo){width:20px}', $simpleNthChild['code']);
+        $t->same([
+            'foo' => $export('EgL3uq_foo'),
+        ], $simpleNthChild['exports']);
+        $t->same([], $simpleNthChild['references']);
+
+        $simpleNthLastChild = (new CssModulesTransformer())->transform(':nth-last-child(1 of .foo) {width: 20px}');
+        $t->same(':nth-last-child(1 of .EgL3uq_foo){width:20px}', $simpleNthLastChild['code']);
+        $t->same([
+            'foo' => $export('EgL3uq_foo'),
+        ], $simpleNthLastChild['exports']);
+        $t->same([], $simpleNthLastChild['references']);
     },
     'css modules minifies upstream nth type and column formulas while preserving composes' => static function (TestRunner $t) use ($export, $local): void {
         $result = (new CssModulesTransformer())->transform(<<<'CSS'
@@ -1518,6 +1532,24 @@ CSS, [
             'is-within' => $export('EgL3uq_is-within'),
         ], $snakeCase['exports']);
     },
+    'css modules maps upstream pseudo replacement hover row exactly' => static function (TestRunner $t) use ($export): void {
+        $result = (new CssModulesTransformer())->transform(<<<'CSS'
+.foo:hover {
+  color: red;
+}
+CSS, [
+            'pseudoClasses' => [
+                'hover' => 'is-hovered',
+            ],
+        ]);
+
+        $t->same('.EgL3uq_foo.EgL3uq_is-hovered{color:red}', $result['code']);
+        $t->same([
+            'foo' => $export('EgL3uq_foo'),
+            'is-hovered' => $export('EgL3uq_is-hovered'),
+        ], $result['exports']);
+        $t->same([], $result['references']);
+    },
     'css modules scopes escaped local selectors and composes idents' => static function (TestRunner $t) use ($export, $local, $global): void {
         $css = <<<'CSS'
 .sm\:m-1 {
@@ -1757,6 +1789,9 @@ CSS);
             '.my-class a { color: red }' => '.EgL3uq_my-class a{color:red}',
             '.my-class:is(a) { color: red }' => '.EgL3uq_my-class:is(a){color:red}',
             'div:has(.my-class) { color: red }' => 'div:has(.EgL3uq_my-class){color:red}',
+            '.foo { html &:hover { a_value: some-value; } }' => 'html .EgL3uq_foo:hover{a_value:some-value}',
+            '.foo { span { color: red; } }' => '.EgL3uq_foo span{color:red}',
+            '.foo { div { span { color: red; } } }' => '.EgL3uq_foo div span{color:red}',
         ];
 
         foreach ($passing as $css => $expected) {
@@ -1791,6 +1826,14 @@ CSS, [
             'base' => $export('EgL3uq_base'),
         ], $licenseNoCheck['exports']);
 
+        // Pinned upstream 22bdda3d src/lib.rs::test_selectors pure CSS Modules no-check license row.
+        $upstreamLicenseNoCheck = $transformer->transform(
+            '/*! some license */ /* cssmodules-pure-no-check */ :global(.foo) { color: red }',
+            ['pure' => true]
+        );
+        $t->same("/*! some license */\n.foo{color:red}", $upstreamLicenseNoCheck['code']);
+        $t->same([], $upstreamLicenseNoCheck['exports']);
+
         $localResult = $transformer->transform('div:has(.my-class) { color: red }', ['pure' => true]);
         $t->same([
             'my-class' => $export('EgL3uq_my-class'),
@@ -1804,6 +1847,7 @@ CSS, [
             ':global(.foo) { width: 20px }',
             '[foo=bar] { width: 20px }',
             'div, .foo { width: 20px }',
+            'html { .foo { span { color: red; } } }',
         ] as $css) {
             $t->throws(InvalidArgumentException::class, static fn () => $transformer->transform($css, ['pure' => true]));
         }
@@ -2415,7 +2459,15 @@ CSS;
             '.test { composes: foo from global bar; color: red }' => '.EgL3uq_test{composes:foo from global bar;color:red}',
             '.test { composes: foo from "foo.css" bar; color: red }' => '.EgL3uq_test{composes:foo from "foo.css" bar;color:red}',
             '.test { composes: initial; color: red }' => '.EgL3uq_test{composes:initial;color:red}',
+            '.test { composes: inherit; color: red }' => '.EgL3uq_test{composes:inherit;color:red}',
+            '.test { composes: unset; color: red }' => '.EgL3uq_test{composes:unset;color:red}',
+            '.test { composes: default; color: red }' => '.EgL3uq_test{composes:default;color:red}',
+            '.test { composes: revert; color: red }' => '.EgL3uq_test{composes:revert;color:red}',
             '.test { composes: revert-layer; color: red }' => '.EgL3uq_test{composes:revert-layer;color:red}',
+            '.test { composes: \69 nherit; color: red }' => '.EgL3uq_test{composes:inherit;color:red}',
+            '.test { composes: \75 nset; color: red }' => '.EgL3uq_test{composes:unset;color:red}',
+            '.test { composes: \64 efault; color: red }' => '.EgL3uq_test{composes:default;color:red}',
+            '.test { composes: \72 evert; color: red }' => '.EgL3uq_test{composes:revert;color:red}',
             '.test { composes: "foo"; color: red }' => '.EgL3uq_test{composes:"foo";color:red}',
             '.test { composes: foo url(bar); color: red }' => '.EgL3uq_test{composes:foo url(bar);color:red}',
             '.test { composes: foo,bar; color: red }' => '.EgL3uq_test{composes:foo,bar;color:red}',
@@ -2490,7 +2542,7 @@ CSS);
         ], $escapedFunction['exports']);
         $t->same([], $escapedFunction['references']);
     },
-    'css modules rejects upstream deprecated value rules before composing exports' => static function (TestRunner $t): void {
+    'css modules rejects upstream src/lib.rs::test_css_modules_value_rule row 30664 before composing exports' => static function (TestRunner $t): void {
         foreach ([
             '@value compact: (max-width: 37.4375em);',
             '@v\61 lue compact: (max-width: 37.4375em);',
@@ -2630,6 +2682,16 @@ CSS);
             'foo' => $export('test-EgL3uq-foo'),
         ], $patterned['exports']);
 
+        $cliPattern = (new CssModulesTransformer())->transform('.foo { color: red }', [
+            'filename' => 'test.css',
+            'pattern' => '[name]-[hash]-[local]',
+        ]);
+
+        $t->same('.test-EgL3uq-foo{color:red}', $cliPattern['code']);
+        $t->same([
+            'foo' => $export('test-EgL3uq-foo'),
+        ], $cliPattern['exports']);
+
         $projectRootSameFile = (new CssModulesTransformer())->transform('.foo { color: red }', [
             'filename' => '/foo/bar/test.css',
             'projectRoot' => '/foo/bar',
@@ -2640,6 +2702,16 @@ CSS);
             'foo' => $export('EgL3uq_foo'),
         ], $projectRootSameFile['exports']);
 
+        $projectRootSameFileShortRoot = (new CssModulesTransformer())->transform('.foo { background: red }', [
+            'filename' => '/foo/test.css',
+            'projectRoot' => '/foo',
+        ]);
+
+        $t->same('.EgL3uq_foo{background:red}', $projectRootSameFileShortRoot['code']);
+        $t->same([
+            'foo' => $export('EgL3uq_foo'),
+        ], $projectRootSameFileShortRoot['exports']);
+
         $projectRoot = (new CssModulesTransformer())->transform('.foo { color: red }', [
             'filename' => '/foo/bar/baz/test.css',
             'projectRoot' => '/foo/bar',
@@ -2649,6 +2721,16 @@ CSS);
         $t->same([
             'foo' => $export('xLEkNW_foo'),
         ], $projectRoot['exports']);
+
+        $projectRootShortRoot = (new CssModulesTransformer())->transform('.foo { background: red }', [
+            'filename' => '/foo/baz/test.css',
+            'projectRoot' => '/foo',
+        ]);
+
+        $t->same('.xLEkNW_foo{background:red}', $projectRootShortRoot['code']);
+        $t->same([
+            'foo' => $export('xLEkNW_foo'),
+        ], $projectRootShortRoot['exports']);
 
         $snakeCaseProjectRoot = (new CssModulesTransformer())->transform(<<<'CSS'
 .button {
@@ -3070,6 +3152,28 @@ CSS;
         $t->same('EgL3uq_card EgL3uq_base', CssModulesTransformer::exportClassList($result['exports'], 'card'));
     },
     'css modules scopes upstream animation custom idents while preserving composes exports' => static function (TestRunner $t) use ($export, $dependency): void {
+        $idSelector = (new CssModulesTransformer())->transform(<<<'CSS'
+#id {
+  animation: 2s test;
+}
+
+@keyframes test {
+  from { color: red }
+  to { color: yellow }
+}
+CSS);
+
+        $t->same('#EgL3uq_id{animation:2s EgL3uq_test}@keyframes EgL3uq_test{0%{color:red}to{color:#ff0}}', $idSelector['code']);
+        $t->same([
+            'id' => $export('EgL3uq_id'),
+            'test' => [
+                'name' => 'EgL3uq_test',
+                'composes' => [],
+                'isReferenced' => true,
+            ],
+        ], $idSelector['exports']);
+        $t->same([], $idSelector['references']);
+
         $result = (new CssModulesTransformer())->transform(<<<'CSS'
 .test {
   animation: rotate var(--duration) linear infinite;
@@ -3313,6 +3417,32 @@ CSS, [
             'list' => $export('EgL3uq_list'),
             'circles' => $referenced('EgL3uq_circles'),
         ], $customIdentsDisabled['exports']);
+
+        $customIdentsDisabledListStyles = (new CssModulesTransformer())->transform(<<<'CSS'
+@counter-style circles {
+  symbols: A B C;
+}
+
+ul {
+  list-style: circles;
+}
+
+ol {
+  list-style-type: none;
+}
+
+li {
+  list-style-type: disc;
+}
+CSS, [
+            'customIdents' => false,
+        ]);
+
+        $t->same('@counter-style circles{symbols:A B C}ul{list-style:circles}ol{list-style-type:none}li{list-style-type:disc}', $customIdentsDisabledListStyles['code']);
+        $t->same([
+            'circles' => $referenced('EgL3uq_circles'),
+        ], $customIdentsDisabledListStyles['exports']);
+        $t->same([], $customIdentsDisabledListStyles['references']);
 
         $builtInTypeWins = (new CssModulesTransformer())->transform(<<<'CSS'
 @counter-style circles {
@@ -3673,6 +3803,26 @@ CSS;
         ], $result['exports']);
         $t->same([], $result['references']);
     },
+    'css modules leaves upstream property dashed idents public by default' => static function (TestRunner $t) use ($export): void {
+        $result = (new CssModulesTransformer())->transform(<<<'CSS'
+@property --foo {
+  syntax: '<color>';
+  inherits: false;
+  initial-value: yellow;
+}
+
+.foo {
+  --foo: red;
+  color: var(--foo);
+}
+CSS);
+
+        $t->same('@property --foo{syntax:"<color>";inherits:false;initial-value:#ff0}.EgL3uq_foo{--foo:red;color:var(--foo)}', $result['code']);
+        $t->same([
+            'foo' => $export('EgL3uq_foo'),
+        ], $result['exports']);
+        $t->same([], $result['references']);
+    },
     'css modules scopes upstream dashed property and font palette idents while preserving composes' => static function (TestRunner $t) use ($export, $dashed, $dependency): void {
         $css = <<<'CSS'
 @property --foo {
@@ -3706,6 +3856,55 @@ CSS;
             'foo' => $export('EgL3uq_foo', [$dependency('base', 'tokens.css')]),
         ], $result['exports']);
         $t->same([], $result['references']);
+
+        // Pinned upstream 22bdda3d src/lib.rs::test_css_modules lines 26641-26709.
+        $upstreamDashedComposite = (new CssModulesTransformer())->transform(<<<'CSS'
+@property --foo {
+  syntax: '<color>';
+  inherits: false;
+  initial-value: yellow;
+}
+
+@font-palette-values --Cooler {
+  font-family: Bixa;
+  base-palette: 1;
+  override-colors: 1 #7EB7E4;
+}
+
+.foo {
+  --foo: red;
+  --bar: green;
+  color: var(--foo);
+  font-palette: --Cooler;
+}
+
+.bar {
+  color: var(--color from "./b.css");
+}
+CSS, [
+            'dashedIdents' => true,
+        ]);
+        $placeholder = array_key_first($upstreamDashedComposite['references']);
+
+        if (!is_string($placeholder)) {
+            throw new RuntimeException('Expected upstream dashed-ident dependency placeholder');
+        }
+
+        $t->same('@property --EgL3uq_foo{syntax:"<color>";inherits:false;initial-value:#ff0}@font-palette-values --EgL3uq_Cooler{font-family:Bixa;base-palette:1;override-colors:1 #7eb7e4}.EgL3uq_foo{--EgL3uq_foo:red;--EgL3uq_bar:green;color:var(--EgL3uq_foo);font-palette:--EgL3uq_Cooler}.EgL3uq_bar{color:var(' . $placeholder . ')}', $upstreamDashedComposite['code']);
+        $t->same([
+            '--foo' => $dashed('--EgL3uq_foo', true),
+            '--Cooler' => $dashed('--EgL3uq_Cooler', true),
+            'foo' => $export('EgL3uq_foo'),
+            '--bar' => $dashed('--EgL3uq_bar'),
+            'bar' => $export('EgL3uq_bar'),
+        ], $upstreamDashedComposite['exports']);
+        $t->same([
+            $placeholder => [
+                'type' => 'dependency',
+                'name' => '--color',
+                'specifier' => './b.css',
+            ],
+        ], $upstreamDashedComposite['references']);
 
         $disabled = (new CssModulesTransformer())->transform($css);
         $t->contains('@property --foo', $disabled['code']);
@@ -4146,6 +4345,112 @@ CSS;
             'modal' => $export('EgL3uq_modal'),
         ], $result['exports']);
         $t->same([], $result['references']);
+
+        $noneName = (new CssModulesTransformer())->transform('.foo { view-transition-name: none }');
+        $t->same('.EgL3uq_foo{view-transition-name:none}', $noneName['code']);
+        $t->same([
+            'foo' => $export('EgL3uq_foo'),
+        ], $noneName['exports']);
+        $t->same([], $noneName['references']);
+
+        $autoName = (new CssModulesTransformer())->transform('.foo { view-transition-name: auto }');
+        $t->same('.EgL3uq_foo{view-transition-name:auto}', $autoName['code']);
+        $t->same([
+            'foo' => $export('EgL3uq_foo'),
+        ], $autoName['exports']);
+        $t->same([], $autoName['references']);
+    },
+    'css modules maps exact upstream view transition scoping rows' => static function (TestRunner $t) use ($export): void {
+        $cases = [
+            [
+                '.foo { view-transition-name: bar }',
+                '.EgL3uq_foo{view-transition-name:EgL3uq_bar}',
+                [
+                    'foo' => $export('EgL3uq_foo'),
+                    'bar' => $export('EgL3uq_bar'),
+                ],
+            ],
+            [
+                '.foo { view-transition-class: bar baz qux }',
+                '.EgL3uq_foo{view-transition-class:EgL3uq_bar EgL3uq_baz EgL3uq_qux}',
+                [
+                    'foo' => $export('EgL3uq_foo'),
+                    'bar' => $export('EgL3uq_bar'),
+                    'baz' => $export('EgL3uq_baz'),
+                    'qux' => $export('EgL3uq_qux'),
+                ],
+            ],
+            [
+                '.foo { view-transition-group: contain }',
+                '.EgL3uq_foo{view-transition-group:contain}',
+                [
+                    'foo' => $export('EgL3uq_foo'),
+                ],
+            ],
+            [
+                '.foo { view-transition-group: bar }',
+                '.EgL3uq_foo{view-transition-group:EgL3uq_bar}',
+                [
+                    'foo' => $export('EgL3uq_foo'),
+                    'bar' => $export('EgL3uq_bar'),
+                ],
+            ],
+            [
+                '@view-transition { types: foo bar baz }',
+                '@view-transition{types:EgL3uq_foo EgL3uq_bar EgL3uq_baz}',
+                [
+                    'foo' => $export('EgL3uq_foo'),
+                    'bar' => $export('EgL3uq_bar'),
+                    'baz' => $export('EgL3uq_baz'),
+                ],
+            ],
+            [
+                ':root:active-view-transition-type(foo, bar) { color: red }',
+                ':root:active-view-transition-type(EgL3uq_foo,EgL3uq_bar){color:red}',
+                [
+                    'foo' => $export('EgL3uq_foo'),
+                    'bar' => $export('EgL3uq_bar'),
+                ],
+            ],
+            [
+                ':root::view-transition-group(foo.bar.baz) {position: fixed}',
+                ':root::view-transition-group(EgL3uq_foo.EgL3uq_bar.EgL3uq_baz){position:fixed}',
+                [
+                    'foo' => $export('EgL3uq_foo'),
+                    'bar' => $export('EgL3uq_bar'),
+                    'baz' => $export('EgL3uq_baz'),
+                ],
+            ],
+            [
+                ':root::view-transition-image-pair(foo) {position: fixed}',
+                ':root::view-transition-image-pair(EgL3uq_foo){position:fixed}',
+                [
+                    'foo' => $export('EgL3uq_foo'),
+                ],
+            ],
+            [
+                ':root::view-transition-new(.bar) {position: fixed}',
+                ':root::view-transition-new(.EgL3uq_bar){position:fixed}',
+                [
+                    'bar' => $export('EgL3uq_bar'),
+                ],
+            ],
+            [
+                ':root::view-transition-old(.bar) {position: fixed}',
+                ':root::view-transition-old(.EgL3uq_bar){position:fixed}',
+                [
+                    'bar' => $export('EgL3uq_bar'),
+                ],
+            ],
+        ];
+
+        foreach ($cases as [$css, $expectedCode, $expectedExports]) {
+            $result = (new CssModulesTransformer())->transform($css);
+
+            $t->same($expectedCode, $result['code']);
+            $t->same($expectedExports, $result['exports']);
+            $t->same([], $result['references']);
+        }
     },
     'css modules scopes upstream view transition selector function idents' => static function (TestRunner $t) use ($export): void {
         $css = <<<'CSS'
@@ -4186,6 +4491,70 @@ CSS;
             'thumb' => $export('EgL3uq_thumb'),
         ], $result['exports']);
         $t->same([], $result['references']);
+    },
+    'css modules scopes remaining upstream view transition selector function row variants' => static function (TestRunner $t) use ($export): void {
+        $cases = [
+            [
+                ':root::view-transition-group(foo) {position: fixed}',
+                ':root::view-transition-group(EgL3uq_foo){position:fixed}',
+                ['foo' => $export('EgL3uq_foo')],
+            ],
+            [
+                ':root::view-transition-group(.bar) {position: fixed}',
+                ':root::view-transition-group(.EgL3uq_bar){position:fixed}',
+                ['bar' => $export('EgL3uq_bar')],
+            ],
+            [
+                ':root::view-transition-image-pair(.bar) {position: fixed}',
+                ':root::view-transition-image-pair(.EgL3uq_bar){position:fixed}',
+                ['bar' => $export('EgL3uq_bar')],
+            ],
+            [
+                ':root::view-transition-image-pair(foo.bar.baz) {position: fixed}',
+                ':root::view-transition-image-pair(EgL3uq_foo.EgL3uq_bar.EgL3uq_baz){position:fixed}',
+                [
+                    'foo' => $export('EgL3uq_foo'),
+                    'bar' => $export('EgL3uq_bar'),
+                    'baz' => $export('EgL3uq_baz'),
+                ],
+            ],
+            [
+                ':root::view-transition-new(foo) {position: fixed}',
+                ':root::view-transition-new(EgL3uq_foo){position:fixed}',
+                ['foo' => $export('EgL3uq_foo')],
+            ],
+            [
+                ':root::view-transition-new(foo.bar.baz) {position: fixed}',
+                ':root::view-transition-new(EgL3uq_foo.EgL3uq_bar.EgL3uq_baz){position:fixed}',
+                [
+                    'foo' => $export('EgL3uq_foo'),
+                    'bar' => $export('EgL3uq_bar'),
+                    'baz' => $export('EgL3uq_baz'),
+                ],
+            ],
+            [
+                ':root::view-transition-old(foo) {position: fixed}',
+                ':root::view-transition-old(EgL3uq_foo){position:fixed}',
+                ['foo' => $export('EgL3uq_foo')],
+            ],
+            [
+                ':root::view-transition-old(foo.bar.baz) {position: fixed}',
+                ':root::view-transition-old(EgL3uq_foo.EgL3uq_bar.EgL3uq_baz){position:fixed}',
+                [
+                    'foo' => $export('EgL3uq_foo'),
+                    'bar' => $export('EgL3uq_bar'),
+                    'baz' => $export('EgL3uq_baz'),
+                ],
+            ],
+        ];
+
+        foreach ($cases as [$css, $expectedCode, $expectedExports]) {
+            $result = (new CssModulesTransformer())->transform($css);
+
+            $t->same($expectedCode, $result['code']);
+            $t->same($expectedExports, $result['exports']);
+            $t->same([], $result['references']);
+        }
     },
     'css modules decodes escaped view transition selector function names while preserving composes' => static function (TestRunner $t) use ($export, $local): void {
         $result = (new CssModulesTransformer())->transform(<<<'CSS'

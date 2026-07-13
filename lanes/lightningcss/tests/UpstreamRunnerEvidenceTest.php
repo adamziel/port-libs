@@ -27,10 +27,24 @@ MODULE_NOT_FOUND
 Cannot find module 'detect-libc'
 TEXT;
 
+$nodeNativeBindingOutput = <<<'TEXT'
+MODULE_NOT_FOUND
+Cannot find module '../lightningcss.darwin-arm64.node'
+Require stack:
+- /Users/admin/port-libs/.upstream-cache/lightningcss/node/index.js
+TEXT;
+
 $wasmOutput = <<<'TEXT'
 Error: Cannot find module 'napi-wasm'
 Require stack:
 - /home/claude/port-libs/.upstream-cache/lightningcss/wasm/wasm-node.cjs
+TEXT;
+
+$wasmGeneratedRuntimeOutput = <<<'TEXT'
+MODULE_NOT_FOUND
+Cannot find module '/Users/admin/port-libs/.upstream-cache/lightningcss/wasm/wasm-node.cjs'
+Require stack:
+- /Users/admin/port-libs-worktrees/r26-runner-manifest/[eval]
 TEXT;
 
 $upstreamPackageJson = <<<'JSON'
@@ -132,6 +146,42 @@ return [
         $t->same('wasm-opt', $record['tool']);
         $t->same('missing command wasm-opt', $record['blocker']);
     },
+    'upstream runner evidence records zsh command blocker' => static function (TestRunner $t): void {
+        $record = UpstreamRunnerEvidence::missingCommandBlocker(
+            'wasm',
+            'WASM release build preflight',
+            'wasm-opt --version',
+            127,
+            'zsh:1: command not found: wasm-opt'
+        );
+
+        $t->same('blocked', $record['status']);
+        $t->same('wasm-opt', $record['tool']);
+        $t->same('missing command wasm-opt', $record['blocker']);
+    },
+    'upstream runner evidence records missing generated artifacts' => static function (TestRunner $t) use ($nodeNativeBindingOutput, $wasmGeneratedRuntimeOutput): void {
+        $native = UpstreamRunnerEvidence::generatedArtifactBlocker(
+            'node-native',
+            'Node package entrypoint load',
+            'node -e require node/index.js',
+            1,
+            $nodeNativeBindingOutput
+        );
+        $wasm = UpstreamRunnerEvidence::generatedArtifactBlocker(
+            'wasm',
+            'WASM node runtime smoke',
+            'node -e require wasm/wasm-node.cjs',
+            1,
+            $wasmGeneratedRuntimeOutput
+        );
+
+        $t->same('blocked', $native['status']);
+        $t->same('lightningcss.darwin-arm64.node', $native['artifact']);
+        $t->same('missing generated artifact lightningcss.darwin-arm64.node', $native['blocker']);
+        $t->same('blocked', $wasm['status']);
+        $t->same('wasm-node.cjs', $wasm['artifact']);
+        $t->same('missing generated artifact wasm-node.cjs', $wasm['blocker']);
+    },
     'upstream runner evidence summarizes partial runner closure' => static function (TestRunner $t) use ($rustMediaOutput, $nodeUvuOutput, $nodeIndexOutput, $wasmOutput): void {
         $records = [
             UpstreamRunnerEvidence::rustCargoTest('Rust lib tests::test_media', 'cargo test --lib tests::test_media -- --exact', 0, $rustMediaOutput, true),
@@ -204,6 +254,38 @@ return [
         $t->contains('detect-libc from dependencies ^2.0.3', $plan['activationGate']);
         $t->contains('napi-wasm from devDependencies ^1.0.1', $plan['activationGate']);
         $t->contains('wasm-opt via binaryen for scripts wasm:build, wasm:build-release', $plan['activationGate']);
+    },
+    'upstream runner evidence resolves generated artifact closure' => static function (TestRunner $t) use ($nodeNativeBindingOutput, $wasmGeneratedRuntimeOutput, $upstreamPackageJson): void {
+        $records = [
+            UpstreamRunnerEvidence::generatedArtifactBlocker('node-native', 'Node package entrypoint load', 'node -e require node/index.js', 1, $nodeNativeBindingOutput),
+            UpstreamRunnerEvidence::generatedArtifactBlocker('wasm', 'WASM node runtime smoke', 'node -e require wasm/wasm-node.cjs', 1, $wasmGeneratedRuntimeOutput),
+            UpstreamRunnerEvidence::missingCommandBlocker('wasm', 'WASM release build preflight', 'wasm-opt --version', 127, 'zsh:1: command not found: wasm-opt'),
+        ];
+
+        $plan = UpstreamRunnerEvidence::dependencyClosurePlan($records, $upstreamPackageJson, ['wasm-opt' => 'binaryen']);
+
+        $t->same('blocked', $plan['status']);
+        $t->same([], $plan['nodePackages']);
+        $t->same([
+            [
+                'name' => 'wasm-opt',
+                'package' => 'binaryen',
+                'scripts' => ['wasm:build', 'wasm:build-release'],
+                'blocker' => 'missing command wasm-opt',
+            ],
+        ], $plan['externalTools']);
+        $t->same([
+            [
+                'name' => 'lightningcss.darwin-arm64.node',
+                'blocker' => 'missing generated artifact lightningcss.darwin-arm64.node',
+            ],
+            [
+                'name' => 'wasm-node.cjs',
+                'blocker' => 'missing generated artifact wasm-node.cjs',
+            ],
+        ], $plan['generatedArtifacts']);
+        $t->contains('wasm-opt via binaryen for scripts wasm:build, wasm:build-release', $plan['activationGate']);
+        $t->contains('lightningcss.darwin-arm64.node; wasm-node.cjs', $plan['activationGate']);
     },
     'upstream runner evidence keeps undeclared missing modules explicit' => static function (TestRunner $t): void {
         $record = UpstreamRunnerEvidence::moduleDependencyBlocker(
