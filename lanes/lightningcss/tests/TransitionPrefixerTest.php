@@ -13,6 +13,40 @@ $variants = static fn (string $selector): array => [
 ];
 
 return [
+    'transition prefixer maps upstream style attribute rows' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+
+        $t->same(
+            'color: #ff0; flex: auto',
+            $prefixer->prefixStyleAttributeForTargets('color: yellow; flex: 1 1 auto', [], false),
+            'upstream src/lib.rs::test_style_attr line 24421'
+        );
+        $t->same(
+            'color:#ff0;flex:auto',
+            $prefixer->prefixStyleAttributeForTargets('color: yellow; flex: 1 1 auto'),
+            'upstream src/lib.rs::test_style_attr line 24422'
+        );
+        $t->same(
+            'border-inline-start: 2px solid red',
+            $prefixer->prefixStyleAttributeForTargets('border-inline-start: 2px solid red', ['safari' => 12], false),
+            'upstream src/lib.rs::test_style_attr line 24423'
+        );
+        $t->same(
+            'color:#b32323;color:lab(40% 56.6 39)',
+            $prefixer->prefixStyleAttributeForTargets('color: lab(40% 56.6 39);', ['safari' => 8]),
+            'upstream src/lib.rs::test_style_attr line 24432'
+        );
+        $t->same(
+            '--foo:#b32323',
+            $prefixer->prefixStyleAttributeForTargets('--foo: lab(40% 56.6 39);', ['safari' => 8]),
+            'upstream src/lib.rs::test_style_attr line 24441'
+        );
+        $t->same(
+            'text-decoration:var(--foo) #b32323',
+            $prefixer->prefixStyleAttributeForTargets('text-decoration: var(--foo) lab(40% 56.6 39);', ['chrome' => 90]),
+            'upstream src/lib.rs::test_style_attr line 24450'
+        );
+    },
     'transition prefixer maps upstream inline transition-property direction selectors' => static function (TestRunner $t) use ($variants): void {
         $selector = $variants('.foo');
         $expected = $selector['ltr-webkit'] . '{transition-property:margin-left,padding-left}'
@@ -37,6 +71,48 @@ return [
             (new TransitionPrefixer())->prefixForTargets('.foo { transition: margin-inline-start 2s, padding-inline-start 200ms; }', ['safari' => 8])
         );
     },
+    'transition prefixer maps additional upstream transition prefix rows' => static function (TestRunner $t) use ($variants): void {
+        $prefixer = new TransitionPrefixer();
+        $selector = $variants('.foo');
+
+        $t->same(
+            $selector['ltr-webkit'] . '{transition-property:margin-left}'
+            . $selector['ltr-modern'] . '{transition-property:margin-left}'
+            . $selector['rtl-webkit'] . '{transition-property:margin-right}'
+            . $selector['rtl-modern'] . '{transition-property:margin-right}',
+            $prefixer->prefixForTargets('.foo { transition-property: margin-inline-start; }', ['safari' => 8])
+        );
+        $t->same(
+            $selector['ltr-webkit'] . '{transition-property:margin-left,opacity,padding-left,color}'
+            . $selector['ltr-modern'] . '{transition-property:margin-left,opacity,padding-left,color}'
+            . $selector['rtl-webkit'] . '{transition-property:margin-right,opacity,padding-right,color}'
+            . $selector['rtl-modern'] . '{transition-property:margin-right,opacity,padding-right,color}',
+            $prefixer->prefixForTargets('.foo { transition-property: margin-inline-start, opacity, padding-inline-start, color; }', ['safari' => 8])
+        );
+        $t->same(
+            '.foo{transition-property:margin-top,margin-bottom}',
+            $prefixer->prefixForTargets('.foo { transition-property: margin-block; }', ['safari' => 8])
+        );
+        $t->same(
+            $selector['ltr-webkit'] . '{transition:margin-left 2s}'
+            . $selector['ltr-modern'] . '{transition:margin-left 2s}'
+            . $selector['rtl-webkit'] . '{transition:margin-right 2s}'
+            . $selector['rtl-modern'] . '{transition:margin-right 2s}',
+            $prefixer->prefixForTargets('.foo { transition: margin-inline-start 2s; }', ['safari' => 8])
+        );
+        $t->same(
+            '.foo{transition:margin-top 2s}',
+            $prefixer->prefixForTargets('.foo { transition: margin-block-start 2s; }', ['safari' => 8])
+        );
+        $t->same(
+            '.foo{-webkit-transition:background .2s;-moz-transition:background .2s;transition:background .23s}',
+            $prefixer->prefixForTargets('.foo { -webkit-transition: background 200ms; -moz-transition: background 200ms; transition: background 230ms; }', ['chrome' => 95])
+        );
+        $t->same(
+            '.foo{transition-property:-webkit-border-radius,-moz-border-radius}',
+            $prefixer->prefixForTargets('.foo { transition-property: -webkit-border-radius, -webkit-border-radius, -moz-border-radius; }', ['safari' => 15])
+        );
+    },
     'transition prefixer maps upstream transform transition prefixing' => static function (TestRunner $t): void {
         $t->same(
             '.foo{-webkit-transition:-webkit-transform,transform;transition:-webkit-transform,transform}',
@@ -47,20 +123,45 @@ return [
             (new TransitionPrefixer())->prefixLegacySafari('.foo { transition-property: transform; }')
         );
     },
+    'transition prefixer maps upstream logical border-radius transition rows' => static function (TestRunner $t) use ($rtlLangs): void {
+        $prefixer = new TransitionPrefixer();
+        $rtl = ':is(' . $rtlLangs . ')';
+        $css = '.foo { transition: border-start-start-radius; }';
+
+        $t->same(
+            '.foo:not(' . $rtl . '){-webkit-transition:-webkit-border-top-left-radius,border-top-left-radius;transition:-webkit-border-top-left-radius,border-top-left-radius}'
+            . '.foo' . $rtl . '{-webkit-transition:-webkit-border-top-right-radius,border-top-right-radius;transition:-webkit-border-top-right-radius,border-top-right-radius}',
+            $prefixer->prefixForTargets($css, ['safari' => 4])
+        );
+        $t->same(
+            '.foo:not(' . $rtl . '){transition:border-top-left-radius}.foo' . $rtl . '{transition:border-top-right-radius}',
+            $prefixer->prefixForTargets($css, ['safari' => 12])
+        );
+        $t->same(
+            '.foo:not(' . $rtl . '){border-top-left-radius:4px;transition:border-top-left-radius}'
+            . '.foo' . $rtl . '{border-top-right-radius:4px;transition:border-top-right-radius}',
+            $prefixer->prefixForTargets('.foo { border-start-start-radius: 4px; transition: border-start-start-radius; }', ['safari' => 12])
+        );
+    },
     'transition prefixer maps upstream transition declaration target prefixes' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();
         $transition = '.foo { transition: opacity 200ms; }';
         $modern = '.foo{transition:opacity .2s}';
         $webkit = '.foo{-webkit-transition:opacity .2s;transition:opacity .2s}';
 
-        $t->same(
-            '.foo{-webkit-transition:opacity .2s;-moz-transition:opacity .2s;transition:opacity .2s}',
-            $prefixer->prefixForTargets($transition, ['safari' => 5, 'firefox' => 14])
-        );
-        $t->same(
-            $modern,
-            $prefixer->prefixForTargets('.foo { -webkit-transition: opacity 200ms; -moz-transition: opacity 200ms; transition: opacity 200ms; }', ['chrome' => 95])
-        );
+        // Pinned upstream 22bdda3d src/lib.rs::test_prefixes lines 15565 and 15584.
+        $upstreamTransitionPrefixRows = [
+            [15565, '.foo { -webkit-transition: opacity 200ms; -moz-transition: opacity 200ms; transition: opacity 200ms; }', $modern, ['chrome' => 95]],
+            [15584, '.foo{transition:opacity 200ms}', '.foo{-webkit-transition:opacity .2s;-moz-transition:opacity .2s;transition:opacity .2s}', ['safari' => 5, 'firefox' => 14]],
+        ];
+
+        foreach ($upstreamTransitionPrefixRows as [$line, $input, $expected, $targets]) {
+            $t->same(
+                $expected,
+                $prefixer->prefixForTargets($input, $targets),
+                'upstream src/lib.rs::test_prefixes line ' . $line
+            );
+        }
 
         $t->same($webkit, $prefixer->prefixForTargets($transition, ['chrome' => 25]));
         $t->same($modern, $prefixer->prefixForTargets($transition, ['chrome' => 26]));
@@ -316,6 +417,35 @@ return [
             $prefixer->prefixForTargets('a::after:hover, a::after:focus-visible { color: red; }', ['safari' => 14])
         );
     },
+    'transition prefixer merges supported selector-list split fragment with prior rule' => static function (TestRunner $t): void {
+        // Pinned upstream 22bdda3d src/lib.rs::test_merge_rules lines 10742-10764.
+        $t->same(
+            '.foo,:hover{color:red}:focus-visible{color:red}',
+            (new TransitionPrefixer())->prefixForTargets(
+                '.foo { color: red; } :hover, :focus-visible { color: red; }',
+                ['safari' => 13]
+            )
+        );
+    },
+    'transition prefixer maps upstream singleton is selector merge rows' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+
+        // Pinned upstream 22bdda3d src/lib.rs::test_merge_rules line 10982.
+        $t->same(
+            '.foo .bar{color:red}',
+            $prefixer->prefixForTargets('.foo :is(.bar) { color: red; }', ['chrome' => 87])
+        );
+        // Pinned upstream 22bdda3d src/lib.rs::test_merge_rules line 10999.
+        $t->same(
+            '.foo .bar,.bar .baz{color:red}',
+            $prefixer->prefixForTargets('.foo :is(.bar), .bar :is(.baz) { color: red; }', ['chrome' => 87])
+        );
+        // Pinned upstream 22bdda3d src/lib.rs::test_merge_rules line 11016.
+        $t->same(
+            '.bar .baz:hover{color:red}.foo .bar:focus-visible{color:red}',
+            $prefixer->prefixForTargets('.foo :is(.bar:focus-visible), .bar :is(.baz:hover) { color: red; }', ['chrome' => 85])
+        );
+    },
     'transition prefixer maps upstream scroll navigation target pseudo boundaries' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();
         $targetPair = 'a:target-before, a:target-after { color: green; }';
@@ -489,6 +619,8 @@ return [
         $t->same('dialog::-webkit-backdrop{background:#000}dialog::backdrop{background:#000}', $prefixer->prefixForTargets('dialog::backdrop { background: black; }', ['chrome' => 36]));
         $t->same('dialog::backdrop{background:#000}', $prefixer->prefixForTargets('dialog::backdrop { background: black; }', ['chrome' => 37]));
         $t->same('dialog::-ms-backdrop{background:#000}dialog::backdrop{background:#000}', $prefixer->prefixForTargets('dialog::backdrop { background: black; }', ['edge' => 18]));
+        // Pinned upstream 22bdda3d src/lib.rs::test_merge_rules lines 11037-11063.
+        $t->same('*,:before,:after{padding:5px}::-webkit-backdrop{padding:5px}::backdrop{padding:5px}', $prefixer->prefixForTargets('*, ::before, ::after, ::backdrop { padding: 5px; }', ['chrome' => 33]));
         $t->same('input::-webkit-file-upload-button{color:red}input::file-selector-button{color:red}', $prefixer->prefixForTargets('input::file-selector-button { color: red; }', ['chrome' => 88]));
         $t->same('input::file-selector-button{color:red}', $prefixer->prefixForTargets('input::file-selector-button { color: red; }', ['chrome' => 89]));
         $t->same('input::-ms-browse{color:red}input::file-selector-button{color:red}', $prefixer->prefixForTargets('input::file-selector-button { color: red; }', ['edge' => 18]));
@@ -543,6 +675,58 @@ return [
             '.foo::file-selector-button{color:red}',
             $prefixer->prefixForTargets('.foo::-webkit-file-upload-button { color: red; } .foo::-ms-browse { color: red; } .foo::file-selector-button { color: red; }', ['chrome' => 89, 'edge' => 19])
         );
+    },
+    'transition prefixer maps upstream merge-rule residual selector prefix rows' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+
+        // Pinned upstream 22bdda3d src/lib.rs::test_merge_rules.
+        $cases = [
+            [10302, '[foo="bar"] { color: red; } .bar { color: red; }', '[foo=bar]{color:red}.bar{color:red}', ['ie' => 6]],
+            [10380, '.foo:-moz-read-only { color: red; } .foo:read-only { color: red; }', '.foo:read-only{color:red}', ['firefox' => 85]],
+            [10401, '.foo:-moz-read-only { color: red; } .bar { color: yellow; } .foo:read-only { color: red; }', '.foo:-moz-read-only{color:red}.bar{color:#ff0}.foo:read-only{color:red}', ['firefox' => 85]],
+            [10434, '.foo:-moz-read-only { color: red; } .foo:read-only { color: red; }', '.foo:-moz-read-only{color:red}.foo:read-only{color:red}', ['firefox' => 36]],
+            [10459, '.foo:read-only { color: red; }', '.foo:-moz-read-only{color:red}.foo:read-only{color:red}', ['firefox' => 36]],
+            [10480, '.foo:-webkit-full-screen { color: red; } .foo:-moz-full-screen { color: red; } .foo:-ms-fullscreen { color: red; } .foo:fullscreen { color: red; }', '.foo:fullscreen{color:red}', ['chrome' => 96]],
+            [10506, '.foo:fullscreen { color: red; }', '.foo:-webkit-full-screen{color:red}.foo:-moz-full-screen{color:red}.foo:-ms-fullscreen{color:red}.foo:fullscreen{color:red}', ['chrome' => 45, 'firefox' => 45, 'ie' => 11]],
+            [10537, '.foo::placeholder { color: red; }', '.foo::-webkit-input-placeholder{color:red}.foo::-moz-placeholder{color:red}.foo::-ms-input-placeholder{color:red}.foo::placeholder{color:red}', ['chrome' => 45, 'firefox' => 45, 'ie' => 11]],
+            [10568, '.foo::file-selector-button { color: red; }', '.foo::-webkit-file-upload-button{color:red}.foo::-ms-browse{color:red}.foo::file-selector-button{color:red}', ['chrome' => 84, 'ie' => 10]],
+            [10632, '.foo:placeholder-shown .bar { color: red; } .foo:autofill .baz { color: red; }', '.foo:placeholder-shown .bar{color:red}.foo:-webkit-autofill .baz{color:red}.foo:autofill .baz{color:red}', ['chrome' => 103]],
+            [10656, '.foo:placeholder-shown .bar,.foo:autofill .baz{color:red}', ':-webkit-any(.foo:placeholder-shown .bar,.foo:-webkit-autofill .baz){color:red}:is(.foo:placeholder-shown .bar,.foo:autofill .baz){color:red}', ['chrome' => 103]],
+            [10721, ':hover, :focus-visible { color: red; }', ':hover{color:red}:focus-visible{color:red}', ['safari' => 13]],
+            [10796, ':focus-within, :focus-visible { color: red; }', ':focus-within{color:red}:focus-visible{color:red}', ['safari' => 9]],
+            [10817, ':hover, :focus-visible { color: red; }', ':is(:hover,:focus-visible){color:red}', ['safari' => 14]],
+            [10834, 'a::after:hover, a::after:focus-visible { color: red; }', 'a:after:hover{color:red}a:after:focus-visible{color:red}', ['safari' => 14]],
+            [10855, 'a:not(:hover), a:not(:focus-visible) { color: red; }', ':is(a:not(:hover),a:not(:focus-visible)){color:red}', ['safari' => 14]],
+            [10872, 'a:has(:hover), a:has(:focus-visible) { color: red; }', ':is(a:has(:hover),a:has(:focus-visible)){color:red}', ['safari' => 14]],
+            [10889, '.foo.foo:hover, .bar:focus-visible { color: red; }', '.foo.foo:hover{color:red}.bar:focus-visible{color:red}', ['safari' => 14]],
+            [10965, '.foo::part(header), .foo::part(body) { display: none }', '.foo::part(header),.foo::part(body){display:none}', ['safari' => 14]],
+        ];
+
+        foreach ($cases as [$line, $input, $expected, $targets]) {
+            $t->same(
+                $expected,
+                $prefixer->prefixForTargets($input, $targets),
+                'upstream src/lib.rs::test_merge_rules line ' . $line
+            );
+        }
+    },
+    'transition prefixer maps upstream merge-rule any-selector residual rows' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+
+        // Pinned upstream 22bdda3d src/lib.rs::test_merge_rules.
+        $cases = [
+            [11107, '.foo:-webkit-any(.bar):after { color: red; } .foo:is(.bar, .baz):after { color: red; }', '.foo:-webkit-any(.bar):after{color:red}.foo:is(.bar,.baz):after{color:red}', ['safari' => 16]],
+            [11132, '.foo:-webkit-any(.bar, .baz):after { color: red; } .foo:is(.bar, .baz):after { color: red; }', '.foo:-webkit-any(.bar,.baz):after{color:red}.foo:is(.bar,.baz):after{color:red}', ['safari' => 12]],
+            [11157, '.foo:-webkit-any(.bar, .baz):after { color: red; } .foo:-moz-any(.bar, .baz):after { color: red; }', '.foo:-webkit-any(.bar,.baz):after{color:red}.foo:-moz-any(.bar,.baz):after{color:red}', ['safari' => 12, 'firefox' => 67]],
+        ];
+
+        foreach ($cases as [$line, $input, $expected, $targets]) {
+            $t->same(
+                $expected,
+                $prefixer->prefixForTargets($input, $targets),
+                'upstream src/lib.rs::test_merge_rules line ' . $line
+            );
+        }
     },
     'transition prefixer maps upstream placeholder pseudo-element target prefixes' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();
@@ -636,6 +820,10 @@ return [
         $t->same('.foo{height:stretch}', $prefixer->prefixForTargets('.foo { height: stretch; }', ['edge' => 138]));
         $t->same('.foo{block-size:-moz-available;block-size:stretch}', $prefixer->prefixForTargets('.foo { block-size: stretch; }', ['firefox' => 120]));
         $t->same('.foo{block-size:-webkit-fill-available;block-size:stretch}', $prefixer->prefixForTargets('.foo { block-size: stretch; }', ['safari' => 16]));
+        $t->same('.foo{max-height:-webkit-fill-available;max-height:-moz-available;max-height:stretch}', $prefixer->prefixForTargets('.foo { max-block-size: stretch; }', ['safari' => 8, 'firefox' => 4]));
+        $t->same('.foo{max-width:-webkit-fill-available;max-width:-moz-available;max-width:stretch}', $prefixer->prefixForTargets('.foo { max-inline-size: stretch; }', ['safari' => 8, 'firefox' => 4]));
+        $t->same('.foo{max-height:-webkit-fill-available}', $prefixer->prefixForTargets('.foo { max-block-size: -webkit-fill-available; }', ['safari' => 8, 'firefox' => 4]));
+        $t->same('.foo{max-width:100vw;max-width:-webkit-fill-available}', $prefixer->prefixForTargets('.foo { max-inline-size: 100vw; max-inline-size: -webkit-fill-available; }', ['safari' => 8, 'firefox' => 4]));
     },
     'transition prefixer maps upstream logical size browser boundaries' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();
@@ -779,6 +967,66 @@ return [
                 ['firefox' => 120]
             )
         );
+    },
+    'transition prefixer maps upstream supports scoped advanced color fallback pruning' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+
+        // Pinned upstream 22bdda3d src/lib.rs::test_skip_generating_unnecessary_fallbacks lines 31302-31426.
+        $cases = [
+            [
+                31302,
+                <<<'CSS'
+@supports (color: lab(0% 0 0)) and (color: color(display-p3 0 0 0)) {
+  .foo { color: lab(40% 56.6 39); }
+  .bar { color: color(display-p3 .643308 .192455 .167712); }
+}
+CSS,
+                '@supports (color:lab(0% 0 0)) and (color:color(display-p3 0 0 0)){.foo{color:lab(40% 56.6 39)}.bar{color:color(display-p3 .643308 .192455 .167712)}}',
+            ],
+            [
+                31331,
+                '@supports (color: lab(40% 56.6 39)) { .foo { color: lab(40% 56.6 39); } }',
+                '@supports (color:lab(40% 56.6 39)){.foo{color:lab(40% 56.6 39)}}',
+            ],
+            [
+                31352,
+                '@supports (background-color: lab(40% 56.6 39)) { .foo { background-color: lab(40% 56.6 39); } }',
+                '@supports (background-color:lab(40% 56.6 39)){.foo{background-color:lab(40% 56.6 39)}}',
+            ],
+            [
+                31373,
+                '@supports (color: light-dark(#f00, #00f)) { .foo { color: light-dark(#ff0, #0ff); } }',
+                '@supports (color:light-dark(#f00,#00f)){.foo{color:light-dark(#ff0,#0ff)}}',
+            ],
+            [
+                31395,
+                <<<'CSS'
+@supports (color: lab(0% 0 0)) and (not (color: color(display-p3 0 0 0))) {
+  .foo { color: lab(40% 56.6 39); }
+  .bar { color: color(display-p3 .643308 .192455 .167712); }
+}
+CSS,
+                '@supports (color:lab(0% 0 0)) and (not (color:color(display-p3 0 0 0))){.foo{color:#b32323;color:lab(40% 56.6 39)}.bar{color:#b32323;color:color(display-p3 .643308 .192455 .167712)}}',
+            ],
+            [
+                31426,
+                <<<'CSS'
+@supports (color: lab(0% 0 0)) or (color: color(display-p3 0 0 0)) {
+  .foo { color: lab(40% 56.6 39); }
+  .bar { color: color(display-p3 .643308 .192455 .167712); }
+}
+CSS,
+                '@supports (color:lab(0% 0 0)) or (color:color(display-p3 0 0 0)){.foo{color:#b32323;color:lab(40% 56.6 39)}.bar{color:#b32323;color:color(display-p3 .643308 .192455 .167712)}}',
+            ],
+        ];
+
+        foreach ($cases as [$line, $input, $expected]) {
+            $t->same(
+                $expected,
+                $prefixer->prefixForTargets($input, ['chrome' => 4]),
+                'upstream src/lib.rs::test_skip_generating_unnecessary_fallbacks line ' . $line
+            );
+        }
     },
     'transition prefixer maps upstream alpha color target fallbacks' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();
@@ -1512,7 +1760,7 @@ CSS;
             $prefixer->prefixForTargets('.foo { cursor: grabbing; }', ['opera' => 55])
         );
         $t->same(
-            '.foo{cursor:url("hand.cur"),-webkit-grab;cursor:url("hand.cur"),grab}',
+            '.foo{cursor:url(hand.cur),-webkit-grab;cursor:url(hand.cur),grab}',
             $prefixer->prefixForTargets('.foo { cursor: url("hand.cur"), grab; }', ['safari' => 10])
         );
         $t->same(
@@ -1769,13 +2017,14 @@ CSS;
     },
     'transition prefixer maps upstream border-image target boundaries' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();
-        $css = '.foo { border-image: url(border.png) 30 fill / 10px / 4px round; }';
-        $modern = '.foo{border-image:url(border.png) 30 fill/10px/4px round}';
-        $webkit = '.foo{-webkit-border-image:url(border.png) 30 fill/10px/4px round;border-image:url(border.png) 30 fill/10px/4px round}';
-        $moz = '.foo{-moz-border-image:url(border.png) 30 fill/10px/4px round;border-image:url(border.png) 30 fill/10px/4px round}';
-        $opera = '.foo{-o-border-image:url(border.png) 30 fill/10px/4px round;border-image:url(border.png) 30 fill/10px/4px round}';
-        $allLegacy = '.foo{-webkit-border-image:url(border.png) 30 fill/10px/4px round;-moz-border-image:url(border.png) 30 fill/10px/4px round;-o-border-image:url(border.png) 30 fill/10px/4px round;border-image:url(border.png) 30 fill/10px/4px round}';
-        $stalePrefixed = '.foo { -webkit-border-image: url(border.png) 30 fill / 10px / 4px round; -moz-border-image: url(border.png) 30 fill / 10px / 4px round; -o-border-image: url(border.png) 30 fill / 10px / 4px round; border-image: url(border.png) 30 fill / 10px / 4px round; }';
+        $css = '.foo { border-image: url(border.png) 30 / 10px / 4px round; }';
+        $modern = '.foo{border-image:url(border.png) 30/10px/4px round}';
+        $webkit = '.foo{-webkit-border-image:url(border.png) 30/10px/4px round;border-image:url(border.png) 30/10px/4px round}';
+        $moz = '.foo{-moz-border-image:url(border.png) 30/10px/4px round;border-image:url(border.png) 30/10px/4px round}';
+        $opera = '.foo{-o-border-image:url(border.png) 30/10px/4px round;border-image:url(border.png) 30/10px/4px round}';
+        $allLegacy = '.foo{-webkit-border-image:url(border.png) 30/10px/4px round;-moz-border-image:url(border.png) 30/10px/4px round;-o-border-image:url(border.png) 30/10px/4px round;border-image:url(border.png) 30/10px/4px round}';
+        $stalePrefixed = '.foo { -webkit-border-image: url(border.png) 30 / 10px / 4px round; -moz-border-image: url(border.png) 30 / 10px / 4px round; -o-border-image: url(border.png) 30 / 10px / 4px round; border-image: url(border.png) 30 / 10px / 4px round; }';
+        $repeatSpaceFallback = '.foo { border-image: url("fallback.png") 10 40 fill / 10px; border-image: url("main.png") 10 40 fill / 10px space; }';
 
         $t->same($allLegacy, $prefixer->prefixForTargets($css, ['chrome' => 14, 'firefox' => 14, 'opera' => '12.1']));
         $t->same($webkit, $prefixer->prefixForTargets($css, ['chrome' => 14]));
@@ -1792,18 +2041,102 @@ CSS;
         $t->same($modern, $prefixer->prefixForTargets($css, ['android' => '4.3']));
         $t->same($opera, $prefixer->prefixForTargets($css, ['opera' => '12.1']));
         $t->same($modern, $prefixer->prefixForTargets($css, ['opera' => '12.2']));
+        $t->same(
+            '.foo{border-image:url("fallback.png") 10 40 fill/10px;border-image:url("main.png") 10 40 fill/10px space}',
+            $prefixer->prefixForTargets($repeatSpaceFallback, ['chrome' => 50])
+        );
+        $t->same(
+            '.foo{border-image:url("main.png") 10 40 fill/10px space}',
+            $prefixer->prefixForTargets($repeatSpaceFallback, ['chrome' => 56])
+        );
         $t->same($webkit, $prefixer->prefixForTargets($stalePrefixed, ['safari' => '5.1']));
         $t->same($modern, $prefixer->prefixForTargets($stalePrefixed, ['chrome' => 15, 'firefox' => 15, 'opera' => '12.2', 'safari' => 6]));
     },
+    'transition prefixer maps upstream border-image helper rows' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+
+        $t->same(
+            '.foo{-webkit-border-image:url("test.png") 60;-moz-border-image:url("test.png") 60;-o-border-image:url("test.png") 60;border-image:url("test.png") 60}',
+            $prefixer->prefixForTargets('.foo { border-image: url("test.png") 60; }', [
+                'safari' => 4,
+                'firefox' => 4,
+                'opera' => 12,
+            ])
+        );
+        $t->same(
+            '.foo{border-image:url(foo.png) 10 40 fill/10px round}',
+            $prefixer->prefixForTargets('.foo { border-image: url(foo.png) 10 40 fill / 10px round; }', [
+                'safari' => 4,
+                'firefox' => 4,
+                'opera' => 12,
+            ])
+        );
+        $t->same(
+            '.foo{-webkit-border-image:var(--test) 60;-moz-border-image:var(--test) 60;-o-border-image:var(--test) 60;border-image:var(--test) 60}',
+            $prefixer->prefixForTargets('.foo { border-image: var(--test) 60; }', [
+                'safari' => 4,
+                'firefox' => 4,
+                'opera' => 12,
+            ])
+        );
+        $t->same(
+            '.foo{border-image:url(foo.png) 60}',
+            $prefixer->prefixForTargets('.foo { -webkit-border-image: url(foo.png) 60; -moz-border-image: url(foo.png) 60; -o-border-image: url(foo.png) 60; border-image: url(foo.png) 60; }', ['chrome' => 15])
+        );
+    },
+    'transition prefixer maps upstream border-image advanced color rows' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+        $lch = 'linear-gradient(lch(56.208% 136.76 46.312), lch(51% 135.366 301.364))';
+        $compactLch = 'linear-gradient(lch(56.208% 136.76 46.312),lch(51% 135.366 301.364))';
+        $srgb = 'linear-gradient(#ff0f0e,#7773ff)';
+        $lab = 'linear-gradient(lab(56.208% 94.4644 98.8928),lab(51% 70.4544 -115.586))';
+
+        $t->same(
+            '.foo{-webkit-border-image:-webkit-gradient(linear,0 0,0 100%,from(#ff0f0e),to(#7773ff)) 60;-webkit-border-image:-webkit-linear-gradient(top,#ff0f0e,#7773ff) 60;border-image:' . $srgb . ' 60;border-image:' . $compactLch . ' 60}',
+            $prefixer->prefixForTargets('.foo { border-image: ' . $lch . ' 60; }', ['chrome' => 8])
+        );
+        $t->same(
+            '.foo{-webkit-border-image:-webkit-gradient(linear,0 0,0 100%,from(#ff0f0e),to(#7773ff)) 60;-webkit-border-image:-webkit-linear-gradient(top,#ff0f0e,#7773ff) 60;-moz-border-image:-moz-linear-gradient(top,#ff0f0e,#7773ff) 60;border-image:' . $srgb . ' 60;border-image:' . $compactLch . ' 60}',
+            $prefixer->prefixForTargets('.foo { border-image: ' . $lch . ' 60; }', ['chrome' => 8, 'firefox' => 4])
+        );
+        $t->same(
+            '.foo{border-image:-webkit-linear-gradient(top,#ff0f0e,#7773ff) 60;border-image:-moz-linear-gradient(top,#ff0f0e,#7773ff) 60;border-image:' . $srgb . ' 60;border-image:' . $compactLch . ' 60}',
+            $prefixer->prefixForTargets('.foo { border-image: ' . $lch . ' 60; }', ['chrome' => 15, 'firefox' => 15])
+        );
+        $t->same(
+            '.foo{border-image-source:-webkit-linear-gradient(top,#ff0f0e,#7773ff);border-image-source:' . $srgb . ';border-image-source:' . $compactLch . '}',
+            $prefixer->prefixForTargets('.foo { border-image-source: ' . $lch . '; }', ['chrome' => 15])
+        );
+        $t->same(
+            '.foo{border-image:' . $srgb . ' var(--foo)}@supports (color:lab(0% 0 0)){.foo{border-image:' . $lab . ' var(--foo)}}',
+            $prefixer->prefixForTargets('.foo { border-image: ' . $lch . ' var(--foo); }', ['chrome' => 90])
+        );
+        $t->same(
+            '.foo{border-image-source:linear-gradient(red,green);border-image-source:' . $compactLch . '}',
+            $prefixer->prefixForTargets('.foo { border-image-source: linear-gradient(red, green); border-image-source: ' . $lch . '; }', ['chrome' => 95])
+        );
+        $t->same(
+            '.foo{border-image-source:' . $compactLch . '}',
+            $prefixer->prefixForTargets('.foo { border-image-source: linear-gradient(red, green); border-image-source: ' . $lch . '; }', ['chrome' => 112])
+        );
+        $t->same(
+            '.foo{border-image:linear-gradient(red,green);border-image:' . $compactLch . '}',
+            $prefixer->prefixForTargets('.foo { border-image: linear-gradient(red, green); border-image: ' . $lch . '; }', ['chrome' => 95])
+        );
+        $t->same(
+            '.foo{border-image:var(--fallback);border-image:' . $compactLch . '}',
+            $prefixer->prefixForTargets('.foo { border-image: var(--fallback); border-image: ' . $lch . '; }', ['chrome' => 95])
+        );
+    },
     'transition prefixer maps upstream border-image supports target boundaries' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();
-        $css = '@supports (border-image: url(border.png) 30 fill / 10px / 4px round) { .foo { border-image: url(border.png) 30 fill / 10px / 4px round; } }';
-        $modern = '@supports (border-image:url(border.png) 30 fill/10px/4px round){.foo{border-image:url(border.png) 30 fill/10px/4px round}}';
-        $webkit = '@supports ((-webkit-border-image:url(border.png) 30 fill/10px/4px round) or (border-image:url(border.png) 30 fill/10px/4px round)){.foo{-webkit-border-image:url(border.png) 30 fill/10px/4px round;border-image:url(border.png) 30 fill/10px/4px round}}';
-        $moz = '@supports ((-moz-border-image:url(border.png) 30 fill/10px/4px round) or (border-image:url(border.png) 30 fill/10px/4px round)){.foo{-moz-border-image:url(border.png) 30 fill/10px/4px round;border-image:url(border.png) 30 fill/10px/4px round}}';
-        $opera = '@supports ((-o-border-image:url(border.png) 30 fill/10px/4px round) or (border-image:url(border.png) 30 fill/10px/4px round)){.foo{-o-border-image:url(border.png) 30 fill/10px/4px round;border-image:url(border.png) 30 fill/10px/4px round}}';
-        $allLegacy = '@supports ((-webkit-border-image:url(border.png) 30 fill/10px/4px round) or (-moz-border-image:url(border.png) 30 fill/10px/4px round) or (-o-border-image:url(border.png) 30 fill/10px/4px round) or (border-image:url(border.png) 30 fill/10px/4px round)){.foo{-webkit-border-image:url(border.png) 30 fill/10px/4px round;-moz-border-image:url(border.png) 30 fill/10px/4px round;-o-border-image:url(border.png) 30 fill/10px/4px round;border-image:url(border.png) 30 fill/10px/4px round}}';
-        $stalePrefixed = '@supports ((-webkit-border-image: url(border.png) 30 fill / 10px / 4px round) or (-moz-border-image: url(border.png) 30 fill / 10px / 4px round) or (-o-border-image: url(border.png) 30 fill / 10px / 4px round) or (border-image: url(border.png) 30 fill / 10px / 4px round)) { .foo { -webkit-border-image: url(border.png) 30 fill / 10px / 4px round; -moz-border-image: url(border.png) 30 fill / 10px / 4px round; -o-border-image: url(border.png) 30 fill / 10px / 4px round; border-image: url(border.png) 30 fill / 10px / 4px round; } }';
+        $css = '@supports (border-image: url(border.png) 30 / 10px / 4px round) { .foo { border-image: url(border.png) 30 / 10px / 4px round; } }';
+        $modern = '@supports (border-image:url(border.png) 30/10px/4px round){.foo{border-image:url(border.png) 30/10px/4px round}}';
+        $webkit = '@supports ((-webkit-border-image:url(border.png) 30/10px/4px round) or (border-image:url(border.png) 30/10px/4px round)){.foo{-webkit-border-image:url(border.png) 30/10px/4px round;border-image:url(border.png) 30/10px/4px round}}';
+        $moz = '@supports ((-moz-border-image:url(border.png) 30/10px/4px round) or (border-image:url(border.png) 30/10px/4px round)){.foo{-moz-border-image:url(border.png) 30/10px/4px round;border-image:url(border.png) 30/10px/4px round}}';
+        $opera = '@supports ((-o-border-image:url(border.png) 30/10px/4px round) or (border-image:url(border.png) 30/10px/4px round)){.foo{-o-border-image:url(border.png) 30/10px/4px round;border-image:url(border.png) 30/10px/4px round}}';
+        $allLegacy = '@supports ((-webkit-border-image:url(border.png) 30/10px/4px round) or (-moz-border-image:url(border.png) 30/10px/4px round) or (-o-border-image:url(border.png) 30/10px/4px round) or (border-image:url(border.png) 30/10px/4px round)){.foo{-webkit-border-image:url(border.png) 30/10px/4px round;-moz-border-image:url(border.png) 30/10px/4px round;-o-border-image:url(border.png) 30/10px/4px round;border-image:url(border.png) 30/10px/4px round}}';
+        $stalePrefixed = '@supports ((-webkit-border-image: url(border.png) 30 / 10px / 4px round) or (-moz-border-image: url(border.png) 30 / 10px / 4px round) or (-o-border-image: url(border.png) 30 / 10px / 4px round) or (border-image: url(border.png) 30 / 10px / 4px round)) { .foo { -webkit-border-image: url(border.png) 30 / 10px / 4px round; -moz-border-image: url(border.png) 30 / 10px / 4px round; -o-border-image: url(border.png) 30 / 10px / 4px round; border-image: url(border.png) 30 / 10px / 4px round; } }';
 
         $t->same($allLegacy, $prefixer->prefixForTargets($css, ['chrome' => 14, 'firefox' => 14, 'opera' => '12.1']));
         $t->same($webkit, $prefixer->prefixForTargets($css, ['chrome' => 14]));
@@ -1837,7 +2170,8 @@ CSS;
                 'safari' => 14,
                 'firefox' => 40,
                 'ie' => 10,
-            ])
+            ]),
+            'upstream src/lib.rs::test_hyphens line 15916'
         );
         $t->same(
             '.foo{-webkit-hyphens:manual;hyphens:manual}',
@@ -1846,7 +2180,8 @@ CSS;
                 'chrome' => 88,
                 'firefox' => 88,
                 'edge' => 79,
-            ])
+            ]),
+            'upstream src/lib.rs::test_hyphens line 15933'
         );
         $t->same(
             '.foo{hyphens:manual}',
@@ -1854,29 +2189,34 @@ CSS;
                 'chrome' => 88,
                 'firefox' => 88,
                 'edge' => 79,
-            ])
+            ]),
+            'upstream src/lib.rs::test_hyphens line 15956'
         );
         $t->same(
             '.foo{-moz-tab-size:4;-o-tab-size:4;tab-size:4}',
             $prefixer->prefixForTargets('.foo { tab-size: 4; }', [
                 'firefox' => 50,
                 'opera' => 12,
-            ])
+            ]),
+            'upstream src/lib.rs::test_tab_size line 15845'
         );
         $t->same(
             '.foo{tab-size:4}',
             $prefixer->prefixForTargets('.foo { -moz-tab-size: 4; -o-tab-size: 4; tab-size: 4; }', [
                 'firefox' => 94,
                 'opera' => 30,
-            ])
+            ]),
+            'upstream src/lib.rs::test_tab_size line 15861'
         );
         $t->same(
             '.foo{-moz-text-align-last:left;text-align-last:left}',
-            $prefixer->prefixForTargets('.foo { text-align-last: left; }', ['firefox' => 40])
+            $prefixer->prefixForTargets('.foo { text-align-last: left; }', ['firefox' => 40]),
+            'upstream src/lib.rs::test_text_align_last line 16119'
         );
         $t->same(
             '.foo{text-align-last:left}',
-            $prefixer->prefixForTargets('.foo { -moz-text-align-last: left; text-align-last: left; }', ['firefox' => 88])
+            $prefixer->prefixForTargets('.foo { -moz-text-align-last: left; text-align-last: left; }', ['firefox' => 88]),
+            'upstream src/lib.rs::test_text_align_last line 16132'
         );
         $t->same(
             '.foo{-o-text-overflow:ellipsis;text-overflow:ellipsis}',
@@ -1912,6 +2252,16 @@ CSS;
     'transition prefixer maps upstream legacy text browser boundaries' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();
 
+        $t->same(
+            '.foo{-webkit-text-size-adjust:none;-moz-text-size-adjust:none;-ms-text-size-adjust:none;text-size-adjust:none}',
+            $prefixer->prefixForTargets('.foo { text-size-adjust: none; }', ['ios_saf' => 16, 'edge' => 15, 'firefox' => 20]),
+            'upstream src/lib.rs::test_text_size_adjust line 16198'
+        );
+        $t->same(
+            '.foo{text-size-adjust:none}',
+            $prefixer->prefixForTargets('.foo { -webkit-text-size-adjust: none; -moz-text-size-adjust: none; -ms-text-size-adjust: none; text-size-adjust: none; }', ['chrome' => 110]),
+            'upstream src/lib.rs::test_text_size_adjust line 16219'
+        );
         $t->same(
             '.foo{text-size-adjust:none}',
             $prefixer->prefixForTargets('.foo { text-size-adjust: none; }', ['ios_saf' => '4.3'])
@@ -2192,6 +2542,11 @@ CSS;
     },
     'transition prefixer maps upstream scroll snap browser boundaries' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();
+        $t->same(
+            '.foo{scroll-padding-inline:2px}',
+            $prefixer->prefixForTargets('.foo { scroll-padding-inline: 2px; }', ['safari' => 8])
+        );
+
         $css = '.foo { scroll-snap-type: x mandatory; scroll-snap-coordinate: 0 0; scroll-snap-destination: 50% 50%; scroll-snap-points-x: repeat(100%); scroll-snap-points-y: repeat(50%); }';
         $modern = '.foo{scroll-snap-type:x mandatory;scroll-snap-coordinate:0 0;scroll-snap-destination:50% 50%;scroll-snap-points-x:repeat(100%);scroll-snap-points-y:repeat(50%)}';
         $webkit = '.foo{-webkit-scroll-snap-type:x mandatory;scroll-snap-type:x mandatory;-webkit-scroll-snap-coordinate:0 0;scroll-snap-coordinate:0 0;-webkit-scroll-snap-destination:50% 50%;scroll-snap-destination:50% 50%;-webkit-scroll-snap-points-x:repeat(100%);scroll-snap-points-x:repeat(100%);-webkit-scroll-snap-points-y:repeat(50%);scroll-snap-points-y:repeat(50%)}';
@@ -2262,6 +2617,18 @@ CSS;
         $t->same(
             '.foo{overflow:hidden auto}',
             $prefixer->prefixForTargets('.foo { overflow: hidden auto; }', ['edge' => 79])
+        );
+    },
+    'transition prefixer preserves upstream container query ranges for prefix targets' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+
+        $t->same(
+            '@container (width>100px){.foo{padding:5px}}',
+            $prefixer->prefixForTargets('@container (width > 100px) { .foo { padding: 5px; } }', ['chrome' => 105])
+        );
+        $t->same(
+            '@container (width>=100px){.foo{padding:5px}}',
+            $prefixer->prefixForTargets('@container (min-width: 100px) { .foo { padding: 5px; } }', ['chrome' => 105])
         );
     },
     'transition prefixer maps upstream background clip text browser boundaries' => static function (TestRunner $t): void {
@@ -2500,11 +2867,29 @@ CSS;
             $prefixer->prefixForTargets('.foo { margin-block-end: 2px; }', ['safari' => 8])
         );
         $t->same(
+            $selector['ltr-webkit'] . '{padding-left:2px}'
+                . $selector['ltr-modern'] . '{padding-left:2px}'
+                . $selector['rtl-webkit'] . '{padding-right:2px}'
+                . $selector['rtl-modern'] . '{padding-right:2px}',
+            $prefixer->prefixForTargets('.foo { padding-inline-start: 2px; }', ['safari' => 8])
+        );
+        $t->same(
+            $selector['ltr-webkit'] . '{padding-left:2px;padding-right:4px}'
+                . $selector['ltr-modern'] . '{padding-left:2px;padding-right:4px}'
+                . $selector['rtl-webkit'] . '{padding-left:4px;padding-right:2px}'
+                . $selector['rtl-modern'] . '{padding-left:4px;padding-right:2px}',
+            $prefixer->prefixForTargets('.foo { padding-inline-start: 2px; padding-inline-end: 4px; }', ['safari' => 8])
+        );
+        $t->same(
             $selector['ltr-webkit'] . '{padding-left:var(--padding)}'
                 . $selector['ltr-modern'] . '{padding-left:var(--padding)}'
                 . $selector['rtl-webkit'] . '{padding-right:var(--padding)}'
                 . $selector['rtl-modern'] . '{padding-right:var(--padding)}',
             $prefixer->prefixForTargets('.foo { padding-inline-start: var(--padding); }', ['safari' => 8])
+        );
+        $t->same(
+            '.foo{padding-left:2px;padding-right:2px}',
+            $prefixer->prefixForTargets('.foo { padding-inline: 2px; }', ['safari' => 8])
         );
         $t->same(
             $selector['ltr-webkit'] . '{padding-left:2px;padding-right:4px}'
@@ -2524,6 +2909,10 @@ CSS;
         $t->same(
             '.foo{margin-inline-start:2px;margin-inline-end:4px;padding-block-start:1rem;padding-block-end:2rem}',
             $prefixer->prefixForTargets('.foo { margin-inline: 2px 4px; padding-block: 1rem 2rem; }', ['safari' => 13])
+        );
+        $t->same(
+            '.foo{padding-inline-start:2px;padding-inline-end:2px}',
+            $prefixer->prefixForTargets('.foo { padding-inline-start: 2px; padding-inline-end: 2px; }', ['safari' => 13])
         );
     },
     'transition prefixer maps upstream logical spacing browser boundaries' => static function (TestRunner $t) use ($variants): void {
@@ -2546,6 +2935,16 @@ CSS;
         $t->same('.foo{margin-block-start:2px}', $prefixer->prefixForTargets('.foo { margin-block-start: 2px; }', ['firefox' => 40]));
         $t->same('.foo{padding-inline-start:2px;padding-inline-end:2px}', $prefixer->prefixForTargets('.foo { padding-inline: 2px; }', ['safari' => 13]));
         $t->same('.foo{padding-inline:2px}', $prefixer->prefixForTargets('.foo { padding-inline: 2px; }', ['safari' => 15]));
+        $t->same(
+            '.foo{margin-inline:2px}',
+            $prefixer->prefixForTargets('.foo { margin-inline-start: 2px; margin-inline-end: 2px; }', ['safari' => 15]),
+            'upstream src/lib.rs::test_margin line 3501'
+        );
+        $t->same(
+            '.foo{padding-inline:2px}',
+            $prefixer->prefixForTargets('.foo { padding-inline-start: 2px; padding-inline-end: 2px; }', ['safari' => 15]),
+            'upstream src/lib.rs::test_padding line 3904'
+        );
         $t->same($blockStartFallback, $prefixer->prefixForTargets('.foo { margin-block-start: 2px; }', [
             'browsers' => ['chrome' => 120],
             'include' => ['LogicalProperties'],
@@ -2561,66 +2960,215 @@ CSS;
 
         $t->same(
             '.foo{border-top:2px solid red;border-bottom:2px solid red}',
-            $prefixer->prefixForTargets('.foo { border-block: 2px solid red; }', ['safari' => 8])
+            $prefixer->prefixForTargets('.foo { border-block: 2px solid red; }', ['safari' => 8]),
+            'upstream src/lib.rs::test_border row 1174'
         );
         $t->same(
             '.foo{border-top:2px solid red}',
-            $prefixer->prefixForTargets('.foo { border-block-start: 2px solid red; }', ['safari' => 8])
+            $prefixer->prefixForTargets('.foo { border-block-start: 2px solid red; }', ['safari' => 8]),
+            'upstream src/lib.rs::test_border row 1193'
         );
         $t->same(
             '.foo{border-bottom:2px solid red}',
-            $prefixer->prefixForTargets('.foo { border-block-end: 2px solid red; }', ['safari' => 8])
+            $prefixer->prefixForTargets('.foo { border-block-end: 2px solid red; }', ['safari' => 8]),
+            'upstream src/lib.rs::test_border row 1211'
         );
         $t->same(
             '.foo{border-left:2px solid red;border-right:2px solid red}',
-            $prefixer->prefixForTargets('.foo { border-inline: 2px solid red; }', ['safari' => 8])
+            $prefixer->prefixForTargets('.foo { border-inline: 2px solid red; }', ['safari' => 8]),
+            'upstream src/lib.rs::test_border row 1229'
         );
         $t->same(
             $selector['ltr-webkit'] . '{border-left:2px solid red}'
                 . $selector['ltr-modern'] . '{border-left:2px solid red}'
                 . $selector['rtl-webkit'] . '{border-right:2px solid red}'
                 . $selector['rtl-modern'] . '{border-right:2px solid red}',
-            $prefixer->prefixForTargets('.foo { border-inline-start: 2px solid red; }', ['safari' => 8])
+            $prefixer->prefixForTargets('.foo { border-inline-start: 2px solid red; }', ['safari' => 8]),
+            'upstream src/lib.rs::test_border row 1285'
         );
         $t->same(
             $selector['ltr-webkit'] . '{border-left-width:2px}'
                 . $selector['ltr-modern'] . '{border-left-width:2px}'
                 . $selector['rtl-webkit'] . '{border-right-width:2px}'
                 . $selector['rtl-modern'] . '{border-right-width:2px}',
-            $prefixer->prefixForTargets('.foo { border-inline-start-width: 2px; }', ['safari' => 8])
+            $prefixer->prefixForTargets('.foo { border-inline-start-width: 2px; }', ['safari' => 8]),
+            'upstream src/lib.rs::test_border row 1315'
         );
         $t->same(
             $selector['ltr-webkit'] . '{border-right:2px solid red}'
                 . $selector['ltr-modern'] . '{border-right:2px solid red}'
                 . $selector['rtl-webkit'] . '{border-left:2px solid red}'
                 . $selector['rtl-modern'] . '{border-left:2px solid red}',
-            $prefixer->prefixForTargets('.foo { border-inline-end: 2px solid red; }', ['safari' => 8])
+            $prefixer->prefixForTargets('.foo { border-inline-end: 2px solid red; }', ['safari' => 8]),
+            'upstream src/lib.rs::test_border row 1345'
         );
         $t->same(
             $selector['ltr-webkit'] . '{border-left:2px solid red;border-right:5px solid green}'
                 . $selector['ltr-modern'] . '{border-left:2px solid red;border-right:5px solid green}'
-                . $selector['rtl-webkit'] . '{border-right:2px solid red;border-left:5px solid green}'
-                . $selector['rtl-modern'] . '{border-right:2px solid red;border-left:5px solid green}',
-            $prefixer->prefixForTargets('.foo { border-inline-start: 2px solid red; border-inline-end: 5px solid green; }', ['safari' => 8])
+                . $selector['rtl-webkit'] . '{border-left:5px solid green;border-right:2px solid red}'
+                . $selector['rtl-modern'] . '{border-left:5px solid green;border-right:2px solid red}',
+            $prefixer->prefixForTargets('.foo { border-inline-start: 2px solid red; border-inline-end: 5px solid green; }', ['safari' => 8]),
+            'upstream src/lib.rs::test_border row 1375'
+        );
+        $barSelector = $variants('.bar');
+        $t->same(
+            $selector['ltr-webkit'] . '{border-left:2px solid red;border-right:5px solid green}'
+                . $selector['ltr-modern'] . '{border-left:2px solid red;border-right:5px solid green}'
+                . $selector['rtl-webkit'] . '{border-left:5px solid green;border-right:2px solid red}'
+                . $selector['rtl-modern'] . '{border-left:5px solid green;border-right:2px solid red}'
+                . $barSelector['ltr-webkit'] . '{border-left:1px dotted gray;border-right:1px solid #000}'
+                . $barSelector['ltr-modern'] . '{border-left:1px dotted gray;border-right:1px solid #000}'
+                . $barSelector['rtl-webkit'] . '{border-left:1px solid #000;border-right:1px dotted gray}'
+                . $barSelector['rtl-modern'] . '{border-left:1px solid #000;border-right:1px dotted gray}',
+            $prefixer->prefixForTargets('.foo { border-inline-start: 2px solid red; border-inline-end: 5px solid green; } .bar { border-inline-start: 1px dotted gray; border-inline-end: 1px solid black; }', ['safari' => 8])
         );
         $t->same(
             '.foo{border-left-width:2px;border-right-width:2px}',
-            $prefixer->prefixForTargets('.foo { border-inline-width: 2px; }', ['safari' => 8])
+            $prefixer->prefixForTargets('.foo { border-inline-width: 2px; }', ['safari' => 8]),
+            'upstream src/lib.rs::test_border rows 1470 and 1489'
         );
         $t->same(
             '.foo{border-left-style:solid;border-right-style:solid}',
-            $prefixer->prefixForTargets('.foo { border-inline-style: solid; }', ['safari' => 8])
+            $prefixer->prefixForTargets('.foo { border-inline-style: solid; }', ['safari' => 8]),
+            'upstream src/lib.rs::test_border row 1508'
         );
         $t->same(
             '.foo{border-left-color:red;border-right-color:red}',
-            $prefixer->prefixForTargets('.foo { border-inline-color: red; }', ['safari' => 8])
+            $prefixer->prefixForTargets('.foo { border-inline-color: red; }', ['safari' => 8]),
+            'upstream src/lib.rs::test_border row 1527'
         );
         $t->same(
             $selector['ltr-webkit'] . '{border-right:var(--test)}'
                 . $selector['ltr-modern'] . '{border-right:var(--test)}'
                 . $selector['rtl-webkit'] . '{border-left:var(--test)}'
                 . $selector['rtl-modern'] . '{border-left:var(--test)}',
-            $prefixer->prefixForTargets('.foo { border-inline-end: var(--test); }', ['safari' => 8])
+            $prefixer->prefixForTargets('.foo { border-inline-end: var(--test); }', ['safari' => 8]),
+            'upstream src/lib.rs::test_border row 1546'
+        );
+        $t->same(
+            $selector['ltr-webkit'] . '{border-left:var(--start);border-right:var(--end)}'
+                . $selector['ltr-modern'] . '{border-left:var(--start);border-right:var(--end)}'
+                . $selector['rtl-webkit'] . '{border-right:var(--start);border-left:var(--end)}'
+                . $selector['rtl-modern'] . '{border-right:var(--start);border-left:var(--end)}',
+            $prefixer->prefixForTargets('.foo { border-inline-start: var(--start); border-inline-end: var(--end); }', ['safari' => 8])
+        );
+    },
+    'transition prefixer maps upstream border advanced color fallback rows' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+        $colorProperties = [
+            'border-inline-start-color',
+            'border-inline-end-color',
+            'border-block-start-color',
+            'border-block-end-color',
+            'border-top-color',
+            'border-bottom-color',
+            'border-left-color',
+            'border-right-color',
+            'border-color',
+            'border-block-color',
+            'border-inline-color',
+        ];
+        $shorthandProperties = [
+            'border',
+            'border-inline',
+            'border-block',
+            'border-left',
+            'border-right',
+            'border-top',
+            'border-bottom',
+            'border-block-start',
+            'border-block-end',
+            'border-inline-start',
+            'border-inline-end',
+        ];
+
+        foreach ($colorProperties as $property) {
+            $t->same(
+                ".foo{{$property}:#b32323;{$property}:lab(40% 56.6 39)}",
+                $prefixer->prefixForTargets(".foo { {$property}: lab(40% 56.6 39); }", ['chrome' => 90])
+            );
+        }
+
+        foreach ($shorthandProperties as $property) {
+            $t->same(
+                ".foo{{$property}:2px solid #b32323;{$property}:2px solid lab(40% 56.6 39)}",
+                $prefixer->prefixForTargets(".foo { {$property}: 2px solid lab(40% 56.6 39); }", ['chrome' => 90])
+            );
+            $t->same(
+                ".foo{{$property}:var(--border-width) solid #b32323}@supports (color:lab(0% 0 0)){.foo{{$property}:var(--border-width) solid lab(40% 56.6 39)}}",
+                $prefixer->prefixForTargets(".foo { {$property}: var(--border-width) solid lab(40% 56.6 39); }", ['chrome' => 90])
+            );
+            $t->same(
+                "@supports (color:lab(0% 0 0)){.foo{{$property}:var(--border-width) solid lab(40% 56.6 39)}}",
+                $prefixer->prefixForTargets("@supports (color: lab(0% 0 0)) { .foo { {$property}: var(--border-width) solid lab(40% 56.6 39); } }", ['chrome' => 90])
+            );
+        }
+    },
+    'transition prefixer maps upstream logical border advanced color support ordering row' => static function (TestRunner $t) use ($variants): void {
+        $prefixer = new TransitionPrefixer();
+        $selector = $variants('.foo');
+
+        // Pinned upstream 22bdda3d src/lib.rs::test_border line 1964.
+        $t->same(
+            $selector['ltr-webkit'] . '{border-right:var(--border-width) solid #b32323}'
+                . $selector['ltr-modern'] . '{border-right:var(--border-width) solid #b32323}'
+                . '@supports (color:lab(0% 0 0)){' . $selector['ltr-modern'] . '{border-right:var(--border-width) solid lab(40% 56.6 39)}}'
+                . $selector['rtl-webkit'] . '{border-left:var(--border-width) solid #b32323}'
+                . $selector['rtl-modern'] . '{border-left:var(--border-width) solid #b32323}'
+                . '@supports (color:lab(0% 0 0)){' . $selector['rtl-modern'] . '{border-left:var(--border-width) solid lab(40% 56.6 39)}}',
+            $prefixer->prefixForTargets('.foo { border-inline-end: var(--border-width) solid lab(40% 56.6 39); }', ['safari' => 8])
+        );
+    },
+    'transition prefixer maps upstream logical border advanced color fallback rows' => static function (TestRunner $t) use ($variants): void {
+        $prefixer = new TransitionPrefixer();
+        $selector = $variants('.foo');
+
+        // Pinned upstream 22bdda3d src/lib.rs::test_border lines 1757, 1790, 1823, 1865, 1898, and 1931.
+        $t->same(
+            $selector['ltr-webkit'] . '{border-left-color:#b32323;border-left-color:lab(40% 56.6 39)}'
+                . $selector['ltr-modern'] . '{border-left-color:#b32323;border-left-color:lab(40% 56.6 39)}'
+                . $selector['rtl-webkit'] . '{border-right-color:#b32323;border-right-color:lab(40% 56.6 39)}'
+                . $selector['rtl-modern'] . '{border-right-color:#b32323;border-right-color:lab(40% 56.6 39)}',
+            $prefixer->prefixForTargets('.foo { border-inline-start-color: lab(40% 56.6 39); }', ['safari' => 8]),
+            'upstream src/lib.rs::test_border line 1757'
+        );
+        $t->same(
+            $selector['ltr-webkit'] . '{border-right-color:#b32323;border-right-color:lab(40% 56.6 39)}'
+                . $selector['ltr-modern'] . '{border-right-color:#b32323;border-right-color:lab(40% 56.6 39)}'
+                . $selector['rtl-webkit'] . '{border-left-color:#b32323;border-left-color:lab(40% 56.6 39)}'
+                . $selector['rtl-modern'] . '{border-left-color:#b32323;border-left-color:lab(40% 56.6 39)}',
+            $prefixer->prefixForTargets('.foo { border-inline-end-color: lab(40% 56.6 39); }', ['safari' => 8]),
+            'upstream src/lib.rs::test_border line 1790'
+        );
+        $t->same(
+            $selector['ltr-webkit'] . '{border-left-color:#b32323;border-left-color:lab(40% 56.6 39);border-right-color:#ee00be;border-right-color:lch(50.998% 135.363 338)}'
+                . $selector['ltr-modern'] . '{border-left-color:#b32323;border-left-color:lab(40% 56.6 39);border-right-color:#ee00be;border-right-color:lch(50.998% 135.363 338)}'
+                . $selector['rtl-webkit'] . '{border-left-color:#ee00be;border-left-color:lch(50.998% 135.363 338);border-right-color:#b32323;border-right-color:lab(40% 56.6 39)}'
+                . $selector['rtl-modern'] . '{border-left-color:#ee00be;border-left-color:lch(50.998% 135.363 338);border-right-color:#b32323;border-right-color:lab(40% 56.6 39)}',
+            $prefixer->prefixForTargets('.foo { border-inline-start-color: lab(40% 56.6 39); border-inline-end-color: lch(50.998% 135.363 338); }', ['safari' => 8]),
+            'upstream src/lib.rs::test_border line 1823'
+        );
+        $t->same(
+            $selector['ltr-modern'] . '{border-left-color:#b32323;border-left-color:color(display-p3 .643308 .192455 .167712);border-left-color:lab(40% 56.6 39);border-right-color:#ee00be;border-right-color:color(display-p3 .972962 -.362078 .804206);border-right-color:lch(50.998% 135.363 338)}'
+                . $selector['rtl-modern'] . '{border-left-color:#ee00be;border-left-color:color(display-p3 .972962 -.362078 .804206);border-left-color:lch(50.998% 135.363 338);border-right-color:#b32323;border-right-color:color(display-p3 .643308 .192455 .167712);border-right-color:lab(40% 56.6 39)}',
+            $prefixer->prefixForTargets('.foo { border-inline-start-color: lab(40% 56.6 39); border-inline-end-color: lch(50.998% 135.363 338); }', ['chrome' => 8, 'safari' => 14]),
+            'upstream src/lib.rs::test_border line 1865'
+        );
+        $t->same(
+            $selector['ltr-webkit'] . '{border-left:2px solid #b32323;border-left:2px solid lab(40% 56.6 39)}'
+                . $selector['ltr-modern'] . '{border-left:2px solid #b32323;border-left:2px solid lab(40% 56.6 39)}'
+                . $selector['rtl-webkit'] . '{border-right:2px solid #b32323;border-right:2px solid lab(40% 56.6 39)}'
+                . $selector['rtl-modern'] . '{border-right:2px solid #b32323;border-right:2px solid lab(40% 56.6 39)}',
+            $prefixer->prefixForTargets('.foo { border-inline-start: 2px solid lab(40% 56.6 39); }', ['safari' => 8]),
+            'upstream src/lib.rs::test_border line 1898'
+        );
+        $t->same(
+            $selector['ltr-webkit'] . '{border-right:2px solid #b32323;border-right:2px solid lab(40% 56.6 39)}'
+                . $selector['ltr-modern'] . '{border-right:2px solid #b32323;border-right:2px solid lab(40% 56.6 39)}'
+                . $selector['rtl-webkit'] . '{border-left:2px solid #b32323;border-left:2px solid lab(40% 56.6 39)}'
+                . $selector['rtl-modern'] . '{border-left:2px solid #b32323;border-left:2px solid lab(40% 56.6 39)}',
+            $prefixer->prefixForTargets('.foo { border-inline-end: 2px solid lab(40% 56.6 39); }', ['safari' => 8]),
+            'upstream src/lib.rs::test_border line 1931'
         );
     },
     'transition prefixer maps upstream logical border browser boundaries' => static function (TestRunner $t) use ($variants): void {
@@ -2630,18 +3178,40 @@ CSS;
             . $selector['ltr-modern'] . '{border-left:2px solid red}'
             . $selector['rtl-webkit'] . '{border-right:2px solid red}'
             . $selector['rtl-modern'] . '{border-right:2px solid red}';
+        $inlineStartFallbackModern = $selector['ltr-modern'] . '{border-left:2px solid red}'
+            . $selector['rtl-modern'] . '{border-right:2px solid red}';
 
-        $t->same('.foo{border-block-start-width:2px;border-block-end-width:2px}', $prefixer->prefixForTargets('.foo { border-block-width: 2px; }', ['safari' => 13]));
-        $t->same('.foo{border-block-width:2px}', $prefixer->prefixForTargets('.foo { border-block-width: 2px; }', ['safari' => 15]));
+        $t->same('.foo{border-block-start-width:2px;border-block-end-width:2px}', $prefixer->prefixForTargets('.foo { border-block-width: 2px; }', ['safari' => 13]), 'upstream src/lib.rs::test_border row 1248');
+        $t->same('.foo{border-block-width:2px}', $prefixer->prefixForTargets('.foo { border-block-width: 2px; }', ['safari' => 15]), 'upstream src/lib.rs::test_border row 1267');
+        $t->same(
+            '.foo{border-inline-start:2px solid red;border-inline-end:2px solid red}',
+            $prefixer->prefixForTargets('.foo { border-inline-start: 2px solid red; border-inline-end: 2px solid red; }', ['safari' => 13]),
+            'upstream src/lib.rs::test_border row 2005'
+        );
+        $t->same(
+            '.foo{border-inline:2px solid red}',
+            $prefixer->prefixForTargets('.foo { border-inline-start: 2px solid red; border-inline-end: 2px solid red; }', ['safari' => 15]),
+            'upstream src/lib.rs::test_border row 2025'
+        );
+        $t->same(
+            '.foo{border-width:22px;border-width:max(2cqw,22px)}',
+            $prefixer->prefixForTargets('.foo { border-width: 22px; border-width: max(2cqw, 22px); }', ['safari' => 14]),
+            'upstream src/lib.rs::test_border row 2044'
+        );
+        $t->same(
+            '.foo{border-width:max(2cqw,22px)}',
+            $prefixer->prefixForTargets('.foo { border-width: 22px; border-width: max(2cqw, 22px); }', ['safari' => 16]),
+            'upstream src/lib.rs::test_border row 2063'
+        );
         $t->same('.foo{border-inline-start:2px solid red;border-inline-end:2px solid red}', $prefixer->prefixForTargets('.foo { border-inline: 2px solid red; }', ['safari' => 13]));
         $t->same('.foo{border-inline:2px solid red}', $prefixer->prefixForTargets('.foo { border-inline: 2px solid red; }', ['safari' => '14.1']));
         $t->same($inlineStartFallback, $prefixer->prefixForTargets('.foo { border-inline-start: 2px solid red; }', ['safari' => '12.0']));
         $t->same('.foo{border-inline-start:2px solid red}', $prefixer->prefixForTargets('.foo { border-inline-start: 2px solid red; }', ['safari' => '12.1']));
         $t->same($inlineStartFallback, $prefixer->prefixForTargets('.foo { border-inline-start: 2px solid red; }', ['chrome' => 68]));
         $t->same('.foo{border-inline-start:2px solid red}', $prefixer->prefixForTargets('.foo { border-inline-start: 2px solid red; }', ['chrome' => 69]));
-        $t->same($inlineStartFallback, $prefixer->prefixForTargets('.foo { border-inline-start: 2px solid red; }', ['firefox' => 40]));
+        $t->same($inlineStartFallbackModern, $prefixer->prefixForTargets('.foo { border-inline-start: 2px solid red; }', ['firefox' => 40]));
         $t->same('.foo{border-inline-start:2px solid red}', $prefixer->prefixForTargets('.foo { border-inline-start: 2px solid red; }', ['firefox' => 41]));
-        $t->same($inlineStartFallback, $prefixer->prefixForTargets('.foo { border-inline-start: 2px solid red; }', [
+        $t->same($inlineStartFallbackModern, $prefixer->prefixForTargets('.foo { border-inline-start: 2px solid red; }', [
             'browsers' => ['chrome' => 120],
             'include' => ['LogicalProperties'],
         ]));
@@ -3294,15 +3864,18 @@ CSS;
 
         $t->same(
             '.foo{outline-color:#b32323;outline-color:lab(40% 56.6 39)}',
-            $prefixer->prefixForTargets('.foo { outline-color: lab(40% 56.6 39) }', ['chrome' => 90])
+            $prefixer->prefixForTargets('.foo { outline-color: lab(40% 56.6 39) }', ['chrome' => 90]),
+            'upstream src/lib.rs::test_outline line 3205'
         );
         $t->same(
             '.foo{outline:2px solid #b32323;outline:2px solid lab(40% 56.6 39)}',
-            $prefixer->prefixForTargets('.foo { outline: 2px solid lab(40% 56.6 39) }', ['chrome' => 90])
+            $prefixer->prefixForTargets('.foo { outline: 2px solid lab(40% 56.6 39) }', ['chrome' => 90]),
+            'upstream src/lib.rs::test_outline line 3219'
         );
         $t->same(
             '.foo{outline:var(--width) solid #b32323}@supports (color:lab(0% 0 0)){.foo{outline:var(--width) solid lab(40% 56.6 39)}}',
-            $prefixer->prefixForTargets('.foo { outline: var(--width) solid lab(40% 56.6 39) }', ['chrome' => 90])
+            $prefixer->prefixForTargets('.foo { outline: var(--width) solid lab(40% 56.6 39) }', ['chrome' => 90]),
+            'upstream src/lib.rs::test_outline line 3233'
         );
         $t->same(
             '.foo{outline-color:lab(40% 56.6 39)}',
@@ -3326,6 +3899,18 @@ CSS;
                 '.foo { background-color: oklab(59.686% 0.1009 0.1192); }',
                 ['chrome' => 90, 'safari' => 15]
             )
+        );
+    },
+    'transition prefixer maps upstream lch display p3 target fallbacks' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+
+        $t->same(
+            '.foo{background-color:#ee00be;background-color:color(display-p3 .972962 -.362078 .804206);background-color:lch(50.998% 135.363 338)}',
+            $prefixer->prefixForTargets('.foo { background-color: lch(50.998% 135.363 338) }', ['chrome' => 90, 'safari' => 14])
+        );
+        $t->same(
+            '.foo{color:#ee00be;color:color(display-p3 .972962 -.362078 .804206);color:lch(50.998% 135.363 338)}',
+            $prefixer->prefixForTargets('.foo { color: lch(50.998% 135.363 338) }', ['chrome' => 90, 'safari' => 14])
         );
     },
     'transition prefixer maps upstream color function gamut fallbacks by target' => static function (TestRunner $t): void {
@@ -3378,6 +3963,59 @@ CSS;
         $t->same(
             '.foo{color:lab(40% 56.6 39)}',
             $prefixer->prefixForTargets('.foo { color: var(--fallback); color: lab(40% 56.6 39); }', ['safari' => 16])
+        );
+        $t->same(
+            '.foo{background-color:#4263eb;background-color:color(display-p3 0 .5 1)}',
+            $prefixer->prefixForTargets('.foo { background-color: #4263eb; background-color: color(display-p3 0 .5 1); }', ['chrome' => 99])
+        );
+        $t->same(
+            '.foo{background-image:linear-gradient(lch(50% 132 50),lch(50% 130 150))}',
+            $prefixer->prefixForTargets('.foo { background-image: linear-gradient(red, green); background-image: linear-gradient(lch(50% 132 50), lch(50% 130 150)); }', ['safari' => 16])
+        );
+        $t->same(
+            '.foo{background:#4263eb;background:color(display-p3 0 .5 1)}',
+            $prefixer->prefixForTargets('.foo { background: #4263eb; background: color(display-p3 0 .5 1); }', ['chrome' => 99])
+        );
+        $t->same(
+            '.foo{background:red;background:linear-gradient(lch(50% 132 50),lch(50% 130 150))}',
+            $prefixer->prefixForTargets('.foo { background: red; background: linear-gradient(lch(50% 132 50), lch(50% 130 150)); }', ['chrome' => 99])
+        );
+        $t->same(
+            '.foo{background:linear-gradient(lch(50% 132 50),lch(50% 130 150))}',
+            $prefixer->prefixForTargets('.foo { background: linear-gradient(red, green); background: linear-gradient(lch(50% 132 50), lch(50% 130 150)); }', ['safari' => 16])
+        );
+        $t->same(
+            '.foo{background:var(--fallback);background:linear-gradient(lch(50% 132 50),lch(50% 130 150))}',
+            $prefixer->prefixForTargets('.foo { background: var(--fallback); background: linear-gradient(lch(50% 132 50), lch(50% 130 150)); }', ['chrome' => 99])
+        );
+        $t->same(
+            '.foo{background:red url("foo.png");background:lch(50% 132 50) url("foo.png")}',
+            $prefixer->prefixForTargets('.foo { background: red url(foo.png); background: lch(50% 132 50) url(foo.png); }', ['chrome' => 99])
+        );
+        $t->same(
+            '.foo{border-color:#4263eb;border-color:color(display-p3 0 .5 1)}',
+            $prefixer->prefixForTargets('.foo { border-color: #4263eb; border-color: color(display-p3 0 .5 1); }', ['chrome' => 99]),
+            'upstream src/lib.rs::test_border row 2081'
+        );
+        $t->same(
+            '.foo{border-color:color(display-p3 0 .5 1)}',
+            $prefixer->prefixForTargets('.foo { border-color: #4263eb; border-color: color(display-p3 0 .5 1); }', ['safari' => 16]),
+            'upstream src/lib.rs::test_border row 2100'
+        );
+        $t->same(
+            '.foo{border:1px solid #4263eb;border-color:color(display-p3 0 .5 1)}',
+            $prefixer->prefixForTargets('.foo { border: 1px solid #4263eb; border-color: color(display-p3 0 .5 1); }', ['chrome' => 99]),
+            'upstream src/lib.rs::test_border row 2118'
+        );
+        $t->same(
+            '.foo{border:1px solid color(display-p3 0 .5 1)}',
+            $prefixer->prefixForTargets('.foo { border: 1px solid #4263eb; border-color: color(display-p3 0 .5 1); }', ['safari' => 16]),
+            'upstream src/lib.rs::test_border row 2137'
+        );
+        $t->same(
+            '.foo{border-color:var(--fallback);border-color:color(display-p3 0 .5 1)}',
+            $prefixer->prefixForTargets('.foo { border-color: var(--fallback); border-color: color(display-p3 0 .5 1); }', ['chrome' => 99]),
+            'upstream src/lib.rs::test_border row 2155'
         );
         $t->same(
             '.foo{color:var(--foo,color(display-p3 .643308 .192455 .167712))}@supports (color:lab(0% 0 0)){.foo{color:var(--foo,lab(40% 56.6 39))}}',
@@ -3476,6 +4114,100 @@ CSS;
             $prefixer->prefixForTargets('.foo { --custom: oklab(59.686% 0.1009 0.1192); }', ['chrome' => 111, 'safari' => 15])
         );
     },
+    'transition prefixer maps upstream custom property advanced color residual boundaries' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+
+        $cases = [
+            [
+                23663,
+                '.foo { --custom: lab(40% 56.6 39); }',
+                ['chrome' => 90],
+                '.foo{--custom:#b32323}@supports (color:lab(0% 0 0)){.foo{--custom:lab(40% 56.6 39)}}',
+            ],
+            [
+                23686,
+                '@supports (color: lab(0% 0 0)) { .foo { --custom: lab(40% 56.6 39); } }',
+                ['chrome' => 90],
+                '@supports (color:lab(0% 0 0)){.foo{--custom:lab(40% 56.6 39)}}',
+            ],
+            [
+                23730,
+                '@supports (color: lab(0% 0 0)) { .foo { --custom: lab(40% 56.6 39) !important; } }',
+                ['chrome' => 90],
+                '@supports (color:lab(0% 0 0)){.foo{--custom:lab(40% 56.6 39)!important}}',
+            ],
+            [
+                23751,
+                '.foo { --custom: lab(40% 56.6 39); }',
+                ['chrome' => 90, 'safari' => 14],
+                '.foo{--custom:#b32323}@supports (color:color(display-p3 0 0 0)){.foo{--custom:color(display-p3 .643308 .192455 .167712)}}@supports (color:lab(0% 0 0)){.foo{--custom:lab(40% 56.6 39)}}',
+            ],
+            [
+                23781,
+                '@supports (color: color(display-p3 0 0 0)) { .foo { --custom: color(display-p3 .643308 .192455 .167712); } } @supports (color: lab(0% 0 0)) { .foo { --custom: lab(40% 56.6 39); } }',
+                ['chrome' => 90, 'safari' => 14],
+                '@supports (color:color(display-p3 0 0 0)){.foo{--custom:color(display-p3 .643308 .192455 .167712)}}@supports (color:lab(0% 0 0)){.foo{--custom:lab(40% 56.6 39)}}',
+            ],
+            [
+                23838,
+                '.foo { --custom: lab(40% 56.6 39); }',
+                ['safari' => 15],
+                '.foo{--custom:lab(40% 56.6 39)}',
+            ],
+            [
+                23983,
+                '@supports (color: color(display-p3 0 0 0)) { .foo { --foo: color(display-p3 0 1 0); } }',
+                ['safari' => 14, 'chrome' => 90],
+                '@supports (color:color(display-p3 0 0 0)){.foo{--foo:color(display-p3 0 1 0)}}',
+            ],
+            [
+                24005,
+                '.foo { --foo: color(display-p3 0 1 0); }',
+                ['safari' => 14],
+                '.foo{--foo:color(display-p3 0 1 0)}',
+            ],
+            [
+                24022,
+                '.foo { --foo: color(display-p3 0 1 0); }',
+                ['safari' => 15, 'chrome' => 90],
+                '.foo{--foo:#00f942}@supports (color:color(display-p3 0 0 0)){.foo{--foo:color(display-p3 0 1 0)}}',
+            ],
+            [
+                24046,
+                '.foo { --foo: color(display-p3 0 1 0); }',
+                ['chrome' => 90],
+                '.foo{--foo:#00f942}@supports (color:color(display-p3 0 0 0)){.foo{--foo:color(display-p3 0 1 0)}}',
+            ],
+            [
+                24069,
+                '.foo { text-decoration: underline; } .foo { --custom: lab(40% 56.6 39); }',
+                ['chrome' => 90],
+                '.foo{--custom:#b32323;text-decoration:underline}@supports (color:lab(0% 0 0)){.foo{--custom:lab(40% 56.6 39)}}',
+            ],
+            [
+                24097,
+                '.foo { --custom: lab(40% 56.6 39); } .foo { text-decoration: underline; }',
+                ['chrome' => 90],
+                '.foo{--custom:#b32323}@supports (color:lab(0% 0 0)){.foo{--custom:lab(40% 56.6 39)}}.foo{text-decoration:underline}',
+            ],
+        ];
+
+        foreach ($cases as [$line, $input, $targets, $expected]) {
+            $t->same($expected, $prefixer->prefixForTargets($input, $targets), 'upstream src/lib.rs::test_custom_properties line ' . $line);
+        }
+    },
+    'transition prefixer maps upstream environment advanced color supports' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+
+        $t->same(
+            '.foo{color:env(--brand-color,#00f942)}@supports (color:color(display-p3 0 0 0)){.foo{color:env(--brand-color,color(display-p3 0 1 0))}}',
+            $prefixer->prefixForTargets('.foo { color: env(--brand-color, color(display-p3 0 1 0)); }', ['safari' => 15, 'chrome' => 90])
+        );
+        $t->same(
+            '@supports (color:color(display-p3 0 0 0)){.foo{color:env(--brand-color,color(display-p3 0 1 0))}}',
+            $prefixer->prefixForTargets('@supports (color: color(display-p3 0 0 0)) { .foo { color: env(--brand-color, color(display-p3 0 1 0)); } }', ['safari' => 15, 'chrome' => 90])
+        );
+    },
     'transition prefixer maps upstream keyframes custom property advanced color fallbacks' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();
 
@@ -3558,6 +4290,11 @@ CSS;
         $t->same(
             '.foo{-webkit-filter:var(--foo);filter:var(--foo)}',
             $prefixer->prefixForTargets('.foo { filter: var(--foo) }', ['chrome' => 20])
+        );
+        $t->same(
+            '.foo{filter:blur(5px)}',
+            $prefixer->prefixForTargets('.foo { filter: blur(5px) }', ['chrome' => 80]),
+            'upstream src/lib.rs::test_filter line 28286'
         );
         $t->same(
             '.foo{backdrop-filter:blur(5px)}',
@@ -3893,6 +4630,16 @@ CSS;
         $t->same(
             '.foo{-webkit-filter:drop-shadow(16px 16px 20px #b32323);filter:drop-shadow(16px 16px 20px #b32323);filter:drop-shadow(16px 16px 20px lab(40% 56.6 39))}',
             $prefixer->prefixForTargets('.foo { filter: drop-shadow(16px 16px 20px lab(40% 56.6 39)) }', ['chrome' => 20])
+        );
+        $t->same(
+            '.foo{filter:contrast(175%) drop-shadow(16px 16px 20px #b32323);filter:contrast(175%) drop-shadow(16px 16px 20px lab(40% 56.6 39))}',
+            $prefixer->prefixForTargets('.foo { filter: contrast(175%) drop-shadow(16px 16px 20px lab(40% 56.6 39)) }', ['chrome' => 4]),
+            'upstream src/lib.rs::test_filter line 28373'
+        );
+        $t->same(
+            '.foo{filter:drop-shadow(16px 16px 20px #b32323) drop-shadow(16px 16px 20px #ff0);filter:drop-shadow(16px 16px 20px lab(40% 56.6 39)) drop-shadow(16px 16px 20px #ff0)}',
+            $prefixer->prefixForTargets('.foo { filter: drop-shadow(16px 16px 20px lab(40% 56.6 39)) drop-shadow(16px 16px 20px yellow) }', ['chrome' => 4]),
+            'upstream src/lib.rs::test_filter line 28387'
         );
         $t->same(
             '.foo{filter:var(--foo) drop-shadow(16px 16px 20px #b32323)}@supports (color:lab(0% 0 0)){.foo{filter:var(--foo) drop-shadow(16px 16px 20px lab(40% 56.6 39))}}',
@@ -4662,6 +5409,75 @@ CSS;
             '.foo{--lightningcss-light:initial;--lightningcss-dark:;color-scheme:light;color:var(--lightningcss-light,red) var(--lightningcss-dark,green)}',
             $prefixer->prefixForTargets('.foo { color-scheme: light; color: light-dark(red, green); }', ['safari' => $encoded(17, 4)])
         );
+    },
+    'transition prefixer maps upstream top-level media range target fallbacks' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+
+        // Pinned upstream 22bdda3d src/lib.rs::test_media lines 8957, 8978, 8999, 9020, 9342, 9360, and 9378.
+        $cases = [
+            [8957, '@media (width >= 240px) { .foo { color: chartreuse; } }', '@media (min-width:240px){.foo{color:#7fff00}}', ['firefox' => 60]],
+            [8978, '@media (width >= 240px) { .foo { color: chartreuse; } }', '@media (width>=240px){.foo{color:#7fff00}}', ['firefox' => 64]],
+            [8999, '@media (color > 2) { .foo { color: chartreuse; } }', '@media not (max-color:2){.foo{color:#7fff00}}', ['firefox' => 60]],
+            [9020, '@media (color < 2) { .foo { color: chartreuse; } }', '@media not (min-color:2){.foo{color:#7fff00}}', ['firefox' => 60]],
+            [9342, '@media (width > calc(1px + 1rem)) { .foo { color: yellow; } }', '@media not (max-width:calc(1px + 1rem)){.foo{color:#ff0}}', ['chrome' => 85]],
+            [9360, '@media (width > max(10px, 1rem)) { .foo { color: yellow; } }', '@media not (max-width:max(10px,1rem)){.foo{color:#ff0}}', ['chrome' => 85]],
+            [9378, '@media (width > 0) { .foo { color: yellow; } }', '@media not (max-width:0){.foo{color:#ff0}}', ['chrome' => 85]],
+        ];
+
+        foreach ($cases as [$line, $input, $expected, $targets]) {
+            $t->same(
+                $expected,
+                $prefixer->prefixForTargets($input, $targets),
+                'upstream src/lib.rs::test_media line ' . $line
+            );
+        }
+    },
+    'transition prefixer maps upstream top-level resolution media target prefixes' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+
+        // Pinned upstream 22bdda3d src/lib.rs::test_media lines 9396, 9414, 9432, and 9487.
+        $cases = [
+            [9396, '@media (min-resolution: 2dppx) { .foo { color: yellow; } }', '@media (-webkit-min-device-pixel-ratio:2),(min-resolution:2dppx){.foo{color:#ff0}}', ['safari' => 15]],
+            [9414, '@media (min-resolution: 2dppx) { .foo { color: yellow; } }', '@media (min--moz-device-pixel-ratio:2),(min-resolution:2dppx){.foo{color:#ff0}}', ['firefox' => 10]],
+            [9432, '@media (resolution > 2dppx) { .foo { color: yellow; } }', '@media not (-webkit-max-device-pixel-ratio:2),not (max-resolution:2dppx){.foo{color:#ff0}}', ['safari' => 15]],
+            [9487, '@media (color) and (min-resolution: 2dppx) { .foo { color: yellow; } }', '@media (color) and (-webkit-min-device-pixel-ratio:2),(color) and (min-resolution:2dppx){.foo{color:#ff0}}', ['safari' => 15]],
+        ];
+
+        foreach ($cases as [$line, $input, $expected, $targets]) {
+            $t->same(
+                $expected,
+                $prefixer->prefixForTargets($input, $targets),
+                'upstream src/lib.rs::test_media line ' . $line
+            );
+        }
+    },
+    'transition prefixer maps upstream residual top-level media range target fallbacks' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+
+        // Pinned upstream 22bdda3d src/lib.rs::test_media prefix_test rows.
+        $cases = [
+            [9041, '@media (width > 240px) { .foo { color: chartreuse; } }', '@media not (max-width:240px){.foo{color:#7fff00}}', ['firefox' => 60]],
+            [9062, '@media (width <= 240px) { .foo { color: chartreuse; } }', '@media (max-width:240px){.foo{color:#7fff00}}', ['firefox' => 60]],
+            [9083, '@media (width <= 240px) { .foo { color: chartreuse; } }', '@media (width<=240px){.foo{color:#7fff00}}', ['firefox' => 64]],
+            [9104, '@media (width < 240px) { .foo { color: chartreuse; } }', '@media not (min-width:240px){.foo{color:#7fff00}}', ['firefox' => 60]],
+            [9125, '@media not (width < 240px) { .foo { color: chartreuse; } }', '@media (min-width:240px){.foo{color:#7fff00}}', ['firefox' => 60]],
+            [9163, '@media (width < 240px) and (hover) { .foo { color: chartreuse; } }', '@media (not (min-width:240px)) and (hover){.foo{color:#7fff00}}', ['firefox' => 60]],
+            [9184, '@media (100px <= width <= 200px) { .foo { color: chartreuse; } }', '@media (min-width:100px) and (max-width:200px){.foo{color:#7fff00}}', ['firefox' => 85]],
+            [9205, '@media not (100px <= width <= 200px) { .foo { color: chartreuse; } }', '@media not ((min-width:100px) and (max-width:200px)){.foo{color:#7fff00}}', ['firefox' => 85]],
+            [9226, '@media (hover) and (100px <= width <= 200px) { .foo { color: chartreuse; } }', '@media (hover) and (min-width:100px) and (max-width:200px){.foo{color:#7fff00}}', ['firefox' => 85]],
+            [9247, '@media (hover) or (100px <= width <= 200px) { .foo { color: chartreuse; } }', '@media (hover) or ((min-width:100px) and (max-width:200px)){.foo{color:#7fff00}}', ['firefox' => 85]],
+            [9268, '@media (100px < width < 200px) { .foo { color: chartreuse; } }', '@media (not (max-width:100px)) and (not (min-width:200px)){.foo{color:#7fff00}}', ['firefox' => 85]],
+            [9289, '@media not (100px < width < 200px) { .foo { color: chartreuse; } }', '@media not ((not (max-width:100px)) and (not (min-width:200px))){.foo{color:#7fff00}}', ['firefox' => 85]],
+            [9310, '@media (200px >= width >= 100px) { .foo { color: chartreuse; } }', '@media (max-width:200px) and (min-width:100px){.foo{color:#7fff00}}', ['firefox' => 85]],
+        ];
+
+        foreach ($cases as [$line, $input, $expected, $targets]) {
+            $t->same(
+                $expected,
+                $prefixer->prefixForTargets($input, $targets),
+                'upstream src/lib.rs::test_media line ' . $line
+            );
+        }
     },
     'transition prefixer maps upstream media range target fallbacks inside layers' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();
@@ -5803,6 +6619,31 @@ CSS;
         $t->same(
             '.wp-block-cover.is-style-frame{-webkit-mask-box-image:linear-gradient(#ff0f0e,#7773ff) var(--wp--custom--frame-slice);mask-border:linear-gradient(#ff0f0e,#7773ff) var(--wp--custom--frame-slice)}@supports (color:lab(0% 0 0)){.wp-block-cover.is-style-frame{-webkit-mask-box-image:linear-gradient(lab(56.208% 94.4644 98.8928),lab(51% 70.4544 -115.586)) var(--wp--custom--frame-slice);mask-border:linear-gradient(lab(56.208% 94.4644 98.8928),lab(51% 70.4544 -115.586)) var(--wp--custom--frame-slice)}}',
             (new TransitionPrefixer())->prefixLegacySafari($css)
+        );
+    },
+    'transition prefixer maps upstream node transform feature exclusion rows' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+
+        $t->same(
+            '.foo{color:lch(50.998% 135.363 338)}',
+            $prefixer->prefixForTargets('.foo { color: lch(50.998% 135.363 338) }', [
+                'browsers' => ['chrome' => 80],
+                'exclude' => ['Colors'],
+            ]),
+            'upstream node/test/transform.test.mjs line 57'
+        );
+        $t->same(
+            '.foo{user-select:none}',
+            $prefixer->prefixForTargets('.foo { user-select: none }', [
+                'browsers' => ['safari' => 15],
+                'exclude' => ['VendorPrefixes'],
+            ]),
+            'upstream node/test/transform.test.mjs line 71'
+        );
+        $t->same(
+            '.foo{color:#0000}',
+            $prefixer->prefixForTargets('.foo { color: transparent; }', ['android' => 95]),
+            'upstream node/test/transform.test.mjs line 85'
         );
     },
 ];

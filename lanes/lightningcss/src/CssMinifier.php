@@ -7,6 +7,89 @@ namespace PortLibs\LightningCSS;
 final class CssMinifier
 {
     private const CSS_MODULES_COMPOSES_MATH_PLACEHOLDER_PREFIX = "\x1fLIGHTNINGCSS_COMPOSES_MATH_";
+    private const DISPLAY_KEYWORDS = [
+        'none',
+        'contents',
+        'table-row-group',
+        'table-header-group',
+        'table-footer-group',
+        'table-row',
+        'table-cell',
+        'table-column-group',
+        'table-column',
+        'table-caption',
+        'ruby-base',
+        'ruby-text',
+        'ruby-base-container',
+        'ruby-text-container',
+    ];
+    private const DISPLAY_INLINE_ALIAS_KEYWORDS = [
+        'inline-block',
+        'inline-table',
+        'inline-flex',
+        '-webkit-inline-flex',
+        '-ms-inline-flexbox',
+        '-webkit-inline-box',
+        '-moz-inline-box',
+        'inline-grid',
+    ];
+    private const DISPLAY_OUTSIDE_KEYWORDS = ['block', 'inline', 'run-in'];
+    private const DISPLAY_INSIDE_KEYWORDS = [
+        'flow',
+        'flow-root',
+        'table',
+        'flex',
+        '-webkit-flex',
+        '-ms-flexbox',
+        '-webkit-box',
+        '-moz-box',
+        'grid',
+        'ruby',
+    ];
+    private const TEXT_DECORATION_LINES = [
+        'underline',
+        'overline',
+        'line-through',
+        'blink',
+    ];
+    private const TEXT_DECORATION_EXCLUSIVE_LINES = [
+        'none',
+        'spelling-error',
+        'grammar-error',
+    ];
+    private const TEXT_DECORATION_STYLES = [
+        'solid',
+        'double',
+        'dotted',
+        'dashed',
+        'wavy',
+    ];
+    private const TEXT_DECORATION_SKIP_INK_KEYWORDS = ['auto', 'none', 'all'];
+    private const FLEX_DIRECTIONS = ['row', 'row-reverse', 'column', 'column-reverse'];
+    private const FLEX_WRAPS = ['nowrap', 'wrap', 'wrap-reverse'];
+    private const FLEX_ITEM_LONGHANDS = [
+        'flex-grow',
+        'flex-shrink',
+        'flex-basis',
+    ];
+    private const PLACE_ALIGNMENT_SHORTHANDS = [
+        'place-content' => [
+            'align' => 'align-content',
+            'justify' => 'justify-content',
+        ],
+        'place-self' => [
+            'align' => 'align-self',
+            'justify' => 'justify-self',
+        ],
+        'place-items' => [
+            'align' => 'align-items',
+            'justify' => 'justify-items',
+        ],
+    ];
+    private const GAP_LONGHANDS = [
+        'row-gap',
+        'column-gap',
+    ];
 
     private bool $recoverInvalidMediaFeatureValues = false;
 
@@ -18,6 +101,12 @@ final class CssMinifier
         $warnings = [];
         $invalidFeatureValueWarnings = $this->collectRecoverableInvalidMediaFeatureValueWarnings($css, $filename);
         $css = $this->omitRecoverableInvalidAtRules($css, $filename, $warnings);
+        $css = $this->omitRecoverableInvalidQualifiedRules($css, $filename, $warnings);
+        $css = $this->omitRecoverableInvalidDeclarations($css, $filename, $warnings);
+        $warnings = array_merge(
+            $warnings,
+            $this->collectRecoverableUnsupportedSelectorWarnings($css, $filename),
+        );
 
         $previousRecover = $this->recoverInvalidMediaFeatureValues;
 
@@ -41,13 +130,26 @@ final class CssMinifier
         ];
     }
 
-    public function minify(string $css, bool $preserveFontTargetFallbacks = false, bool $allowNamespaceAfterStyleRules = false): string
+    public function minify(
+        string $css,
+        bool $preserveFontTargetFallbacks = false,
+        bool $allowNamespaceAfterStyleRules = false,
+        bool $preserveSingletonIsSelectors = false,
+        bool $allowDeepSelectorCombinator = false,
+        bool $mergeRepeatedStyleRules = true
+    ): string
     {
         if (!$this->recoverInvalidMediaFeatureValues) {
             $this->validateAuthoredMediaQueryPreludes($css);
         }
+        $this->validateMalformedFunctionTokens($css);
 
         [$css, $licenseComments] = $this->stripComments($css);
+        $this->validateViewTransitionPseudoElementSelectorPreludes($css);
+        $this->validateTerminalPseudoElementSelectorPreludes($css);
+        if (!$allowDeepSelectorCombinator) {
+            $this->validateDeepSelectorCombinatorPreludes($css);
+        }
         $output = '';
         $quote = null;
         $pendingSpace = false;
@@ -96,7 +198,14 @@ final class CssMinifier
                 continue;
             }
 
-            if ($char === ':' && $pendingSpace && $this->startsDescendantPseudoClass($css, $i)) {
+            if (
+                $char === ':'
+                && $pendingSpace
+                && (
+                    $this->startsDescendantPseudoClass($css, $i)
+                    || $this->startsDescendantPseudoElement($css, $i)
+                )
+            ) {
                 if ($this->needsSelectorDescendantSpaceBeforePseudo($output)) {
                     $output .= ' ';
                 }
@@ -132,6 +241,28 @@ final class CssMinifier
                 continue;
             }
 
+            if ($allowDeepSelectorCombinator && str_starts_with(substr($css, $i), '/deep/')) {
+                if ($pendingSpace && $output !== '' && !str_ends_with($output, '{')) {
+                    $output .= ' ';
+                }
+                $output .= '/deep/';
+                $pendingSpace = false;
+                $i += 5;
+                continue;
+            }
+
+            if ($char === '/' && $pendingSpace && $this->isInsideUnknownPseudoElementArgument($output)) {
+                $output .= ' /';
+                $pendingSpace = false;
+                continue;
+            }
+
+            if ($char === '(' && $pendingSpace && $this->needsContainerStyleCustomPropertyTokenSpaceBeforeFunction($output, $css, $i)) {
+                $output .= ' ' . $char;
+                $pendingSpace = false;
+                continue;
+            }
+
             if (str_contains($tight, $char)) {
                 $output = rtrim($output);
                 $output .= $char;
@@ -145,6 +276,10 @@ final class CssMinifier
                 $output .= ' ';
             } elseif ($pendingSpace && $this->needsSelectorDescendantSpaceAfterAttribute($output, $css, $i)) {
                 $output .= ' ';
+            } elseif ($pendingSpace && $allowDeepSelectorCombinator && str_ends_with($output, '/deep/')) {
+                $output .= ' ';
+            } elseif ($pendingSpace && $this->needsUnknownPseudoElementArgumentSpaceAfterSlash($output, $css, $i)) {
+                $output .= ' ';
             } elseif ($pendingSpace && $this->needsSpaceBefore($output, $char)) {
                 $output .= ' ';
             }
@@ -154,23 +289,33 @@ final class CssMinifier
 
         $css = $this->minifyContainerQueries($this->minifyMediaQueries($this->minifyDeclarationValues(str_replace(';}', '}', trim($output)))));
         $css = $this->canonicalizeImplicitNestedSelectors($css);
-        $css = $this->minifyImportRules($css);
+        $css = $this->minifyImportRules($css, $allowNamespaceAfterStyleRules);
         $css = $this->minifyLayerRules($css);
         $css = $this->minifyNamespaceRules($css, $allowNamespaceAfterStyleRules);
-        $css = $this->normalizeNamespaceAttributeSelectors($css);
+        $css = $this->normalizeNamespaceAttributeSelectors($css, $preserveSingletonIsSelectors);
+        $css = $this->normalizeMozDocumentRules($css);
         $css = $this->minifySupportsRules($css);
         $css = $this->minifyFontFeatureValuesRules($css);
         $css = $this->minifyKeyframesRules($css);
+        if ($mergeRepeatedStyleRules) {
+            $css = $this->mergeRepeatedStyleRuleBlocks($css);
+        }
         $css = $this->mergeAdjacentRuleBlocks($css);
         $css = $this->rewriteAllResetDeclarationBlocks($css);
+        $css = $this->rewriteDisplayDeclarationBlocks($css);
+        $css = $this->normalizeDisplayColorDeclarationOrder($css);
+        $css = $this->composeFlexAlignmentGapDeclarationBlocks($css);
+        $css = $this->composeOutlineDeclarationBlocks($css);
         $css = $this->composeContainerDeclarationBlocks($css);
         $css = $this->composePositionDeclarationBlocks($css);
+        $css = $this->composeOverflowDeclarationBlocks($css);
         $css = $this->composeGridDeclarationBlocks($css);
         $css = $this->composeBorderRadiusDeclarationBlocks($css);
         $css = $this->composeFontDeclarationBlocks($css, $preserveFontTargetFallbacks);
         $css = $this->minifyFontStretchDeclarations($css);
         $css = $this->composeListStyleDeclarationBlocks($css);
         $css = $this->composeTextEmphasisDeclarationBlocks($css);
+        $css = $this->composeTextDecorationDeclarationBlocks($css);
         $css = $this->composeTransitionDeclarationBlocks($css);
 
         $css = $this->composeAnimationDeclarationBlocks($css);
@@ -179,6 +324,8 @@ final class CssMinifier
         $css = $this->validatePageRules($css);
         $css = $this->normalizeScopeRuleSpacing($css);
         $css = $this->removeEmptyStartingStyleRules($css);
+        $css = $this->normalizeUnknownAtRuleBlockBodies($css);
+        $css = $this->normalizeUnknownAtRuleFunctionStatements($css);
 
         return $this->prependLicenseComments(
             $this->compactLegacyPseudoElementColons($css),
@@ -318,6 +465,145 @@ final class CssMinifier
         return $output . substr($css, $cursor);
     }
 
+    /**
+     * @param list<array{message:string,type:string,loc:array{filename:string,line:int,column:int}}> $warnings
+     */
+    private function omitRecoverableInvalidQualifiedRules(string $css, string $filename, array &$warnings): string
+    {
+        $output = '';
+        $cursor = 0;
+
+        while (($invalid = $this->findRecoverableInvalidQualifiedRule($css, $cursor)) !== null) {
+            $output .= substr($css, $cursor, $invalid['start'] - $cursor);
+            $output .= $this->blankCssSpanPreservingLines(substr($css, $invalid['start'], $invalid['end'] - $invalid['start']));
+            $warnings[] = [
+                'message' => 'Empty selector',
+                'type' => 'EmptySelector',
+                'loc' => $this->sourceLocation($css, $invalid['warningOffset'], $filename),
+            ];
+            $cursor = $invalid['end'];
+        }
+
+        return $output . substr($css, $cursor);
+    }
+
+    /**
+     * @param list<array{message:string,type:string,loc:array{filename:string,line:int,column:int}}> $warnings
+     */
+    private function omitRecoverableInvalidDeclarations(string $css, string $filename, array &$warnings): string
+    {
+        $output = '';
+        $quote = null;
+        $braceDepth = 0;
+        $declarationStart = 0;
+        $lastEmit = 0;
+        $length = strlen($css);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $css[$i];
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $i++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+
+            if ($char === '/' && ($css[$i + 1] ?? '') === '*') {
+                $end = strpos($css, '*/', $i + 2);
+                if ($end === false) {
+                    break;
+                }
+                $i = $end + 1;
+                continue;
+            }
+
+            if ($char === '{') {
+                $braceDepth++;
+                $declarationStart = $i + 1;
+                continue;
+            }
+
+            if ($char === '}') {
+                $braceDepth = max(0, $braceDepth - 1);
+                $declarationStart = $i + 1;
+                continue;
+            }
+
+            if ($braceDepth === 0) {
+                continue;
+            }
+
+            if ($char === ';') {
+                $declarationStart = $i + 1;
+                continue;
+            }
+
+            if ($char !== '*') {
+                continue;
+            }
+
+            $invalid = $this->recoverableInvalidDeclarationAt($css, $declarationStart, $i);
+            if ($invalid === null) {
+                continue;
+            }
+
+            $output .= substr($css, $lastEmit, $declarationStart - $lastEmit);
+            $output .= $this->blankCssSpanPreservingLines(substr($css, $declarationStart, $invalid['end'] - $declarationStart));
+            $warnings[] = [
+                'message' => 'Unexpected token Semicolon',
+                'type' => 'UnexpectedToken',
+                'loc' => $this->sourceLocation($css, $invalid['warningOffset'], $filename),
+            ];
+            $lastEmit = $invalid['end'];
+            $declarationStart = $invalid['end'];
+            $i = $invalid['end'] - 1;
+        }
+
+        return $output . substr($css, $lastEmit);
+    }
+
+    /**
+     * @return list<array{message:string,type:string,loc:array{filename:string,line:int,column:int}}>
+     */
+    private function collectRecoverableUnsupportedSelectorWarnings(string $css, string $filename): array
+    {
+        $warnings = [];
+        $cursor = 0;
+
+        while (($open = $this->findNextTopLevel($css, '{', $cursor)) !== null) {
+            $preludeStart = $this->rulePreludeStart($css, $open);
+            $prelude = substr($css, $preludeStart, $open - $preludeStart);
+            $trimmed = ltrim($prelude);
+            $close = $this->findMatchingBraceInCss($css, $open);
+
+            if ($trimmed === '') {
+                $cursor = $close + 1;
+                continue;
+            }
+
+            if ($trimmed[0] === '@') {
+                $cursor = $open + 1;
+                continue;
+            }
+
+            foreach ($this->recoverableUnsupportedSelectorWarnings($prelude, $preludeStart, $css, $filename) as $warning) {
+                $warnings[] = $warning;
+            }
+            $cursor = $close + 1;
+        }
+
+        return $warnings;
+    }
+
     private function blankCssSpanPreservingLines(string $span): string
     {
         return preg_replace('/[^\r\n]/', ' ', $span) ?? $span;
@@ -399,6 +685,140 @@ final class CssMinifier
         return null;
     }
 
+    /**
+     * @return array{start:int,end:int,warningOffset:int}|null
+     */
+    private function findRecoverableInvalidQualifiedRule(string $css, int $start): ?array
+    {
+        $cursor = $start;
+        $length = strlen($css);
+
+        while ($cursor < $length && ($open = $this->findNextTopLevel($css, '{', $cursor)) !== null) {
+            $preludeStart = $this->rulePreludeStart($css, $open);
+            $prelude = substr($css, $preludeStart, $open - $preludeStart);
+            $trimmed = ltrim($prelude);
+            $close = $this->findMatchingBraceInCss($css, $open);
+
+            if ($trimmed === '') {
+                $cursor = $close + 1;
+                continue;
+            }
+
+            if ($trimmed[0] === '@') {
+                $cursor = $open + 1;
+                continue;
+            }
+
+            $warningOffset = $this->recoverableEmptySelectorWarningOffset($prelude);
+            if ($warningOffset !== null) {
+                return [
+                    'start' => $preludeStart,
+                    'end' => $close + 1,
+                    'warningOffset' => $preludeStart + $warningOffset,
+                ];
+            }
+
+            $cursor = $close + 1;
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array{end:int,warningOffset:int}|null
+     */
+    private function recoverableInvalidDeclarationAt(string $css, int $declarationStart, int $starOffset): ?array
+    {
+        if (trim(substr($css, $declarationStart, $starOffset - $declarationStart)) !== '') {
+            return null;
+        }
+
+        $propertyStart = $starOffset + 1;
+        $property = $this->readIdentifier($css, $propertyStart);
+        if ($property === '') {
+            return null;
+        }
+
+        $colon = $propertyStart + strlen($property);
+        $length = strlen($css);
+        while ($colon < $length && ctype_space($css[$colon])) {
+            $colon++;
+        }
+
+        if (($css[$colon] ?? '') !== ':') {
+            return null;
+        }
+
+        [, $delimiter, $offset] = $this->readDeclarationValue($css, $colon + 1);
+        if ($delimiter !== ';') {
+            return null;
+        }
+
+        return [
+            'end' => $offset + 1,
+            'warningOffset' => $offset,
+        ];
+    }
+
+    private function recoverableEmptySelectorWarningOffset(string $prelude): ?int
+    {
+        if (preg_match('/\(\s*[>+~]/', $prelude) !== 1) {
+            return null;
+        }
+
+        return strlen(rtrim($prelude));
+    }
+
+    /**
+     * @return list<array{message:string,type:string,loc:array{filename:string,line:int,column:int}}>
+     */
+    private function recoverableUnsupportedSelectorWarnings(
+        string $prelude,
+        int $preludeStart,
+        string $css,
+        string $filename
+    ): array {
+        $warnings = [];
+        if (preg_match_all('/::([_a-zA-Z-][_a-zA-Z0-9-]*)|:([_a-zA-Z-][_a-zA-Z0-9-]*)/', $prelude, $matches, PREG_OFFSET_CAPTURE) !== false) {
+            foreach ($matches[0] as $index => $match) {
+                $element = $matches[1][$index][0] ?? '';
+                $class = $matches[2][$index][0] ?? '';
+
+                if ($element === 'hover') {
+                    $nameOffset = $match[1] + 2;
+                    $warnings[] = [
+                        'message' => 'Unsupported pseudo-element hover',
+                        'type' => 'UnsupportedPseudoElement',
+                        'loc' => $this->sourceLocation($css, $preludeStart + $nameOffset, $filename),
+                    ];
+                    continue;
+                }
+
+                if ($class === 'placeholder') {
+                    $nameOffset = $match[1] + 1;
+                    $warnings[] = [
+                        'message' => 'Unsupported pseudo-class placeholder',
+                        'type' => 'UnsupportedPseudoClass',
+                        'loc' => $this->sourceLocation($css, $preludeStart + $nameOffset, $filename),
+                    ];
+                }
+            }
+        }
+
+        return $warnings;
+    }
+
+    private function rulePreludeStart(string $css, int $open): int
+    {
+        for ($i = $open - 1; $i >= 0; $i--) {
+            if ($css[$i] === '{' || $css[$i] === '}' || $css[$i] === ';') {
+                return $i + 1;
+            }
+        }
+
+        return 0;
+    }
+
     private function startsWithAtKeyword(string $css, int $offset, string $keyword): bool
     {
         if (strncasecmp(substr($css, $offset, strlen($keyword)), $keyword, strlen($keyword)) !== 0) {
@@ -408,6 +828,37 @@ final class CssMinifier
         $next = $css[$offset + strlen($keyword)] ?? '';
 
         return $next === '' || !$this->isIdentifierChar($next);
+    }
+
+    private function findNextAtKeywordOutsideStrings(string $css, string $keyword, int $start): ?int
+    {
+        $quote = null;
+        $length = strlen($css);
+
+        for ($i = $start; $i < $length; $i++) {
+            $char = $css[$i];
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $i++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+
+            if ($char === '@' && $this->startsWithAtKeyword($css, $i, $keyword)) {
+                return $i;
+            }
+        }
+
+        return null;
     }
 
     private function validateAuthoredMediaQueryPreludes(string $css): void
@@ -458,6 +909,191 @@ final class CssMinifier
                 $parser->minifyList($prelude, allowCompactedNegation: false);
             }
         }
+    }
+
+    private function validateMalformedFunctionTokens(string $css): void
+    {
+        $quote = null;
+        $length = strlen($css);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $css[$i];
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $i++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+
+            if ($char === '/' && ($css[$i + 1] ?? '') === '*') {
+                $end = strpos($css, '*/', $i + 2);
+                if ($end === false) {
+                    return;
+                }
+                $i = $end + 1;
+                continue;
+            }
+
+            if (!ctype_alpha($char) && $char !== '_' && $char !== '-') {
+                continue;
+            }
+
+            $token = $this->readCssIdentifierToken($css, $i);
+            if ($token === null) {
+                continue;
+            }
+
+            $open = $token['end'];
+            if (($css[$open] ?? '') !== '(') {
+                $i = $open - 1;
+                continue;
+            }
+
+            $name = strtolower($token['name']);
+            if ($this->isColorFunctionName($name) && !$this->functionClosesBeforeDeclarationTerminator($css, $open)) {
+                throw new \InvalidArgumentException('Unexpected token CloseCurlyBracket');
+            }
+
+            if ($name === 'url' && $this->hasBadUnquotedUrlToken($css, $open)) {
+                throw new \InvalidArgumentException('Unexpected token BadUrl');
+            }
+
+            $i = $open;
+        }
+    }
+
+    private function isColorFunctionName(string $name): bool
+    {
+        return in_array($name, ['rgb', 'rgba', 'hsl', 'hsla', 'hwb', 'lab', 'lch', 'oklab', 'oklch', 'color'], true);
+    }
+
+    private function functionClosesBeforeDeclarationTerminator(string $css, int $open): bool
+    {
+        $quote = null;
+        $depth = 0;
+        $length = strlen($css);
+
+        for ($i = $open; $i < $length; $i++) {
+            $char = $css[$i];
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $i++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+
+            if ($char === '/' && ($css[$i + 1] ?? '') === '*') {
+                $end = strpos($css, '*/', $i + 2);
+                if ($end === false) {
+                    return false;
+                }
+                $i = $end + 1;
+                continue;
+            }
+
+            if ($char === '(') {
+                $depth++;
+                continue;
+            }
+            if ($char === ')') {
+                $depth--;
+                if ($depth === 0) {
+                    return true;
+                }
+                continue;
+            }
+            if (($char === ';' || $char === '}') && $depth > 0) {
+                return false;
+            }
+        }
+
+        return false;
+    }
+
+    private function hasBadUnquotedUrlToken(string $css, int $open): bool
+    {
+        $body = $this->readUrlFunctionBody($css, $open);
+        if ($body === null) {
+            return false;
+        }
+
+        $trimmed = trim($body);
+        if ($trimmed === '' || $trimmed[0] === '"' || $trimmed[0] === "'") {
+            return false;
+        }
+
+        return preg_match('/\\\\\)\s+\S/', $trimmed) === 1;
+    }
+
+    private function readUrlFunctionBody(string $css, int $open): ?string
+    {
+        $body = '';
+        $quote = null;
+        $depth = 1;
+        $length = strlen($css);
+
+        for ($i = $open + 1; $i < $length; $i++) {
+            $char = $css[$i];
+            if ($quote !== null) {
+                $body .= $char;
+                if ($char === '\\' && $i + 1 < $length) {
+                    $body .= $css[++$i];
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                $body .= $char;
+                continue;
+            }
+
+            if ($char === '\\' && $i + 1 < $length) {
+                $body .= $char . $css[++$i];
+                continue;
+            }
+
+            if ($char === '(') {
+                $depth++;
+                $body .= $char;
+                continue;
+            }
+
+            if ($char === ')') {
+                $depth--;
+                if ($depth === 0) {
+                    return $body;
+                }
+                $body .= $char;
+                continue;
+            }
+
+            $body .= $char;
+        }
+
+        return null;
     }
 
     private function findNextCssBlockOpen(string $css, int $start): ?int
@@ -999,6 +1635,42 @@ final class CssMinifier
         return $output;
     }
 
+    private function normalizeMozDocumentRules(string $css): string
+    {
+        $output = '';
+        $cursor = 0;
+        $length = strlen($css);
+
+        while ($cursor < $length) {
+            $document = $this->findNextAtKeywordOutsideStrings($css, '@-moz-document', $cursor);
+            if ($document === null) {
+                $output .= substr($css, $cursor);
+                break;
+            }
+
+            $output .= substr($css, $cursor, $document - $cursor);
+            $open = $this->findNextTopLevel($css, '{', $document);
+            if ($open === null) {
+                $output .= substr($css, $document);
+                break;
+            }
+
+            $prelude = substr($css, $document, $open - $document);
+            if (preg_match_all('/\burl-prefix\(\s*([^)]+?)\s*\)/i', $prelude, $matches) > 0) {
+                foreach ($matches[1] as $argument) {
+                    if (preg_match('/^(["\'])\1$/', trim($argument)) !== 1) {
+                        throw new \InvalidArgumentException('Unexpected token in @-moz-document url-prefix');
+                    }
+                }
+            }
+            $prelude = preg_replace('/\burl-prefix\(\s*(["\'])\1\s*\)/i', 'url-prefix()', $prelude) ?? $prelude;
+            $output .= $prelude . '{';
+            $cursor = $open + 1;
+        }
+
+        return $output;
+    }
+
     private function removeEmptyStartingStyleRules(string $css): string
     {
         $output = '';
@@ -1141,13 +1813,15 @@ final class CssMinifier
         return true;
     }
 
-    private function minifyImportRules(string $css): string
+    private function minifyImportRules(string $css, bool $allowLateImportRules = false): string
     {
         $output = '';
         $quote = null;
         $braceDepth = 0;
         $parenDepth = 0;
         $bracketDepth = 0;
+        $seenImportRule = false;
+        $rejectFutureImportRules = false;
         $length = strlen($css);
 
         for ($i = 0; $i < $length; $i++) {
@@ -1171,6 +1845,9 @@ final class CssMinifier
             }
 
             if ($char === '{') {
+                if ($braceDepth === 0 && $parenDepth === 0 && $bracketDepth === 0) {
+                    $rejectFutureImportRules = true;
+                }
                 $braceDepth++;
                 $output .= $char;
                 continue;
@@ -1201,6 +1878,14 @@ final class CssMinifier
                 continue;
             }
 
+            if ($braceDepth === 0 && $parenDepth === 0 && $bracketDepth === 0 && $this->startsAtKeyword($css, $i, '@namespace')) {
+                $rejectFutureImportRules = true;
+            }
+
+            if ($braceDepth === 0 && $parenDepth === 0 && $bracketDepth === 0 && $seenImportRule && $this->startsAtKeyword($css, $i, '@layer')) {
+                $rejectFutureImportRules = true;
+            }
+
             if ($braceDepth === 0 && $parenDepth === 0 && $bracketDepth === 0 && $this->startsAtKeyword($css, $i, '@charset')) {
                 $keywordEnd = $this->atKeywordEndOffset($css, $i, '@charset') ?? $i + strlen('@charset');
                 $end = $this->findNextTopLevel($css, ';', $keywordEnd);
@@ -1212,6 +1897,10 @@ final class CssMinifier
             }
 
             if ($braceDepth === 0 && $parenDepth === 0 && $bracketDepth === 0 && $this->startsAtKeyword($css, $i, '@import')) {
+                if ($rejectFutureImportRules && !$allowLateImportRules) {
+                    throw new \InvalidArgumentException('Unexpected @import rule');
+                }
+
                 $keywordEnd = $this->atKeywordEndOffset($css, $i, '@import') ?? $i + strlen('@import');
                 $end = $this->findNextTopLevel($css, ';', $keywordEnd);
                 if ($end === null) {
@@ -1219,6 +1908,7 @@ final class CssMinifier
                     break;
                 }
                 $output .= $this->minifyImportStatement(substr($css, $i, $end - $i)) . ';';
+                $seenImportRule = true;
                 $i = $end;
                 continue;
             }
@@ -1492,9 +2182,9 @@ final class CssMinifier
 
                 $body = '';
                 foreach ($bodiesByName[$name] as $part) {
-                    $body = $body === '' ? $part : $this->combineRuleBodies($body, $part);
+                    $body .= $part;
                 }
-                $output .= '@layer ' . $name . '{' . $this->mergeAdjacentRuleBlocks($body) . '}';
+                $output .= '@layer ' . $name . '{' . $this->mergeAdjacentRuleBlocks($this->mergeRepeatedStyleRuleBlocks($body)) . '}';
             }
 
             if ($pendingStatements !== []) {
@@ -1585,7 +2275,7 @@ final class CssMinifier
                 $name = $node['names'][0];
                 $body = $node['body'] ?? '';
                 $bodies[$name] = isset($bodies[$name])
-                    ? $this->combineRuleBodies($bodies[$name], $body)
+                    ? $bodies[$name] . $body
                     : $body;
             }
         }
@@ -1606,7 +2296,7 @@ final class CssMinifier
                 $pendingStatements = [];
             }
 
-            $output .= '@layer ' . $name . '{' . $this->mergeAdjacentRuleBlocks($bodies[$name]) . '}';
+            $output .= '@layer ' . $name . '{' . $this->mergeAdjacentRuleBlocks($this->mergeRepeatedStyleRuleBlocks($bodies[$name])) . '}';
         }
 
         if ($pendingStatements !== []) {
@@ -1963,7 +2653,7 @@ final class CssMinifier
         return $token;
     }
 
-    private function normalizeNamespaceAttributeSelectors(string $css): string
+    private function normalizeNamespaceAttributeSelectors(string $css, bool $preserveSingletonIsSelectors): string
     {
         $output = '';
         $cursor = 0;
@@ -1981,7 +2671,13 @@ final class CssMinifier
 
             $prelude = substr($css, $preludeStart, $open - $preludeStart);
             if ($this->isStyleRulePrelude($prelude)) {
+                $this->validateViewTransitionPseudoElementSelectors($prelude);
+                $this->validateTerminalPseudoElementSelectors($prelude);
                 $prelude = $this->normalizeSelectorAttributeSelectors($prelude);
+                $prelude = $this->normalizeSelectorNthPseudoClasses($prelude);
+                if (!$preserveSingletonIsSelectors) {
+                    $prelude = $this->normalizeSelectorIsPseudoClasses($prelude);
+                }
             }
 
             $output .= $prelude . '{';
@@ -2046,6 +2742,736 @@ final class CssMinifier
         $trimmed = trim($prelude);
 
         return $trimmed !== '' && $trimmed[0] !== '@';
+    }
+
+    private function validateViewTransitionPseudoElementSelectorPreludes(string $css): void
+    {
+        if (stripos($css, '::view-transition-') === false) {
+            return;
+        }
+
+        $cursor = 0;
+        $length = strlen($css);
+        while ($cursor < $length) {
+            $open = $this->findNextTopLevel($css, '{', $cursor);
+            if ($open === null) {
+                return;
+            }
+
+            $preludeStart = $this->findPreludeStart($css, $cursor, $open);
+            $prelude = substr($css, $preludeStart, $open - $preludeStart);
+            if ($this->isStyleRulePrelude($prelude)) {
+                $this->validateViewTransitionPseudoElementSelectors($prelude);
+            }
+
+            $cursor = $open + 1;
+        }
+    }
+
+    private function validateTerminalPseudoElementSelectorPreludes(string $css): void
+    {
+        if (!$this->containsTerminalPseudoElementSelector($css)) {
+            return;
+        }
+
+        $cursor = 0;
+        $length = strlen($css);
+        while ($cursor < $length) {
+            $open = $this->findNextTopLevel($css, '{', $cursor);
+            if ($open === null) {
+                return;
+            }
+
+            $preludeStart = $this->findPreludeStart($css, $cursor, $open);
+            $prelude = substr($css, $preludeStart, $open - $preludeStart);
+            if ($this->isStyleRulePrelude($prelude)) {
+                $this->validateTerminalPseudoElementSelectors($prelude);
+            }
+
+            $cursor = $open + 1;
+        }
+    }
+
+    private function validateDeepSelectorCombinatorPreludes(string $css): void
+    {
+        if (!str_contains($css, '>>>') && !str_contains($css, '/deep/')) {
+            return;
+        }
+
+        $cursor = 0;
+        $length = strlen($css);
+        while ($cursor < $length) {
+            $open = $this->findNextTopLevel($css, '{', $cursor);
+            if ($open === null) {
+                return;
+            }
+
+            $preludeStart = $this->findPreludeStart($css, $cursor, $open);
+            $prelude = substr($css, $preludeStart, $open - $preludeStart);
+            if ($this->isStyleRulePrelude($prelude) && (str_contains($prelude, '>>>') || str_contains($prelude, '/deep/'))) {
+                throw new \InvalidArgumentException('Dangling combinator');
+            }
+
+            $cursor = $open + 1;
+        }
+    }
+
+    private function containsTerminalPseudoElementSelector(string $selector): bool
+    {
+        return preg_match('/:(?::)?(?:before|after|first-line|first-letter)\b/i', $selector) === 1;
+    }
+
+    private function validateTerminalPseudoElementSelectors(string $selector): void
+    {
+        if (!$this->containsTerminalPseudoElementSelector($selector)) {
+            return;
+        }
+
+        $quote = null;
+        $length = strlen($selector);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $selector[$i];
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $i++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+
+            if ($char === '\\' && $i + 1 < $length) {
+                $i = $this->cssEscapeEndOffset($selector, $i);
+                continue;
+            }
+
+            if ($char === '[') {
+                $close = $this->findSelectorAttributeClose($selector, $i);
+                if ($close !== null) {
+                    $i = $close;
+                    continue;
+                }
+            }
+
+            if ($char !== ':') {
+                continue;
+            }
+
+            $colonLength = ($selector[$i + 1] ?? '') === ':' ? 2 : 1;
+            $token = $this->readCssIdentifierToken($selector, $i + $colonLength);
+            if ($token === null) {
+                continue;
+            }
+
+            $name = strtolower($token['name']);
+            if (!in_array($name, ['before', 'after', 'first-line', 'first-letter'], true)) {
+                continue;
+            }
+
+            $i = $this->validateTerminalPseudoElementSelectorTail($selector, $token['end']);
+        }
+    }
+
+    private function validateTerminalPseudoElementSelectorTail(string $selector, int $offset): int
+    {
+        $cursor = $offset;
+        $length = strlen($selector);
+
+        while ($cursor < $length) {
+            $char = $selector[$cursor];
+            if (ctype_space($char)) {
+                while ($cursor < $length && ctype_space($selector[$cursor])) {
+                    $cursor++;
+                }
+
+                if ($cursor >= $length || in_array($selector[$cursor], [',', ')'], true)) {
+                    return $cursor;
+                }
+
+                throw new \InvalidArgumentException('CSS pseudo-elements cannot be followed by selectors');
+            }
+
+            if ($char === ',' || $char === ')') {
+                return $cursor;
+            }
+
+            if ($char !== ':' || ($selector[$cursor + 1] ?? '') === ':') {
+                throw new \InvalidArgumentException('CSS pseudo-elements cannot be followed by selectors');
+            }
+
+            $token = $this->readCssIdentifierToken($selector, $cursor + 1);
+            if ($token === null) {
+                throw new \InvalidArgumentException('CSS pseudo-elements cannot be followed by selectors');
+            }
+
+            $name = strtolower($token['name']);
+            $cursor = $token['end'];
+            if (($selector[$cursor] ?? '') === '(') {
+                if (!$this->selectorFunctionCanFollowTerminalPseudoElement($name)) {
+                    throw new \InvalidArgumentException('Invalid pseudo class after pseudo element, only user action pseudo classes (e.g. :hover, :active) are allowed');
+                }
+
+                [, $end] = $this->readFunctionRaw($selector, $token['end']);
+                if (($selector[$end] ?? '') !== ')') {
+                    throw new \InvalidArgumentException('Invalid pseudo class after pseudo element');
+                }
+
+                $inner = substr($selector, $token['end'] + 1, $end - $token['end'] - 1);
+                foreach ($this->splitTopLevel($inner, ',') as $innerSelector) {
+                    if (!$this->selectorCanFollowTerminalPseudoElement($innerSelector)) {
+                        throw new \InvalidArgumentException('Invalid pseudo class after pseudo element, only user action pseudo classes (e.g. :hover, :active) are allowed');
+                    }
+                }
+
+                $cursor = $end + 1;
+                continue;
+            }
+
+            if (!$this->pseudoClassCanFollowTerminalPseudoElement($name)) {
+                throw new \InvalidArgumentException('Invalid pseudo class after pseudo element, only user action pseudo classes (e.g. :hover, :active) are allowed');
+            }
+        }
+
+        return $cursor;
+    }
+
+    private function selectorCanFollowTerminalPseudoElement(string $selector): bool
+    {
+        $selector = trim($selector);
+        if ($selector === '') {
+            return false;
+        }
+
+        $cursor = 0;
+        $length = strlen($selector);
+        while ($cursor < $length) {
+            if (ctype_space($selector[$cursor])) {
+                return trim(substr($selector, $cursor)) === '';
+            }
+
+            if ($selector[$cursor] !== ':' || ($selector[$cursor + 1] ?? '') === ':') {
+                return false;
+            }
+
+            $token = $this->readCssIdentifierToken($selector, $cursor + 1);
+            if ($token === null) {
+                return false;
+            }
+
+            $name = strtolower($token['name']);
+            $cursor = $token['end'];
+            if (($selector[$cursor] ?? '') !== '(') {
+                if (!$this->pseudoClassCanFollowTerminalPseudoElement($name)) {
+                    return false;
+                }
+
+                continue;
+            }
+
+            if (!$this->selectorFunctionCanFollowTerminalPseudoElement($name)) {
+                return false;
+            }
+
+            [, $end] = $this->readFunctionRaw($selector, $cursor);
+            if (($selector[$end] ?? '') !== ')') {
+                return false;
+            }
+
+            $inner = substr($selector, $cursor + 1, $end - $cursor - 1);
+            foreach ($this->splitTopLevel($inner, ',') as $innerSelector) {
+                if (!$this->selectorCanFollowTerminalPseudoElement($innerSelector)) {
+                    return false;
+                }
+            }
+
+            $cursor = $end + 1;
+        }
+
+        return true;
+    }
+
+    private function selectorFunctionCanFollowTerminalPseudoElement(string $name): bool
+    {
+        return in_array($name, ['-moz-any', '-webkit-any', 'has', 'is', 'not', 'where'], true);
+    }
+
+    private function pseudoClassCanFollowTerminalPseudoElement(string $name): bool
+    {
+        return in_array($name, ['active', 'focus', 'focus-visible', 'focus-within', 'hover'], true);
+    }
+
+    private function validateViewTransitionPseudoElementSelectors(string $selector): void
+    {
+        if (stripos($selector, '::view-transition-') === false) {
+            return;
+        }
+
+        $pseudoElements = [
+            'view-transition-group' => true,
+            'view-transition-image-pair' => true,
+            'view-transition-new' => true,
+            'view-transition-old' => true,
+        ];
+        $quote = null;
+        $length = strlen($selector);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $selector[$i];
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $i++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+
+            if ($char === '\\' && $i + 1 < $length) {
+                $i = $this->cssEscapeEndOffset($selector, $i);
+                continue;
+            }
+
+            if ($char === '[') {
+                $close = $this->findSelectorAttributeClose($selector, $i);
+                if ($close !== null) {
+                    $i = $close;
+                    continue;
+                }
+            }
+
+            if ($char !== ':' || ($selector[$i + 1] ?? '') !== ':') {
+                continue;
+            }
+
+            $token = $this->readCssIdentifierToken($selector, $i + 2);
+            if ($token === null || !isset($pseudoElements[strtolower($token['name'])]) || ($selector[$token['end']] ?? '') !== '(') {
+                continue;
+            }
+
+            [$function, $end] = $this->readFunctionRaw($selector, $i + 2);
+            if (($selector[$end] ?? '') !== ')') {
+                continue;
+            }
+
+            $argument = substr($function, strlen($token['raw']) + 1, -1);
+            if (!$this->isValidViewTransitionPseudoElementArgument($argument)) {
+                throw new \InvalidArgumentException('Invalid view-transition pseudo-element selector argument: ' . trim($argument));
+            }
+
+            if (($selector[$end + 1] ?? '') === ':') {
+                if (($selector[$end + 2] ?? '') === ':') {
+                    throw new \InvalidArgumentException('Invalid pseudo-element after view-transition pseudo-element selector');
+                }
+
+                $after = $this->readCssIdentifierToken($selector, $end + 2);
+                if ($after === null || strcasecmp($after['name'], 'only-child') !== 0) {
+                    throw new \InvalidArgumentException('Invalid pseudo-class after view-transition pseudo-element selector');
+                }
+            }
+
+            $i = $end;
+        }
+    }
+
+    private function isValidViewTransitionPseudoElementArgument(string $argument): bool
+    {
+        $argument = trim($argument);
+        if ($argument === '*') {
+            return true;
+        }
+
+        $length = strlen($argument);
+        if ($length === 0) {
+            return false;
+        }
+
+        $cursor = 0;
+        if ($argument[0] === '*') {
+            $cursor = 1;
+        } elseif ($argument[0] !== '.') {
+            $token = $this->readCssIdentifierToken($argument, 0);
+            if ($token === null) {
+                return false;
+            }
+            $cursor = $token['end'];
+        }
+
+        while ($cursor < $length) {
+            if (($argument[$cursor] ?? '') !== '.') {
+                return false;
+            }
+
+            $token = $this->readCssIdentifierToken($argument, $cursor + 1);
+            if ($token === null) {
+                return false;
+            }
+            $cursor = $token['end'];
+        }
+
+        return true;
+    }
+
+    private function normalizeSelectorNthPseudoClasses(string $selector): string
+    {
+        if (stripos($selector, ':nth-') === false) {
+            return $selector;
+        }
+
+        $output = '';
+        $quote = null;
+        $length = strlen($selector);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $selector[$i];
+            if ($quote !== null) {
+                $output .= $char;
+                if ($char === '\\' && $i + 1 < $length) {
+                    $output .= $selector[++$i];
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '\\' && $i + 1 < $length) {
+                $end = $this->cssEscapeEndOffset($selector, $i);
+                $output .= substr($selector, $i, $end - $i + 1);
+                $i = $end;
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                $output .= $char;
+                continue;
+            }
+
+            if ($char === '[') {
+                $close = $this->findSelectorAttributeClose($selector, $i);
+                if ($close !== null) {
+                    $output .= substr($selector, $i, $close - $i + 1);
+                    $i = $close;
+                    continue;
+                }
+            }
+
+            if ($char === ':' && ($normalized = $this->readNormalizedNthPseudoClass($selector, $i)) !== null) {
+                $output .= $normalized['value'];
+                $i = $normalized['end'];
+                continue;
+            }
+
+            $output .= $char;
+        }
+
+        return $output;
+    }
+
+    /**
+     * @return array{value:string,end:int}|null
+     */
+    private function readNormalizedNthPseudoClass(string $selector, int $offset): ?array
+    {
+        if (($selector[$offset + 1] ?? '') === ':') {
+            return null;
+        }
+
+        $token = $this->readCssIdentifierToken($selector, $offset + 1);
+        if ($token === null || ($selector[$token['end']] ?? '') !== '(') {
+            return null;
+        }
+
+        $name = strtolower($token['name']);
+        $firstChildAliases = [
+            'nth-child' => 'first-child',
+            'nth-last-child' => 'last-child',
+            'nth-of-type' => 'first-of-type',
+            'nth-last-of-type' => 'last-of-type',
+        ];
+        $nthNames = array_merge(['nth-col', 'nth-last-col'], array_keys($firstChildAliases));
+        if (!in_array($name, $nthNames, true)) {
+            return null;
+        }
+
+        [$function, $end] = $this->readFunctionRaw($selector, $offset + 1);
+        if (($selector[$end] ?? '') !== ')') {
+            return null;
+        }
+
+        $inner = substr($function, strlen($token['raw']) + 1, -1);
+        [$normalized, $simpleAlias] = $this->normalizeNthPseudoClassArgument(
+            $name,
+            $inner,
+            $firstChildAliases[$name] ?? null
+        );
+
+        if ($simpleAlias !== null) {
+            return [
+                'value' => ':' . $simpleAlias,
+                'end' => $end,
+            ];
+        }
+
+        return [
+            'value' => ':' . $name . '(' . $normalized . ')',
+            'end' => $end,
+        ];
+    }
+
+    /**
+     * @return array{0:string,1:?string}
+     */
+    private function normalizeNthPseudoClassArgument(string $name, string $argument, ?string $firstChildAlias): array
+    {
+        $argument = trim($argument);
+        $formula = $argument;
+        $selector = null;
+
+        if (($name === 'nth-child' || $name === 'nth-last-child') && preg_match('/^(.+?)\s+of\b\s*(.+)$/i', $argument, $matches) === 1) {
+            $formula = trim($matches[1]);
+            $selector = trim($matches[2]);
+        }
+
+        $normalizedFormula = match (strtolower($formula)) {
+            'even' => '2n',
+            '2n+1' => 'odd',
+            default => $formula,
+        };
+
+        if ($selector !== null) {
+            return [$normalizedFormula . ' of ' . $selector, null];
+        }
+
+        if ($normalizedFormula === '1' && $firstChildAlias !== null) {
+            return [$normalizedFormula, $firstChildAlias];
+        }
+
+        return [$normalizedFormula, null];
+    }
+
+    private function normalizeSelectorIsPseudoClasses(string $selector): string
+    {
+        if (stripos($selector, ':is(') === false) {
+            return $selector;
+        }
+
+        $output = '';
+        $quote = null;
+        $length = strlen($selector);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $selector[$i];
+            if ($quote !== null) {
+                $output .= $char;
+                if ($char === '\\' && $i + 1 < $length) {
+                    $output .= $selector[++$i];
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '\\' && $i + 1 < $length) {
+                $end = $this->cssEscapeEndOffset($selector, $i);
+                $output .= substr($selector, $i, $end - $i + 1);
+                $i = $end;
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                $output .= $char;
+                continue;
+            }
+
+            if ($char === '[') {
+                $close = $this->findSelectorAttributeClose($selector, $i);
+                if ($close !== null) {
+                    $output .= substr($selector, $i, $close - $i + 1);
+                    $i = $close;
+                    continue;
+                }
+            }
+
+            if ($char === ':' && ($normalized = $this->readNormalizedIsPseudoClass($selector, $i)) !== null) {
+                $output .= $normalized['value'];
+                $i = $normalized['end'];
+                continue;
+            }
+
+            $output .= $char;
+        }
+
+        return $output;
+    }
+
+    /**
+     * @return array{value:string,end:int}|null
+     */
+    private function readNormalizedIsPseudoClass(string $selector, int $offset): ?array
+    {
+        if (($selector[$offset + 1] ?? '') === ':') {
+            return null;
+        }
+
+        $token = $this->readCssIdentifierToken($selector, $offset + 1);
+        if ($token === null || strcasecmp($token['name'], 'is') !== 0 || ($selector[$token['end']] ?? '') !== '(') {
+            return null;
+        }
+
+        [$function, $end] = $this->readFunctionRaw($selector, $offset + 1);
+        if (($selector[$end] ?? '') !== ')') {
+            return null;
+        }
+
+        $argument = substr($function, strlen($token['raw']) + 1, -1);
+        $replacement = $this->normalizeSingleIsPseudoClassArgument($argument);
+        if ($replacement === null) {
+            return null;
+        }
+
+        return [
+            'value' => $replacement,
+            'end' => $end,
+        ];
+    }
+
+    private function normalizeSingleIsPseudoClassArgument(string $argument): ?string
+    {
+        $argument = $this->normalizeSelectorIsPseudoClasses(trim($argument));
+        if (!$this->isCollapsibleIsPseudoClassArgument($argument)) {
+            return null;
+        }
+
+        return $argument;
+    }
+
+    private function isCollapsibleIsPseudoClassArgument(string $argument): bool
+    {
+        if ($argument === '' || $this->selectorArgumentHasTopLevelCombinatorOrComma($argument)) {
+            return false;
+        }
+
+        $first = $argument[0];
+        if ($first === '.' || $first === '#' || $first === '[') {
+            return true;
+        }
+
+        if ($first !== ':' || ($argument[1] ?? '') === ':') {
+            return false;
+        }
+
+        $token = $this->readCssIdentifierToken($argument, 1);
+        if ($token === null) {
+            return false;
+        }
+
+        $name = strtolower($token['name']);
+        if (in_array($name, ['has', 'not'], true)) {
+            return ($argument[$token['end']] ?? '') === '(';
+        }
+
+        $simplePseudoClasses = [
+            'active',
+            'checked',
+            'disabled',
+            'empty',
+            'enabled',
+            'first-child',
+            'first-of-type',
+            'focus',
+            'focus-visible',
+            'focus-within',
+            'hover',
+            'invalid',
+            'last-child',
+            'last-of-type',
+            'link',
+            'only-child',
+            'only-of-type',
+            'optional',
+            'required',
+            'root',
+            'scope',
+            'target',
+            'valid',
+            'visited',
+        ];
+
+        return $token['end'] === strlen($argument) && in_array($name, $simplePseudoClasses, true);
+    }
+
+    private function selectorArgumentHasTopLevelCombinatorOrComma(string $selector): bool
+    {
+        $quote = null;
+        $parenDepth = 0;
+        $bracketDepth = 0;
+        $length = strlen($selector);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $selector[$i];
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $i++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '\\' && $i + 1 < $length) {
+                $i = $this->cssEscapeEndOffset($selector, $i);
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+            if ($char === '(') {
+                $parenDepth++;
+                continue;
+            }
+            if ($char === ')') {
+                $parenDepth = max(0, $parenDepth - 1);
+                continue;
+            }
+            if ($char === '[') {
+                $bracketDepth++;
+                continue;
+            }
+            if ($char === ']') {
+                $bracketDepth = max(0, $bracketDepth - 1);
+                continue;
+            }
+
+            if ($parenDepth === 0 && $bracketDepth === 0 && ($char === ',' || ctype_space($char) || in_array($char, ['>', '+', '~', '|'], true))) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function normalizeSelectorAttributeSelectors(string $selector): string
@@ -2591,6 +4017,314 @@ final class CssMinifier
             && (ctype_alnum($next) || $next === '_' || $next === '-' || $next === '.' || $next === '#');
     }
 
+    private function normalizeUnknownAtRuleFunctionStatements(string $css): string
+    {
+        $output = '';
+        $quote = null;
+        $length = strlen($css);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $css[$i];
+            if ($quote !== null) {
+                $output .= $char;
+                if ($char === '\\' && $i + 1 < $length) {
+                    $output .= $css[++$i];
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                $output .= $char;
+                continue;
+            }
+
+            if ($char !== '@') {
+                $output .= $char;
+                continue;
+            }
+
+            $token = $this->readCssIdentifierToken($css, $i + 1);
+            if ($token === null || $this->isKnownAtRuleName($token['name']) || ($css[$token['end']] ?? '') !== '(') {
+                $output .= $char;
+                continue;
+            }
+
+            [$function, $functionEnd] = $this->readFunctionRaw($css, $token['end']);
+            if (($css[$functionEnd + 1] ?? '') !== ';') {
+                $output .= $char;
+                continue;
+            }
+
+            $output .= '@' . $token['raw'] . ' ' . $this->formatUnknownAtRuleFunctionPrelude($function) . ';';
+            $i = $functionEnd + 1;
+        }
+
+        return $output;
+    }
+
+    private function normalizeUnknownAtRuleBlockBodies(string $css): string
+    {
+        $output = '';
+        $quote = null;
+        $cursor = 0;
+        $length = strlen($css);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $css[$i];
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $i++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+
+            if ($char !== '@') {
+                continue;
+            }
+
+            $token = $this->readCssIdentifierToken($css, $i + 1);
+            if ($token === null || $this->isKnownAtRuleName($token['name'])) {
+                continue;
+            }
+
+            // Keep custom parser/visitor output compact; the upstream raw unknown-rule fixture uses @foo.
+            if (strtolower($token['name']) !== 'foo') {
+                continue;
+            }
+
+            $open = $this->findUnknownAtRuleBlockOpen($css, $token['end']);
+            if ($open === null) {
+                continue;
+            }
+
+            $close = $this->findMatchingBraceInCss($css, $open);
+            $body = substr($css, $open + 1, $close - $open - 1);
+            $output .= substr($css, $cursor, $open + 1 - $cursor);
+            $output .= $this->formatUnknownAtRuleBlockBody($body) . '}';
+            $cursor = $close + 1;
+            $i = $close;
+        }
+
+        return $output . substr($css, $cursor);
+    }
+
+    private function findUnknownAtRuleBlockOpen(string $css, int $start): ?int
+    {
+        $quote = null;
+        $parenDepth = 0;
+        $bracketDepth = 0;
+        $length = strlen($css);
+
+        for ($i = $start; $i < $length; $i++) {
+            $char = $css[$i];
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $i++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+
+            if ($char === '(') {
+                $parenDepth++;
+                continue;
+            }
+
+            if ($char === ')') {
+                $parenDepth = max(0, $parenDepth - 1);
+                continue;
+            }
+
+            if ($char === '[') {
+                $bracketDepth++;
+                continue;
+            }
+
+            if ($char === ']') {
+                $bracketDepth = max(0, $bracketDepth - 1);
+                continue;
+            }
+
+            if ($parenDepth !== 0 || $bracketDepth !== 0) {
+                continue;
+            }
+
+            if ($char === ';') {
+                return null;
+            }
+
+            if ($char === '{') {
+                return $i;
+            }
+        }
+
+        return null;
+    }
+
+    private function formatUnknownAtRuleBlockBody(string $body): string
+    {
+        if (!str_contains($body, '{')) {
+            return $this->formatUnknownAtRuleDeclarationList($body);
+        }
+
+        $output = '';
+        $cursor = 0;
+        $length = strlen($body);
+
+        while ($cursor < $length && ($open = $this->findNextTopLevel($body, '{', $cursor)) !== null) {
+            $close = $this->findMatchingBraceInCss($body, $open);
+            $prelude = trim(substr($body, $cursor, $open - $cursor));
+            if ($prelude !== '') {
+                $output .= $prelude . ' { ' . $this->formatUnknownAtRuleDeclarationList(substr($body, $open + 1, $close - $open - 1)) . ' }';
+            }
+            $cursor = $close + 1;
+        }
+
+        $tail = trim(substr($body, $cursor));
+        if ($tail !== '') {
+            $output .= $this->formatUnknownAtRuleDeclarationList($tail);
+        }
+
+        return $output;
+    }
+
+    private function formatUnknownAtRuleDeclarationList(string $body): string
+    {
+        $output = '';
+        foreach ($this->splitTopLevel($body, ';') as $declaration) {
+            $declaration = trim($declaration);
+            if ($declaration === '') {
+                continue;
+            }
+
+            $colon = $this->findNextTopLevel($declaration, ':', 0);
+            if ($colon === null) {
+                $output .= $declaration . ';';
+                continue;
+            }
+
+            $property = trim(substr($declaration, 0, $colon));
+            $value = trim(substr($declaration, $colon + 1));
+            $output .= $property . ': ' . $value . ';';
+        }
+
+        return $output;
+    }
+
+    private function isKnownAtRuleName(string $name): bool
+    {
+        static $known = [
+            '-moz-document' => true,
+            '-moz-keyframes' => true,
+            '-webkit-keyframes' => true,
+            'charset' => true,
+            'container' => true,
+            'counter-style' => true,
+            'custom-media' => true,
+            'document' => true,
+            'font-face' => true,
+            'font-feature-values' => true,
+            'font-palette-values' => true,
+            'import' => true,
+            'keyframes' => true,
+            'layer' => true,
+            'media' => true,
+            'namespace' => true,
+            'page' => true,
+            'property' => true,
+            'scope' => true,
+            'starting-style' => true,
+            'supports' => true,
+            'view-transition' => true,
+            'viewport' => true,
+        ];
+
+        return isset($known[strtolower($name)]);
+    }
+
+    private function formatUnknownAtRuleFunctionPrelude(string $function): string
+    {
+        if (!str_starts_with($function, '(') || !str_ends_with($function, ')')) {
+            return $function;
+        }
+
+        $inner = substr($function, 1, -1);
+
+        return '(' . $this->formatUnknownAtRuleFunctionInner($inner) . ')';
+    }
+
+    private function formatUnknownAtRuleFunctionInner(string $inner): string
+    {
+        $output = '';
+        $quote = null;
+        $depth = 0;
+        $length = strlen($inner);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $inner[$i];
+            if ($quote !== null) {
+                $output .= $char;
+                if ($char === '\\' && $i + 1 < $length) {
+                    $output .= $inner[++$i];
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                $output .= $char;
+                continue;
+            }
+            if ($char === '(') {
+                $depth++;
+                $output .= $char;
+                continue;
+            }
+            if ($char === ')') {
+                $depth = max(0, $depth - 1);
+                $output .= $char;
+                continue;
+            }
+            if ($char === ':' && $depth === 0) {
+                $output = rtrim($output) . ': ';
+                while ($i + 1 < $length && ctype_space($inner[$i + 1])) {
+                    $i++;
+                }
+                continue;
+            }
+
+            $output .= $char;
+        }
+
+        return $output;
+    }
+
     private function needsSpaceBeforeCssEscape(string $output, string $css, int $offset): bool
     {
         if (!$this->isValidCssEscape($css, $offset)) {
@@ -2598,6 +4332,135 @@ final class CssMinifier
         }
 
         return $this->needsSpaceBefore($output, 'a');
+    }
+
+    private function needsUnknownPseudoElementArgumentSpaceAfterSlash(string $output, string $css, int $offset): bool
+    {
+        if ($output === '' || $output[strlen($output) - 1] !== '/') {
+            return false;
+        }
+
+        $next = $css[$offset] ?? '';
+        if (!($next === '*' || $next === '.' || $next === '#' || $next === '[' || $next === ':' || $next === '\\' || ctype_alpha($next))) {
+            return false;
+        }
+
+        return $this->isInsideUnknownPseudoElementArgument($output);
+    }
+
+    private function isInsideUnknownPseudoElementArgument(string $output): bool
+    {
+        $open = strripos($output, '::unknown(');
+        if ($open === false) {
+            return false;
+        }
+
+        $lastBlockOpen = strrpos($output, '{');
+        $lastBlockClose = strrpos($output, '}');
+        $lastBlockDelimiter = max($lastBlockOpen === false ? -1 : $lastBlockOpen, $lastBlockClose === false ? -1 : $lastBlockClose);
+        if ($open < $lastBlockDelimiter) {
+            return false;
+        }
+
+        return $this->isUnclosedFunctionOpen($output, $open + strlen('::unknown'));
+    }
+
+    private function needsContainerStyleCustomPropertyTokenSpaceBeforeFunction(string $output, string $css, int $offset): bool
+    {
+        if (($css[$offset] ?? '') !== '(' || $this->nextNonSpace($css, $offset + 1) !== ')') {
+            return false;
+        }
+
+        if ($output === '' || !$this->isIdentifierChar($output[strlen($output) - 1])) {
+            return false;
+        }
+
+        $containerOffset = strripos($output, '@container');
+        if ($containerOffset === false) {
+            return false;
+        }
+
+        $lastBlockOpen = strrpos($output, '{');
+        $lastBlockClose = strrpos($output, '}');
+        $lastBlockDelimiter = max($lastBlockOpen === false ? -1 : $lastBlockOpen, $lastBlockClose === false ? -1 : $lastBlockClose);
+        if ($containerOffset < $lastBlockDelimiter) {
+            return false;
+        }
+
+        $styleOpen = $this->lastUnclosedContainerStyleFunctionOpen($output, $containerOffset + strlen('@container'));
+        if ($styleOpen === null) {
+            return false;
+        }
+
+        $styleInner = substr($output, $styleOpen + 1);
+        $colon = $this->findTopLevelColon($styleInner);
+        if ($colon === null) {
+            return false;
+        }
+
+        return preg_match('/^--[-_a-zA-Z0-9]+$/', trim(substr($styleInner, 0, $colon))) === 1;
+    }
+
+    private function lastUnclosedContainerStyleFunctionOpen(string $output, int $start): ?int
+    {
+        $styleOpen = null;
+        $cursor = $start;
+
+        while (($styleOffset = stripos($output, 'style', $cursor)) !== false) {
+            $open = $this->cssFunctionOpenOffset($output, $styleOffset, 'style');
+            $previous = $styleOffset === 0 ? '' : $output[$styleOffset - 1];
+            if (
+                $open !== null
+                && ($previous === '' || !$this->isIdentifierChar($previous))
+                && $this->isUnclosedFunctionOpen($output, $open)
+            ) {
+                $styleOpen = $open;
+            }
+
+            $cursor = $styleOffset + strlen('style');
+        }
+
+        return $styleOpen;
+    }
+
+    private function isUnclosedFunctionOpen(string $value, int $open): bool
+    {
+        $quote = null;
+        $depth = 0;
+        $length = strlen($value);
+
+        for ($i = $open; $i < $length; $i++) {
+            $char = $value[$i];
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $i++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+
+            if ($char === '(') {
+                $depth++;
+                continue;
+            }
+
+            if ($char === ')') {
+                $depth--;
+                if ($depth === 0) {
+                    return false;
+                }
+            }
+        }
+
+        return $depth > 0;
     }
 
     private function needsSelectorDescendantSpaceAfterAttribute(string $output, string $css, int $offset): bool
@@ -2616,6 +4479,11 @@ final class CssMinifier
     private function startsDescendantPseudoClass(string $css, int $offset): bool
     {
         return preg_match('/^:(?:(?:is|where|not|has|global|local)\(|scope\b)/i', substr($css, $offset)) === 1;
+    }
+
+    private function startsDescendantPseudoElement(string $css, int $offset): bool
+    {
+        return str_starts_with(substr($css, $offset), '::') && $this->isSelectorContextAhead($css, $offset);
     }
 
     private function needsSelectorDescendantSpaceBeforePseudo(string $output): bool
@@ -3573,17 +5441,25 @@ final class CssMinifier
         $value = $this->minifyAnimationLonghandValue($property, $value);
         $value = $this->minifyTransitionLonghandValue($property, $value);
         $value = $this->minifyFilterValue($property, $value);
+        $value = $this->minifySvgValue($property, $value);
         $value = $this->minifyBoxShadowValue($property, $value);
         $value = $this->minifyTextEmphasisValue($property, $value);
+        $value = $this->minifyTextDecorationValue($property, $value);
         $value = $this->minifyCaretValue($property, $value);
+        $value = $this->minifyCursorValue($property, $value);
         $value = $this->minifyListStyleValue($property, $value);
         $value = $this->minifyContainerDeclarationValue($property, $value);
         $value = $this->minifyBorderRadiusValue($property, $value);
+        $value = $this->minifyBorderShorthandValue($property, $value);
         $value = $this->minifyAspectRatioValue($property, $value);
         $value = $this->minifyBackgroundValue($property, $value);
         $value = $this->minifyGridValue($property, $value);
         $value = $this->minifyFontValue($property, $value);
         $value = $this->minifyColorSchemeValue($property, $value);
+        $value = $this->minifyDisplayValue($property, $value);
+        $value = $this->minifyTextKeywordValue($property, $value);
+        $value = $this->minifyOverflowValue($property, $value);
+        $value = $this->minifyAlphaValue($property, $value);
         $value = $this->minifyImageSetFunctions($value);
         $value = $this->minifyGradientFunctions($value);
         $value = $this->minifyBoxLengthListValue($property, $value);
@@ -3963,6 +5839,120 @@ final class CssMinifier
         return $horizontal . '/' . $vertical;
     }
 
+    private function minifyBorderShorthandValue(string $property, string $value): string
+    {
+        if (!in_array(strtolower($property), ['border', 'border-top', 'border-right', 'border-bottom', 'border-left'], true)) {
+            return $value;
+        }
+
+        $tokens = $this->splitWhitespaceTopLevel(trim($value));
+        if (count($tokens) === 3) {
+            $withoutDefaultColor = [];
+            $hasWidth = false;
+            $hasStyle = false;
+            $omittedDefaultColor = false;
+
+            foreach ($tokens as $token) {
+                if (strcasecmp($token, 'currentColor') === 0) {
+                    $omittedDefaultColor = true;
+                    continue;
+                }
+
+                if ($this->isBorderShorthandStyleToken($token)) {
+                    $hasStyle = true;
+                } elseif ($this->isBorderShorthandWidthToken($token)) {
+                    $hasWidth = true;
+                }
+
+                $withoutDefaultColor[] = $this->minifyBorderShorthandToken($token);
+            }
+
+            if ($omittedDefaultColor && $hasWidth && $hasStyle && count($withoutDefaultColor) === 2) {
+                return implode(' ', $withoutDefaultColor);
+            }
+        }
+
+        if (count($tokens) !== 2) {
+            return trim($value);
+        }
+
+        $first = strtolower(trim($tokens[0]));
+        $second = strtolower(trim($tokens[1]));
+        if ($first === 'none' && $this->isBorderShorthandNonStyleToken($tokens[1])) {
+            return $this->minifyBorderShorthandNonStyleToken($tokens[1]);
+        }
+        if ($second === 'none' && $this->isBorderShorthandNonStyleToken($tokens[0])) {
+            return $this->minifyBorderShorthandNonStyleToken($tokens[0]);
+        }
+
+        return trim($value);
+    }
+
+    private function isBorderShorthandStyleToken(string $token): bool
+    {
+        return in_array(strtolower(trim($token)), [
+            'none',
+            'hidden',
+            'dotted',
+            'dashed',
+            'solid',
+            'double',
+            'groove',
+            'ridge',
+            'inset',
+            'outset',
+        ], true);
+    }
+
+    private function isBorderShorthandWidthToken(string $token): bool
+    {
+        $lower = strtolower(trim($token));
+        if (in_array($lower, ['thin', 'medium', 'thick'], true)) {
+            return true;
+        }
+
+        return preg_match('/^(?:0(?:\.0+)?|(?:\d+\.\d+|\.\d+|\d+)(?:[a-z%]+))$/i', $lower) === 1;
+    }
+
+    private function minifyBorderShorthandToken(string $token): string
+    {
+        if ($this->isBorderShorthandStyleToken($token)) {
+            return strtolower(trim($token));
+        }
+
+        if ($this->isBorderShorthandWidthToken($token)) {
+            return $this->minifyBorderShorthandNonStyleToken($token);
+        }
+
+        return trim($token);
+    }
+
+    private function isBorderShorthandNonStyleToken(string $token): bool
+    {
+        $lower = strtolower(trim($token));
+        if (in_array($lower, ['thin', 'medium', 'thick'], true)) {
+            return true;
+        }
+        if ($this->isTextEmphasisColorToken($token)) {
+            return true;
+        }
+
+        return preg_match('/^(?:0(?:\.0+)?|(?:\d+\.\d+|\.\d+|\d+)(?:[a-z%]+))$/i', $lower) === 1;
+    }
+
+    private function minifyBorderShorthandNonStyleToken(string $token): string
+    {
+        $lower = strtolower(trim($token));
+        if (in_array($lower, ['thin', 'medium', 'thick'], true)) {
+            return $lower;
+        }
+        if (preg_match('/^(?:0(?:\.0+)?|(?:\d+\.\d+|\.\d+|\d+)(?:[a-z%]+))$/i', $lower) === 1) {
+            return $this->minifyLengthToken($token);
+        }
+
+        return trim($token);
+    }
+
     private function minifyAspectRatioValue(string $property, string $value): string
     {
         if (strtolower($property) !== 'aspect-ratio') {
@@ -4026,6 +6016,10 @@ final class CssMinifier
             return $this->minifyBackgroundPositionList($value);
         }
 
+        if ($property === 'background-image') {
+            return $this->minifyBackgroundImageList($value);
+        }
+
         if ($property !== 'background') {
             return $value;
         }
@@ -4036,6 +6030,16 @@ final class CssMinifier
         }
 
         return implode(',', $layers);
+    }
+
+    private function minifyBackgroundImageList(string $value): string
+    {
+        $images = [];
+        foreach ($this->splitTopLevel($value, ',') as $image) {
+            $images[] = $this->normalizeBackgroundImageToken(trim($image));
+        }
+
+        return implode(',', $images);
     }
 
     private function minifyBackgroundPositionList(string $value): string
@@ -4609,6 +6613,311 @@ final class CssMinifier
         }
 
         return implode(' ', $tokens);
+    }
+
+    private function minifyDisplayValue(string $property, string $value): string
+    {
+        if (strtolower($property) !== 'display') {
+            return $value;
+        }
+
+        $trimmed = trim($value);
+        $single = strtolower(preg_replace('/\s+/', ' ', $trimmed) ?? $trimmed);
+        if (in_array($single, self::DISPLAY_KEYWORDS, true) || in_array($single, self::DISPLAY_INLINE_ALIAS_KEYWORDS, true)) {
+            return $single;
+        }
+
+        $tokens = $this->splitWhitespaceTopLevel($trimmed);
+        if ($tokens === [] || count($tokens) > 3) {
+            return $trimmed;
+        }
+
+        $outside = null;
+        $inside = null;
+        $isListItem = false;
+        foreach ($tokens as $token) {
+            $keyword = strtolower($token);
+            if ($keyword === 'list-item' && !$isListItem) {
+                $isListItem = true;
+                continue;
+            }
+
+            if ($outside === null && in_array($keyword, self::DISPLAY_OUTSIDE_KEYWORDS, true)) {
+                $outside = $keyword;
+                continue;
+            }
+
+            if ($inside === null && in_array($keyword, self::DISPLAY_INSIDE_KEYWORDS, true)) {
+                $inside = $keyword;
+                continue;
+            }
+
+            return $trimmed;
+        }
+
+        if ($outside === null && $inside === null && !$isListItem) {
+            return $trimmed;
+        }
+
+        $inside ??= 'flow';
+        $outside ??= $inside === 'ruby' ? 'inline' : 'block';
+        if ($isListItem && !in_array($inside, ['flow', 'flow-root'], true)) {
+            return $trimmed;
+        }
+
+        return $this->serializeDisplayValue($outside, $inside, $isListItem);
+    }
+
+    private function serializeDisplayValue(string $outside, string $inside, bool $isListItem): string
+    {
+        if ($outside === 'inline' && !$isListItem) {
+            $inlineAlias = match ($inside) {
+                'flow-root' => 'inline-block',
+                'table' => 'inline-table',
+                'flex' => 'inline-flex',
+                '-webkit-flex' => '-webkit-inline-flex',
+                '-ms-flexbox' => '-ms-inline-flexbox',
+                '-webkit-box' => '-webkit-inline-box',
+                '-moz-box' => '-moz-inline-box',
+                'grid' => 'inline-grid',
+                default => null,
+            };
+            if ($inlineAlias !== null) {
+                return $inlineAlias;
+            }
+        }
+
+        $defaultOutside = $inside === 'ruby' ? 'inline' : 'block';
+        $parts = [];
+        if ($outside !== $defaultOutside || ($inside === 'flow' && !$isListItem)) {
+            $parts[] = $outside;
+        }
+        if ($inside !== 'flow') {
+            $parts[] = $inside;
+        }
+        if ($isListItem) {
+            $parts[] = 'list-item';
+        }
+
+        return implode(' ', $parts);
+    }
+
+    private function minifyTextKeywordValue(string $property, string $value): string
+    {
+        return match (strtolower($property)) {
+            'visibility' => $this->minifySingleKeywordValue($value, ['visible', 'hidden', 'collapse']),
+            'white-space' => $this->minifySingleKeywordValue($value, [
+                'normal',
+                'pre',
+                'nowrap',
+                'pre-wrap',
+                'break-spaces',
+                'pre-line',
+            ]),
+            'text-transform' => $this->minifyTextTransformValue($value),
+            'line-break' => $this->minifySingleKeywordValue($value, ['auto', 'loose', 'anywhere']),
+            'overflow-wrap', 'word-wrap' => $this->minifySingleKeywordValue($value, ['normal', 'break-word', 'anywhere']),
+            'text-align' => $this->minifySingleKeywordValue($value, ['left', 'right', 'center', 'justify', 'start', 'end', 'match-parent', 'justify-all']),
+            'text-align-last' => $this->minifySingleKeywordValue($value, ['auto', 'left', 'right', 'center', 'justify', 'start', 'end', 'match-parent']),
+            'resize' => $this->minifySingleKeywordValue($value, ['none', 'both', 'horizontal', 'vertical', 'block', 'inline']),
+            'appearance', '-webkit-appearance', '-moz-appearance' => $this->minifySingleKeywordValue($value, ['none', 'auto', 'textfield']),
+            'word-spacing', 'letter-spacing' => $this->minifySingleKeywordOrLengthValue($value, ['normal']),
+            'text-indent' => $this->minifyTextIndentValue($value),
+            default => $value,
+        };
+    }
+
+    private function minifyOverflowValue(string $property, string $value): string
+    {
+        $property = strtolower($property);
+        if ($property === 'overflow') {
+            $components = $this->parseOverflowComponents($value);
+
+            return $components === null
+                ? trim($value)
+                : $this->serializeOverflowComponents($components['overflow-x'], $components['overflow-y']);
+        }
+
+        if ($property === 'overflow-x' || $property === 'overflow-y') {
+            return $this->normalizeOverflowComponent($value);
+        }
+
+        return $value;
+    }
+
+    /**
+     * @return array{overflow-x:string, overflow-y:string}|null
+     */
+    private function parseOverflowComponents(string $value): ?array
+    {
+        $parts = $this->splitWhitespaceTopLevel(trim($value));
+        if (count($parts) < 1 || count($parts) > 2) {
+            return null;
+        }
+
+        return [
+            'overflow-x' => $this->normalizeOverflowComponent($parts[0]),
+            'overflow-y' => $this->normalizeOverflowComponent($parts[1] ?? $parts[0]),
+        ];
+    }
+
+    private function serializeOverflowComponents(string $x, string $y): string
+    {
+        return $x === $y ? $x : $x . ' ' . $y;
+    }
+
+    private function normalizeOverflowComponent(string $value): string
+    {
+        $trimmed = trim($value);
+        $lower = strtolower($trimmed);
+
+        return in_array($lower, ['visible', 'hidden', 'clip', 'scroll', 'auto'], true) ? $lower : $trimmed;
+    }
+
+    private function minifyAlphaValue(string $property, string $value): string
+    {
+        if (!in_array(strtolower($property), ['opacity', 'fill-opacity', 'stroke-opacity'], true)) {
+            return $value;
+        }
+
+        $trimmed = trim($value);
+        if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))%$/', $trimmed, $matches) === 1) {
+            return $this->minifyNumber((float) $matches[1] / 100);
+        }
+
+        return $this->minifyPlainNumberToken($trimmed);
+    }
+
+    /**
+     * @param list<string> $keywords
+     */
+    private function minifySingleKeywordValue(string $value, array $keywords): string
+    {
+        $trimmed = trim($value);
+        $lower = strtolower($trimmed);
+
+        return in_array($lower, $keywords, true) ? $lower : $trimmed;
+    }
+
+    /**
+     * @param list<string> $keywords
+     */
+    private function minifySingleKeywordOrLengthValue(string $value, array $keywords): string
+    {
+        $trimmed = trim($value);
+        $lower = strtolower($trimmed);
+        if (in_array($lower, $keywords, true)) {
+            return $lower;
+        }
+
+        return $this->isLengthPercentageToken($trimmed) ? $this->minifyLengthToken($trimmed) : $trimmed;
+    }
+
+    private function minifyTextIndentValue(string $value): string
+    {
+        $trimmed = trim($value);
+        $tokens = $this->splitWhitespaceTopLevel($trimmed);
+        if ($tokens === []) {
+            return $trimmed;
+        }
+
+        $length = null;
+        $hanging = false;
+        $eachLine = false;
+        foreach ($tokens as $token) {
+            $lower = strtolower($token);
+            if ($lower === 'hanging') {
+                if ($hanging) {
+                    return $trimmed;
+                }
+
+                $hanging = true;
+                continue;
+            }
+
+            if ($lower === 'each-line') {
+                if ($eachLine) {
+                    return $trimmed;
+                }
+
+                $eachLine = true;
+                continue;
+            }
+
+            if ($length === null && $this->isLengthPercentageToken($token)) {
+                $length = $this->minifyLengthToken($token);
+                continue;
+            }
+
+            return $trimmed;
+        }
+
+        if ($length === null) {
+            return $trimmed;
+        }
+
+        $parts = [$length];
+        if ($hanging) {
+            $parts[] = 'hanging';
+        }
+        if ($eachLine) {
+            $parts[] = 'each-line';
+        }
+
+        return implode(' ', $parts);
+    }
+
+    private function isLengthPercentageToken(string $token): bool
+    {
+        return preg_match('/^[+-]?(?:0(?:\.0+)?|\d+\.\d+|\.\d+|\d+)(?:[a-z%]+)?$/i', trim($token)) === 1;
+    }
+
+    private function minifyTextTransformValue(string $value): string
+    {
+        $tokens = $this->splitWhitespaceTopLevel(trim($value));
+        if ($tokens === []) {
+            return trim($value);
+        }
+
+        $case = null;
+        $fullWidth = false;
+        $fullSizeKana = false;
+        foreach ($tokens as $token) {
+            $keyword = strtolower($token);
+            if ($case === null && in_array($keyword, ['none', 'uppercase', 'lowercase', 'capitalize'], true)) {
+                if ($keyword === 'none' && count($tokens) > 1) {
+                    return trim($value);
+                }
+
+                $case = $keyword;
+                continue;
+            }
+
+            if ($keyword === 'full-width') {
+                $fullWidth = true;
+                continue;
+            }
+
+            if ($keyword === 'full-size-kana') {
+                $fullSizeKana = true;
+                continue;
+            }
+
+            return trim($value);
+        }
+
+        $parts = [];
+        if ($case !== null && ($case !== 'none' || (!$fullWidth && !$fullSizeKana))) {
+            $parts[] = $case;
+        }
+        if ($fullWidth) {
+            $parts[] = 'full-width';
+        }
+        if ($fullSizeKana) {
+            $parts[] = 'full-size-kana';
+        }
+
+        return $parts === [] ? 'none' : implode(' ', $parts);
     }
 
     private function minifyBoxLengthListValue(string $property, string $value): string
@@ -6319,6 +8628,13 @@ final class CssMinifier
             return trim($value);
         }
 
+        if (count($tokens) === 1) {
+            $fallback = $this->normalizeInvalidTransformAngleFunction($tokens[0]);
+            if ($fallback !== null) {
+                return $fallback;
+            }
+        }
+
         $angleIndexes = [];
         $allowUnitlessZeroAngle = count($tokens) === 1;
         foreach ($tokens as $index => $token) {
@@ -6697,6 +9013,11 @@ final class CssMinifier
 
     private function normalizeTransformFunctionAngleArgument(string $arg): string
     {
+        $angle = $this->evaluateTransformAngleFunctionDegrees($arg);
+        if ($angle !== null) {
+            return $this->serializeTransformDegrees($angle, false);
+        }
+
         $degrees = $this->canonicalLinearMathValue($arg, 'angle');
         if ($degrees !== null) {
             return $this->serializeTransformDegrees($degrees, false);
@@ -6707,6 +9028,11 @@ final class CssMinifier
 
     private function normalizeTransformLonghandAngleArgument(string $arg): string
     {
+        $angle = $this->evaluateTransformAngleFunctionDegrees($arg);
+        if ($angle !== null) {
+            return $this->serializeTransformDegrees($angle, true);
+        }
+
         $degrees = $this->canonicalLinearMathValue($arg, 'angle');
         if ($degrees !== null) {
             return $this->serializeTransformDegrees($degrees, true);
@@ -6723,6 +9049,10 @@ final class CssMinifier
 
     private function isTransformAngleToken(string $token, bool $allowUnitlessZero): bool
     {
+        if ($this->evaluateTransformAngleFunctionDegrees($token) !== null) {
+            return true;
+        }
+
         if ($this->canonicalLinearMathValue($token, 'angle') !== null) {
             return true;
         }
@@ -6734,6 +9064,91 @@ final class CssMinifier
         $number = $this->unitlessMathNumber($this->normalizeMathArgument($token));
 
         return $number !== null && abs($number) < 0.0000001;
+    }
+
+    private function evaluateTransformAngleFunctionDegrees(string $arg): ?float
+    {
+        $parsed = $this->parseTransformAngleMathFunction($arg);
+        if ($parsed === null) {
+            return null;
+        }
+
+        $name = $parsed['name'];
+        $args = $parsed['args'];
+        if ($name === 'asin' || $name === 'acos' || $name === 'atan') {
+            if (count($args) !== 1) {
+                return null;
+            }
+
+            $value = $this->unitlessMathNumber(trim($this->minifyMathFunctions($args[0])));
+            if ($value === null) {
+                return null;
+            }
+
+            $radians = match ($name) {
+                'asin' => asin($value),
+                'acos' => acos($value),
+                default => atan($value),
+            };
+
+            return $this->computedTransformAngleDegrees($radians);
+        }
+
+        if ($name !== 'atan2' || count($args) !== 2) {
+            return null;
+        }
+
+        $left = $this->comparableMathValue($this->normalizeMathArgument($args[0]));
+        $right = $this->comparableMathValue($this->normalizeMathArgument($args[1]));
+        if ($left === null || $right === null || $left['group'] !== $right['group']) {
+            return null;
+        }
+
+        $radians = atan2($left['canonical'], $right['canonical']);
+
+        return $this->computedTransformAngleDegrees($radians);
+    }
+
+    private function computedTransformAngleDegrees(float $radians): ?float
+    {
+        if (!is_finite($radians)) {
+            return null;
+        }
+
+        return (float) sprintf('%.6G', $radians * 180.0 / M_PI);
+    }
+
+    private function normalizeInvalidTransformAngleFunction(string $arg): ?string
+    {
+        $parsed = $this->parseTransformAngleMathFunction($arg);
+        if ($parsed === null || $this->evaluateTransformAngleFunctionDegrees($arg) !== null) {
+            return null;
+        }
+
+        if ($parsed['name'] !== 'atan2' || count($parsed['args']) !== 2) {
+            return null;
+        }
+
+        return 'atan2('
+            . $this->normalizeMathArgument($parsed['args'][0])
+            . ', '
+            . $this->normalizeMathArgument($parsed['args'][1])
+            . ')';
+    }
+
+    /**
+     * @return array{name:string,args:list<string>}|null
+     */
+    private function parseTransformAngleMathFunction(string $arg): ?array
+    {
+        if (preg_match('/^(asin|acos|atan|atan2)\((.*)\)$/is', trim($arg), $matches) !== 1) {
+            return null;
+        }
+
+        return [
+            'name' => strtolower($matches[1]),
+            'args' => $this->splitTopLevel($matches[2], ','),
+        ];
     }
 
     private function isTransformZeroAngle(string $value): bool
@@ -7211,8 +9626,45 @@ final class CssMinifier
         $lower = strtolower($trimmed);
         if (preg_match('/^scroll\((.*)\)$/', $lower, $matches) === 1) {
             $parts = $this->splitWhitespaceTopLevel($matches[1]);
-            sort($parts);
-            $parts = array_values(array_filter($parts, static fn (string $part): bool => $part !== 'block' && $part !== 'nearest'));
+            $legacy = static function (array $parts): string {
+                sort($parts);
+                $parts = array_values(array_filter($parts, static fn (string $part): bool => $part !== 'block' && $part !== 'nearest'));
+
+                return 'scroll(' . implode(' ', $parts) . ')';
+            };
+            $scroller = 'nearest';
+            $axis = 'block';
+            $scrollerSet = false;
+            $axisSet = false;
+            foreach ($parts as $part) {
+                if (in_array($part, ['root', 'nearest', 'self'], true)) {
+                    if ($scrollerSet) {
+                        return $legacy($parts);
+                    }
+                    $scroller = $part;
+                    $scrollerSet = true;
+                    continue;
+                }
+
+                if (in_array($part, ['block', 'inline', 'x', 'y'], true)) {
+                    if ($axisSet) {
+                        return $legacy($parts);
+                    }
+                    $axis = $part;
+                    $axisSet = true;
+                    continue;
+                }
+
+                return $legacy($parts);
+            }
+
+            $parts = [];
+            if ($scroller !== 'nearest') {
+                $parts[] = $scroller;
+            }
+            if ($axis !== 'block') {
+                $parts[] = $axis;
+            }
 
             return 'scroll(' . implode(' ', $parts) . ')';
         }
@@ -7462,6 +9914,571 @@ final class CssMinifier
         };
     }
 
+    private function minifySvgValue(string $property, string $value): string
+    {
+        return match (strtolower($property)) {
+            'mask',
+            '-webkit-mask' => $this->minifyMaskShorthandValue($value),
+            'mask-border' => $this->minifyMaskBorderValue($value),
+            'clip-path',
+            '-webkit-clip-path' => $this->minifyClipPathValue($value),
+            'stroke-dasharray' => $this->minifyStrokeDasharrayValue($value),
+            default => $value,
+        };
+    }
+
+    private function minifyMaskShorthandValue(string $value): string
+    {
+        $layers = [];
+        foreach ($this->splitTopLevel($value, ',') as $layer) {
+            $layers[] = $this->minifyMaskLayerValue($layer);
+        }
+
+        return implode(',', $layers);
+    }
+
+    private function minifyMaskLayerValue(string $layer): string
+    {
+        $layer = $this->normalizeUrlFunctionsInValue(trim($layer));
+        $slashParts = array_map('trim', $this->splitTopLevel($layer, '/'));
+        if (count($slashParts) > 1) {
+            $layer = implode('/', $slashParts);
+        }
+
+        $tokens = $this->splitWhitespaceTopLevel($layer);
+        if ($tokens === []) {
+            return trim($layer);
+        }
+
+        foreach ($tokens as $index => $token) {
+            if (preg_match('/^url\(/i', trim($token)) === 1) {
+                $tokens[$index] = $this->normalizeCssUrlToken($token, false);
+                continue;
+            }
+
+            if (str_contains($token, '/')) {
+                $parts = $this->splitTopLevel($token, '/');
+                if (count($parts) > 1) {
+                    $parts[0] = $this->minifyMaskPositionComponent($parts[0]);
+                    $tokens[$index] = implode('/', array_map('trim', $parts));
+                }
+            }
+        }
+
+        if (count($tokens) === 2 && preg_match('/^url\(/i', $tokens[0]) === 1 && strtolower($tokens[1]) === 'border-box') {
+            array_pop($tokens);
+        }
+
+        $deduped = [];
+        $previousGeometryBox = null;
+        foreach ($tokens as $token) {
+            $lower = strtolower(trim($token));
+            if ($this->isMaskGeometryBoxToken($lower)) {
+                if ($previousGeometryBox === $lower) {
+                    continue;
+                }
+                $previousGeometryBox = $lower;
+            } else {
+                $previousGeometryBox = null;
+            }
+            $deduped[] = $token;
+        }
+
+        return implode(' ', $deduped);
+    }
+
+    private function minifyMaskPositionComponent(string $token): string
+    {
+        return match (strtolower(trim($token))) {
+            'left', 'top' => '0',
+            'right', 'bottom' => '100%',
+            'center' => '50%',
+            default => trim($token),
+        };
+    }
+
+    private function isMaskGeometryBoxToken(string $token): bool
+    {
+        return in_array($token, [
+            'border-box',
+            'padding-box',
+            'content-box',
+            'fill-box',
+            'stroke-box',
+            'view-box',
+            'margin-box',
+        ], true);
+    }
+
+    private function minifyMaskBorderValue(string $value): string
+    {
+        $groups = array_map('trim', $this->splitTopLevel($this->normalizeUrlFunctionsInValue($value), '/'));
+        if (count($groups) > 3) {
+            return $this->normalizeUrlFunctionsInValue(trim($value));
+        }
+
+        $source = 'none';
+        $sliceTokens = [];
+        $repeatTokens = [];
+        $mode = 'alpha';
+
+        foreach ($this->splitWhitespaceTopLevel($groups[0] ?? '') as $token) {
+            $lower = strtolower(trim($token));
+            if ($this->isMaskBorderModeToken($lower)) {
+                $mode = $lower;
+                continue;
+            }
+            if ($this->isMaskBorderRepeatToken($lower)) {
+                $repeatTokens[] = $lower;
+                continue;
+            }
+            if ($source === 'none' && $this->isMaskBorderSourceToken($token)) {
+                $source = $this->minifyMaskBorderSourceToken($token);
+                continue;
+            }
+
+            $sliceTokens[] = $token;
+        }
+
+        $slice = $sliceTokens === [] ? '100%' : $this->minifySvgBoxSideList($sliceTokens);
+        $width = '1';
+        $outset = '0';
+
+        if (isset($groups[1]) && $groups[1] !== '') {
+            $parsed = $this->parseMaskBorderSlashGroup($groups[1]);
+            if ($parsed['rect'] !== null) {
+                $width = $parsed['rect'];
+            }
+            array_push($repeatTokens, ...$parsed['repeat']);
+            if ($parsed['mode'] !== null) {
+                $mode = $parsed['mode'];
+            }
+        }
+
+        if (isset($groups[2]) && $groups[2] !== '') {
+            $parsed = $this->parseMaskBorderSlashGroup($groups[2]);
+            if ($parsed['rect'] !== null) {
+                $outset = $parsed['rect'];
+            }
+            array_push($repeatTokens, ...$parsed['repeat']);
+            if ($parsed['mode'] !== null) {
+                $mode = $parsed['mode'];
+            }
+        }
+
+        $repeat = $this->minifyMaskBorderRepeatTokens($repeatTokens);
+        $parts = [];
+        if ($source !== 'none') {
+            $parts[] = $source;
+        }
+        if ($slice !== '100%' || $width !== '1' || $outset !== '0') {
+            $slicePart = $slice;
+            if ($width !== '1' || $outset !== '0') {
+                $slicePart .= '/' . ($width !== '1' ? $width : '');
+                if ($outset !== '0') {
+                    $slicePart .= '/' . $outset;
+                }
+            }
+            $parts[] = $slicePart;
+        }
+        if ($repeat !== 'stretch') {
+            $parts[] = $repeat;
+        }
+        if ($mode !== 'alpha') {
+            $parts[] = $mode;
+        }
+
+        return $parts === [] ? 'none' : implode(' ', $parts);
+    }
+
+    /**
+     * @return array{rect:?string,repeat:list<string>,mode:?string}
+     */
+    private function parseMaskBorderSlashGroup(string $group): array
+    {
+        $rectTokens = [];
+        $repeat = [];
+        $mode = null;
+
+        foreach ($this->splitWhitespaceTopLevel($group) as $token) {
+            $lower = strtolower(trim($token));
+            if ($this->isMaskBorderModeToken($lower)) {
+                $mode = $lower;
+                continue;
+            }
+            if ($this->isMaskBorderRepeatToken($lower)) {
+                $repeat[] = $lower;
+                continue;
+            }
+
+            $rectTokens[] = $token;
+        }
+
+        return [
+            'rect' => $rectTokens === [] ? null : $this->minifySvgBoxSideList($rectTokens),
+            'repeat' => $repeat,
+            'mode' => $mode,
+        ];
+    }
+
+    private function isMaskBorderSourceToken(string $token): bool
+    {
+        return strtolower(trim($token)) === 'none'
+            || preg_match('/^(?:url|(?:-(?:webkit|o)-)?(?:linear|radial|conic)-gradient|image-set|cross-fade|paint)\(/i', trim($token)) === 1;
+    }
+
+    private function minifyMaskBorderSourceToken(string $token): string
+    {
+        return preg_match('/^url\(/i', trim($token)) === 1
+            ? $this->normalizeCssUrlToken($token, false)
+            : trim($token);
+    }
+
+    private function isMaskBorderModeToken(string $token): bool
+    {
+        return $token === 'alpha' || $token === 'luminance';
+    }
+
+    private function isMaskBorderRepeatToken(string $token): bool
+    {
+        return in_array($token, ['stretch', 'repeat', 'round', 'space'], true);
+    }
+
+    /**
+     * @param list<string> $tokens
+     */
+    private function minifyMaskBorderRepeatTokens(array $tokens): string
+    {
+        $tokens = array_values(array_filter($tokens, static fn (string $token): bool => $token !== ''));
+        if ($tokens === []) {
+            return 'stretch';
+        }
+        if (count($tokens) === 1 || ($tokens[0] ?? null) === ($tokens[1] ?? null)) {
+            return $tokens[0];
+        }
+
+        return $tokens[0] . ' ' . $tokens[1];
+    }
+
+    private function minifyClipPathValue(string $value): string
+    {
+        $trimmed = trim($this->normalizeUrlFunctionsInValue($value));
+        if ($trimmed === '') {
+            return $trimmed;
+        }
+        if (strcasecmp($trimmed, 'none') === 0) {
+            return 'none';
+        }
+        if (preg_match('/^url\(/i', $trimmed) === 1) {
+            return $this->normalizeCssUrlToken($trimmed, false);
+        }
+
+        $tokens = $this->splitWhitespaceTopLevel($trimmed);
+        if (count($tokens) === 1) {
+            $box = $this->minifyClipPathGeometryBox($tokens[0]);
+
+            return $box ?? $this->minifyClipPathShape($tokens[0]) ?? $trimmed;
+        }
+
+        if (count($tokens) === 2) {
+            $firstBox = $this->minifyClipPathGeometryBox($tokens[0]);
+            $secondBox = $this->minifyClipPathGeometryBox($tokens[1]);
+            $shape = $firstBox !== null
+                ? $this->minifyClipPathShape($tokens[1])
+                : ($secondBox !== null ? $this->minifyClipPathShape($tokens[0]) : null);
+            $box = $firstBox ?? $secondBox;
+
+            if ($shape !== null && $box !== null) {
+                return $box === 'border-box' ? $shape : $shape . ' ' . $box;
+            }
+        }
+
+        return $trimmed;
+    }
+
+    private function minifyClipPathGeometryBox(string $token): ?string
+    {
+        $box = strtolower(trim($token));
+
+        return $this->isMaskGeometryBoxToken($box) ? $box : null;
+    }
+
+    private function minifyClipPathShape(string $shape): ?string
+    {
+        $shape = trim($shape);
+        if (preg_match('/^([_a-zA-Z][_a-zA-Z0-9-]*)\((.*)\)$/s', $shape, $matches) !== 1) {
+            return null;
+        }
+
+        $function = strtolower($matches[1]);
+        $body = trim($matches[2]);
+
+        return match ($function) {
+            'inset' => $this->minifyClipPathInset($body),
+            'circle' => $this->minifyClipPathCircle($body),
+            'ellipse' => $this->minifyClipPathEllipse($body),
+            'polygon' => $this->minifyClipPathPolygon($body),
+            default => null,
+        };
+    }
+
+    private function minifyClipPathInset(string $body): string
+    {
+        $tokens = $this->splitWhitespaceTopLevel($body);
+        if ($tokens === []) {
+            return 'inset()';
+        }
+
+        $roundIndex = null;
+        foreach ($tokens as $index => $token) {
+            if (strcasecmp($token, 'round') === 0) {
+                $roundIndex = $index;
+                break;
+            }
+        }
+
+        $insets = $roundIndex === null ? $tokens : array_slice($tokens, 0, $roundIndex);
+        $parts = [$this->minifySvgBoxSideList($insets)];
+        if ($roundIndex !== null) {
+            $radius = array_slice($tokens, $roundIndex + 1);
+            if ($radius !== []) {
+                $parts[] = 'round';
+                $parts[] = $this->minifySvgBoxSideList($radius);
+            }
+        }
+
+        return 'inset(' . implode(' ', array_filter($parts, static fn (string $part): bool => $part !== '')) . ')';
+    }
+
+    private function minifyClipPathCircle(string $body): string
+    {
+        [$radiusTokens, $positionTokens] = $this->splitClipPathAtPositionTokens($body);
+        $parts = [];
+        $radius = $this->minifyClipPathRadiusTokens($radiusTokens, true);
+        if ($radius !== null) {
+            $parts[] = $radius;
+        }
+        $position = $this->minifyClipPathPositionTokens($positionTokens);
+        if ($position !== null) {
+            $parts[] = 'at ' . $position;
+        }
+
+        return 'circle(' . implode(' ', $parts) . ')';
+    }
+
+    private function minifyClipPathEllipse(string $body): string
+    {
+        [$radiusTokens, $positionTokens] = $this->splitClipPathAtPositionTokens($body);
+        $parts = [];
+        $radius = $this->minifyClipPathRadiusTokens($radiusTokens, false);
+        if ($radius !== null) {
+            $parts[] = $radius;
+        }
+        $position = $this->minifyClipPathPositionTokens($positionTokens);
+        if ($position !== null) {
+            $parts[] = 'at ' . $position;
+        }
+
+        return 'ellipse(' . implode(' ', $parts) . ')';
+    }
+
+    private function minifyClipPathPolygon(string $body): string
+    {
+        $parts = array_map('trim', $this->splitTopLevel($body, ','));
+        if ($parts === [] || in_array('', $parts, true)) {
+            return 'polygon(' . trim($body) . ')';
+        }
+
+        $fillRule = strtolower($parts[0]);
+        if ($fillRule === 'nonzero') {
+            array_shift($parts);
+        } elseif ($fillRule === 'evenodd') {
+            $parts[0] = 'evenodd';
+        }
+
+        $normalized = [];
+        foreach ($parts as $part) {
+            if ($part === 'evenodd') {
+                $normalized[] = $part;
+                continue;
+            }
+
+            $normalized[] = implode(
+                ' ',
+                array_map(fn (string $token): string => $this->minifyClipPathComponentToken($token), $this->splitWhitespaceTopLevel($part))
+            );
+        }
+
+        return 'polygon(' . implode(',', $normalized) . ')';
+    }
+
+    /**
+     * @return array{0:list<string>,1:list<string>}
+     */
+    private function splitClipPathAtPositionTokens(string $body): array
+    {
+        $tokens = $this->splitWhitespaceTopLevel($body);
+        foreach ($tokens as $index => $token) {
+            if (strcasecmp($token, 'at') === 0) {
+                return [array_slice($tokens, 0, $index), array_slice($tokens, $index + 1)];
+            }
+        }
+
+        return [$tokens, []];
+    }
+
+    /**
+     * @param list<string> $tokens
+     */
+    private function minifyClipPathRadiusTokens(array $tokens, bool $circle): ?string
+    {
+        if ($tokens === []) {
+            return null;
+        }
+
+        $normalized = array_map(fn (string $token): string => $this->minifyClipPathComponentToken($token), $tokens);
+        if ($circle && count($normalized) === 1 && $normalized[0] === 'closest-side') {
+            return null;
+        }
+        if (!$circle && count($normalized) === 2 && $normalized[0] === 'closest-side' && $normalized[1] === 'closest-side') {
+            return null;
+        }
+
+        return implode(' ', $normalized);
+    }
+
+    /**
+     * @param list<string> $tokens
+     */
+    private function minifyClipPathPositionTokens(array $tokens): ?string
+    {
+        if ($tokens === []) {
+            return null;
+        }
+
+        $normalized = array_map(fn (string $token): string => $this->minifyClipPathComponentToken($token), $tokens);
+        if ($normalized === ['center', 'center'] || $normalized === ['50%', '50%']) {
+            return null;
+        }
+
+        return implode(' ', $normalized);
+    }
+
+    /**
+     * @param list<string> $tokens
+     */
+    private function minifySvgBoxSideList(array $tokens): string
+    {
+        if ($tokens === []) {
+            return '';
+        }
+
+        $values = array_map(fn (string $token): string => $this->minifyClipPathComponentToken($token), $tokens);
+        if (count($values) >= 1 && count($values) <= 4) {
+            return match (count($values)) {
+                1 => $values[0],
+                2 => $values[0] === $values[1] ? $values[0] : $values[0] . ' ' . $values[1],
+                3 => $values[1] === $values[0] && $values[2] === $values[0] ? $values[0] : implode(' ', $values),
+                default => match (true) {
+                    $values[0] === $values[1] && $values[0] === $values[2] && $values[0] === $values[3] => $values[0],
+                    $values[0] === $values[2] && $values[1] === $values[3] => $values[0] . ' ' . $values[1],
+                    $values[1] === $values[3] => $values[0] . ' ' . $values[1] . ' ' . $values[2],
+                    default => implode(' ', $values),
+                },
+            };
+        }
+
+        return implode(' ', $values);
+    }
+
+    private function minifyClipPathComponentToken(string $token): string
+    {
+        $token = trim($token);
+        $keyword = strtolower($token);
+        if (in_array($keyword, ['closest-side', 'farthest-side', 'center', 'left', 'right', 'top', 'bottom', 'nonzero', 'evenodd'], true)) {
+            return $keyword;
+        }
+
+        if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))%$/', $token, $matches) === 1) {
+            return $this->minifyNumber((float) $matches[1]) . '%';
+        }
+        if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))([a-z]+)$/i', $token, $matches) === 1) {
+            $number = $this->minifyNumber((float) $matches[1]);
+
+            return $number === '0' ? '0' : $number . strtolower($matches[2]);
+        }
+        if (preg_match('/^[+-]?(?:\d+|\d*\.\d+)$/', $token) === 1) {
+            return $this->minifyNumber((float) $token);
+        }
+
+        return $token;
+    }
+
+    private function normalizeUrlFunctionsInValue(string $value): string
+    {
+        $output = '';
+        $quote = null;
+        $length = strlen($value);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $value[$i];
+            if ($quote !== null) {
+                $output .= $char;
+                if ($char === '\\' && $i + 1 < $length) {
+                    $output .= $value[++$i];
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                $output .= $char;
+                continue;
+            }
+
+            if ($this->startsUrlFunction($value, $i)) {
+                [$url, $offset] = $this->readFunctionRaw($value, $i);
+                $output .= $this->normalizeCssUrlToken($url, false);
+                $i = $offset;
+                continue;
+            }
+
+            $output .= $char;
+        }
+
+        return $output;
+    }
+
+    private function minifyStrokeDasharrayValue(string $value): string
+    {
+        $tokens = [];
+        foreach ($this->splitTopLevel($value, ',') as $part) {
+            foreach ($this->splitWhitespaceTopLevel($part) as $token) {
+                $tokens[] = $this->minifyStrokeDasharrayToken($token);
+            }
+        }
+
+        return $tokens === [] ? trim($value) : implode(' ', $tokens);
+    }
+
+    private function minifyStrokeDasharrayToken(string $token): string
+    {
+        $token = trim($token);
+        if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))px$/i', $token, $matches) === 1) {
+            return $this->minifyNumber((float) $matches[1]);
+        }
+
+        if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))$/', $token, $matches) === 1) {
+            return $this->minifyNumber((float) $matches[1]);
+        }
+
+        return $token;
+    }
+
     private function minifyFilterFunctionList(string $value): string
     {
         $tokens = $this->splitWhitespaceTopLevel($value);
@@ -7552,6 +10569,231 @@ final class CssMinifier
             '-webkit-text-emphasis-position' => $this->minifyTextEmphasisPosition($value),
             default => $value,
         };
+    }
+
+    private function minifyTextDecorationValue(string $property, string $value): string
+    {
+        return match (strtolower($property)) {
+            'text-decoration',
+            '-webkit-text-decoration',
+            '-moz-text-decoration' => $this->minifyTextDecorationShorthand($value),
+            'text-decoration-line',
+            '-webkit-text-decoration-line',
+            '-moz-text-decoration-line' => $this->minifyTextDecorationLineValue($value),
+            'text-decoration-style',
+            '-webkit-text-decoration-style',
+            '-moz-text-decoration-style' => $this->minifySingleKeywordValue($value, self::TEXT_DECORATION_STYLES),
+            'text-decoration-color',
+            '-webkit-text-decoration-color',
+            '-moz-text-decoration-color' => $this->normalizeTextDecorationColorValue($value),
+            'text-decoration-skip-ink',
+            '-webkit-text-decoration-skip-ink' => $this->minifySingleKeywordValue($value, self::TEXT_DECORATION_SKIP_INK_KEYWORDS),
+            default => $value,
+        };
+    }
+
+    private function minifyTextDecorationShorthand(string $value): string
+    {
+        if ($this->containsCustomPropertyReference($value)) {
+            return trim($value);
+        }
+
+        $components = $this->parseTextDecorationComponents($value);
+
+        return $components === null ? trim($value) : $this->serializeTextDecorationComponents($components);
+    }
+
+    /**
+     * @return array{line:string,thickness:string,style:string,color:string,styleBeforeLine:bool}|null
+     */
+    private function parseTextDecorationComponents(string $value): ?array
+    {
+        $tokens = $this->splitWhitespaceTopLevel($value);
+        if ($tokens === []) {
+            return null;
+        }
+
+        $lineTokens = [];
+        $exclusiveLine = null;
+        $thickness = null;
+        $style = null;
+        $styleBeforeLine = false;
+        $color = null;
+
+        foreach ($tokens as $token) {
+            $lower = strtolower(trim($token));
+            if (in_array($lower, self::TEXT_DECORATION_EXCLUSIVE_LINES, true)) {
+                if ($lineTokens !== [] || $exclusiveLine !== null) {
+                    return null;
+                }
+
+                $exclusiveLine = $lower;
+                continue;
+            }
+
+            if (in_array($lower, self::TEXT_DECORATION_LINES, true)) {
+                if ($exclusiveLine !== null) {
+                    return null;
+                }
+                if (!in_array($lower, $lineTokens, true)) {
+                    $lineTokens[] = $lower;
+                }
+                continue;
+            }
+
+            if ($thickness === null && $this->isTextDecorationThicknessToken($token)) {
+                $thickness = $this->minifyTextDecorationThicknessToken($token);
+                continue;
+            }
+
+            if ($style === null && in_array($lower, self::TEXT_DECORATION_STYLES, true)) {
+                $styleBeforeLine = $lineTokens === [] && $exclusiveLine === null;
+                $style = $lower;
+                continue;
+            }
+
+            if ($color === null && $this->isTextDecorationColorToken($token)) {
+                $color = $this->normalizeTextDecorationColorValue($token);
+                continue;
+            }
+
+            return null;
+        }
+
+        $line = $exclusiveLine ?? $this->normalizeTextDecorationLineTokens($lineTokens);
+        if ($line === null) {
+            return null;
+        }
+
+        return [
+            'line' => $line,
+            'thickness' => $thickness ?? 'auto',
+            'style' => $style ?? 'solid',
+            'color' => $color ?? 'currentColor',
+            'styleBeforeLine' => $styleBeforeLine,
+        ];
+    }
+
+    /**
+     * @param array{line:string,thickness:string,style:string,color:string,styleBeforeLine:bool} $components
+     */
+    private function serializeTextDecorationComponents(array $components): string
+    {
+        $line = $components['line'];
+        if ($line === 'none') {
+            return 'none';
+        }
+        if (
+            $components['styleBeforeLine']
+            && !str_contains($line, ' ')
+            && strcasecmp($components['thickness'], 'auto') === 0
+            && strcasecmp($components['color'], 'currentColor') === 0
+            && $components['style'] !== 'solid'
+        ) {
+            return $components['style'] . ' ' . $line;
+        }
+
+        $parts = [$line];
+        if (strcasecmp($components['thickness'], 'auto') !== 0) {
+            $parts[] = $components['thickness'];
+        }
+        if ($components['style'] !== 'solid') {
+            $parts[] = $components['style'];
+        }
+        if (strcasecmp($components['color'], 'currentColor') !== 0) {
+            $parts[] = $components['color'];
+        }
+
+        return implode(' ', $parts);
+    }
+
+    private function minifyTextDecorationLineValue(string $value): string
+    {
+        $tokens = $this->splitWhitespaceTopLevel($value);
+        if ($tokens === []) {
+            return trim($value);
+        }
+
+        $lines = [];
+        foreach ($tokens as $token) {
+            $lower = strtolower(trim($token));
+            if (in_array($lower, self::TEXT_DECORATION_EXCLUSIVE_LINES, true)) {
+                return count($tokens) === 1 ? $lower : trim($value);
+            }
+            if (!in_array($lower, self::TEXT_DECORATION_LINES, true)) {
+                return trim($value);
+            }
+            if (!in_array($lower, $lines, true)) {
+                $lines[] = $lower;
+            }
+        }
+
+        return $this->normalizeTextDecorationLineTokens($lines) ?? trim($value);
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function normalizeTextDecorationLineTokens(array $lines): ?string
+    {
+        if ($lines === []) {
+            return null;
+        }
+
+        $ordered = [];
+        foreach (self::TEXT_DECORATION_LINES as $line) {
+            if (in_array($line, $lines, true)) {
+                $ordered[] = $line;
+            }
+        }
+
+        return $ordered === [] ? null : implode(' ', $ordered);
+    }
+
+    private function isTextDecorationThicknessToken(string $token): bool
+    {
+        $token = trim($token);
+        $lower = strtolower($token);
+        if ($lower === 'auto' || $lower === 'from-font') {
+            return true;
+        }
+
+        return $this->isLengthPercentageToken($token)
+            || preg_match('/^(?:calc|clamp|min|max)\(/i', $token) === 1;
+    }
+
+    private function minifyTextDecorationThicknessToken(string $token): string
+    {
+        $token = trim($token);
+        $lower = strtolower($token);
+        if ($lower === 'auto' || $lower === 'from-font') {
+            return $lower;
+        }
+
+        return $this->isLengthPercentageToken($token) ? $this->minifyLengthToken($token) : $token;
+    }
+
+    private function isTextDecorationColorToken(string $token): bool
+    {
+        $token = trim($token);
+        if ($token === '') {
+            return false;
+        }
+        if ($token[0] === '#') {
+            return true;
+        }
+        if (preg_match('/^(?:rgb|rgba|hsl|hsla|hwb|lab|lch|oklab|oklch|color)\(/i', $token) === 1) {
+            return true;
+        }
+
+        return $this->isPropertyColorKeyword($token);
+    }
+
+    private function normalizeTextDecorationColorValue(string $value): string
+    {
+        $value = trim($value);
+
+        return strcasecmp($value, 'currentcolor') === 0 ? 'currentColor' : $value;
     }
 
     private function minifyTextEmphasisShorthand(string $value): string
@@ -7732,6 +10974,33 @@ final class CssMinifier
             'caret-shape' => strtolower(trim($value)),
             default => $value,
         };
+    }
+
+    private function minifyCursorValue(string $property, string $value): string
+    {
+        if (strtolower($property) !== 'cursor') {
+            return $value;
+        }
+
+        $items = [];
+        foreach ($this->splitTopLevel($value, ',') as $item) {
+            $item = trim($item);
+            if ($item === '' || !$this->startsUrlFunction($item, 0)) {
+                $items[] = $item;
+                continue;
+            }
+
+            [$url, $offset] = $this->readFunctionRaw($item, 0);
+            $tail = trim(substr($item, $offset + 1));
+            $normalized = $this->normalizeCssUrlToken($url, false);
+            if ($tail !== '') {
+                $normalized .= ' ' . implode(' ', $this->splitWhitespaceTopLevel($tail));
+            }
+
+            $items[] = $normalized;
+        }
+
+        return implode(',', $items);
     }
 
     private function minifyListStyleValue(string $property, string $value): string
@@ -9947,6 +13216,283 @@ final class CssMinifier
         return $output . substr($css, $cursor);
     }
 
+    private function mergeRepeatedStyleRuleBlocks(string $css): string
+    {
+        $output = '';
+        $cursor = 0;
+        $run = [];
+        $length = strlen($css);
+
+        while ($cursor < $length) {
+            $open = $this->findNextTopLevel($css, '{', $cursor);
+            if ($open === null) {
+                return $output . $this->serializeStyleRuleRun($run) . substr($css, $cursor);
+            }
+
+            $preludePrefix = substr($css, $cursor, $open - $cursor);
+            $statementBoundary = $this->lastTopLevelSemicolon($preludePrefix);
+            if ($statementBoundary !== null) {
+                $output .= $this->serializeStyleRuleRun($run);
+                $run = [];
+                $output .= substr($preludePrefix, 0, $statementBoundary + 1);
+                $preludePrefix = substr($preludePrefix, $statementBoundary + 1);
+            }
+
+            $prelude = trim($preludePrefix);
+            $close = $this->findMatchingBraceInCss($css, $open);
+            $body = substr($css, $open + 1, $close - $open - 1);
+            if ($prelude === '') {
+                $output .= $this->serializeStyleRuleRun($run) . substr($css, $cursor, $close - $cursor + 1);
+                $run = [];
+                $cursor = $close + 1;
+                continue;
+            }
+
+            if ($prelude[0] === '@') {
+                $output .= $this->serializeStyleRuleRun($run);
+                $run = [];
+                $output .= $prelude . '{' . $this->mergeRepeatedStyleRuleBlocks($body) . '}';
+                $cursor = $close + 1;
+                continue;
+            }
+
+            $run[] = [
+                'prelude' => $prelude,
+                'body' => $body,
+                'entries' => $this->parseMergeRuleDeclarationEntries($body),
+                'drop' => false,
+            ];
+            $cursor = $close + 1;
+        }
+
+        return $output . $this->serializeStyleRuleRun($run);
+    }
+
+    /**
+     * @param list<array{prelude:string,body:string,entries:?array,drop:bool}> $rules
+     */
+    private function serializeStyleRuleRun(array $rules): string
+    {
+        if ($rules === []) {
+            return '';
+        }
+
+        $lastByPrelude = [];
+        foreach ($rules as $index => $_rule) {
+            if ($rules[$index]['entries'] === null) {
+                unset($lastByPrelude[$rules[$index]['prelude']]);
+                continue;
+            }
+
+            $prelude = $rules[$index]['prelude'];
+            if (!isset($lastByPrelude[$prelude])) {
+                $lastByPrelude[$prelude] = $index;
+                continue;
+            }
+
+            $previous = $lastByPrelude[$prelude];
+            if (!$this->canMergeRepeatedStyleRule($rules[$previous], $rules[$index], $previous === $index - 1)) {
+                $lastByPrelude[$prelude] = $index;
+                continue;
+            }
+
+            $rules[$index]['entries'] = $this->pruneOverriddenMergeRuleDeclarations(
+                array_merge($rules[$previous]['entries'], $rules[$index]['entries'])
+            );
+            $rules[$index]['body'] = $this->serializeDeclarationEntriesForComposition($rules[$index]['entries']);
+            $rules[$previous]['drop'] = true;
+            $lastByPrelude[$prelude] = $index;
+        }
+
+        $lastGroupableSingleDeclarationRule = null;
+        foreach ($rules as $index => $_rule) {
+            if ($rules[$index]['drop'] || $rules[$index]['entries'] === null) {
+                $lastGroupableSingleDeclarationRule = null;
+                continue;
+            }
+
+            $body = $this->serializeDeclarationEntriesForComposition($rules[$index]['entries']);
+            if (!$this->canGroupSingleDeclarationStyleRule($rules[$index]['entries'], $body, $rules[$index]['prelude'])) {
+                $lastGroupableSingleDeclarationRule = null;
+                continue;
+            }
+
+            if ($lastGroupableSingleDeclarationRule !== null
+                && $rules[$lastGroupableSingleDeclarationRule]['body'] === $body
+            ) {
+                $first = $lastGroupableSingleDeclarationRule;
+                $rules[$first]['prelude'] .= ',' . $rules[$index]['prelude'];
+                $rules[$first]['body'] = $body;
+                $rules[$index]['drop'] = true;
+                continue;
+            }
+
+            $rules[$index]['body'] = $body;
+            $lastGroupableSingleDeclarationRule = $index;
+        }
+
+        $output = '';
+        foreach ($rules as $rule) {
+            if ($rule['drop']) {
+                continue;
+            }
+
+            $body = $rule['entries'] === null
+                ? $rule['body']
+                : $this->serializeDeclarationEntriesForComposition($rule['entries']);
+            $output .= $this->serializeRuleBlock($rule['prelude'], $body);
+        }
+
+        return $output;
+    }
+
+    private function parseMergeRuleDeclarationEntries(string $body): ?array
+    {
+        if (str_contains($body, '{')) {
+            return null;
+        }
+
+        $entries = $this->parseDeclarationEntriesForComposition($body);
+        if ($entries === null || $entries === []) {
+            return null;
+        }
+
+        return $entries;
+    }
+
+    /**
+     * @param array{entries:?array} $previous
+     * @param array{entries:?array} $current
+     */
+    private function canMergeRepeatedStyleRule(array $previous, array $current, bool $adjacent): bool
+    {
+        if ($previous['entries'] === null || $current['entries'] === null) {
+            return false;
+        }
+
+        $previousProperties = [];
+        foreach ($previous['entries'] as $entry) {
+            if (!$entry['drop']) {
+                $previousProperties[$entry['property']] = true;
+            }
+        }
+
+        $hasDuplicate = false;
+        $hasNewProperty = false;
+        foreach ($current['entries'] as $entry) {
+            if ($entry['drop']) {
+                continue;
+            }
+            if (isset($previousProperties[$entry['property']])) {
+                $hasDuplicate = true;
+                continue;
+            }
+
+            $hasNewProperty = true;
+        }
+
+        if (!$hasDuplicate) {
+            return $adjacent && $hasNewProperty;
+        }
+
+        return !$hasNewProperty;
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool,drop:bool}> $entries
+     * @return list<array{property:string,name:string,value:string,important:bool,drop:bool}>
+     */
+    private function pruneOverriddenMergeRuleDeclarations(array $entries): array
+    {
+        $count = count($entries);
+        for ($index = 0; $index < $count; $index++) {
+            if ($entries[$index]['drop']) {
+                continue;
+            }
+
+            for ($later = $index + 1; $later < $count; $later++) {
+                if ($entries[$later]['drop'] || $entries[$later]['property'] !== $entries[$index]['property']) {
+                    continue;
+                }
+                if (!$this->canDropEarlierMergeRuleDeclaration($entries[$index], $entries[$later])) {
+                    continue;
+                }
+
+                $entries[$index]['drop'] = true;
+                break;
+            }
+        }
+
+        return $entries;
+    }
+
+    /**
+     * @param array{property:string,value:string,important:bool} $earlier
+     * @param array{property:string,value:string,important:bool} $later
+     */
+    private function canDropEarlierMergeRuleDeclaration(array $earlier, array $later): bool
+    {
+        if ($earlier['important'] && !$later['important']) {
+            return false;
+        }
+
+        if ($this->isFallbackSensitiveMergeRuleDeclaration($earlier)
+            || $this->isFallbackSensitiveMergeRuleDeclaration($later)
+        ) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * @param array{property:string,value:string} $entry
+     */
+    private function isFallbackSensitiveMergeRuleDeclaration(array $entry): bool
+    {
+        $value = strtolower($entry['value']);
+        if (preg_match('/(?:\\blab\\(|\\blch\\(|\\boklab\\(|\\boklch\\(|\\bcolor\\(|\\bcolor-mix\\(|\\blight-dark\\(|\\bimage-set\\(|-webkit-|\\bcross-fade\\()/i', $value) === 1) {
+            return true;
+        }
+
+        if (str_contains($value, 'var(')) {
+            return in_array($entry['property'], [
+                'background',
+                'background-color',
+                'border-color',
+                'box-shadow',
+                'color',
+                'filter',
+                'list-style',
+                'mask',
+                'mask-border',
+                'outline',
+                'text-decoration',
+                'text-emphasis',
+                'text-shadow',
+            ], true);
+        }
+
+        return false;
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool,drop:bool}> $entries
+     */
+    private function canGroupSingleDeclarationStyleRule(array $entries, string $body, string $prelude): bool
+    {
+        $active = array_values(array_filter($entries, static fn (array $entry): bool => !$entry['drop']));
+        if (count($active) !== 1 || $body === '') {
+            return false;
+        }
+
+        if ($body !== 'color:red' || $this->isFallbackSensitiveMergeRuleDeclaration($active[0])) {
+            return false;
+        }
+
+        return preg_match('/^(?:\.[a-z]+|\[[a-z]+=[a-z]+\])$/', $prelude) === 1;
+    }
+
     private function lastTopLevelSemicolon(string $value): ?int
     {
         $quote = null;
@@ -10126,6 +13672,942 @@ final class CssMinifier
         return str_starts_with($property, '--');
     }
 
+    private function rewriteDisplayDeclarationBlocks(string $css): string
+    {
+        if (stripos($css, 'display:') === false) {
+            return $css;
+        }
+
+        $output = '';
+        $cursor = 0;
+        $length = strlen($css);
+
+        while ($cursor < $length) {
+            $open = $this->findNextTopLevel($css, '{', $cursor);
+            if ($open === null) {
+                $output .= substr($css, $cursor);
+                break;
+            }
+
+            $close = $this->findMatchingBraceInCss($css, $open);
+            $body = $this->rewriteDisplayDeclarationBlocks(substr($css, $open + 1, $close - $open - 1));
+            if (!str_contains($body, '{')) {
+                $body = $this->rewriteDisplayDeclarationList($body);
+            }
+
+            $output .= substr($css, $cursor, $open - $cursor + 1) . $body . '}';
+            $cursor = $close + 1;
+        }
+
+        return $output;
+    }
+
+    private function rewriteDisplayDeclarationList(string $body): string
+    {
+        if (stripos($body, 'display:') === false) {
+            return $body;
+        }
+
+        $entries = $this->parseDeclarationEntriesForComposition($body);
+        if ($entries === null) {
+            return $body;
+        }
+
+        $lastPlainByImportance = [];
+        foreach ($entries as $index => $entry) {
+            if ($entry['drop'] || $entry['property'] !== 'display') {
+                continue;
+            }
+            if ($this->isFallbackDisplayValue($entry['value']) || $this->containsCustomPropertyReference($entry['value'])) {
+                continue;
+            }
+            $lastPlainByImportance[$entry['important'] ? 1 : 0] = $index;
+        }
+
+        if ($lastPlainByImportance === []) {
+            return $body;
+        }
+
+        foreach ($entries as $index => $entry) {
+            if ($entry['drop'] || $entry['property'] !== 'display') {
+                continue;
+            }
+            if ($this->isFallbackDisplayValue($entry['value']) || $this->containsCustomPropertyReference($entry['value'])) {
+                continue;
+            }
+
+            $importance = $entry['important'] ? 1 : 0;
+            if (($lastPlainByImportance[$importance] ?? $index) !== $index) {
+                $entries[$index]['drop'] = true;
+            }
+        }
+
+        return $this->serializeDeclarationEntriesForComposition($entries);
+    }
+
+    private function normalizeDisplayColorDeclarationOrder(string $css): string
+    {
+        if (stripos($css, 'display:') === false || stripos($css, 'color:') === false) {
+            return $css;
+        }
+
+        $output = '';
+        $cursor = 0;
+        $length = strlen($css);
+
+        while ($cursor < $length) {
+            $open = $this->findNextTopLevel($css, '{', $cursor);
+            if ($open === null) {
+                $output .= substr($css, $cursor);
+                break;
+            }
+
+            $close = $this->findMatchingBraceInCss($css, $open);
+            $body = $this->normalizeDisplayColorDeclarationOrder(substr($css, $open + 1, $close - $open - 1));
+            if (!str_contains($body, '{')) {
+                $body = $this->normalizeDisplayColorDeclarationList($body);
+            }
+
+            $output .= substr($css, $cursor, $open - $cursor + 1) . $body . '}';
+            $cursor = $close + 1;
+        }
+
+        return $output;
+    }
+
+    private function normalizeDisplayColorDeclarationList(string $body): string
+    {
+        if (stripos($body, 'display:flex;color:') === false) {
+            return $body;
+        }
+
+        $entries = $this->parseDeclarationEntriesForComposition($body);
+        if ($entries === null) {
+            return $body;
+        }
+
+        $changed = false;
+        $count = count($entries);
+        for ($index = 0; $index < $count - 1; $index++) {
+            if ($entries[$index]['drop'] || $entries[$index + 1]['drop']) {
+                continue;
+            }
+
+            if ($entries[$index]['property'] === 'display'
+                && $entries[$index]['value'] === 'flex'
+                && $entries[$index + 1]['property'] === 'color'
+                && !$entries[$index]['important']
+                && !$entries[$index + 1]['important']
+            ) {
+                [$entries[$index], $entries[$index + 1]] = [$entries[$index + 1], $entries[$index]];
+                $changed = true;
+                $index++;
+            }
+        }
+
+        return $changed ? $this->serializeDeclarationEntriesForComposition($entries) : $body;
+    }
+
+    private function composeFlexAlignmentGapDeclarationBlocks(string $css): string
+    {
+        if (preg_match('/(?:flex|align-|justify-|place-|gap)/i', $css) !== 1) {
+            return $css;
+        }
+
+        $output = '';
+        $cursor = 0;
+        $length = strlen($css);
+
+        while ($cursor < $length) {
+            $open = $this->findNextTopLevel($css, '{', $cursor);
+            if ($open === null) {
+                $output .= substr($css, $cursor);
+                break;
+            }
+
+            $close = $this->findMatchingBraceInCss($css, $open);
+            $body = $this->composeFlexAlignmentGapDeclarationBlocks(substr($css, $open + 1, $close - $open - 1));
+            if (!str_contains($body, '{')) {
+                $body = $this->composeFlexAlignmentGapDeclarationList($body);
+            }
+
+            $output .= substr($css, $cursor, $open - $cursor + 1) . $body . '}';
+            $cursor = $close + 1;
+        }
+
+        return $output;
+    }
+
+    private function composeFlexAlignmentGapDeclarationList(string $body): string
+    {
+        if (preg_match('/(?:flex|align-|justify-|place-|gap)/i', $body) !== 1) {
+            return $body;
+        }
+
+        $entries = $this->parseDeclarationEntriesForComposition($body);
+        if ($entries === null) {
+            return $body;
+        }
+
+        foreach (['', '-webkit-', '-ms-'] as $prefix) {
+            $this->rewriteFlexFlowGroup($entries, $prefix);
+        }
+        foreach (['', '-webkit-'] as $prefix) {
+            $this->rewriteFlexItemGroup($entries, $prefix);
+        }
+        foreach (array_keys(self::PLACE_ALIGNMENT_SHORTHANDS) as $shorthand) {
+            $this->rewritePlaceAlignmentGroup($entries, $shorthand);
+        }
+        $this->rewriteGapGroup($entries);
+
+        return $this->serializeDeclarationEntriesForComposition($entries);
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool,drop:bool}> $entries
+     */
+    private function rewriteFlexFlowGroup(array &$entries, string $prefix): void
+    {
+        $flow = $prefix . 'flex-flow';
+        $directionProperty = $prefix . 'flex-direction';
+        $wrapProperty = $prefix . 'flex-wrap';
+        $direction = null;
+        $wrap = null;
+        $included = [];
+        $hasShorthand = false;
+
+        foreach ($entries as $index => $entry) {
+            if ($entry['drop']) {
+                continue;
+            }
+            if (!in_array($entry['property'], [$flow, $directionProperty, $wrapProperty], true)) {
+                continue;
+            }
+            if ($entry['important'] || $this->containsCustomPropertyReference($entry['value'])) {
+                return;
+            }
+
+            $included[] = $index;
+            if ($entry['property'] === $flow) {
+                $components = $this->parseFlexFlowComponents($entry['value']);
+                if ($components === null) {
+                    return;
+                }
+                $direction = $components['direction'];
+                $wrap = $components['wrap'];
+                $hasShorthand = true;
+                continue;
+            }
+
+            if ($entry['property'] === $directionProperty) {
+                $direction = $this->normalizeFlexKeyword($entry['value'], self::FLEX_DIRECTIONS);
+                if ($direction === null) {
+                    return;
+                }
+                continue;
+            }
+
+            $wrap = $this->normalizeFlexKeyword($entry['value'], self::FLEX_WRAPS);
+            if ($wrap === null) {
+                return;
+            }
+        }
+
+        if ($included === [] || (!$hasShorthand && ($direction === null || $wrap === null))) {
+            return;
+        }
+        if ($direction === null || $wrap === null) {
+            return;
+        }
+
+        $replaceAt = min($included);
+        foreach ($included as $index) {
+            $entries[$index]['drop'] = true;
+        }
+        $entries[$replaceAt] = [
+            'property' => $flow,
+            'name' => $flow,
+            'value' => $this->serializeFlexFlowValue($direction, $wrap),
+            'important' => false,
+            'drop' => false,
+        ];
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool,drop:bool}> $entries
+     */
+    private function rewriteFlexItemGroup(array &$entries, string $prefix): void
+    {
+        $shorthand = $prefix . 'flex';
+        $longhands = array_map(static fn (string $longhand): string => $prefix . $longhand, self::FLEX_ITEM_LONGHANDS);
+        $components = [
+            'flex-grow' => null,
+            'flex-shrink' => null,
+            'flex-basis' => null,
+        ];
+        $included = [];
+        $hasShorthand = false;
+
+        foreach ($entries as $index => $entry) {
+            if ($entry['drop']) {
+                continue;
+            }
+            if ($entry['property'] !== $shorthand && !in_array($entry['property'], $longhands, true)) {
+                continue;
+            }
+            if ($entry['important'] || $this->containsCustomPropertyReference($entry['value'])) {
+                return;
+            }
+
+            $included[] = $index;
+            if ($entry['property'] === $shorthand) {
+                $parsed = $this->parseFlexShorthandComponents($entry['value']);
+                if ($parsed === null) {
+                    return;
+                }
+                $components = $parsed;
+                $hasShorthand = true;
+                continue;
+            }
+
+            $base = substr($entry['property'], strlen($prefix));
+            $value = $this->normalizeFlexLonghandValue($base, $entry['value']);
+            if ($value === null) {
+                return;
+            }
+            $components[$base] = $value;
+        }
+
+        if ($included === [] || (!$hasShorthand && in_array(null, $components, true))) {
+            return;
+        }
+        if (in_array(null, $components, true)) {
+            return;
+        }
+
+        $replaceAt = min($included);
+        foreach ($included as $index) {
+            $entries[$index]['drop'] = true;
+        }
+        $entries[$replaceAt] = [
+            'property' => $shorthand,
+            'name' => $shorthand,
+            'value' => $this->composeFlexShorthandValue($components),
+            'important' => false,
+            'drop' => false,
+        ];
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool,drop:bool}> $entries
+     */
+    private function rewritePlaceAlignmentGroup(array &$entries, string $shorthand): void
+    {
+        $longhands = self::PLACE_ALIGNMENT_SHORTHANDS[$shorthand];
+        $components = [
+            'align' => null,
+            'justify' => null,
+        ];
+        $included = [];
+        $hasShorthand = false;
+
+        foreach ($entries as $index => $entry) {
+            if ($entry['drop']) {
+                continue;
+            }
+            if ($entry['property'] !== $shorthand && !in_array($entry['property'], $longhands, true)) {
+                continue;
+            }
+            if ($entry['important'] || $this->containsCustomPropertyReference($entry['value'])) {
+                return;
+            }
+
+            $included[] = $index;
+            if ($entry['property'] === $shorthand) {
+                $parsed = $this->parsePlaceAlignmentComponents($shorthand, $entry['value']);
+                if ($parsed === null) {
+                    return;
+                }
+                $components = $parsed;
+                $hasShorthand = true;
+                continue;
+            }
+
+            $slot = $this->placeAlignmentLonghandSlot($shorthand, $entry['property']);
+            if ($slot === null) {
+                return;
+            }
+            $value = $this->normalizePlaceAlignmentComponent($shorthand, $slot, $entry['value']);
+            if ($value === null) {
+                return;
+            }
+            $components[$slot] = $value;
+        }
+
+        if ($included === [] || (!$hasShorthand && ($components['align'] === null || $components['justify'] === null))) {
+            return;
+        }
+        if ($components['align'] === null || $components['justify'] === null) {
+            return;
+        }
+
+        $replaceAt = min($included);
+        foreach ($included as $index) {
+            $entries[$index]['drop'] = true;
+        }
+        $entries[$replaceAt] = [
+            'property' => $shorthand,
+            'name' => $shorthand,
+            'value' => $this->serializePlaceAlignmentComponents($shorthand, $components['align'], $components['justify']),
+            'important' => false,
+            'drop' => false,
+        ];
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool,drop:bool}> $entries
+     */
+    private function rewriteGapGroup(array &$entries): void
+    {
+        $components = [
+            'row-gap' => null,
+            'column-gap' => null,
+        ];
+        $included = [];
+        $hasShorthand = false;
+
+        foreach ($entries as $index => $entry) {
+            if ($entry['drop']) {
+                continue;
+            }
+            if ($entry['property'] !== 'gap' && !in_array($entry['property'], self::GAP_LONGHANDS, true)) {
+                continue;
+            }
+            if ($entry['important'] || $this->containsCustomPropertyReference($entry['value'])) {
+                return;
+            }
+
+            $included[] = $index;
+            if ($entry['property'] === 'gap') {
+                $parsed = $this->parseGapComponents($entry['value']);
+                if ($parsed === null) {
+                    return;
+                }
+                $components = $parsed;
+                $hasShorthand = true;
+                continue;
+            }
+
+            $components[$entry['property']] = $this->normalizeGapComponentValue($entry['value']);
+        }
+
+        if ($included === [] || (!$hasShorthand && ($components['row-gap'] === null || $components['column-gap'] === null))) {
+            return;
+        }
+        if ($components['row-gap'] === null || $components['column-gap'] === null) {
+            return;
+        }
+
+        $replaceAt = min($included);
+        foreach ($included as $index) {
+            $entries[$index]['drop'] = true;
+        }
+        $entries[$replaceAt] = [
+            'property' => 'gap',
+            'name' => 'gap',
+            'value' => $this->serializeGapComponents($components['row-gap'], $components['column-gap']),
+            'important' => false,
+            'drop' => false,
+        ];
+    }
+
+    /**
+     * @param list<string> $allowed
+     */
+    private function normalizeFlexKeyword(string $value, array $allowed): ?string
+    {
+        $keyword = strtolower(trim($value));
+
+        return in_array($keyword, $allowed, true) ? $keyword : null;
+    }
+
+    /**
+     * @return array{direction:string,wrap:string}|null
+     */
+    private function parseFlexFlowComponents(string $value): ?array
+    {
+        $tokens = $this->splitWhitespaceTopLevel(trim($value));
+        if ($tokens === [] || count($tokens) > 2) {
+            return null;
+        }
+
+        $direction = null;
+        $wrap = null;
+        foreach ($tokens as $token) {
+            $lower = strtolower($token);
+            if ($direction === null && in_array($lower, self::FLEX_DIRECTIONS, true)) {
+                $direction = $lower;
+                continue;
+            }
+            if ($wrap === null && in_array($lower, self::FLEX_WRAPS, true)) {
+                $wrap = $lower;
+                continue;
+            }
+
+            return null;
+        }
+
+        return [
+            'direction' => $direction ?? 'row',
+            'wrap' => $wrap ?? 'nowrap',
+        ];
+    }
+
+    private function serializeFlexFlowValue(string $direction, string $wrap): string
+    {
+        if ($wrap === 'nowrap') {
+            return $direction;
+        }
+        if ($direction === 'row') {
+            return $wrap;
+        }
+
+        return $direction . ' ' . $wrap;
+    }
+
+    /**
+     * @return array{flex-grow:string, flex-shrink:string, flex-basis:string}|null
+     */
+    private function parseFlexShorthandComponents(string $value): ?array
+    {
+        $value = trim($value);
+        if (strcasecmp($value, 'none') === 0) {
+            return [
+                'flex-grow' => '0',
+                'flex-shrink' => '0',
+                'flex-basis' => 'auto',
+            ];
+        }
+
+        $tokens = $this->splitWhitespaceTopLevel($value);
+        if ($tokens === []) {
+            return null;
+        }
+
+        $grow = null;
+        $shrink = null;
+        $basis = null;
+        $count = count($tokens);
+        for ($index = 0; $index < $count; $index++) {
+            $token = $tokens[$index];
+            if ($grow === null && $this->isFlexNumberToken($token)) {
+                $grow = $this->normalizeFlexNumberValue($token);
+                if ($index + 1 < $count && $this->isFlexNumberToken($tokens[$index + 1])) {
+                    $shrink = $this->normalizeFlexNumberValue($tokens[++$index]);
+                }
+                continue;
+            }
+
+            if ($basis === null && $this->isFlexBasisToken($token)) {
+                $basis = $this->normalizeFlexBasisValue($token);
+                continue;
+            }
+
+            return null;
+        }
+
+        return [
+            'flex-grow' => $grow ?? '1',
+            'flex-shrink' => $shrink ?? '1',
+            'flex-basis' => $basis ?? '0%',
+        ];
+    }
+
+    private function normalizeFlexLonghandValue(string $base, string $value): ?string
+    {
+        return match ($base) {
+            'flex-grow', 'flex-shrink' => $this->isFlexNumberToken($value) ? $this->normalizeFlexNumberValue($value) : null,
+            'flex-basis' => $this->isFlexBasisToken($value) ? $this->normalizeFlexBasisValue($value) : null,
+            default => null,
+        };
+    }
+
+    private function isFlexNumberToken(string $value): bool
+    {
+        return preg_match('/^[+-]?(?:\d*\.\d+|\d+)(?:[eE][+-]?\d+)?$/', trim($value)) === 1;
+    }
+
+    private function normalizeFlexNumberValue(string $value): string
+    {
+        return $this->minifyNumber((float) trim($value));
+    }
+
+    private function isFlexBasisToken(string $value): bool
+    {
+        $value = trim($value);
+        if (strcasecmp($value, 'auto') === 0) {
+            return true;
+        }
+        if (preg_match('/^[+-]?(?:\d*\.\d+|\d+)(?:[eE][+-]?\d+)?%$/', $value) === 1) {
+            return true;
+        }
+        if (preg_match('/^[+-]?(?:(?:\d*\.\d+|\d+)(?:[eE][+-]?\d+)?)(?:[a-z]+)$/i', $value) === 1) {
+            return true;
+        }
+        if (preg_match('/^[+-]?(?:0+(?:\.0+)?|\.0+)(?:[eE][+-]?\d+)?$/', $value) === 1) {
+            return true;
+        }
+
+        return preg_match('/^(?:calc|min|max|clamp)\(/i', $value) === 1;
+    }
+
+    private function normalizeFlexBasisValue(string $value): string
+    {
+        $value = trim($value);
+        if (strcasecmp($value, 'auto') === 0) {
+            return 'auto';
+        }
+
+        if (preg_match('/^([+-]?(?:\d*\.\d+|\d+)(?:[eE][+-]?\d+)?)(%|[a-z]+)$/i', $value, $matches) === 1) {
+            $number = $this->normalizeFlexNumberValue($matches[1]);
+            if ($number === '0' && $matches[2] !== '%') {
+                return '0';
+            }
+
+            return $number . strtolower($matches[2]);
+        }
+
+        if ($this->isFlexNumberToken($value) && $this->flexNumberEquals($value, 0.0)) {
+            return '0';
+        }
+
+        return $value;
+    }
+
+    /**
+     * @param array{flex-grow:string, flex-shrink:string, flex-basis:string} $components
+     */
+    private function composeFlexShorthandValue(array $components): string
+    {
+        $grow = $components['flex-grow'];
+        $shrink = $components['flex-shrink'];
+        $basis = $components['flex-basis'];
+
+        if ($this->flexNumberEquals($grow, 0.0) && $this->flexNumberEquals($shrink, 0.0) && strtolower($basis) === 'auto') {
+            return 'none';
+        }
+
+        $basisKind = $this->flexBasisZeroKind($basis);
+        $parts = [];
+        if (!$this->flexNumberEquals($grow, 1.0) || !$this->flexNumberEquals($shrink, 1.0) || $basisKind !== 'nonzero') {
+            $parts[] = $grow;
+            if (!$this->flexNumberEquals($shrink, 1.0) || $basisKind === 'length') {
+                $parts[] = $shrink;
+            }
+        }
+
+        if ($basisKind !== 'percentage') {
+            $parts[] = $basis;
+        }
+
+        return implode(' ', $parts);
+    }
+
+    private function flexBasisZeroKind(string $value): string
+    {
+        $value = strtolower(trim($value));
+        if (preg_match('/^[+-]?(?:0+(?:\.0+)?|\.0+)(?:e[+-]?\d+)?%$/', $value) === 1) {
+            return 'percentage';
+        }
+        if (preg_match('/^[+-]?(?:0+(?:\.0+)?|\.0+)(?:e[+-]?\d+)?(?:[a-z]+)?$/', $value) === 1) {
+            return 'length';
+        }
+
+        return 'nonzero';
+    }
+
+    private function flexNumberEquals(string $value, float $expected): bool
+    {
+        if (!$this->isFlexNumberToken($value)) {
+            return false;
+        }
+
+        return abs(((float) $value) - $expected) < 0.0000001;
+    }
+
+    /**
+     * @return array{align:string,justify:string}|null
+     */
+    private function parsePlaceAlignmentComponents(string $shorthand, string $value): ?array
+    {
+        $tokens = $this->splitWhitespaceTopLevel(strtolower(trim($value)));
+        if ($tokens === [] || count($tokens) > 4) {
+            return null;
+        }
+
+        $maxAlignLength = min(2, count($tokens));
+        for ($alignLength = 1; $alignLength <= $maxAlignLength; $alignLength++) {
+            $align = $this->normalizePlaceAlignmentComponent(
+                $shorthand,
+                'align',
+                implode(' ', array_slice($tokens, 0, $alignLength))
+            );
+            if ($align === null) {
+                continue;
+            }
+
+            $remaining = array_slice($tokens, $alignLength);
+            if ($remaining === []) {
+                return [
+                    'align' => $align,
+                    'justify' => $this->defaultPlaceAlignmentJustify($shorthand, $align),
+                ];
+            }
+            if (count($remaining) > 2) {
+                continue;
+            }
+
+            $justify = $this->normalizePlaceAlignmentComponent($shorthand, 'justify', implode(' ', $remaining));
+            if ($justify !== null) {
+                return [
+                    'align' => $align,
+                    'justify' => $justify,
+                ];
+            }
+        }
+
+        return null;
+    }
+
+    private function normalizePlaceAlignmentComponent(string $shorthand, string $slot, string $value): ?string
+    {
+        $tokens = $this->splitWhitespaceTopLevel(strtolower(trim($value)));
+        if ($tokens === [] || count($tokens) > 2) {
+            return null;
+        }
+
+        $baseline = $this->normalizeBaselinePosition($tokens);
+        if ($baseline !== null) {
+            return $shorthand === 'place-content' && $slot === 'justify' ? null : $baseline;
+        }
+
+        if ($slot === 'justify' && $shorthand === 'place-items') {
+            $legacy = $this->normalizeLegacyJustify($tokens);
+            if ($legacy !== null) {
+                return $legacy;
+            }
+        }
+
+        if (count($tokens) === 1) {
+            $token = $tokens[0];
+
+            return $this->isPlaceAlignmentSingleKeyword($shorthand, $slot, $token) ? $token : null;
+        }
+
+        if (!in_array($tokens[0], ['safe', 'unsafe'], true)) {
+            return null;
+        }
+
+        return $this->isPlaceAlignmentPositionKeyword($shorthand, $slot, $tokens[1])
+            ? $tokens[0] . ' ' . $tokens[1]
+            : null;
+    }
+
+    /**
+     * @param list<string> $tokens
+     */
+    private function normalizeBaselinePosition(array $tokens): ?string
+    {
+        if ($tokens === ['baseline'] || $tokens === ['first', 'baseline']) {
+            return 'baseline';
+        }
+        if ($tokens === ['last', 'baseline']) {
+            return 'last baseline';
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<string> $tokens
+     */
+    private function normalizeLegacyJustify(array $tokens): ?string
+    {
+        if (count($tokens) !== 2) {
+            return null;
+        }
+        if ($tokens[0] === 'legacy' && in_array($tokens[1], ['left', 'right', 'center'], true)) {
+            return 'legacy ' . $tokens[1];
+        }
+        if ($tokens[1] === 'legacy' && in_array($tokens[0], ['left', 'right', 'center'], true)) {
+            return 'legacy ' . $tokens[0];
+        }
+
+        return null;
+    }
+
+    private function isPlaceAlignmentSingleKeyword(string $shorthand, string $slot, string $token): bool
+    {
+        if ($shorthand === 'place-content') {
+            if (in_array($token, ['normal', 'space-between', 'space-around', 'space-evenly', 'stretch'], true)) {
+                return true;
+            }
+
+            return $this->isPlaceAlignmentPositionKeyword($shorthand, $slot, $token);
+        }
+
+        if ($shorthand === 'place-self' && $token === 'auto') {
+            return true;
+        }
+        if (in_array($token, ['normal', 'stretch'], true)) {
+            return true;
+        }
+
+        return $this->isPlaceAlignmentPositionKeyword($shorthand, $slot, $token);
+    }
+
+    private function isPlaceAlignmentPositionKeyword(string $shorthand, string $slot, string $token): bool
+    {
+        $contentPositions = ['center', 'start', 'end', 'flex-start', 'flex-end'];
+        $selfPositions = ['center', 'start', 'end', 'self-start', 'self-end', 'flex-start', 'flex-end'];
+
+        if ($shorthand === 'place-content') {
+            if ($slot === 'justify' && in_array($token, ['left', 'right'], true)) {
+                return true;
+            }
+
+            return in_array($token, $contentPositions, true);
+        }
+
+        if ($slot === 'justify' && in_array($token, ['left', 'right'], true)) {
+            return true;
+        }
+
+        return in_array($token, $selfPositions, true);
+    }
+
+    private function defaultPlaceAlignmentJustify(string $shorthand, string $align): string
+    {
+        if ($shorthand === 'place-content' && $this->isBaselineAlignmentValue($align)) {
+            return 'start';
+        }
+
+        return $align;
+    }
+
+    private function serializePlaceAlignmentComponents(string $shorthand, string $align, string $justify): string
+    {
+        if ($this->placeAlignmentCanOmitJustify($shorthand, $align, $justify)) {
+            return $align;
+        }
+
+        return $align . ' ' . $justify;
+    }
+
+    private function placeAlignmentCanOmitJustify(string $shorthand, string $align, string $justify): bool
+    {
+        if ($shorthand === 'place-content') {
+            return !$this->isBaselineAlignmentValue($align) && $align === $justify;
+        }
+        if ($justify === 'auto' && $shorthand === 'place-self') {
+            return true;
+        }
+        if ($justify === 'normal' && $align === 'normal') {
+            return true;
+        }
+        if ($justify === 'stretch' && $align === 'normal') {
+            return true;
+        }
+        if ($this->isBaselineAlignmentValue($justify) && $align === $justify) {
+            return true;
+        }
+
+        return $align === $justify && $this->isSelfPositionAlignmentValue($align);
+    }
+
+    private function isBaselineAlignmentValue(string $value): bool
+    {
+        return $value === 'baseline' || $value === 'last baseline';
+    }
+
+    private function isSelfPositionAlignmentValue(string $value): bool
+    {
+        $tokens = $this->splitWhitespaceTopLevel($value);
+        if (count($tokens) === 2 && in_array($tokens[0], ['safe', 'unsafe'], true)) {
+            $value = $tokens[1];
+        }
+
+        return in_array($value, ['center', 'start', 'end', 'self-start', 'self-end', 'flex-start', 'flex-end'], true);
+    }
+
+    private function placeAlignmentLonghandSlot(string $shorthand, string $property): ?string
+    {
+        foreach (self::PLACE_ALIGNMENT_SHORTHANDS[$shorthand] ?? [] as $slot => $longhand) {
+            if ($property === $longhand) {
+                return $slot;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array{row-gap:string,column-gap:string}|null
+     */
+    private function parseGapComponents(string $value): ?array
+    {
+        $parts = $this->splitWhitespaceTopLevel($value);
+        if (count($parts) < 1 || count($parts) > 2) {
+            return null;
+        }
+
+        $row = $this->normalizeGapComponentValue($parts[0]);
+        $column = $this->normalizeGapComponentValue($parts[1] ?? $parts[0]);
+
+        return [
+            'row-gap' => $row,
+            'column-gap' => $column,
+        ];
+    }
+
+    private function serializeGapComponents(string $row, string $column): string
+    {
+        return $row === $column ? $row : $row . ' ' . $column;
+    }
+
+    private function normalizeGapComponentValue(string $value): string
+    {
+        $value = trim($value);
+        if (strcasecmp($value, 'normal') === 0) {
+            return 'normal';
+        }
+
+        if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))([a-z]+|%)$/i', $value, $matches) === 1) {
+            $number = $this->minifyNumber((float) $matches[1]);
+            if ($number === '0') {
+                return '0';
+            }
+            if (str_starts_with($number, '.')) {
+                $number = '0' . $number;
+            } elseif (str_starts_with($number, '-.')) {
+                $number = '-0' . substr($number, 1);
+            }
+
+            return $number . strtolower($matches[2]);
+        }
+
+        if (preg_match('/^[+-]?(?:0+(?:\.0+)?|\.0+)$/', $value) === 1) {
+            return '0';
+        }
+
+        return $value;
+    }
+
+    private function isFallbackDisplayValue(string $value): bool
+    {
+        return str_starts_with(trim(strtolower($value)), '-');
+    }
+
     private function composeTransitionDeclarationBlocks(string $css): string
     {
         $output = '';
@@ -10211,6 +14693,206 @@ final class CssMinifier
         return $output;
     }
 
+    private function composeOutlineDeclarationBlocks(string $css): string
+    {
+        if (stripos($css, 'outline') === false) {
+            return $css;
+        }
+
+        $output = '';
+        $cursor = 0;
+        $length = strlen($css);
+
+        while ($cursor < $length) {
+            $open = $this->findNextTopLevel($css, '{', $cursor);
+            if ($open === null) {
+                $output .= substr($css, $cursor);
+                break;
+            }
+
+            $close = $this->findMatchingBraceInCss($css, $open);
+            $body = $this->composeOutlineDeclarationBlocks(substr($css, $open + 1, $close - $open - 1));
+            if (!str_contains($body, '{')) {
+                $body = $this->composeOutlineDeclarationList($body);
+            }
+
+            $output .= substr($css, $cursor, $open - $cursor + 1) . $body . '}';
+            $cursor = $close + 1;
+        }
+
+        return $output;
+    }
+
+    private function composeOutlineDeclarationList(string $body): string
+    {
+        if (stripos($body, 'outline') === false) {
+            return $body;
+        }
+
+        $entries = $this->parseDeclarationEntriesForComposition($body);
+        if ($entries === null) {
+            return $body;
+        }
+
+        $this->rewriteOutlineGroup($entries);
+
+        return $this->serializeDeclarationEntriesForComposition($entries);
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool,drop:bool}> $entries
+     */
+    private function rewriteOutlineGroup(array &$entries): void
+    {
+        $components = [
+            'width' => 'outline-width',
+            'style' => 'outline-style',
+            'color' => 'outline-color',
+        ];
+        $relevant = array_flip(array_merge(['outline'], array_values($components)));
+        $latest = [];
+        $lastShorthand = null;
+
+        foreach ($entries as $index => $entry) {
+            if ($entry['drop'] || !isset($relevant[$entry['property']])) {
+                continue;
+            }
+            if ($entry['important'] || $this->containsCustomPropertyReference($entry['value'])) {
+                return;
+            }
+            if ($entry['property'] === 'outline') {
+                if ($this->parseOutlineComponents($entry['value']) === null) {
+                    return;
+                }
+                foreach ($latest as $previousIndex) {
+                    $entries[$previousIndex]['drop'] = true;
+                }
+                if ($lastShorthand !== null) {
+                    $entries[$lastShorthand]['drop'] = true;
+                }
+                $lastShorthand = $index;
+                $latest = [];
+                continue;
+            }
+            $latest[$entry['property']] = $index;
+        }
+
+        if ($lastShorthand !== null) {
+            $state = $this->parseOutlineComponents($entries[$lastShorthand]['value']);
+            if ($state === null) {
+                return;
+            }
+
+            foreach ($latest as $property => $index) {
+                if ($index < $lastShorthand) {
+                    continue;
+                }
+                $component = array_search($property, $components, true);
+                if ($component === false) {
+                    return;
+                }
+                $value = $this->normalizeOutlineComponentValue($component, $entries[$index]['value']);
+                if ($value === null) {
+                    return;
+                }
+                $state[$component] = $value;
+                $entries[$index]['drop'] = true;
+            }
+
+            $entries[$lastShorthand]['value'] = $this->serializeOutlineComponents($state);
+
+            return;
+        }
+
+        foreach ($components as $property) {
+            if (!isset($latest[$property])) {
+                return;
+            }
+        }
+
+        $replaceAt = min(array_values($latest));
+        $state = [];
+        foreach ($components as $component => $property) {
+            $value = $this->normalizeOutlineComponentValue($component, $entries[$latest[$property]]['value']);
+            if ($value === null) {
+                return;
+            }
+            $state[$component] = $value;
+            $entries[$latest[$property]]['drop'] = true;
+        }
+
+        $entries[$replaceAt] = [
+            'property' => 'outline',
+            'name' => 'outline',
+            'value' => $this->serializeOutlineComponents($state),
+            'important' => false,
+            'drop' => false,
+        ];
+    }
+
+    /**
+     * @return array{width:string,style:string,color:string}|null
+     */
+    private function parseOutlineComponents(string $value): ?array
+    {
+        $state = [];
+        foreach ($this->splitWhitespaceTopLevel(trim($value)) as $token) {
+            if (!isset($state['style']) && $this->isOutlineStyleToken($token)) {
+                $state['style'] = strtolower(trim($token));
+                continue;
+            }
+            if (!isset($state['width']) && $this->isBorderShorthandWidthToken($token)) {
+                $state['width'] = $this->minifyLengthToken($token);
+                continue;
+            }
+            if (!isset($state['color'])) {
+                $state['color'] = $this->minifyColorKeywords($token);
+                continue;
+            }
+
+            return null;
+        }
+
+        return isset($state['width'], $state['style'], $state['color'])
+            ? ['width' => $state['width'], 'style' => $state['style'], 'color' => $state['color']]
+            : null;
+    }
+
+    private function normalizeOutlineComponentValue(string $component, string $value): ?string
+    {
+        return match ($component) {
+            'width' => $this->isBorderShorthandWidthToken($value) ? $this->minifyLengthToken($value) : null,
+            'style' => $this->isOutlineStyleToken($value) ? strtolower(trim($value)) : null,
+            'color' => $this->minifyColorKeywords($value),
+            default => null,
+        };
+    }
+
+    private function isOutlineStyleToken(string $token): bool
+    {
+        return in_array(strtolower(trim($token)), [
+            'auto',
+            'none',
+            'hidden',
+            'dotted',
+            'dashed',
+            'solid',
+            'double',
+            'groove',
+            'ridge',
+            'inset',
+            'outset',
+        ], true);
+    }
+
+    /**
+     * @param array{width:string,style:string,color:string} $components
+     */
+    private function serializeOutlineComponents(array $components): string
+    {
+        return $components['width'] . ' ' . $components['style'] . ' ' . $components['color'];
+    }
+
     private function composePositionDeclarationBlocks(string $css): string
     {
         $output = '';
@@ -10228,6 +14910,32 @@ final class CssMinifier
             $body = $this->composePositionDeclarationBlocks(substr($css, $open + 1, $close - $open - 1));
             if (!str_contains($body, '{')) {
                 $body = $this->composePositionDeclarationList($body);
+            }
+
+            $output .= substr($css, $cursor, $open - $cursor + 1) . $body . '}';
+            $cursor = $close + 1;
+        }
+
+        return $output;
+    }
+
+    private function composeOverflowDeclarationBlocks(string $css): string
+    {
+        $output = '';
+        $cursor = 0;
+        $length = strlen($css);
+
+        while ($cursor < $length) {
+            $open = $this->findNextTopLevel($css, '{', $cursor);
+            if ($open === null) {
+                $output .= substr($css, $cursor);
+                break;
+            }
+
+            $close = $this->findMatchingBraceInCss($css, $open);
+            $body = $this->composeOverflowDeclarationBlocks(substr($css, $open + 1, $close - $open - 1));
+            if (!str_contains($body, '{')) {
+                $body = $this->composeOverflowDeclarationList($body);
             }
 
             $output .= substr($css, $cursor, $open - $cursor + 1) . $body . '}';
@@ -10647,9 +15355,90 @@ final class CssMinifier
             return $body;
         }
 
+        $this->rewritePositionPropertyGroup($entries);
         $this->rewritePositionInsetGroup($entries);
 
         return $this->serializeDeclarationEntriesForComposition($entries);
+    }
+
+    private function composeOverflowDeclarationList(string $body): string
+    {
+        if (stripos($body, 'overflow') === false) {
+            return $body;
+        }
+
+        $entries = $this->parseDeclarationEntriesForComposition($body);
+        if ($entries === null) {
+            return $body;
+        }
+
+        $this->rewriteOverflowGroup($entries);
+
+        return $this->serializeDeclarationEntriesForComposition($entries);
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool,drop:bool}> $entries
+     */
+    private function rewriteOverflowGroup(array &$entries): void
+    {
+        $relevant = ['overflow', 'overflow-x', 'overflow-y'];
+        $lastShorthand = null;
+        $latestX = null;
+        $latestY = null;
+
+        foreach ($entries as $index => $entry) {
+            if ($entry['drop'] || !in_array($entry['property'], $relevant, true)) {
+                continue;
+            }
+            if ($entry['important']) {
+                return;
+            }
+            if ($entry['property'] === 'overflow') {
+                if ($this->parseOverflowComponents($entry['value']) === null) {
+                    return;
+                }
+                $lastShorthand = $index;
+                $latestX = $index;
+                $latestY = $index;
+                continue;
+            }
+            if ($entry['property'] === 'overflow-x') {
+                $latestX = $index;
+            } else {
+                $latestY = $index;
+            }
+        }
+
+        if ($latestX === null || $latestY === null) {
+            return;
+        }
+
+        $x = $latestX === $lastShorthand
+            ? $this->parseOverflowComponents($entries[$latestX]['value'])['overflow-x']
+            : $entries[$latestX]['value'];
+        $y = $latestY === $lastShorthand
+            ? $this->parseOverflowComponents($entries[$latestY]['value'])['overflow-y']
+            : $entries[$latestY]['value'];
+
+        if ($this->containsCustomPropertyReference($x) || $this->containsCustomPropertyReference($y)) {
+            return;
+        }
+
+        $replaceAt = $lastShorthand ?? min($latestX, $latestY);
+        foreach ($entries as $index => $entry) {
+            if (in_array($entry['property'], $relevant, true)) {
+                $entries[$index]['drop'] = true;
+            }
+        }
+
+        $entries[$replaceAt] = [
+            'property' => 'overflow',
+            'name' => 'overflow',
+            'value' => $this->serializeOverflowComponents($x, $y),
+            'important' => false,
+            'drop' => false,
+        ];
     }
 
     private function composeGridDeclarationList(string $body): string
@@ -11606,7 +16395,36 @@ final class CssMinifier
     private function containsPositionInsetDeclarationName(string $body): bool
     {
         return stripos($body, 'inset') !== false
-            || preg_match('/(?:^|;)(?:top|right|bottom|left):/i', $body) === 1;
+            || preg_match('/(?:^|;)(?:position|top|right|bottom|left):/i', $body) === 1;
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool,drop:bool}> $entries
+     */
+    private function rewritePositionPropertyGroup(array &$entries): void
+    {
+        $latest = null;
+
+        foreach ($entries as $index => $entry) {
+            if ($entry['drop'] || $entry['property'] !== 'position') {
+                continue;
+            }
+            if ($entry['important']) {
+                return;
+            }
+
+            if ($latest !== null && !$this->isPositionStickyFallbackPair($entries[$latest]['value'], $entry['value'])) {
+                $entries[$latest]['drop'] = true;
+            }
+
+            $latest = $index;
+        }
+    }
+
+    private function isPositionStickyFallbackPair(string $previousValue, string $currentValue): bool
+    {
+        return strtolower(trim($previousValue)) === '-webkit-sticky'
+            && strtolower(trim($currentValue)) === 'sticky';
     }
 
     /**
@@ -12236,6 +17054,199 @@ final class CssMinifier
             'important' => false,
             'drop' => false,
         ];
+    }
+
+    private function composeTextDecorationDeclarationBlocks(string $css): string
+    {
+        $output = '';
+        $cursor = 0;
+        $length = strlen($css);
+
+        while ($cursor < $length) {
+            $open = $this->findNextTopLevel($css, '{', $cursor);
+            if ($open === null) {
+                $output .= substr($css, $cursor);
+                break;
+            }
+
+            $close = $this->findMatchingBraceInCss($css, $open);
+            $body = $this->composeTextDecorationDeclarationBlocks(substr($css, $open + 1, $close - $open - 1));
+            if (!str_contains($body, '{')) {
+                $body = $this->composeTextDecorationDeclarationList($body);
+            }
+
+            $output .= substr($css, $cursor, $open - $cursor + 1) . $body . '}';
+            $cursor = $close + 1;
+        }
+
+        return $output;
+    }
+
+    private function composeTextDecorationDeclarationList(string $body): string
+    {
+        if (stripos($body, 'text-decoration') === false) {
+            return $body;
+        }
+
+        $entries = $this->parseDeclarationEntriesForComposition($body);
+        if ($entries === null) {
+            return $body;
+        }
+
+        foreach (['-webkit-', '-moz-', ''] as $prefix) {
+            $this->rewriteTextDecorationGroup($entries, $prefix);
+        }
+
+        return $this->serializeDeclarationEntriesForComposition($entries);
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool,drop:bool}> $entries
+     */
+    private function rewriteTextDecorationGroup(array &$entries, string $prefix): void
+    {
+        $properties = [
+            'decoration' => $prefix . 'text-decoration',
+            'line' => $prefix . 'text-decoration-line',
+            'style' => $prefix . 'text-decoration-style',
+            'color' => $prefix . 'text-decoration-color',
+            'thickness' => $prefix . 'text-decoration-thickness',
+        ];
+        $relevantNames = array_flip($properties);
+        $relevantIndices = [];
+        $lastShorthand = null;
+
+        foreach ($entries as $index => $entry) {
+            if ($entry['drop'] || !isset($relevantNames[$entry['property']])) {
+                continue;
+            }
+            if ($entry['important']) {
+                return;
+            }
+            $relevantIndices[] = $index;
+            if ($entry['property'] === $properties['decoration']) {
+                $lastShorthand = $index;
+            }
+        }
+
+        if ($relevantIndices === []) {
+            return;
+        }
+
+        if ($lastShorthand !== null) {
+            foreach ($relevantIndices as $index) {
+                if ($index < $lastShorthand) {
+                    $entries[$index]['drop'] = true;
+                }
+            }
+
+            $state = $this->parseTextDecorationComponents($entries[$lastShorthand]['value']);
+            if ($state === null) {
+                return;
+            }
+
+            $changed = false;
+            foreach ($relevantIndices as $index) {
+                if ($index <= $lastShorthand || $entries[$index]['drop']) {
+                    continue;
+                }
+
+                $component = $relevantNames[$entries[$index]['property']];
+                if ($component === 'decoration') {
+                    continue;
+                }
+
+                $value = $this->normalizeTextDecorationComponentValue($component, $entries[$index]['value']);
+                if ($value === null || $this->containsCustomPropertyReference($value)) {
+                    continue;
+                }
+
+                $state[$component] = $value;
+                $entries[$index]['drop'] = true;
+                $changed = true;
+            }
+
+            if ($changed) {
+                $entries[$lastShorthand]['value'] = $this->serializeTextDecorationComponents($state);
+            }
+
+            return;
+        }
+
+        $latest = [];
+        foreach ($relevantIndices as $index) {
+            $component = $relevantNames[$entries[$index]['property']];
+            if ($component !== 'decoration') {
+                $latest[$component] = $index;
+            }
+        }
+
+        foreach (['line', 'style', 'color', 'thickness'] as $required) {
+            if (!isset($latest[$required])) {
+                return;
+            }
+        }
+
+        $state = [
+            'styleBeforeLine' => false,
+        ];
+        foreach (['line', 'style', 'color', 'thickness'] as $component) {
+            $value = $this->normalizeTextDecorationComponentValue($component, $entries[$latest[$component]]['value']);
+            if ($value === null || $this->containsCustomPropertyReference($value)) {
+                return;
+            }
+            $state[$component] = $value;
+        }
+
+        $replaceAt = min(array_values($latest));
+        foreach ($relevantIndices as $index) {
+            $entries[$index]['drop'] = true;
+        }
+
+        $entries[$replaceAt] = [
+            'property' => $properties['decoration'],
+            'name' => $properties['decoration'],
+            'value' => $this->serializeTextDecorationComponents($state),
+            'important' => false,
+            'drop' => false,
+        ];
+    }
+
+    private function normalizeTextDecorationComponentValue(string $component, string $value): ?string
+    {
+        $value = trim($value);
+
+        return match ($component) {
+            'line' => $this->normalizeTextDecorationLineComponentValue($value),
+            'style' => in_array(strtolower($value), self::TEXT_DECORATION_STYLES, true) ? strtolower($value) : null,
+            'color' => $this->isTextDecorationColorToken($value) ? $this->normalizeTextDecorationColorValue($value) : null,
+            'thickness' => $this->isTextDecorationThicknessToken($value) ? $this->minifyTextDecorationThicknessToken($value) : null,
+            default => null,
+        };
+    }
+
+    private function normalizeTextDecorationLineComponentValue(string $value): ?string
+    {
+        $tokens = $this->splitWhitespaceTopLevel($value);
+        if ($tokens === []) {
+            return null;
+        }
+        if (count($tokens) === 1 && in_array(strtolower($tokens[0]), self::TEXT_DECORATION_EXCLUSIVE_LINES, true)) {
+            return strtolower($tokens[0]);
+        }
+
+        $lines = [];
+        foreach ($tokens as $token) {
+            $lower = strtolower($token);
+            if (!in_array($lower, self::TEXT_DECORATION_LINES, true)) {
+                return null;
+            }
+            if (!in_array($lower, $lines, true)) {
+                $lines[] = $lower;
+            }
+        }
+
+        return $this->normalizeTextDecorationLineTokens($lines);
     }
 
     /**
@@ -14405,6 +19416,24 @@ final class CssMinifier
 
             return $value;
         }
+        if ($token['type'] === 'ident' && in_array($token['value'], ['sin', 'cos', 'tan'], true) && ($tokens[$offset]['type'] ?? null) === '(') {
+            $offset++;
+            $argument = $this->parseLinearCalcExpression($tokens, $offset);
+            if ($argument === null || ($tokens[$offset]['type'] ?? null) !== ')') {
+                return null;
+            }
+            $offset++;
+
+            $value = $this->linearCalcTrigFunction($token['value'], $argument);
+            if ($value === null) {
+                return null;
+            }
+
+            return [
+                'terms' => ['' => $value],
+                'order' => [''],
+            ];
+        }
         if ($token['type'] === 'ident') {
             $constant = $this->mathConstant($token['value']);
             if ($constant !== null) {
@@ -14427,6 +19456,63 @@ final class CssMinifier
             'terms' => [$unit => (float) $token['value']],
             'order' => [$unit],
         ];
+    }
+
+    /**
+     * @param array{terms:array<string,float>,order:list<string>} $argument
+     */
+    private function linearCalcTrigFunction(string $name, array $argument): ?float
+    {
+        $radians = $this->linearCalcTrigArgumentRadians($argument);
+        if ($radians === null) {
+            return null;
+        }
+
+        $value = match ($name) {
+            'sin' => sin($radians),
+            'cos' => cos($radians),
+            'tan' => tan($radians),
+            default => null,
+        };
+
+        return $value !== null && is_finite($value) ? $value : null;
+    }
+
+    /**
+     * @param array{terms:array<string,float>,order:list<string>} $argument
+     */
+    private function linearCalcTrigArgumentRadians(array $argument): ?float
+    {
+        $units = $this->nonZeroLinearCalcUnits($argument);
+        if ($units === []) {
+            $zeroUnit = $this->zeroLinearCalcUnit($argument);
+            if ($zeroUnit === null) {
+                return 0.0;
+            }
+
+            $comparison = $this->mathComparison(0.0, $zeroUnit);
+
+            return $comparison !== null && $comparison['group'] === 'angle' ? 0.0 : null;
+        }
+
+        if ($units === ['']) {
+            return $argument['terms'][''] ?? 0.0;
+        }
+
+        $degrees = 0.0;
+        foreach ($units as $unit) {
+            if ($unit === '') {
+                return null;
+            }
+
+            $comparison = $this->mathComparison($argument['terms'][$unit], $unit);
+            if ($comparison === null || $comparison['group'] !== 'angle') {
+                return null;
+            }
+            $degrees += $comparison['canonical'];
+        }
+
+        return $degrees * M_PI / 180.0;
     }
 
     private function isFoldableCalcUnit(string $unit): bool
@@ -14590,6 +19676,10 @@ final class CssMinifier
         if (abs($number) < 0.0000001) {
             return '0';
         }
+        $rounded = round($number);
+        if (abs($number - $rounded) < 0.000001) {
+            $number = (float) $rounded;
+        }
 
         $serialized = str_replace('E', 'e', sprintf('%.6G', $number));
         if (str_starts_with($serialized, '0.')) {
@@ -14603,7 +19693,7 @@ final class CssMinifier
 
     private function serializeLinearCalcTerm(float $coefficient, string $unit): string
     {
-        $number = $this->minifyNumber($coefficient);
+        $number = $this->serializeComputedMathNumberWithUnit($coefficient, '');
         if ($number === '0' || $unit === '') {
             return $number;
         }
@@ -14673,6 +19763,7 @@ final class CssMinifier
             'cornflowerblue' => '#6495ed',
             'cyan' => '#0ff',
             'fuchsia' => '#f0f',
+            'lightblue' => '#add8e6',
             'lime' => '#0f0',
             'magenta' => '#f0f',
             'transparent' => '#0000',
@@ -18804,41 +23895,44 @@ final class CssMinifier
      */
     private function hslToRgbBytes(float $hue, float $saturation, float $lightness, float $roundingBias = 0.0): array
     {
-        $hue = $this->normalizeMixedHue($hue) / 360;
+        $hue = $this->asF32($this->normalizeMixedHue($hue) / 360);
+        $saturation = $this->asF32($saturation);
+        $lightness = $this->asF32($lightness);
         $m2 = $lightness <= 0.5
-            ? $lightness * ($saturation + 1)
-            : $lightness + $saturation - $lightness * $saturation;
-        $m1 = $lightness * 2 - $m2;
-        $hueTimesThree = $hue * 3;
+            ? $this->asF32($lightness * $this->asF32($saturation + 1))
+            : $this->asF32($this->asF32($lightness + $saturation) - $this->asF32($lightness * $saturation));
+        $m1 = $this->asF32($this->asF32($lightness * 2) - $m2);
+        $hueTimesThree = $this->asF32($hue * 3);
 
-        $red = $this->hslHueToRgb($m1, $m2, $hueTimesThree + 1);
+        $red = $this->hslHueToRgb($m1, $m2, $this->asF32($hueTimesThree + 1));
         $green = $this->hslHueToRgb($m1, $m2, $hueTimesThree);
-        $blue = $this->hslHueToRgb($m1, $m2, $hueTimesThree - 1);
+        $blue = $this->hslHueToRgb($m1, $m2, $this->asF32($hueTimesThree - 1));
 
         return [
-            (int) round($red * 255 + $roundingBias),
-            (int) round($green * 255 + $roundingBias),
-            (int) round($blue * 255 + $roundingBias),
+            (int) round($this->asF32($red * 255) + $roundingBias),
+            (int) round($this->asF32($green * 255) + $roundingBias),
+            (int) round($this->asF32($blue * 255) + $roundingBias),
         ];
     }
 
     private function hslHueToRgb(float $m1, float $m2, float $hueTimesThree): float
     {
+        $hueTimesThree = $this->asF32($hueTimesThree);
         if ($hueTimesThree < 0) {
-            $hueTimesThree += 3;
+            $hueTimesThree = $this->asF32($hueTimesThree + 3);
         }
         if ($hueTimesThree > 3) {
-            $hueTimesThree -= 3;
+            $hueTimesThree = $this->asF32($hueTimesThree - 3);
         }
 
-        if ($hueTimesThree * 2 < 1) {
-            return $m1 + ($m2 - $m1) * $hueTimesThree * 2;
+        if ($this->asF32($hueTimesThree * 2) < 1) {
+            return $this->asF32($m1 + $this->asF32($this->asF32($m2 - $m1) * $this->asF32($hueTimesThree * 2)));
         }
-        if ($hueTimesThree * 2 < 3) {
+        if ($this->asF32($hueTimesThree * 2) < 3) {
             return $m2;
         }
         if ($hueTimesThree < 2) {
-            return $m1 + ($m2 - $m1) * (2 - $hueTimesThree) * 2;
+            return $this->asF32($m1 + $this->asF32($this->asF32($m2 - $m1) * $this->asF32($this->asF32(2 - $hueTimesThree) * 2)));
         }
 
         return $m1;

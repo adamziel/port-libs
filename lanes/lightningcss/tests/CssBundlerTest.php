@@ -622,6 +622,15 @@ CSS,
         $t->same([null, 'external-card.css.map', $inlineDataMap, null], $result['sourceMapUrls']);
         $t->same(['entry.css', 'blocks/external-card.css', 'blocks/plain-card.css'], $data['sources']);
         $t->same(false, in_array('blocks/inline-card.css', $data['sources'], true));
+
+        $repeated = (new CssBundler())->bundleWithSourceMap('/theme/repeated.css', [
+            '/theme/repeated.css' => '@import "blocks/card.css"; @import "blocks/gallery.css"; @import "blocks/card.css"; .entry { color: red }',
+            '/theme/blocks/card.css' => ".card { color: green }\n/*# sourceMappingURL=card.css.map */",
+            '/theme/blocks/gallery.css' => ".gallery { color: blue }\n/*# sourceMappingURL=gallery.css.map */",
+        ], null, '/theme');
+
+        $t->same('.gallery{color:#00f}.card{color:green}.entry{color:red}', $repeated['code']);
+        $t->same([null, 'card.css.map', 'gallery.css.map'], $repeated['sourceMapUrls']);
     },
     'css bundler maps upstream EOF import without semicolon' => static function (TestRunner $t) use ($bundle): void {
         $t->same(
@@ -669,6 +678,139 @@ CSS,
                 ['root:hello/world.css', $root . '/bar.css'],
             ], $resolved);
         });
+    },
+    'css bundler maps upstream only custom resolve filesystem row' => static function (TestRunner $t) use ($withTempFiles): void {
+        $withTempFiles([
+            'tests/testdata/foo.css' => <<<'CSS'
+@import 'root:hello/world.css';
+
+.foo { color: red; }
+CSS,
+            'tests/testdata/hello/world.css' => <<<'CSS'
+@import 'root:baz.css';
+
+.bar { color: green; }
+CSS,
+            'tests/testdata/baz.css' => '.baz { color: blue; }',
+        ], static function (string $root) use ($t): void {
+            $resolved = [];
+            $code = (new CssBundler())->bundleFile(
+                $root . '/tests/testdata/foo.css',
+                static function (string $specifier, string $originatingFile) use (&$resolved, $root): string {
+                    $resolved[] = [$specifier, $originatingFile];
+
+                    return $root . '/tests/testdata/' . substr($specifier, strlen('root:'));
+                }
+            );
+
+            $t->same('.baz{color:#00f}.bar{color:green}.foo{color:red}', $code, 'upstream node/test/bundle.test.mjs line 128');
+            $t->same([
+                ['root:hello/world.css', $root . '/tests/testdata/foo.css'],
+                ['root:baz.css', $root . '/tests/testdata/hello/world.css'],
+            ], $resolved);
+        });
+    },
+    'css bundler maps upstream async read source provider row' => static function (TestRunner $t): void {
+        $root = 'tests/testdata';
+        $readerFiles = [
+            $root . '/foo.css' => <<<'CSS'
+@import 'root:hello/world.css';
+
+.foo { color: red; }
+CSS,
+            $root . '/hello/world.css' => <<<'CSS'
+@import 'root:baz.css';
+
+.bar { color: green; }
+CSS,
+            $root . '/baz.css' => '.baz { color: blue; }',
+        ];
+        $reads = [];
+        $resolved = [];
+
+        $code = (new CssBundler())->bundleWithReader(
+            $root . '/foo.css',
+            static function (string $file) use (&$reads, $readerFiles): string {
+                $reads[] = $file;
+                if (!array_key_exists($file, $readerFiles)) {
+                    throw new RuntimeException("Could not find {$file}.");
+                }
+
+                return $readerFiles[$file];
+            },
+            static function (string $specifier, string $originatingFile) use (&$resolved, $root): string {
+                $resolved[] = [$specifier, $originatingFile];
+
+                return $root . '/' . substr($specifier, strlen('root:'));
+            }
+        );
+
+        $t->same('.baz{color:#00f}.bar{color:green}.foo{color:red}', $code);
+        $t->same([
+            $root . '/foo.css',
+            $root . '/hello/world.css',
+            $root . '/baz.css',
+        ], $reads);
+        $t->same([
+            ['root:hello/world.css', $root . '/foo.css'],
+            ['root:baz.css', $root . '/hello/world.css'],
+        ], $resolved);
+    },
+    'css bundler maps upstream resolve throw source provider row' => static function (TestRunner $t) use ($bundle): void {
+        $resolved = [];
+
+        try {
+            $bundle([
+                'tests/testdata/foo.css' => <<<'CSS'
+@import 'root:hello/world.css';
+
+.foo { color: red; }
+CSS,
+            ], 'tests/testdata/foo.css', static function (string $specifier, string $originatingFile) use (&$resolved): string {
+                $resolved[] = [$specifier, $originatingFile];
+
+                throw new RuntimeException("Oh noes! Failed to resolve `{$specifier}` from `{$originatingFile}`.");
+            });
+        } catch (CssBundleException $exception) {
+            $t->same('resolver-error', $exception->kind);
+            $t->same('Oh noes! Failed to resolve `root:hello/world.css` from `tests/testdata/foo.css`.', $exception->getMessage());
+            $t->same('tests/testdata/foo.css', $exception->sourceFile);
+            $t->same(1, $exception->sourceLine);
+            $t->same(1, $exception->sourceColumn);
+            $t->same([['root:hello/world.css', 'tests/testdata/foo.css']], $resolved);
+
+            return;
+        }
+
+        throw new RuntimeException('Expected upstream resolve throw source provider exception');
+    },
+    'css bundler maps upstream async resolve throw source provider row' => static function (TestRunner $t) use ($bundle): void {
+        $resolved = [];
+
+        try {
+            $bundle([
+                'tests/testdata/foo.css' => <<<'CSS'
+@import 'root:hello/world.css';
+
+.foo { color: red; }
+CSS,
+            ], 'tests/testdata/foo.css', static function (string $specifier, string $originatingFile) use (&$resolved): string {
+                $resolved[] = [$specifier, $originatingFile];
+
+                throw new RuntimeException("Oh noes! Failed to resolve `{$specifier}` from `{$originatingFile}`.");
+            });
+        } catch (CssBundleException $exception) {
+            $t->same('resolver-error', $exception->kind);
+            $t->same('Oh noes! Failed to resolve `root:hello/world.css` from `tests/testdata/foo.css`.', $exception->getMessage());
+            $t->same('tests/testdata/foo.css', $exception->sourceFile);
+            $t->same(1, $exception->sourceLine);
+            $t->same(1, $exception->sourceColumn);
+            $t->same([['root:hello/world.css', 'tests/testdata/foo.css']], $resolved);
+
+            return;
+        }
+
+        throw new RuntimeException('Expected upstream async resolve throw source provider exception');
     },
     'css bundler maps upstream custom source provider prefix resolution' => static function (TestRunner $t) use ($bundle): void {
         $resolved = [];
@@ -977,6 +1119,14 @@ CSS, 3, 3);
         );
     },
     'css bundler wraps imported files in supports media and layer conditions' => static function (TestRunner $t) use ($bundle): void {
+        $t->same(
+            '@supports (color:green){.b{color:green}}.a{color:red}',
+            $bundle([
+                '/a.css' => '@import "b.css" supports(color: green); .a { color: red }',
+                '/b.css' => '.b { color: green }',
+            ], '/a.css')
+        );
+
         $t->same(
             '@supports (color:green){@media print{.b{color:green}}}.a{color:red}',
             $bundle([
@@ -1681,6 +1831,40 @@ CSS,
         $assertMalformedImportSource('@import "blocks/card.css; .entry { color: red }');
         $assertMalformedImportSource("@import \"blocks/\ncard.css\"; .entry { color: red }");
         $assertMalformedImportSource("@import url(\"blocks/\ncard.css\"); .entry { color: red }");
+
+        $reads = [];
+        $resolved = [];
+        $malformedSecondImportRejected = false;
+        try {
+            (new CssBundler())->bundleWithReader(
+                '/entry.css',
+                static function (string $file) use (&$reads): string {
+                    $reads[] = $file;
+
+                    return $file === '/entry.css'
+                        ? '@import "blocks/valid.css"; @import url(blocks/card hero.css); .entry { color: red }'
+                        : '.valid { color: green }';
+                },
+                static function (string $specifier, string $originatingFile) use (&$resolved): string {
+                    $resolved[] = [$specifier, $originatingFile];
+
+                    return rtrim(dirname($originatingFile), '/') . '/' . $specifier;
+                }
+            );
+        } catch (CssBundleException $exception) {
+            $t->same('parser-error', $exception->kind);
+            $t->same('Unexpected token BadUrl("blocks/card hero.css")', $exception->getMessage());
+            $t->same('/entry.css', $exception->sourceFile);
+            $t->same(1, $exception->sourceLine);
+            $t->same(36, $exception->sourceColumn);
+            $t->same(['/entry.css'], $reads);
+            $t->same([], $resolved);
+            $malformedSecondImportRejected = true;
+        }
+
+        if (!$malformedSecondImportRejected) {
+            throw new RuntimeException('Expected later malformed @import source exception before resolving earlier imports');
+        }
 
         $t->same(
             '.card{color:green}.entry{color:red}',
@@ -2522,6 +2706,7 @@ CSS,
         throw new RuntimeException('Expected external import order exception');
     },
     'css bundler preserves resolver marked external imports before bundled imports' => static function (TestRunner $t) use ($bundle): void {
+        $resolved = [];
         $resolver = static function (string $specifier, string $originatingFile): array {
             if ($specifier === './does_not_exist.css' || str_starts_with($specifier, 'https:')) {
                 return ['external' => $specifier];
@@ -2529,17 +2714,30 @@ CSS,
 
             return ['file' => rtrim(dirname($originatingFile), '/') . '/' . ltrim($specifier, './')];
         };
+        $recordingResolver = static function (string $specifier, string $originatingFile) use ($resolver, &$resolved): array {
+            $resolved[] = [$specifier, $originatingFile];
+
+            return $resolver($specifier, $originatingFile);
+        };
 
         $t->same(
             '@import "https://fonts.googleapis.com/css2?family=Roboto&display=swap";@import "./does_not_exist.css";.b{height:calc(100vh - 64px)}',
             $bundle([
                 '/a.css' => <<<'CSS'
-@import url("https://fonts.googleapis.com/css2?family=Roboto&display=swap");
+@import url('https://fonts.googleapis.com/css2?family=Roboto&display=swap');
 @import "./does_not_exist.css";
 @import "./b.css";
 CSS,
                 '/b.css' => '.b { height: calc(100vh - 64px); }',
-            ], '/a.css', $resolver)
+            ], '/a.css', $recordingResolver)
+        );
+        $t->same(
+            [
+                ['https://fonts.googleapis.com/css2?family=Roboto&display=swap', '/a.css'],
+                ['./does_not_exist.css', '/a.css'],
+                ['./b.css', '/a.css'],
+            ],
+            $resolved
         );
     },
     'css bundler serializes resolver marked external url quotes and backslashes like upstream strings' => static function (TestRunner $t) use ($bundle): void {
@@ -3055,16 +3253,17 @@ CSS,
     },
     'css bundler maps upstream source provider read diagnostics' => static function (TestRunner $t): void {
         $initialReadRejected = false;
+        $initialReadRow = 'upstream node/test/bundle.test.mjs::read throw lines 191-209';
         try {
             (new CssBundler())->bundleWithReader('foo.css', static function (string $file): string {
                 throw new RuntimeException("Oh noes! Failed to read `{$file}`.");
             });
         } catch (CssBundleException $exception) {
-            $t->same('resolver-error', $exception->kind);
-            $t->same('Oh noes! Failed to read `foo.css`.', $exception->getMessage());
-            $t->same(null, $exception->sourceFile);
-            $t->same(null, $exception->sourceLine);
-            $t->same(null, $exception->sourceColumn);
+            $t->same('resolver-error', $exception->kind, $initialReadRow . ' kind');
+            $t->same('Oh noes! Failed to read `foo.css`.', $exception->getMessage(), $initialReadRow . ' message');
+            $t->same(null, $exception->sourceFile, $initialReadRow . ' fileName');
+            $t->same(null, $exception->sourceLine, $initialReadRow . ' loc.line');
+            $t->same(null, $exception->sourceColumn, $initialReadRow . ' loc.column');
             $initialReadRejected = true;
         }
 
@@ -3072,7 +3271,27 @@ CSS,
             throw new RuntimeException('Expected entry read callback exception');
         }
 
+        $asyncInitialReadRejected = false;
+        $asyncInitialReadRow = 'upstream node/test/bundle.test.mjs::async read throw lines 211-229';
+        try {
+            (new CssBundler())->bundleWithReader('foo.css', static function (string $file): string {
+                throw new RuntimeException("Oh noes! Failed to read `{$file}`.");
+            });
+        } catch (CssBundleException $exception) {
+            $t->same('resolver-error', $exception->kind, $asyncInitialReadRow . ' kind');
+            $t->same('Oh noes! Failed to read `foo.css`.', $exception->getMessage(), $asyncInitialReadRow . ' message');
+            $t->same(null, $exception->sourceFile, $asyncInitialReadRow . ' fileName');
+            $t->same(null, $exception->sourceLine, $asyncInitialReadRow . ' loc.line');
+            $t->same(null, $exception->sourceColumn, $asyncInitialReadRow . ' loc.column');
+            $asyncInitialReadRejected = true;
+        }
+
+        if (!$asyncInitialReadRejected) {
+            throw new RuntimeException('Expected async entry read callback exception');
+        }
+
         $importReadRejected = false;
+        $importReadLocationRow = 'upstream node/test/bundle.test.mjs::read throw with location info lines 231-255';
         try {
             (new CssBundler())->bundleWithReader('foo.css', static function (string $file): string {
                 if ($file === 'foo.css') {
@@ -3082,16 +3301,39 @@ CSS,
                 throw new RuntimeException("Oh noes! Failed to read `{$file}`.");
             });
         } catch (CssBundleException $exception) {
-            $t->same('resolver-error', $exception->kind);
-            $t->same('Oh noes! Failed to read `bar.css`.', $exception->getMessage());
-            $t->same('foo.css', $exception->sourceFile);
-            $t->same(1, $exception->sourceLine);
-            $t->same(1, $exception->sourceColumn);
+            $t->same('resolver-error', $exception->kind, $importReadLocationRow . ' kind');
+            $t->same('Oh noes! Failed to read `bar.css`.', $exception->getMessage(), $importReadLocationRow . ' message');
+            $t->same('foo.css', $exception->sourceFile, $importReadLocationRow . ' fileName');
+            $t->same(1, $exception->sourceLine, $importReadLocationRow . ' loc.line');
+            $t->same(1, $exception->sourceColumn, $importReadLocationRow . ' loc.column');
             $importReadRejected = true;
         }
 
         if (!$importReadRejected) {
             throw new RuntimeException('Expected imported read callback exception');
+        }
+
+        $asyncImportReadRejected = false;
+        $asyncImportReadLocationRow = 'upstream node/test/bundle.test.mjs::async read throw with location info lines 258-283';
+        try {
+            (new CssBundler())->bundleWithReader('foo.css', static function (string $file): string {
+                if ($file === 'foo.css') {
+                    return '@import "bar.css"';
+                }
+
+                throw new RuntimeException("Oh noes! Failed to read `{$file}`.");
+            });
+        } catch (CssBundleException $exception) {
+            $t->same('resolver-error', $exception->kind, $asyncImportReadLocationRow . ' kind');
+            $t->same('Oh noes! Failed to read `bar.css`.', $exception->getMessage(), $asyncImportReadLocationRow . ' message');
+            $t->same('foo.css', $exception->sourceFile, $asyncImportReadLocationRow . ' fileName');
+            $t->same(1, $exception->sourceLine, $asyncImportReadLocationRow . ' loc.line');
+            $t->same(1, $exception->sourceColumn, $asyncImportReadLocationRow . ' loc.column');
+            $asyncImportReadRejected = true;
+        }
+
+        if (!$asyncImportReadRejected) {
+            throw new RuntimeException('Expected async imported read callback exception');
         }
 
         $syntaxRejected = false;
@@ -3143,6 +3385,299 @@ CSS,
         }
 
         throw new RuntimeException('Expected non-string read callback exception');
+    },
+    'css bundler maps upstream visitor function unknown rule removal' => static function (TestRunner $t): void {
+        $dependencies = [];
+        $visited = [];
+
+        $code = (new CssBundler())->bundleWithVisitor('test.css', [
+            'test.css' => <<<'CSS'
+@dep "foo.js";
+
+.foo {
+  width: 32px;
+}
+CSS,
+        ], [
+            'Rule' => static function (array $rule) use (&$dependencies, &$visited): ?array {
+                $visited[] = [$rule['type'], $rule['file'], $rule['loc'], trim($rule['raw'])];
+
+                if ($rule['type'] === 'unknown' && preg_match('/^@dep\s+"([^"]+)";$/', trim($rule['raw']), $matches) === 1) {
+                    $dependencies[] = [
+                        'type' => 'file',
+                        'filePath' => $matches[1],
+                    ];
+
+                    return [];
+                }
+
+                return null;
+            },
+        ]);
+
+        $t->same('.foo{width:32px}', $code);
+        $t->same([
+            [
+                'type' => 'file',
+                'filePath' => 'foo.js',
+            ],
+        ], $dependencies);
+        $t->same([
+            ['unknown', 'test.css', ['line' => 1, 'column' => 1], '@dep "foo.js";'],
+            ['style', 'test.css', ['line' => 3, 'column' => 1], ".foo {\n  width: 32px;\n}"],
+        ], $visited);
+    },
+    'css bundler propagates upstream bundle visitor errors' => static function (TestRunner $t): void {
+        $visited = [];
+
+        try {
+            (new CssBundler())->bundleWithVisitor('tests/testdata/a.css', [
+                'tests/testdata/a.css' => '.a { color: red }',
+            ], [
+                'Rule' => static function (array $rule) use (&$visited): void {
+                    $visited[] = [$rule['type'], $rule['file'], $rule['loc']];
+                    throw new RuntimeException('Some error');
+                },
+            ]);
+        } catch (RuntimeException $exception) {
+            $t->same('Some error', $exception->getMessage());
+            $t->same([['style', 'tests/testdata/a.css', ['line' => 1, 'column' => 1]]], $visited);
+
+            return;
+        }
+
+        throw new RuntimeException('Expected upstream bundle visitor exception');
+    },
+    'css bundler maps upstream length visitor replacements across imports' => static function (TestRunner $t): void {
+        $seen = [];
+        // Pinned upstream 22bdda3d node/test/visitor.test.mjs::works with async bundler lines 851-868.
+        // PHP exposes one native bundler visitor path; this fixtures the same imported Length visitor output.
+        $code = (new CssBundler())->bundleWithVisitor('tests/testdata/a.css', [
+            'tests/testdata/a.css' => <<<'CSS'
+@import "b.css";
+
+.a {
+  width: 32px;
+}
+CSS,
+            'tests/testdata/b.css' => <<<'CSS'
+.b {
+  height: calc(100vh - 64px);
+}
+CSS,
+        ], [
+            'Length' => static function (array $length) use (&$seen): ?array {
+                $seen[] = $length;
+                if ($length['unit'] !== 'px') {
+                    return null;
+                }
+
+                return [
+                    'unit' => 'rem',
+                    'value' => $length['value'] / 16,
+                ];
+            },
+        ]);
+
+        $t->same(
+            '.b{height:calc(100vh - 4rem)}.a{width:2rem}',
+            $code,
+            'upstream async bundler Length visitor output'
+        );
+        $t->same([
+            ['unit' => 'vh', 'value' => 100.0],
+            ['unit' => 'px', 'value' => 64.0],
+            ['unit' => 'px', 'value' => 32.0],
+        ], $seen);
+    },
+    'css bundler maps upstream url visitor replacements across imports' => static function (TestRunner $t): void {
+        $seen = [];
+        $code = (new CssBundler())->bundleWithVisitor('/entry.css', [
+            '/entry.css' => <<<'CSS'
+@import "button.css";
+
+.entry {
+  background-image: url("../entry.png");
+  content: "url(skip.png)";
+}
+CSS,
+            '/button.css' => <<<'CSS'
+.button {
+  background: url(foo.png);
+}
+CSS,
+        ], [
+            'Url' => static function (array $url) use (&$seen): array {
+                $seen[] = $url['url'];
+
+                return [
+                    'url' => 'https://mywebsite.com/' . $url['url'],
+                ];
+            },
+        ]);
+
+        $t->same('.button{background:url(https://mywebsite.com/foo.png)}.entry{background-image:url(https://mywebsite.com/../entry.png);content:"url(skip.png)"}', $code);
+        $t->same(['foo.png', '../entry.png'], $seen);
+    },
+    'css bundler maps upstream function visitor token returns across imports' => static function (TestRunner $t): void {
+        $tokens = [
+            'color.background.primary' => [
+                'type' => 'color',
+                'value' => [
+                    'type' => 'rgb',
+                    'r' => 255,
+                    'g' => 0,
+                    'b' => 0,
+                    'alpha' => 1,
+                ],
+            ],
+            'size.spacing.small' => [
+                'type' => 'length',
+                'value' => [
+                    'unit' => 'px',
+                    'value' => 16,
+                ],
+            ],
+        ];
+        $seen = [];
+
+        $code = (new CssBundler())->bundleWithVisitor('/entry.css', [
+            '/entry.css' => <<<'CSS'
+@import "component.css";
+.entry {
+  color: design-token('color.background.primary');
+}
+CSS,
+            '/component.css' => <<<'CSS'
+.component {
+  padding: design-token("size.spacing.small");
+}
+CSS,
+        ], [
+            'Function' => [
+                'design-token' => static function (array $function) use ($tokens, &$seen): ?array {
+                    $argument = $function['arguments'][0] ?? null;
+                    if (!is_array($argument) || ($argument['type'] ?? null) !== 'token') {
+                        return null;
+                    }
+
+                    $value = $argument['value'] ?? null;
+                    if (!is_array($value) || ($value['type'] ?? null) !== 'string') {
+                        return null;
+                    }
+
+                    $seen[] = [$function['name'], $value['value']];
+
+                    return $tokens[$value['value']] ?? null;
+                },
+            ],
+        ]);
+
+        $t->same('.component{padding:16px}.entry{color:red}', $code);
+        $t->same([
+            ['design-token', 'size.spacing.small'],
+            ['design-token', 'color.background.primary'],
+        ], $seen);
+
+        $raw = (new CssBundler())->bundleWithVisitor('/theme.css', [
+            '/theme.css' => '.theme { color: theme("red"); }',
+        ], [
+            'Function' => [
+                'theme' => static fn (): array => ['raw' => 'rgba(255, 0, 0)'],
+            ],
+        ]);
+
+        $t->same('.theme{color:red}', $raw);
+    },
+    'css bundler maps upstream visitor factory dependency collection across imports' => static function (TestRunner $t): void {
+        $dependencies = [];
+        $code = (new CssBundler())->bundleWithVisitor('tests/testdata/a.css', [
+            'tests/testdata/a.css' => <<<'CSS'
+@import "b.css";
+
+.a {
+  width: 32px;
+}
+CSS,
+            'tests/testdata/b.css' => <<<'CSS'
+.b {
+  height: calc(100vh - 64px);
+}
+CSS,
+        ], [
+            'Length' => static function () use (&$dependencies): void {
+                $dependencies[] = [
+                    'type' => 'file',
+                    'filePath' => 'test.json',
+                ];
+            },
+        ]);
+
+        $t->same('.b{height:calc(100vh - 64px)}.a{width:32px}', $code);
+        $t->same([
+            [
+                'type' => 'file',
+                'filePath' => 'test.json',
+            ],
+            [
+                'type' => 'file',
+                'filePath' => 'test.json',
+            ],
+            [
+                'type' => 'file',
+                'filePath' => 'test.json',
+            ],
+        ], $dependencies);
+    },
+    'css bundler returns upstream visitor factory dependencies from result object' => static function (TestRunner $t): void {
+        $seen = [];
+        $result = (new CssBundler())->bundleWithVisitorResult('tests/testdata/a.css', [
+            'tests/testdata/a.css' => <<<'CSS'
+@import "b.css";
+
+.a {
+  width: 32px;
+}
+CSS,
+            'tests/testdata/b.css' => <<<'CSS'
+.b {
+  height: calc(100vh - 64px);
+}
+CSS,
+        ], static function (array $context) use (&$seen): array {
+            $addDependency = $context['addDependency'];
+
+            return [
+                'Length' => static function (array $length) use (&$seen, $addDependency): void {
+                    $seen[] = [$length['unit'], $length['value']];
+                    $addDependency([
+                        'type' => 'file',
+                        'filePath' => 'test.json',
+                    ]);
+                },
+            ];
+        });
+
+        $t->same('.b{height:calc(100vh - 64px)}.a{width:32px}', $result['code']);
+        $t->same([
+            ['vh', 100.0],
+            ['px', 64.0],
+            ['px', 32.0],
+        ], $seen);
+        $t->same([
+            [
+                'type' => 'file',
+                'filePath' => 'test.json',
+            ],
+            [
+                'type' => 'file',
+                'filePath' => 'test.json',
+            ],
+            [
+                'type' => 'file',
+                'filePath' => 'test.json',
+            ],
+        ], $result['dependencies']);
     },
     'css bundler shares custom media definitions across imported graph' => static function (TestRunner $t) use ($bundle): void {
         $t->same(

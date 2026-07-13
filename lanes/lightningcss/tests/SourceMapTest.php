@@ -39,13 +39,49 @@ return [
     },
     'source map encodes upstream cli css module semicolon offsets' => static function (TestRunner $t): void {
         $map = new SourceMap();
+        $source = implode("\n", [
+            '',
+            '      .foo {',
+            '        color: red;',
+            '      }',
+            '',
+            '      #id {',
+            '        animation: 2s test;',
+            '      }',
+            '',
+            '      @keyframes test {',
+            '        from { color: red }',
+            '        to { color: yellow }',
+            '      }',
+            '',
+            '      @counter-style circles {',
+            '        symbols: ' . "\u{24B6} \u{24B7} \u{24B8}" . ';',
+            '      }',
+            '',
+            '      ul {',
+            '        list-style: circles;',
+            '      }',
+            '',
+            '      @keyframes fade {',
+            '        from { opacity: 0 }',
+            '        to { opacity: 1 }',
+            '      }',
+            '    ',
+        ]);
         $sourceIndex = $map->addSource('test.css');
+        $map->setSourceContent($sourceIndex, $source);
 
         foreach ([[0, 1], [4, 5], [8, 9], [18, 14], [22, 18], [26, 22]] as [$generatedLine, $originalLine]) {
             $map->addPrinterMapping($generatedLine, 0, $sourceIndex, $originalLine, 7);
         }
 
+        $data = $map->toArray(null, false);
+
         $t->same('AACM;;;;AAIA;;;;AAIA;;;;;;;;;;AAKA;;;;AAIA;;;;AAIA', $map->writeVlq());
+        $t->same(3, $data['version']);
+        $t->same(['test.css'], $data['sources']);
+        $t->same([$source], $data['sourcesContent']);
+        $t->same([], $data['names']);
         $decoded = SourceMap::decodeVlq('AACM;;;;AAIA;;;;AAIA;;;;;;;;;;AAKA;;;;AAIA;;;;AAIA');
         $t->same(
             [
@@ -1142,6 +1178,21 @@ return [
         $t->same([2, 10], array_column($lookupParent->getMappings(), 'generatedColumn'));
     },
     'source map preserves unsorted vlq line order through direct line offsets' => static function (TestRunner $t): void {
+        $zeroOffset = new SourceMap();
+        $zeroOffset->addVlqMap(
+            'UAAAA,RACAC',
+            ['zero-line-shift.css'],
+            ['.zero-line-shift{}'],
+            ['later', 'earlier']
+        );
+        $zeroOffset->offsetLines(0, 0);
+
+        $t->same([0, 0], array_column($zeroOffset->getMappings(), 'generatedLine'));
+        $t->same([10, 2], array_column($zeroOffset->getMappings(), 'generatedColumn'));
+        $t->same([0, 1], array_column($zeroOffset->getMappings(), 'nameIndex'));
+        $t->same('EACAC,QADAD', $zeroOffset->writeVlq());
+        $t->same([2, 10], array_column($zeroOffset->getMappings(), 'generatedColumn'));
+
         $lineShift = new SourceMap();
         $lineShift->addVlqMap(
             'UAAAA,RACAC',
@@ -1536,6 +1587,25 @@ return [
             );
         }
     },
+    'source map ignores upstream json sourceRoot and file fields before vlq import' => static function (TestRunner $t): void {
+        $json = '{"version":3,"sourceRoot":"/theme/generated","file":"dist/app.css","mappings":"AAAA","sources":["src/card.css"],"sourcesContent":[".card{}"],"names":[]}';
+
+        $map = SourceMap::fromJson($json, '/theme');
+        $decoded = SourceMap::decodeVlq($map->writeVlq());
+        $data = $map->toArray('/maps');
+
+        $t->same('AAAA', $map->writeVlq());
+        $t->same(['src/card.css'], $map->getSources());
+        $t->same(['.card{}'], $map->getSourcesContent());
+        $t->same(0, $decoded[0]['sourceIndex']);
+        $t->same('/maps', $data['sourceRoot']);
+        $t->same(['src/card.css'], $data['sources']);
+
+        $dataUrl = 'data:application/json,' . rawurlencode($json);
+        $roundTrip = SourceMap::fromDataUrl($dataUrl, '/theme');
+
+        $t->same($map->toArray(null, false), $roundTrip->toArray(null, false));
+    },
     'source map rejects upstream invalid relative vlq decode offsets' => static function (TestRunner $t): void {
         $t->same(4294967295, SourceMap::decodeVlq('+/////H')[0]['generatedColumn']);
 
@@ -1545,12 +1615,46 @@ return [
             });
         }
 
+        foreach (['!', 'g'] as $mappings) {
+            $t->throws(InvalidArgumentException::class, static function () use ($mappings): void {
+                SourceMap::decodeVlq($mappings);
+            });
+            $t->throws(InvalidArgumentException::class, static function () use ($mappings): void {
+                $map = new SourceMap();
+                $map->addVlqMap($mappings, [], [], []);
+            });
+        }
+
         $t->throws(InvalidArgumentException::class, static function (): void {
             $map = new SourceMap();
             $map->addVlqMap('//////////////D', [], [], []);
         });
     },
+    'source map imports upstream plain json generated-only mappings' => static function (TestRunner $t): void {
+        // Pinned upstream 22bdda3d Cargo.lock parcel_sourcemap 2.1.1 lines 985-994,
+        // parcel_sourcemap-2.1.1/src/lib.rs::test_from_json lines 797-810.
+        $map = SourceMap::fromJson('{"version":3,"sourceRoot":"/","mappings":";C","sources":[],"sourcesContent":[],"names":[]}');
+
+        $t->same(';C', $map->writeVlq());
+        $t->same(
+            [['generatedLine' => 1, 'generatedColumn' => 1, 'sourceIndex' => null, 'originalLine' => null, 'originalColumn' => null, 'nameIndex' => null]],
+            $map->getMappings()
+        );
+        $t->same([], $map->getSources());
+        $t->same([], $map->getSourcesContent());
+        $t->same([], $map->getNames());
+    },
     'source map imports upstream json defaults and data URLs' => static function (TestRunner $t): void {
+        // Pinned upstream 22bdda3d Cargo.lock parcel_sourcemap 2.1.1 lines 985-994,
+        // parcel_sourcemap-2.1.1/src/lib.rs::test_to_json lines 785-795,
+        // test_from_json_no_sources_content lines 812-827, and test_to_data_url lines 829-840.
+        $jsonOnlyMap = new SourceMap();
+        $jsonOnlyMap->addGeneratedMapping(1, 1);
+        $t->same(
+            '{"version":3,"sourceRoot":"/","mappings":";C","sources":[],"sourcesContent":[],"names":[]}',
+            $jsonOnlyMap->toJson('/')
+        );
+
         $jsonWithoutContents = SourceMap::fromJson('{"version":3,"sourceRoot":"/","mappings":";C","sources":["file.js"],"names":[]}');
         $jsonWithNullContents = SourceMap::fromJson('{"version":3,"sourceRoot":"/","mappings":";C","sources":["file.js"],"sourcesContent":[null],"names":[]}');
 
@@ -1579,18 +1683,95 @@ return [
             $dataUrl
         );
 
-        $roundTrip = SourceMap::fromDataUrl($dataUrl);
-        $t->same(';C', $roundTrip->writeVlq());
-        $t->same(
-            [['generatedLine' => 1, 'generatedColumn' => 1, 'sourceIndex' => null, 'originalLine' => null, 'originalColumn' => null, 'nameIndex' => null]],
-            SourceMap::decodeVlq($roundTrip->writeVlq())
-        );
-
         $percentEncoded = 'data:application/json,' . rawurlencode('{"version":3,"sourceRoot":"/","mappings":";C","sources":[],"sourcesContent":[],"names":[]}');
         $t->same(';C', SourceMap::fromDataUrl($percentEncoded)->writeVlq());
         $t->throws(InvalidArgumentException::class, static function () use ($dataUrl): void {
             SourceMap::fromDataUrl(str_replace('application/json', 'text/plain', $dataUrl));
         });
+    },
+    'source map imports upstream data urls into generated-only mappings' => static function (TestRunner $t): void {
+        // Pinned upstream 22bdda3d Cargo.lock parcel_sourcemap 2.1.1 lines 985-994,
+        // parcel_sourcemap-2.1.1/src/lib.rs::test_from_data_url lines 842-854.
+        $map = SourceMap::fromDataUrl(
+            'data:application/json;charset=utf-8;base64,eyJ2ZXJzaW9uIjozLCJzb3VyY2VSb290IjoiLyIsIm1hcHBpbmdzIjoiO0MiLCJzb3VyY2VzIjpbXSwic291cmNlc0NvbnRlbnQiOltdLCJuYW1lcyI6W119'
+        );
+
+        $t->same(';C', $map->writeVlq());
+        $t->same(
+            [['generatedLine' => 1, 'generatedColumn' => 1, 'sourceIndex' => null, 'originalLine' => null, 'originalColumn' => null, 'nameIndex' => null]],
+            $map->getMappings()
+        );
+        $t->same([], $map->getSources());
+        $t->same([], $map->getSourcesContent());
+        $t->same([], $map->getNames());
+    },
+    'source map applies upstream json sourcesContent defaults to duplicate sources in order' => static function (TestRunner $t): void {
+        $laterMissing = SourceMap::fromJson(
+            '{"version":3,"mappings":"AAAA;ACAA","sources":["blocks/card.css","./blocks/card.css"],"sourcesContent":[".card{color:red}"],"names":[]}'
+        );
+        $laterMissingDecoded = SourceMap::decodeVlq($laterMissing->writeVlq());
+
+        $t->same('AAAA;AAAA', $laterMissing->writeVlq());
+        $t->same(['blocks/card.css'], $laterMissing->getSources());
+        $t->same([''], $laterMissing->getSourcesContent());
+        $t->same([0, 0], array_column($laterMissingDecoded, 'sourceIndex'));
+        $t->same([0, 0], array_column($laterMissingDecoded, 'originalLine'));
+
+        $laterExplicit = SourceMap::fromJson(
+            '{"version":3,"mappings":"ACAA","sources":["blocks/card.css","blocks/./card.css"],"sourcesContent":[null,".card{color:green}"],"names":[]}'
+        );
+
+        $t->same('AAAA', $laterExplicit->writeVlq());
+        $t->same(['blocks/card.css'], $laterExplicit->getSources());
+        $t->same(['.card{color:green}'], $laterExplicit->getSourcesContent());
+        $t->same([0], array_column(SourceMap::decodeVlq($laterExplicit->writeVlq()), 'sourceIndex'));
+
+        $arrayImport = SourceMap::fromArray([
+            'version' => 3,
+            'mappings' => 'AAAA;ACAA',
+            'sources' => ['blocks/card.css', './blocks/card.css'],
+            'sourcesContent' => ['.card{color:red}'],
+            'names' => [],
+        ]);
+
+        $t->same('AAAA;AAAA', $arrayImport->writeVlq());
+        $t->same(['blocks/card.css'], $arrayImport->getSources());
+        $t->same([''], $arrayImport->getSourcesContent());
+    },
+    'source map ignores upstream surplus sourcesContent rows beyond sources' => static function (TestRunner $t): void {
+        $json = SourceMap::fromJson(
+            '{"version":3,"mappings":"AAAA","sources":["blocks/used.css"],"sourcesContent":[".used{}",".ignored{}"],"names":[]}'
+        );
+
+        $t->same('AAAA', $json->writeVlq());
+        $t->same(['blocks/used.css'], $json->getSources());
+        $t->same(['.used{}'], $json->getSourcesContent());
+        $t->same(['.used{}'], $json->toArray(null, false)['sourcesContent']);
+
+        $array = SourceMap::fromArray([
+            'version' => 3,
+            'mappings' => 'AAAA',
+            'sources' => ['blocks/array-used.css'],
+            'sourcesContent' => ['.array-used{}', '.array-ignored{}'],
+            'names' => [],
+        ]);
+
+        $t->same('AAAA', $array->writeVlq());
+        $t->same(['blocks/array-used.css'], $array->getSources());
+        $t->same(['.array-used{}'], $array->getSourcesContent());
+
+        $direct = new SourceMap();
+        $direct->addVlqMap(
+            'AAAAA',
+            ['blocks/direct-used.css'],
+            ['.direct-used{}', '.direct-ignored{}'],
+            ['directRule', 'unusedRule']
+        );
+
+        $t->same('AAAAA', $direct->writeVlq());
+        $t->same(['blocks/direct-used.css'], $direct->getSources());
+        $t->same(['.direct-used{}'], $direct->getSourcesContent());
+        $t->same(['directRule', 'unusedRule'], $direct->getNames());
     },
     'source map imports percent-encoded base64 data URL payloads before vlq import' => static function (TestRunner $t): void {
         $json = '{"version":3,"mappings":";CAAA","sources":["x!"],"sourcesContent":[".x{}"],"names":[]}';
@@ -1637,6 +1818,25 @@ return [
         $t->same(['blocks/trivia.css'], $parent->getSources());
         $t->same([], $map->getSources());
         $t->same('', $map->writeVlq());
+    },
+    'source map rejects upstream undecodable base64 data URL payloads' => static function (TestRunner $t): void {
+        $t->throws(InvalidArgumentException::class, static function (): void {
+            SourceMap::fromDataUrl('data:application/json;charset=utf-8;base64,!!!!');
+        });
+    },
+    'source map round trips upstream empty buffer snapshots' => static function (TestRunner $t): void {
+        $map = new SourceMap('/theme');
+        $restored = SourceMap::fromBuffer('/theme', $map->toBuffer());
+
+        $t->same('', $restored->writeVlq());
+        $t->same([], $restored->getSources());
+        $t->same([], $restored->getSourcesContent());
+        $t->same([], $restored->getNames());
+        $t->same([], $restored->getMappings());
+        $t->same(
+            '{"version":3,"mappings":"","sources":[],"sourcesContent":[],"names":[]}',
+            $restored->toJson(null, false)
+        );
     },
     'source map round trips upstream buffer snapshots after offsets' => static function (TestRunner $t): void {
         $map = new SourceMap('/srv/www/site/wp-content/themes/example');
@@ -1979,6 +2179,40 @@ return [
         $t->same([0, 1], array_column($decoded, 'generatedLine'));
         $t->same([0, 0], array_column($decoded, 'sourceIndex'));
     },
+    'source map matches upstream make-relative-path fixture rows' => static function (TestRunner $t): void {
+        $sameDir = new SourceMap('/foo/bar');
+        $t->same('baz.map', $sameDir->getSource($sameDir->addSource('/foo/bar/baz.map')));
+        $t->same('../baz.map', $sameDir->getSource($sameDir->addSource('/foo/baz.map')));
+
+        $dotBase = new SourceMap('/foo/bar/.');
+        $t->same('baz.map', $dotBase->getSource($dotBase->addSource('/foo/bar/baz.map')));
+
+        $relative = new SourceMap('/some/abs/path');
+        $t->same('foo.js', $relative->getSource($relative->addSource('foo.js')));
+
+        $windows = new SourceMap('C:\\blah\\sub');
+        $t->same('../foo.js', $windows->getSource($windows->addSource('C:\\blah\\foo.js')));
+
+        $root = new SourceMap('/');
+        $t->same('test.js', $root->getSource($root->addSource('./test.js')));
+    },
+    'source map preserves upstream absolute url sources' => static function (TestRunner $t): void {
+        $map = new SourceMap('/test-root');
+        $httpSource = $map->addSource('https://example.com/a.js');
+        $fileSource = $map->addSource('file:///test-root/example.js');
+        // Upstream: parcel_sourcemap 2.1.1 src/utils.rs::make_relative_path lines 60-62.
+        $mixedCaseFileSource = $map->addSource('FiLe:///test-root/mixed-case.js');
+        $webpackSource = $map->addSource('webpack://weird-things/index.ts');
+
+        $t->same(
+            ['https://example.com/a.js', 'example.js', 'mixed-case.js', 'webpack://weird-things/index.ts'],
+            $map->getSources()
+        );
+        $t->same('https://example.com/a.js', $map->getSource($httpSource));
+        $t->same('example.js', $map->getSource($fileSource));
+        $t->same('mixed-case.js', $map->getSource($mixedCaseFileSource));
+        $t->same('webpack://weird-things/index.ts', $map->getSource($webpackSource));
+    },
     'source map exposes upstream source name and mapping lookup APIs after offsets' => static function (TestRunner $t): void {
         $map = new SourceMap('/srv/www/site/wp-content/themes/example');
         $style = $map->addSource('style.css');
@@ -2005,6 +2239,15 @@ return [
         $t->throws(OutOfBoundsException::class, static function () use ($map, $style): void {
             $map->getSourceContent($style);
         });
+        $t->throws(OutOfBoundsException::class, static function () use ($map): void {
+            $map->setSourceContent(99, '.missing{}');
+        });
+
+        $emptyMap = new SourceMap();
+        $t->throws(OutOfBoundsException::class, static function () use ($emptyMap): void {
+            $emptyMap->setSourceContent(0, '.missing{}');
+        });
+        $t->same([], $emptyMap->getSourcesContent());
 
         $map->setSourceContent($style, '.theme{color:green}');
         $map->setSourceContent($virtual, '.editor{outline:0}');
@@ -2042,6 +2285,64 @@ return [
         );
         $t->same(['.theme{color:green}', '', '.editor{outline:0}'], $map->getSourcesContent());
     },
+    'source map reuses upstream duplicate direct source and name indexes' => static function (TestRunner $t): void {
+        $map = new SourceMap();
+        $firstSource = $map->addSource('deduped-source.css');
+        $secondSource = $map->addSource('deduped-source.css');
+        $sourceBatch = $map->addSources(['deduped-source.css', 'sibling-source.css', 'deduped-source.css']);
+
+        $t->same(0, $firstSource);
+        $t->same($firstSource, $secondSource);
+        $t->same([$firstSource, 1, $firstSource], $sourceBatch);
+
+        $firstName = $map->addName('dedupedRule');
+        $secondName = $map->addName('dedupedRule');
+        $nameBatch = $map->addNames(['dedupedRule', 'siblingRule', 'dedupedRule']);
+
+        $t->same(0, $firstName);
+        $t->same($firstName, $secondName);
+        $t->same([$firstName, 1, $firstName], $nameBatch);
+
+        $map->setSourceContent($firstSource, ".deduped{}\n");
+        $map->setSourceContent($sourceBatch[1], ".sibling{}\n");
+        $map->addMapping(0, 0, $secondSource, 0, 0, 'dedupedRule');
+
+        $decoded = SourceMap::decodeVlq($map->writeVlq());
+
+        $t->same('AAAAA', $map->writeVlq());
+        $t->same(
+            [
+                ['generatedLine' => 0, 'generatedColumn' => 0, 'sourceIndex' => 0, 'originalLine' => 0, 'originalColumn' => 0, 'nameIndex' => 0],
+            ],
+            $decoded
+        );
+        $t->same(['deduped-source.css', 'sibling-source.css'], $map->getSources());
+        $t->same([".deduped{}\n", ".sibling{}\n"], $map->getSourcesContent());
+        $t->same(['dedupedRule', 'siblingRule'], $map->getNames());
+        $t->same($firstSource, $map->getSourceIndex('deduped-source.css'));
+        $t->same($firstName, $map->getNameIndex('dedupedRule'));
+    },
+    'source map accepts upstream direct mappings with dangling source indexes' => static function (TestRunner $t): void {
+        $map = new SourceMap();
+        $map->addMapping(0, 0, 0, 2, 3);
+
+        $decoded = SourceMap::decodeVlq($map->writeVlq());
+        $data = $map->toArray(null, false);
+
+        $t->same('AAEG', $map->writeVlq());
+        $t->same([], $data['sources']);
+        $t->same([], $data['sourcesContent']);
+        $t->same([], $data['names']);
+        $t->same([0], array_column($decoded, 'sourceIndex'));
+        $t->same([2], array_column($decoded, 'originalLine'));
+        $t->same([3], array_column($decoded, 'originalColumn'));
+        $t->same(0, $map->findClosestMapping(0, 0)['sourceIndex'] ?? null);
+        $t->same(2, $map->findClosestMapping(0, 0)['originalLine'] ?? null);
+        $t->same(null, $map->getSourceIndex('missing.css'));
+        $t->throws(OutOfBoundsException::class, static function () use ($map): void {
+            $map->getSource(0);
+        });
+    },
     'source map exposes upstream sourcesContent table after sparse writes and remaps' => static function (TestRunner $t): void {
         $sparse = new SourceMap();
         $sparse->addSource('blocks/first.css');
@@ -2076,6 +2377,27 @@ return [
         $t->same([".skipped{}\n", ".kept{}\n", ".unused{}\n"], $parent->getSourcesContent());
         $t->same([], $child->getSourcesContent());
         $t->same([1], array_column($parent->getMappings(), 'sourceIndex'));
+    },
+    'source map overwrites upstream source content on repeated direct writes' => static function (TestRunner $t): void {
+        $map = new SourceMap();
+        $first = $map->addSource('blocks/first.css');
+        $second = $map->addSource('blocks/second.css');
+
+        $map->setSourceContent($first, ".first{color:red}\n");
+        $map->setSourceContent($second, ".second{}\n");
+        $map->setSourceContent($first, ".first{color:green}\n");
+        $map->addMapping(0, 0, $first, 0, 0, 'firstRule');
+        $map->addMapping(1, 0, $second, 0, 0, 'secondRule');
+
+        $t->same(".first{color:green}\n", $map->getSourceContent($first));
+        $t->same(
+            [".first{color:green}\n", ".second{}\n"],
+            $map->getSourcesContent()
+        );
+        $t->same(
+            '{"version":3,"mappings":"AAAAA;ACAAC","sources":["blocks/first.css","blocks/second.css"],"sourcesContent":[".first{color:green}\n",".second{}\n"],"names":["firstRule","secondRule"]}',
+            $map->toJson(null, false)
+        );
     },
     'source map offsets generated columns with upstream overlap semantics' => static function (TestRunner $t): void {
         $map = new SourceMap();
@@ -2127,6 +2449,34 @@ return [
         $t->throws(InvalidArgumentException::class, static function () use ($map): void {
             $map->offsetLines(1, -2);
         });
+    },
+    'source map drains leading generated lines with upstream negative line offsets' => static function (TestRunner $t): void {
+        // Pinned upstream 22bdda3d Cargo.lock parcel_sourcemap 2.1.1 lines 985-994,
+        // parcel_sourcemap-2.1.1/src/lib.rs::offset_lines lines 615-646.
+        $map = new SourceMap();
+        $sourceIndex = $map->addSource('leading-drain.css');
+        $map->setSourceContent($sourceIndex, ".drained{}\n.kept{}\n");
+        $map->addGeneratedMapping(0, 0);
+        $map->addMapping(1, 1, $sourceIndex, 1, 0, 'drainedRule');
+        $map->addGeneratedMapping(2, 4);
+        $map->addMapping(3, 2, $sourceIndex, 3, 1, 'keptRule');
+
+        $map->offsetLines(2, -2);
+        $decoded = SourceMap::decodeVlq($map->writeVlq());
+        $roundTrip = SourceMap::fromBuffer('/', $map->toBuffer());
+        $data = $map->toArray(null, false);
+
+        $t->same('I;EAGCC', $map->writeVlq());
+        $t->same([0, 1], array_column($decoded, 'generatedLine'));
+        $t->same([4, 2], array_column($decoded, 'generatedColumn'));
+        $t->same([null, 0], array_column($decoded, 'sourceIndex'));
+        $t->same([null, 3], array_column($decoded, 'originalLine'));
+        $t->same([null, 1], array_column($decoded, 'originalColumn'));
+        $t->same([null, 1], array_column($decoded, 'nameIndex'));
+        $t->same(['leading-drain.css'], $data['sources']);
+        $t->same([".drained{}\n.kept{}\n"], $data['sourcesContent']);
+        $t->same(['drainedRule', 'keptRule'], $data['names']);
+        $t->same('I;EAGCC', $roundTrip->writeVlq());
     },
     'source map rejects negative line offsets beyond upstream generated span' => static function (TestRunner $t): void {
         $map = new SourceMap();
@@ -3094,6 +3444,13 @@ return [
             [".wp-block-cover {}\n\n.wp-block-button {}\n", "--wp--preset--color--primary: #06c;\n:root {}\n"],
             $data['sourcesContent']
         );
+
+        // Pinned parcel_sourcemap 2.1.1 SourceMap::add_empty_map empty-content branch.
+        $emptyContent = new SourceMap();
+        $emptyContent->addEmptyMap('empty.css', '', 4);
+        $t->same('', $emptyContent->writeVlq());
+        $t->same(['empty.css'], $emptyContent->getSources());
+        $t->same([''], $emptyContent->getSourcesContent());
     },
     'source map empty maps keep upstream lone carriage returns inside lines' => static function (TestRunner $t): void {
         $map = new SourceMap();

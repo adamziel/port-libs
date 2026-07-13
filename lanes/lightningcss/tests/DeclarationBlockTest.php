@@ -8,9 +8,17 @@ return [
     'declaration block get returns the last property and priority' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
 
+        $t->same(['value' => 'red', 'important' => false], $block->getProperty('color: red', 'color'));
         $t->same(['value' => 'red', 'important' => false], $block->getProperty('color: green; color: red', 'color'));
         $t->same(['value' => 'red', 'important' => true], $block->getProperty('color: red !important', 'color'));
         $t->same(null, $block->getProperty('margin-top: 5px', 'color'));
+        // Pinned upstream 22bdda3d tests/test_cssom.rs::test_get line 29.
+        $t->same(
+            ['value' => '5px', 'important' => false],
+            $block->getProperty('margin-top: 5px; margin-bottom: 5px; margin-left: 5px; margin-right: 5px', 'margin')
+        );
+        // Pinned upstream 22bdda3d tests/test_cssom.rs::test_get line 87.
+        $t->same(['value' => '5px 6px 7px 8px', 'important' => false], $block->getProperty('margin: 5px 6px 7px 8px', 'margin'));
         $t->same(['value' => '5px', 'important' => false], $block->getProperty('margin: 5px 6px 7px 8px', 'margin-top'));
         $t->same(
             ['value' => '5px 6px', 'important' => false],
@@ -18,7 +26,15 @@ return [
         );
         $t->same(
             null,
+            $block->getProperty('margin-top: 5px; margin-bottom: 5px', 'margin')
+        );
+        $t->same(
+            null,
             $block->getProperty('margin-top: 5px; margin-bottom: 5px; margin-left: 5px !important; margin-right: 5px', 'margin')
+        );
+        $t->same(
+            ['value' => '5px', 'important' => true],
+            $block->getProperty('margin-top: 5px !important; margin-bottom: 5px !important; margin-left: 5px !important; margin-right: 5px !important', 'margin')
         );
         $t->same(
             ['value' => '1rem 2rem 3rem 4rem', 'important' => true],
@@ -1399,6 +1415,7 @@ return [
     'declaration block reads upstream background cssom longhands' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
 
+        // Pinned upstream 22bdda3d tests/test_cssom.rs::test_get rows 109, 110, 111, 116, 121, 126, 131, 136, 141, 146, 200, 208, 215, and 222.
         $t->same(['value' => 'red', 'important' => false], $block->getProperty('background: red', 'background'));
         $t->same(['value' => 'red', 'important' => false], $block->getProperty('background: red', 'background-color'));
         $t->same(['value' => 'none', 'important' => false], $block->getProperty('background: red', 'background-image'));
@@ -1408,7 +1425,19 @@ return [
         $t->same(['value' => 'red', 'important' => false], $block->getProperty('background: red url(foo.png)', 'background-color'));
         $t->same(
             ['value' => 'red', 'important' => false],
+            $block->getProperty('background: url(foo.png), url(bar.png) red', 'background-color')
+        );
+        $t->same(
+            ['value' => 'red', 'important' => false],
             $block->getProperty('background: url(foo.png) green, url(bar.png) red', 'background-color')
+        );
+        $t->same(
+            ['value' => 'linear-gradient(red, green)', 'important' => false],
+            $block->getProperty('background: linear-gradient(red, green)', 'background-image')
+        );
+        $t->same(
+            ['value' => 'linear-gradient(red, green), linear-gradient(#fff, #000)', 'important' => false],
+            $block->getProperty('background: linear-gradient(red, green), linear-gradient(#fff, #000)', 'background-image')
         );
         $t->same(
             ['value' => 'linear-gradient(red, green), linear-gradient(#fff, #000)', 'important' => false],
@@ -1444,6 +1473,7 @@ return [
     'declaration block composes upstream background cssom shorthand' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
 
+        // Pinned upstream 22bdda3d tests/test_cssom.rs::test_get rows 157, 168, 179, and 190.
         $t->same(
             ['value' => 'linear-gradient(red, green) 20px 10px / 50px 100px repeat-x', 'important' => false],
             $block->getProperty(
@@ -3145,13 +3175,23 @@ return [
         $block = new DeclarationBlock();
 
         $t->same('color: green', $block->setProperty('color: red', 'color', 'green'));
+        $t->same('color: green', $block->setProperty('color: red !important', 'color', 'green'));
+        $t->same('color: green !important', $block->setProperty('color: red', 'color', 'green', true));
         $t->same('color: green !important', $block->setProperty('color: red !important', 'color', 'green', true));
+        $t->same('color: red; color: green', $block->setProperty('color: red; color: blue', 'color', 'green'));
         $t->same('color: red; background-color: #00f', $block->setProperty('color: red', 'background-color', 'blue'));
+        $t->same('margin: 10px', $block->setProperty('margin: 5px', 'margin', '10px'));
         $t->same('margin: 8px 5px 5px', $block->setProperty('margin: 5px', 'margin-top', '8px'));
+        $t->same('margin: 5px; margin-inline-start: 8px', $block->setProperty('margin: 5px', 'margin-inline-start', '8px'));
         $t->same('padding: 1rem 2rem 1rem 4rem', $block->setProperty('padding: 1rem 2rem', 'padding-left', '4rem'));
         $t->same(
             'margin: 5px; margin-inline-start: 8px; margin-left: 10px',
             $block->setProperty('margin: 5px; margin-inline-start: 8px', 'margin-left', '10px')
+        );
+        // Pinned upstream 22bdda3d src/declaration.rs::DeclarationBlock::set line 399.
+        $t->same(
+            'margin-top: 5px; margin-bottom: 6px; margin: 10px',
+            $block->setProperty('margin-top: 5px; margin-bottom: 6px', 'margin', '10px')
         );
     },
     'declaration block parses upstream cssom set values before top level delimiters' => static function (TestRunner $t): void {
@@ -4416,11 +4456,17 @@ return [
         $block = new DeclarationBlock();
 
         $t->same('', $block->removeProperty('margin-top: 10px', 'margin-top'));
+        $t->same('margin-left: 5px', $block->removeProperty('margin-top: 10px; margin-left: 5px', 'margin-top'));
         $t->same('margin-left: 5px', $block->removeProperty('margin-top: 10px !important; margin-left: 5px', 'margin-top'));
         $t->same('color: red', $block->removeProperty('margin-top: 10px; color: red; margin-top: 12px', 'margin-top'));
         $t->same(
             'margin-right: 10px; margin-bottom: 10px; margin-left: 10px',
             $block->removeProperty('margin: 10px', 'margin-top')
+        );
+        // Pinned upstream 22bdda3d src/declaration.rs::DeclarationBlock::remove line 444.
+        $t->same(
+            'margin-right: 10px; margin-bottom: 10px; margin-left: 10px; margin-left: 5px',
+            $block->removeProperty('margin: 10px; margin-left: 5px', 'margin-top')
         );
         $t->same('', $block->removeProperty('margin: 10px', 'margin'));
         $t->same('', $block->removeProperty('margin-top: 10px; margin-right: 10px; margin-bottom: 10px; margin-left: 10px', 'margin'));

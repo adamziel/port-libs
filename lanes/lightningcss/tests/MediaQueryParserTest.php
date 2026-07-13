@@ -40,6 +40,36 @@ return [
         $t->same('(width>=1e-7px)', $parser->minifyList('(width >= 1e-7px)'));
         $t->same('(width>=1000px)', $parser->minifyList('(width >= +1E3px)'));
     },
+    'media query parser maps upstream media query conjunctions' => static function (TestRunner $t): void {
+        $parser = new MediaQueryParser();
+
+        $cases = [
+            ['(min-width: 250px)', '(color)', '(width>=250px) and (color)'],
+            ['(min-width: 250px) or (color)', '(orientation: landscape)', '((width>=250px) or (color)) and (orientation:landscape)'],
+            ['(min-width: 250px) and (color)', '(orientation: landscape)', '(width>=250px) and (color) and (orientation:landscape)'],
+            ['all', 'print', 'print'],
+            ['print', 'all', 'print'],
+            ['all', 'not print', 'not print'],
+            ['not print', 'all', 'not print'],
+            ['not all', 'print', 'not all'],
+            ['print', 'not all', 'not all'],
+            ['print', 'screen', 'not all'],
+            ['not print', 'screen', 'screen'],
+            ['print', 'not screen', 'print'],
+            ['not screen', 'print', 'print'],
+            ['not screen', 'not all', 'not all'],
+            ['print', '(min-width: 250px)', 'print and (width>=250px)'],
+            ['(min-width: 250px)', 'print', 'print and (width>=250px)'],
+            ['print and (min-width: 250px)', '(color)', 'print and (width>=250px) and (color)'],
+            ['all', 'only screen', 'only screen'],
+            ['only screen', 'all', 'only screen'],
+            ['print', 'print', 'print'],
+        ];
+
+        foreach ($cases as [$left, $right, $expected]) {
+            $t->same($expected, $parser->andQuery($left, $right), 'upstream src/media_query.rs::tests::test_and');
+        }
+    },
     'media query parser maps upstream negated simple range normalization' => static function (TestRunner $t): void {
         $parser = new MediaQueryParser();
 
@@ -741,7 +771,7 @@ return [
         $t->same('(hover) or ((min-width:100px) and (max-width:200px))', $parser->lowerRangeSyntaxList('(hover) or (100px <= width <= 200px)'));
         $t->same('(not (max-width:100px)) and (not (min-width:200px))', $parser->lowerRangeSyntaxList('(100px < width < 200px)'));
         $t->same('not ((not (max-width:100px)) and (not (min-width:200px)))', $parser->lowerRangeSyntaxList('not (100px < width < 200px)'));
-        $t->same('screen and not ((min-width:200px) and (not (min-width:500px)))', $parser->lowerRangeSyntaxList('screen and not (200px <= width < 500px)'));
+        $t->same('screen and not ((min-width:200px) and (not (min-width:500px)))', $parser->lowerRangeSyntaxList('screen and not (200px <= width < 500px)'), 'upstream src/media_query.rs::tests::test_negated_interval_parens');
         $t->same('(hover) and (not ((min-width:200px) and (not (min-width:500px))))', $parser->lowerRangeSyntaxList('(hover) and (not (200px <= width < 500px))'));
         $t->same('(hover) and (min-width:240px)', $parser->lowerRangeSyntaxList('(hover) and (not (width < 240px))'));
         $t->same('not ((not (min-width:240px)) or (hover))', $parser->lowerRangeSyntaxList('not ((width < 240px) or (hover))'));
@@ -881,9 +911,42 @@ return [
         $css = '@media (min-width: 240px) and (hover: hover) { .foo { color: chartreuse; } }';
 
         $t->same('@media (width>=240px) and (hover:hover){.foo{color:#7fff00}}', (new CssMinifier())->minify($css));
+        // Pinned upstream 22bdda3d src/lib.rs::test_media lines 8826-8842.
+        $t->same('@media (width>=240px){.foo{color:#7fff00}}', (new CssMinifier())->minify('@media (min-width: 240px) { .foo { color: chartreuse }}'));
+        $t->same('@media (width<240px){.foo{color:#7fff00}}', (new CssMinifier())->minify('@media (width < 240px) { .foo { color: chartreuse }}'));
+        $t->same('@media (width<=240px){.foo{color:#7fff00}}', (new CssMinifier())->minify('@media (width <= 240px) { .foo { color: chartreuse }}'));
+        $t->same('@media (width>240px){.foo{color:#7fff00}}', (new CssMinifier())->minify('@media (width > 240px) { .foo { color: chartreuse }}'));
+        $t->same('@media (width>=240px){.foo{color:#7fff00}}', (new CssMinifier())->minify('@media (width >= 240px) { .foo { color: chartreuse }}'));
+        // Pinned upstream 22bdda3d src/lib.rs::test_media lines 8846, 8850, 8854, 8858, 8862, and 8866.
+        $t->same('@media (width>240px){.foo{color:#7fff00}}', (new CssMinifier())->minify('@media (240px < width) { .foo { color: chartreuse }}'));
+        $t->same('@media (width>=240px){.foo{color:#7fff00}}', (new CssMinifier())->minify('@media (240px <= width) { .foo { color: chartreuse }}'));
+        $t->same('@media (width<240px){.foo{color:#7fff00}}', (new CssMinifier())->minify('@media (240px > width) { .foo { color: chartreuse }}'));
+        $t->same('@media (width<=240px){.foo{color:#7fff00}}', (new CssMinifier())->minify('@media (240px >= width) { .foo { color: chartreuse }}'));
+        $t->same('@media (100px<width<200px){.foo{color:#7fff00}}', (new CssMinifier())->minify('@media (100px < width < 200px) { .foo { color: chartreuse }}'));
+        $t->same('@media (100px<=width<=200px){.foo{color:#7fff00}}', (new CssMinifier())->minify('@media (100px <= width <= 200px) { .foo { color: chartreuse }}'));
+        // Pinned upstream 22bdda3d src/lib.rs::test_media line 8875.
+        $t->same('@media screen,print{.foo{color:#7fff00}}', (new CssMinifier())->minify('@media screen, print { .foo { color: chartreuse }}'));
+        // Pinned upstream 22bdda3d src/lib.rs::test_media lines 8870-8954.
+        $t->same('@media (width>=30em) and (width<=50em){.foo{color:#7fff00}}', (new CssMinifier())->minify('@media (min-width: 30em) and (max-width: 50em) { .foo { color: chartreuse }}'));
+        $t->same('@media (hover:hover){.foo{color:#7fff00}}', (new CssMinifier())->minify('@media (hover: hover) { .foo { color: chartreuse }}'));
+        $t->same('@media (hover){.foo{color:#7fff00}}', (new CssMinifier())->minify('@media (hover) { .foo { color: chartreuse }}'));
+        $t->same('@media (aspect-ratio:11/5){.foo{color:#7fff00}}', (new CssMinifier())->minify('@media (aspect-ratio: 11/5) { .foo { color: chartreuse }}'));
+        $t->same('@media (aspect-ratio:2){.foo{color:#7fff00}}', (new CssMinifier())->minify('@media (aspect-ratio: 2/1) { .foo { color: chartreuse }}'));
+        $t->same('@media (aspect-ratio:2){.foo{color:#7fff00}}', (new CssMinifier())->minify('@media (aspect-ratio: 2) { .foo { color: chartreuse }}'));
+        $t->same('@media not screen and (color){.foo{color:#7fff00}}', (new CssMinifier())->minify('@media not screen and (color) { .foo { color: chartreuse }}'));
+        $t->same('@media only screen and (color){.foo{color:#7fff00}}', (new CssMinifier())->minify('@media only screen and (color) { .foo { color: chartreuse }}'));
+        $t->same('@media (update:slow) or (hover:none){.foo{color:#7fff00}}', (new CssMinifier())->minify('@media (update: slow) or (hover: none) { .foo { color: chartreuse }}'));
+        $t->same('@media (width<600px) and (height<600px){.foo{color:#7fff00}}', (new CssMinifier())->minify('@media (width < 600px) and (height < 600px) { .foo { color: chartreuse }}'));
+        $t->same('@media (not (color)) or (hover){.foo{color:#7fff00}}', (new CssMinifier())->minify('@media (not (color)) or (hover) { .foo { color: chartreuse }}'));
+        $t->same('@media (width>=240px){.foo{color:#7fff00}}', (new CssMinifier())->minify('@media (min-width: calc(200px + 40px)) { .foo { color: chartreuse }}'));
+        $t->same('@media (width>=calc(1em + 5px)){.foo{color:#7fff00}}', (new CssMinifier())->minify('@media (min-width: calc(1em + 5px)) { .foo { color: chartreuse }}'));
+        $t->same('@media (grid:1){.foo{color:#7fff00}}', (new CssMinifier())->minify('@media (grid: 1) { .foo { color: chartreuse }}'));
+        $t->same('@media (width>=6px){.foo{color:#7fff00}}', (new CssMinifier())->minify('@media (width >= calc(2px + 4px)) { .foo { color: chartreuse }}'));
         $t->same('.foo{color:#7fff00}', (new CssMinifier())->minify('@media { .foo { color: chartreuse } }'));
         $t->same('.foo{color:#7fff00}', (new CssMinifier())->minify('@media all { .foo { color: chartreuse } }'));
         $t->same('', (new CssMinifier())->minify('@media not all { .foo { color: chartreuse } }'));
+        // Pinned upstream 22bdda3d src/lib.rs::test_media line 9146.
+        $t->same('@media (width>=240px){.foo{color:#7fff00}}', (new CssMinifier())->minify('@media not (width < 240px) { .foo { color: chartreuse } }'));
         $t->same('@media not ((color) or (hover)){.foo{color:#7fff00}}', (new CssMinifier())->minify('@media not (((color) or (hover))) { .foo { color: chartreuse } }'));
         $t->same('@media (hover) and (color) and (test){.foo{color:#7fff00}}', (new CssMinifier())->minify('@media (hover) and ((color) and (test)) { .foo { color: chartreuse } }'));
         $t->same('.foo{color:#7fff00}', (new CssMinifier())->minify('@media all, all { .foo { color: chartreuse } }'));
@@ -919,6 +982,19 @@ return [
         $t->same('@layer blocks{@media Speech and (--WP-Breakpoint<3){.foo{color:#ff0}}}', (new CssMinifier())->minify('@layer blocks { @media Speech and (not (--WP-Breakpoint >= 3)) { .foo { color: yellow } } }'));
         $t->same('@layer blocks{@media (width>=240px){.foo{color:#ff0}}}', (new CssMinifier())->minify('@layer blocks { @media (width >= 240px), { .foo { color: yellow } } }'));
         $t->same('@layer blocks{@media screen and not (color){.foo{color:#ff0}}}', (new CssMinifier())->minify('@layer blocks { @media screen and not (color) { .foo { color: yellow } } }'));
+    },
+    'css minifier maps upstream adjacent media rule merging' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        // Pinned upstream 22bdda3d src/lib.rs::test_merge_media_rules lines 11211 and 11242.
+        $t->same(
+            '@media (hover){.foo{color:red;background:#fff}.baz{color:#fff}}',
+            $minifier->minify('@media (hover) { .foo { color: red; } } @media (hover) { .foo { background: #fff; } .baz { color: #fff; } }')
+        );
+        $t->same(
+            '@media (hover){.foo{color:red}}@media (width>=250px){.foo{background:#fff}.baz{color:#fff}}',
+            $minifier->minify('@media (hover) { .foo { color: red; } } @media (min-width: 250px) { .foo { background: #fff; } .baz { color: #fff; } }')
+        );
     },
     'media query parser flattens upstream redundant boolean wrappers inside layers' => static function (TestRunner $t): void {
         $parser = new MediaQueryParser();

@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LightningCSS\CustomAtRuleTransformer;
+use PortLibs\LightningCSS\CssModulesTransformer;
 
 $customDefinitions = [
     'theme' => [
@@ -161,7 +162,8 @@ CSS;
 
         $t->same(
             '@test{.foo{background:#000}}',
-            (new CustomAtRuleTransformer())->transform($css, $customDefinitions)
+            (new CustomAtRuleTransformer())->transform($css, $customDefinitions),
+            'upstream node/test/customAtRules.mjs line 209'
         );
     },
     'custom at-rules map upstream generic custom visitor across nested rules' => static function (TestRunner $t) use ($customDefinitions): void {
@@ -619,6 +621,94 @@ CSS;
                 'prelude' => '<length>',
             ],
         ]));
+    },
+    'custom at-rules map upstream SyntaxString parse value matrix' => static function (TestRunner $t): void {
+        $parse = static function (string $syntax, string $prelude): array {
+            $seen = null;
+            (new CustomAtRuleTransformer())->transform('@probe ' . $prelude . ';', [
+                'probe' => [
+                    'prelude' => $syntax,
+                ],
+            ], [
+                'Rule' => [
+                    'custom' => [
+                        'probe' => static function (array $rule) use (&$seen): array {
+                            $seen = $rule['preludeAst'];
+
+                            return [];
+                        },
+                    ],
+                ],
+            ]);
+
+            return $seen;
+        };
+        $expectInvalid = static function (string $syntax, string $prelude): void {
+            (new CustomAtRuleTransformer())->transform('@probe ' . $prelude . ';', [
+                'probe' => [
+                    'prelude' => $syntax,
+                ],
+            ]);
+        };
+
+        $t->same(['type' => 'literal', 'value' => 'foo'], $parse('foo | <color>+ | <integer>', 'foo'), 'upstream src/values/syntax.rs::tests::test_syntax');
+        $t->same(['type' => 'literal', 'value' => 'foo'], $parse('foo|<color>+|<integer>', 'foo'));
+        $t->same(['type' => 'integer', 'value' => 2], $parse('foo | <color>+ | <integer>', '2'));
+
+        $red = $parse('foo | <color>+ | <integer>', 'red');
+        $t->same('space', $red['value']['multiplier']['type'] ?? null);
+        $t->same([[255, 0, 0]], array_map(
+            static fn (array $component): array => [
+                $component['value']['r'],
+                $component['value']['g'],
+                $component['value']['b'],
+            ],
+            $red['value']['components'] ?? []
+        ));
+
+        $spaceColors = $parse('foo | <color>+ | <integer>', 'red blue');
+        $t->same('space', $spaceColors['value']['multiplier']['type'] ?? null);
+        $t->same([[255, 0, 0], [0, 0, 255]], array_map(
+            static fn (array $component): array => [
+                $component['value']['r'],
+                $component['value']['g'],
+                $component['value']['b'],
+            ],
+            $spaceColors['value']['components'] ?? []
+        ));
+
+        $commaColors = $parse('foo | <color># | <integer>', 'red, blue');
+        $t->same('comma', $commaColors['value']['multiplier']['type'] ?? null);
+        $t->same([[255, 0, 0], [0, 0, 255]], array_map(
+            static fn (array $component): array => [
+                $component['value']['r'],
+                $component['value']['g'],
+                $component['value']['b'],
+            ],
+            $commaColors['value']['components'] ?? []
+        ));
+
+        $t->same(['unit' => 'px', 'value' => 25.0], $parse('<length>', '25px')['value']['value']);
+        $t->same(['unit' => 'px', 'value' => 50.0], $parse('<length>', 'calc(25px + 25px)')['value']['value']);
+        $t->same(['unit' => 'px', 'value' => 25.0], $parse('<length> | <percentage>', '25px')['value']['value']);
+        $t->same(['type' => 'percentage', 'value' => 0.25], $parse('<length> | <percentage>', '25%'));
+        $t->same(['type' => 'literal', 'value' => 'bar'], $parse('foo | bar | baz', 'bar'));
+        $t->same(['type' => 'string', 'value' => 'foo'], $parse('<string>', "'foo'"));
+        $t->same(['type' => 'custom-ident', 'value' => 'hi'], $parse('<custom-ident>', 'hi'));
+
+        foreach ([
+            ['foo | <color>+ | <integer>', '2.5'],
+            ['foo | <color>+ | <integer>', '25px'],
+            ['foo | <color>+ | <integer>', 'red, green'],
+            ['foo | <color># | <integer>', 'red green'],
+            ['<length> | <percentage>', 'calc(100% - 25px)'],
+        ] as [$syntax, $prelude]) {
+            $t->throws(InvalidArgumentException::class, static fn () => $expectInvalid($syntax, $prelude));
+        }
+
+        foreach (['<transform-list>#', '<color', 'color>'] as $syntax) {
+            $t->throws(InvalidArgumentException::class, static fn () => $expectInvalid($syntax, 'foo'));
+        }
     },
     'custom at-rules visit upstream SyntaxString image preludes before custom rule visitors' => static function (TestRunner $t): void {
         $events = [];
@@ -2142,6 +2232,54 @@ CSS,
         $t->same('.foo{color:red}.foo.bar{color:#ff0}', $result);
         $t->contains('&.bar', $mixins['color']);
     },
+    'custom at-rules map upstream Length visitors in declarations and custom values' => static function (TestRunner $t): void {
+        // Pinned upstream 22bdda3d node/test/visitor.test.mjs::px to rem lines 41-66.
+        $seen = [];
+        $css = <<<'CSS'
+.foo {
+  width: 32px;
+  height: calc(100vh - 64px);
+  --custom: calc(var(--foo) + 32px);
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [], [
+            'Length' => static function (array $length) use (&$seen): ?array {
+                $seen[] = [$length['unit'], $length['value']];
+
+                return $length['unit'] === 'px'
+                    ? ['unit' => 'rem', 'value' => $length['value'] / 16]
+                    : null;
+            },
+        ]);
+
+        $t->same('.foo{width:2rem;height:calc(100vh - 4rem);--custom:calc(var(--foo) + 2rem)}', $result);
+        $t->same([
+            ['px', 32.0],
+            ['vh', 100.0],
+            ['px', 64.0],
+            ['px', 32.0],
+        ], $seen);
+    },
+    'custom at-rules map upstream Length visitors through bundler' => static function (TestRunner $t): void {
+        // Pinned upstream 22bdda3d node/test/visitor.test.mjs::works with bundler lines 832-849.
+        $seen = [];
+        $result = (new CustomAtRuleTransformer())->bundle('/a.css', [
+            '/a.css' => '@import "./b.css"; .a { width: 32px; }',
+            '/b.css' => '.b { height: calc(100vh - 64px); }',
+        ], [], [
+            'Length' => static function (array $length) use (&$seen): ?array {
+                $seen[] = [$length['unit'], $length['value']];
+
+                return $length['unit'] === 'px'
+                    ? ['unit' => 'rem', 'value' => $length['value'] / 16]
+                    : null;
+            },
+        ]);
+
+        $t->same('.b{height:calc(100vh - 4rem)}.a{width:2rem}', $result);
+        $t->same([['vh', 100.0], ['px', 64.0], ['px', 32.0]], $seen);
+    },
     'custom at-rules preserve upstream custom parser inline and block output' => static function (TestRunner $t): void {
         $css = <<<'CSS'
 @block test {
@@ -2268,7 +2406,7 @@ CSS;
             ],
         ]);
 
-        $t->same('.m-1{margin:10px}@media (width>=500px){.sm\\:m-1{margin:10px}}', $result);
+        $t->same('.m-1{margin:10px}@media (width>=500px){.sm\\:m-1{margin:10px}}', $result, 'upstream node/test/visitor.test.mjs line 1087');
         $t->same('style', $seenBodyRules[0]['type']);
         $t->same('m-1', $seenBodyRules[0]['value']['selectors'][0][0]['name']);
     },
@@ -2367,7 +2505,10 @@ CSS;
                             'declarations' => [
                                 'declarations' => [
                                     ['property' => 'visibility', 'raw' => 'hi\\64 den'],
+                                    ['property' => 'background', 'raw' => 'yellow'],
+                                    ['property' => '--custom', 'raw' => 'hi'],
                                     ['property' => 'transition', 'vendorPrefix' => ['moz'], 'raw' => '200ms test'],
+                                    ['property' => '-webkit-animation', 'raw' => '3s cubic-bezier(0.25, 0.1, 0.25, 1) foo'],
                                 ],
                             ],
                         ],
@@ -2376,7 +2517,7 @@ CSS;
             ],
         ]);
 
-        $t->same('*{visibility:hidden;-moz-transition:test .2s}.keep{color:red}', $result);
+        $t->same('*{visibility:hidden;--custom:hi;background:#ff0;-moz-transition:test .2s;-webkit-animation:3s foo}.keep{color:red}', $result);
         $t->same(0, substr_count($result, '@skip'));
     },
     'custom at-rules map upstream composed custom rule visitors' => static function (TestRunner $t): void {
@@ -2526,6 +2667,33 @@ CSS;
         $t->same([
             ['type' => 'file', 'filePath' => 'tokens.json'],
         ], $result['dependencies']);
+    },
+    'custom at-rules map upstream direct static vars visitor demo' => static function (TestRunner $t): void {
+        $declared = [];
+        $css = <<<'CSS'
+@blue #056ef0;
+
+.menu_link {
+  background: @blue;
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [], [
+            'Rule' => [
+                'unknown' => static function (array $rule) use (&$declared): array {
+                    $declared[$rule['name']] = $rule['prelude'];
+
+                    return [];
+                },
+            ],
+            'Token' => [
+                'at-keyword' => static function (array $token) use (&$declared): ?string {
+                    return $declared[$token['value']] ?? null;
+                },
+            ],
+        ]);
+
+        $t->same('.menu_link{background:#056ef0}', $result, 'upstream node/test/visitor.test.mjs line 335');
     },
     'custom at-rules map upstream composed unknown rules and token visitors' => static function (TestRunner $t): void {
         $declared = [];
@@ -3200,7 +3368,7 @@ CSS;
             ],
         ]);
 
-        $t->same('.hoverable .foo{color:red}', $result);
+        $t->same('.hoverable .foo{color:red}', $result, 'upstream node/test/visitor.test.mjs line 714');
         $t->same('all', $seenQuery['mediaType']);
         $t->same('hover', $seenQuery['condition']['value']['name'] ?? null);
     },
@@ -3226,7 +3394,11 @@ CSS;
             ],
         ]);
 
-        $t->same('.foo{-webkit-overflow-scrolling:touch;overflow:auto}', $result);
+        $t->same(
+            '.foo{-webkit-overflow-scrolling:touch;overflow:auto}',
+            $result,
+            'upstream node/test/visitor.test.mjs line 754'
+        );
         $t->same(['overflow'], $seen);
     },
     'custom at-rules clone upstream native media plain-feature visitor rules' => static function (TestRunner $t): void {
@@ -3296,9 +3468,59 @@ CSS;
             ],
         ]);
 
-        $t->same('@media (prefers-color-scheme:dark){html:not([theme=light]) body{background:#000}}html[theme=dark] body{background:#000}', $result);
+        $t->same('@media (prefers-color-scheme:dark){html:not([theme=light]) body{background:#000}}html[theme=dark] body{background:#000}', $result, 'upstream node/test/visitor.test.mjs line 527');
         $t->same('prefers-color-scheme', $seenFeature['name'] ?? null);
         $t->same('dark', $seenFeature['value']['value'] ?? null);
+    },
+    'custom at-rules map upstream direct property lookup visitor demo' => static function (TestRunner $t): void {
+        $result = (new CustomAtRuleTransformer())->transform('.test { margin-left: 20px; margin-right: @margin-left; }', [], [
+            'Rule' => [
+                'style' => static function (array $rule): array {
+                    $valuesByProperty = [];
+                    foreach ($rule['declarations'] as $declaration) {
+                        $valuesByProperty[$declaration['property']] = $declaration['value'];
+                    }
+
+                    foreach ($rule['declarations'] as $index => $declaration) {
+                        if (str_starts_with($declaration['value'], '@')) {
+                            $referenced = substr($declaration['value'], 1);
+                            if (isset($valuesByProperty[$referenced])) {
+                                $rule['declarations'][$index]['value'] = $valuesByProperty[$referenced];
+                            }
+                        }
+                    }
+
+                    return $rule;
+                },
+            ],
+        ]);
+
+        $t->same('.test{margin-left:20px;margin-right:20px}', $result, 'upstream node/test/visitor.test.mjs line 438');
+    },
+    'custom at-rules map upstream direct focus-visible visitor demo' => static function (TestRunner $t): void {
+        $result = (new CustomAtRuleTransformer())->transform('.test:focus-visible { color: red; }', [], [
+            'Rule' => [
+                'style' => static function (array $rule): ?array {
+                    $fallbackSelectors = [];
+                    foreach ($rule['selectors'] as $selector) {
+                        if (!str_contains($selector, ':focus-visible')) {
+                            continue;
+                        }
+                        $fallbackSelectors[] = str_replace(':focus-visible', '.focus-visible', $selector);
+                    }
+                    if ($fallbackSelectors === []) {
+                        return null;
+                    }
+
+                    return [
+                        array_replace($rule, ['selectors' => $fallbackSelectors]),
+                        $rule,
+                    ];
+                },
+            ],
+        ]);
+
+        $t->same('.test.focus-visible{color:red}.test:focus-visible{color:red}', $result, 'upstream node/test/visitor.test.mjs line 487');
     },
     'custom at-rules compose upstream known style rule visitors' => static function (TestRunner $t): void {
         $visitor = CustomAtRuleTransformer::composeVisitors([
@@ -3453,7 +3675,7 @@ CSS;
             ],
         ]);
 
-        $t->same('.foo{transform:translate(50px)}.foo:dir(rtl){transform:translate(-50px)}.bar{transform:translate(20%)}.bar:dir(rtl){transform:translate(-20%)}.baz{transform:translate(calc(100vw - 20px))}.baz:dir(rtl){transform:translate(-1*calc(100vw - 20px))}', $result);
+        $t->same('.foo{transform:translate(50px)}.foo:dir(rtl){transform:translate(-50px)}.bar{transform:translate(20%)}.bar:dir(rtl){transform:translate(-20%)}.baz{transform:translate(calc(100vw - 20px))}.baz:dir(rtl){transform:translate(-1*calc(100vw - 20px))}', $result, 'upstream node/test/visitor.test.mjs line 639');
         $t->same([
             ['function' => 'translateX', 'argument' => 'dimension'],
             ['function' => 'translateX', 'argument' => 'percentage'],
@@ -3524,7 +3746,7 @@ CSS;
             ],
         ]);
 
-        $t->same('.toolbar{color:#fff;border:1px solid green}', $result);
+        $t->same('.toolbar{color:#fff;border:1px solid green}', $result, 'upstream node/test/visitor.test.mjs line 388');
         $t->same([
             ['selectorType' => 'type', 'selectorName' => '--toolbar-theme', 'childRules' => 0],
             ['selectorType' => 'class', 'selectorName' => 'toolbar', 'childRules' => 1],
@@ -3744,6 +3966,7 @@ CSS;
         ], $seenTokenList);
     },
     'custom at-rules compose upstream Color and Length value visitors' => static function (TestRunner $t): void {
+        // Pinned upstream 22bdda3d node/test/composeVisitors.test.mjs::different types line 21.
         $seenColors = [];
         $seenLengths = [];
         $visitor = CustomAtRuleTransformer::composeVisitors([
@@ -3776,9 +3999,42 @@ CSS;
 
         $result = (new CustomAtRuleTransformer())->transform('.foo { width: 16px; color: red; }', [], $visitor);
 
-        $t->same('.foo{width:1rem;color:#0f0}', $result);
+        $t->same('.foo{color:#0f0;width:1rem}', $result, 'upstream node/test/composeVisitors.test.mjs line 21');
         $t->same([['unit' => 'px', 'value' => 16.0]], $seenLengths);
         $t->same([['type' => 'rgb', 'r' => 255, 'g' => 0, 'b' => 0, 'alpha' => 1]], $seenColors);
+    },
+    'custom at-rules compose upstream matching Length visitors sequentially' => static function (TestRunner $t): void {
+        // Pinned upstream 22bdda3d node/test/composeVisitors.test.mjs::simple matching types lines 61-93.
+        $seen = [];
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'Length' => static function (array $length) use (&$seen): array {
+                    $seen[] = ['double', $length['unit'], $length['value']];
+
+                    return [
+                        'unit' => $length['unit'],
+                        'value' => $length['value'] * 2,
+                    ];
+                },
+            ],
+            [
+                'Length' => static function (array $length) use (&$seen): ?array {
+                    $seen[] = ['rem', $length['unit'], $length['value']];
+
+                    return $length['unit'] === 'px'
+                        ? ['unit' => 'rem', 'value' => $length['value'] / 16]
+                        : null;
+                },
+            ],
+        ]);
+
+        $result = (new CustomAtRuleTransformer())->transform('.foo { width: 16px; }', [], $visitor);
+
+        $t->same('.foo{width:2rem}', $result);
+        $t->same([
+            ['double', 'px', 16.0],
+            ['rem', 'px', 32.0],
+        ], $seen);
     },
     'custom at-rules compose upstream sequential Color visitors' => static function (TestRunner $t): void {
         $seen = [];
@@ -3816,6 +4072,95 @@ CSS;
         $t->same(2, count($seen));
         $t->same([255, 0, 0, 1], [$seen[0]['r'], $seen[0]['g'], $seen[0]['b'], $seen[0]['alpha']]);
         $t->same([0, 255, 0, 1], [$seen[1]['r'], $seen[1]['g'], $seen[1]['b'], $seen[1]['alpha']]);
+    },
+    'custom at-rules map upstream generic EnvironmentVariable visitors in media and declarations' => static function (TestRunner $t): void {
+        // Pinned upstream 22bdda3d node/test/visitor.test.mjs::env function lines 167-208.
+        $tokens = [
+            '--branding-small' => [
+                'type' => 'length',
+                'value' => [
+                    'unit' => 'px',
+                    'value' => 600,
+                ],
+            ],
+            '--branding-padding' => [
+                'type' => 'length',
+                'value' => [
+                    'unit' => 'px',
+                    'value' => 20,
+                ],
+            ],
+        ];
+        $seenNames = [];
+
+        $css = <<<'CSS'
+@media (max-width: env(--branding-small)) {
+  body {
+    padding: env(--branding-padding);
+  }
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [], [
+            'EnvironmentVariable' => static function (array $environmentVariable) use (&$seenNames, $tokens): ?array {
+                $name = $environmentVariable['name']['ident'] ?? null;
+                $seenNames[] = $name;
+
+                return is_string($name) ? ($tokens[$name] ?? null) : null;
+            },
+        ]);
+
+        $t->same('@media (width<=600px){body{padding:20px}}', $result);
+        $t->same(['--branding-small', '--branding-padding'], $seenNames);
+    },
+    'custom at-rules map upstream specific EnvironmentVariable visitors in media and declarations' => static function (TestRunner $t): void {
+        // Pinned upstream 22bdda3d node/test/visitor.test.mjs::specific environment variables lines 210-251.
+        $tokens = [
+            '--branding-small' => [
+                'type' => 'length',
+                'value' => [
+                    'unit' => 'px',
+                    'value' => 600,
+                ],
+            ],
+            '--branding-padding' => [
+                'type' => 'length',
+                'value' => [
+                    'unit' => 'px',
+                    'value' => 20,
+                ],
+            ],
+        ];
+        $seenNames = [];
+
+        $css = <<<'CSS'
+@media (max-width: env(--branding-small)) {
+  body {
+    padding: env(--branding-padding);
+  }
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [], [
+            'EnvironmentVariable' => [
+                '--branding-small' => static function (array $environmentVariable) use (&$seenNames, $tokens): array {
+                    $seenNames[] = $environmentVariable['name'];
+
+                    return $tokens['--branding-small'];
+                },
+                '--branding-padding' => static function (array $environmentVariable) use (&$seenNames, $tokens): array {
+                    $seenNames[] = $environmentVariable['name'];
+
+                    return $tokens['--branding-padding'];
+                },
+            ],
+        ]);
+
+        $t->same('@media (width<=600px){body{padding:20px}}', $result);
+        $t->same([
+            ['type' => 'custom', 'ident' => '--branding-small'],
+            ['type' => 'custom', 'ident' => '--branding-padding'],
+        ], $seenNames);
     },
     'custom at-rules compose upstream EnvironmentVariable visitors in media and declarations' => static function (TestRunner $t): void {
         $tokens = [
@@ -4187,7 +4532,7 @@ CSS;
             ]
         );
 
-        $t->same('.test{background:linear-gradient(red 25%,#00f 75%);width:-10px}', $result);
+        $t->same('.test{background:linear-gradient(red 25%, blue 75%);width:calc(10px - 20px)}', $result);
         $t->same(['--percentage1', '--percentage2', '--length1', '--length2'], $seenNames);
     },
     'custom at-rules preserve upstream raw env spacing across declaration value boundaries' => static function (TestRunner $t): void {
@@ -4205,6 +4550,8 @@ CSS;
             '--counter' => '2',
             '--ident1' => 'solid',
             '--ident2' => 'auto',
+            '--percentage1' => '25%',
+            '--percentage2' => '75%',
             '--color' => 'red',
             '--string1' => '"hello"',
             '--string2' => '" world"',
@@ -4222,7 +4569,9 @@ CSS;
   cursor: url(cursor.png) env(--x) env(--y), auto;
   stroke-dasharray: env(--num1) env(--num2) env(--num3);
   counter-increment: myCounter env(--counter);
+  background: linear-gradient(red env(--percentage1), blue env(--percentage2));
   content: env(--string1) env(--string2);
+  width: calc(env(--length1) - env(--length2));
 }
 CSS;
 
@@ -4235,7 +4584,8 @@ CSS;
             },
         ]);
 
-        $t->same('.test{background:var(--foo) var(--bar);border:var(--foo)solid;transform:scale(1.5) scale(1.5);padding:10px 20px;margin:10px auto;outline:red solid;cursor:url(cursor.png) 4 12, auto;stroke-dasharray:5 10 15;counter-increment:myCounter 2;content:"hello" " world"}', $result);
+        // Pinned upstream 22bdda3d node/test/visitor.test.mjs::spacing with env substitution line 252.
+        $t->same('.test{background:var(--foo) var(--bar);border:var(--foo)solid;transform:scale(1.5) scale(1.5);padding:10px 20px;margin:10px auto;outline:red solid;cursor:url(cursor.png) 4 12, auto;stroke-dasharray:5 10 15;counter-increment:myCounter 2;background:linear-gradient(red 25%, blue 75%);content:"hello" " world";width:calc(10px - 20px)}', $result);
         $t->same([
             '--var1',
             '--var2',
@@ -4255,8 +4605,12 @@ CSS;
             '--num2',
             '--num3',
             '--counter',
+            '--percentage1',
+            '--percentage2',
             '--string1',
             '--string2',
+            '--length1',
+            '--length2',
         ], $seenNames);
     },
     'custom at-rules revisit upstream raw Function variables' => static function (TestRunner $t): void {
@@ -4283,6 +4637,59 @@ CSS;
 
         $t->same('.foo{color:var(--prefix-foo);background:red}', $result);
         $t->same(['--foo'], $seen);
+    },
+    'custom at-rules map upstream visitor custom unit dimensions' => static function (TestRunner $t): void {
+        // Pinned upstream 22bdda3d node/test/visitor.test.mjs::custom units line 68.
+        $result = (new CustomAtRuleTransformer())->transform('.foo { --step: .25rem; font-size: 3--step; }', [], [
+            'Token' => [
+                'dimension' => static function (array $token): ?array {
+                    if (!str_starts_with((string) ($token['unit'] ?? ''), '--')) {
+                        return null;
+                    }
+
+                    return ['raw' => 'calc(' . ($token['value'] ?? '') . '*var(' . $token['unit'] . '))'];
+                },
+            ],
+        ]);
+
+        $t->same('.foo{--step:.25rem;font-size:calc(3*var(--step))}', $result);
+    },
+    'custom at-rules map upstream raw token function return' => static function (TestRunner $t): void {
+        // Pinned upstream 22bdda3d node/test/visitor.test.mjs::supports returning raw values for tokens line 998.
+        $result = (new CustomAtRuleTransformer())->transform('.foo { color: theme("red"); }', [], [
+            'Function' => [
+                'theme' => static fn (): array => ['raw' => 'rgba(255, 0, 0)'],
+            ],
+        ]);
+
+        $t->same('.foo{color:red}', $result);
+    },
+    'custom at-rules compose upstream raw Function variables through CSS Modules dashed idents' => static function (TestRunner $t): void {
+        // Pinned upstream 22bdda3d node/test/visitor.test.mjs::supports returning raw values as variables line 1019.
+        $visited = (new CustomAtRuleTransformer())->transform('.foo { color: theme("foo"); }', [], [
+            'Function' => [
+                'theme' => static fn (): array => ['raw' => 'var(--foo)'],
+            ],
+        ]);
+
+        $result = (new CssModulesTransformer())->transform($visited, [
+            'dashedIdents' => true,
+        ]);
+
+        $t->same('.EgL3uq_foo{color:var(--EgL3uq_foo)}', $result['code']);
+        $t->same([
+            'foo' => [
+                'name' => 'EgL3uq_foo',
+                'composes' => [],
+                'isReferenced' => false,
+            ],
+            '--foo' => [
+                'name' => '--EgL3uq_foo',
+                'composes' => [],
+                'isReferenced' => true,
+            ],
+        ], $result['exports']);
+        $t->same([], $result['references']);
     },
     'custom at-rules compose upstream Declaration custom property visitors' => static function (TestRunner $t): void {
         $seenTokenTypes = [];
@@ -4336,6 +4743,34 @@ CSS;
 
         $t->same('.foo{width:16px;height:16px;background-color:#ff0}', $result);
         $t->same(['length', 'color'], $seenTokenTypes);
+    },
+    'custom at-rules map upstream Declaration custom size visitor' => static function (TestRunner $t): void {
+        // Pinned upstream 22bdda3d node/test/visitor.test.mjs::size line 781.
+        $seenTokenTypes = [];
+        $result = (new CustomAtRuleTransformer())->transform('.foo { size: 12px; }', [], [
+            'Declaration' => [
+                'custom' => [
+                    'size' => static function (array $property) use (&$seenTokenTypes): array {
+                        $seenTokenTypes[] = $property['value'][0]['type'];
+                        $value = [
+                            'type' => 'length-percentage',
+                            'value' => [
+                                'type' => 'dimension',
+                                'value' => $property['value'][0]['value'],
+                            ],
+                        ];
+
+                        return [
+                            ['property' => 'width', 'value' => $value],
+                            ['property' => 'height', 'value' => $value],
+                        ];
+                    },
+                ],
+            ],
+        ]);
+
+        $t->same('.foo{width:12px;height:12px}', $result);
+        $t->same(['length'], $seenTokenTypes);
     },
     'custom at-rules compose upstream Declaration replacements with Length visitors' => static function (TestRunner $t): void {
         $visitor = CustomAtRuleTransformer::composeVisitors([
@@ -4583,6 +5018,7 @@ CSS;
         $t->same('.foo{width:calc(var(--test))}', $result);
     },
     'custom at-rules compose upstream Declaration all-property visitors' => static function (TestRunner $t): void {
+        // Pinned upstream 22bdda3d node/test/composeVisitors.test.mjs::all property handlers lines 361-390.
         $visitor = CustomAtRuleTransformer::composeVisitors([
             [
                 'Declaration' => static function (array $declaration): ?array {
@@ -4624,9 +5060,10 @@ CSS;
 
         $result = (new CustomAtRuleTransformer())->transform('.foo { width: test; height: test; }', [], $visitor);
 
-        $t->same('.foo{width:32px;height:32px}', $result);
+        $t->same('.foo{width:32px;height:32px}', $result, 'upstream node/test/composeVisitors.test.mjs lines 361-390');
     },
     'custom at-rules compose upstream DeclarationExit all-property visitors' => static function (TestRunner $t): void {
+        // Pinned upstream 22bdda3d node/test/composeVisitors.test.mjs::all property handlers (exit) lines 392-421.
         $visitor = CustomAtRuleTransformer::composeVisitors([
             [
                 'DeclarationExit' => static function (array $declaration): ?array {
@@ -4668,7 +5105,7 @@ CSS;
 
         $result = (new CustomAtRuleTransformer())->transform('.foo { width: test; height: test; }', [], $visitor);
 
-        $t->same('.foo{width:32px;height:32px}', $result);
+        $t->same('.foo{width:32px;height:32px}', $result, 'upstream node/test/composeVisitors.test.mjs lines 392-421');
     },
     'custom at-rules compose upstream StyleSheet and StyleSheetExit visitors' => static function (TestRunner $t): void {
         $seen = [];
@@ -4714,6 +5151,33 @@ CSS;
 
         $t->same('.bar{width:80px}.foo{width:32px}', $result);
         $t->same(['enter-a:2', 'enter-b:2', 'exit-a:2', 'exit-b:2'], $seen);
+    },
+    'custom at-rules map upstream direct StyleSheetExit visitor sorting' => static function (TestRunner $t): void {
+        $css = <<<'CSS'
+.foo {
+  width: 32px;
+}
+
+.bar {
+  width: 80px;
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [], [
+            'StyleSheetExit' => static function (array $stylesheet): array {
+                usort(
+                    $stylesheet['rules'],
+                    static fn (array $left, array $right): int => strcmp(
+                        (string) ($left['value']['selectors'][0][0]['name'] ?? ''),
+                        (string) ($right['value']['selectors'][0][0]['name'] ?? '')
+                    )
+                );
+
+                return $stylesheet;
+            },
+        ]);
+
+        $t->same('.bar{width:80px}.foo{width:32px}', $result, 'upstream node/test/visitor.test.mjs line 1149');
     },
     'custom at-rules apply upstream StyleSheet enter replacements before child visitors' => static function (TestRunner $t): void {
         $seen = [];
@@ -4905,7 +5369,7 @@ CSS;
             ],
         ]);
 
-        $t->same('.foo{color:red;height:100vh}@supports (-webkit-touch-callout:none){.foo{height:-webkit-fill-available}}', $result);
+        $t->same('.foo{color:red;height:100vh}@supports (-webkit-touch-callout:none){.foo{height:-webkit-fill-available}}', $result, 'upstream node/test/visitor.test.mjs line 584');
         $t->same('100vh', $seenHeight);
     },
     'custom at-rules emit upstream returned supports rules from custom parser bodies' => static function (TestRunner $t): void {
@@ -5508,7 +5972,7 @@ CSS;
 
         $result = (new CustomAtRuleTransformer())->transform('.a, .b { color: red; }', [], $visitor);
 
-        $t->same('.prefix .a,.prefix .b{color:red}', $result);
+        $t->same('.prefix .a,.prefix .b{color:red}', $result, 'upstream node/test/visitor.test.mjs line 368');
         $t->same([['class'], ['class']], $seenSelectorTypes);
     },
     'custom at-rules expose upstream nth-of-S selectors to Selector visitors' => static function (TestRunner $t): void {
@@ -5530,10 +5994,32 @@ CSS;
 
         $result = (new CustomAtRuleTransformer())->transform('a:nth-child(even of a) { color: red; }', [], $visitor);
 
-        $t->same('a:nth-of-type(2n){color:red}', $result);
+        $t->same('a:nth-of-type(2n){color:red}', $result, 'upstream node/test/visitor.test.mjs line 1062');
         $t->same('2n', $seenNth['formula'] ?? null);
         $t->same('type', $seenNth['of'][0][0]['type'] ?? null);
         $t->same('a', $seenNth['of'][0][0]['name'] ?? null);
+    },
+    'custom at-rules expose upstream nested pseudo-class selectors to Selector visitors' => static function (TestRunner $t): void {
+        $seen = [];
+        $visitor = [
+            'Selector' => static function (array $selector) use (&$seen): array {
+                $seen[] = $selector;
+
+                return $selector;
+            },
+        ];
+
+        $result = (new CustomAtRuleTransformer())->transform(
+            ':not(:hover) ~ label { color: red; } ::before:hover { color: blue; }',
+            [],
+            $visitor
+        );
+
+        $t->same(':not(:hover)~label{color:red}:before:hover{color:#00f}', $result, 'upstream selectors/parser.rs::tests::visitor lines 4007-4016');
+        $t->same('not', $seen[0][0]['kind'] ?? null);
+        $t->same('hover', $seen[0][0]['selectors'][0][0]['kind'] ?? null);
+        $t->same('before', $seen[1][0]['kind'] ?? null);
+        $t->same('hover', $seen[1][1]['kind'] ?? null);
     },
     'custom at-rules expose upstream pseudo-elements to Selector visitors' => static function (TestRunner $t): void {
         $seen = [];
@@ -5635,6 +6121,18 @@ CSS;
         ], $seenUrls);
     },
     'custom at-rules compose upstream DashedIdent visitors for custom properties and variables' => static function (TestRunner $t): void {
+        $directSeen = [];
+        $directResult = (new CustomAtRuleTransformer())->transform('.foo { --foo: #ff0; color: var(--foo); }', [], [
+            'DashedIdent' => static function (string $ident) use (&$directSeen): string {
+                $directSeen[] = $ident;
+
+                return '--prefix-' . substr($ident, 2);
+            },
+        ]);
+
+        $t->same('.foo{--prefix-foo:#ff0;color:var(--prefix-foo)}', $directResult, 'upstream node/test/visitor.test.mjs line 870');
+        $t->same(['--foo', '--foo'], $directSeen);
+
         $seen = [];
         $visitor = CustomAtRuleTransformer::composeVisitors([
             [
@@ -5665,7 +6163,7 @@ CSS;
         $t->same('.foo{--theme-foo:#ff0;color:var(--theme-foo)}', $result);
         $t->same(['--foo', '--prefix-foo', '--foo', '--prefix-foo'], $seen);
     },
-    'custom at-rules map upstream CustomIdent visitors for keyframes and animation names' => static function (TestRunner $t): void {
+    'custom at-rules map upstream visitor CustomIdent row 890 for keyframes and animation names' => static function (TestRunner $t): void {
         $seen = [];
         $visitor = CustomAtRuleTransformer::composeVisitors([
             [
@@ -5690,8 +6188,8 @@ CSS;
 
         $result = (new CustomAtRuleTransformer())->transform($css, [], $visitor);
 
-        $t->same('@keyframes prefix-test{0%{color:red}to{color:green}}.foo{animation:prefix-test}', $result);
-        $t->same(['test', 'test'], $seen);
+        $t->same('@keyframes prefix-test{0%{color:red}to{color:green}}.foo{animation:prefix-test}', $result, 'upstream node/test/visitor.test.mjs line 890');
+        $t->same(['test', 'test'], $seen, 'upstream node/test/visitor.test.mjs line 890 visits keyframes and animation names');
     },
     'custom at-rules map upstream Rule keyframes visitors for native keyframes' => static function (TestRunner $t): void {
         $seen = [];
@@ -5801,7 +6299,7 @@ CSS;
             },
         ]);
 
-        $t->same('.foo{color:currentColor}', $result);
+        $t->same('.foo{color:currentColor}', $result, 'upstream node/test/visitor.test.mjs line 1043');
         $t->same([
             [
                 'type' => 'style',
@@ -5812,28 +6310,35 @@ CSS;
         ], $seen);
     },
     'custom at-rules reject upstream visitor returned invalid dashed var names' => static function (TestRunner $t): void {
-        $t->throws(InvalidArgumentException::class, static fn () => (new CustomAtRuleTransformer())->transform('.foo { background: opacity(abcdef); }', [], [
-            'Function' => static function (array $arguments, string $raw, string $name): ?array {
-                if (($arguments[0] ?? null) !== 'abcdef') {
-                    return null;
-                }
+        $exception = null;
+        try {
+            (new CustomAtRuleTransformer())->transform('.foo { background: opacity(abcdef); }', [], [
+                'Function' => static function (array $arguments, string $raw, string $name): ?array {
+                    if (($arguments[0] ?? null) !== 'abcdef') {
+                        return null;
+                    }
 
-                return [
-                    'type' => 'function',
-                    'value' => [
-                        'name' => $name,
-                        'arguments' => [[
-                            'type' => 'var',
-                            'value' => [
-                                'name' => [
-                                    'ident' => $arguments[0],
+                    return [
+                        'type' => 'function',
+                        'value' => [
+                            'name' => $name,
+                            'arguments' => [[
+                                'type' => 'var',
+                                'value' => [
+                                    'name' => [
+                                        'ident' => $arguments[0],
+                                    ],
                                 ],
-                            ],
-                        ]],
-                    ],
-                ];
-            },
-        ]));
+                            ]],
+                        ],
+                    ];
+                },
+            ]);
+        } catch (InvalidArgumentException $caught) {
+            $exception = $caught;
+        }
+
+        $t->same('Dashed idents must start with --', $exception?->getMessage(), 'upstream node/test/visitor.test.mjs line 965');
     },
     'custom at-rules apply upstream identifier visitors after parser replacements' => static function (TestRunner $t): void {
         $visitor = CustomAtRuleTransformer::composeVisitors([
@@ -5902,7 +6407,7 @@ CSS;
             }
         );
 
-        $t->same('height:12px', $result['code']);
+        $t->same('height:12px', $result['code'], 'upstream node/test/visitor.test.mjs line 1207');
         $t->same([
             ['type' => 'file', 'filePath' => 'test.json'],
         ], $result['dependencies']);
@@ -6762,6 +7267,88 @@ CSS;
         $t->same('theme(1rem --theme-wp-gap live)', $seen['rule']['prelude']);
         $t->same('space', $seen['rule']['preludeAst']['value'][0]['value']['argumentSeparator'] ?? null);
     },
+    'custom at-rules revisit upstream raw Function calc prelude replacements' => static function (TestRunner $t): void {
+        // Pinned upstream 22bdda3d node/test/visitor.test.mjs::custom units lines 68-119,
+        // ::spacing with env substitution lines 252-311, and ::supports returning raw values for tokens lines 998-1016.
+        $seen = [
+            'events' => [],
+            'rule' => null,
+        ];
+
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'Function' => [
+                    'theme' => static function () use (&$seen): array {
+                        $seen['events'][] = 'function:theme';
+
+                        return ['raw' => 'calc(3--wp-step + env(--wp-gap))'];
+                    },
+                ],
+            ],
+            [
+                'EnvironmentVariable' => [
+                    '--wp-gap' => static function (array $environmentVariable) use (&$seen): array {
+                        $seen['events'][] = 'env:' . ($environmentVariable['name']['ident'] ?? '');
+
+                        return ['raw' => '8px'];
+                    },
+                ],
+                'Token' => [
+                    'dimension' => static function (array $token) use (&$seen): ?array {
+                        if (!str_starts_with((string) ($token['unit'] ?? ''), '--')) {
+                            return null;
+                        }
+
+                        $seen['events'][] = 'token:' . ($token['raw'] ?? '');
+
+                        return [
+                            'type' => 'var',
+                            'value' => [
+                                'name' => ['ident' => $token['unit']],
+                                'fallback' => null,
+                                'raw' => 'var(' . $token['unit'] . ')',
+                            ],
+                        ];
+                    },
+                ],
+            ],
+            [
+                'Variable' => [
+                    '--wp-step' => static function (array $variable) use (&$seen): array {
+                        $seen['events'][] = 'var:' . ($variable['name']['ident'] ?? '');
+
+                        return ['type' => 'length', 'unit' => 'rem', 'value' => 0.25];
+                    },
+                ],
+                'Rule' => [
+                    'custom' => [
+                        'plugin' => static function (array $rule) use (&$seen): array {
+                            $seen['events'][] = 'rule:' . $rule['prelude'];
+                            $seen['rule'] = $rule;
+
+                            return [];
+                        },
+                    ],
+                ],
+            ],
+        ]);
+
+        $result = (new CustomAtRuleTransformer())->transform('@plugin theme("fluid"); .keep { color: red; }', [
+            'plugin' => ['prelude' => '*'],
+        ], $visitor);
+
+        $t->same('.keep{color:red}', $result);
+        $t->same([
+            'function:theme',
+            'env:--wp-gap',
+            'token:3--wp-step',
+            'var:--wp-step',
+            'rule:calc(0.25rem+8px)',
+        ], $seen['events']);
+        $t->same('calc(0.25rem+8px)', $seen['rule']['prelude']);
+        $t->same('function', $seen['rule']['preludeAst']['value'][0]['type'] ?? null);
+        $t->same('calc', $seen['rule']['preludeAst']['value'][0]['value']['name'] ?? null);
+    },
     'custom at-rules visit upstream variable prelude fallbacks before exit visitors' => static function (TestRunner $t): void {
         $seen = [
             'events' => [],
@@ -6972,6 +7559,112 @@ CSS;
             static fn (array $component): string => $component['value']['type'],
             $operatorTokens
         ));
+    },
+    'custom at-rules compose upstream structural token visitors in universal preludes' => static function (TestRunner $t): void {
+        $seen = [
+            'events' => [],
+            'rule' => null,
+        ];
+        $css = <<<'CSS'
+@wp-block-variant [data-state=draft] (draft/live);
+
+.wp-block-card {
+  color: red;
+}
+CSS;
+
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'Token' => [
+                    'square-bracket-block' => static function (array $token) use (&$seen): ?array {
+                        $seen['events'][] = 'token:' . $token['type'] . ':' . ($token['raw'] ?? '');
+
+                        return null;
+                    },
+                    'parenthesis-block' => static function (array $token) use (&$seen): ?array {
+                        $seen['events'][] = 'token:' . $token['type'] . ':' . ($token['raw'] ?? '');
+
+                        return null;
+                    },
+                    'delim' => static function (array $token) use (&$seen): ?array {
+                        $seen['events'][] = 'token:delim:' . ($token['value'] ?? '');
+                        if (($token['value'] ?? '') !== '/') {
+                            return null;
+                        }
+
+                        return [
+                            'type' => 'token',
+                            'value' => [
+                                'type' => 'delim',
+                                'value' => ':',
+                            ],
+                        ];
+                    },
+                ],
+            ],
+            [
+                'Token' => [
+                    'ident' => static function (array $token) use (&$seen): ?string {
+                        if (($token['value'] ?? null) !== 'draft') {
+                            return null;
+                        }
+
+                        $seen['events'][] = 'token:ident:' . $token['value'];
+
+                        return 'live';
+                    },
+                ],
+                'Rule' => [
+                    'custom' => [
+                        'wp-block-variant' => static function (array $rule) use (&$seen): array {
+                            $seen['events'][] = 'rule:' . $rule['prelude'];
+                            $seen['rule'] = [
+                                'prelude' => $rule['prelude'],
+                                'preludeAst' => $rule['preludeAst'],
+                            ];
+
+                            return [];
+                        },
+                    ],
+                ],
+            ],
+        ]);
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [
+            'wp-block-variant' => [
+                'prelude' => '*',
+            ],
+        ], $visitor);
+
+        $t->same('.wp-block-card{color:red}', $result);
+        $t->same([
+            'token:square-bracket-block:[',
+            'token:delim:=',
+            'token:ident:draft',
+            'token:parenthesis-block:(',
+            'token:ident:draft',
+            'token:delim:/',
+            'rule:[data-state=live] (live:live)',
+        ], $seen['events']);
+        $t->same('[data-state=live] (live:live)', $seen['rule']['prelude']);
+        $t->same('token-list', $seen['rule']['preludeAst']['type']);
+        $t->same([
+            'square-bracket-block',
+            'ident',
+            'delim:=',
+            'ident',
+            'close-square-bracket',
+            'parenthesis-block',
+            'ident',
+            'delim::',
+            'ident',
+            'close-parenthesis',
+        ], array_map(static function (array $component): string {
+            $token = $component['value'] ?? [];
+            $type = (string) ($token['type'] ?? ($component['type'] ?? ''));
+
+            return $type === 'delim' ? 'delim:' . ($token['value'] ?? '') : $type;
+        }, $seen['rule']['preludeAst']['value']));
     },
     'custom at-rules visit upstream unknown prelude and block token lists before unknown visitors' => static function (TestRunner $t): void {
         $seen = [

@@ -150,6 +150,28 @@ CSS;
         $t->same(null, $parser->propertyLocation($css, [99], 0));
         $t->throws(InvalidArgumentException::class, static fn () => $parser->propertyLocation($css, [], 0));
     },
+    'stylesheet parser round trips upstream serde rule JSON' => static function (TestRunner $t): void {
+        $css = <<<'CSS'
+.foo {
+  color: red;
+}
+CSS;
+        $rules = (new StylesheetParser())->parse($css);
+        $json = json_encode($rules, JSON_THROW_ON_ERROR);
+        $decoded = json_decode($json, true, 512, JSON_THROW_ON_ERROR);
+        $roundTrip = array_map(static fn (array $rule): CssRule => CssRule::fromArray($rule), $decoded);
+
+        $t->same(
+            '[{"type":"style","name":null,"prelude":".foo","selectors":[".foo"],"declarations":{"color":"red"},"rules":[]}]',
+            $json,
+            'upstream tests/test_serde.rs::test_serde line 11'
+        );
+        $t->same(
+            array_map(static fn (CssRule $rule): array => $rule->toArray(), $rules),
+            array_map(static fn (CssRule $rule): array => $rule->toArray(), $roundTrip),
+            'upstream tests/test_serde.rs::test_serde line 17'
+        );
+    },
     'stylesheet parser ignores comments but preserves braces in strings' => static function (TestRunner $t): void {
         $rules = (new StylesheetParser())->parse('.notice { /* hidden */ content: "{}"; }');
 

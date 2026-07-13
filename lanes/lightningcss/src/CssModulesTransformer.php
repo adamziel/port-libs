@@ -5708,7 +5708,7 @@ final class CssModulesTransformer
         return str_replace('.', '-', $stem);
     }
 
-    private static function hashCssModuleString(string $value, bool $atStart = false): string
+    public static function hashCssModuleString(string $value, bool $atStart = false): string
     {
         [$low] = self::sipHashString13($value);
         $hash = self::base64CssModuleHash($low);
