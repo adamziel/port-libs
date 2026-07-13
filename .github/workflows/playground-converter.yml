@@ -53,7 +53,9 @@ jobs:
           php -l tools/playground-converter-plugin/port-libs-playground-converter.php
           php -l lanes/pandoc/tests/PlaygroundConverterPluginTest.php
           php -l lanes/pandoc/tests/PdfReaderCorpusQualityTest.php
+          php -l lanes/pandoc/tests/ShowcaseHaskellReferenceTimeoutTest.php
           php -l lanes/pandoc/tests/ShowcaseImportQualityManifestTest.php
+          php -l lanes/pandoc/tests/ShowcaseQualitySignatureTest.php
           node --check pandoc-showcase/playground-converter.js
           node --check pandoc-showcase/pdf-jbig2-rasterizer.mjs
           node --check tools/decode-pdf-jbig2-media.mjs
@@ -65,7 +67,9 @@ jobs:
           php tools/run-tests.php \
             lanes/pandoc/tests/PlaygroundConverterPluginTest.php \
             lanes/pandoc/tests/PdfReaderCorpusQualityTest.php \
-            lanes/pandoc/tests/ShowcaseImportQualityManifestTest.php
+            lanes/pandoc/tests/ShowcaseHaskellReferenceTimeoutTest.php \
+            lanes/pandoc/tests/ShowcaseImportQualityManifestTest.php \
+            lanes/pandoc/tests/ShowcaseQualitySignatureTest.php
 
       - name: Build plugin archive
         run: |
