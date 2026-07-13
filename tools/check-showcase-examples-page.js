@@ -39,6 +39,8 @@ assert(!html.includes('<header'), 'The browser should not render a separate top 
 assert((html.match(/<select\b/g) || []).length === 1, 'Expected one example selector.');
 assert(!html.includes('format-filter'), 'The browser must not render a format selector.');
 assert(/<a\b[^>]*\bid="download-source"[^>]*\bdownload\b[^>]*>Download original<\/a>/.test(html), 'Expected a Download original button.');
+assert(html.includes('<div class="picker-controls"><h1 class="example-title">Adam&#039;s Pandoc → PHP Port</h1>'), 'Expected the compact title immediately above the picker.');
+assert(/<div class="picker-input-row"><button[^>]*\bid="previous-example"[\s\S]*?<select[^>]*\bid="example-picker"[\s\S]*?<button[^>]*\bid="next-example"/.test(html), 'Expected the arrows to flank only the example picker.');
 for (const removedControl of ['Upstream source', 'Open result', 'Open full comparison', 'Full showcase (desktop)', 'catalog-summary', 'current-example-title']) {
   assert(!html.includes(removedControl), 'The reduced browser must not include ' + removedControl + '.');
 }
@@ -49,9 +51,11 @@ for (const tab of ['HTML', 'WordPress Block markup', 'Pandoc baseline']) {
 }
 assert(fullShowcase.includes('href="examples.html"'), 'The full showcase should link to the lightweight browser.');
 assert(css.includes('min-height: 100dvh'), 'Expected the browser to fill the screen.');
-assert(css.includes('grid-template-columns: clamp(52px, 8vw, 132px)'), 'Expected big arrows on both sides of the browser.');
-assert(css.includes('grid-row: 2 / 5'), 'Expected the arrow controls to span the preview area.');
-assert(css.includes('font-size: clamp(44px, 7vw, 104px)'), 'Expected large arrow glyphs.');
+assert(css.includes('grid-template-columns: var(--arrow-size) minmax(0, 1fr) var(--arrow-size);'), 'Expected arrows directly beside the picker.');
+assert(!css.includes('grid-row: 2 / 5'), 'Arrows must not span the preview area.');
+assert(css.includes('font-size: clamp(16px, 2vw, 22px)'), 'Expected a compact picker title.');
+assert(css.includes('border-radius: 8px 8px 0 0'), 'Expected view controls to look like tabs.');
+assert(css.includes('box-shadow: 0 1px 0 var(--paper)'), 'Expected the selected tab to join the preview panel.');
 assert(js.includes("const catalogUrl = 'examples-index.json';"), 'Expected the compact example catalogue.');
 assert(!js.includes('manifest.json'), 'The lightweight page must not fetch the full manifest.');
 assert(!js.includes('formatFilter'), 'The browser must not retain format-filter logic.');

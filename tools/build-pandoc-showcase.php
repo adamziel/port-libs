@@ -4246,17 +4246,17 @@ function showcase_write_examples_page(string $siteDir, array $records, string $g
     $assetVersion = substr(hash('sha256', $indexJson . "\n" . $css . "\n" . $javascript), 0, 12);
     $page = '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">';
     $page .= '<title>Adam&#039;s Pandoc → PHP Port</title><link rel="stylesheet" href="examples.css?v=' . h($assetVersion) . '"></head>';
-    $page .= '<body><main class="example-browser"><h1 class="example-title">Adam&#039;s Pandoc → PHP Port</h1>';
-    $page .= '<button id="previous-example" class="example-arrow previous-arrow" type="button" aria-label="Previous example" title="Previous example" disabled><span aria-hidden="true">←</span></button>';
-    $page .= '<div class="example-toolbar"><label class="screen-reader-text" for="example-picker">Example</label><select id="example-picker" disabled><option>Loading examples…</option></select>';
-    $page .= '<a id="download-source" class="download-source" href="" download hidden>Download original</a></div>';
+    $page .= '<body><main class="example-browser"><div class="picker-area"><div class="example-toolbar"><div class="picker-controls"><h1 class="example-title">Adam&#039;s Pandoc → PHP Port</h1>';
+    $page .= '<div class="picker-input-row"><button id="previous-example" class="example-arrow previous-arrow" type="button" aria-label="Previous example" title="Previous example" disabled><span aria-hidden="true">←</span></button>';
+    $page .= '<label class="screen-reader-text" for="example-picker">Example</label><select id="example-picker" disabled><option>Loading examples…</option></select>';
+    $page .= '<button id="next-example" class="example-arrow next-arrow" type="button" aria-label="Next example" title="Next example" disabled><span aria-hidden="true">→</span></button></div></div>';
+    $page .= '<a id="download-source" class="download-source" href="" download hidden>Download original</a></div></div>';
     $page .= '<div class="view-tabs" role="group" aria-label="Preview format">';
     $page .= '<button type="button" data-example-view="phpHtml" aria-pressed="true" disabled>HTML</button>';
     $page .= '<button type="button" data-example-view="wpBlocks" aria-pressed="false" disabled>WordPress Block markup</button>';
     $page .= '<button type="button" data-example-view="haskell" aria-pressed="false" disabled>Pandoc baseline</button></div>';
     $page .= '<section class="example-preview" aria-label="Example preview"><p id="viewer-status" class="screen-reader-text" aria-live="polite">Preparing the selected example…</p>';
-    $page .= '<iframe id="example-frame" title="Selected converted example" sandbox hidden></iframe></section>';
-    $page .= '<button id="next-example" class="example-arrow next-arrow" type="button" aria-label="Next example" title="Next example" disabled><span aria-hidden="true">→</span></button></main>';
+    $page .= '<iframe id="example-frame" title="Selected converted example" sandbox hidden></iframe></section></main>';
     $page .= '<script type="module" src="examples.js?v=' . h($assetVersion) . '"></script></body></html>';
     file_put_contents($siteDir . '/examples.html', rtrim($page) . "\n");
     file_put_contents($siteDir . '/examples.css', rtrim($css) . "\n");
@@ -4303,31 +4303,38 @@ button:disabled,
 select:disabled { cursor: not-allowed; opacity: .58; }
 .example-browser {
   display: grid;
-  grid-template-columns: clamp(52px, 8vw, 132px) minmax(0, 1fr) clamp(52px, 8vw, 132px);
-  grid-template-rows: auto auto auto minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr);
   min-height: 100dvh;
   background: var(--paper);
 }
+.picker-area {
+  --arrow-size: 56px;
+  --toolbar-gap: 10px;
+  padding: 12px clamp(14px, 3vw, 48px) 10px;
+}
 .example-title {
-  grid-column: 1 / -1;
-  grid-row: 1;
-  margin: 0;
-  padding: clamp(14px, 2vw, 26px) clamp(16px, 3vw, 48px);
-  border-bottom: 1px solid var(--line);
-  font-size: clamp(21px, 3vw, 34px);
-  line-height: 1.15;
+  margin: 0 0 6px calc(var(--arrow-size) + var(--toolbar-gap));
+  font-size: clamp(16px, 2vw, 22px);
+  line-height: 1.25;
 }
 .example-toolbar {
   display: flex;
-  grid-column: 2;
-  grid-row: 2;
-  align-items: center;
-  gap: 10px;
+  align-items: flex-end;
+  gap: var(--toolbar-gap);
   min-width: 0;
-  padding: 16px 20px 10px;
+}
+.picker-controls {
+  flex: 1 1 360px;
+  min-width: 0;
+}
+.picker-input-row {
+  display: grid;
+  grid-template-columns: var(--arrow-size) minmax(0, 1fr) var(--arrow-size);
+  align-items: center;
+  gap: var(--toolbar-gap);
 }
 #example-picker {
-  flex: 1 1 360px;
+  grid-column: 2;
   min-width: 0;
   min-height: 48px;
   padding: 8px 12px;
@@ -4353,59 +4360,64 @@ select:disabled { cursor: not-allowed; opacity: .58; }
 }
 .view-tabs {
   display: flex;
-  grid-column: 2;
-  grid-row: 3;
-  gap: 4px;
+  grid-row: 2;
+  gap: 0;
   min-width: 0;
   overflow-x: auto;
-  padding: 0 20px 10px;
+  padding: 0 clamp(14px, 3vw, 48px);
+  background: var(--wash);
   border-bottom: 1px solid var(--line);
 }
 .view-tabs button {
   flex: 0 0 auto;
-  min-height: 42px;
-  border: 0;
-  border-radius: 7px;
+  position: relative;
+  z-index: 0;
+  min-height: 46px;
+  margin: 8px 2px -1px 0;
+  padding: 9px 16px;
+  border: 1px solid transparent;
+  border-bottom: 0;
+  border-radius: 8px 8px 0 0;
   background: transparent;
   color: #3e4a59;
   font-weight: 700;
 }
+.view-tabs button:hover:not(:disabled) { background: #e6eefb; }
 .view-tabs button[aria-pressed="true"] {
-  background: var(--accent);
-  color: var(--accent-ink);
+  z-index: 1;
+  border-color: var(--line);
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: 0 1px 0 var(--paper);
 }
 .example-arrow {
   display: grid;
-  grid-row: 2 / 5;
   place-items: center;
-  position: relative;
-  z-index: 1;
-  width: 100%;
-  min-width: 0;
-  min-height: 0;
-  padding: 12px 0;
-  border: 0;
-  border-radius: 0;
-  background: var(--wash);
+  width: var(--arrow-size);
+  height: 48px;
+  min-height: 48px;
+  padding: 0;
+  border: 1px solid #aeb9c7;
+  border-radius: 8px;
+  background: #fff;
   color: var(--accent);
-  font-size: clamp(44px, 7vw, 104px);
+  font-size: 34px;
   line-height: 1;
 }
-.example-arrow:hover:not(:disabled) { background: #e6eefb; }
+.example-arrow:hover:not(:disabled) { border-color: var(--accent); background: #e6eefb; }
 .previous-arrow {
   grid-column: 1;
-  border-right: 1px solid var(--line);
 }
 .next-arrow {
   grid-column: 3;
-  border-left: 1px solid var(--line);
 }
 .example-preview {
   display: grid;
-  grid-column: 2;
-  grid-row: 4;
+  grid-row: 3;
   min-width: 0;
   min-height: 0;
+  border: 1px solid var(--line);
+  border-top: 0;
   background: #fff;
 }
 #example-frame {
@@ -4428,14 +4440,14 @@ select:disabled { cursor: not-allowed; opacity: .58; }
   border: 0;
 }
 @media (max-width: 640px) {
-  .example-browser { grid-template-columns: 44px minmax(0, 1fr) 44px; }
-  .example-title { padding: 13px 14px; font-size: 20px; }
-  .example-toolbar { flex-wrap: wrap; padding: 10px 10px 8px; }
-  #example-picker { flex-basis: 100%; }
+  .picker-area { --arrow-size: 44px; padding: 10px 10px 8px; }
+  .example-title { margin-bottom: 5px; font-size: 16px; }
+  .example-toolbar { flex-wrap: wrap; }
+  .picker-controls { flex-basis: 100%; }
   .download-source { width: 100%; }
-  .view-tabs { gap: 0; padding: 0 6px 8px; }
-  .view-tabs button { padding: 8px 10px; font-size: 13px; }
-  .example-arrow { font-size: 40px; }
+  .view-tabs { padding-inline: 6px; }
+  .view-tabs button { min-height: 42px; margin-top: 6px; padding: 8px 10px; font-size: 13px; }
+  .example-arrow { font-size: 30px; }
 }
 CSS;
 }
