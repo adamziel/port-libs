@@ -39,8 +39,11 @@ assert(!html.includes('<header'), 'The browser should not render a separate top 
 assert((html.match(/<select\b/g) || []).length === 1, 'Expected one example selector.');
 assert(!html.includes('format-filter'), 'The browser must not render a format selector.');
 assert(/<a\b[^>]*\bid="download-source"[^>]*\bdownload\b[^>]*>Download original<\/a>/.test(html), 'Expected a Download original button.');
+assert(/<button\b[^>]*\bid="try-own-file"[^>]*>Try your own file<\/button>/.test(html), 'Expected a Try your own file button.');
+assert(/<input\b[^>]*\bid="own-file-input"[^>]*\btype="file"[^>]*\bhidden\b/.test(html), 'Expected the hidden own-file picker.');
+assert(!/<input\b[^>]*\bid="own-file-input"[^>]*\bmultiple\b/.test(html), 'Try your own file should open one selected file at a time.');
 assert(html.includes('<div class="picker-controls"><h1 class="example-title">Adam&#039;s Pandoc → PHP Port</h1>'), 'Expected the compact title immediately above the picker.');
-assert(/<div class="example-toolbar"><button[^>]*\bid="previous-example"[\s\S]*?<select[^>]*\bid="example-picker"[\s\S]*?<a[^>]*\bid="download-source"[\s\S]*?<button[^>]*\bid="next-example"/.test(html), 'Expected the toolbar order to be previous, picker, download, next.');
+assert(/<div class="example-toolbar"><button[^>]*\bid="previous-example"[\s\S]*?<select[^>]*\bid="example-picker"[\s\S]*?<a[^>]*\bid="download-source"[\s\S]*?<button[^>]*\bid="try-own-file"[\s\S]*?<button[^>]*\bid="next-example"/.test(html), 'Expected the toolbar order to be previous, picker, download, try-own-file, next.');
 for (const removedControl of ['Upstream source', 'Open result', 'Open full comparison', 'Full showcase (desktop)', 'catalog-summary', 'current-example-title']) {
   assert(!html.includes(removedControl), 'The reduced browser must not include ' + removedControl + '.');
 }
@@ -55,7 +58,7 @@ assert(/data-example-view="phpHtml" aria-pressed="false"/.test(html), 'Expected 
 assert(/data-example-view="wpBlocks" aria-pressed="true"/.test(html), 'Expected WordPress Block markup to be the default tab.');
 assert(fullShowcase.includes('href="examples.html"'), 'The full showcase should link to the lightweight browser.');
 assert(css.includes('min-height: 100dvh'), 'Expected the browser to fill the screen.');
-assert(css.includes('grid-template-columns: var(--arrow-width) minmax(0, 1fr) auto var(--arrow-width);'), 'Expected a wide-arrow picker toolbar.');
+assert(css.includes('grid-template-columns: var(--arrow-width) minmax(0, 1fr) auto auto var(--arrow-width);'), 'Expected a wide-arrow picker toolbar with the own-file action.');
 assert(css.includes('align-self: stretch;'), 'Expected desktop arrows to fill the height of the picker bar.');
 assert(css.includes('position: absolute; top: 10px; bottom: 8px;'), 'Expected mobile arrows to fill the picker-and-download bar.');
 assert(css.includes('.next-arrow { grid-column: auto; right: 10px; }'), 'Expected the mobile next arrow to remain inside the viewport.');
@@ -64,13 +67,33 @@ assert(css.includes('font-size: clamp(15px, 1.8vw, 20px)'), 'Expected a compact 
 assert(css.includes('border-radius: 8px 8px 0 0'), 'Expected view controls to look like tabs.');
 assert(css.includes('box-shadow: 0 1px 0 var(--paper)'), 'Expected the selected tab to join the preview panel.');
 assert(/#example-picker\s*\{[\s\S]*?height: 48px;/.test(css), 'Expected the picker to have a fixed 48px control height.');
-assert(/\.download-source\s*\{[\s\S]*?height: 48px;[\s\S]*?border: 1px solid #aeb9c7;[\s\S]*?background: #fff;[\s\S]*?color: var\(--ink\);/.test(css), 'Expected Download original to be a neutral control matching the picker height.');
+assert(/\.download-source,\s*\.try-own-file\s*\{[\s\S]*?height: 48px;[\s\S]*?border: 1px solid #aeb9c7;[\s\S]*?background: #fff;[\s\S]*?color: var\(--ink\);/.test(css), 'Expected Download original and Try your own file to be neutral controls matching the picker height.');
+assert(css.includes('.try-own-file {\n  grid-column: 4;'), 'Expected Try your own file beside Download original on desktop.');
+assert(css.includes('.try-own-file { grid-column: 1; grid-row: 3; width: 100%; }'), 'Expected Try your own file to remain usable in the narrow mobile toolbar.');
 assert(js.includes("const catalogUrl = 'examples-index.json';"), 'Expected the compact example catalogue.');
 assert(js.includes("const defaultView = 'wpBlocks';"), 'Expected WordPress Block markup to be the initial view.');
 assert(js.includes('view: defaultView'), 'Expected the state to initialize to the default WordPress view.');
 assert(js.includes("const exampleUrlParameter = 'example';"), 'Expected a stable query parameter for linked examples.');
 assert(js.includes('new URL(window.location.href)'), 'Expected example links to preserve other URL state safely.');
 assert(js.includes('window.history.replaceState'), 'Expected picker navigation to keep the current URL shareable.');
+assert(js.includes("const playgroundPluginBuild = 'document-inference-20260713';"), 'Expected the own-file importer to use the current Playground plugin build.');
+assert(js.includes("const playgroundClientModuleUrl = 'https://playground.wordpress.net/client/index.js';"), 'Expected Try your own file to use the Playground client.');
+assert(js.includes("const tryOwnFileButton = document.getElementById('try-own-file');"), 'Expected Try your own file controls to be wired.');
+assert(js.includes("const ownFileInput = document.getElementById('own-file-input');"), 'Expected the hidden own-file picker to be wired.');
+assert(js.includes('ownFileInput.click();'), 'Expected the Try your own file button to open its file picker.');
+assert(/ownFileInput\.addEventListener\('change',[\s\S]*?void openOwnFile\(file\);/.test(js), 'Selecting a file should open it immediately in the view area.');
+assert(js.includes('async function bootOwnFilePlayground()'), 'Expected a reusable Playground boot path for own-file imports.');
+assert(/async function bootOwnFilePlayground\(\)[\s\S]*?if \(state\.playgroundReady\)/.test(js), 'Expected a loaded Playground to be reused for another file.');
+assert(js.includes("url: '/wp-json/port-libs/v1/convert',"), 'Expected own files to use the converter REST endpoint.');
+assert(js.includes('await state.playgroundClient.goTo(playgroundPath(data.pageUrl));'), 'Expected each own file conversion to open its newly created WordPress page.');
+assert(js.includes("frame.removeAttribute('sandbox');"), 'Expected Playground to use the preview iframe without the static-preview sandbox.');
+assert(js.includes("frame.setAttribute('sandbox', '');"), 'Expected static previews to restore the iframe sandbox after leaving Playground.');
+assert(js.includes('const reusingPlayground = state.frameMode === \'playground\''), 'Expected repeated own-file imports to preserve their loaded Playground iframe.');
+assert(js.includes('const busy = state.ownFileBusy;'), 'Expected browser controls to be disabled while an own-file import is active.');
+assert(js.includes("imageMode: 'important'"), 'Expected own-file imports to preserve the Playground image default.');
+assert(js.includes("pdfMode: 'layout'"), 'Expected own-file imports to preserve the Playground PDF default.');
+assert(!/\bformat\s*:/.test(js), 'Own-file imports must not send a user-controlled document format.');
+assert(!js.includes('format-input'), 'Own-file imports must not ask the visitor for a document type.');
 assert(!js.includes('manifest.json'), 'The lightweight page must not fetch the full manifest.');
 assert(!js.includes('formatFilter'), 'The browser must not retain format-filter logic.');
 assert(!js.includes('updateExampleDetails'), 'The browser must not retain metadata-panel logic.');
