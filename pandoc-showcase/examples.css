@@ -36,38 +36,42 @@ select:disabled { cursor: not-allowed; opacity: .58; }
 .example-browser {
   display: grid;
   grid-template-rows: auto auto minmax(0, 1fr);
+  width: 100%;
+  max-width: 100%;
   min-height: 100dvh;
+  min-width: 0;
+  overflow-x: hidden;
   background: var(--paper);
 }
 .picker-area {
-  --arrow-size: 56px;
+  --arrow-width: clamp(88px, 8vw, 120px);
   --toolbar-gap: 10px;
   padding: 12px clamp(14px, 3vw, 48px) 10px;
+  min-width: 0;
 }
 .example-title {
-  margin: 0 0 6px calc(var(--arrow-size) + var(--toolbar-gap));
-  font-size: clamp(16px, 2vw, 22px);
+  margin: 0 0 6px;
+  font-size: clamp(15px, 1.8vw, 20px);
   line-height: 1.25;
 }
 .example-toolbar {
-  display: flex;
-  align-items: flex-end;
+  display: grid;
+  grid-template-columns: var(--arrow-width) minmax(0, 1fr) auto auto var(--arrow-width);
+  align-items: stretch;
   gap: var(--toolbar-gap);
   min-width: 0;
 }
 .picker-controls {
-  flex: 1 1 360px;
-  min-width: 0;
-}
-.picker-input-row {
   display: grid;
-  grid-template-columns: var(--arrow-size) minmax(0, 1fr) var(--arrow-size);
-  align-items: center;
-  gap: var(--toolbar-gap);
+  grid-column: 2;
+  grid-template-rows: auto minmax(48px, 1fr);
+  min-width: 0;
 }
 #example-picker {
-  grid-column: 2;
+  grid-row: 2;
+  width: 100%;
   min-width: 0;
+  height: 48px;
   min-height: 48px;
   padding: 8px 12px;
   border: 1px solid #aeb9c7;
@@ -75,21 +79,32 @@ select:disabled { cursor: not-allowed; opacity: .58; }
   background: #fff;
   color: var(--ink);
 }
-.download-source {
+.download-source,
+.try-own-file {
   display: inline-flex;
-  flex: 0 0 auto;
+  align-self: end;
   align-items: center;
   justify-content: center;
+  height: 48px;
   min-height: 48px;
   padding: 8px 14px;
-  border: 1px solid var(--accent);
+  border: 1px solid #aeb9c7;
   border-radius: 8px;
-  background: var(--accent);
-  color: var(--accent-ink);
-  font-weight: 700;
-  text-decoration: none;
+  background: #fff;
+  color: var(--ink);
+  font-weight: 600;
   white-space: nowrap;
 }
+.download-source {
+  grid-column: 3;
+  text-decoration: none;
+}
+.try-own-file {
+  grid-column: 4;
+}
+.download-source:hover { border-color: var(--accent); background: #e6eefb; }
+.try-own-file:hover:not(:disabled) { border-color: var(--accent); background: #e6eefb; }
+.download-source[aria-disabled="true"] { cursor: wait; opacity: .58; pointer-events: none; }
 .view-tabs {
   display: flex;
   grid-row: 2;
@@ -123,25 +138,28 @@ select:disabled { cursor: not-allowed; opacity: .58; }
   box-shadow: 0 1px 0 var(--paper);
 }
 .example-arrow {
-  display: grid;
-  place-items: center;
-  width: var(--arrow-size);
-  height: 48px;
-  min-height: 48px;
-  padding: 0;
+  display: flex;
+  grid-row: 1;
+  align-self: stretch;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: var(--arrow-width);
+  min-height: 80px;
+  padding: 8px 6px;
   border: 1px solid #aeb9c7;
   border-radius: 8px;
   background: #fff;
   color: var(--accent);
-  font-size: 34px;
-  line-height: 1;
 }
 .example-arrow:hover:not(:disabled) { border-color: var(--accent); background: #e6eefb; }
+.arrow-glyph { font-size: 42px; line-height: .9; }
+.arrow-label { margin-top: 7px; font-size: 12px; font-weight: 700; line-height: 1.15; text-align: center; }
 .previous-arrow {
   grid-column: 1;
 }
 .next-arrow {
-  grid-column: 3;
+  grid-column: 5;
 }
 .example-preview {
   display: grid;
@@ -172,12 +190,17 @@ select:disabled { cursor: not-allowed; opacity: .58; }
   border: 0;
 }
 @media (max-width: 640px) {
-  .picker-area { --arrow-size: 44px; padding: 10px 10px 8px; }
+  .picker-area { --arrow-width: 66px; --toolbar-gap: 8px; position: relative; width: 100%; max-width: 100%; padding: 10px calc(var(--arrow-width) + 18px) 8px; }
   .example-title { margin-bottom: 5px; font-size: 16px; }
-  .example-toolbar { flex-wrap: wrap; }
-  .picker-controls { flex-basis: 100%; }
-  .download-source { width: 100%; }
+  .example-toolbar { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto; }
+  .picker-controls { grid-column: 1; grid-row: 1; }
+  .download-source { grid-column: 1; grid-row: 2; width: 100%; }
+  .try-own-file { grid-column: 1; grid-row: 3; width: 100%; }
+  .example-arrow { position: absolute; top: 10px; bottom: 8px; z-index: 2; grid-row: auto; min-height: 0; }
+  .previous-arrow { grid-column: auto; left: 10px; }
+  .next-arrow { grid-column: auto; right: 10px; }
+  .arrow-glyph { font-size: 34px; }
+  .arrow-label { margin-top: 5px; font-size: 10px; }
   .view-tabs { padding-inline: 6px; }
   .view-tabs button { min-height: 42px; margin-top: 6px; padding: 8px 10px; font-size: 13px; }
-  .example-arrow { font-size: 30px; }
 }

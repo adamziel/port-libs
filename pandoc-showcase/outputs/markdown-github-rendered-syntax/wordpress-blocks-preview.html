@@ -1,0 +1,404 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src &#39;none&#39;; img-src &#39;self&#39; data: https: http:; media-src &#39;self&#39; data: https: http:; style-src &#39;unsafe-inline&#39;; font-src &#39;self&#39; data:; connect-src &#39;none&#39;; object-src &#39;none&#39;; frame-src &#39;none&#39;; form-action &#39;none&#39;; base-uri &#39;none&#39;"><title>PHP WordPress Block markup preview</title><style>html{line-height:1.5;font-family:Georgia,"Times New Roman",serif;font-size:18px;color:#1f2933;background:#fdfdfd;}body{margin:0 auto;max-width:46em;padding:2.5em 1.25em;overflow-wrap:break-word;}h1,h2,h3,h4,h5,h6{font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.25;margin:1.4em 0 .45em;}h1{font-size:2em;}h2{font-size:1.55em;}h3{font-size:1.25em;}p{margin:1em 0;}a{color:#1f6feb;}img,svg,video{max-width:100%;height:auto;}.wp-block-image{margin:1.25em 0;}.wp-block-image img{display:block;}pre,code,kbd,samp{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.9em;}code{background:#eef1f5;padding:.1em .25em;border-radius:3px;}.wp-block-code,.wp-block-verse,pre{overflow:auto;background:#f6f8fa;border:1px solid #d8dde3;border-radius:6px;padding:1em;}.wp-block-code code,pre code{background:transparent;padding:0;}.wp-block-quote,blockquote{margin:1.25em 0;padding-left:1em;border-left:4px solid #d8dde3;color:#4b5563;}.wp-block-table{max-width:100%;margin:1.25em 0;overflow-x:auto;}.wp-block-table table,table{width:100%;border-collapse:collapse;font-size:.92em;}.wp-block-table th,.wp-block-table td,th,td{border:1px solid #d8dde3;padding:.35em .55em;vertical-align:top;}.wp-block-table th,th{background:#f6f8fa;}.wp-block-group{margin:1.25em 0;}.wp-block-separator,hr{border:0;border-top:1px solid #d8dde3;margin:2em 0;}.wp-element-caption,figcaption{margin-top:.45em;color:#4b5563;font-size:.9em;}ul,ol{padding-left:1.5em;}li+li{margin-top:.25em;}math{font-family:math,serif;}math[display="block"]{display:block;margin:1em 0;overflow-x:auto;}</style></head><body><!-- wp:heading {"level":1} -->
+<h1 id="github-flavored-markdown-full-syntax-packet">GitHub Flavored Markdown full syntax packet</h1>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>This document intentionally exercises the rendered syntax surface of GitHub Flavored Markdown. It includes CommonMark leaf blocks, container blocks, inline syntax, and the GFM extensions for tables, task list items, strikethrough, autolinks, and raw HTML filtering.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading {"level":1} -->
+<h1 id="setext-heading-level-1">Setext heading level 1</h1>
+<!-- /wp:heading -->
+
+<!-- wp:heading {"level":2} -->
+<h2 id="setext-heading-level-2">Setext heading level 2</h2>
+<!-- /wp:heading -->
+
+<!-- wp:heading {"level":2} -->
+<h2 id="paragraphs-breaks-and-escapes">Paragraphs, breaks, and escapes</h2>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>Adjacent lines in one paragraph
+stay in one rendered paragraph unless a blank line separates them.
+This next line uses a backslash hard break.<br/>This line follows the backslash hard break.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>Backslash escapes render punctuation literally: *not emphasis*, [not a link], # not a heading, and `not code`.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>Character references render as characters: &amp; &lt; &gt; &quot; # 🚀.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:separator -->
+<hr class="wp-block-separator has-alpha-channel-opacity"/>
+<!-- /wp:separator -->
+
+<!-- wp:separator -->
+<hr class="wp-block-separator has-alpha-channel-opacity"/>
+<!-- /wp:separator -->
+
+<!-- wp:separator -->
+<hr class="wp-block-separator has-alpha-channel-opacity"/>
+<!-- /wp:separator -->
+
+<!-- wp:heading {"level":2} -->
+<h2 id="emphasis-strong-emphasis-and-strikethrough">Emphasis, strong emphasis, and strikethrough</h2>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>This paragraph uses <em>asterisk emphasis</em>, <em>underscore emphasis</em>, <strong>asterisk strong</strong>, <strong>underscore strong</strong>, <strong><em>combined strong emphasis</em></strong>, <strong><em>combined underscore strong emphasis</em></strong>, and <del>GFM strikethrough</del>.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>Intraword underscores should stay literal in snake_case_identifier, while intraword emphasis can still appear as foo<em>bar</em>baz.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading {"level":2} -->
+<h2 id="code-spans">Code spans</h2>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>Use <code>inline code</code>, <code>code with ` one backtick</code>, and <code>spaced code span</code> inside normal prose.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading {"level":2} -->
+<h2 id="indented-and-fenced-code-blocks">Indented and fenced code blocks</h2>
+<!-- /wp:heading -->
+
+<!-- wp:code -->
+<pre class="wp-block-code"><code>Four leading spaces create an indented code block.
+Markdown syntax like **strong** stays literal here.</code></pre>
+<!-- /wp:code -->
+
+<!-- wp:code {"language":"php"} -->
+<pre class="wp-block-code"><code class="language-php">&lt;?php
+function render_packet(array $items): string
+{
+    return implode(&quot;\n&quot;, array_map(&#039;strtoupper&#039;, $items));
+}</code></pre>
+<!-- /wp:code -->
+
+<!-- wp:code {"language":"javascript"} -->
+<pre class="wp-block-code"><code class="language-javascript">const rows = [&quot;tables&quot;, &quot;tasks&quot;, &quot;autolinks&quot;];
+console.log(rows.map((row) =&gt; row.toUpperCase()).join(&quot;, &quot;));</code></pre>
+<!-- /wp:code -->
+
+<!-- wp:code -->
+<pre class="wp-block-code"><code>Fence length can contain shorter fences:
+```
+not the end of this block
+```</code></pre>
+<!-- /wp:code -->
+
+<!-- wp:code {"language":"mermaid"} -->
+<pre class="wp-block-code"><code class="language-mermaid">flowchart LR
+  markdown_github --&gt; parser
+  parser --&gt; html
+  parser --&gt; wordpress</code></pre>
+<!-- /wp:code -->
+
+<!-- wp:heading {"level":2} -->
+<h2 id="block-quotes">Block quotes</h2>
+<!-- /wp:heading -->
+
+<!-- wp:quote -->
+<blockquote class="wp-block-quote"><p>A block quote can contain a paragraph with <strong>inline formatting</strong>.</p><ul><li>A list inside a quote</li><li>A second item with <code>code</code></li></ul><blockquote><p>Nested quotes should remain nested.</p></blockquote></blockquote>
+<!-- /wp:quote -->
+
+<!-- wp:group -->
+<div class="wp-block-group note">
+<!-- wp:group -->
+<div class="wp-block-group title">
+<!-- wp:paragraph -->
+<p>Note</p>
+<!-- /wp:paragraph -->
+</div>
+<!-- /wp:group -->
+
+<!-- wp:paragraph -->
+<p>GitHub alert syntax should render as a callout-style block when supported.</p>
+<!-- /wp:paragraph -->
+</div>
+<!-- /wp:group -->
+
+<!-- wp:group -->
+<div class="wp-block-group tip">
+<!-- wp:group -->
+<div class="wp-block-group title">
+<!-- wp:paragraph -->
+<p>Tip</p>
+<!-- /wp:paragraph -->
+</div>
+<!-- /wp:group -->
+
+<!-- wp:paragraph -->
+<p>Alerts can include <a href="https://docs.github.com/">links</a> and <strong>formatting</strong>.</p>
+<!-- /wp:paragraph -->
+</div>
+<!-- /wp:group -->
+
+<!-- wp:group -->
+<div class="wp-block-group important">
+<!-- wp:group -->
+<div class="wp-block-group title">
+<!-- wp:paragraph -->
+<p>Important</p>
+<!-- /wp:paragraph -->
+</div>
+<!-- /wp:group -->
+
+<!-- wp:paragraph -->
+<p>Important callouts should survive as quoted content even without native alert blocks.</p>
+<!-- /wp:paragraph -->
+</div>
+<!-- /wp:group -->
+
+<!-- wp:group -->
+<div class="wp-block-group warning">
+<!-- wp:group -->
+<div class="wp-block-group title">
+<!-- wp:paragraph -->
+<p>Warning</p>
+<!-- /wp:paragraph -->
+</div>
+<!-- /wp:group -->
+
+<!-- wp:paragraph -->
+<p>Warning callouts exercise another alert label.</p>
+<!-- /wp:paragraph -->
+</div>
+<!-- /wp:group -->
+
+<!-- wp:group -->
+<div class="wp-block-group caution">
+<!-- wp:group -->
+<div class="wp-block-group title">
+<!-- wp:paragraph -->
+<p>Caution</p>
+<!-- /wp:paragraph -->
+</div>
+<!-- /wp:group -->
+
+<!-- wp:paragraph -->
+<p>Caution callouts complete the GitHub alert set.</p>
+<!-- /wp:paragraph -->
+</div>
+<!-- /wp:group -->
+
+<!-- wp:heading {"level":2} -->
+<h2 id="lists">Lists</h2>
+<!-- /wp:heading -->
+
+<!-- wp:list -->
+<ul><li>Tight unordered item one</li><li>Tight unordered item two<ul><li>Nested bullet</li><li>Nested bullet with <strong>strong text</strong></li></ul></li><li>Asterisk bullet marker</li><li>Plus bullet marker</li><li>Hyphen bullet marker</li></ul>
+<!-- /wp:list -->
+
+<!-- wp:list {"ordered":true} -->
+<ol><li><p>Ordered item one</p></li><li><p>Ordered item two</p><ol><li>Nested ordered item</li><li>Nested ordered item with <code>code</code></li></ol></li><li><p>Ordered item three</p></li><li><p>Ordered lists can start at a non-one number.</p></li><li><p>The next marker should continue the list.</p></li></ol>
+<!-- /wp:list -->
+
+<!-- wp:list -->
+<ul><li><p>Loose unordered item with a paragraph.</p><p>Continuation paragraph in the same list item.</p></li><li><p>Second loose item with a nested quote.</p><blockquote><p>Quote inside a loose list item.</p></blockquote></li></ul>
+<!-- /wp:list -->
+
+<!-- wp:list {"ordered":true} -->
+<ol><li><p>Loose ordered item with a paragraph.</p><p>Continuation paragraph in the ordered item.</p></li><li><p>Second loose ordered item.</p></li></ol>
+<!-- /wp:list -->
+
+<!-- wp:heading {"level":2} -->
+<h2 id="task-list-items">Task list items</h2>
+<!-- /wp:heading -->
+
+<!-- wp:list -->
+<ul class="task-list"><li><label><input type="checkbox" checked="" />Parse checked task list syntax</label></li><li><label><input type="checkbox" checked="" />Parse uppercase checked task markers</label></li><li><label><input type="checkbox" />Preserve unchecked tasks</label></li><li><label><input type="checkbox" checked="" />Render nested formatting with <strong>bold and <em>italic</em> text</strong></label><ul class="task-list"><li><label><input type="checkbox" />Nested follow-up task with <code>inline code</code></label></li><li><label><input type="checkbox" checked="" />Nested completed task with <del>old wording</del></label></li></ul></li></ul>
+<!-- /wp:list -->
+
+<!-- wp:heading {"level":2} -->
+<h2 id="tables">Tables</h2>
+<!-- /wp:heading -->
+
+<!-- wp:table -->
+<figure class="wp-block-table"><table><thead><tr><th style="text-align:left">Feature</th><th style="text-align:center">Rendered example</th><th style="text-align:right">Alignment</th></tr></thead><tbody><tr><td style="text-align:left">Bold</td><td style="text-align:center"><strong>This is bold text</strong></td><td style="text-align:right">left</td></tr><tr><td style="text-align:left">Italic</td><td style="text-align:center"><em>This text is italicized</em></td><td style="text-align:right">center</td></tr><tr><td style="text-align:left">Strikethrough</td><td style="text-align:center"><del>This was mistaken text</del></td><td style="text-align:right">right</td></tr><tr><td style="text-align:left">Inline code</td><td style="text-align:center"><code>git status --short</code></td><td style="text-align:right">code</td></tr><tr><td style="text-align:left">Link</td><td style="text-align:center"><a href="https://openai.com/">OpenAI</a></td><td style="text-align:right">link</td></tr><tr><td style="text-align:left">Escaped pipe</td><td style="text-align:center"><code>a \| b</code></td><td style="text-align:right">cell</td></tr><tr><td style="text-align:left">Entity</td><td style="text-align:center">© 2026</td><td style="text-align:right">entity</td></tr></tbody></table></figure>
+<!-- /wp:table -->
+
+<!-- wp:table -->
+<figure class="wp-block-table"><table><thead><tr><th>Short header</th><th>Extra body cell</th></tr></thead><tbody><tr><td>Missing body cell</td><td></td></tr><tr><td>Body</td><td>cells</td></tr></tbody></table></figure>
+<!-- /wp:table -->
+
+<!-- wp:heading {"level":2} -->
+<h2 id="links">Links</h2>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>Inline link: <a href="https://openai.com/" title="OpenAI home">OpenAI</a>.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>Reference link: <a href="https://github.github.com/gfm/" title="GFM spec">GitHub Flavored Markdown spec</a>.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>Collapsed reference link: <a href="https://spec.commonmark.org/">CommonMark</a>.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>Shortcut reference link: <a href="https://docs.github.com/">GitHub Docs</a>.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>Reference labels can be reused with different casing: <a href="https://github.github.com/gfm/" title="GFM spec">gfm</a>.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>Autolink URI: <a href="https://github.github.com/gfm/">https://github.github.com/gfm/</a>.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>Autolink email: <a href="mailto:support@github.com">support@github.com</a>.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>Bare GFM autolinks: <a href="https://github.com/openai">https://github.com/openai</a>, <a href="http://example.com/a_(b)">http://example.com/a_(b)</a>, <a href="http://www.github.com">www.github.com</a>, and <a href="mailto:user@example.com">user@example.com</a>.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>Issue-like and mention-like tokens should remain visible: #42, GH-123, @octocat, and @github/docs.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading {"level":2} -->
+<h2 id="images">Images</h2>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>Inline image:</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:image -->
+<figure class="wp-block-image"><img src="https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png" alt="GitHub mark" title="GitHub mark"/></figure>
+<!-- /wp:image -->
+
+<!-- wp:paragraph -->
+<p>Reference image:</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:image -->
+<figure class="wp-block-image"><img src="https://github.githubassets.com/images/icons/emoji/octocat.png" alt="Octocat logo" title="Octocat"/></figure>
+<!-- /wp:image -->
+
+<!-- wp:heading {"level":2} -->
+<h2 id="raw-html-blocks-and-inline-html">Raw HTML blocks and inline HTML</h2>
+<!-- /wp:heading -->
+
+<!-- wp:html -->
+<details>
+<!-- /wp:html -->
+
+<!-- wp:html -->
+<summary>Rendered details block</summary>
+<!-- /wp:html -->
+
+<!-- wp:paragraph -->
+<p>GitHub allows raw HTML islands such as collapsible details, and Markdown inside the block should remain inspectable.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:list -->
+<ul><li>HTML block list item</li><li>Another item with <strong>formatting</strong></li></ul>
+<!-- /wp:list -->
+
+<!-- wp:html -->
+</details>
+<!-- /wp:html -->
+
+<!-- wp:html -->
+<table>
+<tr><th>HTML table head</th><th>Value</th></tr>
+<tr><td>Inline HTML strong</td><td>42</td></tr>
+</table>
+<!-- /wp:html -->
+
+<!-- wp:paragraph -->
+<p>Inline HTML appears in prose: <kbd>Ctrl</kbd> + <kbd>K</kbd>, <sub>subscript</sub>, <sup>superscript</sup>, and <span data-kind="sample">span text</span>.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>Disallowed raw HTML tags should be escaped or filtered by a GFM-safe renderer:</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:html -->
+<script type="text/plain">alert("blocked")</script>
+<!-- /wp:html -->
+
+<!-- wp:html -->
+<style media="not all">body { color: red; }</style>
+<!-- /wp:html -->
+
+<!-- wp:html -->
+<iframe src="about:blank" title="blocked iframe"></iframe>
+<!-- /wp:html -->
+
+<!-- wp:paragraph -->
+<p><noembed>blocked noembed</noembed></p>
+<!-- /wp:paragraph -->
+
+<!-- wp:html -->
+<noframes>blocked noframes</noframes>
+<!-- /wp:html -->
+
+<!-- wp:html -->
+<textarea>blocked textarea</textarea>
+<!-- /wp:html -->
+
+<!-- wp:heading {"level":2} -->
+<h2 id="footnotes-emoji-math-and-diagrams-used-on-github">Footnotes, emoji, math, and diagrams used on GitHub</h2>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>Footnotes should stay connected to their references.<sup id="fnref-1"><a href="#fn-1" role="doc-noteref">1</a></sup></p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>Emoji shortcodes such as <span class="emoji" data-emoji="rocket">🚀</span>, <span class="emoji" data-emoji="heart">❤️</span>, <span class="emoji" data-emoji="+1">👍</span>, and :octocat: should remain visible for GitHub-style rendering.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>Inline math uses dollar delimiters when enabled: <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><semantics><mrow><mi>E</mi><mo>=</mo><mi>m</mi><msup><mi>c</mi><mn>2</mn></msup></mrow><annotation encoding="application/x-tex">E = mc^2</annotation></semantics></math>.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>Block math:</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mrow><msubsup><mo>∫</mo><mn>0</mn><mn>1</mn></msubsup><msup><mi>x</mi><mn>2</mn></msup><mspace width="0.1667em"></mspace><mi>d</mi><mi>x</mi><mo>=</mo><mfrac><mn>1</mn><mn>3</mn></mfrac></mrow><annotation encoding="application/x-tex">\int_0^1 x^2\,dx = \frac{1}{3}</annotation></semantics></math></p>
+<!-- /wp:paragraph -->
+
+<!-- wp:code {"language":"geojson"} -->
+<pre class="wp-block-code"><code class="language-geojson">{
+  &quot;type&quot;: &quot;Point&quot;,
+  &quot;coordinates&quot;: [-122.4194, 37.7749]
+}</code></pre>
+<!-- /wp:code -->
+
+<!-- wp:code {"language":"topojson"} -->
+<pre class="wp-block-code"><code class="language-topojson">{
+  &quot;type&quot;: &quot;Topology&quot;,
+  &quot;objects&quot;: {},
+  &quot;arcs&quot;: []
+}</code></pre>
+<!-- /wp:code -->
+
+<!-- wp:code {"language":"stl"} -->
+<pre class="wp-block-code"><code class="language-stl">solid cube
+endsolid cube</code></pre>
+<!-- /wp:code -->
+
+<!-- wp:group -->
+<div class="wp-block-group footnotes" role="doc-endnotes">
+<!-- wp:list {"ordered":true} -->
+<ol><li id="fn-1"><p>Footnote bodies can include <strong>formatting</strong>, links, <code>code</code>, and lists.</p><p>This indented line remains part of the footnote.</p> <a href="#fnref-1" aria-label="Back to content">Back</a></li></ol>
+<!-- /wp:list -->
+</div>
+<!-- /wp:group --></body></html>

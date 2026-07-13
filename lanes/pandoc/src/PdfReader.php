@@ -94,8 +94,12 @@ final class PdfReader
                     $rawSplitWordHints,
                     $limitedTextLineItems
                 );
+            // A hyphen in the text stream proves a word-continuation without
+            // geometry. Ordinary adjacent raw fragments do not: they can be
+            // separate words from neighboring operators, so consume those
+            // only after positioned text corroborates one baseline word.
             $repairSplitWordHints = $limitedPositionedRuns === []
-                ? $rawSplitWordHints
+                ? $this->pdfTextRunHyphenatedSplitWordHints($rawSplitWordHints)
                 : array_replace(
                     $this->pdfTextRunHyphenatedSplitWordHints($rawSplitWordHints),
                     $positionedSplitWordHints,
@@ -107,7 +111,6 @@ final class PdfReader
         $fileAttachmentAnnotations = is_array($diagnostics['fileAttachmentAnnotations'] ?? null) ? $diagnostics['fileAttachmentAnnotations'] : [];
         $popupAnnotations = is_array($diagnostics['popupAnnotations'] ?? null) ? $diagnostics['popupAnnotations'] : [];
         $appearanceAnnotations = is_array($diagnostics['appearanceAnnotations'] ?? null) ? $diagnostics['appearanceAnnotations'] : [];
-        $appliedLinkAnnotations = $this->unambiguousLinkAnnotations($linkAnnotations, $limitedLines);
 
         $taggedStructureBlocks = $this->blocksFromTaggedStructureBlocks(
             is_array($diagnostics['taggedStructureBlocks'] ?? null) ? $diagnostics['taggedStructureBlocks'] : [],
@@ -265,6 +268,11 @@ final class PdfReader
         } else {
             $blocks = $this->blocksFromLines($repairedLines);
         }
+        // Link labels are recovered from positioned annotation geometry while
+        // body text can still be reordered or repaired below. Select a label
+        // only after the final block text exists, otherwise a harmless
+        // whitespace repair can make a valid annotation disappear.
+        $appliedLinkAnnotations = $this->unambiguousLinkAnnotations($linkAnnotations, $blocks);
         $blocks = $appliedLinkAnnotations === [] ? $blocks : $this->applyLinkAnnotationsToBlocks($blocks, $appliedLinkAnnotations);
         $pdfWarnings = is_array($diagnostics['warnings'] ?? null) ? array_values(array_map(static fn (mixed $warning): string => (string) $warning, $diagnostics['warnings'])) : [];
         if ($this->lowConfidenceGeometryTableCandidates > 0 && $geometryTableBlocks === []) {
@@ -7379,7 +7387,9 @@ final class PdfReader
             }
             if (str_starts_with($line, self::PDF_MAP_LABEL_PREFIX)) {
                 $label = substr($line, strlen(self::PDF_MAP_LABEL_PREFIX));
-                $label = $repairGluedText ? $this->repairGluedProseLine($label, $splitWordHints) : trim($label);
+                $label = $repairGluedText
+                    ? $this->repairGluedProseLine($label, $splitWordHints)
+                    : $this->repairSplitFragmentWhitespace(trim($label), $splitWordHints);
                 if ($label !== '') {
                     $repaired[] = self::PDF_MAP_LABEL_PREFIX . $label;
                 }
@@ -7387,13 +7397,21 @@ final class PdfReader
             }
             if (str_starts_with($line, self::PDF_DISPLAY_HEADING_PREFIX)) {
                 $heading = substr($line, strlen(self::PDF_DISPLAY_HEADING_PREFIX));
-                $heading = $repairGluedText ? $this->repairGluedProseLine($heading, $splitWordHints) : trim($heading);
+                $heading = $repairGluedText
+                    ? $this->repairGluedProseLine($heading, $splitWordHints)
+                    : $this->repairSplitFragmentWhitespace(trim($heading), $splitWordHints);
                 if ($heading !== '') {
                     $repaired[] = self::PDF_DISPLAY_HEADING_PREFIX . $heading;
                 }
                 continue;
             }
-            $line = $repairGluedText ? $this->repairGluedProseLine($line, $splitWordHints) : trim($line);
+            // A document without glued-word damage can still have a single
+            // evidence-backed split fragment such as "w ith". Do not enable
+            // the broader prose heuristics in that case; only consume the
+            // corroborated fragment hints.
+            $line = $repairGluedText
+                ? $this->repairGluedProseLine($line, $splitWordHints)
+                : $this->repairSplitFragmentWhitespace(trim($line), $splitWordHints);
             if ($line !== '') {
                 $repaired[] = $line;
             }
@@ -12177,7 +12195,25 @@ final class PdfReader
         $line = $this->repairPositionedSpacingWhitespace($line, $splitWordHints);
         $lineHasWordSpacing = preg_match('/\p{L}\s+\p{L}/u', $line) === 1;
         $line = preg_replace('/(?<=\S) +(?=[.,!?\)\]])/u', '', $line) ?? $line;
-        $line = preg_replace('/([,;:!?])(?=\S)/u', '$1 ', $line) ?? $line;
+        // A valid thousands separator or clock colon is not punctuation
+        // followed by a missing prose space (for example "10,000" or
+        // "12:30"). Check the full numeric form instead of preserving every
+        // digit-to-digit comma or colon: "2019,2020" still needs a space.
+        $line = preg_replace_callback(
+            '/([,;:!?])(?=\S)/u',
+            function (array $matches) use ($line): string {
+                $punctuation = $matches[1][0];
+                $offset = $matches[1][1];
+
+                return $this->pdfCompactNumericPunctuationAt($line, $offset, $punctuation)
+                    ? $punctuation
+                    : $punctuation . ' ';
+            },
+            $line,
+            -1,
+            $count,
+            PREG_OFFSET_CAPTURE
+        ) ?? $line;
         // A decimal point is followed by a digit, not a capitalized prose
         // token. Restore missing sentence/label boundaries, except where the
         // matched punctuation itself belongs to an explicit URL.
@@ -12210,6 +12246,13 @@ final class PdfReader
             function (array $matches) use ($line): string {
                 $text = $matches[0][0];
                 $offset = $matches[0][1];
+                $suffix = $matches[2][0];
+                // Ordinal suffixes are deliberately attached to their
+                // number. Treating "19th" as a glued prose boundary turns
+                // perfectly valid dates into "19 th".
+                if (preg_match('/^(?:st|nd|rd|th)(?!\p{L})/iu', $suffix) === 1) {
+                    return $text;
+                }
                 if ($this->pdfOffsetIsWithinUrlOrDomain($line, $offset, strlen($text))) {
                     return $text;
                 }
@@ -12287,6 +12330,31 @@ final class PdfReader
 
             return $letters . ' ' . $matches[2];
         }, $line) ?? $line;
+    }
+
+    /**
+     * Keep only conventional compact numeric punctuation. A generic
+     * digit-to-digit test would incorrectly treat a missing list separator
+     * such as "2019,2020" or a ratio such as "1:2ratio" as intentional.
+     */
+    private function pdfCompactNumericPunctuationAt(string $line, int $offset, string $punctuation): bool
+    {
+        if ($offset <= 0) {
+            return false;
+        }
+
+        $before = substr($line, 0, $offset);
+        $after = substr($line, $offset + strlen($punctuation));
+        if ($punctuation === ',') {
+            return preg_match('/(?:^|[^\d])\d{1,3}(?:,\d{3})*$/D', $before) === 1
+                && preg_match('/^\d{3}(?!\d)/', $after) === 1;
+        }
+        if ($punctuation === ':') {
+            return preg_match('/(?:^|[^\d])(?:[01]?\d|2[0-3])(?::[0-5]\d)?$/D', $before) === 1
+                && preg_match('/^[0-5]\d(?!\d)/', $after) === 1;
+        }
+
+        return false;
     }
 
     private function pdfOffsetIsWithinUrlOrDomain(string $line, int $offset, int $length): bool
@@ -17679,12 +17747,11 @@ final class PdfReader
 
     /**
      * @param list<array<string, mixed>> $annotations
-     * @param list<string> $limitedLines
+     * @param list<AstNode> $blocks
      * @return list<array<string, mixed>>
      */
-    private function unambiguousLinkAnnotations(array $annotations, array $limitedLines): array
+    private function unambiguousLinkAnnotations(array $annotations, array $blocks): array
     {
-        $documentText = implode("\n", $limitedLines);
         $normalized = [];
         foreach ($annotations as $annotation) {
             if (!is_array($annotation)) {
@@ -17695,15 +17762,25 @@ final class PdfReader
             if ($text === '' || $uri === '') {
                 continue;
             }
-            if ($this->substringOccurrenceCount($documentText, $text) !== 1) {
+
+            // Prefer an exact final-text match. Annotation geometry can have
+            // a different idea of word spacing than the text stream, so a
+            // unique whitespace-only reconciliation is also safe. Never
+            // reconcile across nodes or accept a duplicate label.
+            $matchedText = $this->uniqueLinkAnnotationTextMatch($blocks, $text)
+                ?? $this->uniqueWhitespaceReconciledLinkAnnotationTextMatch($blocks, $text);
+            if ($matchedText === null) {
                 continue;
             }
 
             $normalizedAnnotation = $annotation;
-            $normalizedAnnotation['text'] = $text;
+            $normalizedAnnotation['text'] = $matchedText;
             $normalizedAnnotation['uri'] = $uri;
+            if ($matchedText !== $text) {
+                $normalizedAnnotation['annotationText'] = $text;
+            }
             $normalized[] = $normalizedAnnotation + [
-                'text' => $text,
+                'text' => $matchedText,
                 'uri' => $uri,
             ];
         }
@@ -17711,20 +17788,90 @@ final class PdfReader
         return $normalized;
     }
 
-    private function substringOccurrenceCount(string $haystack, string $needle): int
+    /**
+     * @param list<AstNode> $blocks
+     */
+    private function uniqueLinkAnnotationTextMatch(array $blocks, string $label): ?string
     {
-        if ($needle === '') {
-            return 0;
+        if ($label === '') {
+            return null;
         }
 
-        $count = 0;
-        $offset = 0;
-        while (($position = strpos($haystack, $needle, $offset)) !== false) {
-            $count++;
-            $offset = $position + strlen($needle);
+        $matches = 0;
+        foreach ($this->linkAnnotationTextNodes($blocks) as $text) {
+            $offset = 0;
+            while (($position = strpos($text, $label, $offset)) !== false) {
+                $matches++;
+                if ($matches > 1) {
+                    return null;
+                }
+                $offset = $position + strlen($label);
+            }
         }
 
-        return $count;
+        return $matches === 1 ? $label : null;
+    }
+
+    /**
+     * @param list<AstNode> $blocks
+     */
+    private function uniqueWhitespaceReconciledLinkAnnotationTextMatch(array $blocks, string $label): ?string
+    {
+        $compact = preg_replace('/\s+/u', '', $label) ?? $label;
+        if ($this->length($compact) < 5 || preg_match('/[\p{L}\p{N}]/u', $compact) !== 1) {
+            return null;
+        }
+
+        $characters = preg_split('//u', $compact, -1, PREG_SPLIT_NO_EMPTY);
+        if ($characters === false || $characters === []) {
+            return null;
+        }
+        $startsWithWord = preg_match('/^[\p{L}\p{N}]$/u', $characters[0]) === 1;
+        $endsWithWord = preg_match('/[\p{L}\p{N}]$/u', $characters[array_key_last($characters)]) === 1;
+        $pattern = '/'
+            . ($startsWithWord ? '(?<![\p{L}\p{N}])' : '')
+            . implode('\\s*', array_map(static fn (string $character): string => preg_quote($character, '/'), $characters))
+            . ($endsWithWord ? '(?![\p{L}\p{N}])' : '')
+            . '/u';
+
+        $matches = [];
+        foreach ($this->linkAnnotationTextNodes($blocks) as $text) {
+            $foundCount = preg_match_all($pattern, $text, $found);
+            if ($foundCount === false || $foundCount === 0) {
+                continue;
+            }
+            foreach ($found[0] ?? [] as $match) {
+                if ((preg_replace('/\s+/u', '', $match) ?? $match) !== $compact) {
+                    continue;
+                }
+                $matches[] = $match;
+                if (count($matches) > 1) {
+                    return null;
+                }
+            }
+        }
+
+        return $matches[0] ?? null;
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     * @return list<string>
+     */
+    private function linkAnnotationTextNodes(array $nodes): array
+    {
+        $texts = [];
+        foreach ($nodes as $node) {
+            $text = $node->attr('text');
+            if (is_string($text) && in_array($node->type, ['paragraph', 'heading', 'plain'], true)) {
+                $texts[] = $text;
+            }
+            if ($node->children !== []) {
+                array_push($texts, ...$this->linkAnnotationTextNodes($node->children));
+            }
+        }
+
+        return $texts;
     }
 
     /**

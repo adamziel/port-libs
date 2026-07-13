@@ -1333,6 +1333,32 @@ function wrap_local_html_document(string $body, string $title): string
 }
 
 /**
+ * Keep WordPress block output as the raw Gutenberg fragment that the parser
+ * round-trips, while giving the lightweight browser a standalone, readable
+ * document to load in its iframe.
+ */
+function wrap_wordpress_block_preview_document(string $body, string $title): string
+{
+    return '<!doctype html><html lang="en"><head><meta charset="utf-8">'
+        . '<meta name="viewport" content="width=device-width, initial-scale=1">'
+        . '<meta http-equiv="Content-Security-Policy" content="default-src &#39;none&#39;; img-src &#39;self&#39; data: https: http:; media-src &#39;self&#39; data: https: http:; style-src &#39;unsafe-inline&#39;; font-src &#39;self&#39; data:; connect-src &#39;none&#39;; object-src &#39;none&#39;; frame-src &#39;none&#39;; form-action &#39;none&#39;; base-uri &#39;none&#39;">'
+        . '<title>' . htmlspecialchars($title, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</title>'
+        . '<style>'
+        . 'html{line-height:1.5;font-family:Georgia,"Times New Roman",serif;font-size:18px;color:#1f2933;background:#fdfdfd;}'
+        . 'body{margin:0 auto;max-width:46em;padding:2.5em 1.25em;overflow-wrap:break-word;}'
+        . 'h1,h2,h3,h4,h5,h6{font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.25;margin:1.4em 0 .45em;}'
+        . 'h1{font-size:2em;}h2{font-size:1.55em;}h3{font-size:1.25em;}p{margin:1em 0;}'
+        . 'a{color:#1f6feb;}img,svg,video{max-width:100%;height:auto;}.wp-block-image{margin:1.25em 0;}.wp-block-image img{display:block;}'
+        . 'pre,code,kbd,samp{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.9em;}'
+        . 'code{background:#eef1f5;padding:.1em .25em;border-radius:3px;}.wp-block-code,.wp-block-verse,pre{overflow:auto;background:#f6f8fa;border:1px solid #d8dde3;border-radius:6px;padding:1em;}.wp-block-code code,pre code{background:transparent;padding:0;}'
+        . '.wp-block-quote,blockquote{margin:1.25em 0;padding-left:1em;border-left:4px solid #d8dde3;color:#4b5563;}'
+        . '.wp-block-table{max-width:100%;margin:1.25em 0;overflow-x:auto;}.wp-block-table table,table{width:100%;border-collapse:collapse;font-size:.92em;}.wp-block-table th,.wp-block-table td,th,td{border:1px solid #d8dde3;padding:.35em .55em;vertical-align:top;}.wp-block-table th,th{background:#f6f8fa;}'
+        . '.wp-block-group{margin:1.25em 0;}.wp-block-separator,hr{border:0;border-top:1px solid #d8dde3;margin:2em 0;}.wp-element-caption,figcaption{margin-top:.45em;color:#4b5563;font-size:.9em;}'
+        . 'ul,ol{padding-left:1.5em;}li+li{margin-top:.25em;}math{font-family:math,serif;}math[display="block"]{display:block;margin:1em 0;overflow-x:auto;}'
+        . '</style></head><body>' . $body . '</body></html>';
+}
+
+/**
  * @param list<string> $cmd
  * @return array{exitCode:int, stdout:string, stderr:string}
  */
@@ -4158,6 +4184,37 @@ function showcase_examples_view(array $record, string $view, string $siteDir): a
 }
 
 /**
+ * @param array<string, mixed> $record
+ * @return array{ok:bool,path:string,bytes:int}
+ */
+function showcase_examples_wordpress_preview_view(array $record, string $siteDir): array
+{
+    $rawView = showcase_examples_view($record, 'wpBlocks', $siteDir);
+    if (!$rawView['ok'] || $rawView['path'] === '') {
+        return $rawView;
+    }
+
+    $rawPath = $siteDir . '/' . $rawView['path'];
+    $rawBody = is_file($rawPath) ? file_get_contents($rawPath) : false;
+    if (!is_string($rawBody)) {
+        return ['ok' => false, 'path' => '', 'bytes' => 0];
+    }
+
+    $previewPath = dirname($rawView['path']) . '/wordpress-blocks-preview.html';
+    $previewAbsolutePath = $siteDir . '/' . $previewPath;
+    $previewBody = wrap_wordpress_block_preview_document($rawBody, 'PHP WordPress Block markup preview');
+    if (file_put_contents($previewAbsolutePath, $previewBody) === false) {
+        return ['ok' => false, 'path' => '', 'bytes' => 0];
+    }
+
+    return [
+        'ok' => true,
+        'path' => $previewPath,
+        'bytes' => (int) filesize($previewAbsolutePath),
+    ];
+}
+
+/**
  * @param list<array<string, mixed>> $records
  * @return array{generatedAt:string,automaticViewMaxBytes:int,defaultExampleId:string,examples:list<array<string,mixed>>}
  */
@@ -4180,7 +4237,7 @@ function showcase_examples_index(array $records, string $siteDir, string $genera
             'sampleSize' => (int) ($record['sampleSize'] ?? 0),
             'views' => [
                 'phpHtml' => showcase_examples_view($record, 'phpHtml', $siteDir),
-                'wpBlocks' => showcase_examples_view($record, 'wpBlocks', $siteDir),
+                'wpBlocks' => showcase_examples_wordpress_preview_view($record, $siteDir),
                 'haskell' => showcase_examples_view($record, 'haskell', $siteDir),
             ],
         ];
@@ -4224,9 +4281,10 @@ function showcase_examples_index(array $records, string $siteDir, string $genera
 }
 
 /**
- * Write a separate, mobile-friendly viewer. It deliberately contains no
- * embedded conversion output: examples are loaded into one disposable frame
- * and replaced whenever the visitor changes the example or view.
+ * Write a separate, mobile-friendly viewer. Static examples are loaded into
+ * one disposable frame and replaced whenever the visitor changes the example
+ * or view. The same frame can temporarily host WordPress Playground when a
+ * visitor tries their own file.
  *
  * @param list<array<string, mixed>> $records
  */
@@ -4246,14 +4304,16 @@ function showcase_write_examples_page(string $siteDir, array $records, string $g
     $assetVersion = substr(hash('sha256', $indexJson . "\n" . $css . "\n" . $javascript), 0, 12);
     $page = '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">';
     $page .= '<title>Adam&#039;s Pandoc → PHP Port</title><link rel="stylesheet" href="examples.css?v=' . h($assetVersion) . '"></head>';
-    $page .= '<body><main class="example-browser"><div class="picker-area"><div class="example-toolbar"><div class="picker-controls"><h1 class="example-title">Adam&#039;s Pandoc → PHP Port</h1>';
-    $page .= '<div class="picker-input-row"><button id="previous-example" class="example-arrow previous-arrow" type="button" aria-label="Previous example" title="Previous example" disabled><span aria-hidden="true">←</span></button>';
-    $page .= '<label class="screen-reader-text" for="example-picker">Example</label><select id="example-picker" disabled><option>Loading examples…</option></select>';
-    $page .= '<button id="next-example" class="example-arrow next-arrow" type="button" aria-label="Next example" title="Next example" disabled><span aria-hidden="true">→</span></button></div></div>';
-    $page .= '<a id="download-source" class="download-source" href="" download hidden>Download original</a></div></div>';
+    $page .= '<body><main class="example-browser"><div class="picker-area"><div class="example-toolbar">';
+    $page .= '<button id="previous-example" class="example-arrow previous-arrow" type="button" aria-label="Previous example" title="Previous example" disabled><span class="arrow-glyph" aria-hidden="true">←</span><span class="arrow-label">Previous example</span></button>';
+    $page .= '<div class="picker-controls"><h1 class="example-title">Adam&#039;s Pandoc → PHP Port</h1>';
+    $page .= '<label class="screen-reader-text" for="example-picker">Example</label><select id="example-picker" disabled><option>Loading examples…</option></select></div>';
+    $page .= '<a id="download-source" class="download-source" href="" download hidden>Download original</a>';
+    $page .= '<button id="try-own-file" class="try-own-file" type="button">Try your own file</button><input id="own-file-input" type="file" hidden>';
+    $page .= '<button id="next-example" class="example-arrow next-arrow" type="button" aria-label="Next example" title="Next example" disabled><span class="arrow-glyph" aria-hidden="true">→</span><span class="arrow-label">Next example</span></button></div></div>';
     $page .= '<div class="view-tabs" role="group" aria-label="Preview format">';
-    $page .= '<button type="button" data-example-view="phpHtml" aria-pressed="true" disabled>HTML</button>';
-    $page .= '<button type="button" data-example-view="wpBlocks" aria-pressed="false" disabled>WordPress Block markup</button>';
+    $page .= '<button type="button" data-example-view="phpHtml" aria-pressed="false" disabled>HTML</button>';
+    $page .= '<button type="button" data-example-view="wpBlocks" aria-pressed="true" disabled>WordPress Block markup</button>';
     $page .= '<button type="button" data-example-view="haskell" aria-pressed="false" disabled>Pandoc baseline</button></div>';
     $page .= '<section class="example-preview" aria-label="Example preview"><p id="viewer-status" class="screen-reader-text" aria-live="polite">Preparing the selected example…</p>';
     $page .= '<iframe id="example-frame" title="Selected converted example" sandbox hidden></iframe></section></main>';
@@ -4304,38 +4364,42 @@ select:disabled { cursor: not-allowed; opacity: .58; }
 .example-browser {
   display: grid;
   grid-template-rows: auto auto minmax(0, 1fr);
+  width: 100%;
+  max-width: 100%;
   min-height: 100dvh;
+  min-width: 0;
+  overflow-x: hidden;
   background: var(--paper);
 }
 .picker-area {
-  --arrow-size: 56px;
+  --arrow-width: clamp(88px, 8vw, 120px);
   --toolbar-gap: 10px;
   padding: 12px clamp(14px, 3vw, 48px) 10px;
+  min-width: 0;
 }
 .example-title {
-  margin: 0 0 6px calc(var(--arrow-size) + var(--toolbar-gap));
-  font-size: clamp(16px, 2vw, 22px);
+  margin: 0 0 6px;
+  font-size: clamp(15px, 1.8vw, 20px);
   line-height: 1.25;
 }
 .example-toolbar {
-  display: flex;
-  align-items: flex-end;
+  display: grid;
+  grid-template-columns: var(--arrow-width) minmax(0, 1fr) auto auto var(--arrow-width);
+  align-items: stretch;
   gap: var(--toolbar-gap);
   min-width: 0;
 }
 .picker-controls {
-  flex: 1 1 360px;
-  min-width: 0;
-}
-.picker-input-row {
   display: grid;
-  grid-template-columns: var(--arrow-size) minmax(0, 1fr) var(--arrow-size);
-  align-items: center;
-  gap: var(--toolbar-gap);
+  grid-column: 2;
+  grid-template-rows: auto minmax(48px, 1fr);
+  min-width: 0;
 }
 #example-picker {
-  grid-column: 2;
+  grid-row: 2;
+  width: 100%;
   min-width: 0;
+  height: 48px;
   min-height: 48px;
   padding: 8px 12px;
   border: 1px solid #aeb9c7;
@@ -4343,21 +4407,32 @@ select:disabled { cursor: not-allowed; opacity: .58; }
   background: #fff;
   color: var(--ink);
 }
-.download-source {
+.download-source,
+.try-own-file {
   display: inline-flex;
-  flex: 0 0 auto;
+  align-self: end;
   align-items: center;
   justify-content: center;
+  height: 48px;
   min-height: 48px;
   padding: 8px 14px;
-  border: 1px solid var(--accent);
+  border: 1px solid #aeb9c7;
   border-radius: 8px;
-  background: var(--accent);
-  color: var(--accent-ink);
-  font-weight: 700;
-  text-decoration: none;
+  background: #fff;
+  color: var(--ink);
+  font-weight: 600;
   white-space: nowrap;
 }
+.download-source {
+  grid-column: 3;
+  text-decoration: none;
+}
+.try-own-file {
+  grid-column: 4;
+}
+.download-source:hover { border-color: var(--accent); background: #e6eefb; }
+.try-own-file:hover:not(:disabled) { border-color: var(--accent); background: #e6eefb; }
+.download-source[aria-disabled="true"] { cursor: wait; opacity: .58; pointer-events: none; }
 .view-tabs {
   display: flex;
   grid-row: 2;
@@ -4391,25 +4466,28 @@ select:disabled { cursor: not-allowed; opacity: .58; }
   box-shadow: 0 1px 0 var(--paper);
 }
 .example-arrow {
-  display: grid;
-  place-items: center;
-  width: var(--arrow-size);
-  height: 48px;
-  min-height: 48px;
-  padding: 0;
+  display: flex;
+  grid-row: 1;
+  align-self: stretch;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: var(--arrow-width);
+  min-height: 80px;
+  padding: 8px 6px;
   border: 1px solid #aeb9c7;
   border-radius: 8px;
   background: #fff;
   color: var(--accent);
-  font-size: 34px;
-  line-height: 1;
 }
 .example-arrow:hover:not(:disabled) { border-color: var(--accent); background: #e6eefb; }
+.arrow-glyph { font-size: 42px; line-height: .9; }
+.arrow-label { margin-top: 7px; font-size: 12px; font-weight: 700; line-height: 1.15; text-align: center; }
 .previous-arrow {
   grid-column: 1;
 }
 .next-arrow {
-  grid-column: 3;
+  grid-column: 5;
 }
 .example-preview {
   display: grid;
@@ -4440,14 +4518,19 @@ select:disabled { cursor: not-allowed; opacity: .58; }
   border: 0;
 }
 @media (max-width: 640px) {
-  .picker-area { --arrow-size: 44px; padding: 10px 10px 8px; }
+  .picker-area { --arrow-width: 66px; --toolbar-gap: 8px; position: relative; width: 100%; max-width: 100%; padding: 10px calc(var(--arrow-width) + 18px) 8px; }
   .example-title { margin-bottom: 5px; font-size: 16px; }
-  .example-toolbar { flex-wrap: wrap; }
-  .picker-controls { flex-basis: 100%; }
-  .download-source { width: 100%; }
+  .example-toolbar { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto; }
+  .picker-controls { grid-column: 1; grid-row: 1; }
+  .download-source { grid-column: 1; grid-row: 2; width: 100%; }
+  .try-own-file { grid-column: 1; grid-row: 3; width: 100%; }
+  .example-arrow { position: absolute; top: 10px; bottom: 8px; z-index: 2; grid-row: auto; min-height: 0; }
+  .previous-arrow { grid-column: auto; left: 10px; }
+  .next-arrow { grid-column: auto; right: 10px; }
+  .arrow-glyph { font-size: 34px; }
+  .arrow-label { margin-top: 5px; font-size: 10px; }
   .view-tabs { padding-inline: 6px; }
   .view-tabs button { min-height: 42px; margin-top: 6px; padding: 8px 10px; font-size: 13px; }
-  .example-arrow { font-size: 30px; }
 }
 CSS;
 }
@@ -4461,6 +4544,10 @@ const viewLabels = {
   wpBlocks: 'WordPress Block markup',
   haskell: 'Pandoc baseline',
 };
+const defaultView = 'wpBlocks';
+const exampleUrlParameter = 'example';
+const playgroundPluginBuild = 'pdf-link-muir-safety-20260713';
+const playgroundClientModuleUrl = 'https://playground.wordpress.net/client/index.js';
 
 const examplePicker = document.getElementById('example-picker');
 const previousButton = document.getElementById('previous-example');
@@ -4468,14 +4555,25 @@ const nextButton = document.getElementById('next-example');
 const viewButtons = Array.from(document.querySelectorAll('[data-example-view]'));
 const viewerStatus = document.getElementById('viewer-status');
 const downloadSource = document.getElementById('download-source');
+const tryOwnFileButton = document.getElementById('try-own-file');
+const ownFileInput = document.getElementById('own-file-input');
 const frame = document.getElementById('example-frame');
 
 const state = {
   examples: [],
   selectedId: '',
-  view: 'phpHtml',
+  defaultExampleId: '',
+  view: defaultView,
   automaticViewMaxBytes: 0,
   loadToken: 0,
+  ownFileToken: 0,
+  ownFileBusy: false,
+  frameMode: 'example',
+  playgroundClient: null,
+  playgroundReady: false,
+  playgroundBootPromise: null,
+  startPlaygroundWeb: null,
+  decodePdfJbig2Rasters: null,
 };
 
 function selectedExample() {
@@ -4506,9 +4604,61 @@ function createOption(value, label) {
   return option;
 }
 
+function exampleIdFromUrl() {
+  return new URL(window.location.href).searchParams.get(exampleUrlParameter);
+}
+
+function syncExampleUrl() {
+  const url = new URL(window.location.href);
+  const currentExampleId = url.searchParams.get(exampleUrlParameter);
+  if (state.selectedId) {
+    if (currentExampleId === state.selectedId) {
+      return;
+    }
+    url.searchParams.set(exampleUrlParameter, state.selectedId);
+  } else {
+    if (currentExampleId === null) {
+      return;
+    }
+    url.searchParams.delete(exampleUrlParameter);
+  }
+
+  window.history.replaceState(null, '', url);
+}
+
 function ensureBrowsableView() {
-  if (!isBrowsableView(selectedView())) {
-    state.view = 'phpHtml';
+  if (isBrowsableView(selectedView())) {
+    return;
+  }
+
+  const example = selectedExample();
+  for (const fallbackView of [defaultView, 'phpHtml', 'haskell']) {
+    const view = example && example.views ? example.views[fallbackView] : null;
+    if (isBrowsableView(view)) {
+      state.view = fallbackView;
+      return;
+    }
+  }
+}
+
+function browsableExampleId(preferredId) {
+  const examples = browsableExamples();
+  if (examples.some((example) => example.id === preferredId)) {
+    return preferredId;
+  }
+
+  const defaultExample = examples.find((example) => example.id === state.defaultExampleId);
+  return defaultExample ? defaultExample.id : (examples[0] ? examples[0].id : '');
+}
+
+function applySelectedExample(preferredId, { load = true } = {}) {
+  state.selectedId = browsableExampleId(preferredId);
+  ensureBrowsableView();
+  examplePicker.value = state.selectedId;
+  updateDownloadSource();
+  updateControls();
+  if (load) {
+    loadSelectedExample();
   }
 }
 
@@ -4518,16 +4668,7 @@ function populateExamples(preferredId = state.selectedId) {
   examples.forEach((example) => {
     examplePicker.append(createOption(example.id, example.format + ' · ' + example.label));
   });
-
-  if (examples.some((example) => example.id === preferredId)) {
-    state.selectedId = preferredId;
-  } else {
-    state.selectedId = examples[0] ? examples[0].id : '';
-  }
-  ensureBrowsableView();
-  examplePicker.value = state.selectedId;
-  updateDownloadSource();
-  updateControls();
+  applySelectedExample(preferredId, { load: false });
 }
 
 function updateViewButtons() {
@@ -4552,14 +4693,41 @@ function updateControls() {
   const examples = browsableExamples();
   const ready = examples.length > 0;
   const example = selectedExample();
-  examplePicker.disabled = !ready;
-  previousButton.disabled = examples.length < 2;
-  nextButton.disabled = examples.length < 2;
+  const busy = state.ownFileBusy;
+  examplePicker.disabled = !ready || busy;
+  previousButton.disabled = examples.length < 2 || busy;
+  nextButton.disabled = examples.length < 2 || busy;
   viewButtons.forEach((button) => {
     const view = example && example.views ? example.views[button.dataset.exampleView] : null;
-    button.disabled = !ready || !isBrowsableView(view);
+    button.disabled = !ready || !isBrowsableView(view) || busy;
   });
+  downloadSource.setAttribute('aria-disabled', String(busy));
+  downloadSource.tabIndex = busy ? -1 : 0;
+  tryOwnFileButton.disabled = busy;
+  ownFileInput.disabled = busy;
   updateViewButtons();
+}
+
+function setOwnFileBusy(busy, label = '') {
+  state.ownFileBusy = busy;
+  tryOwnFileButton.textContent = busy ? label : 'Try your own file';
+  updateControls();
+}
+
+function leavePlaygroundView() {
+  if (state.frameMode !== 'playground') {
+    frame.setAttribute('sandbox', '');
+    return;
+  }
+
+  state.ownFileToken += 1;
+  state.frameMode = 'example';
+  state.playgroundClient = null;
+  state.playgroundReady = false;
+  state.playgroundBootPromise = null;
+  delete frame.dataset.loadedPath;
+  frame.removeAttribute('src');
+  frame.setAttribute('sandbox', '');
 }
 
 function unloadCurrentExample() {
@@ -4570,6 +4738,10 @@ function unloadCurrentExample() {
 }
 
 function loadSelectedExample() {
+  if (state.ownFileBusy) {
+    return;
+  }
+  leavePlaygroundView();
   const example = selectedExample();
   const view = selectedView(example);
   if (!example || !isBrowsableView(view)) {
@@ -4583,6 +4755,7 @@ function loadSelectedExample() {
   frame.hidden = false;
   frame.loading = 'eager';
   frame.dataset.loadedPath = view.path;
+  frame.setAttribute('sandbox', '');
   frame.removeAttribute('src');
   frame.src = 'about:blank';
   setStatus('Loading ' + example.label + '…');
@@ -4596,6 +4769,9 @@ function loadSelectedExample() {
 }
 
 function moveExample(direction) {
+  if (state.ownFileBusy) {
+    return;
+  }
   const examples = browsableExamples();
   if (examples.length === 0) {
     setStatus('No browsable example is available.');
@@ -4606,12 +4782,236 @@ function moveExample(direction) {
   const nextIndex = current < 0
     ? (direction > 0 ? 0 : examples.length - 1)
     : (current + direction + examples.length) % examples.length;
-  state.selectedId = examples[nextIndex].id;
-  ensureBrowsableView();
-  examplePicker.value = state.selectedId;
-  updateDownloadSource();
-  updateControls();
-  loadSelectedExample();
+  applySelectedExample(examples[nextIndex].id);
+  syncExampleUrl();
+}
+
+function ownFileRequestIsCurrent(token) {
+  return token === state.ownFileToken && state.frameMode === 'playground';
+}
+
+async function bootOwnFilePlayground() {
+  if (state.playgroundReady) {
+    return;
+  }
+  if (state.playgroundBootPromise) {
+    await state.playgroundBootPromise;
+    return;
+  }
+
+  state.playgroundBootPromise = startOwnFilePlayground();
+  await state.playgroundBootPromise;
+}
+
+async function startOwnFilePlayground() {
+  try {
+    const pluginUrl = new URL(`playground/port-libs-playground-converter.zip?v=${playgroundPluginBuild}`, window.location.href).href;
+    if (!state.startPlaygroundWeb) {
+      const playgroundModule = await import(playgroundClientModuleUrl);
+      state.startPlaygroundWeb = playgroundModule.startPlaygroundWeb;
+    }
+    state.playgroundClient = await state.startPlaygroundWeb({
+      iframe: frame,
+      remoteUrl: 'https://playground.wordpress.net/remote.html',
+      blueprint: {
+        preferredVersions: {
+          php: '8.4',
+          wp: 'latest',
+        },
+        landingPage: '/',
+        features: {
+          networking: true,
+        },
+        steps: [
+          { step: 'login' },
+          {
+            step: 'installPlugin',
+            pluginData: {
+              resource: 'url',
+              url: pluginUrl,
+            },
+            options: {
+              activate: true,
+            },
+          },
+        ],
+      },
+    });
+    await state.playgroundClient.isReady();
+    state.playgroundReady = true;
+  } catch (error) {
+    state.playgroundBootPromise = null;
+    state.playgroundClient = null;
+    state.playgroundReady = false;
+    throw error;
+  }
+}
+
+async function openOwnFile(file) {
+  if (!file || file.size <= 0) {
+    setStatus('Choose a non-empty file to open in WordPress Playground.');
+    return;
+  }
+
+  const token = state.ownFileToken + 1;
+  state.ownFileToken = token;
+  const reusingPlayground = state.frameMode === 'playground'
+    && state.playgroundReady
+    && state.playgroundClient;
+  state.frameMode = 'playground';
+  state.loadToken += 1;
+  delete frame.dataset.loadedPath;
+  if (!reusingPlayground) {
+    frame.removeAttribute('src');
+    frame.removeAttribute('sandbox');
+  }
+  frame.hidden = false;
+  frame.loading = 'eager';
+  setOwnFileBusy(true, 'Preparing file…');
+  setStatus('Preparing ' + file.name + ' for WordPress Playground…');
+
+  try {
+    const payload = await payloadFromOwnFile(file, (message) => {
+      setOwnFileBusy(true, message);
+    });
+    if (!ownFileRequestIsCurrent(token)) {
+      return;
+    }
+
+    setOwnFileBusy(true, state.playgroundReady ? 'Converting…' : 'Opening Playground…');
+    await bootOwnFilePlayground();
+    if (!ownFileRequestIsCurrent(token)) {
+      return;
+    }
+
+    setOwnFileBusy(true, 'Converting…');
+    const response = await state.playgroundClient.request({
+      method: 'POST',
+      url: '/wp-json/port-libs/v1/convert',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const text = typeof response.text === 'function' ? await response.text() : response.text;
+    const data = JSON.parse(text);
+    if (!data.ok) {
+      throw new Error(data.message || 'Conversion failed.');
+    }
+    if (!ownFileRequestIsCurrent(token)) {
+      return;
+    }
+
+    await state.playgroundClient.goTo(playgroundPath(data.pageUrl));
+    if (ownFileRequestIsCurrent(token)) {
+      setStatus('Opened a new WordPress page for ' + file.name + '.');
+    }
+  } catch (error) {
+    if (ownFileRequestIsCurrent(token)) {
+      const message = error instanceof Error ? error.message : String(error);
+      setStatus('Could not open ' + file.name + ' in WordPress Playground: ' + message);
+    }
+  } finally {
+    if (token === state.ownFileToken) {
+      setOwnFileBusy(false);
+    }
+  }
+}
+
+async function payloadFromOwnFile(file, reportProgress) {
+  const payload = {
+    filename: file.name,
+    title: titleFromFilename(file.name),
+    imageMode: 'important',
+    pdfMode: 'layout',
+  };
+  if (!isLikelyPdfFile(file)) {
+    return {
+      ...payload,
+      bytes: await readFileAsBase64(file),
+    };
+  }
+
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const pdfRasterImages = await browserPdfRasterImages(bytes, reportProgress);
+  return {
+    ...payload,
+    bytes: base64FromBytes(bytes),
+    ...(pdfRasterImages.length > 0 ? { pdfRasterImages } : {}),
+  };
+}
+
+async function browserPdfRasterImages(bytes, reportProgress) {
+  try {
+    if (!state.decodePdfJbig2Rasters) {
+      const moduleUrl = new URL('pdf-jbig2-rasterizer.mjs?v=jbig2-raster-20260709', window.location.href).href;
+      ({ decodePdfJbig2Rasters: state.decodePdfJbig2Rasters } = await import(moduleUrl));
+    }
+    const result = await state.decodePdfJbig2Rasters(bytes, {
+      imageMode: 'important',
+      onProgress({ completed, total }) {
+        reportProgress(total > 0
+          ? `Preparing PDF images (${completed} of ${total})…`
+          : 'Preparing PDF images…');
+      },
+    });
+
+    return result.rasters.map((raster) => ({
+      object: raster.object,
+      bytes: base64FromBytes(raster.bytes),
+      mimeType: raster.mimeType,
+      width: raster.width,
+      height: raster.height,
+    }));
+  } catch {
+    return [];
+  }
+}
+
+function readFileAsBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.addEventListener('error', () => {
+      reject(reader.error || new Error('The file could not be read.'));
+    });
+    reader.addEventListener('load', () => {
+      const result = typeof reader.result === 'string' ? reader.result : '';
+      const comma = result.indexOf(',');
+      if (comma === -1) {
+        reject(new Error('The file could not be encoded.'));
+        return;
+      }
+      resolve(result.slice(comma + 1));
+    });
+    reader.readAsDataURL(file);
+  });
+}
+
+function base64FromBytes(bytes) {
+  let binary = '';
+  const chunkSize = 0x8000;
+  for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(offset, Math.min(offset + chunkSize, bytes.length)));
+  }
+
+  return btoa(binary);
+}
+
+function isLikelyPdfFile(file) {
+  return file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
+}
+
+function titleFromFilename(name) {
+  const last = name.split('/').filter(Boolean).pop() || name;
+  const stem = last.replace(/\.[^.]+$/, '').replace(/[-_]+/g, ' ').trim();
+  return stem ? stem.replace(/\b\w/g, (letter) => letter.toUpperCase()) : 'Converted document';
+}
+
+function playgroundPath(url) {
+  try {
+    const parsed = new URL(url);
+    return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+  } catch {
+    return url || '/';
+  }
 }
 
 async function initialize() {
@@ -4626,8 +5026,13 @@ async function initialize() {
     }
     state.automaticViewMaxBytes = catalog.automaticViewMaxBytes;
     state.examples = catalog.examples.filter((example) => example && example.id && example.views);
-    state.selectedId = catalog.defaultExampleId || state.examples[0].id;
+    state.defaultExampleId = catalog.defaultExampleId || state.examples[0].id;
+    const linkedExampleId = exampleIdFromUrl();
+    state.selectedId = linkedExampleId === null ? state.defaultExampleId : linkedExampleId;
     populateExamples(state.selectedId);
+    if (linkedExampleId !== null && linkedExampleId !== state.selectedId) {
+      syncExampleUrl();
+    }
     loadSelectedExample();
   } catch (error) {
     setStatus('Try reloading this page.');
@@ -4635,18 +5040,43 @@ async function initialize() {
 }
 
 examplePicker.addEventListener('change', () => {
-  state.selectedId = examplePicker.value;
-  ensureBrowsableView();
-  updateDownloadSource();
-  updateControls();
-  loadSelectedExample();
+  if (state.ownFileBusy) {
+    return;
+  }
+  applySelectedExample(examplePicker.value);
+  syncExampleUrl();
 });
 
 previousButton.addEventListener('click', () => moveExample(-1));
 nextButton.addEventListener('click', () => moveExample(1));
 
+downloadSource.addEventListener('click', (event) => {
+  if (state.ownFileBusy) {
+    event.preventDefault();
+  }
+});
+
+tryOwnFileButton.addEventListener('click', () => {
+  if (state.ownFileBusy) {
+    return;
+  }
+  ownFileInput.value = '';
+  ownFileInput.click();
+});
+
+ownFileInput.addEventListener('change', () => {
+  const file = ownFileInput.files && ownFileInput.files[0];
+  ownFileInput.value = '';
+  if (file) {
+    void openOwnFile(file);
+  }
+});
+
 viewButtons.forEach((button) => {
   button.addEventListener('click', () => {
+    if (state.ownFileBusy) {
+      return;
+    }
     const nextView = button.dataset.exampleView;
     if (!nextView || !viewLabels[nextView] || nextView === state.view) {
       return;

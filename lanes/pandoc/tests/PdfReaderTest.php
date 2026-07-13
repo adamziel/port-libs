@@ -3081,6 +3081,38 @@ return [
         $t->contains('<a href="https://example.test/docs">Read docs here.</a>', $blocks);
         $t->contains('<p>Plain coda.</p>', $blocks);
     },
+    'reconciles pdf link annotations after final text whitespace repair' => static function (TestRunner $t): void {
+        // The text stream has the intended word boundary, while annotation
+        // geometry sees the two painted runs as one label. This is common in
+        // browser-generated PDFs with inline style boundaries.
+        $content = 'BT /F1 12 Tf '
+            . '1 0 0 1 72 736 Tm (Chapter) Tj '
+            . '1 0 0 1 120 736 Tm (link) Tj '
+            . '1 0 0 1 72 680 Tm (Plain coda.) Tj ET';
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R /Annots [6 0 R] >>\nendobj\n"
+            . "4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n"
+            . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Type /Annot /Subtype /Link /Rect [70 730 170 751] /A << /S /URI /URI (https://example.test/chapter) >> >>\nendobj\n%%EOF";
+
+        $document = (new PdfReader([
+            'pdfGeometryTables' => false,
+            'pdfRepairProseText' => true,
+        ]))->read($pdf);
+        $blocks = PandocConverter::write($document, 'blocks');
+        $meta = $document->attr('meta');
+
+        $t->same('Chapterlink', $meta['pdfLinkAnnotations'][0]['text']);
+        $t->same(1, count($meta['pdfAppliedLinkAnnotations']));
+        $t->same('Chapter link', $meta['pdfAppliedLinkAnnotations'][0]['text']);
+        $t->same('Chapterlink', $meta['pdfAppliedLinkAnnotations'][0]['annotationText']);
+        $t->same('link', $document->children[0]->children[0]->type);
+        $t->same('Chapter link', $document->children[0]->children[0]->children[0]->attr('text'));
+        $t->contains('<a href="https://example.test/chapter">Chapter link</a>', $blocks);
+        $t->contains('<p>Plain coda.</p>', $blocks);
+    },
     'uses pdf link annotation quadpoints before broad rectangles for visible text' => static function (TestRunner $t): void {
         $content = 'BT /F1 12 Tf 72 720 Td (Intro sentence.) Tj 0 -16 Td (Read docs here.) Tj 0 -16 Td (Plain coda.) Tj ET';
         $pdf = "%PDF-1.4\n"
@@ -5305,6 +5337,31 @@ return [
         $t->true(!str_contains($text, 'Beforeputtingongloves'));
         $t->true(!str_contains($text, 'Handhygienesaveslives'));
     },
+    'keeps ambiguous tj word gaps unless local split evidence confirms repair' => static function (TestRunner $t) use ($pdfWithContent): void {
+        // A modest positive TJ adjustment can be a real word gap or tracking
+        // within one word. Keep it visible unless the local text operators
+        // independently prove a split, as they do for "w" + "ith support.".
+        $pdf = $pdfWithContent(
+            'BT /F1 10 Tf 72 720 Td '
+            . '[(The form) -200 (at.)] TJ '
+            . '0 -16 Td [(A form) -200 (at) -300 (any stage.)] TJ '
+            . '0 -16 Td [(Hello) -220 (world)] TJ '
+            . '0 -16 Td (This brochure was developed w) Tj [(ith support.)] TJ ET'
+        );
+
+        $document = (new PdfReader([
+            'pdfGeometryTables' => false,
+            'pdfRepairProseText' => true,
+        ]))->read($pdf);
+        $text = preg_replace('/\s+/', ' ', html_entity_decode(strip_tags(PandocConverter::write($document, 'html')), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')) ?? '';
+
+        $t->contains('The form at.', $text);
+        $t->contains('A form at any stage.', $text);
+        $t->contains('This brochure was developed with support.', $text);
+        $t->contains('Hello world', $text);
+        $t->true(!str_contains($text, 'Helloworld'));
+        $t->true(!str_contains($text, 'w ith support.'));
+    },
     'keeps raw pdf text when positioned fragments would introduce glued words' => static function (TestRunner $t) use ($pdfWithContent): void {
         $pdf = $pdfWithContent(
             'BT /F1 12 Tf '
@@ -6915,6 +6972,21 @@ return [
         $t->same('Resources: www.bluefront.org 5gyres.org', $repair('Resources: www.bluefront.org 5gyres.org'));
         $t->same('The report includes 20 years of data.', $repair('The report includes 20years of data.'));
     },
+    'preserves numeric grouping and ordinal suffixes during pdf prose repair' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $repair = (function (string $line): string {
+            return $this->repairGluedProseLine($line);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($repair instanceof \Closure);
+
+        $t->same('For more than 10,000 years, the Coast walked.', $repair('For more than 10,000 years, the Coast walked.'));
+        $t->same('Beginning in the mid-19th century, much changed.', $repair('Beginning in the mid-19th century, much changed.'));
+        $t->same('During the 20th century, human use changed.', $repair('During the 20th century, human use changed.'));
+        $t->same('Meet at 12:30, then leave.', $repair('Meet at 12:30,then leave.'));
+        $t->same('Published in 2019, 2020.', $repair('Published in 2019,2020.'));
+        $t->same('The ratio is 1: 2 ratio.', $repair('The ratio is 1:2ratio.'));
+        $t->same('The report includes 20 years of data.', $repair('The report includes 20years of data.'));
+    },
     'repairs numeric prose boundaries before capitalized continuations' => static function (TestRunner $t): void {
         $reader = new PdfReader();
         $repair = (function (string $line): string {
@@ -7424,6 +7496,23 @@ return [
             'Mirror: www.example.org/path.',
             'Secure: https://docs.example.org/page.',
             'Alternates: www.first.example www.second.example',
+        ], $repaired);
+    },
+    'repairs corroborated split pdf fragments without broader prose repair' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $repair = (function (array $lines, array $hints): array {
+            return $this->repairProseTextLines($lines, false, [], $hints);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($repair instanceof \Closure);
+
+        $repaired = $repair([
+            'This sentence keeps ordinary spacing but has one w ith artifact.',
+        ], [
+            "fragment\0w ith" => 'with',
+        ]);
+
+        $t->same([
+            'This sentence keeps ordinary spacing but has one with artifact.',
         ], $repaired);
     },
     'preserves pdf acronym digits and url path digits during prose repair' => static function (TestRunner $t): void {

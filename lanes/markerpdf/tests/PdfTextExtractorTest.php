@@ -2640,6 +2640,20 @@ return [
         $t->true(!str_contains($extractor->extractPlainText($pdf), 'co ver'));
         $t->true(!str_contains($extractor->extractPlainText($pdf), 'acounter'));
     },
+    'keeps ambiguous isolated TJ gaps as visible word boundaries' => static function (TestRunner $t) use ($pdfWithContent): void {
+        // A 0.22em TJ displacement can be either a word gap or tracking at a
+        // style boundary. The extractor keeps the visible space; PdfReader
+        // may remove it later only with independent document evidence.
+        $pdf = $pdfWithContent('BT /F1 12 Tf 72 720 Td [(Hello) -220 (world)] TJ ET');
+        $extractor = new PdfTextExtractor();
+
+        $t->same(['Hello world'], $extractor->extractTextLines($pdf));
+        $t->same(['Hello world'], $extractor->extractTextRuns($pdf));
+        $t->same(['Hello', 'world'], array_map(
+            static fn (array $run): string => $run['text'],
+            $extractor->extractPositionedTextRuns($pdf)
+        ));
+    },
     'extracts positioned text runs with page and stream metadata' => static function (TestRunner $t) use ($pdfWithContent): void {
         $content = 'BT /F1 12 Tf '
             . '1 0 0 1 72 720 Tm (Item) Tj '
