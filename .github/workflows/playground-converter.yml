@@ -12,6 +12,7 @@ on:
       - 'pandoc-showcase/playground/**'
       - 'tools/decode-pdf-jbig2-media.mjs'
       - 'tools/check-pdf-jbig2-rasterizer.mjs'
+      - 'tools/measure-pandoc-import-memory.php'
       - 'tools/build-playground-converter-plugin.php'
       - 'tools/playground-converter-plugin/**'
   push:
@@ -27,6 +28,7 @@ on:
       - 'pandoc-showcase/playground/**'
       - 'tools/decode-pdf-jbig2-media.mjs'
       - 'tools/check-pdf-jbig2-rasterizer.mjs'
+      - 'tools/measure-pandoc-import-memory.php'
       - 'tools/build-playground-converter-plugin.php'
       - 'tools/playground-converter-plugin/**'
   workflow_dispatch:
@@ -52,6 +54,7 @@ jobs:
         run: |
           php -l tools/playground-converter-plugin/port-libs-playground-converter.php
           php -l lanes/pandoc/tests/PlaygroundConverterPluginTest.php
+          php -l lanes/pandoc/tests/PandocImportMemoryBudgetTest.php
           php -l lanes/pandoc/tests/PdfReaderCorpusQualityTest.php
           php -l lanes/pandoc/tests/ShowcaseHaskellReferenceTimeoutTest.php
           php -l lanes/pandoc/tests/ShowcaseImportQualityManifestTest.php
@@ -66,6 +69,7 @@ jobs:
         run: |
           php tools/run-tests.php \
             lanes/pandoc/tests/PlaygroundConverterPluginTest.php \
+            lanes/pandoc/tests/PandocImportMemoryBudgetTest.php \
             lanes/pandoc/tests/PdfReaderCorpusQualityTest.php \
             lanes/pandoc/tests/ShowcaseHaskellReferenceTimeoutTest.php \
             lanes/pandoc/tests/ShowcaseImportQualityManifestTest.php \
