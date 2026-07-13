@@ -18,7 +18,7 @@ final class PandocHtmlTagSoupTableReader
      */
     public function tokenize(string $html): array
     {
-        return TagSoupParser::canonicalizeTags((new TagSoupParser())->parse($html));
+        return (new TagSoupParser())->parseCanonical($html);
     }
 
     /**
@@ -176,6 +176,60 @@ final class PandocHtmlTagSoupTableReader
         }
 
         return $definitions;
+    }
+
+    /**
+     * Scan a compact token stream without materializing an entire document.
+     * Only a detected endnote container is expanded into the legacy array
+     * parser below, which keeps ordinary HTML imports streaming-friendly.
+     *
+     * @return array<string, list<AstNode>>
+     */
+    public function footnoteDefinitionsFromTokenStream(TagSoupTokenStream $tokens): array
+    {
+        $definitions = [];
+        $count = count($tokens);
+
+        for ($index = 0; $index < $count; ++$index) {
+            $token = $tokens->tokenAt($index);
+            if (!$token instanceof TagSoupTag || $token->type !== TagSoupTag::OPEN || !$this->isFootnoteContainer($token)) {
+                continue;
+            }
+
+            $containerEnd = $this->balancedTokenStreamElementEnd($tokens, $index, $token->name, $count);
+            $container = $tokens->slice($index, $containerEnd - $index);
+            foreach ($this->footnoteDefinitionsFromTokens($container) as $id => $blocks) {
+                if (!isset($definitions[$id])) {
+                    $definitions[$id] = $blocks;
+                }
+            }
+            $index = max($index, $containerEnd - 1);
+        }
+
+        return $definitions;
+    }
+
+    private function balancedTokenStreamElementEnd(TagSoupTokenStream $tokens, int $start, string $name, int $limit): int
+    {
+        $depth = 0;
+        for ($index = $start; $index < $limit; ++$index) {
+            $token = $tokens->tokenAt($index);
+            if (!$token instanceof TagSoupTag) {
+                continue;
+            }
+            if ($token->type === TagSoupTag::OPEN && $token->name === $name) {
+                ++$depth;
+                continue;
+            }
+            if ($token->type === TagSoupTag::CLOSE && $token->name === $name) {
+                --$depth;
+                if ($depth <= 0) {
+                    return $index + 1;
+                }
+            }
+        }
+
+        return $limit;
     }
 
     /**

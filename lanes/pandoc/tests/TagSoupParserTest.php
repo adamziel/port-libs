@@ -10,6 +10,7 @@ use PortLibs\Pandoc\TagSoupParseOptions;
 use PortLibs\Pandoc\TagSoupParser;
 use PortLibs\Pandoc\TagSoupRenderer;
 use PortLibs\Pandoc\TagSoupTag;
+use PortLibs\Pandoc\TagSoupTokenStream;
 
 return [
     'parses malformed formatting tags as source-order flat tokens' => static function (TestRunner $t): void {
@@ -101,6 +102,30 @@ return [
         ], tokenSummary($tokens));
         $t->same([1, 1], [$tokens[0]->row, $tokens[0]->column]);
         $t->same([2, 1], [$tokens[2]->row, $tokens[2]->column]);
+    },
+
+    'compact canonical token stream preserves tokens while releasing consumed payloads' => static function (TestRunner $t): void {
+        $html = '<DIV class="note"><P>One <STRONG>two</STRONG></P></DIV>';
+        $expected = (new TagSoupParser())->parseCanonical($html);
+        $stream = (new TagSoupParser())->parseCanonicalStream($html);
+
+        $t->same(tokenSummary($expected), tokenSummary($stream->slice(0)));
+        $stream->releaseBefore(3);
+        $t->same(null, $stream->tokenAt(0));
+        $t->same(null, $stream->tokenAt(2));
+        $t->same('open', $stream->tokenAt(3)?->type);
+        $t->same('strong', $stream->tokenAt(3)?->name);
+        $t->same('two', $stream->tokenAt(4)?->text);
+        $t->same(tokenSummary(array_slice($expected, 3)), tokenSummary($stream->slice(3)));
+
+        $chunked = new TagSoupTokenStream();
+        for ($index = 0; $index < 1026; ++$index) {
+            $chunked->append(TagSoupTag::text('token-' . $index));
+        }
+        $chunked->releaseBefore(1024);
+        $t->same(null, $chunked->tokenAt(1023));
+        $t->same('token-1024', $chunked->tokenAt(1024)?->text);
+        $t->same('token-1025', $chunked->tokenAt(1025)?->text);
     },
 
     'renders tags with tagsoup-style escaping and br minimization' => static function (TestRunner $t): void {

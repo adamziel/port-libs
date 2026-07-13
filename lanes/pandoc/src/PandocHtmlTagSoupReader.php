@@ -6,9 +6,12 @@ namespace PortLibs\Pandoc;
 
 final class PandocHtmlTagSoupReader
 {
-    /** @var list<TagSoupTag> */
-    private array $tokens = [];
+    private const TOKEN_PREFIX_RELEASE_INTERVAL = 4096;
+
+    private ?TagSoupTokenStream $tokens = null;
     private int $index = 0;
+    private int $tokenEnd = 0;
+    private int $releasedTokenIndex = 0;
     private ?string $htmlBaseHref = null;
     private int $listItemDepth = 0;
     private int $quoteDepth = 0;
@@ -28,21 +31,26 @@ final class PandocHtmlTagSoupReader
     public function read(string $html): AstNode
     {
         $parser = new TagSoupParser();
-        $tokens = TagSoupParser::canonicalizeTags($parser->parse($html));
-        // The canonical list is independent of the tokenizer's raw tokens.
-        // Release that first list before building the AST so large HTML input
-        // does not retain two token trees throughout parsing.
+        $tokens = $parser->parseCanonicalStream($html);
+        // The stream retains payloads rather than one object per token. It can
+        // release consumed payloads after global metadata and endnotes have
+        // been scanned below.
         unset($parser);
         $this->htmlBaseHref = $this->firstBaseHref($tokens);
         $documentMeta = $this->documentMetadataFromTokens($tokens);
-        $this->footnotes = (new PandocHtmlTagSoupTableReader())->footnoteDefinitionsFromTokens($tokens);
-        $this->tokens = $this->focusFirstMainElement($tokens);
-        $this->index = 0;
+        $this->footnotes = (new PandocHtmlTagSoupTableReader())->footnoteDefinitionsFromTokenStream($tokens);
+        $this->tokens = $tokens;
+        [$this->index, $this->tokenEnd] = $this->firstMainElementRange($tokens);
+        $this->releasedTokenIndex = $this->index;
+        unset($tokens);
         $this->listItemDepth = 0;
         $this->quoteDepth = 0;
         $this->inlineRunEndedAtTextBoundary = false;
         $this->containerIdStack = [];
         $blocks = $this->parseBlocksUntil([]);
+        $this->tokens = null;
+        $this->tokenEnd = 0;
+        $this->releasedTokenIndex = 0;
 
         return new AstNode('document', [
             'sourceFormat' => 'html',
@@ -62,7 +70,7 @@ final class PandocHtmlTagSoupReader
      */
     public function tokenize(string $html): array
     {
-        return TagSoupParser::canonicalizeTags((new TagSoupParser())->parse($html));
+        return (new TagSoupParser())->parseCanonical($html);
     }
 
     /**
@@ -72,7 +80,12 @@ final class PandocHtmlTagSoupReader
     private function parseBlocksUntil(array $stopTags): array
     {
         $blocks = [];
-        while (($token = $this->current()) instanceof TagSoupTag) {
+        while (true) {
+            $this->releaseConsumedTokenPrefix();
+            $token = $this->current();
+            if (!$token instanceof TagSoupTag) {
+                break;
+            }
             if ($token->type === TagSoupTag::CLOSE && in_array($token->name, $stopTags, true)) {
                 break;
             }
@@ -141,6 +154,16 @@ final class PandocHtmlTagSoupReader
         return $blocks;
     }
 
+    private function releaseConsumedTokenPrefix(): void
+    {
+        if ($this->index - $this->releasedTokenIndex < self::TOKEN_PREFIX_RELEASE_INTERVAL) {
+            return;
+        }
+
+        $this->tokens?->releaseBefore($this->index);
+        $this->releasedTokenIndex = $this->index;
+    }
+
     /**
      * @param list<string> $outerStopTags
      * @return AstNode|list<AstNode>|null
@@ -203,7 +226,7 @@ final class PandocHtmlTagSoupReader
             $inlines = $this->parseInlinesUntil([$name, ...$outerStopTags], stopBeforeBlock: true);
             $this->consumeClose($name);
 
-            return new AstNode('paragraph', ['text' => $this->plainTextFromInlines($inlines)], $inlines);
+            return AstNode::withTextFromChildren('paragraph', [], $inlines);
         }
 
         if (preg_match('/^h([1-6])$/', $name, $m) === 1) {
@@ -279,9 +302,11 @@ final class PandocHtmlTagSoupReader
         }
 
         if (in_array($name, ['table'], true)) {
-            $result = (new PandocHtmlTagSoupTableReader())->parseTableAt($this->tokens, $this->index);
+            $tableEnd = $this->balancedTokenStreamEnd($this->index, 'table');
+            $tableTokens = $this->tokenStream()->slice($this->index, $tableEnd - $this->index);
+            $result = (new PandocHtmlTagSoupTableReader())->parseTableAt($tableTokens, 0, $this->footnotes);
             if (is_array($result)) {
-                $this->index = max($this->index + 1, (int) $result['nextIndex']);
+                $this->index += max(1, (int) $result['nextIndex']);
 
                 return $result['blocks'];
             }
@@ -304,7 +329,7 @@ final class PandocHtmlTagSoupReader
             $inlines = $this->parseInlinesUntil([$name, ...$outerStopTags], stopBeforeBlock: true);
             $this->consumeClose($name);
 
-            return $inlines === [] ? [] : [new AstNode('paragraph', ['text' => $this->plainTextFromInlines($inlines)], $inlines)];
+            return $inlines === [] ? [] : [AstNode::withTextFromChildren('paragraph', [], $inlines)];
         }
 
         if (in_array($name, ['col', 'colgroup'], true)) {
@@ -538,7 +563,7 @@ final class PandocHtmlTagSoupReader
                 if ($currentTerm instanceof AstNode) {
                     $flush();
                 }
-                $currentTerm = new AstNode('term', ['text' => $this->plainTextFromInlines($inlines)], $inlines);
+                $currentTerm = AstNode::withTextFromChildren('term', [], $inlines);
                 continue;
             }
             if ($token->type === TagSoupTag::OPEN && $token->name === 'dd') {
@@ -631,7 +656,7 @@ final class PandocHtmlTagSoupReader
 
         $children = [];
         foreach ($lines as $line) {
-            $children[] = new AstNode('line', ['text' => $this->plainTextFromInlines($line)], $line);
+            $children[] = AstNode::withTextFromChildren('line', [], $line);
         }
 
         return new AstNode('line_block', $this->pandocAttrs($div, ['class']), $children);
@@ -742,9 +767,13 @@ final class PandocHtmlTagSoupReader
                     if ($before !== '') {
                         $inlines[] = new AstNode('text', ['text' => $before]);
                     }
-                    $this->index++;
                     if ($after !== '') {
-                        array_splice($this->tokens, $this->index, 0, [TagSoupTag::text($after)]);
+                        // The next block consumes the remainder from this
+                        // same token slot. Replacing it avoids shifting a
+                        // large token array merely to split one text span.
+                        $this->tokenStream()->replaceAt($this->index, TagSoupTag::text($after));
+                    } else {
+                        $this->index++;
                     }
                     break;
                 }
@@ -1058,7 +1087,11 @@ final class PandocHtmlTagSoupReader
 
     private function current(): ?TagSoupTag
     {
-        return $this->tokens[$this->index] ?? null;
+        if ($this->index >= $this->tokenEnd) {
+            return null;
+        }
+
+        return $this->tokens?->tokenAt($this->index);
     }
 
     private function skipIgnorable(TagSoupTag $token): bool
@@ -1176,9 +1209,10 @@ final class PandocHtmlTagSoupReader
 
     private function renderBalancedTokenSource(string $name): string
     {
-        $start = $this->index;
         $depth = 0;
+        $tokens = [];
         while (($token = $this->current()) instanceof TagSoupTag) {
+            $tokens[] = $token;
             if ($token->type === TagSoupTag::OPEN && $token->name === $name) {
                 $depth++;
             } elseif ($token->type === TagSoupTag::CLOSE && $token->name === $name) {
@@ -1192,16 +1226,13 @@ final class PandocHtmlTagSoupReader
             $this->index++;
         }
 
-        return (new TagSoupRenderer())->render(array_slice($this->tokens, $start, $this->index - $start));
+        return (new TagSoupRenderer())->render($tokens);
     }
 
-    /**
-     * @param list<TagSoupTag> $tokens
-     */
-    private function firstBaseHref(array $tokens): ?string
+    private function firstBaseHref(iterable $tokens): ?string
     {
         $insideHead = false;
-        foreach ($tokens as $token) {
+        foreach ($tokens as $index => $token) {
             if (!$token instanceof TagSoupTag) {
                 continue;
             }
@@ -1215,7 +1246,7 @@ final class PandocHtmlTagSoupReader
             if ($token->type === TagSoupTag::OPEN && $token->name === 'body') {
                 return null;
             }
-            if ($token->type === TagSoupTag::OPEN && $token->name === 'base' && ($insideHead || $this->index === 0)) {
+            if ($token->type === TagSoupTag::OPEN && $token->name === 'base' && ($insideHead || $index === 0)) {
                 $href = trim($this->attribute($token, 'href'));
                 return $href === '' ? null : $href;
             }
@@ -1230,10 +1261,9 @@ final class PandocHtmlTagSoupReader
     }
 
     /**
-     * @param list<TagSoupTag> $tokens
      * @return array<string, mixed>
      */
-    private function documentMetadataFromTokens(array $tokens): array
+    private function documentMetadataFromTokens(iterable $tokens): array
     {
         $meta = [];
         $insideHead = false;
@@ -1348,10 +1378,9 @@ final class PandocHtmlTagSoupReader
     }
 
     /**
-     * @param list<TagSoupTag> $tokens
-     * @return list<TagSoupTag>
+     * @return array{0:int,1:int}
      */
-    private function focusFirstMainElement(array $tokens): array
+    private function firstMainElementRange(TagSoupTokenStream $tokens): array
     {
         foreach ($tokens as $index => $token) {
             if ($token instanceof TagSoupTag && $token->type === TagSoupTag::OPEN && $token->name === 'main') {
@@ -1359,23 +1388,32 @@ final class PandocHtmlTagSoupReader
                     continue;
                 }
 
-                return $this->balancedTokenSlice($tokens, $index, 'main');
+                return [$index, $this->tokenStreamElementEnd($tokens, $index, 'main', count($tokens))];
             }
         }
 
-        return $tokens;
+        return [0, count($tokens)];
     }
 
-    /**
-     * @param list<TagSoupTag> $tokens
-     * @return list<TagSoupTag>
-     */
-    private function balancedTokenSlice(array $tokens, int $start, string $name): array
+    private function tokenStream(): TagSoupTokenStream
+    {
+        if (!$this->tokens instanceof TagSoupTokenStream) {
+            throw new \LogicException('The tag-soup token stream is not initialized.');
+        }
+
+        return $this->tokens;
+    }
+
+    private function balancedTokenStreamEnd(int $start, string $name): int
+    {
+        return $this->tokenStreamElementEnd($this->tokenStream(), $start, $name, $this->tokenEnd);
+    }
+
+    private function tokenStreamElementEnd(TagSoupTokenStream $tokens, int $start, string $name, int $limit): int
     {
         $depth = 0;
-        $count = count($tokens);
-        for ($index = $start; $index < $count; ++$index) {
-            $token = $tokens[$index];
+        for ($index = $start; $index < $limit; ++$index) {
+            $token = $tokens->tokenAt($index);
             if (!$token instanceof TagSoupTag) {
                 continue;
             }
@@ -1384,12 +1422,12 @@ final class PandocHtmlTagSoupReader
             } elseif ($token->type === TagSoupTag::CLOSE && $token->name === $name) {
                 --$depth;
                 if ($depth <= 0) {
-                    return array_slice($tokens, $start, $index - $start + 1);
+                    return $index + 1;
                 }
             }
         }
 
-        return array_slice($tokens, $start);
+        return $limit;
     }
 
     /**
@@ -1475,8 +1513,9 @@ final class PandocHtmlTagSoupReader
      */
     private function parseMathElementInline(TagSoupTag $math): array
     {
-        $tokens = $this->balancedTokenSlice($this->tokens, $this->index, 'math');
-        $this->index += count($tokens);
+        $end = $this->balancedTokenStreamEnd($this->index, 'math');
+        $tokens = $this->tokenStream()->slice($this->index, $end - $this->index);
+        $this->index = $end;
         $annotation = $this->texAnnotationFromTokens($tokens);
         if ($annotation !== null) {
             return [new AstNode('math', [
@@ -1643,7 +1682,7 @@ final class PandocHtmlTagSoupReader
         ) {
             return [
                 new AstNode('paragraph', [], [$inlines[0]]),
-                new AstNode('paragraph', ['text' => $this->plainTextFromInlines(array_slice($inlines, 1))], array_slice($inlines, 1)),
+                AstNode::withTextFromChildren('paragraph', [], array_slice($inlines, 1)),
             ];
         }
         if ($topLevelInlineFragment && !$this->containsRawHtmlInline($inlines)) {
@@ -1766,7 +1805,7 @@ final class PandocHtmlTagSoupReader
 
                 return $inlines === []
                     ? []
-                    : [new AstNode('paragraph', ['text' => $this->plainTextFromInlines($inlines)], $inlines)];
+                    : [AstNode::withTextFromChildren('paragraph', [], $inlines)];
             }
             $this->index++;
         }
@@ -1815,9 +1854,9 @@ final class PandocHtmlTagSoupReader
 
     private function hasMeaningfulTokenAfterCurrentTextBoundary(): bool
     {
-        $count = count($this->tokens);
-        for ($index = $this->index + 1; $index < $count; ++$index) {
-            $token = $this->tokens[$index] ?? null;
+        $stream = $this->tokenStream();
+        for ($index = $this->index + 1; $index < $this->tokenEnd; ++$index) {
+            $token = $stream->tokenAt($index);
             if (!$token instanceof TagSoupTag) {
                 continue;
             }
@@ -1881,9 +1920,9 @@ final class PandocHtmlTagSoupReader
     private function balancedElementHasBlockChild(string $name): bool
     {
         $depth = 0;
-        $count = count($this->tokens);
-        for ($index = $this->index; $index < $count; ++$index) {
-            $token = $this->tokens[$index] ?? null;
+        $stream = $this->tokenStream();
+        for ($index = $this->index; $index < $this->tokenEnd; ++$index) {
+            $token = $stream->tokenAt($index);
             if (!$token instanceof TagSoupTag) {
                 continue;
             }
@@ -1909,9 +1948,9 @@ final class PandocHtmlTagSoupReader
     private function balancedElementContainsOpenTag(string $name, string $target): bool
     {
         $depth = 0;
-        $count = count($this->tokens);
-        for ($index = $this->index; $index < $count; ++$index) {
-            $token = $this->tokens[$index] ?? null;
+        $stream = $this->tokenStream();
+        for ($index = $this->index; $index < $this->tokenEnd; ++$index) {
+            $token = $stream->tokenAt($index);
             if (!$token instanceof TagSoupTag) {
                 continue;
             }
@@ -2229,7 +2268,7 @@ final class PandocHtmlTagSoupReader
         if ($hasLeadingSpace) {
             $result[] = new AstNode('text', ['text' => ' ']);
         }
-        $result[] = new AstNode($type, $attrs, $this->normalizeInlineText($children));
+        $result[] = AstNode::withCompactTextChildren($type, $attrs, $this->normalizeInlineText($children));
         if ($hasTrailingSpace) {
             $result[] = new AstNode('text', ['text' => ' ']);
         }

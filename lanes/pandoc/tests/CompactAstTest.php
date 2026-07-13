@@ -122,4 +122,36 @@ return [
         $t->same([], $numericAttrs->children);
         $t->same(2, count($instanceProperties));
     },
+    'compact text-child nodes preserve the materialized AST and writer output' => static function (TestRunner $t) use ($materialize): void {
+        $single = AstNode::withTextFromChildren('paragraph', [], [
+            new AstNode('text', ['text' => 'Standalone text']),
+        ]);
+        $strong = AstNode::withCompactTextChildren('strong', [], [
+            new AstNode('text', ['text' => 'emphasized']),
+        ]);
+        $mixed = AstNode::withTextFromChildren('paragraph', [], [
+            new AstNode('text', ['text' => 'Before ']),
+            $strong,
+            new AstNode('text', ['text' => ' after']),
+        ]);
+        $compact = new AstNode('document', [], [$single, $mixed]);
+        $expanded = new AstNode('document', [], [
+            new AstNode('paragraph', ['text' => 'Standalone text'], [
+                new AstNode('text', ['text' => 'Standalone text']),
+            ]),
+            new AstNode('paragraph', ['text' => 'Before emphasized after'], [
+                new AstNode('text', ['text' => 'Before ']),
+                new AstNode('strong', [], [new AstNode('text', ['text' => 'emphasized'])]),
+                new AstNode('text', ['text' => ' after']),
+            ]),
+        ]);
+
+        $t->same('Standalone text', $single->attr('text'));
+        $t->same(['text' => 'Standalone text'], $single->attrs);
+        $t->same('emphasized', $strong->children[0]->attr('text'));
+        $t->same($materialize($expanded), $materialize($compact));
+        foreach (['wordpress', 'html', 'markdown', 'native', 'plain'] as $format) {
+            $t->same(PandocConverter::write($expanded, $format), PandocConverter::write($compact, $format));
+        }
+    },
 ];
