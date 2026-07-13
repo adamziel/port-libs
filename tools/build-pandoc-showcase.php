@@ -4365,7 +4365,7 @@ h2 { margin: 0; font-size: clamp(23px, 6vw, 31px); }
   color: var(--ink);
   text-decoration: none;
 }
-.examples-main { padding: 22px 0 52px; }
+.examples-main { padding-block: 22px 52px; }
 .example-controls,
 .example-viewer {
   border: 1px solid var(--line);
