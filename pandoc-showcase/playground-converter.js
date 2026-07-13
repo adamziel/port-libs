@@ -1,4 +1,4 @@
-const pluginBuild = 'document-inference-20260713';
+const pluginBuild = 'pdf-link-muir-safety-20260713';
 const playgroundClientModuleUrl = 'https://playground.wordpress.net/client/index.js';
 
 const iframe = document.getElementById('wp-playground');
@@ -208,7 +208,7 @@ async function startPlayground() {
       remoteUrl: 'https://playground.wordpress.net/remote.html',
       blueprint: {
         preferredVersions: {
-          php: '8.3',
+          php: '8.4',
           wp: 'latest',
         },
         landingPage: '/',

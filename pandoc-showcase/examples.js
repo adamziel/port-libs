@@ -6,7 +6,7 @@ const viewLabels = {
 };
 const defaultView = 'wpBlocks';
 const exampleUrlParameter = 'example';
-const playgroundPluginBuild = 'document-inference-20260713';
+const playgroundPluginBuild = 'pdf-link-muir-safety-20260713';
 const playgroundClientModuleUrl = 'https://playground.wordpress.net/client/index.js';
 
 const examplePicker = document.getElementById('example-picker');
@@ -275,7 +275,7 @@ async function startOwnFilePlayground() {
       remoteUrl: 'https://playground.wordpress.net/remote.html',
       blueprint: {
         preferredVersions: {
-          php: '8.3',
+          php: '8.4',
           wp: 'latest',
         },
         landingPage: '/',
