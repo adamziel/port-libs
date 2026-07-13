@@ -4226,7 +4226,7 @@ function showcase_examples_index(array $records, string $siteDir, string $genera
 /**
  * Write a separate, mobile-friendly viewer. It deliberately contains no
  * embedded conversion output: examples are loaded into one disposable frame
- * only after the visitor asks for one.
+ * and replaced whenever the visitor changes the example or view.
  *
  * @param list<array<string, mixed>> $records
  */
@@ -4245,29 +4245,18 @@ function showcase_write_examples_page(string $siteDir, array $records, string $g
     // Otherwise a UI-only update can be hidden behind a stale CSS or JavaScript cache.
     $assetVersion = substr(hash('sha256', $indexJson . "\n" . $css . "\n" . $javascript), 0, 12);
     $page = '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">';
-    $page .= '<title>Pandoc examples, one at a time</title><link rel="stylesheet" href="examples.css?v=' . h($assetVersion) . '"></head>';
-    $page .= '<body><header class="examples-hero"><div class="examples-shell"><p class="examples-eyebrow">adamziel/port-libs · lightweight browser</p>';
-    $page .= '<h1>One example at a time</h1><p class="examples-lede">This page loads exactly one rendered result at a time. Change a format, example, or view to load it immediately, without opening the full 30&nbsp;MB showcase.</p>';
-    $page .= '<p class="examples-links"><a href="index.html">Full showcase (desktop)</a><a href="conversion-report.html">Conversion report</a><a href="playground-converter.html">WordPress Playground</a></p>';
-    $page .= '</div></header><main class="examples-shell examples-main">';
-    $page .= '<section class="example-controls" aria-labelledby="example-browser-title"><div><p class="examples-eyebrow">Example browser</p><h2 id="example-browser-title">Browse a single conversion</h2>';
-    $page .= '<p id="catalog-summary" class="examples-muted" aria-live="polite">Loading the compact example catalogue…</p></div>';
-    $page .= '<div class="example-fields"><label for="format-filter">Format<select id="format-filter" disabled><option>Loading formats…</option></select></label>';
-    $page .= '<label for="example-picker">Example<select id="example-picker" disabled><option>Loading examples…</option></select></label></div>';
-    $page .= '<fieldset class="view-picker"><legend>Rendered view</legend><div class="view-buttons">';
-    $page .= '<button type="button" data-example-view="phpHtml" aria-pressed="true" disabled>PHP HTML</button>';
-    $page .= '<button type="button" data-example-view="wpBlocks" aria-pressed="false" disabled>WordPress blocks</button>';
-    $page .= '<button type="button" data-example-view="haskell" aria-pressed="false" disabled>Pandoc HTML</button>';
-    $page .= '</div></fieldset><div class="example-actions"><div class="example-navigation" role="group" aria-label="Browse examples">';
-    $page .= '<button id="previous-example" class="example-arrow" type="button" aria-label="Previous example" title="Previous example" disabled><span aria-hidden="true">←</span></button>';
-    $page .= '<button id="next-example" class="example-arrow" type="button" aria-label="Next example" title="Next example" disabled><span aria-hidden="true">→</span></button></div></div>';
-    $page .= '<p class="examples-muted">Changing a selection loads it immediately. The arrows only browse results up to ' . h(human_size(SHOWCASE_EXAMPLES_AUTOMATIC_MAX_BYTES)) . '; use the example menu to load any larger result.</p></section>';
-    $page .= '<section class="example-viewer" aria-labelledby="current-example-title"><div class="viewer-heading"><div><p id="current-example-format" class="format-badge">No example loaded</p><h2 id="current-example-title">Choose an example</h2>';
-    $page .= '<p id="current-example-description" class="examples-muted">The full showcase remains available for side-by-side comparisons.</p></div><p id="view-size" class="view-size"></p></div>';
-    $page .= '<p id="large-view-warning" class="large-view-warning" hidden></p><div id="example-links" class="current-links" hidden>';
-    $page .= '<a id="download-source" href="">Download original</a><a id="source-reference" href="" target="_blank" rel="noreferrer" hidden>Upstream source</a><a id="open-output" href="" target="_blank" rel="noreferrer">Open result</a><a id="open-full-comparison" href="">Open full comparison</a></div>';
-    $page .= '<p id="viewer-status" class="viewer-status" aria-live="polite">Preparing the selected example…</p>';
-    $page .= '<iframe id="example-frame" title="Selected converted example" sandbox hidden></iframe></section></main>';
+    $page .= '<title>Adam&#039;s Pandoc → PHP Port</title><link rel="stylesheet" href="examples.css?v=' . h($assetVersion) . '"></head>';
+    $page .= '<body><main class="example-browser"><h1 class="example-title">Adam&#039;s Pandoc → PHP Port</h1>';
+    $page .= '<button id="previous-example" class="example-arrow previous-arrow" type="button" aria-label="Previous example" title="Previous example" disabled><span aria-hidden="true">←</span></button>';
+    $page .= '<div class="example-toolbar"><label class="screen-reader-text" for="example-picker">Example</label><select id="example-picker" disabled><option>Loading examples…</option></select>';
+    $page .= '<a id="download-source" class="download-source" href="" download hidden>Download original</a></div>';
+    $page .= '<div class="view-tabs" role="group" aria-label="Preview format">';
+    $page .= '<button type="button" data-example-view="phpHtml" aria-pressed="true" disabled>HTML</button>';
+    $page .= '<button type="button" data-example-view="wpBlocks" aria-pressed="false" disabled>WordPress Block markup</button>';
+    $page .= '<button type="button" data-example-view="haskell" aria-pressed="false" disabled>Pandoc baseline</button></div>';
+    $page .= '<section class="example-preview" aria-label="Example preview"><p id="viewer-status" class="screen-reader-text" aria-live="polite">Preparing the selected example…</p>';
+    $page .= '<iframe id="example-frame" title="Selected converted example" sandbox hidden></iframe></section>';
+    $page .= '<button id="next-example" class="example-arrow next-arrow" type="button" aria-label="Next example" title="Next example" disabled><span aria-hidden="true">→</span></button></main>';
     $page .= '<script type="module" src="examples.js?v=' . h($assetVersion) . '"></script></body></html>';
     file_put_contents($siteDir . '/examples.html', rtrim($page) . "\n");
     file_put_contents($siteDir . '/examples.css', rtrim($css) . "\n");
@@ -4280,22 +4269,22 @@ function showcase_examples_css(): string
 :root {
   color-scheme: light;
   --ink: #18212b;
-  --muted: #596575;
   --line: #d6dee8;
   --paper: #ffffff;
   --wash: #f4f7fb;
   --accent: #165dcc;
   --accent-ink: #ffffff;
-  --warning: #8a5400;
 }
 * { box-sizing: border-box; }
+html,
+body { min-height: 100%; }
 body {
+  min-height: 100dvh;
   margin: 0;
   color: var(--ink);
   background: var(--wash);
   font: 16px/1.5 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
-a { color: var(--accent); }
 button,
 select { font: inherit; }
 button {
@@ -4307,195 +4296,146 @@ button {
   color: var(--ink);
   cursor: pointer;
 }
-button:hover:not(:disabled) { border-color: var(--accent); }
 button:focus-visible,
 select:focus-visible,
-a:focus-visible { outline: 3px solid color-mix(in srgb, var(--accent) 35%, transparent); outline-offset: 2px; }
+a:focus-visible { outline: 3px solid color-mix(in srgb, var(--accent) 35%, transparent); outline-offset: -3px; }
 button:disabled,
 select:disabled { cursor: not-allowed; opacity: .58; }
-.examples-shell {
-  width: 100%;
-  padding-inline: clamp(16px, 3vw, 56px);
-}
-.examples-hero {
-  border-bottom: 1px solid var(--line);
+.example-browser {
+  display: grid;
+  grid-template-columns: clamp(52px, 8vw, 132px) minmax(0, 1fr) clamp(52px, 8vw, 132px);
+  grid-template-rows: auto auto auto minmax(0, 1fr);
+  min-height: 100dvh;
   background: var(--paper);
 }
-.examples-hero .examples-shell { padding-block: 34px 26px; }
-.examples-eyebrow {
-  margin: 0 0 7px;
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 750;
-  letter-spacing: .055em;
-  text-transform: uppercase;
-}
-h1,
-h2 { line-height: 1.12; }
-h1 {
-  max-width: 680px;
+.example-title {
+  grid-column: 1 / -1;
+  grid-row: 1;
   margin: 0;
-  font-size: clamp(32px, 10vw, 52px);
+  padding: clamp(14px, 2vw, 26px) clamp(16px, 3vw, 48px);
+  border-bottom: 1px solid var(--line);
+  font-size: clamp(21px, 3vw, 34px);
+  line-height: 1.15;
 }
-h2 { margin: 0; font-size: clamp(23px, 6vw, 31px); }
-.examples-lede {
-  max-width: 680px;
-  margin: 16px 0 0;
-  color: #3e4a59;
-  font-size: 18px;
-}
-.examples-links,
-.current-links,
-.example-actions,
-.view-buttons {
+.example-toolbar {
   display: flex;
-  flex-wrap: wrap;
-  gap: 9px;
-}
-.examples-links { margin: 20px 0 0; }
-.examples-links a,
-.current-links a {
-  display: inline-flex;
+  grid-column: 2;
+  grid-row: 2;
   align-items: center;
-  min-height: 38px;
-  padding: 6px 10px;
-  border: 1px solid var(--line);
-  border-radius: 7px;
-  background: #fff;
-  color: var(--ink);
-  text-decoration: none;
+  gap: 10px;
+  min-width: 0;
+  padding: 16px 20px 10px;
 }
-.examples-main { padding-block: 22px 52px; }
-.example-controls,
-.example-viewer {
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: var(--paper);
-  box-shadow: 0 2px 8px rgb(23 41 64 / 5%);
-}
-.example-controls { padding: 18px; }
-.example-fields {
-  display: grid;
-  grid-template-columns: minmax(0, .75fr) minmax(0, 1.25fr);
-  gap: 12px;
-  margin-top: 18px;
-}
-.example-fields label {
-  display: grid;
-  gap: 6px;
-  font-size: 14px;
-  font-weight: 700;
-}
-select {
-  width: 100%;
-  min-height: 44px;
-  padding: 8px 10px;
+#example-picker {
+  flex: 1 1 360px;
+  min-width: 0;
+  min-height: 48px;
+  padding: 8px 12px;
   border: 1px solid #aeb9c7;
   border-radius: 8px;
   background: #fff;
   color: var(--ink);
 }
-.view-picker {
-  min-width: 0;
-  margin: 18px 0 0;
-  padding: 0;
-  border: 0;
+.download-source {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  padding: 8px 14px;
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
 }
-.view-picker legend {
-  margin-bottom: 7px;
-  font-size: 14px;
+.view-tabs {
+  display: flex;
+  grid-column: 2;
+  grid-row: 3;
+  gap: 4px;
+  min-width: 0;
+  overflow-x: auto;
+  padding: 0 20px 10px;
+  border-bottom: 1px solid var(--line);
+}
+.view-tabs button {
+  flex: 0 0 auto;
+  min-height: 42px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: #3e4a59;
   font-weight: 700;
 }
-.view-buttons button[aria-pressed="true"] {
-  border-color: var(--accent);
+.view-tabs button[aria-pressed="true"] {
   background: var(--accent);
   color: var(--accent-ink);
 }
-.example-actions {
-  margin-top: 18px;
-  justify-content: flex-end;
-}
-.example-navigation {
-  display: flex;
-  gap: 9px;
-}
 .example-arrow {
-  display: inline-grid;
+  display: grid;
+  grid-row: 2 / 5;
   place-items: center;
-  min-width: 48px;
-  padding: 8px;
-  font-size: 26px;
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  padding: 12px 0;
+  border: 0;
+  border-radius: 0;
+  background: var(--wash);
+  color: var(--accent);
+  font-size: clamp(44px, 7vw, 104px);
   line-height: 1;
 }
-.examples-muted {
-  margin: 7px 0 0;
-  color: var(--muted);
-  font-size: 14px;
+.example-arrow:hover:not(:disabled) { background: #e6eefb; }
+.previous-arrow {
+  grid-column: 1;
+  border-right: 1px solid var(--line);
 }
-.example-viewer {
-  margin-top: 18px;
-  overflow: hidden;
+.next-arrow {
+  grid-column: 3;
+  border-left: 1px solid var(--line);
 }
-.viewer-heading {
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 18px;
-  border-bottom: 1px solid var(--line);
-}
-.viewer-heading h2 { font-size: 23px; }
-.format-badge {
-  display: inline-block;
-  margin: 0 0 6px;
-  padding: 2px 7px;
-  border-radius: 999px;
-  background: #e9eff8;
-  color: #284766;
-  font: 700 12px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-}
-.view-size {
-  flex: 0 0 auto;
-  margin: 0;
-  color: var(--muted);
-  font-size: 13px;
-  text-align: right;
-}
-.large-view-warning {
-  margin: 0;
-  padding: 12px 18px;
-  border-bottom: 1px solid #f1d398;
-  background: #fff8e8;
-  color: var(--warning);
-  font-size: 14px;
-}
-.current-links { padding: 12px 18px; border-bottom: 1px solid var(--line); }
-.viewer-status {
-  margin: 0;
-  padding: 14px 18px;
-  color: var(--muted);
-  font-size: 14px;
+.example-preview {
+  display: grid;
+  grid-column: 2;
+  grid-row: 4;
+  min-width: 0;
+  min-height: 0;
+  background: #fff;
 }
 #example-frame {
   display: block;
   width: 100%;
-  height: min(68vh, 680px);
-  min-height: 420px;
+  height: 100%;
+  min-height: 0;
   border: 0;
-  border-top: 1px solid var(--line);
   background: #fff;
 }
-@media (max-width: 620px) {
-  .examples-shell { padding-inline: 11px; }
-  .examples-hero .examples-shell { padding-block: 26px 22px; }
-  .examples-lede { font-size: 16px; }
-  .example-controls { padding: 14px; }
-  .example-fields { grid-template-columns: 1fr; }
-  .viewer-heading { display: block; padding: 14px; }
-  .view-size { margin-top: 8px; text-align: left; }
-  .current-links,
-  .viewer-status { padding-left: 14px; padding-right: 14px; }
-  .large-view-warning { padding-left: 14px; padding-right: 14px; }
-  #example-frame { height: 62vh; min-height: 360px; }
+.screen-reader-text {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+@media (max-width: 640px) {
+  .example-browser { grid-template-columns: 44px minmax(0, 1fr) 44px; }
+  .example-title { padding: 13px 14px; font-size: 20px; }
+  .example-toolbar { flex-wrap: wrap; padding: 10px 10px 8px; }
+  #example-picker { flex-basis: 100%; }
+  .download-source { width: 100%; }
+  .view-tabs { gap: 0; padding: 0 6px 8px; }
+  .view-tabs button { padding: 8px 10px; font-size: 13px; }
+  .example-arrow { font-size: 40px; }
 }
 CSS;
 }
@@ -4505,50 +4445,26 @@ function showcase_examples_javascript(): string
     return <<<'JS'
 const catalogUrl = 'examples-index.json';
 const viewLabels = {
-  phpHtml: 'PHP HTML',
-  wpBlocks: 'WordPress blocks',
-  haskell: 'Pandoc HTML',
+  phpHtml: 'HTML',
+  wpBlocks: 'WordPress Block markup',
+  haskell: 'Pandoc baseline',
 };
 
-const formatFilter = document.getElementById('format-filter');
 const examplePicker = document.getElementById('example-picker');
 const previousButton = document.getElementById('previous-example');
 const nextButton = document.getElementById('next-example');
 const viewButtons = Array.from(document.querySelectorAll('[data-example-view]'));
-const catalogSummary = document.getElementById('catalog-summary');
-const formatBadge = document.getElementById('current-example-format');
-const title = document.getElementById('current-example-title');
-const description = document.getElementById('current-example-description');
-const viewSize = document.getElementById('view-size');
-const largeViewWarning = document.getElementById('large-view-warning');
 const viewerStatus = document.getElementById('viewer-status');
-const exampleLinks = document.getElementById('example-links');
 const downloadSource = document.getElementById('download-source');
-const sourceReference = document.getElementById('source-reference');
-const openOutput = document.getElementById('open-output');
-const openFullComparison = document.getElementById('open-full-comparison');
 const frame = document.getElementById('example-frame');
 
 const state = {
-  catalog: null,
   examples: [],
   selectedId: '',
   view: 'phpHtml',
+  automaticViewMaxBytes: 0,
   loadToken: 0,
 };
-
-function formatBytes(bytes) {
-  if (!Number.isFinite(bytes) || bytes <= 0) {
-    return 'unavailable';
-  }
-  if (bytes < 1024) {
-    return bytes + ' B';
-  }
-  if (bytes < 1024 * 1024) {
-    return (bytes / 1024).toFixed(bytes < 100 * 1024 ? 1 : 0) + ' KB';
-  }
-  return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
-}
 
 function selectedExample() {
   return state.examples.find((example) => example.id === state.selectedId) || null;
@@ -4558,14 +4474,13 @@ function selectedView(example = selectedExample()) {
   return example && example.views ? example.views[state.view] || null : null;
 }
 
-function filteredExamples() {
-  const format = formatFilter.value;
-  return state.examples.filter((example) => !format || example.format === format);
+function isBrowsableView(view) {
+  return Boolean(view && view.ok && view.path && view.bytes > 0
+    && view.bytes <= state.automaticViewMaxBytes);
 }
 
-function canAutoLoad(example) {
-  const view = selectedView(example);
-  return Boolean(view && view.ok && view.bytes > 0 && view.bytes <= state.catalog.automaticViewMaxBytes);
+function browsableExamples() {
+  return state.examples.filter((example) => isBrowsableView(example.views && example.views.phpHtml));
 }
 
 function setStatus(message) {
@@ -4579,16 +4494,14 @@ function createOption(value, label) {
   return option;
 }
 
-function populateFormats() {
-  const selected = formatFilter.value;
-  const formats = [...new Set(state.examples.map((example) => example.format).filter(Boolean))].sort();
-  formatFilter.replaceChildren(createOption('', 'All formats'));
-  formats.forEach((format) => formatFilter.append(createOption(format, format)));
-  formatFilter.value = formats.includes(selected) ? selected : '';
+function ensureBrowsableView() {
+  if (!isBrowsableView(selectedView())) {
+    state.view = 'phpHtml';
+  }
 }
 
 function populateExamples(preferredId = state.selectedId) {
-  const examples = filteredExamples();
+  const examples = browsableExamples();
   examplePicker.replaceChildren();
   examples.forEach((example) => {
     examplePicker.append(createOption(example.id, example.format + ' · ' + example.label));
@@ -4599,8 +4512,9 @@ function populateExamples(preferredId = state.selectedId) {
   } else {
     state.selectedId = examples[0] ? examples[0].id : '';
   }
+  ensureBrowsableView();
   examplePicker.value = state.selectedId;
-  updateExampleDetails();
+  updateDownloadSource();
   updateControls();
 }
 
@@ -4611,60 +4525,27 @@ function updateViewButtons() {
   });
 }
 
-function updateExampleDetails() {
+function updateDownloadSource() {
   const example = selectedExample();
-  const view = selectedView(example);
-  if (!example || !view) {
-    formatBadge.textContent = 'No example available';
-    title.textContent = 'No matching example';
-    description.textContent = 'Try another format.';
-    viewSize.textContent = '';
-    exampleLinks.hidden = true;
-    largeViewWarning.hidden = true;
+  if (!example || !example.samplePath) {
+    downloadSource.hidden = true;
+    downloadSource.removeAttribute('href');
     return;
   }
-
-  formatBadge.textContent = example.format + ' · ' + viewLabels[state.view];
-  title.textContent = example.label;
-  description.textContent = example.description || example.source || 'No description is available.';
-  viewSize.textContent = view.ok
-    ? viewLabels[state.view] + ' · ' + formatBytes(view.bytes)
-    : viewLabels[state.view] + ' unavailable';
-
-  exampleLinks.hidden = false;
-  downloadSource.href = example.samplePath || '#';
-  downloadSource.hidden = !example.samplePath;
-  openOutput.hidden = !view.ok || !view.path;
-  if (view.ok && view.path) {
-    openOutput.href = view.path;
-  } else {
-    openOutput.removeAttribute('href');
-  }
-  openFullComparison.href = 'index.html#' + encodeURIComponent(example.id);
-  sourceReference.hidden = !example.sourceUrl;
-  if (example.sourceUrl) {
-    sourceReference.href = example.sourceUrl;
-  } else {
-    sourceReference.removeAttribute('href');
-  }
-
-  const isLarge = view.ok && view.bytes > state.catalog.automaticViewMaxBytes;
-  largeViewWarning.hidden = !isLarge;
-  if (isLarge) {
-    largeViewWarning.textContent = 'This ' + formatBytes(view.bytes)
-      + ' result is larger than the automatic mobile browsing limit. It is loading because you selected it directly.';
-  }
+  downloadSource.href = example.samplePath;
+  downloadSource.hidden = false;
 }
 
 function updateControls() {
-  const ready = state.catalog !== null && filteredExamples().length > 0;
-  const automaticExamples = ready ? filteredExamples().filter(canAutoLoad) : [];
-  formatFilter.disabled = state.catalog === null;
+  const examples = browsableExamples();
+  const ready = examples.length > 0;
+  const example = selectedExample();
   examplePicker.disabled = !ready;
-  previousButton.disabled = automaticExamples.length < 2;
-  nextButton.disabled = automaticExamples.length < 2;
+  previousButton.disabled = examples.length < 2;
+  nextButton.disabled = examples.length < 2;
   viewButtons.forEach((button) => {
-    button.disabled = state.catalog === null;
+    const view = example && example.views ? example.views[button.dataset.exampleView] : null;
+    button.disabled = !ready || !isBrowsableView(view);
   });
   updateViewButtons();
 }
@@ -4676,17 +4557,10 @@ function unloadCurrentExample() {
   frame.hidden = true;
 }
 
-function writeSelectionToUrl(example) {
-  const url = new URL(window.location.href);
-  url.searchParams.set('example', example.id);
-  url.searchParams.set('view', state.view);
-  window.history.replaceState(null, '', url);
-}
-
 function loadSelectedExample() {
   const example = selectedExample();
   const view = selectedView(example);
-  if (!example || !view || !view.ok || !view.path) {
+  if (!example || !isBrowsableView(view)) {
     unloadCurrentExample();
     setStatus('No ' + viewLabels[state.view] + ' result is available for this example.');
     return;
@@ -4700,7 +4574,6 @@ function loadSelectedExample() {
   frame.removeAttribute('src');
   frame.src = 'about:blank';
   setStatus('Loading ' + example.label + '…');
-  writeSelectionToUrl(example);
 
   window.requestAnimationFrame(() => {
     if (token !== state.loadToken) {
@@ -4711,9 +4584,9 @@ function loadSelectedExample() {
 }
 
 function moveExample(direction) {
-  const examples = filteredExamples().filter(canAutoLoad);
+  const examples = browsableExamples();
   if (examples.length === 0) {
-    setStatus('No small enough result is available for this format and view.');
+    setStatus('No browsable example is available.');
     return;
   }
 
@@ -4722,24 +4595,11 @@ function moveExample(direction) {
     ? (direction > 0 ? 0 : examples.length - 1)
     : (current + direction + examples.length) % examples.length;
   state.selectedId = examples[nextIndex].id;
+  ensureBrowsableView();
   examplePicker.value = state.selectedId;
-  updateExampleDetails();
+  updateDownloadSource();
   updateControls();
   loadSelectedExample();
-}
-
-function syncSelectionFromUrl() {
-  const params = new URL(window.location.href).searchParams;
-  const requestedId = params.get('example');
-  const requestedView = params.get('view');
-  const requested = state.examples.find((example) => example.id === requestedId);
-  if (requested) {
-    formatFilter.value = requested.format;
-    state.selectedId = requested.id;
-  }
-  if (requestedView && viewLabels[requestedView]) {
-    state.view = requestedView;
-  }
 }
 
 async function initialize() {
@@ -4752,35 +4612,20 @@ async function initialize() {
     if (!Array.isArray(catalog.examples) || catalog.examples.length === 0 || !Number.isFinite(catalog.automaticViewMaxBytes)) {
       throw new Error('catalogue payload is incomplete');
     }
-    state.catalog = catalog;
+    state.automaticViewMaxBytes = catalog.automaticViewMaxBytes;
     state.examples = catalog.examples.filter((example) => example && example.id && example.views);
     state.selectedId = catalog.defaultExampleId || state.examples[0].id;
-    populateFormats();
-    syncSelectionFromUrl();
     populateExamples(state.selectedId);
-
-    const automaticCount = state.examples.filter((example) => {
-      const view = example.views.phpHtml;
-      return view && view.ok && view.bytes > 0 && view.bytes <= catalog.automaticViewMaxBytes;
-    }).length;
-    catalogSummary.textContent = state.examples.length + ' examples are available. '
-      + automaticCount + ' PHP-rendered examples are under the '
-      + formatBytes(catalog.automaticViewMaxBytes) + ' automatic mobile limit.';
     loadSelectedExample();
   } catch (error) {
-    catalogSummary.textContent = 'The lightweight example catalogue could not be loaded.';
     setStatus('Try reloading this page.');
   }
 }
 
-formatFilter.addEventListener('change', () => {
-  populateExamples();
-  loadSelectedExample();
-});
-
 examplePicker.addEventListener('change', () => {
   state.selectedId = examplePicker.value;
-  updateExampleDetails();
+  ensureBrowsableView();
+  updateDownloadSource();
   updateControls();
   loadSelectedExample();
 });
@@ -4795,7 +4640,6 @@ viewButtons.forEach((button) => {
       return;
     }
     state.view = nextView;
-    updateExampleDetails();
     updateControls();
     loadSelectedExample();
   });
