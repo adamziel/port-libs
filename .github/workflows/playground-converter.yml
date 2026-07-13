@@ -69,10 +69,13 @@ jobs:
           php -l lanes/markerpdf/tests/PdfMetadataHardeningTest.php
           php -l lanes/pandoc/src/BibtexCslParser.php
           php -l lanes/pandoc/src/BibtexCslProcessor.php
+          php -l lanes/pandoc/src/EpubReader.php
           php -l lanes/pandoc/src/JiraInlineSpanIndex.php
           php -l lanes/pandoc/src/JiraReader.php
           php -l lanes/pandoc/src/PdfReader.php
           php -l lanes/pandoc/tests/BibtexCslProcessorTest.php
+          php -l lanes/pandoc/tests/EpubReaderTest.php
+          php -l lanes/pandoc/tests/EpubXmlEncodingAndProcessingInstructionRecoveryTest.php
           php -l lanes/pandoc/tests/JiraReaderHardeningTest.php
           php -l lanes/pandoc/tests/JiraReaderTest.php
           php -l tools/playground-converter-plugin/port-libs-playground-converter.php
@@ -99,6 +102,8 @@ jobs:
           php tools/run-tests.php \
             lanes/markerpdf/tests/PdfMetadataHardeningTest.php \
             lanes/pandoc/tests/BibtexCslProcessorTest.php \
+            lanes/pandoc/tests/EpubReaderTest.php \
+            lanes/pandoc/tests/EpubXmlEncodingAndProcessingInstructionRecoveryTest.php \
             lanes/pandoc/tests/JiraReaderHardeningTest.php \
             lanes/pandoc/tests/JiraReaderTest.php \
             lanes/pandoc/tests/PlaygroundConverterPluginTest.php \

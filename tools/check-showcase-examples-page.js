@@ -79,7 +79,7 @@ assert(js.includes('view: defaultView'), 'Expected the state to initialize to th
 assert(js.includes("const exampleUrlParameter = 'example';"), 'Expected a stable query parameter for linked examples.');
 assert(js.includes('new URL(window.location.href)'), 'Expected example links to preserve other URL state safely.');
 assert(js.includes('window.history.replaceState'), 'Expected picker navigation to keep the current URL shareable.');
-assert(js.includes("const playgroundPluginBuild = 'epub-staged-upload-20260713';"), 'Expected the own-file importer to use the current Playground plugin build.');
+assert(js.includes("const playgroundPluginBuild = 'epub-xml-recovery-20260713';"), 'Expected the own-file importer to use the current Playground plugin build.');
 assert(js.includes("const playgroundClientModuleUrl = 'https://playground.wordpress.net/client/index.js';"), 'Expected Try your own file to use the Playground client.');
 assert(js.includes("const playgroundUploadDirectory = '/tmp/port-libs-converter';"), 'Expected own files to use Playground temporary staging.');
 assert(js.includes("php: '8.4'"), 'Expected own-file imports to use PHP 8.4 for EPUB and HTML documents.');
