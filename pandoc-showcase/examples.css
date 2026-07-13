@@ -35,14 +35,14 @@ a:focus-visible { outline: 3px solid color-mix(in srgb, var(--accent) 35%, trans
 button:disabled,
 select:disabled { cursor: not-allowed; opacity: .58; }
 .examples-shell {
-  width: min(860px, calc(100% - 28px));
-  margin: 0 auto;
+  width: 100%;
+  padding-inline: clamp(16px, 3vw, 56px);
 }
 .examples-hero {
   border-bottom: 1px solid var(--line);
   background: var(--paper);
 }
-.examples-hero .examples-shell { padding: 34px 0 26px; }
+.examples-hero .examples-shell { padding-block: 34px 26px; }
 .examples-eyebrow {
   margin: 0 0 7px;
   color: var(--muted);
@@ -132,12 +132,21 @@ select {
   background: var(--accent);
   color: var(--accent-ink);
 }
-.example-actions { margin-top: 18px; }
-.primary-action {
-  border-color: var(--accent);
-  background: var(--accent);
-  color: var(--accent-ink);
-  font-weight: 700;
+.example-actions {
+  margin-top: 18px;
+  justify-content: flex-end;
+}
+.example-navigation {
+  display: flex;
+  gap: 9px;
+}
+.example-arrow {
+  display: inline-grid;
+  place-items: center;
+  min-width: 48px;
+  padding: 8px;
+  font-size: 26px;
+  line-height: 1;
 }
 .examples-muted {
   margin: 7px 0 0;
@@ -197,8 +206,8 @@ select {
   background: #fff;
 }
 @media (max-width: 620px) {
-  .examples-shell { width: min(100% - 22px, 860px); }
-  .examples-hero .examples-shell { padding: 26px 0 22px; }
+  .examples-shell { padding-inline: 11px; }
+  .examples-hero .examples-shell { padding-block: 26px 22px; }
   .examples-lede { font-size: 16px; }
   .example-controls { padding: 14px; }
   .example-fields { grid-template-columns: 1fr; }

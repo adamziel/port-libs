@@ -4239,14 +4239,18 @@ function showcase_write_examples_page(string $siteDir, array $records, string $g
     }
     file_put_contents($siteDir . '/examples-index.json', $indexJson . "\n");
 
-    $assetVersion = substr(hash('sha256', $indexJson), 0, 12);
+    $css = showcase_examples_css();
+    $javascript = showcase_examples_javascript();
+    // Version every asset that the lightweight page ships, not just its catalogue.
+    // Otherwise a UI-only update can be hidden behind a stale CSS or JavaScript cache.
+    $assetVersion = substr(hash('sha256', $indexJson . "\n" . $css . "\n" . $javascript), 0, 12);
     $page = '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">';
     $page .= '<title>Pandoc examples, one at a time</title><link rel="stylesheet" href="examples.css?v=' . h($assetVersion) . '"></head>';
     $page .= '<body><header class="examples-hero"><div class="examples-shell"><p class="examples-eyebrow">adamziel/port-libs · lightweight browser</p>';
-    $page .= '<h1>One example at a time</h1><p class="examples-lede">This page starts small, then loads exactly one rendered result when you ask for it. Use the next button to browse representative conversions without opening the full 30&nbsp;MB showcase.</p>';
+    $page .= '<h1>One example at a time</h1><p class="examples-lede">This page loads exactly one rendered result at a time. Change a format, example, or view to load it immediately, without opening the full 30&nbsp;MB showcase.</p>';
     $page .= '<p class="examples-links"><a href="index.html">Full showcase (desktop)</a><a href="conversion-report.html">Conversion report</a><a href="playground-converter.html">WordPress Playground</a></p>';
     $page .= '</div></header><main class="examples-shell examples-main">';
-    $page .= '<section class="example-controls" aria-labelledby="example-browser-title"><div><p class="examples-eyebrow">Example browser</p><h2 id="example-browser-title">Load a single conversion</h2>';
+    $page .= '<section class="example-controls" aria-labelledby="example-browser-title"><div><p class="examples-eyebrow">Example browser</p><h2 id="example-browser-title">Browse a single conversion</h2>';
     $page .= '<p id="catalog-summary" class="examples-muted" aria-live="polite">Loading the compact example catalogue…</p></div>';
     $page .= '<div class="example-fields"><label for="format-filter">Format<select id="format-filter" disabled><option>Loading formats…</option></select></label>';
     $page .= '<label for="example-picker">Example<select id="example-picker" disabled><option>Loading examples…</option></select></label></div>';
@@ -4254,20 +4258,20 @@ function showcase_write_examples_page(string $siteDir, array $records, string $g
     $page .= '<button type="button" data-example-view="phpHtml" aria-pressed="true" disabled>PHP HTML</button>';
     $page .= '<button type="button" data-example-view="wpBlocks" aria-pressed="false" disabled>WordPress blocks</button>';
     $page .= '<button type="button" data-example-view="haskell" aria-pressed="false" disabled>Pandoc HTML</button>';
-    $page .= '</div></fieldset><div class="example-actions">';
-    $page .= '<button id="load-example" class="primary-action" type="button" disabled>Load selected example</button>';
-    $page .= '<button id="previous-example" type="button" disabled>Previous</button><button id="next-example" type="button" disabled>Next example</button></div>';
-    $page .= '<p class="examples-muted">Next and Previous only auto-load results up to ' . h(human_size(SHOWCASE_EXAMPLES_AUTOMATIC_MAX_BYTES)) . '. You can still deliberately select any larger example.</p></section>';
+    $page .= '</div></fieldset><div class="example-actions"><div class="example-navigation" role="group" aria-label="Browse examples">';
+    $page .= '<button id="previous-example" class="example-arrow" type="button" aria-label="Previous example" title="Previous example" disabled><span aria-hidden="true">←</span></button>';
+    $page .= '<button id="next-example" class="example-arrow" type="button" aria-label="Next example" title="Next example" disabled><span aria-hidden="true">→</span></button></div></div>';
+    $page .= '<p class="examples-muted">Changing a selection loads it immediately. The arrows only browse results up to ' . h(human_size(SHOWCASE_EXAMPLES_AUTOMATIC_MAX_BYTES)) . '; use the example menu to load any larger result.</p></section>';
     $page .= '<section class="example-viewer" aria-labelledby="current-example-title"><div class="viewer-heading"><div><p id="current-example-format" class="format-badge">No example loaded</p><h2 id="current-example-title">Choose an example</h2>';
     $page .= '<p id="current-example-description" class="examples-muted">The full showcase remains available for side-by-side comparisons.</p></div><p id="view-size" class="view-size"></p></div>';
     $page .= '<p id="large-view-warning" class="large-view-warning" hidden></p><div id="example-links" class="current-links" hidden>';
     $page .= '<a id="download-source" href="">Download original</a><a id="source-reference" href="" target="_blank" rel="noreferrer" hidden>Upstream source</a><a id="open-output" href="" target="_blank" rel="noreferrer">Open result</a><a id="open-full-comparison" href="">Open full comparison</a></div>';
-    $page .= '<p id="viewer-status" class="viewer-status" aria-live="polite">Choose an example, then press “Load selected example”.</p>';
+    $page .= '<p id="viewer-status" class="viewer-status" aria-live="polite">Preparing the selected example…</p>';
     $page .= '<iframe id="example-frame" title="Selected converted example" sandbox hidden></iframe></section></main>';
     $page .= '<script type="module" src="examples.js?v=' . h($assetVersion) . '"></script></body></html>';
     file_put_contents($siteDir . '/examples.html', rtrim($page) . "\n");
-    file_put_contents($siteDir . '/examples.css', rtrim(showcase_examples_css()) . "\n");
-    file_put_contents($siteDir . '/examples.js', rtrim(showcase_examples_javascript()) . "\n");
+    file_put_contents($siteDir . '/examples.css', rtrim($css) . "\n");
+    file_put_contents($siteDir . '/examples.js', rtrim($javascript) . "\n");
 }
 
 function showcase_examples_css(): string
@@ -4310,14 +4314,14 @@ a:focus-visible { outline: 3px solid color-mix(in srgb, var(--accent) 35%, trans
 button:disabled,
 select:disabled { cursor: not-allowed; opacity: .58; }
 .examples-shell {
-  width: min(860px, calc(100% - 28px));
-  margin: 0 auto;
+  width: 100%;
+  padding-inline: clamp(16px, 3vw, 56px);
 }
 .examples-hero {
   border-bottom: 1px solid var(--line);
   background: var(--paper);
 }
-.examples-hero .examples-shell { padding: 34px 0 26px; }
+.examples-hero .examples-shell { padding-block: 34px 26px; }
 .examples-eyebrow {
   margin: 0 0 7px;
   color: var(--muted);
@@ -4407,12 +4411,21 @@ select {
   background: var(--accent);
   color: var(--accent-ink);
 }
-.example-actions { margin-top: 18px; }
-.primary-action {
-  border-color: var(--accent);
-  background: var(--accent);
-  color: var(--accent-ink);
-  font-weight: 700;
+.example-actions {
+  margin-top: 18px;
+  justify-content: flex-end;
+}
+.example-navigation {
+  display: flex;
+  gap: 9px;
+}
+.example-arrow {
+  display: inline-grid;
+  place-items: center;
+  min-width: 48px;
+  padding: 8px;
+  font-size: 26px;
+  line-height: 1;
 }
 .examples-muted {
   margin: 7px 0 0;
@@ -4472,8 +4485,8 @@ select {
   background: #fff;
 }
 @media (max-width: 620px) {
-  .examples-shell { width: min(100% - 22px, 860px); }
-  .examples-hero .examples-shell { padding: 26px 0 22px; }
+  .examples-shell { padding-inline: 11px; }
+  .examples-hero .examples-shell { padding-block: 26px 22px; }
   .examples-lede { font-size: 16px; }
   .example-controls { padding: 14px; }
   .example-fields { grid-template-columns: 1fr; }
@@ -4499,7 +4512,6 @@ const viewLabels = {
 
 const formatFilter = document.getElementById('format-filter');
 const examplePicker = document.getElementById('example-picker');
-const loadButton = document.getElementById('load-example');
 const previousButton = document.getElementById('previous-example');
 const nextButton = document.getElementById('next-example');
 const viewButtons = Array.from(document.querySelectorAll('[data-example-view]'));
@@ -4522,7 +4534,6 @@ const state = {
   examples: [],
   selectedId: '',
   view: 'phpHtml',
-  loadedId: '',
   loadToken: 0,
 };
 
@@ -4641,7 +4652,7 @@ function updateExampleDetails() {
   largeViewWarning.hidden = !isLarge;
   if (isLarge) {
     largeViewWarning.textContent = 'This ' + formatBytes(view.bytes)
-      + ' result is larger than the automatic mobile limit. It will only load when you press “Load selected example”.';
+      + ' result is larger than the automatic mobile browsing limit. It is loading because you selected it directly.';
   }
 }
 
@@ -4650,7 +4661,6 @@ function updateControls() {
   const automaticExamples = ready ? filteredExamples().filter(canAutoLoad) : [];
   formatFilter.disabled = state.catalog === null;
   examplePicker.disabled = !ready;
-  loadButton.disabled = !ready;
   previousButton.disabled = automaticExamples.length < 2;
   nextButton.disabled = automaticExamples.length < 2;
   viewButtons.forEach((button) => {
@@ -4661,7 +4671,6 @@ function updateControls() {
 
 function unloadCurrentExample() {
   state.loadToken += 1;
-  state.loadedId = '';
   delete frame.dataset.loadedPath;
   frame.removeAttribute('src');
   frame.hidden = true;
@@ -4678,13 +4687,13 @@ function loadSelectedExample() {
   const example = selectedExample();
   const view = selectedView(example);
   if (!example || !view || !view.ok || !view.path) {
+    unloadCurrentExample();
     setStatus('No ' + viewLabels[state.view] + ' result is available for this example.');
     return;
   }
 
   const token = state.loadToken + 1;
   state.loadToken = token;
-  state.loadedId = example.id;
   frame.hidden = false;
   frame.loading = 'eager';
   frame.dataset.loadedPath = view.path;
@@ -4757,7 +4766,7 @@ async function initialize() {
     catalogSummary.textContent = state.examples.length + ' examples are available. '
       + automaticCount + ' PHP-rendered examples are under the '
       + formatBytes(catalog.automaticViewMaxBytes) + ' automatic mobile limit.';
-    setStatus('Choose an example, then press “Load selected example”.');
+    loadSelectedExample();
   } catch (error) {
     catalogSummary.textContent = 'The lightweight example catalogue could not be loaded.';
     setStatus('Try reloading this page.');
@@ -4765,20 +4774,17 @@ async function initialize() {
 }
 
 formatFilter.addEventListener('change', () => {
-  unloadCurrentExample();
   populateExamples();
-  setStatus('Choose an example, then press “Load selected example”.');
+  loadSelectedExample();
 });
 
 examplePicker.addEventListener('change', () => {
   state.selectedId = examplePicker.value;
-  unloadCurrentExample();
   updateExampleDetails();
   updateControls();
-  setStatus('Example selected. Press “Load selected example” when ready.');
+  loadSelectedExample();
 });
 
-loadButton.addEventListener('click', loadSelectedExample);
 previousButton.addEventListener('click', () => moveExample(-1));
 nextButton.addEventListener('click', () => moveExample(1));
 
@@ -4788,15 +4794,10 @@ viewButtons.forEach((button) => {
     if (!nextView || !viewLabels[nextView] || nextView === state.view) {
       return;
     }
-    const reload = state.loadedId === state.selectedId;
     state.view = nextView;
     updateExampleDetails();
     updateControls();
-    if (reload) {
-      loadSelectedExample();
-    } else {
-      setStatus('View selected. Press “Load selected example” when ready.');
-    }
+    loadSelectedExample();
   });
 });
 

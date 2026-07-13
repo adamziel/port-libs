@@ -7,7 +7,6 @@ const viewLabels = {
 
 const formatFilter = document.getElementById('format-filter');
 const examplePicker = document.getElementById('example-picker');
-const loadButton = document.getElementById('load-example');
 const previousButton = document.getElementById('previous-example');
 const nextButton = document.getElementById('next-example');
 const viewButtons = Array.from(document.querySelectorAll('[data-example-view]'));
@@ -30,7 +29,6 @@ const state = {
   examples: [],
   selectedId: '',
   view: 'phpHtml',
-  loadedId: '',
   loadToken: 0,
 };
 
@@ -149,7 +147,7 @@ function updateExampleDetails() {
   largeViewWarning.hidden = !isLarge;
   if (isLarge) {
     largeViewWarning.textContent = 'This ' + formatBytes(view.bytes)
-      + ' result is larger than the automatic mobile limit. It will only load when you press “Load selected example”.';
+      + ' result is larger than the automatic mobile browsing limit. It is loading because you selected it directly.';
   }
 }
 
@@ -158,7 +156,6 @@ function updateControls() {
   const automaticExamples = ready ? filteredExamples().filter(canAutoLoad) : [];
   formatFilter.disabled = state.catalog === null;
   examplePicker.disabled = !ready;
-  loadButton.disabled = !ready;
   previousButton.disabled = automaticExamples.length < 2;
   nextButton.disabled = automaticExamples.length < 2;
   viewButtons.forEach((button) => {
@@ -169,7 +166,6 @@ function updateControls() {
 
 function unloadCurrentExample() {
   state.loadToken += 1;
-  state.loadedId = '';
   delete frame.dataset.loadedPath;
   frame.removeAttribute('src');
   frame.hidden = true;
@@ -186,13 +182,13 @@ function loadSelectedExample() {
   const example = selectedExample();
   const view = selectedView(example);
   if (!example || !view || !view.ok || !view.path) {
+    unloadCurrentExample();
     setStatus('No ' + viewLabels[state.view] + ' result is available for this example.');
     return;
   }
 
   const token = state.loadToken + 1;
   state.loadToken = token;
-  state.loadedId = example.id;
   frame.hidden = false;
   frame.loading = 'eager';
   frame.dataset.loadedPath = view.path;
@@ -265,7 +261,7 @@ async function initialize() {
     catalogSummary.textContent = state.examples.length + ' examples are available. '
       + automaticCount + ' PHP-rendered examples are under the '
       + formatBytes(catalog.automaticViewMaxBytes) + ' automatic mobile limit.';
-    setStatus('Choose an example, then press “Load selected example”.');
+    loadSelectedExample();
   } catch (error) {
     catalogSummary.textContent = 'The lightweight example catalogue could not be loaded.';
     setStatus('Try reloading this page.');
@@ -273,20 +269,17 @@ async function initialize() {
 }
 
 formatFilter.addEventListener('change', () => {
-  unloadCurrentExample();
   populateExamples();
-  setStatus('Choose an example, then press “Load selected example”.');
+  loadSelectedExample();
 });
 
 examplePicker.addEventListener('change', () => {
   state.selectedId = examplePicker.value;
-  unloadCurrentExample();
   updateExampleDetails();
   updateControls();
-  setStatus('Example selected. Press “Load selected example” when ready.');
+  loadSelectedExample();
 });
 
-loadButton.addEventListener('click', loadSelectedExample);
 previousButton.addEventListener('click', () => moveExample(-1));
 nextButton.addEventListener('click', () => moveExample(1));
 
@@ -296,15 +289,10 @@ viewButtons.forEach((button) => {
     if (!nextView || !viewLabels[nextView] || nextView === state.view) {
       return;
     }
-    const reload = state.loadedId === state.selectedId;
     state.view = nextView;
     updateExampleDetails();
     updateControls();
-    if (reload) {
-      loadSelectedExample();
-    } else {
-      setStatus('View selected. Press “Load selected example” when ready.');
-    }
+    loadSelectedExample();
   });
 });
 

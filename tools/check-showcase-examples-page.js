@@ -34,16 +34,22 @@ assert(/<iframe\b[^>]*\bid="example-frame"/.test(html), 'Expected the reusable e
 assert(!/<iframe\b[^>]*\bsrc=/.test(html), 'The lightweight page must not eagerly load an example iframe.');
 assert(!html.includes('outputs/'), 'The lightweight page must not embed generated output paths.');
 assert(html.includes('Full showcase (desktop)'), 'Expected a link back to the full desktop showcase.');
-assert(html.includes('Next example'), 'Expected one-at-a-time navigation.');
+assert(!html.includes('Load selected example'), 'Selection changes should load their example without a separate load button.');
+assert(/<button[^>]*\bid="previous-example"[^>]*\baria-label="Previous example"[^>]*>[\s\S]*?←/.test(html), 'Expected an accessible previous-example arrow.');
+assert(/<button[^>]*\bid="next-example"[^>]*\baria-label="Next example"[^>]*>[\s\S]*?→/.test(html), 'Expected an accessible next-example arrow.');
 assert(fullShowcase.includes('href="examples.html"'), 'The full showcase should link to the lightweight browser.');
 assert(css.includes('@media (max-width: 620px)'), 'Expected dedicated mobile layout rules.');
 assert(css.includes('min-height: 44px'), 'Expected touch-sized controls.');
+assert(/\.examples-shell\s*\{\s*width:\s*100%;/.test(css), 'Expected the lightweight browser to use the full available width.');
 assert(js.includes("const catalogUrl = 'examples-index.json';"), 'Expected the compact example catalogue.');
 assert(!js.includes('manifest.json'), 'The lightweight page must not fetch the full manifest.');
 assert(js.includes("frame.removeAttribute('src');"), 'Expected prior iframe documents to be unloaded.');
 assert(js.includes("frame.src = 'about:blank';"), 'Expected the iframe to clear before each requested result.');
 assert(js.includes('frame.src = view.path;'), 'Expected the viewer to load only the selected result.');
 assert(js.includes('automaticViewMaxBytes'), 'Expected next/previous navigation to respect the mobile size limit.');
+assert(/formatFilter\.addEventListener\('change',[\s\S]*?loadSelectedExample\(\);/.test(js), 'Changing the format should load the selected example.');
+assert(/examplePicker\.addEventListener\('change',[\s\S]*?loadSelectedExample\(\);/.test(js), 'Changing the example should load it immediately.');
+assert(/button\.addEventListener\('click',[\s\S]*?state\.view = nextView;[\s\S]*?loadSelectedExample\(\);/.test(js), 'Changing the rendered view should load it immediately.');
 
 const records = Array.isArray(manifest.records) ? manifest.records : [];
 const recordsById = new Map(records.map((record) => [record.id, record]));
