@@ -3046,6 +3046,8 @@ return [
         $t->same(true, $meta['pdfFastTextOnly']);
         $t->same(0, $meta['pdfTextRuns']);
         $t->same(0, $meta['pdfPositionedTextRuns']);
+        $t->same(0, $meta['pdfPartiallyMappedGlyphRuns']);
+        $t->same(0, $meta['pdfUnrecoverableActualTextRuns']);
         $t->same(false, $meta['pdfGeometryTablesEnabled']);
         $t->contains('bounded text-only mode', implode(' ', $meta['pdfWarnings']));
         $t->same('Fast mode text', $document->children[0]->attr('text'));
@@ -5399,6 +5401,161 @@ return [
 
         $t->contains('Before putting on gloves.', $text);
         $t->true(!str_contains($text, 'Beforputetingongloves'));
+    },
+    'keeps a compact two-character source lead with its same-baseline suffix' => static function (TestRunner $t) use ($pdfWithContent): void {
+        // Separate text objects can make the text layer expose a two-character
+        // lead and a lower-case suffix as different source records. The second
+        // object reports a line boundary despite touching the first one on the
+        // painted baseline, so source/geometry provenance—not the spelling of
+        // either fragment—has to retain their complete visual word.
+        $pdf = $pdfWithContent(
+            'BT /F1 10 Tf 1 0 0 1 72 748 Tm (A regular body line keeps the geometry reliable.) Tj ET '
+            . 'BT /F1 10 Tf 1 0 0 1 72 732 Tm (Another regular body line confirms the reading flow.) Tj ET '
+            . 'BT /F1 10 Tf 1 0 0 1 72 716 Tm (Th) Tj ET '
+            . 'BT /F1 10 Tf 1 0 0 1 84 716 Tm (e tree) Tj ET '
+            . 'BT /F1 10 Tf 1 0 0 1 72 700 Tm (A final regular body line completes the geometry.) Tj ET'
+        );
+
+        $document = (new PdfReader([
+            'pdfGeometryTables' => false,
+            'pdfRepairProseText' => true,
+        ]))->read($pdf);
+        $text = preg_replace('/\s+/', ' ', html_entity_decode(strip_tags(PandocConverter::write($document, 'html')), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')) ?? '';
+
+        $t->contains('The tree', $text);
+        $t->true(!str_contains($text, 'Th e tree'));
+    },
+    'keeps a one-character lead compact on a sixteen-character visual line' => static function (TestRunner $t) use ($pdfWithContent): void {
+        // This reaches the ordinary fragment path (the compact visual text is
+        // exactly sixteen characters) rather than the short-line fallback.
+        // The two adjacent source records still prove that the apparent
+        // boundary is inside one word.
+        $pdf = $pdfWithContent(
+            'BT /F1 10 Tf 1 0 0 1 72 748 Tm (A regular body line keeps the geometry reliable.) Tj ET '
+            . 'BT /F1 10 Tf 1 0 0 1 72 732 Tm (Another regular body line confirms the reading flow.) Tj ET '
+            . 'BT /F1 10 Tf 1 0 0 1 72 716 Tm (Q) Tj ET '
+            . 'BT /F1 10 Tf 1 0 0 1 78 716 Tm (uiet branch grows.) Tj ET '
+            . 'BT /F1 10 Tf 1 0 0 1 72 700 Tm (A final regular body line completes the geometry.) Tj ET'
+        );
+
+        $document = (new PdfReader([
+            'pdfGeometryTables' => false,
+            'pdfRepairProseText' => true,
+        ]))->read($pdf);
+        $text = preg_replace('/\s+/', ' ', html_entity_decode(strip_tags(PandocConverter::write($document, 'html')), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')) ?? '';
+
+        $t->contains('Quiet branch grows.', $text);
+        $t->true(!str_contains($text, 'Q uiet branch grows.'));
+    },
+    'keeps a two-character lead compact on a short ordinary visual line' => static function (TestRunner $t) use ($pdfWithContent): void {
+        // This variation stays below the long-fragment fallback threshold but
+        // above the compact-line threshold. It guards against repairing only a
+        // particular lead length or one particular ordinary word.
+        $pdf = $pdfWithContent(
+            'BT /F1 10 Tf 1 0 0 1 72 748 Tm (A regular body line keeps the geometry reliable.) Tj ET '
+            . 'BT /F1 10 Tf 1 0 0 1 72 732 Tm (Another regular body line confirms the reading flow.) Tj ET '
+            . 'BT /F1 10 Tf 1 0 0 1 72 716 Tm (Ar) Tj ET '
+            . 'BT /F1 10 Tf 1 0 0 1 83 716 Tm (bitrary values remain.) Tj ET '
+            . 'BT /F1 10 Tf 1 0 0 1 72 700 Tm (A final regular body line completes the geometry.) Tj ET'
+        );
+
+        $document = (new PdfReader([
+            'pdfGeometryTables' => false,
+            'pdfRepairProseText' => true,
+        ]))->read($pdf);
+        $text = preg_replace('/\s+/', ' ', html_entity_decode(strip_tags(PandocConverter::write($document, 'html')), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')) ?? '';
+
+        $t->contains('Arbitrary values remain.', $text);
+        $t->true(!str_contains($text, 'Ar bitrary values remain.'));
+    },
+    'does not let suffix-only supplemental overlap discard an intact source lead' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $filter = (function (array $fallback, array $ordered): array {
+            return $this->removeSourcePdfFallbackCoveredBySupplementalPositioning($fallback, $ordered);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($filter instanceof \Closure);
+
+        // The positioned line shares a long suffix but begins after the source
+        // line's intact lead. Suffix coincidence alone cannot prove that the
+        // lead was a duplicate or that it is safe to discard.
+        $remaining = $filter([
+            [
+                'text' => 'The readable source fragment stays intact',
+                'page' => 1,
+                'sourceUnmatchedFallback' => true,
+            ],
+        ], [[
+            'text' => 'readable source fragment stays intact',
+            'page' => 1,
+            'sourceSupplementalPositioned' => true,
+        ]]);
+
+        $t->same(['The readable source fragment stays intact'], array_column($remaining, 'text'));
+    },
+    'retains exact one-and-two-character source lines on a reliable geometry page' => static function (TestRunner $t) use ($pdfWithContent): void {
+        // These source records have exact positioned counterparts. A reliable
+        // page order must not make their length alone sufficient reason to
+        // remove them; the fixture deliberately uses unrelated labels so the
+        // decision cannot depend on a known word or capitalization pattern.
+        $pdf = $pdfWithContent(
+            'BT /F1 10 Tf 1 0 0 1 72 748 Tm (A regular body line keeps the geometry reliable.) Tj ET '
+            . 'BT /F1 10 Tf 1 0 0 1 72 732 Tm (Another regular body line confirms the reading flow.) Tj ET '
+            . 'BT /F1 10 Tf 1 0 0 1 72 716 Tm (Q) Tj ET '
+            . 'BT /F1 10 Tf 1 0 0 1 72 700 Tm (Zx) Tj ET '
+            . 'BT /F1 10 Tf 1 0 0 1 72 684 Tm (A final regular body line completes the geometry.) Tj ET'
+        );
+
+        $document = (new PdfReader([
+            'pdfGeometryTables' => false,
+            'pdfRepairProseText' => true,
+        ]))->read($pdf);
+        $text = preg_replace('/\s+/', ' ', html_entity_decode(strip_tags(PandocConverter::write($document, 'html')), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')) ?? '';
+
+        $t->contains('Q', $text);
+        $t->contains('Zx', $text);
+    },
+    'does not glue tight independent source labels while reconciling a visual row' => static function (TestRunner $t) use ($pdfWithContent): void {
+        // Both single-glyph records share a baseline and are only two points
+        // apart. A line-boundary hint alone is not enough to turn them into
+        // one token: there is no locally anchored multi-word source sequence
+        // to prove an intra-word split.
+        $pdf = $pdfWithContent(
+            'BT /F1 10 Tf 1 0 0 1 72 748 Tm (A regular body line keeps the geometry reliable.) Tj ET '
+            . 'BT /F1 10 Tf 1 0 0 1 72 732 Tm (Another regular body line confirms the reading flow.) Tj ET '
+            . 'BT /F1 10 Tf 1 0 0 1 72 716 Tm (A) Tj ET '
+            . 'BT /F1 10 Tf 1 0 0 1 79 716 Tm (B) Tj ET '
+            . 'BT /F1 10 Tf 1 0 0 1 72 700 Tm (A final regular body line completes the geometry.) Tj ET'
+        );
+
+        $document = (new PdfReader([
+            'pdfGeometryTables' => false,
+            'pdfRepairProseText' => true,
+        ]))->read($pdf);
+        $text = preg_replace('/\s+/', ' ', html_entity_decode(strip_tags(PandocConverter::write($document, 'html')), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')) ?? '';
+
+        $t->contains('A B', $text);
+        $t->true(!str_contains($text, 'AB'));
+    },
+    'keeps a source-only text record locally anchored between positioned neighbors' => static function (TestRunner $t) use ($pdfWithContent): void {
+        // The middle text-showing operator has no Tm/Td origin, so it exists
+        // in raw source extraction but has no positioned run. Its immediate
+        // same-stream neighbors are both matched and vertically ordered;
+        // that is enough local evidence to retain it without admitting
+        // unplaced diagram labels generally.
+        $pdf = $pdfWithContent(
+            'BT /F1 10 Tf 1 0 0 1 72 748 Tm (A regular body line keeps the geometry reliable.) Tj ET '
+            . 'BT /F1 10 Tf 1 0 0 1 72 732 Tm (Another regular body line confirms the reading flow.) Tj ET '
+            . 'BT /F1 10 Tf (Quartz) Tj ET '
+            . 'BT /F1 10 Tf 1 0 0 1 72 700 Tm (A final regular body line completes the geometry.) Tj ET'
+        );
+
+        $document = (new PdfReader([
+            'pdfGeometryTables' => false,
+            'pdfRepairProseText' => true,
+        ]))->read($pdf);
+        $text = preg_replace('/\s+/', ' ', html_entity_decode(strip_tags(PandocConverter::write($document, 'html')), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')) ?? '';
+
+        $t->contains('Quartz', $text);
     },
     'orders positioned prose columns before repairing pdf text' => static function (TestRunner $t) use ($pdfWithContent): void {
         $pdf = $pdfWithContent(

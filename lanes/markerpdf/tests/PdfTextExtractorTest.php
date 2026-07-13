@@ -6125,6 +6125,204 @@ return [
         $t->same(['Quarterly Risk Review', 'Controls and mitigations'], $extractor->extractTextRuns($pdf));
         $t->true(!str_contains($plainText, '?1GI1EA'));
     },
+    'diagnoses partial ToUnicode maps that discard arbitrary leading glyph fragments' => static function (TestRunner $t): void {
+        // The two leading CIDs are deliberately absent from the map. Their
+        // semantic value cannot be guessed, but silently returning only the
+        // suffix would hide data loss from callers.
+        $content = 'BT /Fcid 12 Tf 72 720 Td <0001000200030004> Tj ET';
+        $cmap = "/CIDInit /ProcSet findresource begin\n"
+            . "12 dict begin\n"
+            . "begincmap\n"
+            . "1 begincodespacerange\n"
+            . "<0000> <FFFF>\n"
+            . "endcodespacerange\n"
+            . "2 beginbfchar\n"
+            . "<0003> <00690073>\n"
+            . "<0004> <002000720065006100640079>\n"
+            . "endbfchar\n"
+            . "endcmap\n"
+            . "CMapName currentdict /PartialPrefixCMap defineresource pop\n"
+            . "end\n"
+            . "end\n";
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /Fcid 4 0 R >> >> /Contents 6 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /PartialPrefixSubset /Encoding /Identity-H /ToUnicode 5 0 R >>\nendobj\n"
+            . "5 0 obj\n<< /Length " . strlen($cmap) . " >>\nstream\n{$cmap}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n%%EOF";
+        $extractor = new PdfTextExtractor();
+        $diagnostics = $extractor->diagnostics($pdf);
+
+        $t->same(['is ready'], $extractor->extractTextRuns($pdf));
+        $t->same(1, $diagnostics['partiallyMappedGlyphRuns'] ?? null);
+        $t->contains('1 PDF text run(s) lost glyphs through a partial Unicode map.', implode("\n", $diagnostics['warnings']));
+    },
+    'diagnoses empty ToUnicode targets that erase arbitrary glyph fragments' => static function (TestRunner $t): void {
+        // An explicitly empty target is just as lossy as an absent one. It
+        // must not make the surviving suffix look like complete source text.
+        $content = 'BT /Fcid 12 Tf 72 720 Td <0102> Tj ET';
+        $cmap = "/CIDInit /ProcSet findresource begin\n"
+            . "12 dict begin\n"
+            . "begincmap\n"
+            . "1 begincodespacerange\n"
+            . "<00> <FF>\n"
+            . "endcodespacerange\n"
+            . "2 beginbfchar\n"
+            . "<01> <>\n"
+            . "<02> <0041>\n"
+            . "endbfchar\n"
+            . "endcmap\n"
+            . "CMapName currentdict /EmptyTargetCMap defineresource pop\n"
+            . "end\n"
+            . "end\n";
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /Fcid 4 0 R >> >> /Contents 6 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /EmptyTargetSubset /Encoding /Identity-H /ToUnicode 5 0 R >>\nendobj\n"
+            . "5 0 obj\n<< /Length " . strlen($cmap) . " >>\nstream\n{$cmap}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n%%EOF";
+        $extractor = new PdfTextExtractor();
+        $diagnostics = $extractor->diagnostics($pdf);
+
+        $t->same(['A'], $extractor->extractTextRuns($pdf));
+        $t->same(1, $diagnostics['partiallyMappedGlyphRuns'] ?? null);
+        $t->contains('1 PDF text run(s) lost glyphs through a partial Unicode map.', implode("\n", $diagnostics['warnings']));
+    },
+    'keeps inline ActualText in positioned runs at the painted text location' => static function (TestRunner $t): void {
+        $content = 'BT /F1 12 Tf 1 0 0 1 72 720 Tm /Span << /ActualText (Cedar) >> BDC <0102030405> Tj EMC ET';
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /ArbitrarySubset /Encoding /WinAnsiEncoding >>\nendobj\n"
+            . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n%%EOF";
+        $extractor = new PdfTextExtractor();
+        $positioned = $extractor->extractPositionedTextRuns($pdf);
+
+        $t->same(['Cedar'], $extractor->extractTextRuns($pdf));
+        $t->same([
+            ['text' => 'Cedar', 'textX1' => 72.0, 'textY1' => 720.0],
+        ], array_map(static fn (array $run): array => [
+            'text' => $run['text'],
+            'textX1' => $run['textX1'],
+            'textY1' => $run['textY1'],
+        ], $positioned));
+        // The painted glyph bytes are intentionally not decodable. Replacement
+        // text still needs a non-degenerate inferred span so downstream layout
+        // has geometry to work with rather than a zero-width point.
+        $t->true(($positioned[0]['textX2'] ?? 0.0) > 72.0);
+    },
+    'keeps property ActualText in positioned runs at the painted text location' => static function (TestRunner $t): void {
+        $content = 'BT /F1 12 Tf 1 0 0 1 96 680 Tm /Span /P1 BDC <111213141516> Tj EMC ET';
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 4 0 R >> /Properties << /P1 << /ActualText (Harbor) >> >> >> /Contents 5 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /PropertySubset /Encoding /WinAnsiEncoding >>\nendobj\n"
+            . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n%%EOF";
+        $extractor = new PdfTextExtractor();
+        $positioned = $extractor->extractPositionedTextRuns($pdf);
+
+        $t->same(['Harbor'], $extractor->extractTextRuns($pdf));
+        $t->same([
+            ['text' => 'Harbor', 'textX1' => 96.0, 'textY1' => 680.0],
+        ], array_map(static fn (array $run): array => [
+            'text' => $run['text'],
+            'textX1' => $run['textX1'],
+            'textY1' => $run['textY1'],
+        ], $positioned));
+        $t->true(($positioned[0]['textX2'] ?? 0.0) > 96.0);
+    },
+    'keeps structure MCID ActualText in positioned runs at the painted text location' => static function (TestRunner $t): void {
+        $content = 'BT /F1 12 Tf 1 0 0 1 120 640 Tm /Span << /MCID 0 >> BDC <2122232425> Tj EMC ET';
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /StructTreeRoot 7 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /StructParents 0 /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /TaggedSubset /Encoding /WinAnsiEncoding >>\nendobj\n"
+            . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+            . "7 0 obj\n<< /Type /StructTreeRoot /ParentTree 8 0 R >>\nendobj\n"
+            . "8 0 obj\n<< /Nums [ 0 [ 9 0 R ] ] >>\nendobj\n"
+            . "9 0 obj\n<< /Type /StructElem /S /Span /ActualText (Maple) >>\nendobj\n%%EOF";
+        $extractor = new PdfTextExtractor();
+        $positioned = $extractor->extractPositionedTextRuns($pdf);
+
+        $t->same(['Maple'], $extractor->extractTextRuns($pdf));
+        $t->same([
+            ['text' => 'Maple', 'textX1' => 120.0, 'textY1' => 640.0],
+        ], array_map(static fn (array $run): array => [
+            'text' => $run['text'],
+            'textX1' => $run['textX1'],
+            'textY1' => $run['textY1'],
+        ], $positioned));
+        $t->true(($positioned[0]['textX2'] ?? 0.0) > 120.0);
+    },
+    'keeps an ActualText span bounded by every painted text-showing operation' => static function (TestRunner $t): void {
+        // Replacement text is one semantic span even when its painted glyphs
+        // are emitted through multiple Tj operations with an intervening Tm.
+        // Capturing only the first operation makes the semantic run look much
+        // narrower than its real visual extent and can misclassify its column.
+        $content = 'BT /F1 12 Tf 1 0 0 1 72 720 Tm /Span << /ActualText (Cedar) >> BDC (AB) Tj 1 0 0 1 120 720 Tm (CD) Tj EMC ET';
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n"
+            . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n%%EOF";
+        $positioned = (new PdfTextExtractor())->extractPositionedTextRuns($pdf);
+
+        $t->same(['Cedar'], array_column($positioned, 'text'));
+        $t->same(72.0, $positioned[0]['textX1'] ?? null);
+        $t->true(($positioned[0]['textX2'] ?? 0.0) > 120.0);
+    },
+    'uses only the innermost nested ActualText replacement across extraction layers' => static function (TestRunner $t): void {
+        // Nested replacement scopes are not two visible copies of the same
+        // glyphs. The innermost semantic replacement governs the painted
+        // range, so raw, line, and positioned extraction must agree.
+        $content = 'BT /F1 12 Tf 72 720 Td /Span << /ActualText (outer) >> BDC /Span << /ActualText (inner) >> BDC (x) Tj EMC EMC ET';
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n"
+            . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n%%EOF";
+        $extractor = new PdfTextExtractor();
+
+        $t->same(['inner'], $extractor->extractTextRuns($pdf));
+        $t->same(['inner'], $extractor->extractTextLines($pdf));
+        $t->same(['inner'], array_column($extractor->extractPositionedTextRuns($pdf), 'text'));
+    },
+    'does not leak ActualText nested inside artifact content' => static function (TestRunner $t): void {
+        $content = 'BT /F1 12 Tf 72 720 Td /Artifact BMC /Span << /ActualText (leak) >> BDC (x) Tj EMC EMC ET';
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n"
+            . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n%%EOF";
+        $extractor = new PdfTextExtractor();
+
+        $t->same([], $extractor->extractTextRuns($pdf));
+        $t->same([], $extractor->extractTextLines($pdf));
+        $t->same([], $extractor->extractPositionedTextRuns($pdf));
+    },
+    'diagnoses empty ActualText that suppresses painted glyphs without guessing them' => static function (TestRunner $t): void {
+        $content = 'BT /F1 12 Tf 1 0 0 1 72 720 Tm /Span << /ActualText () >> BDC (Painted glyphs) Tj EMC ET';
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n"
+            . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n%%EOF";
+        $extractor = new PdfTextExtractor();
+        $diagnostics = $extractor->diagnostics($pdf);
+
+        $t->same([], $extractor->extractTextRuns($pdf));
+        $t->same(1, $diagnostics['unrecoverableActualTextRuns'] ?? null);
+        $t->contains('1 marked PDF text run(s) had empty ActualText while hiding painted glyphs.', implode("\n", $diagnostics['warnings']));
+    },
     'suppresses marked content artifacts before WordPress paragraph rendering' => static function (TestRunner $t): void {
         $content = "BT /F2 12 Tf 72 720 Td "
             . "/Artifact BMC (Running Header) Tj EMC T* "

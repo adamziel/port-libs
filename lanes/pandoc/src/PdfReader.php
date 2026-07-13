@@ -269,6 +269,8 @@ final class PdfReader
             'pdfMissingUnicodeFonts' => $diagnostics['missingUnicodeFonts'],
             'pdfMissingUnicodeFontEncodings' => $diagnostics['missingUnicodeFontEncodings'],
             'pdfSuppressedGlyphRuns' => $diagnostics['suppressedGlyphRuns'],
+            'pdfPartiallyMappedGlyphRuns' => $diagnostics['partiallyMappedGlyphRuns'] ?? 0,
+            'pdfUnrecoverableActualTextRuns' => $diagnostics['unrecoverableActualTextRuns'] ?? 0,
             'pdfIgnoredXObjectSubtypes' => $diagnostics['ignoredXObjectSubtypes'],
             'pdfIgnoredXObjectCount' => $diagnostics['ignoredXObjectCount'],
             'pdfTaggedRoleMap' => $diagnostics['taggedRoleMap'] ?? [],
@@ -504,6 +506,8 @@ final class PdfReader
             'missingUnicodeFonts' => [],
             'missingUnicodeFontEncodings' => [],
             'suppressedGlyphRuns' => 0,
+            'partiallyMappedGlyphRuns' => 0,
+            'unrecoverableActualTextRuns' => 0,
             'ignoredXObjectSubtypes' => [],
             'ignoredXObjectCount' => 0,
             'taggedRoleMap' => [],
@@ -1412,7 +1416,7 @@ final class PdfReader
         $sourceIndexesByCompactPrefix = [];
         foreach ($sourceItems as $index => $item) {
             $key = $this->pdfComparableLineText($item['text']);
-            if ($this->length($key) >= 3) {
+            if ($key !== '') {
                 $sourceIndexesByKey[$key][] = $index;
             }
             if ($this->length($key) >= 8) {
@@ -1456,6 +1460,18 @@ final class PdfReader
                     $nextSourceIndexByKey[$key] = $offset + 1;
                 }
             }
+            if ($sourceIndex === null
+                && $this->length($key) >= 1
+                && $this->length($key) <= 2
+                && isset($sourceIndexesByKey[$key])) {
+                $sourceIndex = $this->sourcePdfShortExactSourceIndexMatchingPositionedLine(
+                    $sourceItems,
+                    $sourceIndexesByKey[$key],
+                    $matchedSourceIndexes,
+                    $matchedItemsBySourceIndex,
+                    $positionedItem
+                );
+            }
 
             $footnotePrefixedSourceMatch = false;
             if ($sourceIndex === null) {
@@ -1473,7 +1489,8 @@ final class PdfReader
                     $matchedSourceIndexes,
                     $key,
                     $sourceIndexesByComparablePrefix,
-                    $sourceIndexesByCompactPrefix
+                    $sourceIndexesByCompactPrefix,
+                    $positionedItem
                 )
                 : [];
             if ($fragmentIndexes !== []) {
@@ -1678,6 +1695,81 @@ final class PdfReader
     }
 
     /**
+     * A one- or two-character string is too ambiguous to match globally: a
+     * repeated column label could otherwise be assigned to the wrong visual
+     * copy. It is nevertheless an exact, recoverable record when the visual
+     * run is one source-order atom and either has one source candidate on the
+     * page or a directly adjacent matched source-order anchor. This is about
+     * provenance and position, never the characters in the label.
+     *
+     * @param list<array{page: int, stream: int, text: string}> $sourceItems
+     * @param list<int> $sourceIndexes
+     * @param array<int, true> $matchedSourceIndexes
+     * @param array<int, array<string, mixed>> $matchedItemsBySourceIndex
+     * @param array<string, mixed> $positionedItem
+     */
+    private function sourcePdfShortExactSourceIndexMatchingPositionedLine(
+        array $sourceItems,
+        array $sourceIndexes,
+        array $matchedSourceIndexes,
+        array $matchedItemsBySourceIndex,
+        array $positionedItem
+    ): ?int {
+        if (!isset($positionedItem['sourceOrderStart'], $positionedItem['sourceOrderEnd'])
+            || (int) $positionedItem['sourceOrderStart'] !== (int) $positionedItem['sourceOrderEnd']) {
+            return null;
+        }
+
+        $candidates = [];
+        foreach ($sourceIndexes as $sourceIndex) {
+            $sourceItem = $sourceItems[$sourceIndex] ?? null;
+            if (!is_array($sourceItem)
+                || isset($matchedSourceIndexes[$sourceIndex])
+                || ($sourceItem['page'] ?? null) !== ($positionedItem['page'] ?? null)) {
+                continue;
+            }
+            $candidates[] = $sourceIndex;
+        }
+        if (count($candidates) === 1) {
+            return $candidates[0];
+        }
+        if ($candidates === []) {
+            return null;
+        }
+
+        $positionedStart = (int) $positionedItem['sourceOrderStart'];
+        $anchored = [];
+        foreach ($candidates as $sourceIndex) {
+            $sourceItem = $sourceItems[$sourceIndex] ?? null;
+            if (!is_array($sourceItem)) {
+                continue;
+            }
+            foreach ([$sourceIndex - 1, $sourceIndex + 1] as $neighborIndex) {
+                $neighborSource = $sourceItems[$neighborIndex] ?? null;
+                $neighborItem = $matchedItemsBySourceIndex[$neighborIndex] ?? null;
+                if (!is_array($neighborSource)
+                    || !is_array($neighborItem)
+                    || ($neighborSource['page'] ?? null) !== ($sourceItem['page'] ?? null)
+                    || ($neighborSource['stream'] ?? null) !== ($sourceItem['stream'] ?? null)
+                    || !isset($neighborItem['sourceOrderStart'], $neighborItem['sourceOrderEnd'])) {
+                    continue;
+                }
+
+                $isPreviousAnchor = $neighborIndex < $sourceIndex
+                    && (int) $neighborItem['sourceOrderEnd'] < $positionedStart;
+                $isFollowingAnchor = $neighborIndex > $sourceIndex
+                    && (int) $neighborItem['sourceOrderStart'] > $positionedStart;
+                if ($isPreviousAnchor || $isFollowingAnchor) {
+                    $anchored[] = $sourceIndex;
+                    break;
+                }
+            }
+        }
+
+        return count($anchored) === 1 ? $anchored[0] : null;
+    }
+
+    /**
      * A footnote marker can be emitted as its own source-text item while the
      * positioned layer keeps it immediately before the surrounding prose on a
      * shared baseline. Match the prose suffix only when both layers expose the
@@ -1775,10 +1867,11 @@ final class PdfReader
                     && $this->sourcePdfFragmentIndexesMatchingPositionedLine(
                         $sourceItems,
                         [],
-                        $key,
-                        $sourceIndexesByComparablePrefix,
-                        $sourceIndexesByCompactPrefix
-                    ) !== [];
+                    $key,
+                    $sourceIndexesByComparablePrefix,
+                    $sourceIndexesByCompactPrefix,
+                    $candidate
+                ) !== [];
                 if ($hasDirectSourceLine || $hasSourceFragmentSequence) {
                     $matchedEnd = $end;
                     break;
@@ -1966,6 +2059,19 @@ final class PdfReader
                 ? $right['wordBoundarySource']
                 : null
         );
+        $sourceCompactBoundaryOffsets = $this->positionedJoinedSourceCompactBoundaryOffsets(
+            $left,
+            $right,
+            $rightTextX1 - $leftTextX2,
+            $fontSize,
+            (bool) ($left['endsWithWhitespace'] ?? false),
+            (bool) ($right['startsWithWhitespace'] ?? false),
+            (bool) ($right['hasWordBoundaryBefore'] ?? false),
+            (bool) ($right['wordBoundaryBefore'] ?? false),
+            is_string($right['wordBoundarySource'] ?? null)
+                ? $right['wordBoundarySource']
+                : null
+        );
 
         return array_replace($left, [
             'text' => rtrim((string) ($left['text'] ?? '')) . $separator . ltrim((string) ($right['text'] ?? '')),
@@ -1986,6 +2092,7 @@ final class PdfReader
             'wordBoundaryBefore' => (bool) ($left['wordBoundaryBefore'] ?? false),
             'wordBoundarySource' => $left['wordBoundarySource'] ?? null,
             'sourceVerifiedBoundarySeparators' => $sourceVerifiedBoundarySeparators,
+            'sourceCompactBoundaryOffsets' => $sourceCompactBoundaryOffsets,
             'sourceCompositePositionedFragments' => true,
         ]);
     }
@@ -2007,16 +2114,22 @@ final class PdfReader
         array $matchedSourceIndexes,
         string $positionedKey,
         array $sourceIndexesByComparablePrefix,
-        array $sourceIndexesByCompactPrefix = []
+        array $sourceIndexesByCompactPrefix = [],
+        ?array $positionedItem = null
     ): array {
         $shortInlineContinuation = $this->length($positionedKey) < 16
             && preg_match('/^\d{1,3}\p{Ll}/u', $positionedKey) === 1;
-        if ($this->length($positionedKey) < 16 && !$shortInlineContinuation) {
+        $locallyBoundShortSequence = $this->positionedPdfItemHasLocallyBoundShortSourceSequence(
+            $positionedItem
+        );
+        if ($this->length($positionedKey) < 16
+            && !$shortInlineContinuation
+            && !$locallyBoundShortSequence) {
             return [];
         }
 
         $prefix = substr($positionedKey, 0, 8);
-        $startIndexes = $shortInlineContinuation
+        $startIndexes = ($shortInlineContinuation || $locallyBoundShortSequence)
             ? array_keys($sourceItems)
             : ($sourceIndexesByComparablePrefix[$prefix] ?? []);
         if ($startIndexes === [] && !$shortInlineContinuation && $this->length($positionedKey) >= 24) {
@@ -2055,7 +2168,13 @@ final class PdfReader
                 if (count($indexes) >= 2 && $joinedKey === $positionedKey) {
                     if ((!$shortInlineContinuation
                             && $this->sourcePdfLongFragmentSequenceMatchesPositionedLine($sourceItems, $indexes, $positionedKey))
-                        || $this->sourcePdfShortFragmentSequenceMatchesPositionedLine($sourceItems, $indexes, $positionedKey)) {
+                        || $this->sourcePdfShortFragmentSequenceMatchesPositionedLine($sourceItems, $indexes, $positionedKey)
+                        || ($locallyBoundShortSequence
+                            && $this->sourcePdfLocallyBoundShortFragmentSequenceMatchesPositionedLine(
+                                $sourceItems,
+                                $indexes,
+                                $positionedItem
+                            ))) {
                         $indexes = $this->sourcePdfFragmentIndexesWithLeadingListMarker(
                             $sourceItems,
                             $indexes,
@@ -2073,6 +2192,63 @@ final class PdfReader
         }
 
         return [];
+    }
+
+    /**
+     * A visual item that covers a small, consecutive source-order range can
+     * prove a compact source sequence even when its normalized text is too
+     * short for the ordinary global fragment index. Limit this to four
+     * adjacent atoms; larger sequences are handled by the established long
+     * fragment path and are too broad to treat as a local styled split.
+     *
+     * @param array<string, mixed>|null $positionedItem
+     */
+    private function positionedPdfItemHasLocallyBoundShortSourceSequence(?array $positionedItem): bool
+    {
+        if (!is_array($positionedItem)
+            || !isset($positionedItem['sourceOrderStart'], $positionedItem['sourceOrderEnd'])) {
+            return false;
+        }
+
+        $span = (int) $positionedItem['sourceOrderEnd'] - (int) $positionedItem['sourceOrderStart'] + 1;
+
+        return $span >= 2 && $span <= 4;
+    }
+
+    /**
+     * A styled prefix can be emitted as one or two source atoms while the
+     * following atom holds the rest of the visual line. The exact compact
+     * equality has already been checked by the caller. Require the visual
+     * source-order span to contain exactly this short contiguous sequence and
+     * at least one compact atom, so ordinary nearby prose lines never enter
+     * this recovery path.
+     *
+     * @param list<array{page: int, stream: int, text: string}> $sourceItems
+     * @param list<int> $indexes
+     * @param array<string, mixed>|null $positionedItem
+     */
+    private function sourcePdfLocallyBoundShortFragmentSequenceMatchesPositionedLine(
+        array $sourceItems,
+        array $indexes,
+        ?array $positionedItem
+    ): bool {
+        if (!$this->positionedPdfItemHasLocallyBoundShortSourceSequence($positionedItem)
+            || count($indexes) < 2
+            || count($indexes) > 4
+            || (int) $positionedItem['sourceOrderEnd'] - (int) $positionedItem['sourceOrderStart'] + 1 !== count($indexes)) {
+            return false;
+        }
+
+        $hasCompactAtom = false;
+        foreach ($indexes as $index) {
+            $compact = $this->pdfComparableLineText((string) ($sourceItems[$index]['text'] ?? ''));
+            if ($compact === '') {
+                return false;
+            }
+            $hasCompactAtom = $hasCompactAtom || $this->length($compact) <= 2;
+        }
+
+        return $hasCompactAtom;
     }
 
     private function sourcePdfFragmentIsInlineIgnorableGlyph(string $text): bool
@@ -2338,6 +2514,15 @@ final class PdfReader
                 continue;
             }
 
+            // Source-order adjacency and a shared baseline are not enough by
+            // themselves: a nearby map label can otherwise absorb the first
+            // body line on that row. Keep the same bounded inline gap used
+            // when composing source-verified positioned fragments.
+            $candidateFontSize = max($fontSize, (float) ($candidate['fontSize'] ?? 0.0));
+            if ((float) $candidate['x1'] - $maximumX2 > max(36.0, $candidateFontSize * 4.0)) {
+                continue;
+            }
+
             $candidateStart = (int) $candidate['sourceOrderStart'];
             $candidateEnd = (int) $candidate['sourceOrderEnd'];
             if ($candidateEnd <= (int) $item['sourceOrderEnd']
@@ -2584,6 +2769,26 @@ final class PdfReader
                 && $offset < $this->length($sourceCompact)
                 && !isset($protectedDelimiterOffsets[$offset])) {
                 $boundarySeparators[$offset] = $separator;
+            }
+        }
+
+        // A compact boundary candidate is deliberately more constrained than
+        // an ordinary geometry separator: it must be the exact seam of this
+        // short, source-order-bound fragment sequence, and the sequence must
+        // otherwise contain a source-proven word gap. That preserves a split
+        // prefix inside prose without gluing two nearby independent labels.
+        if ($this->sourcePdfLocallyBoundShortFragmentSequenceMatchesPositionedLine(
+            $sourceItems,
+            $indexes,
+            $matchingPositionedItem
+        ) && preg_match('/\S\s+\S/u', $sourceLayout) === 1) {
+            $fragmentBoundaryOffsets = array_fill_keys(array_values($fragmentCompactOffsets), true);
+            foreach ($this->positionedSourceCompactBoundaryOffsets($matchingPositionedItem) as $offset => $_) {
+                if (isset($fragmentBoundaryOffsets[$offset])
+                    && !isset($protectedDelimiterOffsets[$offset])
+                    && ($positionedBoundarySeparators[$offset] ?? null) === ' ') {
+                    $boundarySeparators[$offset] = '';
+                }
             }
         }
 
@@ -3149,6 +3354,35 @@ final class PdfReader
                 $item = $this->sourcePdfLineItemAfterKnownLayout(
                     $sourceItem,
                     $match['itemsBySourceIndex'][$previousIndex]
+                );
+                $after[$previousIndex][] = $this->sourcePdfAttachSourceItemProvenance($item, $index, $tableSourceGroups);
+                continue;
+            }
+
+            // A source text-showing operator can lack an origin altogether.
+            // Preserve it only when the immediately adjacent source records
+            // on both sides are matched, share its stream, and occupy
+            // consecutive, vertically ordered visual slots. This supplies a
+            // local placement proof without admitting isolated diagram labels
+            // merely because the page otherwise has usable geometry.
+            if (isset(
+                $sourceItems[$previousIndex],
+                $sourceItems[$nextIndex],
+                $match['itemsBySourceIndex'][$previousIndex],
+                $match['itemsBySourceIndex'][$nextIndex]
+            ) && $this->sourcePdfItemsShareStream($sourceItems[$previousIndex], $sourceItem)
+                && $this->sourcePdfItemsShareStream($sourceItem, $sourceItems[$nextIndex])
+                && $this->sourcePdfMatchedLayoutsSandwichSourceOnlyItem(
+                    $match['itemsBySourceIndex'][$previousIndex],
+                    $match['itemsBySourceIndex'][$nextIndex],
+                    $previousIndex,
+                    $nextIndex,
+                    $match['visualEntries']
+                )) {
+                $item = $this->sourcePdfLineItemBetweenKnownLayouts(
+                    $sourceItem,
+                    $match['itemsBySourceIndex'][$previousIndex],
+                    $match['itemsBySourceIndex'][$nextIndex]
                 );
                 $after[$previousIndex][] = $this->sourcePdfAttachSourceItemProvenance($item, $index, $tableSourceGroups);
                 continue;
@@ -4714,8 +4948,13 @@ final class PdfReader
             $suffix++;
         }
 
-        $overlap = max($prefix, $suffix);
-        $matchedTokens = array_slice($sourceTokens, $prefix >= $suffix ? 0 : count($sourceTokens) - $suffix, $overlap);
+        // A suffix match cannot account for an omitted leading source
+        // fragment: it may be a separately painted continuation rather than
+        // a duplicate. Only a shared leading sequence can replace a source
+        // fallback here; exact full-string containment remains available in
+        // the comparable-text check below.
+        $overlap = $prefix;
+        $matchedTokens = array_slice($sourceTokens, 0, $overlap);
         $matchedCharacters = $this->length(implode('', $matchedTokens));
 
         if ($overlap >= max(3, (int) ceil(count($sourceTokens) * 0.75))
@@ -5245,6 +5484,19 @@ final class PdfReader
                 ? $right['wordBoundarySource']
                 : null
         );
+        $sourceCompactBoundaryOffsets = $this->positionedJoinedSourceCompactBoundaryOffsets(
+            $left,
+            $right,
+            $rightTextX1 - $leftTextX2,
+            $fontSize,
+            (bool) ($left['endsWithWhitespace'] ?? false),
+            (bool) ($right['startsWithWhitespace'] ?? false),
+            (bool) ($right['hasWordBoundaryBefore'] ?? false),
+            (bool) ($right['wordBoundaryBefore'] ?? false),
+            is_string($right['wordBoundarySource'] ?? null)
+                ? $right['wordBoundarySource']
+                : null
+        );
 
         return array_replace($left, [
             'text' => $leftText
@@ -5267,6 +5519,7 @@ final class PdfReader
             'wordBoundaryBefore' => (bool) ($left['wordBoundaryBefore'] ?? false),
             'wordBoundarySource' => $left['wordBoundarySource'] ?? null,
             'sourceVerifiedBoundarySeparators' => $sourceVerifiedBoundarySeparators,
+            'sourceCompactBoundaryOffsets' => $sourceCompactBoundaryOffsets,
             'sourceInlineLayoutComposite' => true,
         ]);
     }
@@ -6278,6 +6531,73 @@ final class PdfReader
     }
 
     /**
+     * Infer one source-only record between two immediately adjacent visual
+     * records. Interpolation is limited to the already-proven local body slot;
+     * it is not a page-wide source-order fallback.
+     *
+     * @param array{page: int, stream: int, text: string} $sourceItem
+     * @param array<string, mixed> $previousItem
+     * @param array<string, mixed> $nextItem
+     * @return array<string, mixed>
+     */
+    private function sourcePdfLineItemBetweenKnownLayouts(array $sourceItem, array $previousItem, array $nextItem): array
+    {
+        $layout = [
+            'x1' => ((float) $previousItem['x1'] + (float) $nextItem['x1']) / 2.0,
+            'y1' => ((float) $previousItem['y1'] + (float) $nextItem['y1']) / 2.0,
+            'x2' => ((float) $previousItem['x2'] + (float) $nextItem['x2']) / 2.0,
+            'y2' => ((float) $previousItem['y2'] + (float) $nextItem['y2']) / 2.0,
+            'fontSize' => max(1.0, (float) $previousItem['fontSize'], (float) $nextItem['fontSize']),
+        ];
+        $item = $this->sourcePdfLineItem($sourceItem, $layout);
+        $item['sourceInferredNeighborLayout'] = true;
+        $item['sourceSandwichedNeighborLayout'] = true;
+
+        return $item;
+    }
+
+    /**
+     * @param array<string, mixed> $previousItem
+     * @param array<string, mixed> $nextItem
+     * @param list<array{item: array<string, mixed>, sourceIndex: int|null}> $visualEntries
+     */
+    private function sourcePdfMatchedLayoutsSandwichSourceOnlyItem(
+        array $previousItem,
+        array $nextItem,
+        int $previousSourceIndex,
+        int $nextSourceIndex,
+        array $visualEntries
+    ): bool {
+        if (!$this->pdfLayoutHasGeometry($previousItem)
+            || !$this->pdfLayoutHasGeometry($nextItem)
+            || (int) ($previousItem['page'] ?? 0) !== (int) ($nextItem['page'] ?? 0)) {
+            return false;
+        }
+
+        $fontSize = max(1.0, (float) $previousItem['fontSize'], (float) $nextItem['fontSize']);
+        $previousCenter = ((float) $previousItem['y1'] + (float) $previousItem['y2']) / 2.0;
+        $nextCenter = ((float) $nextItem['y1'] + (float) $nextItem['y2']) / 2.0;
+        if ($previousCenter <= $nextCenter + max(1.0, $fontSize * 0.15)
+            || abs((float) $previousItem['x1'] - (float) $nextItem['x1']) > max(16.0, $fontSize * 2.0)) {
+            return false;
+        }
+
+        $previousVisualIndex = null;
+        $nextVisualIndex = null;
+        foreach ($visualEntries as $visualIndex => $entry) {
+            if (($entry['sourceIndex'] ?? null) === $previousSourceIndex) {
+                $previousVisualIndex = $visualIndex;
+            }
+            if (($entry['sourceIndex'] ?? null) === $nextSourceIndex) {
+                $nextVisualIndex = $visualIndex;
+            }
+        }
+
+        return $previousVisualIndex !== null
+            && $nextVisualIndex === $previousVisualIndex + 1;
+    }
+
+    /**
      * @param array<string, mixed> $item
      * @return array<string, mixed>
      */
@@ -7139,6 +7459,10 @@ final class PdfReader
                 if ($sourceVerifiedBoundarySeparators !== []) {
                     $item['sourceVerifiedBoundarySeparators'] = $sourceVerifiedBoundarySeparators;
                 }
+                $sourceCompactBoundaryOffsets = $this->positionedProseRowSourceCompactBoundaryOffsets($row);
+                if ($sourceCompactBoundaryOffsets !== []) {
+                    $item['sourceCompactBoundaryOffsets'] = $sourceCompactBoundaryOffsets;
+                }
                 $sourceOrder = $this->positionedProseRowSourceOrderBounds($row);
                 if ($sourceOrder !== null) {
                     $item['sourceOrderStart'] = $sourceOrder['start'];
@@ -7174,6 +7498,31 @@ final class PdfReader
         ksort($separators, SORT_NUMERIC);
 
         return $separators;
+    }
+
+    /**
+     * @param array{runs: list<array<string, mixed>>} $row
+     * @return array<int, true>
+     */
+    private function positionedProseRowSourceCompactBoundaryOffsets(array $row): array
+    {
+        $offsets = [];
+        $length = 0;
+        foreach ($row['runs'] as $run) {
+            foreach ($this->positionedSourceCompactBoundaryOffsets($run) as $offset => $_) {
+                $offsets[$length + $offset] = true;
+            }
+            $length += $this->positionedCompactTextLength((string) ($run['text'] ?? ''));
+        }
+
+        foreach ($offsets as $offset => $_) {
+            if ($offset <= 0 || $offset >= $length) {
+                unset($offsets[$offset]);
+            }
+        }
+        ksort($offsets, SORT_NUMERIC);
+
+        return $offsets;
     }
 
     /**
@@ -7294,6 +7643,19 @@ final class PdfReader
                             ? $run['wordBoundarySource']
                             : null
                     );
+                    $sourceCompactBoundaryOffsets = $this->positionedJoinedSourceCompactBoundaryOffsets(
+                        $last,
+                        $run,
+                        $gap,
+                        $fontSize,
+                        (bool) ($last['endsWithWhitespace'] ?? false),
+                        (bool) ($run['startsWithWhitespace'] ?? false),
+                        (bool) ($run['hasWordBoundaryBefore'] ?? false),
+                        (bool) ($run['wordBoundaryBefore'] ?? false),
+                        is_string($run['wordBoundarySource'] ?? null)
+                            ? $run['wordBoundarySource']
+                            : null
+                    );
                     $merged[$lastIndex] = [
                         'page' => $last['page'],
                         'text' => $this->joinPositionedCellText(
@@ -7324,6 +7686,7 @@ final class PdfReader
                         'wordBoundaryBefore' => (bool) ($last['wordBoundaryBefore'] ?? false),
                         'wordBoundarySource' => $last['wordBoundarySource'] ?? null,
                         'sourceVerifiedBoundarySeparators' => $sourceVerifiedBoundarySeparators,
+                        'sourceCompactBoundaryOffsets' => $sourceCompactBoundaryOffsets,
                         'startsAfterTextBoundary' => (bool) ($last['startsAfterTextBoundary'] ?? false),
                         'order' => min((int) ($last['order'] ?? 0), (int) ($run['order'] ?? 0)),
                         'lastOrder' => max((int) ($last['lastOrder'] ?? $last['order'] ?? 0), (int) ($run['lastOrder'] ?? $run['order'] ?? 0)),
@@ -14013,6 +14376,19 @@ final class PdfReader
                             ? $run['wordBoundarySource']
                             : null
                     );
+                    $sourceCompactBoundaryOffsets = $this->positionedJoinedSourceCompactBoundaryOffsets(
+                        $last,
+                        $run,
+                        $gap,
+                        max($run['fontSize'], $last['fontSize']),
+                        (bool) ($last['endsWithWhitespace'] ?? false),
+                        (bool) ($run['startsWithWhitespace'] ?? false),
+                        (bool) ($run['hasWordBoundaryBefore'] ?? false),
+                        (bool) ($run['wordBoundaryBefore'] ?? false),
+                        is_string($run['wordBoundarySource'] ?? null)
+                            ? $run['wordBoundarySource']
+                            : null
+                    );
                     $merged[$lastIndex] = [
                         'page' => $last['page'],
                         'text' => $this->joinPositionedCellText(
@@ -14043,6 +14419,7 @@ final class PdfReader
                         'wordBoundaryBefore' => (bool) ($last['wordBoundaryBefore'] ?? false),
                         'wordBoundarySource' => $last['wordBoundarySource'] ?? null,
                         'sourceVerifiedBoundarySeparators' => $sourceVerifiedBoundarySeparators,
+                        'sourceCompactBoundaryOffsets' => $sourceCompactBoundaryOffsets,
                         'startsAfterTextBoundary' => (bool) ($last['startsAfterTextBoundary'] ?? false),
                         'order' => min((int) ($last['order'] ?? 0), (int) ($run['order'] ?? 0)),
                         'lastOrder' => max((int) ($last['lastOrder'] ?? $last['order'] ?? 0), (int) ($run['lastOrder'] ?? $run['order'] ?? 0)),
@@ -15473,6 +15850,104 @@ final class PdfReader
     }
 
     /**
+     * Carry a narrowly-scoped compact-boundary candidate separately from the
+     * normal visual separator. It is not a text decision by itself: later
+     * source reconciliation must prove the exact local fragment sequence.
+     *
+     * @param array<string, mixed> $left
+     * @param array<string, mixed> $right
+     * @return array<int, true>
+     */
+    private function positionedJoinedSourceCompactBoundaryOffsets(
+        array $left,
+        array $right,
+        float $gap,
+        float $fontSize,
+        bool $leftEndsWithWhitespace,
+        bool $rightStartsWithWhitespace,
+        bool $rightHasWordBoundaryBefore,
+        bool $rightWordBoundaryBefore,
+        ?string $rightWordBoundarySource
+    ): array {
+        $offsets = $this->positionedSourceCompactBoundaryOffsets($left);
+        $leftLength = $this->positionedCompactTextLength((string) ($left['text'] ?? ''));
+        if ($this->positionedBoundaryIsSourceCompactCandidate(
+            $left,
+            $right,
+            $gap,
+            $fontSize,
+            $leftEndsWithWhitespace,
+            $rightStartsWithWhitespace,
+            $rightHasWordBoundaryBefore,
+            $rightWordBoundaryBefore,
+            $rightWordBoundarySource
+        )) {
+            $offsets[$leftLength] = true;
+        }
+        foreach ($this->positionedSourceCompactBoundaryOffsets($right) as $offset => $_) {
+            $offsets[$leftLength + $offset] = true;
+        }
+
+        $totalLength = $leftLength + $this->positionedCompactTextLength((string) ($right['text'] ?? ''));
+        foreach ($offsets as $offset => $_) {
+            if (!is_int($offset) || $offset <= 0 || $offset >= $totalLength) {
+                unset($offsets[$offset]);
+            }
+        }
+        ksort($offsets, SORT_NUMERIC);
+
+        return $offsets;
+    }
+
+    /**
+     * A close line-matrix reset can be an intra-word split, but only retain
+     * that possibility for a short source-order prefix followed by a
+     * multi-word continuation. This structural shape excludes two compact
+     * independent labels; no spelling or vocabulary is consulted.
+     *
+     * @param array<string, mixed> $left
+     * @param array<string, mixed> $right
+     */
+    private function positionedBoundaryIsSourceCompactCandidate(
+        array $left,
+        array $right,
+        float $gap,
+        float $fontSize,
+        bool $leftEndsWithWhitespace,
+        bool $rightStartsWithWhitespace,
+        bool $rightHasWordBoundaryBefore,
+        bool $rightWordBoundaryBefore,
+        ?string $rightWordBoundarySource
+    ): bool {
+        if ($leftEndsWithWhitespace
+            || $rightStartsWithWhitespace
+            || !$rightHasWordBoundaryBefore
+            || !$rightWordBoundaryBefore
+            || $rightWordBoundarySource !== 'line-break'
+            || $this->positionedBoundarySeparator(
+                $gap,
+                $fontSize,
+                $leftEndsWithWhitespace,
+                $rightStartsWithWhitespace,
+                $rightHasWordBoundaryBefore,
+                $rightWordBoundaryBefore,
+                $rightWordBoundarySource
+            ) !== ' ') {
+            return false;
+        }
+
+        $leftLength = $this->positionedCompactTextLength((string) ($left['text'] ?? ''));
+        $rightText = trim((string) ($right['text'] ?? ''));
+        $rightLength = $this->positionedCompactTextLength($rightText);
+
+        return $leftLength >= 1
+            && $leftLength <= 2
+            && $rightLength >= 4
+            && preg_match('/\S\s+\S/u', $rightText) === 1
+            && $gap <= max(1.25, max(1.0, $fontSize) * 0.25);
+    }
+
+    /**
      * @param array<string, mixed> $item
      * @return array<int, string>
      */
@@ -15489,6 +15964,23 @@ final class PdfReader
         ksort($separators, SORT_NUMERIC);
 
         return $separators;
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @return array<int, true>
+     */
+    private function positionedSourceCompactBoundaryOffsets(array $item): array
+    {
+        $offsets = [];
+        foreach (($item['sourceCompactBoundaryOffsets'] ?? []) as $offset => $candidate) {
+            if (is_int($offset) && $offset > 0 && $candidate === true) {
+                $offsets[$offset] = true;
+            }
+        }
+        ksort($offsets, SORT_NUMERIC);
+
+        return $offsets;
     }
 
     private function positionedCompactTextLength(string $text): int
