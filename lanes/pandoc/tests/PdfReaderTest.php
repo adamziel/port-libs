@@ -6970,6 +6970,43 @@ return [
         $t->same('able to', $hints["spacing\0ableto"] ?? null);
         $t->true(!isset($hints["spacing\0format"]));
     },
+    'keeps positioned spacing sequences only when source text can contain the glued form' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $hintsFromRuns = (function (array $runs, array $sourceItems): array {
+            return $this->pdfPositionedRunSpacingHints($runs, $sourceItems);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($hintsFromRuns instanceof \Closure);
+
+        $run = static function (string $text, float $x1, float $x2, float $y = 700.0): array {
+            return [
+                'text' => $text,
+                'page' => 1,
+                'x1' => $x1,
+                'x2' => $x2,
+                'y1' => $y,
+                'y2' => $y + 12.0,
+                'textX1' => $x1,
+                'textX2' => $x2,
+                'textY1' => $y,
+                'textY2' => $y + 12.0,
+                'fontSize' => 10.0,
+            ];
+        };
+        $hints = $hintsFromRuns([
+            $run('able', 72.0, 96.0),
+            $run('to', 98.0, 110.0),
+            $run('continue', 112.0, 158.0),
+            $run('form', 72.0, 96.0, 680.0),
+            $run('at', 98.0, 110.0, 680.0),
+            $run('least', 112.0, 144.0, 680.0),
+        ], [
+            ['page' => 1, 'stream' => 1, 'text' => 'abletocontinue'],
+            ['page' => 1, 'stream' => 1, 'text' => 'form at least'],
+        ]);
+
+        $t->same('able to continue', $hints["spacing\0abletocontinue"] ?? null);
+        $t->true(!isset($hints["spacing\0formatleast"]));
+    },
     'repairs pdf hyphen fragments only with raw run evidence' => static function (TestRunner $t): void {
         $reader = new PdfReader();
         $repair = (function (array $lines, array $runs): array {

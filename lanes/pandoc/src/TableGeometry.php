@@ -1323,25 +1323,25 @@ final class TableGeometry
     {
         $node = $cell['node'];
         $diagnostics = [];
-        if (array_key_exists('colspan', $node->attrs) && !self::spanAttributeIsValid($node->attrs['colspan'], false)) {
+        if ($node->hasAttr('colspan') && !self::spanAttributeIsValid($node->attr('colspan'), false)) {
             $diagnostics[] = self::spanNormalizationDiagnostic(
                 $section,
                 $rowIndex,
                 $cell,
                 'colspan',
-                $node->attrs['colspan'],
+                $node->attr('colspan'),
                 self::cellColspan($node),
                 false
             );
         }
 
-        if (array_key_exists('rowspan', $node->attrs) && !self::spanAttributeIsValid($node->attrs['rowspan'], true)) {
+        if ($node->hasAttr('rowspan') && !self::spanAttributeIsValid($node->attr('rowspan'), true)) {
             $diagnostics[] = self::spanNormalizationDiagnostic(
                 $section,
                 $rowIndex,
                 $cell,
                 'rowspan',
-                $node->attrs['rowspan'],
+                $node->attr('rowspan'),
                 self::cellRowspan($node),
                 true
             );

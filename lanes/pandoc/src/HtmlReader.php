@@ -120,10 +120,16 @@ final class HtmlReader
 
     private function restoreStandaloneTextHtmlFallback(AstNode $document, string $bytes): AstNode
     {
+        // A block node proves this cannot be a standalone-text import. Avoid
+        // tokenizing the complete source a second time just to reject that
+        // fallback on ordinary HTML documents.
+        if ($document->children !== [] && !$this->htmlNodesAreStandaloneInlines($document->children)) {
+            return $document;
+        }
         if (!$this->htmlSourceIsStandaloneText($bytes)) {
             return $document;
         }
-        if ($document->children !== [] && $this->htmlNodesAreStandaloneInlines($document->children)) {
+        if ($document->children !== []) {
             $text = $this->collapseHtmlImportWhitespace($this->plainTextFromAstNodes($document->children));
             if ($text !== '') {
                 return new AstNode($document->type, $document->attrs, [

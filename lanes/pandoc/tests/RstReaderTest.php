@@ -159,12 +159,14 @@ RST);
             $body = $table->children[1] ?? new AstNode('missing');
             $packet = $table->attr('delimitedText');
             $rstPacket = $table->attr('rstCsvTable');
+            $geometry = $table->attr('tableGeometry');
 
             $t->same('table', $table->type);
             $t->same('rst-csv-table', $table->attr('sourceFormat'));
             $t->same('Stock counts', $table->attr('caption'));
             $t->same('csv-table', $table->attr('rstDirective'));
             $t->same(['Name', 'Qty', 'Note'], $table->attr('columnNames'));
+            $t->same('Stock counts', $geometry['caption'] ?? null);
             $t->same(true, $rstPacket['headerOption'] ?? null);
             $t->same(2, $rstPacket['bodyLineCount'] ?? null);
             $t->same('csv', $packet['format'] ?? null);

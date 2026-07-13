@@ -20,7 +20,7 @@ final class DelimitedTextReader
     private const BLANK_ROW_SAMPLE_LIMIT = 1000;
 
     /**
-     * @param array{header?:bool, extension?:string, sourcePath?:string, delimiter?:string, quote?:string|null|false, escape?:string|null|false, keepSpace?:bool, strictParsing?:bool, allowBlankRecords?:bool, cellLineBreak?:string, maxRenderedRows?:int, maxRenderedCells?:int} $options
+     * @param array{header?:bool, extension?:string, sourcePath?:string, delimiter?:string, quote?:string|null|false, escape?:string|null|false, keepSpace?:bool, strictParsing?:bool, allowBlankRecords?:bool, cellLineBreak?:string, maxRenderedRows?:int, maxRenderedCells?:int, compactAst?:bool} $options
      */
     public function readCsv(string $text, array $options = []): AstNode
     {
@@ -28,7 +28,7 @@ final class DelimitedTextReader
     }
 
     /**
-     * @param array{header?:bool, extension?:string, sourcePath?:string, delimiter?:string, quote?:string|null|false, escape?:string|null|false, keepSpace?:bool, strictParsing?:bool, allowBlankRecords?:bool, cellLineBreak?:string, maxRenderedRows?:int, maxRenderedCells?:int} $options
+     * @param array{header?:bool, extension?:string, sourcePath?:string, delimiter?:string, quote?:string|null|false, escape?:string|null|false, keepSpace?:bool, strictParsing?:bool, allowBlankRecords?:bool, cellLineBreak?:string, maxRenderedRows?:int, maxRenderedCells?:int, compactAst?:bool} $options
      */
     public function readTsv(string $text, array $options = []): AstNode
     {
@@ -36,7 +36,7 @@ final class DelimitedTextReader
     }
 
     /**
-     * @param array{header?:bool, extension?:string, sourcePath?:string, delimiter?:string, quote?:string|null|false, escape?:string|null|false, keepSpace?:bool, strictParsing?:bool, allowBlankRecords?:bool, cellLineBreak?:string, maxRenderedRows?:int, maxRenderedCells?:int} $options
+     * @param array{header?:bool, extension?:string, sourcePath?:string, delimiter?:string, quote?:string|null|false, escape?:string|null|false, keepSpace?:bool, strictParsing?:bool, allowBlankRecords?:bool, cellLineBreak?:string, maxRenderedRows?:int, maxRenderedCells?:int, compactAst?:bool} $options
      */
     public function readAuto(string $text, array $options = []): AstNode
     {
@@ -44,7 +44,7 @@ final class DelimitedTextReader
     }
 
     /**
-     * @param array{header?:bool, extension?:string, sourcePath?:string, delimiter?:string, quote?:string|null|false, escape?:string|null|false, keepSpace?:bool, strictParsing?:bool, allowBlankRecords?:bool, cellLineBreak?:string, maxRenderedRows?:int, maxRenderedCells?:int} $options
+     * @param array{header?:bool, extension?:string, sourcePath?:string, delimiter?:string, quote?:string|null|false, escape?:string|null|false, keepSpace?:bool, strictParsing?:bool, allowBlankRecords?:bool, cellLineBreak?:string, maxRenderedRows?:int, maxRenderedCells?:int, compactAst?:bool} $options
      */
     public function read(string $text, string $format = 'csv', array $options = []): AstNode
     {
@@ -65,6 +65,7 @@ final class DelimitedTextReader
         $cellLineBreak = $this->cellLineBreakOption($options);
         $maxRenderedRows = $this->maxRenderedRowsOption($options);
         $maxRenderedCells = $this->maxRenderedCellsOption($options);
+        $compactAst = $this->compactAstOption($options);
 
         $parse = $this->parseRowsWithDiagnostics($sourceText, $dialect, $maxRenderedRows);
         if ($strictParsing) {
@@ -97,29 +98,50 @@ final class DelimitedTextReader
         $sourceAnalysis = $this->sourceAnalysis($sourceText, $dialect, $widths);
         $sourceHeader = $hasHeader ? array_shift($rows) : null;
         $sourceHeaderFieldMetadata = $hasHeader ? array_shift($fieldMetadataRows) : null;
+        $compactCells = $compactAst ? new CompactDelimitedCellStore($columnCount) : null;
         $tableRows = [];
         foreach ($rows as $index => $row) {
-            $tableRows[] = $this->tableRow($row, false, $columnCount, $fieldMetadataRows[$index] ?? [], $cellLineBreak);
+            $tableRows[] = $this->tableRow($row, false, $columnCount, $fieldMetadataRows[$index] ?? [], $cellLineBreak, $compactCells);
         }
 
         $headRows = [];
         if ($sourceHeader !== null) {
-            $headRows[] = $this->tableRow($sourceHeader, true, $columnCount, $sourceHeaderFieldMetadata ?? [], $cellLineBreak);
+            $headRows[] = $this->tableRow($sourceHeader, true, $columnCount, $sourceHeaderFieldMetadata ?? [], $cellLineBreak, $compactCells);
         }
 
-        $table = TableGeometry::withReviewPacket(new AstNode('table', [
+        $packet = $this->reviewPacket(
+            $format,
+            $dialect,
+            $sourceHeader === null ? $rows : [$sourceHeader, ...$rows],
+            $widths,
+            $sourceRowIndexes,
+            $blankRows,
+            $hasHeader,
+            $columnCount,
+            $formatInference,
+            $inputPrefix,
+            $sourceAnalysis,
+            $parse['diagnostics'],
+            $parse['metrics'],
+            $controlCharacters,
+            $sourceExtent
+        );
+        $table = new AstNode('table', [
             'sourceFormat' => $format,
             'alignments' => array_fill(0, $columnCount, 'default'),
-            'delimitedText' => $this->reviewPacket($format, $dialect, $sourceHeader === null ? $rows : [$sourceHeader, ...$rows], $widths, $sourceRowIndexes, $blankRows, $hasHeader, $columnCount, $formatInference, $inputPrefix, $sourceAnalysis, $parse['diagnostics'], $parse['metrics'], $controlCharacters, $sourceExtent),
+            'delimitedText' => $packet,
             'columnNames' => $sourceHeader === null ? $this->generatedColumnLabels($columnCount) : $this->normalizedRow($sourceHeader, $columnCount),
         ], [
             new AstNode('table_head', [], $headRows),
             new AstNode('table_body', [], $tableRows),
-        ]));
+        ], $compactAst ? new CompactDelimitedTableAttributes() : null);
+        if (!$compactAst) {
+            $table = TableGeometry::withReviewPacket($table);
+        }
 
         return new AstNode('document', [
             'sourceFormat' => $format,
-            'delimitedText' => $table->attr('delimitedText'),
+            'delimitedText' => $packet,
         ], [$table]);
     }
 
@@ -1655,7 +1677,14 @@ final class DelimitedTextReader
      * @param list<string> $row
      * @param list<array<string, mixed>> $fieldMetadata
      */
-    private function tableRow(array $row, bool $header, int $columnCount, array $fieldMetadata = [], string $cellLineBreak = 'linebreak'): AstNode
+    private function tableRow(
+        array $row,
+        bool $header,
+        int $columnCount,
+        array $fieldMetadata = [],
+        string $cellLineBreak = 'linebreak',
+        ?CompactDelimitedCellStore $compactCells = null
+    ): AstNode
     {
         $cells = [];
         $originalColumnCount = count($row);
@@ -1663,6 +1692,7 @@ final class DelimitedTextReader
             ? 'padded'
             : ($originalColumnCount > $columnCount ? 'truncated' : 'unchanged');
         $rowSource = $this->rowSourceFromFieldMetadata($fieldMetadata);
+        $compactCells?->beginRow($originalColumnCount, $rowSource);
         for ($column = 0; $column < $columnCount; $column++) {
             $sourceText = $row[$column] ?? '';
             $metadata = is_array($fieldMetadata[$column] ?? null) ? $fieldMetadata[$column] : null;
@@ -1671,19 +1701,26 @@ final class DelimitedTextReader
                 && (bool) ($metadata['sourceQuoteClosed'] ?? true);
             $text = $normalizeTrailingLineBreak ? $this->pandocCellText($sourceText) : $sourceText;
             $inlines = $this->cellInlines($text, $cellLineBreak);
-            $attrs = [
-                'header' => $header,
-                'text' => $text,
-                'sourceColumn' => $column,
-                'originalColumnCount' => $originalColumnCount,
-                'repairedColumnCount' => $columnCount,
-                'rowRepair' => $rowRepair,
-                ...$this->cellSourceProvenance($metadata, $rowSource, $column),
-            ];
-            if ($sourceText !== $text) {
-                $attrs['sourceText'] = $sourceText;
+            if ($compactCells !== null) {
+                $cellIndex = $compactCells->appendCell($metadata, $sourceText, $text);
+                $attrs = ['header' => $header, 'text' => $text];
+                $resolver = new CompactDelimitedCellAttributes($compactCells, $cellIndex);
+            } else {
+                $attrs = [
+                    'header' => $header,
+                    'text' => $text,
+                    'sourceColumn' => $column,
+                    'originalColumnCount' => $originalColumnCount,
+                    'repairedColumnCount' => $columnCount,
+                    'rowRepair' => $rowRepair,
+                    ...$this->cellSourceProvenance($metadata, $rowSource, $column),
+                ];
+                if ($sourceText !== $text) {
+                    $attrs['sourceText'] = $sourceText;
+                }
+                $resolver = null;
             }
-            $cells[] = new AstNode('table_cell', $attrs, $inlines === [] ? [] : [new AstNode('plain', [], $inlines)]);
+            $cells[] = new AstNode('table_cell', $attrs, $inlines === [] ? [] : [new AstNode('plain', [], $inlines)], $resolver);
         }
 
         return new AstNode('table_row', ['header' => $header], $cells);
@@ -1811,6 +1848,25 @@ final class DelimitedTextReader
             'softbreak' => 'softbreak',
             default => throw new \InvalidArgumentException('Delimited text cellLineBreak option must be linebreak or softbreak'),
         };
+    }
+
+    /**
+     * Compact source provenance is the default because writers consume the
+     * same AST values while avoiding a PHP hash table for every cell. Callers
+     * that inspect `attrs` still receive the fully expanded legacy shape.
+     *
+     * @param array{compactAst?:bool} $options
+     */
+    private function compactAstOption(array $options): bool
+    {
+        if (!array_key_exists('compactAst', $options)) {
+            return true;
+        }
+        if (!is_bool($options['compactAst'])) {
+            throw new \InvalidArgumentException('Delimited text compactAst option must be a boolean');
+        }
+
+        return $options['compactAst'];
     }
 
     /**
