@@ -28,6 +28,7 @@ if (pluginBuildMatch) {
 }
 assert(js.includes('pdf-jbig2-rasterizer.mjs'), 'Expected the browser JBIG2 rasterizer to be loaded for PDF imports.');
 assert(js.includes('pdfRasterImages'), 'Expected browser-decoded PDF rasters to be included in the import payload.');
+assert(js.includes("php: '8.4'"), 'Expected Playground to use PHP 8.4 for EPUB and HTML imports that need Dom\\HTMLDocument.');
 assert(!html.includes('id="format-input"'), 'Document type must not be exposed as a client-side form field.');
 assert(!js.includes('formatByExtension'), 'Document type inference must be authoritative on the server, not duplicated in the browser.');
 assert(!js.includes('format: upload.format'), 'The browser must not send a user-controlled document type hint.');
