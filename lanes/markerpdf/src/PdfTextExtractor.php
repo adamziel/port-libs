@@ -738,6 +738,526 @@ final class PdfTextExtractor
     }
 
     /**
+     * Locate painted Image XObjects without treating every image object in a
+     * PDF as document content.  This deliberately follows only the small,
+     * geometry-safe subset of page content operators needed for placement:
+     * q/Q, cm, and Do (including a Form XObject's matrix and resources).
+     *
+     * Inline images and graphics states which would require a full renderer
+     * are omitted or marked low confidence.  Consumers should use only high
+     * confidence entries for in-flow document content.
+     *
+     * @return list<array{
+     *     page:int,
+     *     pageObject:int,
+     *     contentStream:int,
+     *     paintOrder:int,
+     *     object:int,
+     *     resource:string,
+     *     resourcePath:list<string>,
+     *     matrix:list<float>,
+     *     bbox:array{x1:float,y1:float,x2:float,y2:float},
+     *     visible:bool,
+     *     confidence:string
+     * }>
+     */
+    public function extractImagePlacements(string $pdfBytes): array
+    {
+        if (!$this->canExtractEncryptedContent($pdfBytes)) {
+            return [];
+        }
+
+        $objects = $this->pdfObjects($pdfBytes);
+        if ($objects === []) {
+            return [];
+        }
+
+        $placements = [];
+        $pageNumber = 0;
+        foreach ($this->limitedPageObjectNumbers($objects, $pdfBytes) as $pageObjectNumber) {
+            $pageNumber++;
+            $pageBody = $objects[$pageObjectNumber] ?? null;
+            if (!is_string($pageBody) || !$this->isPageObjectBody($pageBody)) {
+                continue;
+            }
+
+            $resourceContext = $this->resourceContextForPage($pageObjectNumber, $objects);
+            $xObjects = $this->xObjectResourceObjectNumbers($resourceContext, $objects);
+            if ($xObjects === []) {
+                continue;
+            }
+
+            // PDF defines a page's Contents array as one logically
+            // concatenated stream.  In particular, q/cm state is allowed to
+            // begin in one indirect stream and its Do can appear in the
+            // next.  Scan the joined operator sequence rather than resetting
+            // graphics state for every array element.
+            $pageContent = '';
+            $paintOrder = 0;
+            foreach ($this->pageContentsReferences($pageBody) as $contentsObjectNumber) {
+                foreach ($this->resolveContentObjectNumbers($contentsObjectNumber, $objects) as $contentObjectNumber) {
+                    $decoded = isset($objects[$contentObjectNumber])
+                        ? $this->decodeStreamObject($objects[$contentObjectNumber], $objects)
+                        : null;
+                    if ($decoded === null) {
+                        continue;
+                    }
+
+                    $pageContent .= "\n" . $decoded;
+                }
+            }
+            if ($pageContent === '') {
+                continue;
+            }
+
+            foreach ($this->imagePlacementsFromContentStream(
+                $pageContent,
+                $objects,
+                $xObjects,
+                $pageNumber,
+                $pageObjectNumber,
+                1,
+                $paintOrder,
+                $this->identityTransformationMatrix(),
+                [],
+                [],
+                false,
+                $this->effectivePageVisibleBox($pageObjectNumber, $objects)
+            ) as $placement) {
+                $placements[] = $placement;
+            }
+        }
+
+        return $placements;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<string, int> $xObjects
+     * @param array{a: float, b: float, c: float, d: float, e: float, f: float} $initialMatrix
+     * @param array<int, true> $activeForms
+     * @param list<string> $resourcePath
+     * @param array{x1:float,y1:float,x2:float,y2:float}|null $pageVisibleBox
+     * @return list<array{
+     *     page:int,
+     *     pageObject:int,
+     *     contentStream:int,
+     *     paintOrder:int,
+     *     object:int,
+     *     resource:string,
+     *     resourcePath:list<string>,
+     *     matrix:list<float>,
+     *     bbox:array{x1:float,y1:float,x2:float,y2:float},
+     *     visible:bool,
+     *     confidence:string
+     * }>
+     */
+    private function imagePlacementsFromContentStream(
+        string $stream,
+        array $objects,
+        array $xObjects,
+        int $page,
+        int $pageObject,
+        int $contentStream,
+        int &$paintOrder,
+        array $initialMatrix,
+        array $activeForms,
+        array $resourcePath,
+        bool $inheritedLowConfidence,
+        ?array $pageVisibleBox
+    ): array {
+        $placements = [];
+        $graphicsState = [
+            'matrix' => $initialMatrix,
+            'lowConfidence' => $inheritedLowConfidence,
+        ];
+        $graphicsStack = [];
+        $markedContentStack = [];
+        $compatibilityDepth = 0;
+        $inTextObject = false;
+        $operands = [];
+
+        foreach ($this->contentTokenIterator($stream) as $token) {
+            if ($token === 'q') {
+                $graphicsStack[] = $graphicsState;
+                $operands = [];
+                continue;
+            }
+
+            if ($token === 'Q') {
+                $restored = array_pop($graphicsStack);
+                if (is_array($restored)) {
+                    $graphicsState = $restored;
+                }
+                $operands = [];
+                continue;
+            }
+
+            if ($token === 'cm') {
+                $matrix = $this->transformationMatrixOperand($operands);
+                if ($matrix === null) {
+                    $graphicsState['lowConfidence'] = true;
+                } else {
+                    $graphicsState['matrix'] = $this->concatenateTransformationMatrices($graphicsState['matrix'], $matrix);
+                }
+                $operands = [];
+                continue;
+            }
+
+            if ($token === 'BT') {
+                $inTextObject = true;
+                $operands = [];
+                continue;
+            }
+
+            if ($token === 'ET') {
+                $inTextObject = false;
+                $operands = [];
+                continue;
+            }
+
+            if ($token === 'BX') {
+                $compatibilityDepth++;
+                $operands = [];
+                continue;
+            }
+
+            if ($token === 'EX') {
+                $compatibilityDepth = max(0, $compatibilityDepth - 1);
+                $operands = [];
+                continue;
+            }
+
+            if ($token === 'BMC' || $token === 'BDC') {
+                $markedContentStack[] = $this->markedContentOperandsRequireLowConfidence($operands);
+                $operands = [];
+                continue;
+            }
+
+            if ($token === 'EMC') {
+                array_pop($markedContentStack);
+                $operands = [];
+                continue;
+            }
+
+            if (in_array($token, ['W', 'W*', 'gs'], true)) {
+                // Exact clipping and opacity require renderer semantics. Keep
+                // scanning so a caller can review the event, but never claim
+                // that its placement is high confidence.
+                $graphicsState['lowConfidence'] = true;
+                $operands = [];
+                continue;
+            }
+
+            if ($token === 'Do') {
+                $resource = $this->xObjectNameOperand($operands);
+                if ($resource !== null
+                    && !$inTextObject
+                    && $compatibilityDepth === 0
+                    && isset($xObjects[$resource], $objects[$xObjects[$resource]])) {
+                    $objectNumber = $xObjects[$resource];
+                    $objectBody = $objects[$objectNumber];
+                    $path = array_merge($resourcePath, [$resource]);
+                    $hasMarkedContentUncertainty = in_array(true, $markedContentStack, true);
+
+                    if ($this->xObjectSubtype($objectBody) === 'Image') {
+                        $paintOrder++;
+                        $bbox = $this->imageUnitSquareBoundingBox($graphicsState['matrix']);
+                        if ($bbox !== null && !$this->imageXObjectIsMask($objectBody, $objects)) {
+                            $intersectsPage = $pageVisibleBox === null
+                                || $this->imageBoundingBoxIntersectsPageBox($bbox, $pageVisibleBox);
+                            $placements[] = [
+                                'page' => $page,
+                                'pageObject' => $pageObject,
+                                'contentStream' => $contentStream,
+                                'paintOrder' => $paintOrder,
+                                'object' => $objectNumber,
+                                'resource' => $resource,
+                                'resourcePath' => $path,
+                                'matrix' => $this->transformationMatrixValues($graphicsState['matrix']),
+                                'bbox' => $bbox,
+                                // An XObject may be painted outside the
+                                // page's CropBox/MediaBox.  It is technically
+                                // in the content stream but cannot contribute
+                                // to the page people see, so retain it only as
+                                // a non-placeable review record.
+                                'visible' => $intersectsPage,
+                                'confidence' => ($graphicsState['lowConfidence'] || $hasMarkedContentUncertainty || !$intersectsPage) ? 'low' : 'high',
+                            ];
+                        }
+                    } elseif ($this->isFormXObjectObject($objectBody) && !isset($activeForms[$objectNumber])) {
+                        $formStream = $this->decodeStreamObject($objectBody, $objects);
+                        $formMatrix = $this->formXObjectTransformationMatrix($objectBody, $objects);
+                        if ($formStream !== null && $formMatrix !== null) {
+                            $formContext = $this->resourceContextForBody($objectBody, $objects);
+                            $formXObjects = $this->xObjectResourceObjectNumbers($formContext, $objects) + $xObjects;
+                            foreach ($this->imagePlacementsFromContentStream(
+                                $formStream,
+                                $objects,
+                                $formXObjects,
+                                $page,
+                                $pageObject,
+                                $contentStream,
+                                $paintOrder,
+                                $this->concatenateTransformationMatrices($graphicsState['matrix'], $formMatrix),
+                                $activeForms + [$objectNumber => true],
+                                $path,
+                                // A Form XObject has a BBox clipping boundary
+                                // which this small scanner intentionally does
+                                // not model. Its records remain useful for
+                                // review, but not automatic placement.
+                                true,
+                                $pageVisibleBox
+                            ) as $placement) {
+                                $placements[] = $placement;
+                            }
+                        }
+                    }
+                }
+                $operands = [];
+                continue;
+            }
+
+            if ($this->isOperator($token)) {
+                $operands = [];
+                continue;
+            }
+
+            $operands[] = $token;
+        }
+
+        return $placements;
+    }
+
+    /**
+     * @param list<string> $operands
+     */
+    private function markedContentOperandsRequireLowConfidence(array $operands): bool
+    {
+        foreach ($operands as $operand) {
+            // Optional-content groups require visibility evaluation, and
+            // Artifact content represents decorative page furniture (headers,
+            // footers, crop marks, etc.), not document-flow media.  Keep
+            // either one for diagnostics but never place it automatically.
+            if ($this->isPdfNameToken($operand, 'OC') || $this->isPdfNameToken($operand, 'Artifact')) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param array{a: float, b: float, c: float, d: float, e: float, f: float} $matrix
+     * @return array{x1:float,y1:float,x2:float,y2:float}|null
+     */
+    private function imageUnitSquareBoundingBox(array $matrix): ?array
+    {
+        $points = [
+            $this->transformPoint(0.0, 0.0, $matrix),
+            $this->transformPoint(1.0, 0.0, $matrix),
+            $this->transformPoint(0.0, 1.0, $matrix),
+            $this->transformPoint(1.0, 1.0, $matrix),
+        ];
+        $xs = array_column($points, 0);
+        $ys = array_column($points, 1);
+        foreach (array_merge($xs, $ys) as $value) {
+            if (!is_float($value) && !is_int($value)) {
+                return null;
+            }
+            if (!is_finite((float) $value)) {
+                return null;
+            }
+        }
+
+        $x1 = min($xs);
+        $y1 = min($ys);
+        $x2 = max($xs);
+        $y2 = max($ys);
+        if ($x2 - $x1 <= 0.000001 || $y2 - $y1 <= 0.000001) {
+            return null;
+        }
+
+        return [
+            'x1' => (float) $x1,
+            'y1' => (float) $y1,
+            'x2' => (float) $x2,
+            'y2' => (float) $y2,
+        ];
+    }
+
+    /**
+     * @param array{a: float, b: float, c: float, d: float, e: float, f: float} $matrix
+     * @return list<float>
+     */
+    private function transformationMatrixValues(array $matrix): array
+    {
+        return [
+            $matrix['a'],
+            $matrix['b'],
+            $matrix['c'],
+            $matrix['d'],
+            $matrix['e'],
+            $matrix['f'],
+        ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array{a: float, b: float, c: float, d: float, e: float, f: float}|null
+     */
+    private function formXObjectTransformationMatrix(string $objectBody, array $objects): ?array
+    {
+        $parts = $this->streamObjectParts($objectBody);
+        if ($parts === null) {
+            return null;
+        }
+
+        $tokens = $this->dictionaryTokens($parts['dictionary']);
+        $matrixToken = $this->dictionaryArrayTokenFromTokens($tokens, 'Matrix', $objects);
+        if ($matrixToken === null) {
+            return $this->identityTransformationMatrix();
+        }
+
+        $values = $this->numericArrayValues($matrixToken);
+        if (count($values) !== 6) {
+            return null;
+        }
+
+        [$a, $b, $c, $d, $e, $f] = $values;
+        foreach ($values as $value) {
+            if (!is_finite($value)) {
+                return null;
+            }
+        }
+
+        return [
+            'a' => $a,
+            'b' => $b,
+            'c' => $c,
+            'd' => $d,
+            'e' => $e,
+            'f' => $f,
+        ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function imageXObjectIsMask(string $objectBody, array $objects): bool
+    {
+        $parts = $this->streamObjectParts($objectBody);
+        if ($parts === null) {
+            return false;
+        }
+
+        $tokens = $this->dictionaryTokens($parts['dictionary']);
+        foreach ($tokens as $index => $token) {
+            if (!$this->isPdfNameToken($token, 'ImageMask')) {
+                continue;
+            }
+
+            $value = strtolower(trim((string) ($tokens[$index + 1] ?? '')));
+            if ($value === 'true') {
+                return true;
+            }
+            if ($value === 'false') {
+                return false;
+            }
+
+            $objectNumber = $this->indirectObjectOperand($tokens, $index + 1);
+            if ($objectNumber !== null && isset($objects[$objectNumber])) {
+                return preg_match('/^\s*true\b/i', $objects[$objectNumber]) === 1;
+            }
+
+            return false;
+        }
+
+        return false;
+    }
+
+    /**
+     * Resolve the effective visible rectangle for a page. CropBox and
+     * MediaBox are inheritable page-tree attributes; a CropBox takes
+     * precedence when present. The operator coordinates and these boxes use
+     * the same default user space, so no rotation transform is needed merely
+     * to decide whether a painted image can appear on the page.
+     *
+     * @param array<int, string> $objects
+     * @return array{x1:float,y1:float,x2:float,y2:float}|null
+     */
+    private function effectivePageVisibleBox(int $pageObjectNumber, array $objects): ?array
+    {
+        $cropBox = null;
+        $mediaBox = null;
+        $seen = [];
+        $objectNumber = $pageObjectNumber;
+        while (isset($objects[$objectNumber]) && !isset($seen[$objectNumber])) {
+            $seen[$objectNumber] = true;
+            $body = $objects[$objectNumber];
+            $cropBox ??= $this->pageRectangleFromObjectBody($body, 'CropBox', $objects);
+            $mediaBox ??= $this->pageRectangleFromObjectBody($body, 'MediaBox', $objects);
+
+            if (preg_match('/\/Parent\s+(\d+)\s+\d+\s+R\b/', $body, $match) !== 1) {
+                break;
+            }
+            $objectNumber = (int) $match[1];
+        }
+
+        return $cropBox ?? $mediaBox;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array{x1:float,y1:float,x2:float,y2:float}|null
+     */
+    private function pageRectangleFromObjectBody(string $objectBody, string $name, array $objects): ?array
+    {
+        $token = $this->dictionaryArrayTokenFromTokens($this->dictionaryTokens($objectBody), $name, $objects);
+        if ($token === null) {
+            return null;
+        }
+
+        $values = $this->numericArrayValues($token);
+        if (count($values) !== 4) {
+            return null;
+        }
+        foreach ($values as $value) {
+            if (!is_finite($value)) {
+                return null;
+            }
+        }
+
+        [$left, $bottom, $right, $top] = $values;
+        $x1 = min($left, $right);
+        $y1 = min($bottom, $top);
+        $x2 = max($left, $right);
+        $y2 = max($bottom, $top);
+        if ($x2 - $x1 <= 0.000001 || $y2 - $y1 <= 0.000001) {
+            return null;
+        }
+
+        return [
+            'x1' => $x1,
+            'y1' => $y1,
+            'x2' => $x2,
+            'y2' => $y2,
+        ];
+    }
+
+    /**
+     * @param array{x1:float,y1:float,x2:float,y2:float} $image
+     * @param array{x1:float,y1:float,x2:float,y2:float} $pageBox
+     */
+    private function imageBoundingBoxIntersectsPageBox(array $image, array $pageBox): bool
+    {
+        return $image['x2'] > $pageBox['x1'] + 0.000001
+            && $image['x1'] < $pageBox['x2'] - 0.000001
+            && $image['y2'] > $pageBox['y1'] + 0.000001
+            && $image['y1'] < $pageBox['y2'] - 0.000001;
+    }
+
+    /**
      * @return list<array{page: int, stream: int, x1: float, y1: float, x2: float, y2: float, fillColor: string, pageObject?: int}>
      */
     public function extractFilledRectangles(string $pdfBytes): array
@@ -5545,8 +6065,7 @@ final class PdfTextExtractor
 
         $renamed = $this->renameContentStreamResources($decoded, $fontNameMap, $propertyNameMap, $formMcidMap);
         $formXObjects = $this->xObjectResourceObjectNumbers($resourceContext, $objects);
-
-        return $this->expandContentStreamWithFormXObjects(
+        $expanded = $this->expandContentStreamWithFormXObjects(
             $renamed,
             $objects,
             $formXObjects + $parentXObjects,
@@ -5557,6 +6076,32 @@ final class PdfTextExtractor
             $propertyMcids,
             $seen
         );
+        $matrix = $this->formXObjectTransformationMatrix($objectBody, $objects);
+        if ($matrix === null) {
+            // A malformed Form matrix makes its positioned text unsafe as a
+            // layout anchor. Leave the Form unexpanded rather than assign its
+            // text to the caller's coordinate space.
+            return null;
+        }
+
+        // Invoking a Form establishes a saved graphics state and concatenates
+        // its Matrix before executing its content. The original lightweight
+        // expansion skipped that step, which made Form text appear at the
+        // wrong page coordinates and could anchor a nearby image in another
+        // part of the document. Preserve it in the expanded stream so the
+        // existing positioned-text parser sees the same coordinate system.
+        return 'q ' . $this->contentTransformationMatrix($matrix) . ' cm ' . $expanded . ' Q';
+    }
+
+    /**
+     * @param array{a: float, b: float, c: float, d: float, e: float, f: float} $matrix
+     */
+    private function contentTransformationMatrix(array $matrix): string
+    {
+        return implode(' ', array_map(
+            static fn (float $value): string => rtrim(rtrim(sprintf('%.8F', $value), '0'), '.') ?: '0',
+            $this->transformationMatrixValues($matrix)
+        ));
     }
 
     /**
@@ -15639,14 +16184,15 @@ final class PdfTextExtractor
             }
 
             if ($token === 'BT') {
-                $currentTextX = null;
-                $currentTextY = null;
-                $currentTextEndX = null;
-                $currentTextEndY = null;
-                $currentTextXAxisX = 1.0;
-                $currentTextXAxisY = 0.0;
-                $currentTextYAxisX = 0.0;
-                $currentTextYAxisY = 1.0;
+                $textState = $this->textStateAtTransformationMatrix($currentTransformationMatrix);
+                $currentTextX = $textState['x'];
+                $currentTextY = $textState['y'];
+                $currentTextEndX = $currentTextX;
+                $currentTextEndY = $currentTextY;
+                $currentTextXAxisX = $textState['xAxisX'];
+                $currentTextXAxisY = $textState['xAxisY'];
+                $currentTextYAxisX = $textState['yAxisX'];
+                $currentTextYAxisY = $textState['yAxisY'];
                 if (!$this->insideArtifact($artifactStack)) {
                     $lastPaintedTextPosition = null;
                     $pendingTextPosition = null;
@@ -16197,14 +16743,15 @@ final class PdfTextExtractor
             }
 
             if ($token === 'BT') {
-                $currentTextX = null;
-                $currentTextY = null;
-                $currentTextEndX = null;
-                $currentTextEndY = null;
-                $currentTextXAxisX = 1.0;
-                $currentTextXAxisY = 0.0;
-                $currentTextYAxisX = 0.0;
-                $currentTextYAxisY = 1.0;
+                $textState = $this->textStateAtTransformationMatrix($currentTransformationMatrix);
+                $currentTextX = $textState['x'];
+                $currentTextY = $textState['y'];
+                $currentTextEndX = $currentTextX;
+                $currentTextEndY = $currentTextY;
+                $currentTextXAxisX = $textState['xAxisX'];
+                $currentTextXAxisY = $textState['xAxisY'];
+                $currentTextYAxisX = $textState['yAxisX'];
+                $currentTextYAxisY = $textState['yAxisY'];
                 if (!$this->insideArtifact($artifactStack)) {
                     $lastPaintedTextPosition = null;
                     $pendingTextPosition = null;
@@ -17234,6 +17781,31 @@ final class PdfTextExtractor
         }
 
         return $this->numericOperand($operands[count($operands) - 1]);
+    }
+
+    /**
+     * A new PDF text object starts with identity text matrices in the current
+     * graphics coordinate system. Keep the cached position and axes in page
+     * space so Td/TD work after an enclosing q/cm (including a Form XObject
+     * Matrix), not only after a Tm operator.
+     *
+     * @param array{a: float, b: float, c: float, d: float, e: float, f: float} $transformationMatrix
+     * @return array{x:float,y:float,xAxisX:float,xAxisY:float,yAxisX:float,yAxisY:float}
+     */
+    private function textStateAtTransformationMatrix(array $transformationMatrix): array
+    {
+        [$x, $y] = $this->transformPoint(0.0, 0.0, $transformationMatrix);
+        [$xAxisX, $xAxisY] = $this->transformVector(1.0, 0.0, $transformationMatrix);
+        [$yAxisX, $yAxisY] = $this->transformVector(0.0, 1.0, $transformationMatrix);
+
+        return [
+            'x' => $x,
+            'y' => $y,
+            'xAxisX' => $xAxisX,
+            'xAxisY' => $xAxisY,
+            'yAxisX' => $yAxisX,
+            'yAxisY' => $yAxisY,
+        ];
     }
 
     /**

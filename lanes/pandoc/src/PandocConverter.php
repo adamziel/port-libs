@@ -166,6 +166,17 @@ final class PandocConverter
         $writerOptions = isset($options['writerOptions']) && is_array($options['writerOptions']) ? $options['writerOptions'] : [];
         $extractOptions = self::extractMediaOptions($options);
 
+        // PDF image placement depends on page geometry which is intentionally
+        // discarded by the normal text-only AST. Ask the reader to retain a
+        // compact, opt-in anchor map only when this conversion will also run
+        // the media pass.
+        if (self::canonicalInputFormat($from) === 'pdf'
+            && $extractOptions !== null
+            && !array_key_exists('pdfCollectImagePlacements', $readerOptions)
+            && !array_key_exists('collectPdfImagePlacements', $readerOptions)) {
+            $readerOptions['pdfCollectImagePlacements'] = true;
+        }
+
         $document = self::read($bytes, $from, $readerOptions);
         $entries = [];
         $diagnostics = [];
