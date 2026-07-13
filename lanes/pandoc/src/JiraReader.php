@@ -6,16 +6,21 @@ namespace PortLibs\Pandoc;
 
 final class JiraReader
 {
+    private const MAX_INLINE_NESTING = 128;
+
     /** @var list<string> */
     private array $lines = [];
 
     private int $index = 0;
+
+    private int $inlineNesting = 0;
 
     public function read(string $text): AstNode
     {
         $normalized = str_replace(["\r\n", "\r"], "\n", $text);
         $this->lines = explode("\n", $normalized);
         $this->index = 0;
+        $this->inlineNesting = 0;
 
         return new AstNode('document', [
             'sourceFormat' => 'jira',
@@ -414,81 +419,84 @@ final class JiraReader
      */
     private function parseInlines(string $text, bool $allowAutolinks = true): array
     {
+        if ($this->inlineNesting >= self::MAX_INLINE_NESTING) {
+            return $text === '' ? [] : [new AstNode('text', ['text' => $text])];
+        }
+
+        ++$this->inlineNesting;
+        try {
+            return $this->parseInlinesWithSpanIndex($text, $allowAutolinks, new JiraInlineSpanIndex($text));
+        } finally {
+            --$this->inlineNesting;
+        }
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function parseInlinesWithSpanIndex(string $text, bool $allowAutolinks, JiraInlineSpanIndex $spans): array
+    {
         $nodes = [];
         $buffer = '';
+        /** @var array<string, array{start:int,end:int,result:bool}> $linkTargetSafety */
+        $linkTargetSafety = [];
         $length = strlen($text);
-        $nextClosingBracketOffset = null;
         for ($offset = 0; $offset < $length; $offset++) {
             $char = $text[$offset];
 
-            if (
-                $char === '{'
-                && substr_compare($text, '{anchor:', $offset, strlen('{anchor:')) === 0
-                && preg_match('/\\G\\{anchor:([^}]*)\\}/u', $text, $match, 0, $offset) === 1
-            ) {
+            $anchorEnd = $char === '{' && substr_compare($text, '{anchor:', $offset, strlen('{anchor:')) === 0 && $spans->hasValidUtf8From($offset)
+                ? $spans->anchorEnd($offset)
+                : null;
+            if ($anchorEnd !== null) {
                 $this->flushText($nodes, $buffer);
-                $nodes[] = new AstNode('span', ['id' => $match[1]], []);
-                $offset += strlen($match[0]) - 1;
+                $nodes[] = new AstNode('span', ['id' => substr($text, $offset + strlen('{anchor:'), $anchorEnd - $offset - strlen('{anchor:'))], []);
+                $offset = $anchorEnd;
                 continue;
             }
 
-            if (
-                $char === '{'
-                && substr_compare($text, '{color:', $offset, strlen('{color:')) === 0
-                && preg_match('/\\G\\{color:([^}]*)\\}/u', $text, $match, 0, $offset) === 1
-            ) {
-                $end = strpos($text, '{color}', $offset + strlen($match[0]));
-                if ($end !== false) {
+            $colorSpan = $char === '{' && substr_compare($text, '{color:', $offset, strlen('{color:')) === 0 && $spans->hasValidUtf8From($offset)
+                ? $spans->colorSpan($offset)
+                : null;
+            if ($colorSpan !== null) {
+                $this->flushText($nodes, $buffer);
+                $innerStart = $colorSpan['headerEnd'] + 1;
+                $nodes[] = new AstNode('span', [
+                    'attributes' => ['color' => substr($text, $offset + strlen('{color:'), $colorSpan['headerEnd'] - $offset - strlen('{color:'))],
+                ], $this->parseInlines(substr($text, $innerStart, $colorSpan['end'] - $innerStart)));
+                $offset = $colorSpan['end'] + strlen('{color}') - 1;
+                continue;
+            }
+
+            $codeEnd = $char === '{' && ($text[$offset + 1] ?? '') === '{'
+                ? $spans->codeEnd($offset)
+                : null;
+            if ($codeEnd !== null) {
+                $this->flushText($nodes, $buffer);
+                $inner = $this->decodeEntities(substr($text, $offset + 2, $codeEnd - $offset - 2));
+                $nodes[] = new AstNode('code', ['text' => $this->stringifyInlines($this->parseInlines($inner))]);
+                $offset = $codeEnd + 1;
+                continue;
+            }
+
+            $bracketEnd = $char === '[' ? $spans->bracketEnd($offset) : null;
+            if ($bracketEnd !== null && $this->linkRangeCanProduceNode($text, $offset + 1, $bracketEnd, $spans, $linkTargetSafety)) {
+                $link = $this->parseLink(substr($text, $offset + 1, $bracketEnd - $offset - 1));
+                if ($link instanceof AstNode) {
                     $this->flushText($nodes, $buffer);
-                    $innerStart = $offset + strlen($match[0]);
-                    $nodes[] = new AstNode('span', [
-                        'attributes' => ['color' => $match[1]],
-                    ], $this->parseInlines(substr($text, $innerStart, $end - $innerStart)));
-                    $offset = $end + strlen('{color}') - 1;
+                    $nodes[] = $link;
+                    $offset = $bracketEnd;
                     continue;
                 }
             }
 
-            if ($char === '{' && ($text[$offset + 1] ?? '') === '{') {
-                $end = strpos($text, '}}', $offset + 2);
-                if ($end !== false) {
+            $imageEnd = $char === '!' ? $spans->simplePairEnd('!', $offset) : null;
+            if ($imageEnd !== null) {
+                $image = $this->parseImage(substr($text, $offset + 1, $imageEnd - $offset - 1));
+                if ($image instanceof AstNode) {
                     $this->flushText($nodes, $buffer);
-                    $inner = $this->decodeEntities(substr($text, $offset + 2, $end - $offset - 2));
-                    $nodes[] = new AstNode('code', ['text' => $this->stringifyInlines($this->parseInlines($inner))]);
-                    $offset = $end + 1;
+                    $nodes[] = $image;
+                    $offset = $imageEnd;
                     continue;
-                }
-            }
-
-            if ($char === '[') {
-                if (
-                    $nextClosingBracketOffset === null
-                    || ($nextClosingBracketOffset !== false && $nextClosingBracketOffset <= $offset)
-                ) {
-                    $nextClosingBracketOffset = strpos($text, ']', $offset + 1);
-                }
-                if ($nextClosingBracketOffset !== false) {
-                    $end = $nextClosingBracketOffset;
-                    $link = $this->parseLink(substr($text, $offset + 1, $end - $offset - 1));
-                    if ($link instanceof AstNode) {
-                        $this->flushText($nodes, $buffer);
-                        $nodes[] = $link;
-                        $offset = $end;
-                        continue;
-                    }
-                }
-            }
-
-            if ($char === '!') {
-                $end = strpos($text, '!', $offset + 1);
-                if ($end !== false) {
-                    $image = $this->parseImage(substr($text, $offset + 1, $end - $offset - 1));
-                    if ($image instanceof AstNode) {
-                        $this->flushText($nodes, $buffer);
-                        $nodes[] = $image;
-                        $offset = $end;
-                        continue;
-                    }
                 }
             }
 
@@ -506,19 +514,19 @@ final class JiraReader
                 }
             }
 
-            if ($char === '?' && ($text[$offset + 1] ?? '') === '?') {
-                $end = strpos($text, '??', $offset + 2);
-                if ($end !== false) {
-                    $this->flushText($nodes, $buffer);
-                    $nodes[] = new AstNode('text', ['text' => "\u{2014}"]);
-                    $nodes[] = new AstNode('text', ['text' => ' ']);
-                    $nodes[] = new AstNode('emph', [], $this->parseInlines(substr($text, $offset + 2, $end - $offset - 2)));
-                    $offset = $end + 1;
-                    continue;
-                }
+            $quoteEnd = $char === '?' && ($text[$offset + 1] ?? '') === '?'
+                ? $spans->simplePairEnd('??', $offset)
+                : null;
+            if ($quoteEnd !== null) {
+                $this->flushText($nodes, $buffer);
+                $nodes[] = new AstNode('text', ['text' => "\u{2014}"]);
+                $nodes[] = new AstNode('text', ['text' => ' ']);
+                $nodes[] = new AstNode('emph', [], $this->parseInlines(substr($text, $offset + 2, $quoteEnd - $offset - 2)));
+                $offset = $quoteEnd + 1;
+                continue;
             }
 
-            $braceStyle = $this->parseBraceStyle($text, $offset);
+            $braceStyle = $this->parseBraceStyle($text, $offset, $spans);
             if ($braceStyle instanceof AstNode) {
                 $this->flushText($nodes, $buffer);
                 $nodes[] = $braceStyle;
@@ -527,7 +535,7 @@ final class JiraReader
                 continue;
             }
 
-            $styled = $this->parseDelimitedStyle($text, $offset);
+            $styled = $this->parseDelimitedStyle($text, $offset, $spans);
             if ($styled instanceof AstNode) {
                 $this->flushText($nodes, $buffer);
                 $nodes[] = $styled;
@@ -549,7 +557,7 @@ final class JiraReader
         return $nodes;
     }
 
-    private function parseBraceStyle(string $text, int $offset): ?AstNode
+    private function parseBraceStyle(string $text, int $offset, JiraInlineSpanIndex $spans): ?AstNode
     {
         foreach ([
             '{^}' => 'superscript',
@@ -558,8 +566,8 @@ final class JiraReader
             if (substr_compare($text, $marker, $offset, strlen($marker)) !== 0) {
                 continue;
             }
-            $end = strpos($text, $marker, $offset + strlen($marker));
-            if ($end === false) {
+            $end = $spans->simplePairEnd($marker, $offset);
+            if ($end === null) {
                 continue;
             }
 
@@ -567,6 +575,138 @@ final class JiraReader
         }
 
         return null;
+    }
+
+    /**
+     * Check the target-bearing portion of a bracket candidate before copying
+     * its full label. Nested malformed brackets can share one far-away close;
+     * validating the common target once keeps those failed candidates from
+     * repeatedly materializing ever-larger substrings.
+     *
+     * @param array<string, array{start:int,end:int,result:bool}> $targetSafety
+     */
+    private function linkRangeCanProduceNode(
+        string $text,
+        int $start,
+        int $end,
+        JiraInlineSpanIndex $spans,
+        array &$targetSafety
+    ): bool {
+        if ($start >= $end) {
+            return false;
+        }
+
+        $first = $text[$start] ?? '';
+        if ($first === '^') {
+            return $this->cachedLinkTargetSafety(
+                $text,
+                'attachment',
+                $start + 1,
+                $end,
+                $targetSafety,
+                fn (string $target): bool => $this->isJiraSafeAttachmentTarget($target)
+            );
+        }
+
+        // This is intentionally before pipe parsing: the established Jira
+        // grammar permits pipes in the label of [label|part^attachment].
+        $caret = $spans->attachmentCaretBefore($end);
+        if ($caret !== null && $caret > $start && $spans->hasValidUtf8Range($start, $end)) {
+            return $this->cachedLinkTargetSafety(
+                $text,
+                'labelled-attachment',
+                $caret + 1,
+                $end,
+                $targetSafety,
+                fn (string $target): bool => $this->isJiraSafeAttachmentTarget($target)
+            );
+        }
+
+        $firstPipe = $spans->linkPipe($start, 1);
+        if ($firstPipe !== null && $firstPipe < $end) {
+            $secondPipe = $spans->linkPipe($firstPipe + 1, 2);
+            if ($secondPipe === null || $secondPipe >= $end) {
+                return $this->cachedLinkTargetSafety(
+                    $text,
+                    'pipe',
+                    $firstPipe + 1,
+                    $end,
+                    $targetSafety,
+                    fn (string $target): bool => $this->isJiraSafeUserAccountTarget($target)
+                        || $this->isJiraSafeMailtoTarget($target)
+                        || $this->isJiraSafeFragmentTarget($target)
+                        || $this->isJiraSafeExternalTarget($target)
+                );
+            }
+
+            $thirdPipe = $spans->linkPipe($secondPipe + 1, 3);
+            if ($thirdPipe !== null && $thirdPipe < $end) {
+                return false;
+            }
+
+            if (!$this->cachedLinkTargetSafety(
+                $text,
+                'smart-type',
+                $secondPipe + 1,
+                $end,
+                $targetSafety,
+                static fn (string $type): bool => in_array($type, ['smart-link', 'smart-card'], true)
+            )) {
+                return false;
+            }
+
+            return $this->cachedLinkTargetSafety(
+                $text,
+                'smart-target',
+                $firstPipe + 1,
+                $secondPipe,
+                $targetSafety,
+                fn (string $target): bool => $this->isJiraSafeExternalTarget($target)
+            );
+        }
+
+        if ($first !== '~' && $first !== '#' && !ctype_alpha($first)) {
+            return false;
+        }
+
+        return $this->cachedLinkTargetSafety(
+            $text,
+            'direct',
+            $start,
+            $end,
+            $targetSafety,
+            fn (string $target): bool => $this->isJiraSafeUserAccountTarget($target)
+                || $this->isJiraSafeMailtoTarget($target)
+                || $this->isJiraSafeFragmentTarget($target)
+                || $this->isJiraSafeExternalTarget($target)
+        );
+    }
+
+    /**
+     * @param array<string, array{start:int,end:int,result:bool}> $targetSafety
+     * @param callable(string):bool $validator
+     */
+    private function cachedLinkTargetSafety(
+        string $text,
+        string $kind,
+        int $start,
+        int $end,
+        array &$targetSafety,
+        callable $validator
+    ): bool {
+        if ($start >= $end) {
+            return false;
+        }
+
+        $cached = $targetSafety[$kind] ?? null;
+        if ($cached !== null && $cached['start'] === $start && $cached['end'] === $end) {
+            return $cached['result'];
+        }
+
+        $result = $validator(substr($text, $start, $end - $start));
+        $targetSafety[$kind] = ['start' => $start, 'end' => $end, 'result' => $result];
+
+        return $result;
     }
 
     private function parseAutolink(string $text, int $offset): ?AstNode
@@ -602,7 +742,7 @@ final class JiraReader
         return $target;
     }
 
-    private function parseDelimitedStyle(string $text, int $offset): ?AstNode
+    private function parseDelimitedStyle(string $text, int $offset, JiraInlineSpanIndex $spans): ?AstNode
     {
         $map = [
             '*' => 'strong',
@@ -617,12 +757,9 @@ final class JiraReader
             return null;
         }
 
-        $search = $offset + 1;
-        while (($end = strpos($text, $marker, $search)) !== false) {
-            if ($end > $offset + 1 && !$this->isEscaped($text, $end)) {
-                return new AstNode($map[$marker], ['_endOffset' => $end], $this->parseInlines(substr($text, $offset + 1, $end - $offset - 1)));
-            }
-            $search = $end + 1;
+        $end = $spans->delimitedStyleEnd($marker, $offset);
+        if ($end !== null) {
+            return new AstNode($map[$marker], ['_endOffset' => $end], $this->parseInlines(substr($text, $offset + 1, $end - $offset - 1)));
         }
 
         return null;
@@ -640,16 +777,6 @@ final class JiraReader
         }
 
         return true;
-    }
-
-    private function isEscaped(string $text, int $offset): bool
-    {
-        $slashes = 0;
-        for ($cursor = $offset - 1; $cursor >= 0 && $text[$cursor] === '\\'; $cursor--) {
-            $slashes++;
-        }
-
-        return $slashes % 2 === 1;
     }
 
     /**

@@ -206,6 +206,59 @@ final class PandocFormatRegistry
         'wiki' => 'mediawiki',
     ];
 
+    /** @var array<string, string> */
+    private const DOCUMENT_TYPE_EXTENSION_INFERENCE = [
+        'bib' => 'bibtex',
+        'biblatex' => 'biblatex',
+        'bits' => 'bits',
+        'commonmark' => 'commonmark',
+        'commonmark_x' => 'commonmark_x',
+        'csljson' => 'csljson',
+        'csv' => 'csv',
+        'dbk' => 'docbook',
+        'doc' => 'doc',
+        'docbook' => 'docbook',
+        'docx' => 'docx',
+        'enl' => 'endnotexml',
+        'endnote' => 'endnotexml',
+        'endnotexml' => 'endnotexml',
+        'epub' => 'epub',
+        'fb2' => 'fb2',
+        'gfm' => 'gfm',
+        'htm' => 'html',
+        'html' => 'html',
+        'ipynb' => 'ipynb',
+        'jats' => 'jats',
+        'jira' => 'jira',
+        'json' => 'json',
+        'latex' => 'latex',
+        'man' => 'man',
+        'markdown' => 'markdown',
+        'md' => 'markdown',
+        'mdown' => 'markdown',
+        'mkd' => 'markdown',
+        'mkdn' => 'markdown',
+        'mdoc' => 'mdoc',
+        'mediawiki' => 'mediawiki',
+        'mw' => 'mediawiki',
+        'native' => 'native',
+        'nxml' => 'jats',
+        'odt' => 'odt',
+        'opml' => 'opml',
+        'pdf' => 'pdf',
+        'pptx' => 'pptx',
+        'ris' => 'ris',
+        'rst' => 'rst',
+        'rtf' => 'rtf',
+        'tab' => 'tsv',
+        'tex' => 'latex',
+        'tsv' => 'tsv',
+        'txt' => 'markdown',
+        'xlsx' => 'xlsx',
+        'xml' => 'xml',
+        'zip' => 'zip',
+    ];
+
     /** @var list<string> */
     private const ROFF_MANUAL_INPUT_FORMATS = [
         'man',
@@ -652,6 +705,48 @@ final class PandocFormatRegistry
         $extension = strtolower(ltrim(trim($extension), '.'));
 
         return self::WIKI_EXTENSION_INFERENCE[$extension] ?? null;
+    }
+
+    /**
+     * Infer a user-facing document type from a filename without asking the
+     * caller to choose a parser. `zip` is retained as a collection type so a
+     * host can unpack a folder-style upload before dispatching individual
+     * documents.
+     */
+    public static function inferDocumentTypeFromFilename(string $filename): ?string
+    {
+        $filename = trim(str_replace('\\', '/', $filename));
+        $basename = strtolower(basename($filename));
+        if ($basename === '' || $basename === '.' || $basename === '/') {
+            return null;
+        }
+
+        foreach ([
+            '.bits.xml' => 'bits',
+            '.csl.json' => 'csljson',
+            '.docbook.xml' => 'docbook',
+            '.endnote.xml' => 'endnotexml',
+            '.jats.xml' => 'jats',
+        ] as $suffix => $format) {
+            if (str_ends_with($basename, $suffix)) {
+                return $format;
+            }
+        }
+
+        $extension = strtolower(pathinfo($basename, PATHINFO_EXTENSION));
+        if ($extension === '') {
+            return null;
+        }
+
+        $manualFormat = self::inferRoffManualFormatFromExtension('.' . $extension);
+        if ($manualFormat === 'man') {
+            return $manualFormat;
+        }
+
+        return self::inferWikiFormatFromExtension($extension)
+            ?? self::inferTabularDataFormatFromExtension($extension)
+            ?? self::DOCUMENT_TYPE_EXTENSION_INFERENCE[$extension]
+            ?? null;
     }
 
     /**

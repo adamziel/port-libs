@@ -1476,7 +1476,11 @@ final class PandocHtmlTagSoupTableReader
             return $align;
         }
 
-        $textAlign = CssDeclarationScanner::firstValue($this->attribute($tag, 'style'), 'text-align');
+        $textAlign = CssDeclarationScanner::lastValidValue(
+            $this->attribute($tag, 'style'),
+            'text-align',
+            static fn (string $value): bool => preg_match('/^(?:left|right|center)\s*$/i', $value) === 1
+        );
         if ($textAlign !== null && preg_match('/^(left|right|center)\b/i', $textAlign, $m) === 1) {
             return strtolower($m[1]);
         }
@@ -1491,7 +1495,11 @@ final class PandocHtmlTagSoupTableReader
             return $valign;
         }
 
-        $verticalAlign = CssDeclarationScanner::firstValue($this->attribute($tag, 'style'), 'vertical-align');
+        $verticalAlign = CssDeclarationScanner::lastValidValue(
+            $this->attribute($tag, 'style'),
+            'vertical-align',
+            static fn (string $value): bool => preg_match('/^(?:baseline|top|middle|bottom)\s*$/i', $value) === 1
+        );
         if ($verticalAlign !== null && preg_match('/^(baseline|top|middle|bottom)\b/i', $verticalAlign, $m) === 1) {
             return strtolower($m[1]);
         }
@@ -1501,7 +1509,12 @@ final class PandocHtmlTagSoupTableReader
 
     private function columnWidth(TagSoupTag $tag): ?float
     {
-        $styleWidth = CssDeclarationScanner::firstValue($this->attribute($tag, 'style'), 'width');
+        $styleWidth = CssDeclarationScanner::lastValidValue(
+            $this->attribute($tag, 'style'),
+            'width',
+            static fn (string $value): bool => preg_match('/^[0-9]+(?:\.[0-9]+)?\s*%\s*$/', $value) === 1,
+            static fn (string $value): bool => strcasecmp(trim($value), 'auto') === 0
+        );
         if ($styleWidth !== null && preg_match('/^([0-9]+(?:\.[0-9]+)?)\s*%/', $styleWidth, $m) === 1) {
             return (float) $m[1] / 100;
         }

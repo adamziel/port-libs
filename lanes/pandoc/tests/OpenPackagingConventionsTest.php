@@ -7,6 +7,7 @@ use PortLibs\Pandoc\OpcMarkupCompatibility;
 use PortLibs\Pandoc\OpcPackagePath;
 use PortLibs\Pandoc\OpcRelationship;
 use PortLibs\Pandoc\OpcRelationshipGraph;
+use PortLibs\Pandoc\OpcRelationshipInventory;
 use PortLibs\Pandoc\OpcRelationships;
 use PortLibs\Pandoc\ZipPackage;
 
@@ -5085,6 +5086,78 @@ XML;
         $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml', $types->contentTypeForPart($documentPart));
         $t->same('image/png', $types->contentTypeForPart($documentRelationships->resolveTarget('rIdImage')));
         $t->throws(\RuntimeException::class, static fn (): OpcRelationships => OpcRelationships::fromPackage($package, '/word/missing.xml'));
+    },
+    'loads bounded OPC relationship parts without expanding oversized XML' => static function (TestRunner $t): void {
+        $rootRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdStrict" Type="http://purl.oclc.org/ooxml/officeDocument/relationships/officeDocument" Target="word/strict-document.xml"/>
+  <Relationship Id="rIdDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+</Relationships>
+XML;
+        $oversizedDocumentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/image.png"/>
+</Relationships>
+XML;
+        $package = ZipPackage::fromParts([
+            ['name' => '_rels/.rels', 'data' => $rootRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $oversizedDocumentRelationshipsXml . str_repeat(' ', 1025)],
+        ]);
+
+        $rootRelationships = OpcRelationships::fromPackageBounded($package, '/', 1024);
+
+        $t->true(OpcRelationships::packageHasRelationshipsForSourceBounded($package, '/word/document.xml', 1024));
+        $t->same('rIdStrict', $rootRelationships->firstOfTypes([
+            'http://purl.oclc.org/ooxml/officeDocument/relationships/officeDocument',
+            'http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument',
+        ])?->id);
+        $t->throws(
+            \RuntimeException::class,
+            static fn (): OpcRelationships => OpcRelationships::fromPackageBounded($package, '/word/document.xml', 1024)
+        );
+    },
+    'indexes OPC relationship parts once, caches parsed sets, and bounds aggregate payloads' => static function (TestRunner $t) use ($contentTypesXml, $packageRelationshipsXml, $documentRelationshipsXml, $footnotesRelationshipsXml): void {
+        $package = ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelationshipsXml],
+            ['name' => 'word/footnotes.xml', 'data' => '<w:footnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/footnotes.xml.rels', 'data' => $footnotesRelationshipsXml],
+            ['name' => 'word./_rels/document.xml.rels', 'data' => '<Relationships/>'],
+        ]);
+
+        $inventory = OpcRelationshipInventory::fromPackage($package, 4096, 3, 4096);
+
+        $t->true($inventory->hasContentTypes());
+        $t->same(
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml',
+            $inventory->contentTypes()?->contentTypeForPart('/word/document.xml')
+        );
+        $t->same(
+            ['/', '/word/document.xml', '/word/footnotes.xml'],
+            array_column($inventory->sourceParts(), 'sourcePartName')
+        );
+        $t->true($inventory->hasRelationshipsForSource('/word/document.xml'));
+        $t->same(false, $inventory->hasRelationshipsForSource('/word/missing.xml'));
+        $t->same(['word./_rels/document.xml.rels'], array_column($inventory->parseErrors(), 'relationshipPart'));
+        $t->same(null, $inventory->parseErrors()[0]['sourcePart']);
+        $t->contains('must not end with a dot', $inventory->parseErrors()[0]['error']);
+
+        $rootRelationships = $inventory->relationshipsForSource('/');
+        $t->true($rootRelationships === $inventory->relationshipsForSource('/'));
+        $t->same('/word/document.xml', $rootRelationships->resolveTarget('rIdDocument'));
+        $t->same('/word/styles.xml', $inventory->relationshipsForSource('/word/document.xml')->resolveTarget('rIdStyles'));
+
+        $t->throws(
+            \RuntimeException::class,
+            static fn (): OpcRelationshipInventory => OpcRelationshipInventory::fromPackage($package, 4096, 2, 4096)
+        );
+        $t->throws(
+            \RuntimeException::class,
+            static fn (): OpcRelationshipInventory => OpcRelationshipInventory::fromPackage($package, 4096, 3, 1)
+        );
     },
     'loads a ZIP backed OPC relationship graph by source part' => static function (TestRunner $t) use ($contentTypesXml, $packageRelationshipsXml, $documentRelationshipsXml, $footnotesRelationshipsXml): void {
         $package = ZipPackage::fromParts([

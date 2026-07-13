@@ -621,6 +621,123 @@ XML);
     }
 };
 
+$buildStrictSlideBackgroundPptxPackage = static function () use ($buildSlideBackgroundPptxPackage): string {
+    $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-strict-bg-');
+    if ($path === false) {
+        throw new RuntimeException('Unable to create temporary Strict PPTX path');
+    }
+
+    try {
+        if (file_put_contents($path, $buildSlideBackgroundPptxPackage()) === false) {
+            throw new RuntimeException('Unable to seed temporary Strict PPTX package');
+        }
+
+        $zip = new ZipArchive();
+        if ($zip->open($path) !== true) {
+            throw new RuntimeException('Unable to open temporary Strict PPTX package');
+        }
+
+        $replacements = [
+            'http://schemas.openxmlformats.org/presentationml/2006/main' => 'http://purl.oclc.org/ooxml/presentationml/main',
+            'http://schemas.openxmlformats.org/drawingml/2006/main' => 'http://purl.oclc.org/ooxml/drawingml/main',
+            'http://schemas.openxmlformats.org/officeDocument/2006/relationships' => 'http://purl.oclc.org/ooxml/officeDocument/relationships',
+        ];
+        foreach (['_rels/.rels', 'ppt/presentation.xml', 'ppt/_rels/presentation.xml.rels', 'ppt/slides/slide1.xml', 'ppt/slides/_rels/slide1.xml.rels'] as $partName) {
+            $contents = $zip->getFromName($partName);
+            if (!is_string($contents)) {
+                $zip->close();
+                throw new RuntimeException('Missing Strict PPTX fixture part: ' . $partName);
+            }
+            if ($zip->addFromString($partName, str_replace(array_keys($replacements), array_values($replacements), $contents)) === false) {
+                $zip->close();
+                throw new RuntimeException('Unable to rewrite Strict PPTX fixture part: ' . $partName);
+            }
+        }
+        if ($zip->addFromString('[Content_Types].xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="png" ContentType="image/png"/>
+  <Override PartName="/ppt/presentation.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml"/>
+  <Override PartName="/ppt/slides/slide1.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slide+xml"/>
+</Types>
+XML) === false) {
+            $zip->close();
+            throw new RuntimeException('Unable to add Strict PPTX content types');
+        }
+        if ($zip->close() !== true) {
+            throw new RuntimeException('Unable to save temporary Strict PPTX package');
+        }
+
+        $bytes = file_get_contents($path);
+        if (!is_string($bytes)) {
+            throw new RuntimeException('Unable to read temporary Strict PPTX package');
+        }
+
+        return $bytes;
+    } finally {
+        @unlink($path);
+    }
+};
+
+$buildStrictTransitionAnimationPptxPackage = static function (): string {
+    $sourcePath = dirname(__DIR__) . '/fixtures/upstream-current-pptx-reader/transition-animation-metadata.pptx';
+    $sourceBytes = file_get_contents($sourcePath);
+    if (!is_string($sourceBytes)) {
+        throw new RuntimeException('Unable to read transitional PPTX transition fixture');
+    }
+
+    $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-strict-transition-');
+    if ($path === false) {
+        throw new RuntimeException('Unable to create temporary Strict PPTX transition path');
+    }
+
+    try {
+        if (file_put_contents($path, $sourceBytes) === false) {
+            throw new RuntimeException('Unable to seed temporary Strict PPTX transition package');
+        }
+
+        $zip = new ZipArchive();
+        if ($zip->open($path) !== true) {
+            throw new RuntimeException('Unable to open temporary Strict PPTX transition package');
+        }
+
+        $replacements = [
+            'http://schemas.openxmlformats.org/presentationml/2006/main' => 'http://purl.oclc.org/ooxml/presentationml/main',
+            'http://schemas.openxmlformats.org/drawingml/2006/main' => 'http://purl.oclc.org/ooxml/drawingml/main',
+            'http://schemas.openxmlformats.org/officeDocument/2006/relationships' => 'http://purl.oclc.org/ooxml/officeDocument/relationships',
+        ];
+        $entryCount = $zip->numFiles;
+        for ($index = 0; $index < $entryCount; $index++) {
+            $partName = $zip->getNameIndex($index);
+            if (!is_string($partName) || (!str_ends_with($partName, '.xml') && !str_ends_with($partName, '.rels'))) {
+                continue;
+            }
+            $contents = $zip->getFromIndex($index);
+            if (!is_string($contents)) {
+                $zip->close();
+                throw new RuntimeException('Unable to read Strict PPTX transition fixture part: ' . $partName);
+            }
+            if ($zip->addFromString($partName, str_replace(array_keys($replacements), array_values($replacements), $contents)) === false) {
+                $zip->close();
+                throw new RuntimeException('Unable to rewrite Strict PPTX transition fixture part: ' . $partName);
+            }
+        }
+        if ($zip->close() !== true) {
+            throw new RuntimeException('Unable to save temporary Strict PPTX transition package');
+        }
+
+        $bytes = file_get_contents($path);
+        if (!is_string($bytes)) {
+            throw new RuntimeException('Unable to read temporary Strict PPTX transition package');
+        }
+
+        return $bytes;
+    } finally {
+        @unlink($path);
+    }
+};
+
 $buildExternalTableStylesPptxPackage = static function (): string {
     $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-ext-table-styles-');
     if ($path === false) {
@@ -12418,7 +12535,7 @@ XML);
     }
 };
 
-$buildRootOfficeDocumentAliasPptxPackage = static function (): string {
+$buildStrictRootOfficeDocumentAliasPptxPackage = static function (): string {
     $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-root-office-doc-alias-');
     if ($path === false) {
         throw new RuntimeException('Unable to create temporary PPTX path');
@@ -12433,7 +12550,7 @@ $buildRootOfficeDocumentAliasPptxPackage = static function (): string {
     $zip->addFromString('_rels/.rels', <<<'XML'
 <?xml version="1.0" encoding="UTF-8"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-  <OfficeDocumentAlias Id="rIdPresentation" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/>
+  <OfficeDocumentAlias Id="rIdPresentation" Type="http://purl.oclc.org/ooxml/officeDocument/relationships/officeDocument" Target="ppt/presentation.xml"/>
 </Relationships>
 XML);
     $zip->addFromString('ppt/presentation.xml', <<<'XML'
@@ -15494,6 +15611,24 @@ return [
         $t->true(!str_contains($native, 'background.png'), 'PPTX slide background images should remain review-only');
     },
 
+    'records Strict pptx slide background image references and media' => static function (TestRunner $t) use ($buildStrictSlideBackgroundPptxPackage, $nodesOfType): void {
+        $document = (new PptxReader())->read($buildStrictSlideBackgroundPptxPackage());
+        $review = $document->attr('pptx');
+
+        $t->same([], $nodesOfType($document, 'image'));
+        $t->same('Background image', $document->children[0]->attr('text'));
+        $t->same('Visible body', $document->children[1]->attr('text'));
+        $t->same(1, $review['slides'][0]['backgroundCount'] ?? null);
+        $t->same('rIdBackground', $review['slides'][0]['backgrounds'][0]['relationshipId'] ?? null);
+        $t->same('http://purl.oclc.org/ooxml/officeDocument/relationships/image', $review['slides'][0]['backgrounds'][0]['relationshipType'] ?? null);
+        $t->same('ppt/media/background.png', $review['slides'][0]['backgrounds'][0]['partName'] ?? null);
+        $t->same(true, $review['slides'][0]['backgrounds'][0]['exists'] ?? null);
+        $t->same([], $review['slides'][0]['backgrounds'][0]['issues'] ?? null);
+        $t->same(1, $review['mediaBag']['itemCount'] ?? null);
+        $t->same('ppt/media/background.png', $review['mediaBag']['directory'][0]['path'] ?? null);
+        $t->same(['background'], $review['mediaBag']['directory'][0]['sourceRoles'] ?? null);
+    },
+
     'matches checked-in current upstream pptx reader basic golden content' => static function (TestRunner $t) use ($pandocReaderContentSignature): void {
         $fixtureRoot = dirname(__DIR__) . '/fixtures/upstream-current-pptx-reader';
         $pptxPath = $fixtureRoot . '/basic.pptx';
@@ -17811,8 +17946,8 @@ return [
         $t->throws(RuntimeException::class, static fn (): AstNode => (new PptxReader())->read($buildFirstOfficeDocumentRelationshipPptxPackage()));
     },
 
-    'uses root officeDocument relationship children regardless of element name like upstream' => static function (TestRunner $t) use ($buildRootOfficeDocumentAliasPptxPackage, $nodesOfType): void {
-        $document = (new PptxReader())->read($buildRootOfficeDocumentAliasPptxPackage());
+    'accepts Strict root officeDocument relationship children regardless of element name' => static function (TestRunner $t) use ($buildStrictRootOfficeDocumentAliasPptxPackage, $nodesOfType): void {
+        $document = (new PptxReader())->read($buildStrictRootOfficeDocumentAliasPptxPackage());
         $review = $document->attr('pptx');
         $headings = $nodesOfType($document, 'heading');
         $native = PandocConverter::write($document, 'native');
@@ -19418,6 +19553,33 @@ XML);
         $t->contains('Para [ Str "Visible" , Space , Str "animated" , Space , Str "body" ]', $native);
         $t->true(!str_contains($native, 'animEffect'), 'Animation behavior metadata should stay out of visible native output');
         $t->true(!str_contains($native, 'Animated body'), 'Animation target shape names should stay out of visible native output');
+    },
+
+    'preserves Strict pptx transition timing and animation review metadata' => static function (TestRunner $t) use ($buildStrictTransitionAnimationPptxPackage, $nodesOfType): void {
+        $document = (new PptxReader())->read($buildStrictTransitionAnimationPptxPackage());
+        $review = $document->attr('pptx');
+        $slide = $review['slides'][0] ?? [];
+        $paragraphTexts = array_map(static fn (AstNode $paragraph): string => (string) $paragraph->attr('text'), $nodesOfType($document, 'paragraph'));
+
+        $t->same('Transition animation metadata', $document->children[0]->attr('text'));
+        $t->same(['Visible animated body'], $paragraphTexts);
+        $t->same([
+            'type' => 'fade',
+            'speed' => 'slow',
+            'advanceOnClick' => false,
+            'advanceAfterMilliseconds' => 5000,
+        ], $slide['transition'] ?? null);
+        $t->same(5, $slide['timing']['timeNodeCount'] ?? null);
+        $t->same(3, $slide['timing']['parallelCount'] ?? null);
+        $t->same(1, $slide['timing']['sequenceCount'] ?? null);
+        $t->same(['clickEffect', 'mainSeq', 'tmRoot'], $slide['timing']['nodeTypes'] ?? null);
+        $t->same(1, $slide['animationCount'] ?? null);
+        $t->same('animEffect', $slide['animations'][0]['kind'] ?? null);
+        $t->same(['transition' => 'in', 'filter' => 'fade'], $slide['animations'][0]['attributes'] ?? null);
+        $t->same(['type' => 'spTgt', 'attributes' => ['spid' => '3']], $slide['animations'][0]['target'] ?? null);
+        $t->same(['id' => 5, 'dur' => '500'], $slide['animations'][0]['behaviorTimeNode'] ?? null);
+        $t->same('entr', $slide['animations'][0]['triggerTimeNode']['presetClass'] ?? null);
+        $t->same('clickEffect', $slide['animations'][0]['triggerTimeNode']['nodeType'] ?? null);
     },
 
     'records pptx transition sound media in the review media bag' => static function (TestRunner $t) use ($nodesOfType): void {

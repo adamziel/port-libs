@@ -1048,14 +1048,16 @@ final class Html5Dom
             'UTF-8'
         );
         $insertBody = self::html5FirstElementByTagName($insertDocument, 'body');
-        if (!$insertBody instanceof \Dom\Element) {
-            return null;
+        $insertCandidate = null;
+        if (
+            $insertBody instanceof \Dom\Element
+            && self::html5AppendFragmentWithNativeDom($insertBody, $html)
+        ) {
+            $insertCandidate = [
+                'body' => $insertBody,
+                'source' => self::html5SerializeChildren($insertDocument, $insertBody, $literalPayloadElements),
+            ];
         }
-        $insertBody->insertAdjacentHTML(\Dom\AdjacentPosition::BeforeEnd, $html);
-        $insertCandidate = [
-            'body' => $insertBody,
-            'source' => self::html5SerializeChildren($insertDocument, $insertBody, $literalPayloadElements),
-        ];
 
         $document = \Dom\HTMLDocument::createFromString(
             '<!doctype html><html><body>' . $html . '</body></html>',
@@ -1071,7 +1073,9 @@ final class Html5Dom
             'source' => self::html5SerializeChildren($document, $body, $literalPayloadElements),
         ];
 
-        return self::html5PreferredFragmentCandidate($insertCandidate, $documentCandidate);
+        return $insertCandidate === null
+            ? $documentCandidate
+            : self::html5PreferredFragmentCandidate($insertCandidate, $documentCandidate);
     }
 
     /**
@@ -1105,14 +1109,16 @@ final class Html5Dom
             'UTF-8'
         );
         $insertTable = $insertDocument->getElementById('pandoc-html-fragment-context');
-        if (!$insertTable instanceof \Dom\HTMLElement) {
-            return null;
+        $insertCandidate = null;
+        if (
+            $insertTable instanceof \Dom\HTMLElement
+            && self::html5AppendFragmentWithNativeDom($insertTable, $html)
+        ) {
+            $insertCandidate = [
+                'table' => $insertTable,
+                'source' => self::html5TableContextSource($insertDocument, $insertTable, $literalPayloadElements),
+            ];
         }
-        $insertTable->insertAdjacentHTML(\Dom\AdjacentPosition::BeforeEnd, $html);
-        $insertCandidate = [
-            'table' => $insertTable,
-            'source' => self::html5TableContextSource($insertDocument, $insertTable, $literalPayloadElements),
-        ];
 
         $document = \Dom\HTMLDocument::createFromString(
             '<!doctype html><html><body><table id="pandoc-html-fragment-context">' . $html . '</table></body></html>',
@@ -1128,7 +1134,30 @@ final class Html5Dom
             'source' => self::html5TableContextSource($document, $table, $literalPayloadElements),
         ];
 
-        return self::html5PreferredFragmentCandidate($insertCandidate, $documentCandidate);
+        return $insertCandidate === null
+            ? $documentCandidate
+            : self::html5PreferredFragmentCandidate($insertCandidate, $documentCandidate);
+    }
+
+    /**
+     * Native adjacent HTML insertion was added after Dom\HTMLDocument itself.
+     * It is useful when available because it gives the browser-style fragment
+     * parser a concrete context, but the direct wrapped-document candidate is
+     * still a complete HTML5 tree-construction path on PHP 8.4.
+     */
+    private static function html5AppendFragmentWithNativeDom(\Dom\Element $element, string $html): bool
+    {
+        if (!method_exists($element, 'insertAdjacentHTML')) {
+            return false;
+        }
+
+        try {
+            $element->insertAdjacentHTML(\Dom\AdjacentPosition::BeforeEnd, $html);
+
+            return true;
+        } catch (\Throwable) {
+            return false;
+        }
     }
 
     private static function html5FragmentCandidateLeaksSyntheticWrapper(string $source): bool

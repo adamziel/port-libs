@@ -42,6 +42,22 @@ $tests = [
             Html5Dom::serializeHtmlChildren($body)
         );
     },
+    'parses body and table fragments without optional adjacent-html insertion' => static function (TestRunner $t): void {
+        if (!class_exists('Dom\\HTMLDocument')) {
+            $t->true(true, 'Dom\\HTMLDocument is unavailable on this PHP runtime');
+
+            return;
+        }
+
+        $body = Html5Dom::parseHtmlFragment('<p>body fragment</p>');
+        $table = Html5Dom::parseHtmlFragment('<td>A</td><td>B</td><tr><td>C</td></tr>');
+
+        $t->same('<p>body fragment</p>', Html5Dom::serializeHtmlChildren($body));
+        $t->same(
+            '<table><tbody><tr><td>A</td><td>B</td></tr><tr><td>C</td></tr></tbody></table>',
+            Html5Dom::serializeHtmlChildren($table)
+        );
+    },
     'bridges HTML5 tree construction through legacy DOMDocument helpers' => static function (TestRunner $t): void {
         if (!class_exists('Dom\\HTMLDocument')) {
             $t->true(true, 'Dom\\HTMLDocument is unavailable on this PHP runtime');

@@ -128,6 +128,25 @@ return [
             $t->true(in_array($canonical, PandocFormatRegistry::upstreamOutputFormats(), true), "Output canonical {$canonical} must be tracked");
         }
     },
+    'infers document types from filenames for upload-oriented callers' => static function (TestRunner $t): void {
+        $cases = [
+            'references.bib' => 'bibtex',
+            'references.biblatex' => 'biblatex',
+            'records.csl.json' => 'csljson',
+            'guide.gfm' => 'gfm',
+            'guide.dokuwiki' => 'dokuwiki',
+            'article.jats.xml' => 'jats',
+            'manual.3p' => 'man',
+            'slides.pptx' => 'pptx',
+            'folder/import.zip' => 'zip',
+        ];
+
+        foreach ($cases as $filename => $format) {
+            $t->same($format, PandocFormatRegistry::inferDocumentTypeFromFilename($filename), $filename);
+        }
+        $t->same(null, PandocFormatRegistry::inferDocumentTypeFromFilename('README'));
+        $t->same(null, PandocFormatRegistry::inferDocumentTypeFromFilename('notes.ms'), 'Unsupported roff ms files must not be claimed as readable input.');
+    },
     'records project local input support separately from upstream pandoc inputs' => static function (TestRunner $t): void {
         $support = PandocFormatRegistry::phpLocalInputSupport();
 

@@ -3627,6 +3627,73 @@ return [
         $t->same('markerPDF', $meta['producer']);
         $t->same('D:20260618000000Z', $meta['created']);
     },
+    'keeps trailer Info metadata ahead of root XMP in the pandoc ast' => static function (TestRunner $t): void {
+        $xmp = '<?xpacket begin=""?><x:xmpmeta xmlns:x="adobe:ns:meta/">'
+            . '<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns/">'
+            . '<rdf:Description rdf:about="" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:xmp="http://ns.adobe.com/xap/1.0/">'
+            . '<dc:title>XMP title should not replace Info</dc:title>'
+            . '<dc:creator>XMP author should not replace Info</dc:creator>'
+            . '<xmp:CreatorTool>XMP creator should not replace Info</xmp:CreatorTool>'
+            . '</rdf:Description></rdf:RDF></x:xmpmeta><?xpacket end="w"?>';
+        $content = 'BT /F1 12 Tf 72 720 Td (Metadata precedence body) Tj ET';
+        $pdf = "%PDF-1.7\n"
+            . "1 0 obj << /Type /Catalog /Pages 2 0 R /Metadata 5 0 R >> endobj\n"
+            . "2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj\n"
+            . "3 0 obj << /Type /Page /Parent 2 0 R /Contents 4 0 R >> endobj\n"
+            . '4 0 obj << /Length ' . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+            . '5 0 obj << /Type /Metadata /Subtype /XML /Length ' . strlen($xmp) . " >>\nstream\n{$xmp}\nendstream\nendobj\n"
+            . "6 0 obj << /Title (Info title wins) /Author (Info author wins; Second Info author) /Creator (Info creator wins) /Producer (Info producer wins) /CreationDate (D:20260712000000Z) >> endobj\n"
+            . "trailer << /Root 1 0 R /Info 6 0 R >>\n%%EOF";
+
+        $meta = (new PdfReader())->read($pdf)->attr('meta');
+
+        $t->same('Info title wins', $meta['title']);
+        $t->same('Info author wins', $meta['author']);
+        $t->same('Info creator wins', $meta['creator']);
+        $t->same('Info producer wins', $meta['producer']);
+        $t->same('D:20260712000000Z', $meta['created']);
+    },
+    'does not decode root XMP before explicit PDF fast-mode selection' => static function (TestRunner $t): void {
+        $xmp = '<?xpacket begin=""?><x:xmpmeta xmlns:x="adobe:ns:meta/">'
+            . '<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns/">'
+            . '<rdf:Description rdf:about="" xmlns:dc="http://purl.org/dc/elements/1.1/">'
+            . '<dc:title>Fast mode must not read this XMP title</dc:title><dc:description>'
+            . str_repeat('x', 524_288)
+            . '</dc:description></rdf:Description></rdf:RDF></x:xmpmeta><?xpacket end="w"?>';
+        $compressedXmp = gzcompress($xmp, 9);
+        if (!is_string($compressedXmp)) {
+            throw new RuntimeException('Unable to compress fast-mode XMP fixture.');
+        }
+        $content = 'BT /F1 12 Tf 72 720 Td (Fast metadata body) Tj ET';
+        $pdf = "%PDF-1.7\n"
+            . "1 0 obj << /Type /Catalog /Pages 2 0 R /Metadata 5 0 R >> endobj\n"
+            . "2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj\n"
+            . "3 0 obj << /Type /Page /Parent 2 0 R /Contents 4 0 R >> endobj\n"
+            . '4 0 obj << /Length ' . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+            . '5 0 obj << /Type /Metadata /Subtype /XML /Filter /FlateDecode /Length ' . strlen($compressedXmp) . " >>\nstream\n{$compressedXmp}\nendstream\nendobj\n"
+            . "trailer << /Root 1 0 R >>\n%%EOF";
+
+        $meta = (new PdfReader(['pdfFastTextOnly' => true]))->read($pdf)->attr('meta');
+
+        // Omit /Length to exercise structural object-boundary discovery. It
+        // must not inflate this filtered XMP payload before fast mode is
+        // selected.
+        $withoutLength = "%PDF-1.7\n"
+            . "1 0 obj << /Type /Catalog /Pages 2 0 R /Metadata 5 0 R >> endobj\n"
+            . "2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj\n"
+            . "3 0 obj << /Type /Page /Parent 2 0 R /Contents 4 0 R >> endobj\n"
+            . '4 0 obj << /Length ' . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+            . "5 0 obj << /Type /Metadata /Subtype /XML /Filter /FlateDecode >>\nstream\n{$compressedXmp}\nendstream\nendobj\n"
+            . "trailer << /Root 1 0 R >>\n%%EOF";
+        $withoutLengthMeta = (new PdfReader(['pdfFastTextOnly' => true]))->read($withoutLength)->attr('meta');
+
+        $t->same(true, $meta['pdfFastTextOnly']);
+        $t->same(5, $meta['pdfObjectCount']);
+        $t->true(!array_key_exists('title', $meta));
+        $t->same(true, $withoutLengthMeta['pdfFastTextOnly']);
+        $t->same(5, $withoutLengthMeta['pdfObjectCount']);
+        $t->true(!array_key_exists('title', $withoutLengthMeta));
+    },
     'reads PDF metadata only from structural metadata objects' => static function (TestRunner $t): void {
         $content = "BT /F1 12 Tf 72 720 Td (Metadata body) Tj ET\n"
             . "/Title (Forged stream title)\n"

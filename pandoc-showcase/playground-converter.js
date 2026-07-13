@@ -1,4 +1,4 @@
-const pluginBuild = 'legacy-doc-20260709';
+const pluginBuild = 'document-inference-20260713';
 const playgroundClientModuleUrl = 'https://playground.wordpress.net/client/index.js';
 
 const iframe = document.getElementById('wp-playground');
@@ -6,7 +6,6 @@ const playgroundPanel = document.getElementById('playground-panel');
 const form = document.getElementById('converter-form');
 const fileInput = document.getElementById('file-input');
 const directoryInput = document.getElementById('directory-input');
-const formatInput = document.getElementById('format-input');
 const titleInput = document.getElementById('title-input');
 const imageModeInputs = Array.from(document.querySelectorAll('input[name="image-mode"]'));
 const pdfModeControl = document.getElementById('pdf-mode-control');
@@ -25,53 +24,6 @@ const qualityMessage = document.getElementById('quality-message');
 const qualityDetails = document.getElementById('quality-details');
 const retryActions = document.getElementById('retry-actions');
 const retryButtons = Array.from(document.querySelectorAll('[data-retry-image-mode], [data-retry-pdf-mode]'));
-
-const formatByExtension = new Map(Object.entries({
-  bib: 'bibtex',
-  biblatex: 'biblatex',
-  bits: 'bits',
-  commonmark: 'commonmark',
-  csljson: 'csljson',
-  csv: 'csv',
-  dbk: 'docbook',
-  doc: 'doc',
-  docbook: 'docbook',
-  docx: 'docx',
-  dokuwiki: 'dokuwiki',
-  enl: 'endnotexml',
-  endnote: 'endnotexml',
-  endnotexml: 'endnotexml',
-  epub: 'epub',
-  fb2: 'fb2',
-  gfm: 'gfm',
-  htm: 'html',
-  html: 'html',
-  ipynb: 'ipynb',
-  jats: 'jats',
-  jira: 'jira',
-  json: 'json',
-  man: 'man',
-  mdoc: 'mdoc',
-  markdown: 'markdown',
-  md: 'markdown',
-  mediawiki: 'mediawiki',
-  mw: 'mediawiki',
-  native: 'native',
-  odt: 'odt',
-  opml: 'opml',
-  pdf: 'pdf',
-  pptx: 'pptx',
-  ris: 'ris',
-  rst: 'rst',
-  rtf: 'rtf',
-  tex: 'latex',
-  tsv: 'tsv',
-  txt: 'markdown',
-  wiki: 'mediawiki',
-  xlsx: 'xlsx',
-  xml: 'xml',
-  zip: 'zip',
-}));
 
 let playgroundClient = null;
 let playgroundReady = false;
@@ -298,7 +250,6 @@ function setSelectedUpload(upload) {
   if (!upload) {
     fileName.textContent = 'No file selected';
     titleInput.value = '';
-    formatInput.value = '';
     updatePdfModeVisibility(null);
     updateConvertAvailability();
     return;
@@ -306,8 +257,7 @@ function setSelectedUpload(upload) {
 
   fileName.textContent = `${upload.displayName} (${formatBytes(upload.totalSize)})`;
   titleInput.value = upload.title;
-  formatInput.value = upload.format;
-  setStatus('idle', `Ready to import ${upload.displayName}.`);
+  setStatus('idle', `Ready to detect and import ${upload.displayName}.`);
   updatePdfModeVisibility(upload);
   updateConvertAvailability();
 }
@@ -324,7 +274,6 @@ function setBusy(busy) {
     input.disabled = busy;
   }
   dropzone.dataset.disabled = busy ? 'true' : 'false';
-  formatInput.disabled = busy;
   titleInput.disabled = busy;
   convertButton.textContent = busy ? 'Converting...' : convertButtonLabel();
 }
@@ -382,13 +331,11 @@ function uploadFromFiles(files, options = {}) {
   const forceBatch = options.forceBatch || entries.length > 1 || entries.some((entry) => entry.path.includes('/'));
   if (!forceBatch && entries.length === 1) {
     const file = entries[0].file;
-    const extension = extensionFromName(file.name);
 
     return {
       kind: 'single',
       displayName: file.name,
       title: titleFromFilename(file.name),
-      format: formatByExtension.get(extension) || '',
       totalSize: file.size,
       entries,
     };
@@ -401,7 +348,6 @@ function uploadFromFiles(files, options = {}) {
     kind: 'collection',
     displayName,
     title: titleFromFilename(displayName),
-    format: '',
     totalSize: entries.reduce((sum, entry) => sum + entry.file.size, 0),
     entries,
   };
@@ -478,7 +424,6 @@ async function payloadFromUpload(upload, reportProgress = () => {}) {
 
     return {
       filename: entry.file.name,
-      format: upload.format,
       title: upload.title,
       imageMode,
       pdfMode: selectedPdfMode(),
@@ -514,7 +459,7 @@ async function payloadFromUpload(upload, reportProgress = () => {}) {
 }
 
 async function payloadFileEntry(entry, imageMode, reportProgress) {
-  if (formatByExtension.get(extensionFromName(entry.file.name)) !== 'pdf') {
+  if (!isLikelyPdfFile(entry.file)) {
     return { bytes: await readFileAsBase64(entry.file), pdfRasterImages: [] };
   }
 
@@ -593,14 +538,11 @@ function uploadContainsPdf(upload) {
   if (!upload) {
     return false;
   }
-  if (upload.format === 'pdf') {
-    return true;
-  }
+  return upload.entries.some((entry) => isLikelyPdfFile(entry.file));
+}
 
-  return upload.entries.some((entry) => {
-    const extension = entry.file.name.split('.').pop()?.toLowerCase() || '';
-    return formatByExtension.get(extension) === 'pdf';
-  });
+function isLikelyPdfFile(file) {
+  return file.type === 'application/pdf' || extensionFromName(file.name) === 'pdf';
 }
 
 function setQualityPanel(quality) {

@@ -66,17 +66,48 @@ final class OpcRelationships
 
     public static function fromPackage(ZipPackage $package, string $sourcePartName = '/'): self
     {
-        $relationshipPart = self::relationshipPartForSourceInPackage($package, $sourcePartName);
-        if ($relationshipPart === null) {
-            throw new \RuntimeException('OPC relationship part not found: ' . self::relationshipPartNameForSource($sourcePartName));
-        }
+        return self::fromPackageWithReadLimit($package, $sourcePartName, null);
+    }
 
-        return self::fromXml($package->read($relationshipPart['relationshipPartName']), $relationshipPart['sourcePartName']);
+    public static function fromPackageBounded(
+        ZipPackage $package,
+        string $sourcePartName,
+        int $maxUncompressedBytes
+    ): self {
+        self::assertNonNegativeMaxUncompressedBytes($maxUncompressedBytes);
+
+        return self::fromPackageWithReadLimit($package, $sourcePartName, $maxUncompressedBytes);
     }
 
     public static function packageHasRelationshipsForSource(ZipPackage $package, string $sourcePartName = '/'): bool
     {
         return self::relationshipPartsForSourceInPackage($package, $sourcePartName) !== [];
+    }
+
+    public static function packageHasRelationshipsForSourceBounded(
+        ZipPackage $package,
+        string $sourcePartName,
+        int $maxUncompressedBytes
+    ): bool {
+        self::assertNonNegativeMaxUncompressedBytes($maxUncompressedBytes);
+
+        return self::relationshipPartsForSourceInPackage($package, $sourcePartName, $maxUncompressedBytes) !== [];
+    }
+
+    private static function fromPackageWithReadLimit(
+        ZipPackage $package,
+        string $sourcePartName,
+        ?int $maxUncompressedBytes
+    ): self {
+        $relationshipPart = self::relationshipPartForSourceInPackage($package, $sourcePartName, $maxUncompressedBytes);
+        if ($relationshipPart === null) {
+            throw new \RuntimeException('OPC relationship part not found: ' . self::relationshipPartNameForSource($sourcePartName));
+        }
+
+        return self::fromXml(
+            self::readPackagePart($package, $relationshipPart['relationshipPartName'], $maxUncompressedBytes),
+            $relationshipPart['sourcePartName']
+        );
     }
 
     public static function relationshipPartNameForSource(string $sourcePartName): string
@@ -183,6 +214,20 @@ final class OpcRelationships
         return null;
     }
 
+    /**
+     * @param list<string> $types
+     */
+    public function firstOfTypes(array $types): ?OpcRelationship
+    {
+        foreach ($this->relationships as $relationship) {
+            if (in_array($relationship->type, $types, true)) {
+                return $relationship;
+            }
+        }
+
+        return null;
+    }
+
     public function relationshipPartName(): string
     {
         return self::relationshipPartNameForSource($this->sourcePartName);
@@ -270,9 +315,13 @@ final class OpcRelationships
     /**
      * @return array{relationshipPartName:string, sourcePartName:string}|null
      */
-    private static function relationshipPartForSourceInPackage(ZipPackage $package, string $sourcePartName): ?array
+    private static function relationshipPartForSourceInPackage(
+        ZipPackage $package,
+        string $sourcePartName,
+        ?int $maxUncompressedBytes = null
+    ): ?array
     {
-        $relationshipParts = self::relationshipPartsForSourceInPackage($package, $sourcePartName);
+        $relationshipParts = self::relationshipPartsForSourceInPackage($package, $sourcePartName, $maxUncompressedBytes);
         if ($relationshipParts === []) {
             return null;
         }
@@ -290,12 +339,16 @@ final class OpcRelationships
     /**
      * @return list<array{relationshipPartName:string, sourcePartName:string}>
      */
-    private static function relationshipPartsForSourceInPackage(ZipPackage $package, string $sourcePartName): array
+    private static function relationshipPartsForSourceInPackage(
+        ZipPackage $package,
+        string $sourcePartName,
+        ?int $maxUncompressedBytes = null
+    ): array
     {
         $sourcePartName = OpcPackagePath::canonicalPartName($sourcePartName, true);
         self::assertRelationshipSourcePartName($sourcePartName);
         $sourceEquivalenceKey = self::partNameEquivalenceKey($sourcePartName);
-        $contentTypes = self::contentTypesForPackage($package);
+        $contentTypes = self::contentTypesForPackage($package, $maxUncompressedBytes);
         $relationshipParts = [];
 
         foreach ($package->names() as $packageName) {
@@ -339,14 +392,33 @@ final class OpcRelationships
         return $relationshipParts;
     }
 
-    private static function contentTypesForPackage(ZipPackage $package): ?OpcContentTypes
+    private static function contentTypesForPackage(ZipPackage $package, ?int $maxUncompressedBytes = null): ?OpcContentTypes
     {
         $contentTypesItemName = self::contentTypesItemNameInPackage($package);
         if ($contentTypesItemName === null) {
             return null;
         }
 
-        return OpcContentTypes::fromXml($package->read($contentTypesItemName));
+        return OpcContentTypes::fromXml(self::readPackagePart($package, $contentTypesItemName, $maxUncompressedBytes));
+    }
+
+    private static function readPackagePart(
+        ZipPackage $package,
+        string $partName,
+        ?int $maxUncompressedBytes
+    ): string {
+        if ($maxUncompressedBytes === null) {
+            return $package->read($partName);
+        }
+
+        return $package->readBounded($partName, $maxUncompressedBytes);
+    }
+
+    private static function assertNonNegativeMaxUncompressedBytes(int $maxUncompressedBytes): void
+    {
+        if ($maxUncompressedBytes < 0) {
+            throw new \InvalidArgumentException('OPC relationship read limit must not be negative');
+        }
     }
 
     private static function contentTypeMatches(?string $actual, string $expected): bool

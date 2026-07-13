@@ -45,8 +45,15 @@ jobs:
           php -l lanes/pandoc/src/XlsxUpstreamReaderEvidence.php
           php -l lanes/pandoc/src/NativeReader.php
           php -l lanes/pandoc/src/NativeWriter.php
+          php -l lanes/pandoc/src/OpcContentTypes.php
+          php -l lanes/pandoc/src/OpcRelationshipInventory.php
+          php -l lanes/pandoc/src/OpcMarkupCompatibility.php
+          php -l lanes/pandoc/src/OpcPackagePath.php
+          php -l lanes/pandoc/src/OpcRelationship.php
+          php -l lanes/pandoc/src/OpcRelationships.php
           php -l lanes/pandoc/src/ZipPackage.php
           php -l lanes/pandoc/src/ZipPackageEntry.php
+          php -l lanes/pandoc/tests/OpenPackagingConventionsTest.php
           php -l lanes/pandoc/tests/XlsxReaderTest.php
           php -l lanes/pandoc/tests/XlsxNativeAstComparisonHarnessTest.php
           php -l lanes/pandoc/tests/XlsxExecutableNativeAstComparisonHarnessTest.php
@@ -141,6 +148,7 @@ jobs:
       - name: Run focused XLSX parity tests
         run: |
           php tools/run-tests.php \
+            lanes/pandoc/tests/OpenPackagingConventionsTest.php \
             lanes/pandoc/tests/XlsxNativeAstComparisonHarnessTest.php \
             lanes/pandoc/tests/XlsxExecutableNativeAstComparisonHarnessTest.php \
             lanes/pandoc/tests/XlsxUpstreamReaderEvidenceTest.php \

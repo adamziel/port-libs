@@ -6,13 +6,33 @@ namespace PortLibs\Pandoc;
 
 final class PptxReader
 {
-    private const OFFICE_DOCUMENT_RELATIONSHIP = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument';
+    private const TRANSITIONAL_OFFICE_DOCUMENT_RELATIONSHIP = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument';
+    private const STRICT_OFFICE_DOCUMENT_RELATIONSHIP = 'http://purl.oclc.org/ooxml/officeDocument/relationships/officeDocument';
+    private const OFFICE_DOCUMENT_RELATIONSHIP_TYPES = [
+        self::TRANSITIONAL_OFFICE_DOCUMENT_RELATIONSHIP,
+        self::STRICT_OFFICE_DOCUMENT_RELATIONSHIP,
+    ];
     private const MISSING_RELATIONSHIP_TYPE = 'urn:port-libs:pandoc:pptx:missing-relationship-type';
     private const RELATIONSHIP_NAMESPACE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+    private const STRICT_RELATIONSHIP_NAMESPACE = 'http://purl.oclc.org/ooxml/officeDocument/relationships';
+    private const RELATIONSHIP_NAMESPACES = [
+        self::RELATIONSHIP_NAMESPACE,
+        self::STRICT_RELATIONSHIP_NAMESPACE,
+    ];
     private const PRESENTATION_NAMESPACE = 'http://schemas.openxmlformats.org/presentationml/2006/main';
+    private const STRICT_PRESENTATION_NAMESPACE = 'http://purl.oclc.org/ooxml/presentationml/main';
+    private const PRESENTATION_NAMESPACES = [
+        self::PRESENTATION_NAMESPACE,
+        self::STRICT_PRESENTATION_NAMESPACE,
+    ];
     private const PRESENTATION14_NAMESPACE = 'http://schemas.microsoft.com/office/powerpoint/2010/main';
     private const PRESENTATION14_SECTION_LIST_EXTENSION_URI = '{521415D9-36F7-43E2-AB2F-B90AF26B5E84}';
     private const DRAWING_NAMESPACE = 'http://schemas.openxmlformats.org/drawingml/2006/main';
+    private const STRICT_DRAWING_NAMESPACE = 'http://purl.oclc.org/ooxml/drawingml/main';
+    private const DRAWING_NAMESPACES = [
+        self::DRAWING_NAMESPACE,
+        self::STRICT_DRAWING_NAMESPACE,
+    ];
     private const DIAGRAM_NAMESPACE = 'http://schemas.openxmlformats.org/drawingml/2006/diagram';
     private const COMMENT_AUTHORS_PART = '/ppt/commentAuthors.xml';
     private const CORE_PROPERTIES_RELATIONSHIP_SUFFIX = '/metadata/core-properties';
@@ -389,7 +409,7 @@ final class PptxReader
             foreach ($this->childElements($root, null) as $relationshipElement) {
                 $relationshipCount++;
                 $type = $relationshipElement->getAttribute('Type');
-                if ($type !== self::OFFICE_DOCUMENT_RELATIONSHIP) {
+                if (!in_array($type, self::OFFICE_DOCUMENT_RELATIONSHIP_TYPES, true)) {
                     continue;
                 }
                 if (!$relationshipElement->hasAttribute('Target')) {
@@ -1999,7 +2019,7 @@ final class PptxReader
 
         $backgrounds = [];
         foreach ($background->getElementsByTagName('*') as $element) {
-            if (!$element instanceof \DOMElement || $element->namespaceURI !== self::DRAWING_NAMESPACE || $element->localName !== 'blip') {
+            if (!$element instanceof \DOMElement || !$this->isDrawingElement($element, 'blip')) {
                 continue;
             }
 
@@ -2138,7 +2158,7 @@ final class PptxReader
     {
         foreach ($this->childElements($transition, null) as $child) {
             if (
-                $child->namespaceURI !== self::PRESENTATION_NAMESPACE
+                !self::isPresentationNamespace($child->namespaceURI)
                 || in_array($child->localName, ['sndAc', 'extLst'], true)
             ) {
                 continue;
@@ -2269,7 +2289,7 @@ final class PptxReader
         ];
         $nodeTypes = [];
         foreach ($timing->getElementsByTagName('*') as $element) {
-            if (!$element instanceof \DOMElement || $element->namespaceURI !== self::PRESENTATION_NAMESPACE) {
+            if (!$element instanceof \DOMElement || !self::isPresentationNamespace($element->namespaceURI)) {
                 continue;
             }
 
@@ -2303,7 +2323,7 @@ final class PptxReader
         }
 
         $rootTimeNode = $this->firstDescendantElement($timing, 'cTn');
-        if ($rootTimeNode instanceof \DOMElement && $rootTimeNode->namespaceURI === self::PRESENTATION_NAMESPACE) {
+        if ($rootTimeNode instanceof \DOMElement && self::isPresentationNamespace($rootTimeNode->namespaceURI)) {
             $metadata['rootTimeNode'] = $this->timingNodeMetadata($rootTimeNode);
         }
 
@@ -2344,7 +2364,7 @@ final class PptxReader
 
     private function isAnimationBehaviorElement(\DOMElement $element): bool
     {
-        return $element->namespaceURI === self::PRESENTATION_NAMESPACE
+        return self::isPresentationNamespace($element->namespaceURI)
             && in_array($element->localName, ['anim', 'animClr', 'animEffect', 'animMotion', 'animRot', 'animScale', 'cmd', 'set'], true);
     }
 
@@ -2404,7 +2424,7 @@ final class PptxReader
         }
 
         foreach ($this->childElements($targetElement, null) as $target) {
-            if ($target->namespaceURI !== self::PRESENTATION_NAMESPACE) {
+            if (!self::isPresentationNamespace($target->namespaceURI)) {
                 continue;
             }
 
@@ -2437,7 +2457,7 @@ final class PptxReader
         $fallback = [];
         $node = $animation->parentNode;
         while ($node instanceof \DOMNode) {
-            if ($node instanceof \DOMElement && $node->namespaceURI === self::PRESENTATION_NAMESPACE && $node->localName === 'cTn') {
+            if ($node instanceof \DOMElement && self::isPresentationNamespace($node->namespaceURI) && $node->localName === 'cTn') {
                 $metadata = $this->timingNodeMetadata($node);
                 if ($fallback === []) {
                     $fallback = $metadata;
@@ -2854,7 +2874,7 @@ final class PptxReader
     private function placeholderElement(\DOMElement $shapeElement): ?\DOMElement
     {
         foreach ($this->childElements($shapeElement, null) as $child) {
-            if ($child->namespaceURI !== self::PRESENTATION_NAMESPACE || !str_starts_with($child->localName, 'nv')) {
+            if (!self::isPresentationNamespace($child->namespaceURI) || !str_starts_with($child->localName, 'nv')) {
                 continue;
             }
 
@@ -3153,7 +3173,7 @@ final class PptxReader
 
     private function isGroupedShapeDrawable(\DOMElement $element): bool
     {
-        return $element->namespaceURI === self::PRESENTATION_NAMESPACE
+        return self::isPresentationNamespace($element->namespaceURI)
             && in_array($element->localName, ['sp', 'pic', 'graphicFrame', 'grpSp', 'cxnSp', 'contentPart'], true);
     }
 
@@ -3305,7 +3325,7 @@ final class PptxReader
     private function nonVisualDrawingProperties(\DOMElement $shapeElement): ?\DOMElement
     {
         foreach ($this->childElements($shapeElement, null) as $child) {
-            if ($child->namespaceURI !== self::PRESENTATION_NAMESPACE || !str_starts_with($child->localName, 'nv')) {
+            if (!self::isPresentationNamespace($child->namespaceURI) || !str_starts_with($child->localName, 'nv')) {
                 continue;
             }
 
@@ -3856,7 +3876,7 @@ final class PptxReader
         $inlines = [];
         $hasStructuredInline = false;
         foreach ($this->childElements($paragraphElement, null) as $child) {
-            if ($child->namespaceURI !== self::DRAWING_NAMESPACE || !in_array($child->localName, ['r', 'fld'], true)) {
+            if (!self::isDrawingNamespace($child->namespaceURI) || !in_array($child->localName, ['r', 'fld'], true)) {
                 continue;
             }
 
@@ -3883,7 +3903,7 @@ final class PptxReader
     {
         $inlines = [];
         foreach ($this->childElements($runElement, null) as $child) {
-            if ($child->namespaceURI === self::DRAWING_NAMESPACE && $child->localName === 't') {
+            if (self::isDrawingNamespace($child->namespaceURI) && $child->localName === 't') {
                 if ($child->textContent !== '') {
                     $inlines[] = new AstNode('text', ['text' => $child->textContent]);
                 }
@@ -5983,12 +6003,20 @@ final class PptxReader
 
     private function firstPresentationChildElement(\DOMElement $parent, string $localName): ?\DOMElement
     {
-        return $this->firstNamespacedChildElement($parent, $localName, self::PRESENTATION_NAMESPACE);
+        foreach ($this->presentationChildElements($parent, $localName) as $child) {
+            return $child;
+        }
+
+        return null;
     }
 
     private function firstDrawingChildElement(\DOMElement $parent, string $localName): ?\DOMElement
     {
-        return $this->firstNamespacedChildElement($parent, $localName, self::DRAWING_NAMESPACE);
+        foreach ($this->drawingChildElements($parent, $localName) as $child) {
+            return $child;
+        }
+
+        return null;
     }
 
     /**
@@ -5996,7 +6024,10 @@ final class PptxReader
      */
     private function presentationChildElements(\DOMElement $parent, string $localName): array
     {
-        return $this->namespacedChildElements($parent, $localName, self::PRESENTATION_NAMESPACE);
+        return array_values(array_filter(
+            $this->childElements($parent, $localName),
+            static fn (\DOMElement $child): bool => self::isPresentationNamespace($child->namespaceURI)
+        ));
     }
 
     /**
@@ -6004,7 +6035,10 @@ final class PptxReader
      */
     private function drawingChildElements(\DOMElement $parent, string $localName): array
     {
-        return $this->namespacedChildElements($parent, $localName, self::DRAWING_NAMESPACE);
+        return array_values(array_filter(
+            $this->childElements($parent, $localName),
+            static fn (\DOMElement $child): bool => self::isDrawingNamespace($child->namespaceURI)
+        ));
     }
 
     private function firstNamespacedChildElement(\DOMElement $parent, string $localName, string $namespace): ?\DOMElement
@@ -6029,7 +6063,24 @@ final class PptxReader
 
     private function isPresentationElement(\DOMElement $element, string $localName): bool
     {
-        return $element->localName === $localName && $element->namespaceURI === self::PRESENTATION_NAMESPACE;
+        return $element->localName === $localName
+            && self::isPresentationNamespace($element->namespaceURI);
+    }
+
+    private function isDrawingElement(\DOMElement $element, string $localName): bool
+    {
+        return $element->localName === $localName
+            && self::isDrawingNamespace($element->namespaceURI);
+    }
+
+    private static function isPresentationNamespace(?string $namespace): bool
+    {
+        return in_array($namespace, self::PRESENTATION_NAMESPACES, true);
+    }
+
+    private static function isDrawingNamespace(?string $namespace): bool
+    {
+        return in_array($namespace, self::DRAWING_NAMESPACES, true);
     }
 
     private function isTitlePlaceholder(\DOMElement $shapeElement): bool
@@ -6159,9 +6210,13 @@ final class PptxReader
 
     private function relationshipAttribute(\DOMElement $element, string $localName): ?string
     {
-        return $element->hasAttributeNS(self::RELATIONSHIP_NAMESPACE, $localName)
-            ? $element->getAttributeNS(self::RELATIONSHIP_NAMESPACE, $localName)
-            : null;
+        foreach (self::RELATIONSHIP_NAMESPACES as $namespace) {
+            if ($element->hasAttributeNS($namespace, $localName)) {
+                return $element->getAttributeNS($namespace, $localName);
+            }
+        }
+
+        return null;
     }
 
     private function relationshipAttributeForPrefix(\DOMElement $element, string $prefix, string $localName, ?string $outerNamespace): ?string
