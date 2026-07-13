@@ -632,6 +632,11 @@ return [
         $t->contains('To prevent hospital infections.', $cdcText);
         $t->contains('You should practice hand hygiene:', $cdcText);
         $t->contains('Before preparing or eating food.', $cdcText);
+        // The source text layer paints this ordinary sentence boundary as
+        // `restroom.Your`. It must be recovered by the general punctuation
+        // boundary path, not a vocabulary entry for the following word.
+        $t->contains('after using the restroom. Your healthcare provider should practice hand hygiene', $cdcText);
+        $t->true(!str_contains($cdcText, 'restroom.Your healthcare provider'));
         $t->contains('To prevent hospital infections.', $cdc['blocks']);
         $t->contains('You should practice hand hygiene:', $cdc['blocks']);
         $t->contains('Healthcare providers should practice hand hygiene:', $cdc['blocks']);

@@ -19,6 +19,8 @@ if (!defined('ABSPATH')) {
 const PLPC_MAX_COLLECTION_FILES = 200;
 const PLPC_MAX_COLLECTION_TOTAL_BYTES = 90000000;
 const PLPC_MAX_COLLECTION_FILE_BYTES = 25000000;
+const PLPC_MAX_STAGED_UPLOAD_BYTES = 90000000;
+const PLPC_STAGED_UPLOAD_DIRECTORY = '/tmp/port-libs-converter';
 const PLPC_MAX_PDF_RASTER_IMAGES = 96;
 const PLPC_MAX_PDF_RASTER_BYTES = 24000000;
 const PLPC_MAX_PDF_RASTER_IMAGE_BYTES = 16777216;
@@ -132,11 +134,7 @@ function plpc_convert_uploaded_document(WP_REST_Request $request): WP_REST_Respo
             return plpc_collection_response(plpc_collection_from_payload($payload, $title), $title, $imageMode, $pdfMode);
         }
 
-        $base64 = (string) ($payload['bytes'] ?? '');
-        $bytes = base64_decode($base64, true);
-        if (!is_string($bytes) || $bytes === '') {
-            throw new RuntimeException('The uploaded file was empty or could not be decoded.');
-        }
+        $bytes = plpc_uploaded_document_bytes($payload);
 
         $format = plpc_infer_document_format($filename, $bytes);
         if ($format === '') {
@@ -172,6 +170,92 @@ function plpc_convert_uploaded_document(WP_REST_Request $request): WP_REST_Respo
             'message' => $error->getMessage(),
         ], 500);
     }
+}
+
+/**
+ * Read a document supplied by the Playground client. Browser uploads are
+ * staged in Playground's local /tmp filesystem before the small REST request
+ * is made, avoiding base64 expansion and PHP request-body limits. Keep the
+ * legacy base64 field for existing trusted integrations.
+ *
+ * @param array<string, mixed> $payload
+ */
+function plpc_uploaded_document_bytes(array $payload): string
+{
+    $stagedPath = plpc_staged_upload_path_from_payload($payload);
+    if ($stagedPath !== null) {
+        try {
+            $size = filesize($stagedPath);
+            if (!is_int($size) || $size <= 0) {
+                throw new RuntimeException('The staged upload was empty or could not be read. Please choose the file again.');
+            }
+            if ($size > PLPC_MAX_STAGED_UPLOAD_BYTES) {
+                throw new RuntimeException('The selected file is too large to import.');
+            }
+
+            $bytes = file_get_contents($stagedPath);
+            if (!is_string($bytes) || $bytes === '') {
+                throw new RuntimeException('The staged upload was empty or could not be read. Please choose the file again.');
+            }
+
+            return $bytes;
+        } finally {
+            // The source has been copied into memory for conversion. Do not
+            // leave an unbounded sequence of browser uploads in Playground's
+            // temporary filesystem.
+            @unlink($stagedPath);
+        }
+    }
+
+    $base64 = (string) ($payload['bytes'] ?? '');
+    $bytes = base64_decode($base64, true);
+    if (!is_string($bytes) || $bytes === '') {
+        throw new RuntimeException('The uploaded file was empty or could not be decoded.');
+    }
+
+    return $bytes;
+}
+
+/**
+ * Only accept a direct, regular file in the dedicated Playground staging
+ * namespace. The REST payload is otherwise untrusted and must never select an
+ * arbitrary local path.
+ *
+ * @param array<string, mixed> $payload
+ */
+function plpc_staged_upload_path_from_payload(array $payload): ?string
+{
+    if (!array_key_exists('stagedPath', $payload)) {
+        return null;
+    }
+    if (array_key_exists('bytes', $payload)) {
+        throw new RuntimeException('An upload must use either staged bytes or encoded bytes, not both.');
+    }
+    if (!plpc_is_playground_environment()) {
+        throw new RuntimeException('Staged uploads are only available inside WordPress Playground.');
+    }
+    if (!is_string($payload['stagedPath'])) {
+        throw new RuntimeException('The staged upload path was invalid. Please choose the file again.');
+    }
+
+    $path = $payload['stagedPath'];
+    $root = realpath(PLPC_STAGED_UPLOAD_DIRECTORY);
+    $resolvedPath = realpath($path);
+    $rootPrefix = is_string($root) ? rtrim($root, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR : '';
+    if (
+        $path === ''
+        || str_contains($path, "\0")
+        || !str_starts_with($path, PLPC_STAGED_UPLOAD_DIRECTORY . '/')
+        || !is_string($root)
+        || !is_string($resolvedPath)
+        || !str_starts_with($resolvedPath, $rootPrefix)
+        || !is_file($resolvedPath)
+        || is_link($path)
+    ) {
+        throw new RuntimeException('The staged upload is unavailable. Please choose the file again.');
+    }
+
+    return $resolvedPath;
 }
 
 function plpc_should_expand_zip_upload(string $format, string $bytes): bool

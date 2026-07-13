@@ -50,25 +50,29 @@ select:disabled { cursor: not-allowed; opacity: .58; }
   min-width: 0;
 }
 .example-title {
-  margin: 0 0 6px;
+  grid-area: title;
+  align-self: end;
+  margin: 0;
   font-size: clamp(15px, 1.8vw, 20px);
   line-height: 1.25;
 }
 .example-toolbar {
   display: grid;
   grid-template-columns: var(--arrow-width) minmax(0, 1fr) auto auto var(--arrow-width);
+  grid-template-rows: auto 48px;
+  grid-template-areas:
+    "previous title . . next"
+    "previous picker download own next";
   align-items: stretch;
-  gap: var(--toolbar-gap);
+  column-gap: var(--toolbar-gap);
+  row-gap: 6px;
   min-width: 0;
 }
 .picker-controls {
-  display: grid;
-  grid-column: 2;
-  grid-template-rows: auto minmax(48px, 1fr);
+  grid-area: picker;
   min-width: 0;
 }
 #example-picker {
-  grid-row: 2;
   width: 100%;
   min-width: 0;
   height: 48px;
@@ -82,7 +86,7 @@ select:disabled { cursor: not-allowed; opacity: .58; }
 .download-source,
 .try-own-file {
   display: inline-flex;
-  align-self: end;
+  align-self: stretch;
   align-items: center;
   justify-content: center;
   height: 48px;
@@ -96,11 +100,11 @@ select:disabled { cursor: not-allowed; opacity: .58; }
   white-space: nowrap;
 }
 .download-source {
-  grid-column: 3;
+  grid-area: download;
   text-decoration: none;
 }
 .try-own-file {
-  grid-column: 4;
+  grid-area: own;
 }
 .download-source:hover { border-color: var(--accent); background: #e6eefb; }
 .try-own-file:hover:not(:disabled) { border-color: var(--accent); background: #e6eefb; }
@@ -139,13 +143,12 @@ select:disabled { cursor: not-allowed; opacity: .58; }
 }
 .example-arrow {
   display: flex;
-  grid-row: 1;
   align-self: stretch;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  width: var(--arrow-width);
-  min-height: 80px;
+  width: 100%;
+  min-height: 0;
   padding: 8px 6px;
   border: 1px solid #aeb9c7;
   border-radius: 8px;
@@ -156,10 +159,26 @@ select:disabled { cursor: not-allowed; opacity: .58; }
 .arrow-glyph { font-size: 42px; line-height: .9; }
 .arrow-label { margin-top: 7px; font-size: 12px; font-weight: 700; line-height: 1.15; text-align: center; }
 .previous-arrow {
-  grid-column: 1;
+  grid-area: previous;
 }
 .next-arrow {
-  grid-column: 5;
+  grid-area: next;
+}
+.viewer-status {
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  border: 1px solid #b8c7dc;
+  border-radius: 8px;
+  background: #f3f7fd;
+  color: #24446d;
+  font-size: 14px;
+  line-height: 1.35;
+}
+.viewer-status[hidden] { display: none; }
+.viewer-status[data-tone="error"] {
+  border-color: #d98f8f;
+  background: #fff5f5;
+  color: #8d2525;
 }
 .example-preview {
   display: grid;
@@ -190,15 +209,21 @@ select:disabled { cursor: not-allowed; opacity: .58; }
   border: 0;
 }
 @media (max-width: 640px) {
-  .picker-area { --arrow-width: 66px; --toolbar-gap: 8px; position: relative; width: 100%; max-width: 100%; padding: 10px calc(var(--arrow-width) + 18px) 8px; }
-  .example-title { margin-bottom: 5px; font-size: 16px; }
-  .example-toolbar { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto; }
-  .picker-controls { grid-column: 1; grid-row: 1; }
-  .download-source { grid-column: 1; grid-row: 2; width: 100%; }
-  .try-own-file { grid-column: 1; grid-row: 3; width: 100%; }
-  .example-arrow { position: absolute; top: 10px; bottom: 8px; z-index: 2; grid-row: auto; min-height: 0; }
-  .previous-arrow { grid-column: auto; left: 10px; }
-  .next-arrow { grid-column: auto; right: 10px; }
+  .picker-area { --arrow-width: clamp(54px, 17vw, 66px); --toolbar-gap: 8px; width: 100%; max-width: 100%; padding: 10px; }
+  .example-title { font-size: 16px; }
+  .example-toolbar {
+    grid-template-columns: var(--arrow-width) minmax(0, 1fr) var(--arrow-width);
+    grid-template-rows: auto 48px 48px 48px;
+    grid-template-areas:
+      "previous title next"
+      "previous picker next"
+      "previous download next"
+      "previous own next";
+    row-gap: 8px;
+  }
+  .download-source,
+  .try-own-file { min-width: 0; width: 100%; padding-inline: 8px; white-space: normal; }
+  .example-arrow { position: static; min-height: 0; }
   .arrow-glyph { font-size: 34px; }
   .arrow-label { margin-top: 5px; font-size: 10px; }
   .view-tabs { padding-inline: 6px; }

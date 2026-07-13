@@ -285,7 +285,7 @@ HTML);
         $t->contains('alt="Cover art"', $blocks);
         $t->contains('<!-- wp:list -->', $converterBlocks);
     },
-    'rejects epub package xml declarations that can define entities or processing instructions' => static function (TestRunner $t): void {
+    'rejects epub package entity declarations while stripping inert processing instructions' => static function (TestRunner $t): void {
         $makePackage = static function (string $containerXml): string {
             $path = tempnam(sys_get_temp_dir(), 'pandoc-epub-xml-policy-');
             if ($path === false) {
@@ -304,8 +304,7 @@ HTML);
             return $path;
         };
 
-        $packages = [
-            $makePackage(<<<'XML'
+        $entityPackage = $makePackage(<<<'XML'
 <?xml version="1.0"?>
 <!DOCTYPE container [
   <!ENTITY reviewer SYSTEM "file:///etc/passwd">
@@ -313,22 +312,21 @@ HTML);
 <container xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
   <rootfiles><rootfile full-path="OPS/package.opf" media-type="application/oebps-package+xml"/></rootfiles>
 </container>
-XML),
-            $makePackage(<<<'XML'
+XML);
+        $processingInstructionPackage = $makePackage(<<<'XML'
 <?xml version="1.0"?>
 <?xml-stylesheet href="https://example.invalid/review.xsl"?>
 <container xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
   <rootfiles><rootfile full-path="OPS/package.opf" media-type="application/oebps-package+xml"/></rootfiles>
 </container>
-XML),
-        ];
+XML);
 
         try {
-            foreach ($packages as $path) {
-                $t->throws(InvalidArgumentException::class, static fn (): AstNode => (new EpubReader())->readEpubFile($path));
-            }
+            $t->throws(InvalidArgumentException::class, static fn (): AstNode => (new EpubReader())->readEpubFile($entityPackage));
+            $document = (new EpubReader())->readEpubFile($processingInstructionPackage);
+            $t->same('OPS/package.opf', $document->attr('meta')['epubRootfile'] ?? null);
         } finally {
-            foreach ($packages as $path) {
+            foreach ([$entityPackage, $processingInstructionPackage] as $path) {
                 @unlink($path);
             }
         }

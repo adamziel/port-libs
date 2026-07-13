@@ -14,6 +14,75 @@ final class PdfTextExtractor
     private const POSITIONED_TEXT_WORD_GAP = 12.0;
     private const POSITIONED_TEXT_LINE_TOLERANCE = 2.0;
     private const SIMPLE_TEXT_ADVANCE_RATIO = 0.5;
+    /**
+     * AFM advances for the printable ASCII subset of the Base 14 fonts.
+     *
+     * A simple Type 1 font is allowed to omit /Widths when it names one of
+     * the PDF Base 14 fonts. The PDF specification supplies those metrics;
+     * treating every missing glyph as half an em makes rendered endpoints
+     * depend on the letters in a word and creates false spaces at style
+     * boundaries. These tables cover byte codes 32 through 126 in order.
+     *
+     * @var array<string, string>
+     */
+    private const BASE14_ASCII_WIDTHS = [
+        'Courier' => '
+            600 600 600 600 600 600 600 600 600 600 600 600 600 600 600 600
+            600 600 600 600 600 600 600 600 600 600 600 600 600 600 600 600
+            600 600 600 600 600 600 600 600 600 600 600 600 600 600 600 600
+            600 600 600 600 600 600 600 600 600 600 600 600 600 600 600 600
+            600 600 600 600 600 600 600 600 600 600 600 600 600 600 600 600
+            600 600 600 600 600 600 600 600 600 600 600 600 600 600 600
+        ',
+        'Helvetica' => '
+            278 278 355 556 556 889 667 191 333 333 389 584 278 333 278 278
+            556 556 556 556 556 556 556 556 556 556 278 278 584 584 584 556
+            1015 667 667 722 722 667 611 778 722 278 500 667 556 833 722 778 667
+            778 722 667 611 722 667 944 667 667 611 278 278 278 469 556 222
+            556 556 500 556 556 278 556 556 222 222 500 222 833 556 556 556
+            556 333 500 278 556 500 722 500 500 500 334 260 334 584
+        ',
+        'Helvetica-Bold' => '
+            278 333 474 556 556 889 722 238 333 333 389 584 278 333 278 278
+            556 556 556 556 556 556 556 556 556 556 333 333 584 584 584 611
+            975 722 722 722 722 667 611 778 722 278 556 722 611 833 722 778 667
+            778 722 667 611 722 667 944 667 667 611 333 278 333 584 556 278
+            556 556 556 556 556 333 611 611 278 278 556 278 889 611 611 611
+            611 389 556 333 611 556 778 556 556 500 389 280 389 584
+        ',
+        'Times-Roman' => '
+            250 333 408 500 500 833 778 180 333 333 500 564 250 333 250 278
+            500 500 500 500 500 500 500 500 500 500 278 278 564 564 564 444
+            921 722 667 667 722 611 556 722 722 333 389 722 611 889 722 722 556
+            722 667 556 611 722 722 944 667 722 611 333 278 333 469 500 333
+            444 500 444 500 444 333 500 500 278 278 500 278 778 500 500 500
+            500 333 389 278 500 500 722 500 500 444 480 200 480 541
+        ',
+        'Times-Bold' => '
+            250 333 555 500 500 1000 833 278 333 333 500 570 250 333 250 278
+            500 500 500 500 500 500 500 500 500 500 333 333 570 570 570 500
+            930 722 667 722 722 667 611 778 778 389 500 778 667 944 722 778 611
+            778 722 556 667 722 722 1000 722 722 667 333 278 333 581 500 333
+            500 556 444 556 444 333 500 556 278 333 556 278 833 556 500 556
+            556 444 389 333 556 500 722 556 500 444 394 220 394 520
+        ',
+        'Times-Italic' => '
+            250 333 420 500 500 833 778 214 333 333 500 675 250 333 250 278
+            500 500 500 500 500 500 500 500 500 500 333 333 675 675 675 500
+            920 611 611 667 722 611 611 722 722 333 444 667 556 833 667 722 611
+            722 611 500 556 722 611 833 611 556 556 389 278 389 422 500 333
+            500 500 444 500 444 278 500 500 278 278 444 278 722 500 500 500
+            500 389 389 278 500 444 667 444 444 389 400 275 400 541
+        ',
+        'Times-BoldItalic' => '
+            250 389 555 500 500 833 778 278 333 333 500 570 250 333 250 278
+            500 500 500 500 500 500 500 500 500 500 333 333 570 570 570 500
+            832 667 667 667 722 667 667 722 778 389 500 667 611 889 722 722 611
+            722 667 556 611 722 667 889 667 611 611 333 278 333 570 500 333
+            500 500 444 500 444 333 500 556 278 278 500 278 778 556 500 500
+            500 389 389 278 556 444 667 500 444 389 348 220 348 570
+        ',
+    ];
     private const PDF_PASSWORD_PADDING = "\x28\xBF\x4E\x5E\x4E\x75\x8A\x41\x64\x00\x4E\x56\xFF\xFA\x01\x08\x2E\x2E\x00\xB6\xD0\x68\x3E\x80\x2F\x0C\xA9\xFE\x64\x53\x69\x7A";
     private const GLYPH_NAME_ENCODING = 'GlyphNameEncoding';
     private const SUPPORTED_STREAM_FILTERS = [
@@ -128,6 +197,7 @@ final class PdfTextExtractor
 
     /** @var array<string, array<string, mixed>|null> */
     private array $authenticatedEncryptionContexts = [];
+
     private const ZAPF_DINGBATS_ENCODING_GLYPHS = [
         0x20 => 'space', 0x21 => 'a1', 0x22 => 'a2', 0x23 => 'a202',
         0x24 => 'a3', 0x25 => 'a4', 0x26 => 'a5', 0x27 => 'a119',
@@ -605,7 +675,14 @@ final class PdfTextExtractor
 
         $runs = [];
         foreach ($this->limitedStreamContextIterator($pdfBytes) as $context) {
-            foreach ($this->textRunsFromContentStream($context['stream'], $context['fontToUnicodeMaps'], $context['fontEncodings'], $context['propertyActualTexts'], $context['mcidActualTexts'], $context['propertyMcids']) as $run) {
+            foreach ($this->textRunsFromContentStream(
+                $context['stream'],
+                $context['fontToUnicodeMaps'],
+                $context['fontEncodings'],
+                $context['propertyActualTexts'],
+                $context['mcidActualTexts'],
+                $context['propertyMcids']
+            ) as $run) {
                 if ($run !== '') {
                     $runs[] = $run;
                 }
@@ -630,7 +707,14 @@ final class PdfTextExtractor
         foreach ($this->limitedStreamContextIterator($pdfBytes) as $context) {
             $streamNumber++;
             $page = is_int($context['page'] ?? null) ? $context['page'] : $streamNumber;
-            foreach ($this->positionedTextRunsFromContentStream($context['stream'], $context['fontToUnicodeMaps'], $context['fontEncodings'], $context['propertyActualTexts'], $context['mcidActualTexts'], $context['propertyMcids']) as $run) {
+            foreach ($this->positionedTextRunsFromContentStream(
+                $context['stream'],
+                $context['fontToUnicodeMaps'],
+                $context['fontEncodings'],
+                $context['propertyActualTexts'],
+                $context['mcidActualTexts'],
+                $context['propertyMcids']
+            ) as $run) {
                 if ($run['text'] === '') {
                     continue;
                 }
@@ -717,7 +801,14 @@ final class PdfTextExtractor
             $page = is_int($context['page'] ?? null) ? $context['page'] : $streamNumber;
             $pageObject = is_int($context['pageObject'] ?? null) ? $context['pageObject'] : null;
             $textLineItems = [];
-            foreach ($this->textLinesFromContentStream($context['stream'], $context['fontToUnicodeMaps'], $context['fontEncodings'], $context['propertyActualTexts'], $context['mcidActualTexts'], $context['propertyMcids']) as $line) {
+            foreach ($this->textLinesFromContentStream(
+                $context['stream'],
+                $context['fontToUnicodeMaps'],
+                $context['fontEncodings'],
+                $context['propertyActualTexts'],
+                $context['mcidActualTexts'],
+                $context['propertyMcids']
+            ) as $line) {
                 if ($line !== '') {
                     $textLineItems[] = [
                         'page' => $page,
@@ -729,7 +820,14 @@ final class PdfTextExtractor
 
             $textRuns = [];
             if ($includeTextRuns) {
-                foreach ($this->textRunsFromContentStream($context['stream'], $context['fontToUnicodeMaps'], $context['fontEncodings'], $context['propertyActualTexts'], $context['mcidActualTexts'], $context['propertyMcids']) as $run) {
+                foreach ($this->textRunsFromContentStream(
+                    $context['stream'],
+                    $context['fontToUnicodeMaps'],
+                    $context['fontEncodings'],
+                    $context['propertyActualTexts'],
+                    $context['mcidActualTexts'],
+                    $context['propertyMcids']
+                ) as $run) {
                     if ($run !== '') {
                         $textRuns[] = $run;
                     }
@@ -738,7 +836,14 @@ final class PdfTextExtractor
 
             $positionedTextRuns = [];
             if ($includePositionedTextRuns && $positionedRunCount < $maxPositionedRuns) {
-                foreach ($this->positionedTextRunsFromContentStream($context['stream'], $context['fontToUnicodeMaps'], $context['fontEncodings'], $context['propertyActualTexts'], $context['mcidActualTexts'], $context['propertyMcids']) as $run) {
+                foreach ($this->positionedTextRunsFromContentStream(
+                    $context['stream'],
+                    $context['fontToUnicodeMaps'],
+                    $context['fontEncodings'],
+                    $context['propertyActualTexts'],
+                    $context['mcidActualTexts'],
+                    $context['propertyMcids']
+                ) as $run) {
                     if ($run['text'] === '') {
                         continue;
                     }
@@ -1023,6 +1128,8 @@ final class PdfTextExtractor
      *     missingUnicodeFonts: list<string>,
      *     missingUnicodeFontEncodings: array<string, string>,
      *     suppressedGlyphRuns: int,
+     *     partiallyMappedGlyphRuns: int,
+     *     unrecoverableActualTextRuns: int,
      *     ignoredXObjectSubtypes: list<string>,
      *     ignoredXObjectCount: int,
      *     taggedRoleMap: array<string, string>,
@@ -1163,6 +1270,12 @@ final class PdfTextExtractor
         if ($textDiagnostics['suppressedGlyphRuns'] > 0) {
             $warnings[] = $textDiagnostics['suppressedGlyphRuns'] . ' PDF text run(s) were suppressed because their font lacks a Unicode map.';
         }
+        if ($textDiagnostics['partiallyMappedGlyphRuns'] > 0) {
+            $warnings[] = $textDiagnostics['partiallyMappedGlyphRuns'] . ' PDF text run(s) lost glyphs through a partial Unicode map.';
+        }
+        if ($textDiagnostics['unrecoverableActualTextRuns'] > 0) {
+            $warnings[] = $textDiagnostics['unrecoverableActualTextRuns'] . ' marked PDF text run(s) had empty ActualText while hiding painted glyphs.';
+        }
         if ($xObjectDiagnostics['ignoredXObjectCount'] > 0) {
             $warnings[] = 'Ignored ' . $xObjectDiagnostics['ignoredXObjectCount'] . ' non-text PDF XObject(s): ' . implode(', ', $xObjectDiagnostics['ignoredXObjectSubtypes']) . '.';
         }
@@ -1186,6 +1299,8 @@ final class PdfTextExtractor
             'missingUnicodeFonts' => $textDiagnostics['missingUnicodeFonts'],
             'missingUnicodeFontEncodings' => $textDiagnostics['missingUnicodeFontEncodings'],
             'suppressedGlyphRuns' => $textDiagnostics['suppressedGlyphRuns'],
+            'partiallyMappedGlyphRuns' => $textDiagnostics['partiallyMappedGlyphRuns'],
+            'unrecoverableActualTextRuns' => $textDiagnostics['unrecoverableActualTextRuns'],
             'ignoredXObjectSubtypes' => $xObjectDiagnostics['ignoredXObjectSubtypes'],
             'ignoredXObjectCount' => $xObjectDiagnostics['ignoredXObjectCount'],
             'taggedRoleMap' => $taggedSemantics['roleMap'],
@@ -1209,13 +1324,15 @@ final class PdfTextExtractor
     }
 
     /**
-     * @return array{missingUnicodeFonts: list<string>, missingUnicodeFontEncodings: array<string, string>, suppressedGlyphRuns: int}
+     * @return array{missingUnicodeFonts: list<string>, missingUnicodeFontEncodings: array<string, string>, suppressedGlyphRuns: int, partiallyMappedGlyphRuns: int, unrecoverableActualTextRuns: int}
      */
     private function textSuppressionDiagnostics(string $pdfBytes): array
     {
         $missingUnicodeFonts = [];
         $missingUnicodeFontEncodings = [];
         $suppressedGlyphRuns = 0;
+        $partiallyMappedGlyphRuns = 0;
+        $unrecoverableActualTextRuns = 0;
 
         foreach ($this->streamContextIterator($pdfBytes) as $context) {
             $diagnostics = $this->suppressedGlyphDiagnosticsFromContentStream(
@@ -1227,6 +1344,8 @@ final class PdfTextExtractor
                 $context['propertyMcids']
             );
             $suppressedGlyphRuns += $diagnostics['suppressedGlyphRuns'];
+            $partiallyMappedGlyphRuns += $diagnostics['partiallyMappedGlyphRuns'];
+            $unrecoverableActualTextRuns += $diagnostics['unrecoverableActualTextRuns'];
             foreach ($diagnostics['missingUnicodeFonts'] as $fontName) {
                 $missingUnicodeFonts[] = $fontName;
             }
@@ -1243,6 +1362,8 @@ final class PdfTextExtractor
             'missingUnicodeFonts' => $missingUnicodeFonts,
             'missingUnicodeFontEncodings' => $missingUnicodeFontEncodings,
             'suppressedGlyphRuns' => $suppressedGlyphRuns,
+            'partiallyMappedGlyphRuns' => $partiallyMappedGlyphRuns,
+            'unrecoverableActualTextRuns' => $unrecoverableActualTextRuns,
         ];
     }
 
@@ -4772,7 +4893,14 @@ final class PdfTextExtractor
         foreach ($this->limitedStreamContextIterator($pdfBytes) as $context) {
             $streamNumber++;
             $page = is_int($context['page'] ?? null) ? $context['page'] : $streamNumber;
-            foreach ($this->textLinesFromContentStream($context['stream'], $context['fontToUnicodeMaps'], $context['fontEncodings'], $context['propertyActualTexts'], $context['mcidActualTexts'], $context['propertyMcids']) as $line) {
+            foreach ($this->textLinesFromContentStream(
+                $context['stream'],
+                $context['fontToUnicodeMaps'],
+                $context['fontEncodings'],
+                $context['propertyActualTexts'],
+                $context['mcidActualTexts'],
+                $context['propertyMcids']
+            ) as $line) {
                 if ($line !== '') {
                     $lines[] = [
                         'page' => $page,
@@ -4797,7 +4925,14 @@ final class PdfTextExtractor
 
         $pages = [];
         foreach ($this->limitedStreamContextIterator($pdfBytes) as $context) {
-            $pages[] = implode("\n", $this->textLinesFromContentStream($context['stream'], $context['fontToUnicodeMaps'], $context['fontEncodings'], $context['propertyActualTexts'], $context['mcidActualTexts'], $context['propertyMcids']));
+            $pages[] = implode("\n", $this->textLinesFromContentStream(
+                $context['stream'],
+                $context['fontToUnicodeMaps'],
+                $context['fontEncodings'],
+                $context['propertyActualTexts'],
+                $context['mcidActualTexts'],
+                $context['propertyMcids']
+            ));
         }
 
         return $pages;
@@ -6873,12 +7008,15 @@ final class PdfTextExtractor
     }
 
     /**
-     * @param array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>, writingMode?: int} $cmap
+     * @param array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>, writingMode?: int, isIdentityCidEncoding?: bool} $cmap
      * @param array<int, string> $objects
-     * @return array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>, writingMode: int}
+     * @return array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>, writingMode: int, isIdentityCidEncoding: bool}
      */
     private function withFontWritingMode(array $cmap, string $fontObjectBody, array $objects): array
     {
+        $cidEncodingName = $this->cidEncodingNameFromFontObject($fontObjectBody, $objects);
+        $cmap['isIdentityCidEncoding'] = $cidEncodingName === 'Identity-H'
+            || $cidEncodingName === 'Identity-V';
         if ($this->fontObjectWritingMode($fontObjectBody, $objects) === 1) {
             $cmap['writingMode'] = 1;
         } else {
@@ -7049,7 +7187,7 @@ final class PdfTextExtractor
 
     /**
      * @param array<int, string> $objects
-     * @return array{base: string, differences: array<int, string>, suppressUnmapped: bool}|null
+     * @return array{base: string, baseFont?: string, differences: array<int, string>, suppressUnmapped: bool, widths?: array<int, float>}|null
      */
     private function missingUnicodeCidFontEncodingFromObject(int $objectNumber, array $objects): ?array
     {
@@ -8638,10 +8776,8 @@ final class PdfTextExtractor
     }
 
     /**
-     * @return array{base: string, differences: array<int, string>, suppressUnmapped: bool}|null
-     */
-    /**
      * @param array<int, string> $objects
+     * @return array{base: string, baseFont?: string, differences: array<int, string>, suppressUnmapped: bool, widths?: array<int, float>}|null
      */
     private function fontEncodingFromObject(string $objectBody, array $objects = []): ?array
     {
@@ -8650,13 +8786,26 @@ final class PdfTextExtractor
             if (isset($objects[$encodingObjectNumber])) {
                 $encoding = $this->fontEncodingFromObject($objects[$encodingObjectNumber], $objects);
                 if ($encoding !== null) {
+                    // The encoding dictionary is commonly indirect while
+                    // /FirstChar and /Widths remain on the parent font. Keep
+                    // those metrics with the resolved encoding so endpoint
+                    // calculations use the rendered advances rather than a
+                    // generic half-em estimate.
+                    $outerWidths = $this->fontWidthsFromObject($objectBody, $objects);
+                    if ($outerWidths !== []) {
+                        $encoding['widths'] = $outerWidths;
+                    }
+                    $outerBaseFont = $this->baseFontNameFromObject($objectBody);
+                    if ($outerBaseFont !== null) {
+                        $encoding['baseFont'] = $outerBaseFont;
+                    }
                     if ($this->isType3FontWithSafeDeclaredEncoding($objectBody, $encoding['base'])) {
                         $encoding['suppressUnmapped'] = false;
                     }
                     if ($this->isSimpleWidthEncodedFontWithSafeDeclaredEncoding(
                         $objectBody,
                         $encoding['base'],
-                        $this->fontWidthsFromObject($objectBody, $objects)
+                        $outerWidths
                     )) {
                         $encoding['suppressUnmapped'] = false;
                     }
@@ -8725,12 +8874,18 @@ final class PdfTextExtractor
             $suppressUnmapped = false;
         }
 
-        return [
+        $encoding = [
             'base' => $baseEncoding,
             'differences' => $differences,
             'suppressUnmapped' => $suppressUnmapped,
             'widths' => $widths,
         ];
+        $baseFont = $this->baseFontNameFromObject($objectBody);
+        if ($baseFont !== null) {
+            $encoding['baseFont'] = $baseFont;
+        }
+
+        return $encoding;
     }
 
     /**
@@ -8965,21 +9120,15 @@ final class PdfTextExtractor
 
     private function implicitStandardFontEncoding(string $objectBody): ?string
     {
-        if (preg_match('/\/BaseFont\s*\/([A-Za-z0-9_.#+-]+)/', $objectBody, $match) !== 1) {
+        $baseFont = $this->baseFontNameFromObject($objectBody);
+        if ($baseFont === null || !$this->isStandardSimpleFont($baseFont)) {
             return null;
         }
-
-        $baseFont = $this->decodePdfName($match[1]);
-        if (preg_match('/^[A-Z]{6}\+/', $baseFont) === 1) {
-            return null;
-        }
-
-        $baseFont = preg_replace('/,[A-Za-z-]+$/', '', $baseFont) ?? $baseFont;
 
         return match ($baseFont) {
             'Symbol' => 'SymbolEncoding',
             'ZapfDingbats' => 'ZapfDingbatsEncoding',
-            default => null,
+            default => 'StandardEncoding',
         };
     }
 
@@ -9404,8 +9553,7 @@ final class PdfTextExtractor
 
     private function isStandardSimpleFont(string $baseFont): bool
     {
-        $baseFont = ltrim($baseFont, '/');
-        $baseFont = preg_replace('/,[A-Za-z-]+$/', '', $baseFont) ?? $baseFont;
+        $baseFont = $this->normalizedBaseFontName($baseFont);
 
         return in_array($baseFont, [
             'Courier',
@@ -9423,6 +9571,69 @@ final class PdfTextExtractor
             'Times-Roman',
             'ZapfDingbats',
         ], true);
+    }
+
+    private function baseFontNameFromObject(string $objectBody): ?string
+    {
+        if (preg_match('/\/BaseFont\s*\/([A-Za-z0-9_.#+-]+)/', $objectBody, $match) !== 1) {
+            return null;
+        }
+
+        $baseFont = $this->decodePdfName($match[1]);
+        if (preg_match('/^[A-Z]{6}\+/', $baseFont) === 1) {
+            return null;
+        }
+
+        return $this->normalizedBaseFontName($baseFont);
+    }
+
+    private function normalizedBaseFontName(string $baseFont): string
+    {
+        $baseFont = ltrim($baseFont, '/');
+
+        return preg_replace('/,[A-Za-z-]+$/', '', $baseFont) ?? $baseFont;
+    }
+
+    private function base14AsciiMetricFamily(?array $fontEncoding): ?string
+    {
+        $baseFont = $fontEncoding['baseFont'] ?? null;
+        if (!is_string($baseFont)
+            || !in_array($fontEncoding['base'] ?? null, ['WinAnsiEncoding', 'MacRomanEncoding', 'StandardEncoding'], true)
+            || ($fontEncoding['differences'] ?? []) !== []) {
+            return null;
+        }
+
+        return match ($this->normalizedBaseFontName($baseFont)) {
+            'Courier', 'Courier-Bold', 'Courier-BoldOblique', 'Courier-Oblique' => 'Courier',
+            'Helvetica', 'Helvetica-Oblique' => 'Helvetica',
+            'Helvetica-Bold', 'Helvetica-BoldOblique' => 'Helvetica-Bold',
+            'Times-Roman' => 'Times-Roman',
+            'Times-Bold' => 'Times-Bold',
+            'Times-Italic' => 'Times-Italic',
+            'Times-BoldItalic' => 'Times-BoldItalic',
+            default => null,
+        };
+    }
+
+    private function base14AsciiWidth(?array $fontEncoding, int $sourceCode): ?float
+    {
+        $family = $this->base14AsciiMetricFamily($fontEncoding);
+        if ($family === null || $sourceCode < 32 || $sourceCode > 126) {
+            return null;
+        }
+
+        static $widths = [];
+        if (!isset($widths[$family])) {
+            $values = preg_split('/\s+/', trim(self::BASE14_ASCII_WIDTHS[$family])) ?: [];
+            $widths[$family] = array_map(static fn (string $value): float => (float) $value, $values);
+        }
+
+        return $widths[$family][$sourceCode - 32] ?? null;
+    }
+
+    private function fontEncodingHasBase14AsciiMetrics(?array $fontEncoding): bool
+    {
+        return $this->base14AsciiMetricFamily($fontEncoding) !== null;
     }
 
     /**
@@ -14405,16 +14616,24 @@ final class PdfTextExtractor
      * @param array<int, string> $mcidActualTexts
      * @param array<string, int> $propertyMcids
      */
-    private function textRunsFromContentStream(string $stream, array $fontToUnicodeMaps, array $fontEncodings, array $propertyActualTexts, array $mcidActualTexts, array $propertyMcids): array
+    private function textRunsFromContentStream(
+        string $stream,
+        array $fontToUnicodeMaps,
+        array $fontEncodings,
+        array $propertyActualTexts,
+        array $mcidActualTexts,
+        array $propertyMcids
+    ): array
     {
         $runs = [];
         $operands = [];
         $currentFontResource = null;
         $actualTextStack = [];
+        $actualTextNested = [];
         $artifactStack = [];
         foreach ($this->contentTokenIterator($stream) as $token) {
             if ($token === 'BDC') {
-                $isArtifact = $this->markedContentIsArtifact($operands);
+                $isArtifact = $this->insideArtifact($artifactStack) || $this->markedContentIsArtifact($operands);
                 $actualText = $isArtifact ? null : $this->actualTextOperand(
                     $operands,
                     $propertyActualTexts,
@@ -14424,9 +14643,10 @@ final class PdfTextExtractor
                     $this->currentFontEncoding($fontEncodings, $currentFontResource)
                 );
                 if ($actualText !== null) {
-                    $runs[] = $actualText;
+                    $this->markEnclosingActualTextScopesAsNested($actualTextStack, $actualTextNested);
                 }
                 $actualTextStack[] = $actualText;
+                $actualTextNested[] = false;
                 $artifactStack[] = $isArtifact;
                 $operands = [];
                 continue;
@@ -14434,13 +14654,22 @@ final class PdfTextExtractor
 
             if ($token === 'BMC') {
                 $actualTextStack[] = null;
-                $artifactStack[] = $this->markedContentIsArtifact($operands);
+                $actualTextNested[] = false;
+                $artifactStack[] = $this->insideArtifact($artifactStack) || $this->markedContentIsArtifact($operands);
                 $operands = [];
                 continue;
             }
 
             if ($token === 'EMC') {
+                $actualTextIndex = array_key_last($actualTextStack);
+                $actualText = $actualTextIndex === null ? null : $actualTextStack[$actualTextIndex];
+                if (!$this->insideArtifact($artifactStack)
+                    && is_string($actualText)
+                    && !($actualTextNested[$actualTextIndex] ?? false)) {
+                    $runs[] = $actualText;
+                }
                 array_pop($actualTextStack);
+                array_pop($actualTextNested);
                 array_pop($artifactStack);
                 $operands = [];
                 continue;
@@ -14449,7 +14678,7 @@ final class PdfTextExtractor
             if ($this->isTextShowingOperator($token)) {
                 $operand = $this->textShowingOperand($token, $operands);
                 if ($operand !== null && !$this->insideActualText($actualTextStack) && !$this->insideArtifact($artifactStack)) {
-                    $runs[] = $this->decodeTextOperandWithArraySpacing(
+                    $runs[] = $this->decodeTextOperandWithBoundaryEvidence(
                         $operand,
                         $this->currentToUnicodeMap($fontToUnicodeMaps, $currentFontResource),
                         $this->currentFontEncoding($fontEncodings, $currentFontResource)
@@ -14477,7 +14706,7 @@ final class PdfTextExtractor
     }
 
     /**
-     * @return array{missingUnicodeFonts: list<string>, missingUnicodeFontEncodings: array<string, string>, suppressedGlyphRuns: int}
+     * @return array{missingUnicodeFonts: list<string>, missingUnicodeFontEncodings: array<string, string>, suppressedGlyphRuns: int, partiallyMappedGlyphRuns: int, unrecoverableActualTextRuns: int}
      * @param array<string, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}> $fontToUnicodeMaps
      * @param array<string, array{base: string, differences: array<int, string>, suppressUnmapped: bool}> $fontEncodings
      * @param array<string, string> $propertyActualTexts
@@ -14489,15 +14718,20 @@ final class PdfTextExtractor
         $missingUnicodeFonts = [];
         $missingUnicodeFontEncodings = [];
         $suppressedGlyphRuns = 0;
+        $partiallyMappedGlyphRuns = 0;
+        $unrecoverableActualTextRuns = 0;
         $operands = [];
         $currentFontResource = null;
         $actualTextStack = [];
+        $emptyActualTextReported = [];
         $artifactStack = [];
+        /** @var array<string, list<int>> $toUnicodeMapKeyLengthsByFont */
+        $toUnicodeMapKeyLengthsByFont = [];
 
         foreach ($this->contentTokenIterator($stream) as $token) {
             if ($token === 'BDC') {
-                $isArtifact = $this->markedContentIsArtifact($operands);
-                $actualTextStack[] = $isArtifact ? null : $this->actualTextOperand(
+                $isArtifact = $this->insideArtifact($artifactStack) || $this->markedContentIsArtifact($operands);
+                $actualText = $isArtifact ? null : $this->actualTextOperand(
                     $operands,
                     $propertyActualTexts,
                     $mcidActualTexts,
@@ -14505,6 +14739,8 @@ final class PdfTextExtractor
                     $this->currentToUnicodeMap($fontToUnicodeMaps, $currentFontResource),
                     $this->currentFontEncoding($fontEncodings, $currentFontResource)
                 );
+                $actualTextStack[] = $actualText;
+                $emptyActualTextReported[] = false;
                 $artifactStack[] = $isArtifact;
                 $operands = [];
                 continue;
@@ -14512,13 +14748,15 @@ final class PdfTextExtractor
 
             if ($token === 'BMC') {
                 $actualTextStack[] = null;
-                $artifactStack[] = $this->markedContentIsArtifact($operands);
+                $emptyActualTextReported[] = false;
+                $artifactStack[] = $this->insideArtifact($artifactStack) || $this->markedContentIsArtifact($operands);
                 $operands = [];
                 continue;
             }
 
             if ($token === 'EMC') {
                 array_pop($actualTextStack);
+                array_pop($emptyActualTextReported);
                 array_pop($artifactStack);
                 $operands = [];
                 continue;
@@ -14528,17 +14766,44 @@ final class PdfTextExtractor
                 $operand = $this->textShowingOperand($token, $operands);
                 $toUnicodeMap = $this->currentToUnicodeMap($fontToUnicodeMaps, $currentFontResource);
                 $fontEncoding = $this->currentFontEncoding($fontEncodings, $currentFontResource);
-                if ($operand !== null
-                    && !$this->insideActualText($actualTextStack)
-                    && !$this->insideArtifact($artifactStack)
-                    && $toUnicodeMap === null
-                    && ($fontEncoding['suppressUnmapped'] ?? false) === true
-                    && $this->textShowingOperandHasGlyphBytes($operand)
-                ) {
-                    $fontName = $this->diagnosticFontResourceName($currentFontResource);
-                    $suppressedGlyphRuns++;
-                    $missingUnicodeFonts[] = $fontName;
-                    $missingUnicodeFontEncodings[$fontName] = (string) ($fontEncoding['base'] ?? 'unknown');
+                $toUnicodeMapKeyLengths = $toUnicodeMap === null
+                    ? null
+                    : ($toUnicodeMapKeyLengthsByFont[$currentFontResource ?? '']
+                        ??= $this->toUnicodeMapKeyLengths($toUnicodeMap));
+                if ($operand !== null && !$this->insideArtifact($artifactStack)) {
+                    $hasGlyphBytes = $this->textShowingOperandHasGlyphBytes($operand);
+                    $activeActualTextIndex = $this->activeActualTextIndex($actualTextStack);
+                    if ($hasGlyphBytes
+                        && $activeActualTextIndex !== null
+                        && $actualTextStack[$activeActualTextIndex] === ''
+                        && !($emptyActualTextReported[$activeActualTextIndex] ?? false)
+                    ) {
+                        $unrecoverableActualTextRuns++;
+                        $emptyActualTextReported[$activeActualTextIndex] = true;
+                    }
+
+                    if (!$this->insideActualText($actualTextStack)
+                        && $toUnicodeMap === null
+                        && ($fontEncoding['suppressUnmapped'] ?? false) === true
+                        && $hasGlyphBytes
+                    ) {
+                        $fontName = $this->diagnosticFontResourceName($currentFontResource);
+                        $suppressedGlyphRuns++;
+                        $missingUnicodeFonts[] = $fontName;
+                        $missingUnicodeFontEncodings[$fontName] = (string) ($fontEncoding['base'] ?? 'unknown');
+                    }
+
+                    if (!$this->insideActualText($actualTextStack)
+                        && $hasGlyphBytes
+                        && $this->textShowingOperandLosesGlyphsToPartialToUnicodeMap(
+                            $operand,
+                            $toUnicodeMap,
+                            $fontEncoding,
+                            $toUnicodeMapKeyLengths
+                        )
+                    ) {
+                        $partiallyMappedGlyphRuns++;
+                    }
                 }
 
                 $operands = [];
@@ -14563,6 +14828,8 @@ final class PdfTextExtractor
             'missingUnicodeFonts' => array_values(array_unique($missingUnicodeFonts)),
             'missingUnicodeFontEncodings' => $missingUnicodeFontEncodings,
             'suppressedGlyphRuns' => $suppressedGlyphRuns,
+            'partiallyMappedGlyphRuns' => $partiallyMappedGlyphRuns,
+            'unrecoverableActualTextRuns' => $unrecoverableActualTextRuns,
         ];
     }
 
@@ -14847,6 +15114,111 @@ final class PdfTextExtractor
     }
 
     /**
+     * A nonempty ToUnicode map is not necessarily complete. Report only
+     * source codes that its normal fallback would actually discard; a
+     * decodable Unicode-source CMap or simple-font fallback remains usable
+     * evidence and must not be reported as lost text.
+     *
+     * @param array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>, suppressUnmapped?: bool, unicodeSourceEncoding?: string}|null $toUnicodeMap
+     * @param array{base: string, differences: array<int, string>, suppressUnmapped?: bool}|null $fontEncoding
+     */
+    private function textShowingOperandLosesGlyphsToPartialToUnicodeMap(
+        string $operand,
+        ?array $toUnicodeMap,
+        ?array $fontEncoding,
+        ?array $keyLengths = null
+    ): bool {
+        if ($toUnicodeMap === null || ($toUnicodeMap['map'] ?? []) === []) {
+            return false;
+        }
+
+        $operand = trim($operand);
+        if (str_starts_with($operand, '[')) {
+            foreach ($this->textArrayElements($operand) as $element) {
+                if ($element['type'] === 'text'
+                    && $this->textShowingOperandLosesGlyphsToPartialToUnicodeMap(
+                        (string) $element['value'],
+                        $toUnicodeMap,
+                        $fontEncoding,
+                        $keyLengths
+                    )
+                ) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        $bytes = $this->textOperandBytes($operand);
+        if ($bytes === null || $bytes === '') {
+            return false;
+        }
+
+        $hex = $this->normalizeHexKey(bin2hex($bytes));
+        if ($hex === '') {
+            return false;
+        }
+
+        $mappings = $toUnicodeMap['map'];
+        $keyLengths ??= $this->toUnicodeMapKeyLengths($toUnicodeMap);
+        $codeSpaceRanges = $toUnicodeMap['codeSpaceRanges'] ?? [];
+        $unicodeSourceEncoding = $toUnicodeMap['unicodeSourceEncoding'] ?? null;
+        $offset = 0;
+        $length = strlen($hex);
+
+        while ($offset < $length) {
+            $matched = false;
+            foreach ($keyLengths as $keyLength) {
+                if ($keyLength <= 0 || $offset + $keyLength > $length) {
+                    continue;
+                }
+
+                $source = substr($hex, $offset, $keyLength);
+                if (!array_key_exists($source, $mappings)) {
+                    continue;
+                }
+
+                if ($mappings[$source] === '') {
+                    return true;
+                }
+
+                $offset += $keyLength;
+                $matched = true;
+                break;
+            }
+            if ($matched) {
+                continue;
+            }
+
+            $fallbackLength = $this->fallbackToUnicodeSourceLength(
+                $keyLengths,
+                $length - $offset,
+                $codeSpaceRanges,
+                $hex,
+                $offset
+            );
+            if ($fallbackLength <= 0 || $offset + $fallbackLength > $length) {
+                return false;
+            }
+
+            if (($toUnicodeMap['suppressUnmapped'] ?? false) === true
+                || $this->decodeUnmappedToUnicodeSource(
+                    substr($hex, $offset, $fallbackLength),
+                    $fontEncoding,
+                    is_string($unicodeSourceEncoding) ? $unicodeSourceEncoding : null
+                ) === ''
+            ) {
+                return true;
+            }
+
+            $offset += $fallbackLength;
+        }
+
+        return false;
+    }
+
+    /**
      * @return list<string>
      * @param array<string, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}> $fontToUnicodeMaps
      * @param array<string, array{base: string, differences: array<int, string>, suppressUnmapped: bool}> $fontEncodings
@@ -14854,7 +15226,14 @@ final class PdfTextExtractor
      * @param array<int, string> $mcidActualTexts
      * @param array<string, int> $propertyMcids
      */
-    private function textLinesFromContentStream(string $stream, array $fontToUnicodeMaps, array $fontEncodings, array $propertyActualTexts, array $mcidActualTexts, array $propertyMcids): array
+    private function textLinesFromContentStream(
+        string $stream,
+        array $fontToUnicodeMaps,
+        array $fontEncodings,
+        array $propertyActualTexts,
+        array $mcidActualTexts,
+        array $propertyMcids
+    ): array
     {
         $lines = [];
         $operands = [];
@@ -14866,6 +15245,10 @@ final class PdfTextExtractor
         $currentTextY = null;
         $currentTextEndX = null;
         $currentTextEndY = null;
+        /** @var array<string, mixed>|null $lastPaintedTextPosition */
+        $lastPaintedTextPosition = null;
+        /** @var array<string, mixed>|null $pendingTextPosition */
+        $pendingTextPosition = null;
         $characterSpacing = 0.0;
         $wordSpacing = 0.0;
         $horizontalScale = 100.0;
@@ -14878,12 +15261,13 @@ final class PdfTextExtractor
         $pendingPositionFontSize = null;
         $textStateStack = [];
         $actualTextStack = [];
+        $actualTextNested = [];
         $artifactStack = [];
         $currentTransformationMatrix = $this->identityTransformationMatrix();
 
         foreach ($this->contentTokenIterator($stream) as $token) {
             if ($token === 'BDC') {
-                $isArtifact = $this->markedContentIsArtifact($operands);
+                $isArtifact = $this->insideArtifact($artifactStack) || $this->markedContentIsArtifact($operands);
                 $actualText = $isArtifact ? null : $this->actualTextOperand(
                     $operands,
                     $propertyActualTexts,
@@ -14893,9 +15277,10 @@ final class PdfTextExtractor
                     $this->currentFontEncoding($fontEncodings, $currentFontResource)
                 );
                 if ($actualText !== null) {
-                    $this->appendActualText($lines, $currentLine, $actualText, $pendingPositionWordGap, $pendingPositionGap, $pendingPositionFontSize);
+                    $this->markEnclosingActualTextScopesAsNested($actualTextStack, $actualTextNested);
                 }
                 $actualTextStack[] = $actualText;
+                $actualTextNested[] = false;
                 $artifactStack[] = $isArtifact;
                 $operands = [];
                 continue;
@@ -14903,21 +15288,38 @@ final class PdfTextExtractor
 
             if ($token === 'BMC') {
                 $actualTextStack[] = null;
-                $artifactStack[] = $this->markedContentIsArtifact($operands);
+                $actualTextNested[] = false;
+                $artifactStack[] = $this->insideArtifact($artifactStack) || $this->markedContentIsArtifact($operands);
                 $operands = [];
                 continue;
             }
 
             if ($token === 'EMC') {
+                $actualTextIndex = array_key_last($actualTextStack);
+                $actualText = $actualTextIndex === null ? null : $actualTextStack[$actualTextIndex];
+                if (!$this->insideArtifact($artifactStack)
+                    && is_string($actualText)
+                    && !($actualTextNested[$actualTextIndex] ?? false)) {
+                    $this->appendActualText($lines, $currentLine, $actualText, $pendingPositionWordGap, $pendingPositionGap, $pendingPositionFontSize);
+                }
                 array_pop($actualTextStack);
+                array_pop($actualTextNested);
                 array_pop($artifactStack);
                 $operands = [];
                 continue;
             }
 
             if ($this->isTextShowingOperator($token)) {
+                $isArtifactContent = $this->insideArtifact($artifactStack);
                 if ($token === "'" || $token === '"') {
-                    $this->pushLine($lines, $currentLine);
+                    if (!$isArtifactContent) {
+                        $this->pushLine($lines, $currentLine);
+                        $pendingPositionWordGap = false;
+                        $pendingPositionGap = null;
+                        $pendingPositionFontSize = null;
+                        $lastPaintedTextPosition = null;
+                        $pendingTextPosition = null;
+                    }
                     [$currentTextX, $currentTextY] = $this->advanceTextPositionByLeading(
                         $currentTextX,
                         $currentTextY,
@@ -14927,9 +15329,6 @@ final class PdfTextExtractor
                     );
                     $currentTextEndX = $currentTextX;
                     $currentTextEndY = $currentTextY;
-                    $pendingPositionWordGap = false;
-                    $pendingPositionGap = null;
-                    $pendingPositionFontSize = null;
                 }
 
                 if ($token === '"') {
@@ -14949,8 +15348,35 @@ final class PdfTextExtractor
                         $currentTextYAxisY,
                         $writingMode
                     );
-                    if (!$this->insideActualText($actualTextStack) && !$this->insideArtifact($artifactStack)) {
-                        foreach ($this->textOperandVisualSegments(
+                    $operandStartX = $currentTextEndX ?? $currentTextX;
+                    $operandStartY = $currentTextEndY ?? $currentTextY;
+                    if (!$isArtifactContent
+                        && $pendingTextPosition !== null
+                        && $currentLine !== ''
+                        && $operandStartX !== null
+                        && $operandStartY !== null
+                    ) {
+                        $pendingPositionWordGap = $this->textPositionStartsWord(
+                            $pendingTextPosition['endX'] ?? null,
+                            $pendingTextPosition['endY'] ?? null,
+                            $operandStartX,
+                            $operandStartY,
+                            $pendingTextPosition['axis'] ?? $axis,
+                            (int) ($pendingTextPosition['writingMode'] ?? $writingMode),
+                            $pendingTextPosition['toUnicodeMap'] ?? $toUnicodeMap,
+                            $pendingTextPosition['fontEncoding'] ?? $fontEncoding,
+                            $pendingTextPosition['fontSize'] ?? $currentFontSize,
+                            (float) ($pendingTextPosition['characterSpacing'] ?? $characterSpacing),
+                            (float) ($pendingTextPosition['wordSpacing'] ?? $wordSpacing),
+                            (float) ($pendingTextPosition['horizontalScale'] ?? $horizontalScale),
+                            (bool) ($pendingTextPosition['hasReliableAdvance'] ?? false),
+                            $pendingTextPosition['legacyGap'] ?? null
+                        );
+                        $pendingPositionGap = null;
+                        $pendingPositionFontSize = $currentFontSize;
+                    }
+                    if (!$this->insideActualText($actualTextStack) && !$isArtifactContent) {
+                        foreach ($this->textOperandSegmentsWithBoundaryEvidence(
                             $operand,
                             $toUnicodeMap,
                             $fontEncoding,
@@ -14961,16 +15387,24 @@ final class PdfTextExtractor
                             $axis
                         ) as $segment) {
                             if ($segment['gapBefore'] !== null && $currentLine !== '') {
-                                $pendingPositionWordGap = $this->tjAdjustmentGapLooksLikeWordBoundary($segment['gapBefore'], $currentFontSize);
-                                $pendingPositionGap = $segment['gapBefore'];
+                                $pendingPositionWordGap = $segment['wordBoundaryBefore'];
+                                // TJ has its own boundary provenance. Do not
+                                // re-interpret it through a text-position
+                                // heuristic in appendPositionedText().
+                                $pendingPositionGap = null;
                                 $pendingPositionFontSize = $currentFontSize;
                             }
                             $this->appendPositionedText($currentLine, $segment['text'], $pendingPositionWordGap, $pendingPositionGap, $pendingPositionFontSize);
                         }
                     }
+                    $operandHasReliableAdvance = $this->textOperandHasReliableAdvanceMetrics(
+                        $operand,
+                        $toUnicodeMap,
+                        $fontEncoding
+                    );
                     [$currentTextEndX, $currentTextEndY] = $this->advanceTextEndPointForOperand(
-                        $currentTextEndX ?? $currentTextX,
-                        $currentTextEndY ?? $currentTextY,
+                        $operandStartX,
+                        $operandStartY,
                         $operand,
                         $toUnicodeMap,
                         $fontEncoding,
@@ -14980,6 +15414,24 @@ final class PdfTextExtractor
                         $horizontalScale,
                         $axis
                     );
+                    if (!$isArtifactContent && $currentTextEndX !== null && $currentTextEndY !== null) {
+                        $lastPaintedTextPosition = [
+                            'endX' => $currentTextEndX,
+                            'endY' => $currentTextEndY,
+                            'axis' => $axis,
+                            'writingMode' => $writingMode,
+                            'toUnicodeMap' => $toUnicodeMap,
+                            'fontEncoding' => $fontEncoding,
+                            'fontSize' => $currentFontSize,
+                            'characterSpacing' => $characterSpacing,
+                            'wordSpacing' => $wordSpacing,
+                            'horizontalScale' => $horizontalScale,
+                            'hasReliableAdvance' => $operandHasReliableAdvance,
+                        ];
+                    }
+                    if (!$isArtifactContent) {
+                        $pendingTextPosition = null;
+                    }
                 }
                 $operands = [];
                 continue;
@@ -15064,16 +15516,36 @@ final class PdfTextExtractor
                     }
                 }
                 $writingMode = $this->currentWritingMode($fontToUnicodeMaps, $currentFontResource);
-                if ($this->textMoveBreaksLine($operands, $writingMode)) {
-                    $this->pushLine($lines, $currentLine);
-                    $pendingPositionWordGap = false;
-                    $pendingPositionGap = null;
-                    $pendingPositionFontSize = null;
-                } else {
-                    $gap = $this->textMoveWordGap($operands, $writingMode);
-                    $pendingPositionWordGap = $currentLine !== '' && $this->gapExceedsLegacyWordThreshold($gap);
-                    $pendingPositionGap = $currentLine !== '' ? $gap : null;
-                    $pendingPositionFontSize = $currentFontSize;
+                $axis = $this->textProgressionAxis(
+                    $currentTextXAxisX,
+                    $currentTextXAxisY,
+                    $currentTextYAxisX,
+                    $currentTextYAxisY,
+                    $writingMode
+                );
+                if (!$this->insideArtifact($artifactStack)) {
+                    if ($this->textMoveBreaksLine($operands, $writingMode)) {
+                        $this->pushLine($lines, $currentLine);
+                        $pendingPositionWordGap = false;
+                        $pendingPositionGap = null;
+                        $pendingPositionFontSize = null;
+                        $lastPaintedTextPosition = null;
+                        $pendingTextPosition = null;
+                    } else {
+                        $legacyGap = $this->textMoveWordGap($operands, $writingMode);
+                        if ($lastPaintedTextPosition !== null) {
+                            $pendingTextPosition ??= $lastPaintedTextPosition;
+                            if ($legacyGap !== null) {
+                                $pendingTextPosition['legacyGap'] = max(
+                                    (float) ($pendingTextPosition['legacyGap'] ?? 0.0),
+                                    $legacyGap
+                                );
+                            }
+                        }
+                        $pendingPositionWordGap = false;
+                        $pendingPositionGap = null;
+                        $pendingPositionFontSize = $currentFontSize;
+                    }
                 }
                 [$currentTextX, $currentTextY] = $this->textMovePosition(
                     $operands,
@@ -15099,16 +15571,36 @@ final class PdfTextExtractor
                     $currentTextYAxisY,
                     $writingMode
                 );
-                if ($this->textMatrixBreaksLine($operands, $currentTextX, $currentTextY, $axis, $currentTransformationMatrix)) {
-                    $this->pushLine($lines, $currentLine);
-                    $pendingPositionWordGap = false;
-                    $pendingPositionGap = null;
-                    $pendingPositionFontSize = null;
-                } else {
-                    $gap = $this->textMatrixWordGap($operands, $currentTextEndX, $currentTextEndY, $axis, $writingMode, $currentTransformationMatrix);
-                    $pendingPositionWordGap = $currentLine !== '' && $this->gapExceedsLegacyWordThreshold($gap);
-                    $pendingPositionGap = $currentLine !== '' ? $gap : null;
-                    $pendingPositionFontSize = $currentFontSize;
+                if (!$this->insideArtifact($artifactStack)) {
+                    if ($this->textMatrixBreaksLine($operands, $currentTextX, $currentTextY, $axis, $currentTransformationMatrix)) {
+                        $this->pushLine($lines, $currentLine);
+                        $pendingPositionWordGap = false;
+                        $pendingPositionGap = null;
+                        $pendingPositionFontSize = null;
+                        $lastPaintedTextPosition = null;
+                        $pendingTextPosition = null;
+                    } else {
+                        $legacyGap = $this->textMatrixWordGap(
+                            $operands,
+                            $currentTextEndX,
+                            $currentTextEndY,
+                            $axis,
+                            $writingMode,
+                            $currentTransformationMatrix
+                        );
+                        if ($lastPaintedTextPosition !== null) {
+                            $pendingTextPosition ??= $lastPaintedTextPosition;
+                            if ($legacyGap !== null) {
+                                $pendingTextPosition['legacyGap'] = max(
+                                    (float) ($pendingTextPosition['legacyGap'] ?? 0.0),
+                                    $legacyGap
+                                );
+                            }
+                        }
+                        $pendingPositionWordGap = false;
+                        $pendingPositionGap = null;
+                        $pendingPositionFontSize = $currentFontSize;
+                    }
                 }
                 $matrixPosition = $this->textMatrixPosition($operands, $currentTransformationMatrix);
                 $currentTextX = $matrixPosition['x'] ?? null;
@@ -15125,7 +15617,14 @@ final class PdfTextExtractor
             }
 
             if ($token === 'T*') {
-                $this->pushLine($lines, $currentLine);
+                if (!$this->insideArtifact($artifactStack)) {
+                    $this->pushLine($lines, $currentLine);
+                    $pendingPositionWordGap = false;
+                    $pendingPositionGap = null;
+                    $pendingPositionFontSize = null;
+                    $lastPaintedTextPosition = null;
+                    $pendingTextPosition = null;
+                }
                 [$currentTextX, $currentTextY] = $this->advanceTextPositionByLeading(
                     $currentTextX,
                     $currentTextY,
@@ -15135,9 +15634,6 @@ final class PdfTextExtractor
                 );
                 $currentTextEndX = $currentTextX;
                 $currentTextEndY = $currentTextY;
-                $pendingPositionWordGap = false;
-                $pendingPositionGap = null;
-                $pendingPositionFontSize = null;
                 $operands = [];
                 continue;
             }
@@ -15151,15 +15647,26 @@ final class PdfTextExtractor
                 $currentTextXAxisY = 0.0;
                 $currentTextYAxisX = 0.0;
                 $currentTextYAxisY = 1.0;
-                $pendingPositionWordGap = false;
-                $pendingPositionGap = null;
-                $pendingPositionFontSize = null;
+                if (!$this->insideArtifact($artifactStack)) {
+                    $lastPaintedTextPosition = null;
+                    $pendingTextPosition = null;
+                    $pendingPositionWordGap = false;
+                    $pendingPositionGap = null;
+                    $pendingPositionFontSize = null;
+                }
                 $operands = [];
                 continue;
             }
 
             if ($token === 'ET') {
-                $this->pushLine($lines, $currentLine);
+                if (!$this->insideArtifact($artifactStack)) {
+                    $this->pushLine($lines, $currentLine);
+                    $lastPaintedTextPosition = null;
+                    $pendingTextPosition = null;
+                    $pendingPositionWordGap = false;
+                    $pendingPositionGap = null;
+                    $pendingPositionFontSize = null;
+                }
                 $currentTextX = null;
                 $currentTextY = null;
                 $currentTextEndX = null;
@@ -15168,9 +15675,6 @@ final class PdfTextExtractor
                 $currentTextXAxisY = 0.0;
                 $currentTextYAxisX = 0.0;
                 $currentTextYAxisY = 1.0;
-                $pendingPositionWordGap = false;
-                $pendingPositionGap = null;
-                $pendingPositionFontSize = null;
                 $operands = [];
                 continue;
             }
@@ -15196,7 +15700,14 @@ final class PdfTextExtractor
      * @param array<int, string> $mcidActualTexts
      * @param array<string, int> $propertyMcids
      */
-    private function positionedTextRunsFromContentStream(string $stream, array $fontToUnicodeMaps, array $fontEncodings, array $propertyActualTexts, array $mcidActualTexts, array $propertyMcids): array
+    private function positionedTextRunsFromContentStream(
+        string $stream,
+        array $fontToUnicodeMaps,
+        array $fontEncodings,
+        array $propertyActualTexts,
+        array $mcidActualTexts,
+        array $propertyMcids
+    ): array
     {
         $runs = [];
         $operands = [];
@@ -15207,6 +15718,10 @@ final class PdfTextExtractor
         $currentTextY = null;
         $currentTextEndX = null;
         $currentTextEndY = null;
+        /** @var array<string, mixed>|null $lastPaintedTextPosition */
+        $lastPaintedTextPosition = null;
+        /** @var array<string, mixed>|null $pendingTextPosition */
+        $pendingTextPosition = null;
         $characterSpacing = 0.0;
         $wordSpacing = 0.0;
         $horizontalScale = 100.0;
@@ -15216,6 +15731,9 @@ final class PdfTextExtractor
         $currentTextYAxisY = 1.0;
         $textStateStack = [];
         $actualTextStack = [];
+        $actualTextNested = [];
+        /** @var list<array<string, mixed>|null> $actualTextPositionedLayouts */
+        $actualTextPositionedLayouts = [];
         $artifactStack = [];
         $pendingTextPositionBoundary = false;
         $currentTransformationMatrix = $this->identityTransformationMatrix();
@@ -15223,8 +15741,8 @@ final class PdfTextExtractor
 
         foreach ($this->contentTokenIterator($stream) as $token) {
             if ($token === 'BDC') {
-                $isArtifact = $this->markedContentIsArtifact($operands);
-                $actualTextStack[] = $isArtifact ? null : $this->actualTextOperand(
+                $isArtifact = $this->insideArtifact($artifactStack) || $this->markedContentIsArtifact($operands);
+                $actualText = $isArtifact ? null : $this->actualTextOperand(
                     $operands,
                     $propertyActualTexts,
                     $mcidActualTexts,
@@ -15232,6 +15750,12 @@ final class PdfTextExtractor
                     $this->currentToUnicodeMap($fontToUnicodeMaps, $currentFontResource),
                     $this->currentFontEncoding($fontEncodings, $currentFontResource)
                 );
+                if ($actualText !== null) {
+                    $this->markEnclosingActualTextScopesAsNested($actualTextStack, $actualTextNested);
+                }
+                $actualTextStack[] = $actualText;
+                $actualTextNested[] = false;
+                $actualTextPositionedLayouts[] = null;
                 $artifactStack[] = $isArtifact;
                 $operands = [];
                 continue;
@@ -15239,19 +15763,53 @@ final class PdfTextExtractor
 
             if ($token === 'BMC') {
                 $actualTextStack[] = null;
-                $artifactStack[] = $this->markedContentIsArtifact($operands);
+                $actualTextNested[] = false;
+                $actualTextPositionedLayouts[] = null;
+                $artifactStack[] = $this->insideArtifact($artifactStack) || $this->markedContentIsArtifact($operands);
                 $operands = [];
                 continue;
             }
 
             if ($token === 'EMC') {
+                $actualTextIndex = array_key_last($actualTextStack);
+                $actualText = $actualTextIndex === null ? null : $actualTextStack[$actualTextIndex];
+                $actualTextLayout = $actualTextIndex === null
+                    ? null
+                    : ($actualTextPositionedLayouts[$actualTextIndex] ?? null);
+                if (!$this->insideArtifact($artifactStack)
+                    && is_string($actualText)
+                    && $actualText !== ''
+                    && !($actualTextNested[$actualTextIndex] ?? false)
+                    && is_array($actualTextLayout)) {
+                    $runs[] = $this->positionedTextRun(
+                        $actualText,
+                        (float) $actualTextLayout['x1'],
+                        (float) $actualTextLayout['y1'],
+                        (float) $actualTextLayout['x2'],
+                        (float) $actualTextLayout['y2'],
+                        isset($actualTextLayout['fontSize']) ? (float) $actualTextLayout['fontSize'] : null,
+                        is_array($actualTextLayout['axis'] ?? null)
+                            ? $actualTextLayout['axis']
+                            : ['x' => 1.0, 'y' => 0.0, 'scale' => 1.0],
+                        (bool) ($actualTextLayout['wordBoundaryBefore'] ?? false),
+                        is_string($actualTextLayout['wordBoundarySource'] ?? null)
+                            ? $actualTextLayout['wordBoundarySource']
+                            : null
+                    );
+                    if (count($runs) >= $maxRuns) {
+                        return $runs;
+                    }
+                }
                 array_pop($actualTextStack);
+                array_pop($actualTextNested);
+                array_pop($actualTextPositionedLayouts);
                 array_pop($artifactStack);
                 $operands = [];
                 continue;
             }
 
             if ($this->isTextShowingOperator($token)) {
+                $isArtifactContent = $this->insideArtifact($artifactStack);
                 if ($token === "'" || $token === '"') {
                     [$currentTextX, $currentTextY] = $this->advanceTextPositionByLeading(
                         $currentTextX,
@@ -15262,7 +15820,11 @@ final class PdfTextExtractor
                     );
                     $currentTextEndX = $currentTextX;
                     $currentTextEndY = $currentTextY;
-                    $pendingTextPositionBoundary = true;
+                    if (!$isArtifactContent) {
+                        $pendingTextPositionBoundary = true;
+                        $lastPaintedTextPosition = null;
+                        $pendingTextPosition = null;
+                    }
                 }
 
                 if ($token === '"') {
@@ -15284,6 +15846,34 @@ final class PdfTextExtractor
                     );
                     $startX = $currentTextEndX ?? $currentTextX;
                     $startY = $currentTextEndY ?? $currentTextY;
+                    $resolvedTextPositionBoundary = !$isArtifactContent && $pendingTextPositionBoundary;
+                    $resolvedTextPositionSource = $resolvedTextPositionBoundary ? 'line-break' : null;
+                    if (!$isArtifactContent && $pendingTextPosition !== null && $startX !== null && $startY !== null) {
+                        $resolvedTextPositionBoundary = $this->textPositionStartsWord(
+                            $pendingTextPosition['endX'] ?? null,
+                            $pendingTextPosition['endY'] ?? null,
+                            $startX,
+                            $startY,
+                            $pendingTextPosition['axis'] ?? $axis,
+                            (int) ($pendingTextPosition['writingMode'] ?? $writingMode),
+                            $pendingTextPosition['toUnicodeMap'] ?? $toUnicodeMap,
+                            $pendingTextPosition['fontEncoding'] ?? $fontEncoding,
+                            $pendingTextPosition['fontSize'] ?? $currentFontSize,
+                            (float) ($pendingTextPosition['characterSpacing'] ?? $characterSpacing),
+                            (float) ($pendingTextPosition['wordSpacing'] ?? $wordSpacing),
+                            (float) ($pendingTextPosition['horizontalScale'] ?? $horizontalScale),
+                            (bool) ($pendingTextPosition['hasReliableAdvance'] ?? false),
+                            $pendingTextPosition['legacyGap'] ?? null
+                        );
+                        $resolvedTextPositionSource = $resolvedTextPositionBoundary
+                            ? 'text-position-layout'
+                            : 'text-position-continuation';
+                    }
+                    $operandHasReliableAdvance = $this->textOperandHasReliableAdvanceMetrics(
+                        $operand,
+                        $toUnicodeMap,
+                        $fontEncoding
+                    );
                     [$nextTextEndX, $nextTextEndY] = $this->advanceTextEndPointForOperand(
                         $startX,
                         $startY,
@@ -15297,12 +15887,54 @@ final class PdfTextExtractor
                         $axis
                     );
 
-                    if (!$this->insideActualText($actualTextStack)
-                        && !$this->insideArtifact($artifactStack)
+                    $activeActualTextIndex = $isArtifactContent
+                        ? null
+                        : $this->activeActualTextIndex($actualTextStack);
+                    $activeActualText = $activeActualTextIndex === null
+                        ? null
+                        : $actualTextStack[$activeActualTextIndex];
+                    if ($activeActualTextIndex !== null
+                        && is_string($activeActualText)
+                        && $activeActualText !== ''
+                        && $startX !== null
+                        && $startY !== null
+                        && $nextTextEndX !== null
+                        && $nextTextEndY !== null
+                        && $this->textShowingOperandHasGlyphBytes($operand)
+                    ) {
+                        [$actualTextEndX, $actualTextEndY] = $this->actualTextOperandEndPoint(
+                            $startX,
+                            $startY,
+                            $nextTextEndX,
+                            $nextTextEndY,
+                            $operand,
+                            $toUnicodeMap,
+                            $fontEncoding,
+                            $currentFontSize,
+                            $characterSpacing,
+                            $wordSpacing,
+                            $horizontalScale,
+                            $axis,
+                            $operandHasReliableAdvance
+                        );
+                        $actualTextPositionedLayouts[$activeActualTextIndex] = $this->expandedActualTextPositionedLayout(
+                            $actualTextPositionedLayouts[$activeActualTextIndex] ?? null,
+                            $startX,
+                            $startY,
+                            $actualTextEndX,
+                            $actualTextEndY,
+                            $currentFontSize,
+                            $axis,
+                            $resolvedTextPositionBoundary,
+                            $resolvedTextPositionSource
+                        );
+                        $pendingTextPositionBoundary = false;
+                    } elseif (!$this->insideActualText($actualTextStack)
+                        && !$isArtifactContent
                         && $startX !== null
                         && $startY !== null
                     ) {
-                        $segments = $this->textOperandVisualSegments(
+                        $segments = $this->textOperandSegmentsWithBoundaryEvidence(
                             $operand,
                             $toUnicodeMap,
                             $fontEncoding,
@@ -15325,11 +15957,11 @@ final class PdfTextExtractor
                                 $segmentEndY,
                                 $currentFontSize,
                                 $axis,
-                                ($segmentIndex === 0 && $pendingTextPositionBoundary)
-                                    || $this->tjAdjustmentGapLooksLikeWordBoundary(
-                                        $segment['gapBefore'],
-                                        $currentFontSize
-                                    )
+                                ($segmentIndex === 0 && $resolvedTextPositionBoundary)
+                                    || $segment['wordBoundaryBefore'],
+                                ($segmentIndex === 0 && $resolvedTextPositionSource !== null)
+                                    ? $resolvedTextPositionSource
+                                    : $segment['wordBoundarySource']
                             );
                             if (count($runs) >= $maxRuns) {
                                 return $runs;
@@ -15342,6 +15974,24 @@ final class PdfTextExtractor
 
                     $currentTextEndX = $nextTextEndX;
                     $currentTextEndY = $nextTextEndY;
+                    if (!$isArtifactContent && $nextTextEndX !== null && $nextTextEndY !== null) {
+                        $lastPaintedTextPosition = [
+                            'endX' => $nextTextEndX,
+                            'endY' => $nextTextEndY,
+                            'axis' => $axis,
+                            'writingMode' => $writingMode,
+                            'toUnicodeMap' => $toUnicodeMap,
+                            'fontEncoding' => $fontEncoding,
+                            'fontSize' => $currentFontSize,
+                            'characterSpacing' => $characterSpacing,
+                            'wordSpacing' => $wordSpacing,
+                            'horizontalScale' => $horizontalScale,
+                            'hasReliableAdvance' => $operandHasReliableAdvance,
+                        ];
+                    }
+                    if (!$isArtifactContent) {
+                        $pendingTextPosition = null;
+                    }
                 }
                 $operands = [];
                 continue;
@@ -15443,6 +16093,26 @@ final class PdfTextExtractor
                         $currentTextLeading = -$moveY;
                     }
                 }
+                $writingMode = $this->currentWritingMode($fontToUnicodeMaps, $currentFontResource);
+                if (!$this->insideArtifact($artifactStack)) {
+                    if ($this->textMoveBreaksLine($operands, $writingMode)) {
+                        $lastPaintedTextPosition = null;
+                        $pendingTextPosition = null;
+                        $pendingTextPositionBoundary = true;
+                    } else {
+                        $legacyGap = $this->textMoveWordGap($operands, $writingMode);
+                        if ($lastPaintedTextPosition !== null) {
+                            $pendingTextPosition ??= $lastPaintedTextPosition;
+                            if ($legacyGap !== null) {
+                                $pendingTextPosition['legacyGap'] = max(
+                                    (float) ($pendingTextPosition['legacyGap'] ?? 0.0),
+                                    $legacyGap
+                                );
+                            }
+                        }
+                        $pendingTextPositionBoundary = false;
+                    }
+                }
                 [$currentTextX, $currentTextY] = $this->textMovePosition(
                     $operands,
                     $currentTextX,
@@ -15454,18 +16124,50 @@ final class PdfTextExtractor
                 );
                 $currentTextEndX = $currentTextX;
                 $currentTextEndY = $currentTextY;
-                $pendingTextPositionBoundary = true;
                 $operands = [];
                 continue;
             }
 
             if ($token === 'Tm') {
+                $writingMode = $this->currentWritingMode($fontToUnicodeMaps, $currentFontResource);
+                $axis = $this->textProgressionAxis(
+                    $currentTextXAxisX,
+                    $currentTextXAxisY,
+                    $currentTextYAxisX,
+                    $currentTextYAxisY,
+                    $writingMode
+                );
+                if (!$this->insideArtifact($artifactStack)) {
+                    if ($this->textMatrixBreaksLine($operands, $currentTextX, $currentTextY, $axis, $currentTransformationMatrix)) {
+                        $lastPaintedTextPosition = null;
+                        $pendingTextPosition = null;
+                        $pendingTextPositionBoundary = true;
+                    } else {
+                        $legacyGap = $this->textMatrixWordGap(
+                            $operands,
+                            $currentTextEndX,
+                            $currentTextEndY,
+                            $axis,
+                            $writingMode,
+                            $currentTransformationMatrix
+                        );
+                        if ($lastPaintedTextPosition !== null) {
+                            $pendingTextPosition ??= $lastPaintedTextPosition;
+                            if ($legacyGap !== null) {
+                                $pendingTextPosition['legacyGap'] = max(
+                                    (float) ($pendingTextPosition['legacyGap'] ?? 0.0),
+                                    $legacyGap
+                                );
+                            }
+                        }
+                        $pendingTextPositionBoundary = false;
+                    }
+                }
                 $matrixPosition = $this->textMatrixPosition($operands, $currentTransformationMatrix);
                 $currentTextX = $matrixPosition['x'] ?? null;
                 $currentTextY = $matrixPosition['y'] ?? null;
                 $currentTextEndX = $currentTextX;
                 $currentTextEndY = $currentTextY;
-                $pendingTextPositionBoundary = true;
                 $matrixAxes = $this->textMatrixAxes($operands, $currentTransformationMatrix);
                 $currentTextXAxisX = $matrixAxes['xAxisX'] ?? 1.0;
                 $currentTextXAxisY = $matrixAxes['xAxisY'] ?? 0.0;
@@ -15485,7 +16187,11 @@ final class PdfTextExtractor
                 );
                 $currentTextEndX = $currentTextX;
                 $currentTextEndY = $currentTextY;
-                $pendingTextPositionBoundary = true;
+                if (!$this->insideArtifact($artifactStack)) {
+                    $pendingTextPositionBoundary = true;
+                    $lastPaintedTextPosition = null;
+                    $pendingTextPosition = null;
+                }
                 $operands = [];
                 continue;
             }
@@ -15499,7 +16205,11 @@ final class PdfTextExtractor
                 $currentTextXAxisY = 0.0;
                 $currentTextYAxisX = 0.0;
                 $currentTextYAxisY = 1.0;
-                $pendingTextPositionBoundary = false;
+                if (!$this->insideArtifact($artifactStack)) {
+                    $lastPaintedTextPosition = null;
+                    $pendingTextPosition = null;
+                    $pendingTextPositionBoundary = false;
+                }
                 $operands = [];
                 continue;
             }
@@ -15513,7 +16223,11 @@ final class PdfTextExtractor
                 $currentTextXAxisY = 0.0;
                 $currentTextYAxisX = 0.0;
                 $currentTextYAxisY = 1.0;
-                $pendingTextPositionBoundary = false;
+                if (!$this->insideArtifact($artifactStack)) {
+                    $lastPaintedTextPosition = null;
+                    $pendingTextPosition = null;
+                    $pendingTextPositionBoundary = false;
+                }
                 $operands = [];
                 continue;
             }
@@ -15531,7 +16245,7 @@ final class PdfTextExtractor
 
     /**
      * @param array{x: float, y: float, scale: float} $axis
-     * @return array{text: string, x1: float, y1: float, x2: float, y2: float, textX1: float, textY1: float, textX2: float, textY2: float, fontSize: float, wordBoundaryBefore: bool}
+     * @return array{text: string, x1: float, y1: float, x2: float, y2: float, textX1: float, textY1: float, textX2: float, textY2: float, fontSize: float, wordBoundaryBefore: bool, wordBoundarySource?: string}
      */
     private function positionedTextRun(
         string $text,
@@ -15541,14 +16255,15 @@ final class PdfTextExtractor
         float $endY,
         ?float $fontSize,
         array $axis,
-        bool $wordBoundaryBefore = false
+        bool $wordBoundaryBefore = false,
+        ?string $wordBoundarySource = null
     ): array
     {
         $resolvedFontSize = $fontSize ?? 12.0;
         $height = max(1.0, $resolvedFontSize * max(1.0, $axis['scale']));
         $padding = $height * 0.25;
 
-        return [
+        $run = [
             'text' => $text,
             'x1' => min($startX, $endX) - $padding,
             'y1' => min($startY, $endY) - $padding,
@@ -15560,6 +16275,204 @@ final class PdfTextExtractor
             'textY2' => max($startY, $endY),
             'fontSize' => $resolvedFontSize,
             'wordBoundaryBefore' => $wordBoundaryBefore,
+        ];
+        if ($wordBoundarySource !== null) {
+            $run['wordBoundarySource'] = $wordBoundarySource;
+        }
+
+        return $run;
+    }
+
+    /**
+     * A marked-content replacement string can cover several text-showing
+     * operators. Keep the painted endpoint when the font supplies reliable
+     * metrics; otherwise estimate only the current painted operand from its
+     * glyph bytes. That gives semantic text a usable span without pretending
+     * its replacement characters have the painted font's exact widths.
+     *
+     * @param array{cidWidths?: array<int, float>, cidDefaultWidth?: float, codeSpaceRanges?: list<array{start: int, end: int, width: int}>, map?: array<string, string>, sourceToCid?: array<string, int>}|null $toUnicodeMap
+     * @param array{baseFont?: string, differences?: array<int, string>, widths?: array<int, float>}|null $fontEncoding
+     * @param array{x: float, y: float, scale: float} $axis
+     * @return array{0: float, 1: float}
+     */
+    private function actualTextOperandEndPoint(
+        float $startX,
+        float $startY,
+        float $paintedEndX,
+        float $paintedEndY,
+        string $operand,
+        ?array $toUnicodeMap,
+        ?array $fontEncoding,
+        ?float $fontSize,
+        float $characterSpacing,
+        float $wordSpacing,
+        float $horizontalScale,
+        array $axis,
+        bool $paintedAdvanceIsReliable = false
+    ): array {
+        $resolvedFontSize = $fontSize ?? 12.0;
+        $scale = ($horizontalScale / 100.0) * $axis['scale'];
+        $paintedDistance = hypot($paintedEndX - $startX, $paintedEndY - $startY);
+        if ($paintedAdvanceIsReliable
+            || $paintedDistance > max(0.01, abs($scale) * $resolvedFontSize * 0.01)) {
+            return [$paintedEndX, $paintedEndY];
+        }
+
+        $estimatedAdvance = $this->estimatedTextShowingOperandAdvance(
+            $operand,
+            $toUnicodeMap,
+            $resolvedFontSize,
+            $characterSpacing,
+            $wordSpacing
+        );
+        if ($estimatedAdvance <= 0.0) {
+            return [$paintedEndX, $paintedEndY];
+        }
+
+        return [
+            $startX + ($estimatedAdvance * $scale * $axis['x']),
+            $startY + ($estimatedAdvance * $scale * $axis['y']),
+        ];
+    }
+
+    /**
+     * This is intentionally an estimate for geometry only. It is used when
+     * no trustworthy painted advance exists, so raw glyph byte count is more
+     * honest than deriving a width from unrelated replacement text.
+     *
+     * @param array{codeSpaceRanges?: list<array{start: int, end: int, width: int}>, map?: array<string, string>}|null $toUnicodeMap
+     */
+    private function estimatedTextShowingOperandAdvance(
+        string $operand,
+        ?array $toUnicodeMap,
+        float $fontSize,
+        float $characterSpacing,
+        float $wordSpacing
+    ): float {
+        $operand = trim($operand);
+        if (str_starts_with($operand, '[')) {
+            $advance = 0.0;
+            foreach ($this->textArrayElements($operand) as $element) {
+                if ($element['type'] === 'text') {
+                    $advance += $this->estimatedTextShowingOperandAdvance(
+                        (string) $element['value'],
+                        $toUnicodeMap,
+                        $fontSize,
+                        $characterSpacing,
+                        $wordSpacing
+                    );
+                    continue;
+                }
+                $advance -= (((float) $element['value']) / 1000.0) * $fontSize;
+            }
+
+            return $advance;
+        }
+
+        $bytes = $this->textOperandBytes($operand);
+        if ($bytes === null || $bytes === '') {
+            return 0.0;
+        }
+
+        $glyphCount = $this->textShowingOperandGlyphCount($bytes, $toUnicodeMap);
+        if ($glyphCount <= 0) {
+            return 0.0;
+        }
+
+        return ($glyphCount * $fontSize * self::SIMPLE_TEXT_ADVANCE_RATIO)
+            + (max(0, $glyphCount - 1) * $characterSpacing)
+            + (substr_count($bytes, ' ') * $wordSpacing);
+    }
+
+    /**
+     * @param array{codeSpaceRanges?: list<array{start: int, end: int, width: int}>, map?: array<string, string>}|null $toUnicodeMap
+     */
+    private function textShowingOperandGlyphCount(string $bytes, ?array $toUnicodeMap): int
+    {
+        if ($toUnicodeMap === null) {
+            return strlen($bytes);
+        }
+
+        $hex = bin2hex($bytes);
+        $keyLengths = $this->toUnicodeMapKeyLengths($toUnicodeMap);
+        $codeSpaceRanges = $toUnicodeMap['codeSpaceRanges'] ?? [];
+        if ($keyLengths === [] && $codeSpaceRanges === []) {
+            return strlen($bytes);
+        }
+
+        $count = 0;
+        for ($offset = 0, $length = strlen($hex); $offset < $length;) {
+            $sourceLength = $this->fallbackToUnicodeSourceLength(
+                $keyLengths,
+                $length - $offset,
+                $codeSpaceRanges,
+                $hex,
+                $offset
+            );
+            if ($sourceLength <= 0 || $offset + $sourceLength > $length) {
+                return max($count, strlen($bytes));
+            }
+            $count++;
+            $offset += $sourceLength;
+        }
+
+        return $count;
+    }
+
+    /**
+     * @param array{map?: array<string, string>} $toUnicodeMap
+     * @return list<int>
+     */
+    private function toUnicodeMapKeyLengths(array $toUnicodeMap): array
+    {
+        $keyLengths = array_values(array_unique(array_map('strlen', array_keys($toUnicodeMap['map'] ?? []))));
+        rsort($keyLengths, SORT_NUMERIC);
+
+        return $keyLengths;
+    }
+
+    /**
+     * @param array<string, mixed>|null $layout
+     * @param array{x: float, y: float, scale: float} $axis
+     * @return array<string, mixed>
+     */
+    private function expandedActualTextPositionedLayout(
+        ?array $layout,
+        float $startX,
+        float $startY,
+        float $endX,
+        float $endY,
+        ?float $fontSize,
+        array $axis,
+        bool $wordBoundaryBefore,
+        ?string $wordBoundarySource
+    ): array {
+        $x1 = min($startX, $endX);
+        $y1 = min($startY, $endY);
+        $x2 = max($startX, $endX);
+        $y2 = max($startY, $endY);
+        if ($layout === null) {
+            return [
+                'x1' => $x1,
+                'y1' => $y1,
+                'x2' => $x2,
+                'y2' => $y2,
+                'fontSize' => $fontSize,
+                'axis' => $axis,
+                'wordBoundaryBefore' => $wordBoundaryBefore,
+                'wordBoundarySource' => $wordBoundarySource,
+            ];
+        }
+
+        return [
+            'x1' => min((float) $layout['x1'], $x1),
+            'y1' => min((float) $layout['y1'], $y1),
+            'x2' => max((float) $layout['x2'], $x2),
+            'y2' => max((float) $layout['y2'], $y2),
+            'fontSize' => max((float) ($layout['fontSize'] ?? 0.0), $fontSize ?? 0.0),
+            'axis' => $layout['axis'] ?? $axis,
+            'wordBoundaryBefore' => (bool) ($layout['wordBoundaryBefore'] ?? false),
+            'wordBoundarySource' => $layout['wordBoundarySource'] ?? $wordBoundarySource,
         ];
     }
 
@@ -16158,61 +17071,145 @@ final class PdfTextExtractor
         return $gap !== null && $gap >= self::POSITIONED_TEXT_WORD_GAP;
     }
 
-    private function positionedGapLooksLikeWordBoundary(?float $gap, ?float $fontSize, string $leftText, string $rightText): bool
+    /**
+     * Decide a Tm/Td boundary from what was painted, not from the size of the
+     * positioning operator. Producers frequently reset a text matrix and then
+     * issue a large relative Td while the next glyph begins exactly where the
+     * previous glyph ended. That is a continuation, not a semantic space.
+     *
+     * A touching or overlapping rendered endpoint is the general evidence
+     * needed to suppress a generated space. When the font exposes neither
+     * embedded nor Base 14 metrics for the actual painted operand, its
+     * endpoint is only an estimate, so keep the older conservative
+     * positioning fallback rather than guessing from letters, casing, or word
+     * length.
+     *
+     * @param array{x: float, y: float, scale: float} $axis
+     * @param array{cidWidths?: array<int, float>, cidDefaultWidth?: float, codeSpaceRanges?: list<array{start: int, end: int, width: int}>, map?: array<string, string>, sourceToCid?: array<string, int>}|null $toUnicodeMap
+     * @param array{baseFont?: string, widths?: array<int, float>, base?: string, differences?: array<int, string>, suppressUnmapped?: bool}|null $fontEncoding
+     */
+    private function textPositionStartsWord(
+        ?float $previousEndX,
+        ?float $previousEndY,
+        ?float $nextStartX,
+        ?float $nextStartY,
+        array $axis,
+        int $writingMode,
+        ?array $toUnicodeMap,
+        ?array $fontEncoding,
+        ?float $fontSize,
+        float $characterSpacing,
+        float $wordSpacing,
+        float $horizontalScale,
+        bool $previousAdvanceIsReliable,
+        ?float $legacyGap
+    ): bool
     {
+        $gap = $this->renderedTextPositionGap(
+            $previousEndX,
+            $previousEndY,
+            $nextStartX,
+            $nextStartY,
+            $axis,
+            $writingMode
+        );
         if ($gap === null) {
-            return false;
+            return $this->gapExceedsLegacyWordThreshold($legacyGap);
         }
-        if ($gap < max(2.0, ($fontSize ?? 12.0) * 0.35)) {
-            return false;
-        }
-
-        $leftWord = $this->lastWordToken($leftText);
-        $rightWord = $this->firstWordToken($rightText);
-        if ($rightWord === '') {
-            return false;
+        if (!$previousAdvanceIsReliable) {
+            return $this->gapExceedsLegacyWordThreshold($legacyGap);
         }
 
-        if (preg_match('/[:,;]$/u', rtrim($leftText)) === 1) {
-            return true;
-        }
-        if ($leftWord === '') {
-            return false;
-        }
-
-        $lowerRight = strtolower($rightWord);
-        if ($this->length($rightWord) === 1) {
-            return in_array($lowerRight, ['a', 'i', 'o', 'u', 'w', 'z'], true);
-        }
-        if ($this->length($leftWord) === 1) {
-            return in_array(strtolower($leftWord), ['a', 'i', 'o', 'u', 'w', 'z'], true);
-        }
-        if (preg_match('/^\p{Lu}{2,}$/u', $rightWord) === 1) {
-            return true;
-        }
-        if (preg_match('/^\p{Lu}\p{Ll}+$/u', $rightWord) === 1) {
-            return false;
+        $spaceAdvance = $this->renderedTextSpaceAdvance(
+            $toUnicodeMap,
+            $fontEncoding,
+            $fontSize,
+            $characterSpacing,
+            $wordSpacing,
+            $horizontalScale,
+            $axis
+        );
+        if ($spaceAdvance === null) {
+            // The font supplies glyph advances but no encoded space glyph.
+            // The resolved rendered distance is still meaningful; use the
+            // conservative absolute fallback rather than the raw Tm/Td move.
+            return $this->gapExceedsLegacyWordThreshold($gap);
         }
 
-        return preg_match('/^\p{Ll}/u', $rightWord) === 1 && $this->length($rightWord) > 2;
+        // Require a substantial fraction of the font's rendered space. PDF
+        // producers often round the text matrix after applying side bearings
+        // or tracking, so a normal visible word gap can fall just below half
+        // a nominal space. A touching split remains far below this threshold;
+        // no vocabulary, casing, or cross-document evidence participates.
+        return $gap > max(0.15, $spaceAdvance * 0.40);
     }
 
-    private function lastWordToken(string $text): string
-    {
-        if (preg_match('/[\p{L}\p{N}]+$/u', rtrim($text), $match) !== 1) {
-            return '';
+    /**
+     * @param array{x: float, y: float, scale: float} $axis
+     */
+    private function renderedTextPositionGap(
+        ?float $previousEndX,
+        ?float $previousEndY,
+        ?float $nextStartX,
+        ?float $nextStartY,
+        array $axis,
+        int $writingMode
+    ): ?float {
+        if ($previousEndX === null || $previousEndY === null || $nextStartX === null || $nextStartY === null) {
+            return null;
         }
 
-        return $match[0];
+        $projection = (($nextStartX - $previousEndX) * $axis['x'])
+            + (($nextStartY - $previousEndY) * $axis['y']);
+
+        return $writingMode === 1 ? abs($projection) : $projection;
     }
 
-    private function firstWordToken(string $text): string
-    {
-        if (preg_match('/^[^\p{L}\p{N}]*([\p{L}\p{N}]+)/u', ltrim($text), $match) !== 1) {
-            return '';
+    /**
+     * @param array{cidWidths?: array<int, float>, cidDefaultWidth?: float, codeSpaceRanges?: list<array{start: int, end: int, width: int}>, map?: array<string, string>, sourceToCid?: array<string, int>}|null $toUnicodeMap
+     * @param array{baseFont?: string, differences?: array<int, string>, widths?: array<int, float>}|null $fontEncoding
+     * @param array{x: float, y: float, scale: float} $axis
+     */
+    private function renderedTextSpaceAdvance(
+        ?array $toUnicodeMap,
+        ?array $fontEncoding,
+        ?float $fontSize,
+        float $characterSpacing,
+        float $wordSpacing,
+        float $horizontalScale,
+        array $axis
+    ): ?float {
+        $resolvedFontSize = $fontSize ?? 12.0;
+        $advance = null;
+        $simpleSpaceWidth = $this->simpleFontGlyphWidth($fontEncoding, 0x20);
+        if ($simpleSpaceWidth !== null) {
+            $advance = ($simpleSpaceWidth / 1000.0 * $resolvedFontSize) + $characterSpacing + $wordSpacing;
+        } elseif ($toUnicodeMap !== null) {
+            foreach ($toUnicodeMap['map'] ?? [] as $sourceHex => $decoded) {
+                if ($decoded !== ' ') {
+                    continue;
+                }
+                $cid = $this->cidForSourceHex($sourceHex, $toUnicodeMap);
+                if ($cid === null) {
+                    continue;
+                }
+                $cidWidths = $toUnicodeMap['cidWidths'] ?? [];
+                if (!array_key_exists($cid, $cidWidths)
+                    && !array_key_exists('cidDefaultWidth', $toUnicodeMap)) {
+                    continue;
+                }
+                $advance = ((float) ($cidWidths[$cid] ?? $toUnicodeMap['cidDefaultWidth']) / 1000.0 * $resolvedFontSize)
+                    + $characterSpacing
+                    + $wordSpacing;
+                break;
+            }
         }
+        if ($advance === null) {
+            return null;
+        }
+        $renderedAdvance = abs($advance * ($horizontalScale / 100.0) * $axis['scale']);
 
-        return $match[1];
+        return $renderedAdvance > 0.000001 ? $renderedAdvance : null;
     }
 
     /**
@@ -16452,7 +17449,7 @@ final class PdfTextExtractor
 
         if (!$this->endsWithWhitespace($currentLine)
             && !$this->startsWithWhitespace($decoded)
-            && ($pendingPositionWordGap || $this->positionedGapLooksLikeWordBoundary($pendingPositionGap, $pendingPositionFontSize, $currentLine, $decoded))
+            && $pendingPositionWordGap
         ) {
             $currentLine .= ' ';
         }
@@ -16486,7 +17483,7 @@ final class PdfTextExtractor
 
     /**
      * @param array{cidWidths?: array<int, float>, cidDefaultWidth?: float, codeSpaceRanges?: list<array{start: int, end: int, width: int}>, map?: array<string, string>, sourceToCid?: array<string, int>}|null $toUnicodeMap
-     * @param array{widths?: array<int, float>}|null $fontEncoding
+     * @param array{baseFont?: string, differences?: array<int, string>, widths?: array<int, float>}|null $fontEncoding
      * @param array{x: float, y: float, scale: float} $axis
      * @return array{0: ?float, 1: ?float}
      */
@@ -16525,7 +17522,7 @@ final class PdfTextExtractor
 
     /**
      * @param array{cidWidths?: array<int, float>, cidDefaultWidth?: float, codeSpaceRanges?: list<array{start: int, end: int, width: int}>, map?: array<string, string>, sourceToCid?: array<string, int>}|null $toUnicodeMap
-     * @param array{widths?: array<int, float>}|null $fontEncoding
+     * @param array{baseFont?: string, differences?: array<int, string>, widths?: array<int, float>}|null $fontEncoding
      */
     private function textOperandAdvanceForOperand(
         string $operand,
@@ -16562,10 +17559,14 @@ final class PdfTextExtractor
      * @param array{cidWidths?: array<int, float>, cidDefaultWidth?: float, codeSpaceRanges?: list<array{start: int, end: int, width: int}>, map?: array<string, string>, sourceToCid?: array<string, int>}|null $toUnicodeMap
      * @param array{widths?: array<int, float>, base?: string, differences?: array<int, string>, suppressUnmapped?: bool}|null $fontEncoding
      */
-    private function decodeTextOperandWithArraySpacing(string $operand, ?array $toUnicodeMap, ?array $fontEncoding): string
+    private function decodeTextOperandWithBoundaryEvidence(
+        string $operand,
+        ?array $toUnicodeMap,
+        ?array $fontEncoding
+    ): string
     {
         $text = '';
-        foreach ($this->textOperandVisualSegments(
+        foreach ($this->textOperandSegmentsWithBoundaryEvidence(
             $operand,
             $toUnicodeMap,
             $fontEncoding,
@@ -16575,13 +17576,62 @@ final class PdfTextExtractor
             100.0,
             ['x' => 1.0, 'y' => 0.0, 'scale' => 1.0]
         ) as $segment) {
-            if ($segment['gapBefore'] !== null && $this->tjAdjustmentGapLooksLikeWordBoundary($segment['gapBefore'], 12.0)) {
+            if ($segment['wordBoundaryBefore']) {
                 $text = rtrim($text) . ' ';
             }
             $text .= $segment['text'];
         }
 
         return $text;
+    }
+
+    /**
+     * Carry TJ layout provenance through the extractor.
+     *
+     * A TJ adjustment is still the best available boundary signal for an
+     * untagged array.  It is deliberately kept distinct from text-position
+     * moves below: a later Tm/Td can be checked against the rendered endpoint
+     * and a measured space width, while an otherwise identical bare TJ array
+     * has no semantic discriminator unless the PDF supplies /ActualText.
+     *
+     * @param array{cidWidths?: array<int, float>, cidDefaultWidth?: float, codeSpaceRanges?: list<array{start: int, end: int, width: int}>, map?: array<string, string>, sourceToCid?: array<string, int>}|null $toUnicodeMap
+     * @param array{widths?: array<int, float>, base?: string, differences?: array<int, string>, suppressUnmapped?: bool}|null $fontEncoding
+     * @param array{x: float, y: float, scale: float} $axis
+     * @return list<array{text: string, startOffset: float, endOffset: float, gapBefore: ?float, wordBoundaryBefore: bool, wordBoundarySource: string}>
+     */
+    private function textOperandSegmentsWithBoundaryEvidence(
+        string $operand,
+        ?array $toUnicodeMap,
+        ?array $fontEncoding,
+        ?float $fontSize,
+        float $characterSpacing,
+        float $wordSpacing,
+        float $horizontalScale,
+        array $axis
+    ): array {
+        $segments = $this->textOperandVisualSegments(
+            $operand,
+            $toUnicodeMap,
+            $fontEncoding,
+            $fontSize,
+            $characterSpacing,
+            $wordSpacing,
+            $horizontalScale,
+            $axis
+        );
+        if ($segments === []) {
+            return [];
+        }
+
+        foreach ($segments as $index => $segment) {
+            $wordBoundaryBefore = $index > 0
+                && $this->tjAdjustmentGapLooksLikeWordBoundary($segment['gapBefore'], $fontSize);
+            $wordBoundarySource = $wordBoundaryBefore ? 'tj-layout' : 'none';
+            $segments[$index]['wordBoundaryBefore'] = $wordBoundaryBefore;
+            $segments[$index]['wordBoundarySource'] = $wordBoundarySource;
+        }
+
+        return $segments;
     }
 
     /**
@@ -16669,10 +17719,9 @@ final class PdfTextExtractor
     {
         $sourceCodes = $this->simpleFontSourceCodesFromOperand($operand, $fontEncoding);
         if ($sourceCodes !== []) {
-            $widths = $fontEncoding['widths'] ?? [];
             $advance = 0.0;
             foreach ($sourceCodes as $sourceCode) {
-                $advance += ($widths[$sourceCode] ?? 500.0) / 1000.0 * $fontSize;
+                $advance += ($this->simpleFontGlyphWidth($fontEncoding, $sourceCode) ?? 500.0) / 1000.0 * $fontSize;
             }
 
             return $advance;
@@ -16695,7 +17744,7 @@ final class PdfTextExtractor
 
     /**
      * @param array{cidWidths?: array<int, float>, cidDefaultWidth?: float, codeSpaceRanges?: list<array{start: int, end: int, width: int}>, map?: array<string, string>, sourceToCid?: array<string, int>}|null $toUnicodeMap
-     * @param array{widths?: array<int, float>}|null $fontEncoding
+     * @param array{baseFont?: string, differences?: array<int, string>, widths?: array<int, float>}|null $fontEncoding
      */
     private function textOperandSpacingAdvance(string $decoded, ?string $operand, ?array $toUnicodeMap, ?array $fontEncoding, float $characterSpacing, float $wordSpacing): float
     {
@@ -16728,12 +17777,124 @@ final class PdfTextExtractor
     }
 
     /**
-     * @param array{widths?: array<int, float>}|null $fontEncoding
+     * A non-empty /Widths array only proves the advances it actually contains.
+     * Likewise, the bundled Base 14 tables intentionally cover printable
+     * ASCII, not every WinAnsi byte. Keep that confidence with the painted
+     * operand so an estimated glyph cannot make a Tm/Td gap look precise.
+     *
+     * @param array{cidWidths?: array<int, float>, cidDefaultWidth?: float, codeSpaceRanges?: list<array{start: int, end: int, width: int}>, map?: array<string, string>, sourceToCid?: array<string, int>}|null $toUnicodeMap
+     * @param array{baseFont?: string, differences?: array<int, string>, widths?: array<int, float>}|null $fontEncoding
+     */
+    private function textOperandHasReliableAdvanceMetrics(
+        string $operand,
+        ?array $toUnicodeMap,
+        ?array $fontEncoding
+    ): bool {
+        $operand = trim($operand);
+        $textOperands = [];
+        if (str_starts_with($operand, '[')) {
+            foreach ($this->textArrayElements($operand) as $element) {
+                if ($element['type'] === 'text') {
+                    $textOperands[] = (string) $element['value'];
+                }
+            }
+        } else {
+            $textOperands[] = $operand;
+        }
+
+        $usesSimpleMetrics = $fontEncoding !== null
+            && (($fontEncoding['widths'] ?? []) !== []
+                || $this->fontEncodingHasBase14AsciiMetrics($fontEncoding));
+        $sawPaintedGlyph = false;
+        foreach ($textOperands as $textOperand) {
+            $bytes = $this->textOperandBytes($textOperand);
+            if ($bytes === null) {
+                return false;
+            }
+            if ($bytes === '') {
+                continue;
+            }
+
+            $sawPaintedGlyph = true;
+            if ($usesSimpleMetrics) {
+                foreach (unpack('C*', $bytes) ?: [] as $sourceCode) {
+                    if ($this->simpleFontGlyphWidth($fontEncoding, (int) $sourceCode) === null) {
+                        return false;
+                    }
+                }
+                continue;
+            }
+
+            if (!$this->cidOperandHasReliableAdvanceMetrics($textOperand, $toUnicodeMap)) {
+                return false;
+            }
+        }
+
+        return $sawPaintedGlyph;
+    }
+
+    /**
+     * @param array{cidWidths?: array<int, float>, cidDefaultWidth?: float, codeSpaceRanges?: list<array{start: int, end: int, width: int}>, map?: array<string, string>, sourceToCid?: array<string, int>}|null $toUnicodeMap
+     */
+    private function cidOperandHasReliableAdvanceMetrics(string $operand, ?array $toUnicodeMap): bool
+    {
+        if ($toUnicodeMap === null
+            || (($toUnicodeMap['cidWidths'] ?? []) === []
+                && !array_key_exists('cidDefaultWidth', $toUnicodeMap))) {
+            return false;
+        }
+
+        $bytes = $this->textOperandBytes($operand);
+        if ($bytes === null || $bytes === '') {
+            return false;
+        }
+
+        $hex = bin2hex($bytes);
+        $length = strlen($hex);
+        $offset = 0;
+        $keyLengths = array_values(array_unique(array_map('strlen', array_keys($toUnicodeMap['map'] ?? []))));
+        rsort($keyLengths, SORT_NUMERIC);
+        $codeSpaceRanges = $toUnicodeMap['codeSpaceRanges'] ?? [];
+        $widths = $toUnicodeMap['cidWidths'] ?? [];
+
+        while ($offset < $length) {
+            $sourceLength = $this->fallbackToUnicodeSourceLength(
+                $keyLengths,
+                $length - $offset,
+                $codeSpaceRanges,
+                $hex,
+                $offset
+            );
+            if ($sourceLength <= 0 || $offset + $sourceLength > $length) {
+                return false;
+            }
+
+            $sourceHex = substr($hex, $offset, $sourceLength);
+            if (strlen($sourceHex) > 8) {
+                return false;
+            }
+            $cid = $this->cidForSourceHex($sourceHex, $toUnicodeMap);
+            if ($cid === null) {
+                return false;
+            }
+            if (!array_key_exists($cid, $widths)
+                && !array_key_exists('cidDefaultWidth', $toUnicodeMap)) {
+                return false;
+            }
+            $offset += $sourceLength;
+        }
+
+        return true;
+    }
+
+    /**
+     * @param array{baseFont?: string, differences?: array<int, string>, widths?: array<int, float>}|null $fontEncoding
      * @return list<int>
      */
     private function simpleFontSourceCodesFromOperand(?string $operand, ?array $fontEncoding): array
     {
-        if ($operand === null || $fontEncoding === null || ($fontEncoding['widths'] ?? []) === []) {
+        if ($operand === null || $fontEncoding === null
+            || (($fontEncoding['widths'] ?? []) === [] && !$this->fontEncodingHasBase14AsciiMetrics($fontEncoding))) {
             return [];
         }
 
@@ -16746,7 +17907,48 @@ final class PdfTextExtractor
     }
 
     /**
-     * @param array{cidWidths?: array<int, float>, cidDefaultWidth?: float, codeSpaceRanges?: list<array{start: int, end: int, width: int}>, map?: array<string, string>, sourceToCid?: array<string, int>}|null $toUnicodeMap
+     * @param array{baseFont?: string, differences?: array<int, string>, widths?: array<int, float>}|null $fontEncoding
+     */
+    private function simpleFontGlyphWidth(?array $fontEncoding, int $sourceCode): ?float
+    {
+        $widths = $fontEncoding['widths'] ?? [];
+        if (array_key_exists($sourceCode, $widths)) {
+            return (float) $widths[$sourceCode];
+        }
+
+        return $this->base14AsciiWidth($fontEncoding, $sourceCode);
+    }
+
+    /**
+     * Resolve a shown source code to a CID only when that relationship is
+     * explicit, except for the PDF-defined Identity encodings. A ToUnicode map
+     * describes text, not necessarily glyph IDs, so its source bytes cannot
+     * otherwise be used as width-table indexes.
+     *
+     * @param array{sourceToCid?: array<string, int>, isIdentityCidEncoding?: bool}|null $toUnicodeMap
+     */
+    private function cidForSourceHex(string|int $sourceHex, ?array $toUnicodeMap): ?int
+    {
+        if ($toUnicodeMap === null) {
+            return null;
+        }
+
+        $sourceHex = (string) $sourceHex;
+        $sourceToCid = $toUnicodeMap['sourceToCid'] ?? [];
+        if (array_key_exists($sourceHex, $sourceToCid)) {
+            return (int) $sourceToCid[$sourceHex];
+        }
+
+        if (($toUnicodeMap['isIdentityCidEncoding'] ?? false) !== true
+            || strlen($sourceHex) > 8) {
+            return null;
+        }
+
+        return hexdec($sourceHex);
+    }
+
+    /**
+     * @param array{cidWidths?: array<int, float>, cidDefaultWidth?: float, codeSpaceRanges?: list<array{start: int, end: int, width: int}>, map?: array<string, string>, sourceToCid?: array<string, int>, isIdentityCidEncoding?: bool}|null $toUnicodeMap
      * @return list<int>
      */
     private function cidSourceCodesFromOperand(?string $operand, ?array $toUnicodeMap): array
@@ -16770,7 +17972,6 @@ final class PdfTextExtractor
         $keyLengths = array_values(array_unique(array_map('strlen', array_keys($toUnicodeMap['map'] ?? []))));
         rsort($keyLengths, SORT_NUMERIC);
         $codeSpaceRanges = $toUnicodeMap['codeSpaceRanges'] ?? [];
-        $sourceToCid = $toUnicodeMap['sourceToCid'] ?? [];
 
         while ($offset < $length) {
             $sourceLength = $this->fallbackToUnicodeSourceLength(
@@ -16785,9 +17986,11 @@ final class PdfTextExtractor
             }
 
             $sourceHex = substr($hex, $offset, $sourceLength);
-            if (strlen($sourceHex) <= 8) {
-                $codes[] = $sourceToCid[$sourceHex] ?? hexdec($sourceHex);
+            $cid = $this->cidForSourceHex($sourceHex, $toUnicodeMap);
+            if ($cid === null) {
+                return [];
             }
+            $codes[] = $cid;
             $offset += $sourceLength;
         }
 
@@ -17113,13 +18316,42 @@ final class PdfTextExtractor
      */
     private function insideActualText(array $actualTextStack): bool
     {
-        foreach ($actualTextStack as $actualText) {
-            if (is_string($actualText)) {
-                return true;
+        return $this->activeActualTextIndex($actualTextStack) !== null;
+    }
+
+    /**
+     * The innermost replacement text governs a marked-content span. BMC
+     * scopes do not replace text themselves, so they leave an enclosing
+     * ActualText span active.
+     *
+     * @param list<string|null> $actualTextStack
+     */
+    private function activeActualTextIndex(array $actualTextStack): ?int
+    {
+        for ($index = count($actualTextStack) - 1; $index >= 0; $index--) {
+            if (is_string($actualTextStack[$index])) {
+                return $index;
             }
         }
 
-        return false;
+        return null;
+    }
+
+    /**
+     * A nested replacement scope is the more local semantic assertion. Once
+     * it exists, retaining its enclosing replacement as a second visible
+     * string would duplicate the same painted range across extraction layers.
+     *
+     * @param list<string|null> $actualTextStack
+     * @param list<bool> $actualTextNested
+     */
+    private function markEnclosingActualTextScopesAsNested(array $actualTextStack, array &$actualTextNested): void
+    {
+        foreach ($actualTextStack as $index => $actualText) {
+            if (is_string($actualText)) {
+                $actualTextNested[$index] = true;
+            }
+        }
     }
 
     /**

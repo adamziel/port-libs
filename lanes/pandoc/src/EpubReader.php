@@ -285,6 +285,7 @@ final class EpubReader
             if (!is_string($xhtml)) {
                 continue;
             }
+            $xhtml = $this->normalizeEpubXmlSource($xhtml);
             $resources[] = $href;
             $content_document_was_xml = false;
             $content_dom = $this->contentDocumentDom($xhtml, $content_document_was_xml);
@@ -3834,11 +3835,122 @@ final class EpubReader
         if (!class_exists(\DOMDocument::class)) {
             throw new \RuntimeException($label . ' needs DOMDocument, which is unavailable in this runtime.');
         }
+        $xml = $this->normalizeEpubXmlSource($xml);
         try {
             return Html5Dom::parseXmlDocument($this->xmlWithoutSafeHtmlDoctype($xml), $label);
         } catch (\RuntimeException) {
             throw new \InvalidArgumentException($label . ' is not valid XML.');
         }
+    }
+
+    /**
+     * Normalize EPUB XML resources before the hardened XML and HTML parsers
+     * see them. EPUBs in the wild regularly preserve their exporter's
+     * UTF-16 XML and stylesheet processing instructions. Neither is content
+     * that can be represented in the document AST, and raw UTF-16 contains
+     * NUL bytes that strict parser preflight must reject.
+     */
+    private function normalizeEpubXmlSource(string $source): string
+    {
+        $encoding = $this->epubXmlByteEncoding($source);
+        if ($encoding !== null) {
+            $source = UnicodeText::decodeBytes($source, $encoding)['text'];
+        }
+
+        return $this->epubXmlSourceWithoutProcessingInstructions($source);
+    }
+
+    /**
+     * Identify Unicode XML byte streams before strict parser preflight sees
+     * UTF-16/32's structural NUL bytes. The no-BOM forms use the XML byte
+     * order signatures that begin an XML declaration or document element.
+     */
+    private function epubXmlByteEncoding(string $source): ?string
+    {
+        if (!str_contains($source, "\0")) {
+            return null;
+        }
+
+        $declared = UnicodeText::declaredCharset($source);
+        $bom_encoding = $declared['source'] === 'byte-order-mark' ? $declared['encoding'] : null;
+        if (in_array($bom_encoding, ['utf-16le', 'utf-16be', 'utf-32le', 'utf-32be'], true)) {
+            return $bom_encoding;
+        }
+
+        if (str_starts_with($source, "\x00\x00\x00<")) {
+            return 'utf-32be';
+        }
+        if (str_starts_with($source, "<\x00\x00\x00")) {
+            return 'utf-32le';
+        }
+        if (str_starts_with($source, "\x00<")) {
+            return 'utf-16be';
+        }
+        if (str_starts_with($source, "<\x00")) {
+            return 'utf-16le';
+        }
+
+        return null;
+    }
+
+    /**
+     * Drop XML processing instructions without touching declaration-looking
+     * text in comments or CDATA. EPUB styling and exporter PIs are not part
+     * of the converted document; removing them avoids asking the strict
+     * HTML/XML facades to treat an inert instruction as active input.
+     */
+    private function epubXmlSourceWithoutProcessingInstructions(string $source): string
+    {
+        if (!str_contains($source, '<?')) {
+            return $source;
+        }
+
+        $result = '';
+        $offset = 0;
+        $length = strlen($source);
+
+        while ($offset < $length) {
+            $start = strpos($source, '<', $offset);
+            if ($start === false) {
+                return $result . substr($source, $offset);
+            }
+
+            $result .= substr($source, $offset, $start - $offset);
+            foreach ([['<!--', '-->'], ['<![CDATA[', ']]>']] as [$prefix, $suffix]) {
+                if (substr_compare($source, $prefix, $start, strlen($prefix)) !== 0) {
+                    continue;
+                }
+
+                $end = strpos($source, $suffix, $start + strlen($prefix));
+                if ($end === false) {
+                    return $result . substr($source, $start);
+                }
+
+                $next = $end + strlen($suffix);
+                $result .= substr($source, $start, $next - $start);
+                $offset = $next;
+                continue 2;
+            }
+
+            if (substr_compare($source, '<?', $start, 2) === 0) {
+                $end = strpos($source, '?>', $start + 2);
+                if ($end === false) {
+                    // Preserve malformed PI-looking text as visible text so
+                    // the HTML recovery path can still import the chapter.
+                    $result .= '&lt;?';
+                    $offset = $start + 2;
+                    continue;
+                }
+
+                $offset = $end + 2;
+                continue;
+            }
+
+            $result .= '<';
+            $offset = $start + 1;
+        }
+
+        return $result;
     }
 
     private function xmlWithoutSafeHtmlDoctype(string $xml): string
