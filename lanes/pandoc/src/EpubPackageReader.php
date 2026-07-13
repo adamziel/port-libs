@@ -8274,9 +8274,9 @@ final class EpubPackageReader
 
     private function tableCaptionSide(\DOMElement $caption): string
     {
-        $style = strtolower($caption->getAttribute('style'));
-        if (preg_match('/(?:^|;)\s*caption-side\s*:\s*(top|bottom)\b/', $style, $match) === 1) {
-            return $match[1];
+        $captionSide = CssDeclarationScanner::firstValue($caption->getAttribute('style'), 'caption-side');
+        if ($captionSide !== null && preg_match('/^(top|bottom)\b/i', $captionSide, $match) === 1) {
+            return strtolower($match[1]);
         }
 
         return 'top';

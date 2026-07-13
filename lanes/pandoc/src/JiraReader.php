@@ -417,17 +417,26 @@ final class JiraReader
         $nodes = [];
         $buffer = '';
         $length = strlen($text);
+        $nextClosingBracketOffset = null;
         for ($offset = 0; $offset < $length; $offset++) {
-            $tail = substr($text, $offset);
+            $char = $text[$offset];
 
-            if (str_starts_with($tail, '{anchor:') && preg_match('/^\\{anchor:([^}]*)\\}/u', $tail, $match) === 1) {
+            if (
+                $char === '{'
+                && substr_compare($text, '{anchor:', $offset, strlen('{anchor:')) === 0
+                && preg_match('/\\G\\{anchor:([^}]*)\\}/u', $text, $match, 0, $offset) === 1
+            ) {
                 $this->flushText($nodes, $buffer);
                 $nodes[] = new AstNode('span', ['id' => $match[1]], []);
                 $offset += strlen($match[0]) - 1;
                 continue;
             }
 
-            if (str_starts_with($tail, '{color:') && preg_match('/^\\{color:([^}]*)\\}/u', $tail, $match) === 1) {
+            if (
+                $char === '{'
+                && substr_compare($text, '{color:', $offset, strlen('{color:')) === 0
+                && preg_match('/\\G\\{color:([^}]*)\\}/u', $text, $match, 0, $offset) === 1
+            ) {
                 $end = strpos($text, '{color}', $offset + strlen($match[0]));
                 if ($end !== false) {
                     $this->flushText($nodes, $buffer);
@@ -440,7 +449,7 @@ final class JiraReader
                 }
             }
 
-            if (str_starts_with($tail, '{{')) {
+            if ($char === '{' && ($text[$offset + 1] ?? '') === '{') {
                 $end = strpos($text, '}}', $offset + 2);
                 if ($end !== false) {
                     $this->flushText($nodes, $buffer);
@@ -451,9 +460,15 @@ final class JiraReader
                 }
             }
 
-            if ($text[$offset] === '[') {
-                $end = strpos($text, ']', $offset + 1);
-                if ($end !== false) {
+            if ($char === '[') {
+                if (
+                    $nextClosingBracketOffset === null
+                    || ($nextClosingBracketOffset !== false && $nextClosingBracketOffset <= $offset)
+                ) {
+                    $nextClosingBracketOffset = strpos($text, ']', $offset + 1);
+                }
+                if ($nextClosingBracketOffset !== false) {
+                    $end = $nextClosingBracketOffset;
                     $link = $this->parseLink(substr($text, $offset + 1, $end - $offset - 1));
                     if ($link instanceof AstNode) {
                         $this->flushText($nodes, $buffer);
@@ -464,7 +479,7 @@ final class JiraReader
                 }
             }
 
-            if ($text[$offset] === '!') {
+            if ($char === '!') {
                 $end = strpos($text, '!', $offset + 1);
                 if ($end !== false) {
                     $image = $this->parseImage(substr($text, $offset + 1, $end - $offset - 1));
@@ -477,7 +492,10 @@ final class JiraReader
                 }
             }
 
-            if ($allowAutolinks) {
+            if (
+                $allowAutolinks
+                && (($char >= 'A' && $char <= 'Z') || ($char >= 'a' && $char <= 'z'))
+            ) {
                 $autolink = $this->parseAutolink($text, $offset);
                 if ($autolink instanceof AstNode) {
                     $this->flushText($nodes, $buffer);
@@ -488,7 +506,7 @@ final class JiraReader
                 }
             }
 
-            if (str_starts_with($tail, '??')) {
+            if ($char === '?' && ($text[$offset + 1] ?? '') === '?') {
                 $end = strpos($text, '??', $offset + 2);
                 if ($end !== false) {
                     $this->flushText($nodes, $buffer);
@@ -518,7 +536,7 @@ final class JiraReader
                 continue;
             }
 
-            if ($text[$offset] === '&' && preg_match('/^&([A-Za-z][A-Za-z0-9]+|#[0-9]+|#x[0-9A-Fa-f]+);/u', $tail, $match) === 1) {
+            if ($char === '&' && preg_match('/\\G&([A-Za-z][A-Za-z0-9]+|#[0-9]+|#x[0-9A-Fa-f]+);/u', $text, $match, 0, $offset) === 1) {
                 $buffer .= $this->decodeEntities($match[0]);
                 $offset += strlen($match[0]) - 1;
                 continue;
@@ -537,7 +555,7 @@ final class JiraReader
             '{^}' => 'superscript',
             '{~}' => 'subscript',
         ] as $marker => $type) {
-            if (!str_starts_with(substr($text, $offset), $marker)) {
+            if (substr_compare($text, $marker, $offset, strlen($marker)) !== 0) {
                 continue;
             }
             $end = strpos($text, $marker, $offset + strlen($marker));
@@ -558,13 +576,12 @@ final class JiraReader
             return null;
         }
 
-        $tail = substr($text, $offset);
-        if (preg_match('/^(?:[A-Za-z][A-Za-z0-9+.-]*:\\/\\/|mailto:)[^\\s<>{}\\[\\]"\']+/u', $tail, $match) !== 1) {
+        if (preg_match('/\\G(?:[A-Za-z][A-Za-z0-9+.-]*:\\/\\/|mailto:)[^\\s<>{}\\[\\]"\']+/u', $text, $match, 0, $offset) !== 1) {
             return null;
         }
 
         $target = $this->trimAutolinkTrailingPunctuation($match[0]);
-        if ($target === '' || strcasecmp($target, 'mailto:') === 0) {
+        if ($target === '' || strcasecmp($target, 'mailto:') === 0 || !$this->isJiraSafeAutolinkTarget($target)) {
             return null;
         }
 
@@ -654,40 +671,114 @@ final class JiraReader
         if (str_starts_with($content, '^')) {
             $target = substr($content, 1);
 
-            return $this->link($target, $target, ['attachment']);
+            return $this->isJiraSafeAttachmentTarget($target)
+                ? $this->link($target, $target, ['attachment'])
+                : null;
         }
         if (preg_match('/^(.+)\\^([^|]+)$/u', $content, $match) === 1) {
-            return $this->link($match[2], $match[1], ['attachment']);
+            return $this->isJiraSafeAttachmentTarget($match[2])
+                ? $this->link($match[2], $match[1], ['attachment'])
+                : null;
         }
 
         $parts = explode('|', $content);
-        if (count($parts) >= 3 && in_array($parts[2], ['smart-link', 'smart-card'], true)) {
-            return $this->link($parts[1], $parts[0], [$parts[2]]);
+        if (count($parts) === 3 && in_array($parts[2], ['smart-link', 'smart-card'], true)) {
+            return $this->isJiraSafeExternalTarget($parts[1])
+                ? $this->link($parts[1], $parts[0], [$parts[2]])
+                : null;
         }
-        if (count($parts) >= 2) {
+        if (count($parts) === 2) {
             $target = $parts[1];
             $label = $parts[0];
-            if (str_starts_with($target, '~')) {
+            if ($this->isJiraSafeUserAccountTarget($target)) {
                 return $this->link($target, $label, ['user-account']);
             }
-            if (str_starts_with($target, 'mailto:')) {
+            if (
+                $this->isJiraSafeMailtoTarget($target)
+                || $this->isJiraSafeFragmentTarget($target)
+                || $this->isJiraSafeExternalTarget($target)
+            ) {
                 return $this->link($target, $label);
             }
 
-            return $this->link($target, $label);
+            return null;
         }
 
-        if (str_starts_with($content, '~')) {
+        if (count($parts) !== 1) {
+            return null;
+        }
+
+        if ($this->isJiraSafeUserAccountTarget($content)) {
             return $this->link($content, $content, ['user-account']);
         }
-        if (str_starts_with($content, 'mailto:')) {
+        if ($this->isJiraSafeMailtoTarget($content)) {
             return $this->link($content, substr($content, strlen('mailto:')));
         }
-        if (preg_match('/^[a-z][a-z0-9+.-]*:\\/\\//i', $content) === 1) {
+        if ($this->isJiraSafeFragmentTarget($content) || $this->isJiraSafeExternalTarget($content)) {
             return $this->link($content, $content);
         }
 
         return null;
+    }
+
+    private function isJiraSafeAutolinkTarget(string $target): bool
+    {
+        return $this->isJiraSafeMailtoTarget($target) || $this->isJiraSafeExternalTarget($target);
+    }
+
+    private function isJiraSafeExternalTarget(string $target): bool
+    {
+        return !$this->jiraTargetHasUnsafeScheme($target)
+            && preg_match('/^[a-z][a-z0-9+.-]*:\\/\\//i', $target) === 1;
+    }
+
+    private function isJiraSafeMailtoTarget(string $target): bool
+    {
+        return strlen($target) > strlen('mailto:')
+            && strncasecmp($target, 'mailto:', strlen('mailto:')) === 0
+            && !$this->jiraTargetHasUnsafeScheme($target);
+    }
+
+    private function isJiraSafeFragmentTarget(string $target): bool
+    {
+        return str_starts_with($target, '#') && !$this->jiraTargetHasUnsafeScheme($target);
+    }
+
+    private function isJiraSafeUserAccountTarget(string $target): bool
+    {
+        return strlen($target) > 1
+            && str_starts_with($target, '~')
+            && preg_match('/[\x00-\x1F\x7F]/', $target) !== 1;
+    }
+
+    private function isJiraSafeAttachmentTarget(string $target): bool
+    {
+        return $target !== ''
+            && !$this->jiraTargetHasUnsafeScheme($target)
+            && preg_match('/[\\\\\/:;|\x00-\x1F\x7F]/', $target) !== 1;
+    }
+
+    private function jiraTargetHasUnsafeScheme(string $target): bool
+    {
+        $candidate = $this->normalizedJiraTargetForScheme($target);
+
+        return preg_match('/^(?:javascript|vbscript|data):/i', $candidate) === 1;
+    }
+
+    private function normalizedJiraTargetForScheme(string $target): string
+    {
+        $candidate = $target;
+        for ($pass = 0; $pass < 4; $pass++) {
+            $previous = $candidate;
+            $candidate = html_entity_decode($candidate, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+            $candidate = preg_replace('/[\x00-\x20\x7F-\x9F]/u', '', $candidate) ?? $candidate;
+            $candidate = rawurldecode($candidate);
+            if ($candidate === $previous) {
+                break;
+            }
+        }
+
+        return $candidate;
     }
 
     /**
@@ -701,6 +792,38 @@ final class JiraReader
         ], $this->parseInlines($label, false));
     }
 
+    private function isJiraSafeImageTarget(string $target): bool
+    {
+        $target = trim($target);
+        if ($target === '' || preg_match('/[\x00-\x20\x7F-\x9F]/u', $target) === 1) {
+            return false;
+        }
+
+        if ($this->isJiraSafeRasterImageDataTarget($target)) {
+            return true;
+        }
+        if ($this->jiraTargetHasUnsafeScheme($target)) {
+            return false;
+        }
+
+        $normalizedTarget = $this->normalizedJiraTargetForScheme($target);
+        if (preg_match('/^[A-Za-z][A-Za-z0-9+.-]*:/', $normalizedTarget) !== 1) {
+            return true;
+        }
+
+        return preg_match('/^https?:\/\//i', $target) === 1
+            && preg_match('/^https?:\/\//i', $normalizedTarget) === 1;
+    }
+
+    private function isJiraSafeRasterImageDataTarget(string $target): bool
+    {
+        if (preg_match('/^data:image\/(?:png|gif|jpe?g|webp);base64,([A-Za-z0-9+\/]+={0,2})$/i', $target, $match) !== 1) {
+            return false;
+        }
+
+        return base64_decode((string) $match[1], true) !== false;
+    }
+
     private function parseImage(string $content): ?AstNode
     {
         if ($content === '') {
@@ -709,7 +832,7 @@ final class JiraReader
 
         $parts = array_map('trim', explode('|', $content));
         $url = array_shift($parts);
-        if ($url === null || $url === '') {
+        if ($url === null || !$this->isJiraSafeImageTarget($url)) {
             return null;
         }
 

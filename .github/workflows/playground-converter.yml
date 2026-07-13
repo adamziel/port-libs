@@ -33,12 +33,17 @@ on:
       - 'tools/playground-converter-plugin/**'
   workflow_dispatch:
 
+concurrency:
+  group: playground-converter-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
 jobs:
   focused-playground-converter:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Check out repository
         uses: actions/checkout@v6

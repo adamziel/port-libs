@@ -12555,7 +12555,7 @@ $buildSubstringRootOfficeDocumentTypePptxPackage = static function (): string {
     $zip->addFromString('_rels/.rels', <<<'XML'
 <?xml version="1.0" encoding="UTF-8"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-  <Relationship Id="rIdDecoy" Type="urn:example:pptx-reader/officeDocument-extra" Target="ppt/decoy.xml"/>
+  <Relationship Id="rIdDecoy" Type="urn:example:pptx-reader/officeDocument" Target="ppt/decoy.xml"/>
   <Relationship Id="rIdPresentation" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/>
 </Relationships>
 XML);
@@ -17823,16 +17823,16 @@ return [
         $t->contains('Header 2 ( "slide-1" , [  ] , [  ] ) [ Str "Root" , Space , Str "officeDocument" , Space , Str "alias" ]', $native);
     },
 
-    'uses root officeDocument relationship Type suffix matching like upstream' => static function (TestRunner $t) use ($buildSuffixRootOfficeDocumentTypePptxPackage, $nodesOfType): void {
-        $document = (new PptxReader())->read($buildSuffixRootOfficeDocumentTypePptxPackage());
-        $review = $document->attr('pptx');
-        $headings = $nodesOfType($document, 'heading');
-        $native = PandocConverter::write($document, 'native');
+    'requires an exact root officeDocument relationship Type' => static function (TestRunner $t) use ($buildSuffixRootOfficeDocumentTypePptxPackage): void {
+        try {
+            (new PptxReader())->read($buildSuffixRootOfficeDocumentTypePptxPackage());
+        } catch (RuntimeException $exception) {
+            $t->same('No presentation.xml relationship found. Found 1 relationships.', $exception->getMessage());
 
-        $t->same(1, $review['slideCount'] ?? null);
-        $t->same('ppt/presentation.xml', $review['presentationPart'] ?? null);
-        $t->same('Suffix officeDocument type', $headings[0]->attr('text'));
-        $t->contains('Header 2 ( "slide-1" , [  ] , [  ] ) [ Str "Suffix" , Space , Str "officeDocument" , Space , Str "type" ]', $native);
+            return;
+        }
+
+        throw new RuntimeException('Expected a suffix-only root officeDocument Type to be rejected');
     },
 
     'ignores root relationships without Type before later officeDocument matches like upstream' => static function (TestRunner $t) use ($buildMissingTypeRootOfficeDocumentPptxPackage, $nodesOfType): void {
@@ -17848,7 +17848,7 @@ return [
         $t->true(!str_contains($native, 'Missing Type should stay unread'), 'Root relationships without Type should be skipped before a later officeDocument match');
     },
 
-    'ignores root officeDocument Type substring matches like upstream' => static function (TestRunner $t) use ($buildSubstringRootOfficeDocumentTypePptxPackage, $nodesOfType): void {
+    'skips nonstandard root officeDocument Type suffixes before an exact match' => static function (TestRunner $t) use ($buildSubstringRootOfficeDocumentTypePptxPackage, $nodesOfType): void {
         $document = (new PptxReader())->read($buildSubstringRootOfficeDocumentTypePptxPackage());
         $review = $document->attr('pptx');
         $headings = $nodesOfType($document, 'heading');
@@ -17858,7 +17858,7 @@ return [
         $t->same('ppt/presentation.xml', $review['presentationPart'] ?? null);
         $t->same('Suffix-only officeDocument type', $headings[0]->attr('text'));
         $t->contains('Header 2 ( "slide-1" , [  ] , [  ] ) [ Str "Suffix-only" , Space , Str "officeDocument" , Space , Str "type" ]', $native);
-        $t->true(!str_contains($native, 'rIdMissing'), 'Root relationships whose Type only contains officeDocument should not be selected before a later suffix match');
+        $t->true(!str_contains($native, 'rIdMissing'), 'Nonstandard root relationship types must not be selected before a later exact officeDocument match');
     },
 
     'requires root officeDocument relationship Type to be unqualified like upstream' => static function (TestRunner $t) use ($buildQualifiedRootOfficeDocumentTypePptxPackage): void {

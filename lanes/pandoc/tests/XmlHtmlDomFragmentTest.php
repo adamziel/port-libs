@@ -62,6 +62,16 @@ return [
             ['code' => 'dropped-active-element', 'element' => 'script'],
         ], $fragment->diagnostics());
     },
+    'never forwards css through the legacy html fragment facade' => static function (TestRunner $t): void {
+        $fragment = XmlHtmlDomFragment::parseHtml(
+            '<div data-safe="1" style="background:url(j\\61vascript:alert(1))">Safe</div>'
+        );
+
+        $t->same('<div data-safe="1">Safe</div>', $fragment->serializeHtml());
+        $t->same([
+            ['code' => 'dropped-unsafe-style', 'element' => 'div', 'attribute' => 'style'],
+        ], $fragment->diagnostics());
+    },
     'preserves html comments while serializing surrounding void elements' => static function (TestRunner $t): void {
         $fragment = XmlHtmlDomFragment::parseHtml('<p>Before</p><!--source marker--><hr/>');
 

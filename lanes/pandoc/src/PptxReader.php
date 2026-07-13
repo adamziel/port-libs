@@ -389,7 +389,7 @@ final class PptxReader
             foreach ($this->childElements($root, null) as $relationshipElement) {
                 $relationshipCount++;
                 $type = $relationshipElement->getAttribute('Type');
-                if (!str_ends_with($type, '/officeDocument')) {
+                if ($type !== self::OFFICE_DOCUMENT_RELATIONSHIP) {
                     continue;
                 }
                 if (!$relationshipElement->hasAttribute('Target')) {

@@ -298,6 +298,15 @@ final class BibtexCslParser
         $value = '';
         while ($this->offset < $this->length) {
             $char = $this->input[$this->offset++];
+            if ($char === '\\' && $this->offset < $this->length) {
+                // A backslash protects the following delimiter in braced
+                // BibTeX values just as it does in quoted values.  Counting
+                // an escaped brace as structure prematurely closes the value
+                // and lets the remaining entry bytes be parsed as syntax.
+                $value .= $char . $this->input[$this->offset++];
+                continue;
+            }
+
             if ($char === '{') {
                 $depth++;
                 $value .= $char;
@@ -3376,13 +3385,15 @@ final class BibtexCslParser
     private static function cleanBibtexText(string $value): string
     {
         $value = str_replace(["\r\n", "\r", "\n"], ' ', $value);
+        [$value, $openBraceMarker, $closeBraceMarker] = self::protectEscapedBibtexBraces($value);
         $value = self::decodeLatexText($value);
         $value = str_replace('~', ' ', $value);
         $value = self::restoreLatexLiteralTilde($value);
-        $value = preg_replace('/\\\\([&%$#_{}])/', '$1', $value) ?? $value;
+        $value = preg_replace('/\\\\([&%$#_])/', '$1', $value) ?? $value;
         $value = self::stripLatexTextWrappers($value);
         $value = preg_replace('/\\\\(?:textendash|textminus)\b/', '-', $value) ?? $value;
         $value = preg_replace('/[{}]/', '', $value) ?? $value;
+        $value = str_replace([$openBraceMarker, $closeBraceMarker], ['{', '}'], $value);
 
         return trim(preg_replace('/\s+/', ' ', $value) ?? $value);
     }
@@ -3390,15 +3401,40 @@ final class BibtexCslParser
     private static function cleanBibtexDateText(string $value): string
     {
         $value = str_replace(["\r\n", "\r", "\n"], ' ', $value);
+        [$value, $openBraceMarker, $closeBraceMarker] = self::protectEscapedBibtexBraces($value);
         $value = self::decodeLatexText($value);
-        $value = preg_replace('/\\\\([&%$#_{}])/', '$1', $value) ?? $value;
+        $value = preg_replace('/\\\\([&%$#_])/', '$1', $value) ?? $value;
         $value = self::stripLatexTextWrappers($value);
         $value = preg_replace('/\\\\(?:textendash|textminus)\b/', '-', $value) ?? $value;
         $value = preg_replace('/[{}]/', '', $value) ?? $value;
+        $value = str_replace([$openBraceMarker, $closeBraceMarker], ['{', '}'], $value);
         $value = preg_replace('/~(?!(?:\s*\/|\s*\z))/', ' ', $value) ?? $value;
         $value = self::restoreLatexLiteralTilde($value);
 
         return trim(preg_replace('/\s+/', ' ', $value) ?? $value);
+    }
+
+    /**
+     * Keep escaped braces literal while removing BibTeX grouping braces.
+     * The marker is chosen per value so valid source text cannot collide with
+     * a fixed private-use sentinel.
+     *
+     * @return array{0:string, 1:string, 2:string}
+     */
+    private static function protectEscapedBibtexBraces(string $value): array
+    {
+        $separator = "\x1E";
+        do {
+            $openBraceMarker = $separator . 'bibtex-escaped-open-brace' . $separator;
+            $closeBraceMarker = $separator . 'bibtex-escaped-close-brace' . $separator;
+            $separator .= "\x1E";
+        } while (str_contains($value, $openBraceMarker) || str_contains($value, $closeBraceMarker));
+
+        return [
+            str_replace(['\\{', '\\}'], [$openBraceMarker, $closeBraceMarker], $value),
+            $openBraceMarker,
+            $closeBraceMarker,
+        ];
     }
 
     private static function decodeLatexText(string $value): string

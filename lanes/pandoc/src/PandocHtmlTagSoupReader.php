@@ -510,18 +510,9 @@ final class PandocHtmlTagSoupReader
     private function orderedListStyleDeclarations(string $style): array
     {
         $values = [];
-        foreach (explode(';', $style) as $declaration) {
-            $declaration = trim($declaration);
-            if ($declaration === '') {
-                continue;
-            }
-            if (!str_contains($declaration, ':')) {
-                continue;
-            }
-
-            [$property, $value] = array_map('trim', explode(':', $declaration, 2));
-            if ($property === 'list-style-type' || $property === 'list-style') {
-                $values[] = $value;
+        foreach (CssDeclarationScanner::declarations($style) as $declaration) {
+            if (in_array($declaration['name'], ['list-style-type', 'list-style'], true)) {
+                $values[] = $declaration['value'];
             }
         }
 
