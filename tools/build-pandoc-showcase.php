@@ -55,6 +55,27 @@ $outputsDir = $siteDir . '/outputs';
 $rawBase = 'https://raw.githubusercontent.com/jgm/pandoc/' . PandocFormatRegistry::UPSTREAM_SOURCE_COMMIT . '/';
 $refreshSources = in_array('--refresh-sources', $argv, true);
 
+const SHOWCASE_EXAMPLES_AUTOMATIC_MAX_BYTES = 250000;
+
+if (($argv[1] ?? '') === '--build-examples-page') {
+    $manifestPath = $siteDir . '/manifest.json';
+    $manifest = is_file($manifestPath)
+        ? json_decode((string) file_get_contents($manifestPath), true)
+        : null;
+    if (!is_array($manifest) || !is_array($manifest['records'] ?? null)) {
+        fwrite(STDERR, "Unable to read generated showcase records from {$manifestPath}.\n");
+        exit(1);
+    }
+
+    showcase_write_examples_page(
+        $siteDir,
+        $manifest['records'],
+        (string) ($manifest['generatedAt'] ?? gmdate('c'))
+    );
+    echo "Generated lightweight pandoc-showcase examples page.\n";
+    exit(0);
+}
+
 function raise_memory_limit(string $minimum): void
 {
     $current = ini_get('memory_limit');
@@ -3631,7 +3652,7 @@ function write_conversion_report(
     $html .= '<div class="stat"><strong>' . h((string) ($faithfulnessSummary['visualFaithfulEnough'] ?? 0)) . '/' . h((string) ($faithfulnessSummary['visualComparisons'] ?? 0)) . '</strong><span>visual-structure matches</span></div>';
     $html .= '<div class="stat"><strong>' . h((string) ($bibliographyComparisonSummary['pass'] ?? 0)) . '/' . h((string) ($bibliographyComparisonSummary['available'] ?? 0)) . '</strong><span>Citeproc semantic comparisons</span></div>';
     $html .= '<div class="stat"><strong>' . h((string) ($importQualitySummary['pass'] ?? 0)) . '/' . h((string) ($importQualitySummary['samples'] ?? 0)) . '</strong><span>import-quality passes</span></div>';
-    $html .= '</div><div class="hero-actions"><a href="index.html">Full showcase</a><a href="playground-converter.html">Convert in WordPress Playground</a><a href="manifest.json">Manifest JSON</a></div></div></header>';
+    $html .= '</div><div class="hero-actions"><a href="examples.html">One example at a time</a><a href="index.html">Full showcase</a><a href="playground-converter.html">Convert in WordPress Playground</a><a href="manifest.json">Manifest JSON</a></div></div></header>';
     $html .= '<main class="content-page report-page">';
 
     $html .= '<section><h2>Success by conversion path</h2><div class="report-grid">';
@@ -4118,6 +4139,680 @@ function h(string $value): string
     return preg_replace_callback('/ +(?=\r?\n|$)/', static fn (array $match): string => str_repeat('&#32;', strlen($match[0])), $escaped) ?? $escaped;
 }
 
+/**
+ * @param array<string, mixed> $record
+ * @return array{ok:bool,path:string,bytes:int}
+ */
+function showcase_examples_view(array $record, string $view, string $siteDir): array
+{
+    $result = is_array($record[$view] ?? null) ? $record[$view] : [];
+    $ok = ($result['ok'] ?? false) === true;
+    $path = ltrim((string) ($result['path'] ?? ''), '/');
+    $absolutePath = $path === '' ? '' : $siteDir . '/' . $path;
+
+    return [
+        'ok' => $ok,
+        'path' => $path,
+        'bytes' => $ok && is_file($absolutePath) ? (int) filesize($absolutePath) : 0,
+    ];
+}
+
+/**
+ * @param list<array<string, mixed>> $records
+ * @return array{generatedAt:string,automaticViewMaxBytes:int,defaultExampleId:string,examples:list<array<string,mixed>>}
+ */
+function showcase_examples_index(array $records, string $siteDir, string $generatedAt): array
+{
+    $examples = [];
+    foreach ($records as $record) {
+        $id = (string) ($record['id'] ?? '');
+        if ($id === '') {
+            continue;
+        }
+        $examples[] = [
+            'id' => $id,
+            'format' => (string) ($record['format'] ?? ''),
+            'label' => (string) ($record['label'] ?? $id),
+            'description' => (string) ($record['description'] ?? ''),
+            'source' => (string) ($record['source'] ?? ''),
+            'sourceUrl' => (string) ($record['sourceUrl'] ?? ''),
+            'samplePath' => ltrim((string) ($record['samplePath'] ?? ''), '/'),
+            'sampleSize' => (int) ($record['sampleSize'] ?? 0),
+            'views' => [
+                'phpHtml' => showcase_examples_view($record, 'phpHtml', $siteDir),
+                'wpBlocks' => showcase_examples_view($record, 'wpBlocks', $siteDir),
+                'haskell' => showcase_examples_view($record, 'haskell', $siteDir),
+            ],
+        ];
+    }
+
+    $defaultExampleId = '';
+    foreach ([
+        'docx-tables',
+        'html-reader',
+        'pdf-quickbooks-invoice-template',
+        'gfm-gitlab-markdown-guide',
+    ] as $candidateId) {
+        foreach ($examples as $example) {
+            $view = is_array($example['views']['phpHtml'] ?? null) ? $example['views']['phpHtml'] : [];
+            if (
+                $example['id'] === $candidateId
+                && ($view['ok'] ?? false) === true
+                && (int) ($view['bytes'] ?? 0) <= SHOWCASE_EXAMPLES_AUTOMATIC_MAX_BYTES
+            ) {
+                $defaultExampleId = $candidateId;
+                break 2;
+            }
+        }
+    }
+    if ($defaultExampleId === '') {
+        foreach ($examples as $example) {
+            $view = is_array($example['views']['phpHtml'] ?? null) ? $example['views']['phpHtml'] : [];
+            if (($view['ok'] ?? false) === true) {
+                $defaultExampleId = (string) $example['id'];
+                break;
+            }
+        }
+    }
+
+    return [
+        'generatedAt' => $generatedAt,
+        'automaticViewMaxBytes' => SHOWCASE_EXAMPLES_AUTOMATIC_MAX_BYTES,
+        'defaultExampleId' => $defaultExampleId,
+        'examples' => $examples,
+    ];
+}
+
+/**
+ * Write a separate, mobile-friendly viewer. It deliberately contains no
+ * embedded conversion output: examples are loaded into one disposable frame
+ * only after the visitor asks for one.
+ *
+ * @param list<array<string, mixed>> $records
+ */
+function showcase_write_examples_page(string $siteDir, array $records, string $generatedAt): void
+{
+    $index = showcase_examples_index($records, $siteDir, $generatedAt);
+    $indexJson = json_encode($index, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    if (!is_string($indexJson)) {
+        throw new RuntimeException('Unable to encode the lightweight showcase example index.');
+    }
+    file_put_contents($siteDir . '/examples-index.json', $indexJson . "\n");
+
+    $assetVersion = substr(hash('sha256', $indexJson), 0, 12);
+    $page = '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">';
+    $page .= '<title>Pandoc examples, one at a time</title><link rel="stylesheet" href="examples.css?v=' . h($assetVersion) . '"></head>';
+    $page .= '<body><header class="examples-hero"><div class="examples-shell"><p class="examples-eyebrow">adamziel/port-libs · lightweight browser</p>';
+    $page .= '<h1>One example at a time</h1><p class="examples-lede">This page starts small, then loads exactly one rendered result when you ask for it. Use the next button to browse representative conversions without opening the full 30&nbsp;MB showcase.</p>';
+    $page .= '<p class="examples-links"><a href="index.html">Full showcase (desktop)</a><a href="conversion-report.html">Conversion report</a><a href="playground-converter.html">WordPress Playground</a></p>';
+    $page .= '</div></header><main class="examples-shell examples-main">';
+    $page .= '<section class="example-controls" aria-labelledby="example-browser-title"><div><p class="examples-eyebrow">Example browser</p><h2 id="example-browser-title">Load a single conversion</h2>';
+    $page .= '<p id="catalog-summary" class="examples-muted" aria-live="polite">Loading the compact example catalogue…</p></div>';
+    $page .= '<div class="example-fields"><label for="format-filter">Format<select id="format-filter" disabled><option>Loading formats…</option></select></label>';
+    $page .= '<label for="example-picker">Example<select id="example-picker" disabled><option>Loading examples…</option></select></label></div>';
+    $page .= '<fieldset class="view-picker"><legend>Rendered view</legend><div class="view-buttons">';
+    $page .= '<button type="button" data-example-view="phpHtml" aria-pressed="true" disabled>PHP HTML</button>';
+    $page .= '<button type="button" data-example-view="wpBlocks" aria-pressed="false" disabled>WordPress blocks</button>';
+    $page .= '<button type="button" data-example-view="haskell" aria-pressed="false" disabled>Pandoc HTML</button>';
+    $page .= '</div></fieldset><div class="example-actions">';
+    $page .= '<button id="load-example" class="primary-action" type="button" disabled>Load selected example</button>';
+    $page .= '<button id="previous-example" type="button" disabled>Previous</button><button id="next-example" type="button" disabled>Next example</button></div>';
+    $page .= '<p class="examples-muted">Next and Previous only auto-load results up to ' . h(human_size(SHOWCASE_EXAMPLES_AUTOMATIC_MAX_BYTES)) . '. You can still deliberately select any larger example.</p></section>';
+    $page .= '<section class="example-viewer" aria-labelledby="current-example-title"><div class="viewer-heading"><div><p id="current-example-format" class="format-badge">No example loaded</p><h2 id="current-example-title">Choose an example</h2>';
+    $page .= '<p id="current-example-description" class="examples-muted">The full showcase remains available for side-by-side comparisons.</p></div><p id="view-size" class="view-size"></p></div>';
+    $page .= '<p id="large-view-warning" class="large-view-warning" hidden></p><div id="example-links" class="current-links" hidden>';
+    $page .= '<a id="download-source" href="">Download original</a><a id="source-reference" href="" target="_blank" rel="noreferrer" hidden>Upstream source</a><a id="open-output" href="" target="_blank" rel="noreferrer">Open result</a><a id="open-full-comparison" href="">Open full comparison</a></div>';
+    $page .= '<p id="viewer-status" class="viewer-status" aria-live="polite">Choose an example, then press “Load selected example”.</p>';
+    $page .= '<iframe id="example-frame" title="Selected converted example" sandbox hidden></iframe></section></main>';
+    $page .= '<script type="module" src="examples.js?v=' . h($assetVersion) . '"></script></body></html>';
+    file_put_contents($siteDir . '/examples.html', rtrim($page) . "\n");
+    file_put_contents($siteDir . '/examples.css', rtrim(showcase_examples_css()) . "\n");
+    file_put_contents($siteDir . '/examples.js', rtrim(showcase_examples_javascript()) . "\n");
+}
+
+function showcase_examples_css(): string
+{
+    return <<<'CSS'
+:root {
+  color-scheme: light;
+  --ink: #18212b;
+  --muted: #596575;
+  --line: #d6dee8;
+  --paper: #ffffff;
+  --wash: #f4f7fb;
+  --accent: #165dcc;
+  --accent-ink: #ffffff;
+  --warning: #8a5400;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  color: var(--ink);
+  background: var(--wash);
+  font: 16px/1.5 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+a { color: var(--accent); }
+button,
+select { font: inherit; }
+button {
+  min-height: 44px;
+  padding: 8px 14px;
+  border: 1px solid #aeb9c7;
+  border-radius: 8px;
+  background: #fff;
+  color: var(--ink);
+  cursor: pointer;
+}
+button:hover:not(:disabled) { border-color: var(--accent); }
+button:focus-visible,
+select:focus-visible,
+a:focus-visible { outline: 3px solid color-mix(in srgb, var(--accent) 35%, transparent); outline-offset: 2px; }
+button:disabled,
+select:disabled { cursor: not-allowed; opacity: .58; }
+.examples-shell {
+  width: min(860px, calc(100% - 28px));
+  margin: 0 auto;
+}
+.examples-hero {
+  border-bottom: 1px solid var(--line);
+  background: var(--paper);
+}
+.examples-hero .examples-shell { padding: 34px 0 26px; }
+.examples-eyebrow {
+  margin: 0 0 7px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 750;
+  letter-spacing: .055em;
+  text-transform: uppercase;
+}
+h1,
+h2 { line-height: 1.12; }
+h1 {
+  max-width: 680px;
+  margin: 0;
+  font-size: clamp(32px, 10vw, 52px);
+}
+h2 { margin: 0; font-size: clamp(23px, 6vw, 31px); }
+.examples-lede {
+  max-width: 680px;
+  margin: 16px 0 0;
+  color: #3e4a59;
+  font-size: 18px;
+}
+.examples-links,
+.current-links,
+.example-actions,
+.view-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+}
+.examples-links { margin: 20px 0 0; }
+.examples-links a,
+.current-links a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 38px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: #fff;
+  color: var(--ink);
+  text-decoration: none;
+}
+.examples-main { padding: 22px 0 52px; }
+.example-controls,
+.example-viewer {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--paper);
+  box-shadow: 0 2px 8px rgb(23 41 64 / 5%);
+}
+.example-controls { padding: 18px; }
+.example-fields {
+  display: grid;
+  grid-template-columns: minmax(0, .75fr) minmax(0, 1.25fr);
+  gap: 12px;
+  margin-top: 18px;
+}
+.example-fields label {
+  display: grid;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 700;
+}
+select {
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 10px;
+  border: 1px solid #aeb9c7;
+  border-radius: 8px;
+  background: #fff;
+  color: var(--ink);
+}
+.view-picker {
+  min-width: 0;
+  margin: 18px 0 0;
+  padding: 0;
+  border: 0;
+}
+.view-picker legend {
+  margin-bottom: 7px;
+  font-size: 14px;
+  font-weight: 700;
+}
+.view-buttons button[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+.example-actions { margin-top: 18px; }
+.primary-action {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 700;
+}
+.examples-muted {
+  margin: 7px 0 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+.example-viewer {
+  margin-top: 18px;
+  overflow: hidden;
+}
+.viewer-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px;
+  border-bottom: 1px solid var(--line);
+}
+.viewer-heading h2 { font-size: 23px; }
+.format-badge {
+  display: inline-block;
+  margin: 0 0 6px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: #e9eff8;
+  color: #284766;
+  font: 700 12px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+.view-size {
+  flex: 0 0 auto;
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  text-align: right;
+}
+.large-view-warning {
+  margin: 0;
+  padding: 12px 18px;
+  border-bottom: 1px solid #f1d398;
+  background: #fff8e8;
+  color: var(--warning);
+  font-size: 14px;
+}
+.current-links { padding: 12px 18px; border-bottom: 1px solid var(--line); }
+.viewer-status {
+  margin: 0;
+  padding: 14px 18px;
+  color: var(--muted);
+  font-size: 14px;
+}
+#example-frame {
+  display: block;
+  width: 100%;
+  height: min(68vh, 680px);
+  min-height: 420px;
+  border: 0;
+  border-top: 1px solid var(--line);
+  background: #fff;
+}
+@media (max-width: 620px) {
+  .examples-shell { width: min(100% - 22px, 860px); }
+  .examples-hero .examples-shell { padding: 26px 0 22px; }
+  .examples-lede { font-size: 16px; }
+  .example-controls { padding: 14px; }
+  .example-fields { grid-template-columns: 1fr; }
+  .viewer-heading { display: block; padding: 14px; }
+  .view-size { margin-top: 8px; text-align: left; }
+  .current-links,
+  .viewer-status { padding-left: 14px; padding-right: 14px; }
+  .large-view-warning { padding-left: 14px; padding-right: 14px; }
+  #example-frame { height: 62vh; min-height: 360px; }
+}
+CSS;
+}
+
+function showcase_examples_javascript(): string
+{
+    return <<<'JS'
+const catalogUrl = 'examples-index.json';
+const viewLabels = {
+  phpHtml: 'PHP HTML',
+  wpBlocks: 'WordPress blocks',
+  haskell: 'Pandoc HTML',
+};
+
+const formatFilter = document.getElementById('format-filter');
+const examplePicker = document.getElementById('example-picker');
+const loadButton = document.getElementById('load-example');
+const previousButton = document.getElementById('previous-example');
+const nextButton = document.getElementById('next-example');
+const viewButtons = Array.from(document.querySelectorAll('[data-example-view]'));
+const catalogSummary = document.getElementById('catalog-summary');
+const formatBadge = document.getElementById('current-example-format');
+const title = document.getElementById('current-example-title');
+const description = document.getElementById('current-example-description');
+const viewSize = document.getElementById('view-size');
+const largeViewWarning = document.getElementById('large-view-warning');
+const viewerStatus = document.getElementById('viewer-status');
+const exampleLinks = document.getElementById('example-links');
+const downloadSource = document.getElementById('download-source');
+const sourceReference = document.getElementById('source-reference');
+const openOutput = document.getElementById('open-output');
+const openFullComparison = document.getElementById('open-full-comparison');
+const frame = document.getElementById('example-frame');
+
+const state = {
+  catalog: null,
+  examples: [],
+  selectedId: '',
+  view: 'phpHtml',
+  loadedId: '',
+  loadToken: 0,
+};
+
+function formatBytes(bytes) {
+  if (!Number.isFinite(bytes) || bytes <= 0) {
+    return 'unavailable';
+  }
+  if (bytes < 1024) {
+    return bytes + ' B';
+  }
+  if (bytes < 1024 * 1024) {
+    return (bytes / 1024).toFixed(bytes < 100 * 1024 ? 1 : 0) + ' KB';
+  }
+  return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
+function selectedExample() {
+  return state.examples.find((example) => example.id === state.selectedId) || null;
+}
+
+function selectedView(example = selectedExample()) {
+  return example && example.views ? example.views[state.view] || null : null;
+}
+
+function filteredExamples() {
+  const format = formatFilter.value;
+  return state.examples.filter((example) => !format || example.format === format);
+}
+
+function canAutoLoad(example) {
+  const view = selectedView(example);
+  return Boolean(view && view.ok && view.bytes > 0 && view.bytes <= state.catalog.automaticViewMaxBytes);
+}
+
+function setStatus(message) {
+  viewerStatus.textContent = message;
+}
+
+function createOption(value, label) {
+  const option = document.createElement('option');
+  option.value = value;
+  option.textContent = label;
+  return option;
+}
+
+function populateFormats() {
+  const selected = formatFilter.value;
+  const formats = [...new Set(state.examples.map((example) => example.format).filter(Boolean))].sort();
+  formatFilter.replaceChildren(createOption('', 'All formats'));
+  formats.forEach((format) => formatFilter.append(createOption(format, format)));
+  formatFilter.value = formats.includes(selected) ? selected : '';
+}
+
+function populateExamples(preferredId = state.selectedId) {
+  const examples = filteredExamples();
+  examplePicker.replaceChildren();
+  examples.forEach((example) => {
+    examplePicker.append(createOption(example.id, example.format + ' · ' + example.label));
+  });
+
+  if (examples.some((example) => example.id === preferredId)) {
+    state.selectedId = preferredId;
+  } else {
+    state.selectedId = examples[0] ? examples[0].id : '';
+  }
+  examplePicker.value = state.selectedId;
+  updateExampleDetails();
+  updateControls();
+}
+
+function updateViewButtons() {
+  viewButtons.forEach((button) => {
+    const active = button.dataset.exampleView === state.view;
+    button.setAttribute('aria-pressed', String(active));
+  });
+}
+
+function updateExampleDetails() {
+  const example = selectedExample();
+  const view = selectedView(example);
+  if (!example || !view) {
+    formatBadge.textContent = 'No example available';
+    title.textContent = 'No matching example';
+    description.textContent = 'Try another format.';
+    viewSize.textContent = '';
+    exampleLinks.hidden = true;
+    largeViewWarning.hidden = true;
+    return;
+  }
+
+  formatBadge.textContent = example.format + ' · ' + viewLabels[state.view];
+  title.textContent = example.label;
+  description.textContent = example.description || example.source || 'No description is available.';
+  viewSize.textContent = view.ok
+    ? viewLabels[state.view] + ' · ' + formatBytes(view.bytes)
+    : viewLabels[state.view] + ' unavailable';
+
+  exampleLinks.hidden = false;
+  downloadSource.href = example.samplePath || '#';
+  downloadSource.hidden = !example.samplePath;
+  openOutput.hidden = !view.ok || !view.path;
+  if (view.ok && view.path) {
+    openOutput.href = view.path;
+  } else {
+    openOutput.removeAttribute('href');
+  }
+  openFullComparison.href = 'index.html#' + encodeURIComponent(example.id);
+  sourceReference.hidden = !example.sourceUrl;
+  if (example.sourceUrl) {
+    sourceReference.href = example.sourceUrl;
+  } else {
+    sourceReference.removeAttribute('href');
+  }
+
+  const isLarge = view.ok && view.bytes > state.catalog.automaticViewMaxBytes;
+  largeViewWarning.hidden = !isLarge;
+  if (isLarge) {
+    largeViewWarning.textContent = 'This ' + formatBytes(view.bytes)
+      + ' result is larger than the automatic mobile limit. It will only load when you press “Load selected example”.';
+  }
+}
+
+function updateControls() {
+  const ready = state.catalog !== null && filteredExamples().length > 0;
+  const automaticExamples = ready ? filteredExamples().filter(canAutoLoad) : [];
+  formatFilter.disabled = state.catalog === null;
+  examplePicker.disabled = !ready;
+  loadButton.disabled = !ready;
+  previousButton.disabled = automaticExamples.length < 2;
+  nextButton.disabled = automaticExamples.length < 2;
+  viewButtons.forEach((button) => {
+    button.disabled = state.catalog === null;
+  });
+  updateViewButtons();
+}
+
+function unloadCurrentExample() {
+  state.loadToken += 1;
+  state.loadedId = '';
+  delete frame.dataset.loadedPath;
+  frame.removeAttribute('src');
+  frame.hidden = true;
+}
+
+function writeSelectionToUrl(example) {
+  const url = new URL(window.location.href);
+  url.searchParams.set('example', example.id);
+  url.searchParams.set('view', state.view);
+  window.history.replaceState(null, '', url);
+}
+
+function loadSelectedExample() {
+  const example = selectedExample();
+  const view = selectedView(example);
+  if (!example || !view || !view.ok || !view.path) {
+    setStatus('No ' + viewLabels[state.view] + ' result is available for this example.');
+    return;
+  }
+
+  const token = state.loadToken + 1;
+  state.loadToken = token;
+  state.loadedId = example.id;
+  frame.hidden = false;
+  frame.loading = 'eager';
+  frame.dataset.loadedPath = view.path;
+  frame.removeAttribute('src');
+  frame.src = 'about:blank';
+  setStatus('Loading ' + example.label + '…');
+  writeSelectionToUrl(example);
+
+  window.requestAnimationFrame(() => {
+    if (token !== state.loadToken) {
+      return;
+    }
+    frame.src = view.path;
+  });
+}
+
+function moveExample(direction) {
+  const examples = filteredExamples().filter(canAutoLoad);
+  if (examples.length === 0) {
+    setStatus('No small enough result is available for this format and view.');
+    return;
+  }
+
+  const current = examples.findIndex((example) => example.id === state.selectedId);
+  const nextIndex = current < 0
+    ? (direction > 0 ? 0 : examples.length - 1)
+    : (current + direction + examples.length) % examples.length;
+  state.selectedId = examples[nextIndex].id;
+  examplePicker.value = state.selectedId;
+  updateExampleDetails();
+  updateControls();
+  loadSelectedExample();
+}
+
+function syncSelectionFromUrl() {
+  const params = new URL(window.location.href).searchParams;
+  const requestedId = params.get('example');
+  const requestedView = params.get('view');
+  const requested = state.examples.find((example) => example.id === requestedId);
+  if (requested) {
+    formatFilter.value = requested.format;
+    state.selectedId = requested.id;
+  }
+  if (requestedView && viewLabels[requestedView]) {
+    state.view = requestedView;
+  }
+}
+
+async function initialize() {
+  try {
+    const response = await fetch(catalogUrl, { cache: 'no-store' });
+    if (!response.ok) {
+      throw new Error('catalogue request failed (' + response.status + ')');
+    }
+    const catalog = await response.json();
+    if (!Array.isArray(catalog.examples) || catalog.examples.length === 0 || !Number.isFinite(catalog.automaticViewMaxBytes)) {
+      throw new Error('catalogue payload is incomplete');
+    }
+    state.catalog = catalog;
+    state.examples = catalog.examples.filter((example) => example && example.id && example.views);
+    state.selectedId = catalog.defaultExampleId || state.examples[0].id;
+    populateFormats();
+    syncSelectionFromUrl();
+    populateExamples(state.selectedId);
+
+    const automaticCount = state.examples.filter((example) => {
+      const view = example.views.phpHtml;
+      return view && view.ok && view.bytes > 0 && view.bytes <= catalog.automaticViewMaxBytes;
+    }).length;
+    catalogSummary.textContent = state.examples.length + ' examples are available. '
+      + automaticCount + ' PHP-rendered examples are under the '
+      + formatBytes(catalog.automaticViewMaxBytes) + ' automatic mobile limit.';
+    setStatus('Choose an example, then press “Load selected example”.');
+  } catch (error) {
+    catalogSummary.textContent = 'The lightweight example catalogue could not be loaded.';
+    setStatus('Try reloading this page.');
+  }
+}
+
+formatFilter.addEventListener('change', () => {
+  unloadCurrentExample();
+  populateExamples();
+  setStatus('Choose an example, then press “Load selected example”.');
+});
+
+examplePicker.addEventListener('change', () => {
+  state.selectedId = examplePicker.value;
+  unloadCurrentExample();
+  updateExampleDetails();
+  updateControls();
+  setStatus('Example selected. Press “Load selected example” when ready.');
+});
+
+loadButton.addEventListener('click', loadSelectedExample);
+previousButton.addEventListener('click', () => moveExample(-1));
+nextButton.addEventListener('click', () => moveExample(1));
+
+viewButtons.forEach((button) => {
+  button.addEventListener('click', () => {
+    const nextView = button.dataset.exampleView;
+    if (!nextView || !viewLabels[nextView] || nextView === state.view) {
+      return;
+    }
+    const reload = state.loadedId === state.selectedId;
+    state.view = nextView;
+    updateExampleDetails();
+    updateControls();
+    if (reload) {
+      loadSelectedExample();
+    } else {
+      setStatus('View selected. Press “Load selected example” when ready.');
+    }
+  });
+});
+
+frame.addEventListener('load', () => {
+  const example = selectedExample();
+  const path = frame.dataset.loadedPath;
+  if (!example || !path || frame.getAttribute('src') !== path) {
+    return;
+  }
+  setStatus('Loaded ' + example.label + '.');
+});
+
+initialize();
+JS;
+}
+
 function rel(string $absolute, string $base): string
 {
     return ltrim(str_replace($base, '', $absolute), '/');
@@ -4478,9 +5173,10 @@ $bibliographyComparisonSummary = showcase_bibliography_comparison_summary($recor
 $importQualitySummary = showcase_import_quality_summary($records);
 $importQualitySegmentSummary = showcase_import_quality_segment_summary($records);
 $importQualityGate = showcase_import_quality_threshold_gate($importQualitySegmentSummary);
+$generatedAt = gmdate('c');
 
 file_put_contents($siteDir . '/manifest.json', json_encode([
-    'generatedAt' => gmdate('c'),
+    'generatedAt' => $generatedAt,
     'pandocVersion' => sanitize_generated_text(trim(run_process(['pandoc', '--version'], 10)['stdout'])),
     'mediaImageMode' => 'important',
     'formats' => $formats,
@@ -4495,6 +5191,7 @@ file_put_contents($siteDir . '/manifest.json', json_encode([
     'blockUsage' => $blockUsage,
     'records' => $records,
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+showcase_write_examples_page($siteDir, $records, $generatedAt);
 
 $css = <<<'CSS'
 :root {
@@ -5053,7 +5750,7 @@ foreach ([
 ] as $id => $label) {
     $html .= '<li><a href="#' . h($id) . '">' . h($label) . '</a></li>';
 }
-$html .= '</ul><div class="hero-actions"><a href="conversion-report.html">Conversion report</a><a href="playground-converter.html">Convert in WordPress Playground</a><a href="block-usage.html">WordPress block usage guide</a><a href="manifest.json">Manifest JSON</a></div></div></header><main class="layout">';
+$html .= '</ul><div class="hero-actions"><a href="examples.html">One example at a time</a><a href="conversion-report.html">Conversion report</a><a href="playground-converter.html">Convert in WordPress Playground</a><a href="block-usage.html">WordPress block usage guide</a><a href="manifest.json">Manifest JSON</a></div></div></header><main class="layout">';
 $html .= '<nav class="format-nav" aria-label="Formats">';
 foreach (array_keys($byFormat) as $format) {
     $html .= '<a href="#format-' . h($format) . '">' . h($format) . '</a>';
@@ -5248,7 +5945,7 @@ $guide .= '<div class="stats">';
 $guide .= '<div class="stat"><strong>' . array_sum($blockUsage['totals']) . '</strong><span>block instances</span></div>';
 $guide .= '<div class="stat"><strong>' . count($blockUsage['totals']) . '</strong><span>block types emitted</span></div>';
 $guide .= '<div class="stat"><strong>' . (int) $blockUsage['sampleCount'] . '</strong><span>successful WP samples counted</span></div>';
-$guide .= '</div><div class="hero-actions"><a href="index.html">Showcase</a><a href="manifest.json">Manifest JSON</a></div></div></header>';
+$guide .= '</div><div class="hero-actions"><a href="examples.html">One example at a time</a><a href="index.html">Showcase</a><a href="manifest.json">Manifest JSON</a></div></div></header>';
 $guide .= '<main class="content-page">';
 $guide .= '<section><h2>Block Selection</h2><table class="usage-table"><thead><tr><th>Block</th><th>Count</th><th>Used when</th><th>Serialized as</th><th>Fallback rule</th></tr></thead><tbody>';
 foreach ($guideRows as $row) {
