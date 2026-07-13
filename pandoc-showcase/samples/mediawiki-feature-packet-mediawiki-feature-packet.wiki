@@ -1,0 +1,30 @@
+= MediaWiki feature packet =
+
+Intro with ''emphasis'', '''strong''', <code>literal</code>, [[Target Page|Target label]], [https://example.org external link], and https://pandoc.org.
+
+* first item
+* second with [[Nested]]
+
+# one
+# two
+
+; Term : Definition body with '''strong''' text.
+: Orphan definition
+
+<syntaxhighlight lang="php">
+echo '<x>';
+</syntaxhighlight>
+
+----
+
+{|
+|+ Caption text
+! scope="col" style="text-align:left" | Name
+! style="text-align:right" | Value
+|-
+| style="text-align:center" | Alpha || 42
+|-
+! Row head || Beta
+|}
+
+Image [[File:cover.png|thumb|Cover image]]

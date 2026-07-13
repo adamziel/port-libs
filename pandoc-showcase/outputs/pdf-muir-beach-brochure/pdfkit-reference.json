@@ -1,0 +1,3010 @@
+{
+    "extractor": "macOS PDFKit",
+    "pageCount": 4,
+    "pages": [
+        {
+            "height": 792,
+            "lines": [
+                {
+                    "height": 34.365,
+                    "text": "Muir BeachNational Park Service",
+                    "width": 434.304,
+                    "x": 30,
+                    "y": 733
+                },
+                {
+                    "height": 9.48,
+                    "text": "U. S. Department of Interior",
+                    "width": 106.541,
+                    "x": 384,
+                    "y": 746
+                },
+                {
+                    "height": 9.48,
+                    "text": "Golden Gate",
+                    "width": 47.934,
+                    "x": 384,
+                    "y": 730.4
+                },
+                {
+                    "height": 9.48,
+                    "text": "National Recreation Area",
+                    "width": 95.849,
+                    "x": 384,
+                    "y": 720.8
+                },
+                {
+                    "height": 14.22,
+                    "text": "To cherish what remains of the Earth",
+                    "width": 229.678,
+                    "x": 30,
+                    "y": 520.45
+                },
+                {
+                    "height": 14.22,
+                    "text": "and to foster its renewal is our only",
+                    "width": 223.271,
+                    "x": 29.997,
+                    "y": 503.446
+                },
+                {
+                    "height": 14.22,
+                    "text": "legitimate hope of survival.",
+                    "width": 171.316,
+                    "x": 29.997,
+                    "y": 486.442
+                },
+                {
+                    "height": 14.22,
+                    "text": "—Wendell Berry",
+                    "width": 100.498,
+                    "x": 29.997,
+                    "y": 469.438
+                },
+                {
+                    "height": 13.035,
+                    "text": "At Muir Beach, a complex network of freshwater wetlands, lagoon, and dunes defines the meeting",
+                    "width": 527.503,
+                    "x": 30,
+                    "y": 411.4
+                },
+                {
+                    "height": 13.035,
+                    "text": "place of Redwood Creek and the Pacific Ocean. Here,across a broad floodplain, intertwined natural",
+                    "width": 550.737,
+                    "x": 30,
+                    "y": 398.2
+                },
+                {
+                    "height": 13.035,
+                    "text": "systems perform an intricate seasonal and biological dance.",
+                    "width": 307.541,
+                    "x": 30,
+                    "y": 385
+                },
+                {
+                    "height": 13.035,
+                    "text": "Redwood Creek drains an 8.9-square-mile watershed that extends from the ridgetops of Mt. Tamalpais",
+                    "width": 526.795,
+                    "x": 30,
+                    "y": 365.805
+                },
+                {
+                    "height": 13.035,
+                    "text": "through the old-growth forest of Muir Woods National Monument to the ocean. Largely undeveloped, the",
+                    "width": 548.814,
+                    "x": 30,
+                    "y": 352.605
+                },
+                {
+                    "height": 13.035,
+                    "text": "watershed functions as an essentially intact unit. Within this compact territory, a highly diverse range of",
+                    "width": 533.314,
+                    "x": 30,
+                    "y": 339.405
+                },
+                {
+                    "height": 13.035,
+                    "text": "habitats, many of them irreplaceable to their inhabitants, can be found.",
+                    "width": 368.736,
+                    "x": 30,
+                    "y": 326.205
+                },
+                {
+                    "height": 15.405,
+                    "text": "A Biodiversity",
+                    "width": 84.976,
+                    "x": 30.601,
+                    "y": 281
+                },
+                {
+                    "height": 15.405,
+                    "text": "Hotspot",
+                    "width": 49.018,
+                    "x": 30.601,
+                    "y": 265.4
+                },
+                {
+                    "height": 13.035,
+                    "text": "Redwood Creek watershed is part of the Golden",
+                    "width": 257.718,
+                    "x": 143.401,
+                    "y": 283
+                },
+                {
+                    "height": 13.035,
+                    "text": "Gate Biosphere Reserve as well as one of North",
+                    "width": 251.776,
+                    "x": 143.401,
+                    "y": 269.8
+                },
+                {
+                    "height": 13.035,
+                    "text": "America’s biodiversity “hotspots.” These ecologi-",
+                    "width": 261.041,
+                    "x": 143.401,
+                    "y": 256.6
+                },
+                {
+                    "height": 13.035,
+                    "text": "cally critical areas represent some of the planet’s",
+                    "width": 259.378,
+                    "x": 143.401,
+                    "y": 243.4
+                },
+                {
+                    "height": 13.035,
+                    "text": "richest and most threatened reservoirs of plant",
+                    "width": 251.312,
+                    "x": 143.401,
+                    "y": 230.2
+                },
+                {
+                    "height": 13.035,
+                    "text": "and animal life.",
+                    "width": 82.689,
+                    "x": 143.401,
+                    "y": 217
+                },
+                {
+                    "height": 13.035,
+                    "text": "The watershed is home to several of the West",
+                    "width": 233.913,
+                    "x": 143.401,
+                    "y": 197.805
+                },
+                {
+                    "height": 13.035,
+                    "text": "Coast’s most imperiled species, among them, coho",
+                    "width": 258.091,
+                    "x": 143.401,
+                    "y": 184.605
+                },
+                {
+                    "height": 13.035,
+                    "text": "salmon, steelhead trout, and the California red-",
+                    "width": 244.233,
+                    "x": 143.401,
+                    "y": 171.405
+                },
+                {
+                    "height": 13.035,
+                    "text": "legged frog. Habitat restoration has helped its red-",
+                    "width": 262.629,
+                    "x": 143.401,
+                    "y": 158.205
+                },
+                {
+                    "height": 13.035,
+                    "text": "legged frog population, but coho salmon are still in",
+                    "width": 264.727,
+                    "x": 143.401,
+                    "y": 145.005
+                },
+                {
+                    "height": 13.035,
+                    "text": "a highly precarious position. When salmon return to",
+                    "width": 267.236,
+                    "x": 143.401,
+                    "y": 131.805
+                },
+                {
+                    "height": 13.035,
+                    "text": "their native spawning grounds in upper Redwood",
+                    "width": 254.95,
+                    "x": 143.401,
+                    "y": 118.605
+                },
+                {
+                    "height": 13.035,
+                    "text": "Creek, they bring deep-ocean nutrients to the red-",
+                    "width": 259.875,
+                    "x": 143.401,
+                    "y": 105.405
+                },
+                {
+                    "height": 13.035,
+                    "text": "wood forest. Without the salmon, a key piece of the",
+                    "width": 268.07,
+                    "x": 143.401,
+                    "y": 92.205
+                },
+                {
+                    "height": 13.035,
+                    "text": "age-old cycle of the redwood forest is gone and an",
+                    "width": 262.471,
+                    "x": 143.401,
+                    "y": 79.005
+                },
+                {
+                    "height": 13.035,
+                    "text": "important connection is lost.",
+                    "width": 147.518,
+                    "x": 143.401,
+                    "y": 65.805
+                },
+                {
+                    "height": 13.035,
+                    "text": "California red-legged frog",
+                    "width": 134.499,
+                    "x": 427.401,
+                    "y": 171.25
+                },
+                {
+                    "height": 13.035,
+                    "text": "Coho salmon",
+                    "width": 66.558,
+                    "x": 427.401,
+                    "y": 46.246
+                },
+                {
+                    "height": 13.035,
+                    "text": "EXPERIENCE YOUR AMERICA™ www.nps.gov/goga www.nps.gov/goga",
+                    "width": 488.992,
+                    "x": 144,
+                    "y": 16.75
+                }
+            ],
+            "number": 1,
+            "rotation": 0,
+            "text": "Muir BeachNational Park Service\nU. S. Department of Interior\nGolden Gate\nNational Recreation Area\nTo cherish what remains of the Earth\nand to foster its renewal is our only\nlegitimate hope of survival.\n—Wendell Berry\nAt Muir Beach, a complex network of freshwater wetlands, lagoon, and dunes defines the meeting\nplace of Redwood Creek and the Pacific Ocean. Here,across a broad floodplain, intertwined natural\nsystems perform an intricate seasonal and biological dance.\nRedwood Creek drains an 8.9-square-mile watershed that extends from the ridgetops of Mt. Tamalpais\nthrough the old-growth forest of Muir Woods National Monument to the ocean. Largely undeveloped, the\nwatershed functions as an essentially intact unit. Within this compact territory, a highly diverse range of\nhabitats, many of them irreplaceable to their inhabitants, can be found.\nA Biodiversity\nHotspot\nRedwood Creek watershed is part of the Golden\nGate Biosphere Reserve as well as one of North\nAmerica’s biodiversity “hotspots.” These ecologi-\ncally critical areas represent some of the planet’s\nrichest and most threatened reservoirs of plant\nand animal life.\nThe watershed is home to several of the West\nCoast’s most imperiled species, among them, coho\nsalmon, steelhead trout, and the California red-\nlegged frog. Habitat restoration has helped its red-\nlegged frog population, but coho salmon are still in\na highly precarious position. When salmon return to\ntheir native spawning grounds in upper Redwood\nCreek, they bring deep-ocean nutrients to the red-\nwood forest. Without the salmon, a key piece of the\nage-old cycle of the redwood forest is gone and an\nimportant connection is lost.\nCalifornia red-legged frog\nCoho salmon\nEXPERIENCE YOUR AMERICA™ www.nps.gov/goga www.nps.gov/goga",
+            "width": 612
+        },
+        {
+            "height": 792,
+            "lines": [
+                {
+                    "height": 15.405,
+                    "text": "The First",
+                    "width": 51.823,
+                    "x": 30,
+                    "y": 735.8
+                },
+                {
+                    "height": 15.405,
+                    "text": "Stewards",
+                    "width": 56.242,
+                    "x": 30,
+                    "y": 720.2
+                },
+                {
+                    "height": 15.405,
+                    "text": "Portuguese",
+                    "width": 69.254,
+                    "x": 30,
+                    "y": 346.421
+                },
+                {
+                    "height": 15.405,
+                    "text": "Dairymen",
+                    "width": 59.186,
+                    "x": 30,
+                    "y": 330.821
+                },
+                {
+                    "height": 15.405,
+                    "text": "Bygone Days",
+                    "width": 78.718,
+                    "x": 30,
+                    "y": 170.6
+                },
+                {
+                    "height": 15.405,
+                    "text": "at the Beach",
+                    "width": 75.683,
+                    "x": 30,
+                    "y": 155
+                },
+                {
+                    "height": 13.035,
+                    "text": "For more than 10,000 years, the Coast",
+                    "width": 194.156,
+                    "x": 142.8,
+                    "y": 737.8
+                },
+                {
+                    "height": 13.035,
+                    "text": "Miwok lived in roughly 600 small family",
+                    "width": 203.333,
+                    "x": 142.8,
+                    "y": 724.6
+                },
+                {
+                    "height": 13.035,
+                    "text": "communities along the shoreline.",
+                    "width": 170.289,
+                    "x": 142.8,
+                    "y": 711.4
+                },
+                {
+                    "height": 13.035,
+                    "text": "Stewards of the land, they managed the",
+                    "width": 205.929,
+                    "x": 142.8,
+                    "y": 698.2
+                },
+                {
+                    "height": 13.035,
+                    "text": "local watersheds where creek and ocean",
+                    "width": 207.4,
+                    "x": 142.8,
+                    "y": 685
+                },
+                {
+                    "height": 13.035,
+                    "text": "resources were most abundant, includ-",
+                    "width": 198.869,
+                    "x": 142.8,
+                    "y": 671.8
+                },
+                {
+                    "height": 13.035,
+                    "text": "ing the Muir Beach floodplain. Here, they",
+                    "width": 212.559,
+                    "x": 142.8,
+                    "y": 658.6
+                },
+                {
+                    "height": 13.035,
+                    "text": "hunted, fished, and harvested many of",
+                    "width": 199.03,
+                    "x": 142.8,
+                    "y": 645.4
+                },
+                {
+                    "height": 13.035,
+                    "text": "the native plants for food, medicine, and",
+                    "width": 209.85,
+                    "x": 142.8,
+                    "y": 632.2
+                },
+                {
+                    "height": 13.035,
+                    "text": "other traditional uses. In developing",
+                    "width": 185.951,
+                    "x": 142.8,
+                    "y": 619
+                },
+                {
+                    "height": 13.035,
+                    "text": "traditional ecological knowledge, land-",
+                    "width": 201.094,
+                    "x": 142.8,
+                    "y": 605.8
+                },
+                {
+                    "height": 13.035,
+                    "text": "tending principles, and alignment of",
+                    "width": 187.086,
+                    "x": 142.8,
+                    "y": 592.6
+                },
+                {
+                    "height": 13.035,
+                    "text": "cultural customs with the seasons, they",
+                    "width": 199.684,
+                    "x": 142.8,
+                    "y": 579.4
+                },
+                {
+                    "height": 13.035,
+                    "text": "fostered a harmonious relationship with",
+                    "width": 206.023,
+                    "x": 142.8,
+                    "y": 566.2
+                },
+                {
+                    "height": 13.035,
+                    "text": "the natural world.",
+                    "width": 92.853,
+                    "x": 142.8,
+                    "y": 553
+                },
+                {
+                    "height": 13.035,
+                    "text": "In the late 1700s, European settlement",
+                    "width": 197.656,
+                    "x": 142.8,
+                    "y": 533.805
+                },
+                {
+                    "height": 13.035,
+                    "text": "forced the Coast Miwok off their land and",
+                    "width": 216.883,
+                    "x": 142.8,
+                    "y": 520.605
+                },
+                {
+                    "height": 13.035,
+                    "text": "abruptly shifted their way of life forever.",
+                    "width": 208.637,
+                    "x": 142.8,
+                    "y": 507.405
+                },
+                {
+                    "height": 13.035,
+                    "text": "Descendants of the Coast Miwok,",
+                    "width": 171.585,
+                    "x": 142.8,
+                    "y": 494.205
+                },
+                {
+                    "height": 13.035,
+                    "text": "members of what is known today as the",
+                    "width": 205.47,
+                    "x": 142.8,
+                    "y": 481.005
+                },
+                {
+                    "height": 13.035,
+                    "text": "Federated Indians of Graton Rancheria,",
+                    "width": 201.034,
+                    "x": 142.8,
+                    "y": 467.805
+                },
+                {
+                    "height": 13.035,
+                    "text": "continue to participate in research,",
+                    "width": 178.951,
+                    "x": 142.8,
+                    "y": 454.605
+                },
+                {
+                    "height": 13.035,
+                    "text": "education, cultural revitalization, and",
+                    "width": 192.01,
+                    "x": 142.8,
+                    "y": 441.405
+                },
+                {
+                    "height": 20.286,
+                    "text": "preservation of sacred sites.",
+                    "width": 142.154,
+                    "x": 142.8,
+                    "y": 420.954
+                },
+                {
+                    "height": 20.286,
+                    "text": "Left, Top & Bottom images: Traditional prayer",
+                    "width": 214.408,
+                    "x": 368.4,
+                    "y": 420.954
+                },
+                {
+                    "height": 11.854,
+                    "text": "led by a representative of the Coast Miwok at",
+                    "width": 214.583,
+                    "x": 368.4,
+                    "y": 408.95
+                },
+                {
+                    "height": 11.85,
+                    "text": "the annual Welcome Back Salmon ceremony",
+                    "width": 207.111,
+                    "x": 368.4,
+                    "y": 396.95
+                },
+                {
+                    "height": 11.85,
+                    "text": "at Muir Beach.",
+                    "width": 67.933,
+                    "x": 368.4,
+                    "y": 384.95
+                },
+                {
+                    "height": 13.035,
+                    "text": "Beginning in the mid-19th century, much",
+                    "width": 209.183,
+                    "x": 142.8,
+                    "y": 348.421
+                },
+                {
+                    "height": 13.035,
+                    "text": "of the watershed’s land was leased to",
+                    "width": 192.93,
+                    "x": 142.8,
+                    "y": 335.221
+                },
+                {
+                    "height": 13.035,
+                    "text": "Portuguese dairymen, who had emigrated",
+                    "width": 210.437,
+                    "x": 142.8,
+                    "y": 322.021
+                },
+                {
+                    "height": 13.035,
+                    "text": "from the Azores on whaling ships. By",
+                    "width": 190.507,
+                    "x": 142.8,
+                    "y": 308.821
+                },
+                {
+                    "height": 13.035,
+                    "text": "the 1880s, Marin County was California’s",
+                    "width": 208.077,
+                    "x": 142.8,
+                    "y": 295.621
+                },
+                {
+                    "height": 13.035,
+                    "text": "largest producer of fresh milk and butter.",
+                    "width": 212.703,
+                    "x": 142.8,
+                    "y": 282.421
+                },
+                {
+                    "height": 13.035,
+                    "text": "After World War II, the ranches declined,",
+                    "width": 209.686,
+                    "x": 142.8,
+                    "y": 269.221
+                },
+                {
+                    "height": 13.035,
+                    "text": "and most were incorporated into the",
+                    "width": 189.694,
+                    "x": 142.8,
+                    "y": 256.021
+                },
+                {
+                    "height": 13.035,
+                    "text": "California State Park system in the 1960s.",
+                    "width": 209.873,
+                    "x": 142.8,
+                    "y": 242.821
+                },
+                {
+                    "height": 11.85,
+                    "text": "Get-together at a local dairy ranch.",
+                    "width": 164.808,
+                    "x": 197.592,
+                    "y": 217.124
+                },
+                {
+                    "height": 11.85,
+                    "text": "(photos from George Kristian Lindholdt)",
+                    "width": 188.97,
+                    "x": 173.43,
+                    "y": 205.124
+                },
+                {
+                    "height": 13.035,
+                    "text": "Muir Beach—known as Big Lagoon Beach",
+                    "width": 212.901,
+                    "x": 142.8,
+                    "y": 172.6
+                },
+                {
+                    "height": 13.035,
+                    "text": "until the late 1930s—has always been a",
+                    "width": 201.498,
+                    "x": 142.8,
+                    "y": 159.4
+                },
+                {
+                    "height": 13.035,
+                    "text": "popular place for recreation. Early-day",
+                    "width": 196.82,
+                    "x": 142.8,
+                    "y": 146.2
+                },
+                {
+                    "height": 13.035,
+                    "text": "beachgoers picnicked, camped, fished for",
+                    "width": 212.336,
+                    "x": 142.8,
+                    "y": 133
+                },
+                {
+                    "height": 13.035,
+                    "text": "salmon and trout, and hiked here.",
+                    "width": 174.844,
+                    "x": 142.8,
+                    "y": 119.8
+                },
+                {
+                    "height": 13.035,
+                    "text": "Others came to dine and dance at the",
+                    "width": 193.823,
+                    "x": 142.8,
+                    "y": 106.6
+                },
+                {
+                    "height": 13.035,
+                    "text": "Old Tavern, built in the early 1920s, or",
+                    "width": 194.415,
+                    "x": 142.8,
+                    "y": 93.4
+                },
+                {
+                    "height": 13.035,
+                    "text": "stay in one of the summer cottages.",
+                    "width": 183.959,
+                    "x": 142.8,
+                    "y": 80.2
+                },
+                {
+                    "height": 11.85,
+                    "text": "Weekend visitors catch a few fish",
+                    "width": 155.572,
+                    "x": 206.83,
+                    "y": 52.704
+                },
+                {
+                    "height": 11.85,
+                    "text": "(photos from George Kristian Lindholdt)",
+                    "width": 188.97,
+                    "x": 173.43,
+                    "y": 40.704
+                },
+                {
+                    "height": 13.035,
+                    "text": "EXPERIENCE YOUR AMERICA™ www.nps.gov/goga www.nps.gov/goga",
+                    "width": 488.992,
+                    "x": 144,
+                    "y": 16.75
+                }
+            ],
+            "number": 2,
+            "rotation": 0,
+            "text": "The First\nStewards\nPortuguese\nDairymen\nBygone Days\nat the Beach\nFor more than 10,000 years, the Coast\nMiwok lived in roughly 600 small family\ncommunities along the shoreline.\nStewards of the land, they managed the\nlocal watersheds where creek and ocean\nresources were most abundant, includ-\ning the Muir Beach floodplain. Here, they\nhunted, fished, and harvested many of\nthe native plants for food, medicine, and\nother traditional uses. In developing\ntraditional ecological knowledge, land-\ntending principles, and alignment of\ncultural customs with the seasons, they\nfostered a harmonious relationship with\nthe natural world.\nIn the late 1700s, European settlement\nforced the Coast Miwok off their land and\nabruptly shifted their way of life forever.\nDescendants of the Coast Miwok,\nmembers of what is known today as the\nFederated Indians of Graton Rancheria,\ncontinue to participate in research,\neducation, cultural revitalization, and\npreservation of sacred sites. Left, Top & Bottom images: Traditional prayer\nled by a representative of the Coast Miwok at\nthe annual Welcome Back Salmon ceremony\nat Muir Beach.\nBeginning in the mid-19th century, much\nof the watershed’s land was leased to\nPortuguese dairymen, who had emigrated\nfrom the Azores on whaling ships. By\nthe 1880s, Marin County was California’s\nlargest producer of fresh milk and butter.\nAfter World War II, the ranches declined,\nand most were incorporated into the\nCalifornia State Park system in the 1960s.\nGet-together at a local dairy ranch.\n(photos from George Kristian Lindholdt)\nMuir Beach—known as Big Lagoon Beach\nuntil the late 1930s—has always been a\npopular place for recreation. Early-day\nbeachgoers picnicked, camped, fished for\nsalmon and trout, and hiked here.\nOthers came to dine and dance at the\nOld Tavern, built in the early 1920s, or\nstay in one of the summer cottages.\nWeekend visitors catch a few fish\n(photos from George Kristian Lindholdt)\nEXPERIENCE YOUR AMERICA™ www.nps.gov/goga www.nps.gov/goga",
+            "width": 612
+        },
+        {
+            "height": 792,
+            "lines": [
+                {
+                    "height": 15.405,
+                    "text": "Restoring",
+                    "width": 58.012,
+                    "x": 30,
+                    "y": 722
+                },
+                {
+                    "height": 15.405,
+                    "text": "Ecological",
+                    "width": 60.198,
+                    "x": 30,
+                    "y": 706.4
+                },
+                {
+                    "height": 15.405,
+                    "text": "Integrity",
+                    "width": 52.51,
+                    "x": 30,
+                    "y": 690.8
+                },
+                {
+                    "height": 13.035,
+                    "text": "During the 20th century, human use",
+                    "width": 185.56,
+                    "x": 142.8,
+                    "y": 724
+                },
+                {
+                    "height": 13.035,
+                    "text": "changed the natural landscape of the",
+                    "width": 192.206,
+                    "x": 142.8,
+                    "y": 710.8
+                },
+                {
+                    "height": 13.035,
+                    "text": "wetland and creek habitat at Muir Beach.",
+                    "width": 212.749,
+                    "x": 142.8,
+                    "y": 697.6
+                },
+                {
+                    "height": 13.035,
+                    "text": "Farming, cattle and dairy ranching, road",
+                    "width": 206.169,
+                    "x": 142.8,
+                    "y": 684.4
+                },
+                {
+                    "height": 13.035,
+                    "text": "construction, and beachfront develop-",
+                    "width": 197.054,
+                    "x": 142.8,
+                    "y": 671.2
+                },
+                {
+                    "height": 13.035,
+                    "text": "ment collectively confined the creek, cut",
+                    "width": 206.951,
+                    "x": 142.8,
+                    "y": 658
+                },
+                {
+                    "height": 13.035,
+                    "text": "it off from its floodplain, caused it to fill",
+                    "width": 206.518,
+                    "x": 142.8,
+                    "y": 644.8
+                },
+                {
+                    "height": 13.035,
+                    "text": "with sediment, and diminished habitats.",
+                    "width": 206.108,
+                    "x": 142.8,
+                    "y": 631.6
+                },
+                {
+                    "height": 13.035,
+                    "text": "In collaboration with public agencies",
+                    "width": 187.937,
+                    "x": 368.399,
+                    "y": 724
+                },
+                {
+                    "height": 13.035,
+                    "text": "and nonprofit partners, the National",
+                    "width": 188.401,
+                    "x": 368.399,
+                    "y": 710.8
+                },
+                {
+                    "height": 13.035,
+                    "text": "Park Service implemented a multi-year,",
+                    "width": 199.711,
+                    "x": 368.399,
+                    "y": 697.6
+                },
+                {
+                    "height": 13.035,
+                    "text": "large-scale restoration plan. This work",
+                    "width": 195.582,
+                    "x": 368.399,
+                    "y": 684.4
+                },
+                {
+                    "height": 13.035,
+                    "text": "has freed the creek to meander naturally",
+                    "width": 209.659,
+                    "x": 368.399,
+                    "y": 671.2
+                },
+                {
+                    "height": 13.035,
+                    "text": "and reconnect with its wetland system,",
+                    "width": 200.511,
+                    "x": 368.399,
+                    "y": 658
+                },
+                {
+                    "height": 13.035,
+                    "text": "expanded the lagoon, created frog-",
+                    "width": 183.551,
+                    "x": 368.399,
+                    "y": 644.8
+                },
+                {
+                    "height": 13.035,
+                    "text": "breeding habitat, and enhanced sand",
+                    "width": 192.707,
+                    "x": 368.399,
+                    "y": 631.6
+                },
+                {
+                    "height": 13.035,
+                    "text": "dunes, setting the stage for the site’s",
+                    "width": 189.767,
+                    "x": 368.399,
+                    "y": 618.4
+                },
+                {
+                    "height": 13.035,
+                    "text": "return to ecological integrity.",
+                    "width": 150.073,
+                    "x": 368.399,
+                    "y": 605.2
+                },
+                {
+                    "height": 15.405,
+                    "text": "Make a Difference",
+                    "width": 111.367,
+                    "x": 30,
+                    "y": 292.675
+                },
+                {
+                    "height": 13.035,
+                    "text": "Click the link for more information.",
+                    "width": 180.921,
+                    "x": 142.8,
+                    "y": 254.498
+                },
+                {
+                    "height": 13.035,
+                    "text": "• Lend a hand in the ongoing effort to restore",
+                    "width": 238.105,
+                    "x": 142.8,
+                    "y": 228.098
+                },
+                {
+                    "height": 13.035,
+                    "text": "native plant communities and manage invasive",
+                    "width": 239.503,
+                    "x": 142.8,
+                    "y": 214.898
+                },
+                {
+                    "height": 13.035,
+                    "text": "species at Muir Beach and other parklands.",
+                    "width": 219.924,
+                    "x": 142.8,
+                    "y": 201.698
+                },
+                {
+                    "height": 15.405,
+                    "text": "www.parksconservancy.org",
+                    "width": 170.36,
+                    "x": 142.8,
+                    "y": 185.6
+                },
+                {
+                    "height": 13.035,
+                    "text": "• Learn what you can do to help protect the",
+                    "width": 225.921,
+                    "x": 142.8,
+                    "y": 166.9
+                },
+                {
+                    "height": 13.035,
+                    "text": "ocean.",
+                    "width": 33.536,
+                    "x": 142.8,
+                    "y": 153.7
+                },
+                {
+                    "height": 15.405,
+                    "text": "www.thankyouocean.org",
+                    "width": 156.521,
+                    "x": 142.8,
+                    "y": 137.6
+                },
+                {
+                    "height": 15.405,
+                    "text": "www.bluefront.org",
+                    "width": 120.361,
+                    "x": 142.8,
+                    "y": 122
+                },
+                {
+                    "height": 15.405,
+                    "text": "5gyres.org",
+                    "width": 64.834,
+                    "x": 142.8,
+                    "y": 105.204
+                },
+                {
+                    "height": 13.035,
+                    "text": "• Get involved in the campaign to improve air",
+                    "width": 234.114,
+                    "x": 142.8,
+                    "y": 86.5
+                },
+                {
+                    "height": 13.035,
+                    "text": "quality in the San Francisco Bay Area.",
+                    "width": 190.513,
+                    "x": 142.8,
+                    "y": 73.3
+                },
+                {
+                    "height": 15.405,
+                    "text": "www.sparetheair.org",
+                    "width": 131.089,
+                    "x": 142.8,
+                    "y": 57.2
+                },
+                {
+                    "height": 13.035,
+                    "text": "www.nps.gov/goga",
+                    "width": 99.987,
+                    "x": 483.02,
+                    "y": 16.75
+                }
+            ],
+            "number": 3,
+            "rotation": 0,
+            "text": "Restoring\nEcological\nIntegrity\nDuring the 20th century, human use\nchanged the natural landscape of the\nwetland and creek habitat at Muir Beach.\nFarming, cattle and dairy ranching, road\nconstruction, and beachfront develop-\nment collectively confined the creek, cut\nit off from its floodplain, caused it to fill\nwith sediment, and diminished habitats.\nIn collaboration with public agencies\nand nonprofit partners, the National\nPark Service implemented a multi-year,\nlarge-scale restoration plan. This work\nhas freed the creek to meander naturally\nand reconnect with its wetland system,\nexpanded the lagoon, created frog-\nbreeding habitat, and enhanced sand\ndunes, setting the stage for the site’s\nreturn to ecological integrity.\nMake a Difference\nClick the link for more information.\n• Lend a hand in the ongoing effort to restore\nnative plant communities and manage invasive\nspecies at Muir Beach and other parklands.\nwww.parksconservancy.org\n• Learn what you can do to help protect the\nocean.\nwww.thankyouocean.org\nwww.bluefront.org\n5gyres.org\n• Get involved in the campaign to improve air\nquality in the San Francisco Bay Area.\nwww.sparetheair.org\nwww.nps.gov/goga",
+            "width": 612
+        },
+        {
+            "height": 792,
+            "lines": [
+                {
+                    "height": 18.025,
+                    "text": "Coas",
+                    "width": 16.394,
+                    "x": 59.023,
+                    "y": 740.085
+                },
+                {
+                    "height": 4.672,
+                    "text": "t",
+                    "width": 8.828,
+                    "x": 64.665,
+                    "y": 738.587
+                },
+                {
+                    "height": 6.915,
+                    "text": "V",
+                    "width": 9.408,
+                    "x": 65.888,
+                    "y": 731.944
+                },
+                {
+                    "height": 13.465,
+                    "text": "i e",
+                    "width": 18.109,
+                    "x": 64.463,
+                    "y": 723.399
+                },
+                {
+                    "height": 8.187,
+                    "text": "w",
+                    "width": 9.811,
+                    "x": 69.009,
+                    "y": 720.536
+                },
+                {
+                    "height": 6.373,
+                    "text": "T",
+                    "width": 9.225,
+                    "x": 71.433,
+                    "y": 714.821
+                },
+                {
+                    "height": 5.348,
+                    "text": "r",
+                    "width": 8.855,
+                    "x": 72.543,
+                    "y": 712.617
+                },
+                {
+                    "height": 6.716,
+                    "text": "a",
+                    "width": 9.271,
+                    "x": 73.462,
+                    "y": 708.742
+                },
+                {
+                    "height": 5.038,
+                    "text": "i",
+                    "width": 8.53,
+                    "x": 74.943,
+                    "y": 706.887
+                },
+                {
+                    "height": 5.131,
+                    "text": "l",
+                    "width": 8.511,
+                    "x": 75.708,
+                    "y": 704.986
+                },
+                {
+                    "height": 10.455,
+                    "text": "1",
+                    "width": 4.462,
+                    "x": 94.666,
+                    "y": 661.847
+                },
+                {
+                    "height": 112.483,
+                    "text": "TO STINSON B E A C H",
+                    "width": 89.809,
+                    "x": 41.423,
+                    "y": 608.853
+                },
+                {
+                    "height": 7.137,
+                    "text": "T",
+                    "width": 9.294,
+                    "x": 37.19,
+                    "y": 681.506
+                },
+                {
+                    "height": 7.683,
+                    "text": "o",
+                    "width": 9.466,
+                    "x": 38.728,
+                    "y": 677.953
+                },
+                {
+                    "height": 7.569,
+                    "text": "S",
+                    "width": 8.987,
+                    "x": 41.945,
+                    "y": 672.731
+                },
+                {
+                    "height": 6.145,
+                    "text": "l",
+                    "width": 8.176,
+                    "x": 43.866,
+                    "y": 671.129
+                },
+                {
+                    "height": 6.064,
+                    "text": "i",
+                    "width": 8.212,
+                    "x": 44.87,
+                    "y": 669.424
+                },
+                {
+                    "height": 7.984,
+                    "text": "d",
+                    "width": 9.454,
+                    "x": 45.93,
+                    "y": 665.696
+                },
+                {
+                    "height": 7.526,
+                    "text": "e",
+                    "width": 9.274,
+                    "x": 48.121,
+                    "y": 662.28
+                },
+                {
+                    "height": 7.736,
+                    "text": "R",
+                    "width": 9.466,
+                    "x": 50.944,
+                    "y": 656.655
+                },
+                {
+                    "height": 13.471,
+                    "text": "an",
+                    "width": 13.847,
+                    "x": 51.633,
+                    "y": 648.14
+                },
+                {
+                    "height": 6.734,
+                    "text": "c",
+                    "width": 8.909,
+                    "x": 56.748,
+                    "y": 646.423
+                },
+                {
+                    "height": 7.958,
+                    "text": "h",
+                    "width": 9.456,
+                    "x": 58.246,
+                    "y": 642.562
+                },
+                {
+                    "height": 5.844,
+                    "text": "R",
+                    "width": 10.552,
+                    "x": 161.764,
+                    "y": 746.959
+                },
+                {
+                    "height": 5.741,
+                    "text": "e",
+                    "width": 10.68,
+                    "x": 162.056,
+                    "y": 741.876
+                },
+                {
+                    "height": 7.031,
+                    "text": "d",
+                    "width": 11.057,
+                    "x": 162.56,
+                    "y": 736.1
+                },
+                {
+                    "height": 10.536,
+                    "text": "w",
+                    "width": 12.235,
+                    "x": 163.684,
+                    "y": 728.094
+                },
+                {
+                    "height": 9.04,
+                    "text": "o",
+                    "width": 11.552,
+                    "x": 166.501,
+                    "y": 723.175
+                },
+                {
+                    "height": 9.15,
+                    "text": "o",
+                    "width": 11.561,
+                    "x": 168.699,
+                    "y": 718.234
+                },
+                {
+                    "height": 9.246,
+                    "text": "d",
+                    "width": 11.566,
+                    "x": 171.001,
+                    "y": 713.406
+                },
+                {
+                    "height": 9.381,
+                    "text": "C",
+                    "width": 11.57,
+                    "x": 174.45,
+                    "y": 706.287
+                },
+                {
+                    "height": 7.751,
+                    "text": "r",
+                    "width": 10.679,
+                    "x": 176.903,
+                    "y": 703.262
+                },
+                {
+                    "height": 9.117,
+                    "text": "e",
+                    "width": 11.343,
+                    "x": 178.474,
+                    "y": 698.915
+                },
+                {
+                    "height": 9.218,
+                    "text": "e",
+                    "width": 11.332,
+                    "x": 180.85,
+                    "y": 694.597
+                },
+                {
+                    "height": 9.329,
+                    "text": "k",
+                    "width": 11.317,
+                    "x": 183.181,
+                    "y": 690.34
+                },
+                {
+                    "height": 10.455,
+                    "text": "1",
+                    "width": 4.462,
+                    "x": 251.439,
+                    "y": 616.045
+                },
+                {
+                    "height": 9.677,
+                    "text": "O",
+                    "width": 9.98,
+                    "x": 105.294,
+                    "y": 593.681
+                },
+                {
+                    "height": 9.823,
+                    "text": "w",
+                    "width": 10.275,
+                    "x": 108.794,
+                    "y": 589.081
+                },
+                {
+                    "height": 6.773,
+                    "text": "l",
+                    "width": 7.82,
+                    "x": 112.475,
+                    "y": 587.564
+                },
+                {
+                    "height": 8.136,
+                    "text": "T",
+                    "width": 9.129,
+                    "x": 116.124,
+                    "y": 581.284
+                },
+                {
+                    "height": 6.97,
+                    "text": "r",
+                    "width": 8.531,
+                    "x": 118.074,
+                    "y": 579.407
+                },
+                {
+                    "height": 8.465,
+                    "text": "a",
+                    "width": 8.963,
+                    "x": 119.961,
+                    "y": 575.919
+                },
+                {
+                    "height": 7.157,
+                    "text": "i",
+                    "width": 7.522,
+                    "x": 122.724,
+                    "y": 574.331
+                },
+                {
+                    "height": 7.283,
+                    "text": "l",
+                    "width": 7.406,
+                    "x": 124.173,
+                    "y": 572.773
+                },
+                {
+                    "height": 7.479,
+                    "text": "MUIR",
+                    "width": 16.309,
+                    "x": 154.634,
+                    "y": 580.273
+                },
+                {
+                    "height": 7.479,
+                    "text": "BEACH",
+                    "width": 20.581,
+                    "x": 152.501,
+                    "y": 573.57
+                },
+                {
+                    "height": 7.479,
+                    "text": "OVERLOOK",
+                    "width": 34.107,
+                    "x": 145.742,
+                    "y": 566.868
+                },
+                {
+                    "height": 9.349,
+                    "text": "MUIR BEACH",
+                    "width": 47.77,
+                    "x": 185.532,
+                    "y": 544.341
+                },
+                {
+                    "height": 22.459,
+                    "text": "P",
+                    "width": 23.86,
+                    "x": 40.688,
+                    "y": 525.75
+                },
+                {
+                    "height": 9.349,
+                    "text": "COMMUNITY",
+                    "width": 49.087,
+                    "x": 184.869,
+                    "y": 535.663
+                },
+                {
+                    "height": 25.487,
+                    "text": "A",
+                    "width": 25.44,
+                    "x": 48.359,
+                    "y": 515.102
+                },
+                {
+                    "height": 24.555,
+                    "text": "C",
+                    "width": 23.213,
+                    "x": 59.611,
+                    "y": 506.321
+                },
+                {
+                    "height": 13.088,
+                    "text": "MUIR",
+                    "width": 29.048,
+                    "x": 254.01,
+                    "y": 487.664
+                },
+                {
+                    "height": 13.088,
+                    "text": "BEACH",
+                    "width": 36.68,
+                    "x": 250.189,
+                    "y": 475.835
+                },
+                {
+                    "height": 7.068,
+                    "text": "Vault Toilets",
+                    "width": 34.843,
+                    "x": 191.683,
+                    "y": 433.499
+                },
+                {
+                    "height": 257.695,
+                    "text": "C O C E A N",
+                    "width": 398.614,
+                    "x": -8.063,
+                    "y": 295.294
+                },
+                {
+                    "height": 14.28,
+                    "text": "MOUNT TAMALPAIS",
+                    "width": 144.412,
+                    "x": 210.989,
+                    "y": 742.296
+                },
+                {
+                    "height": 14.28,
+                    "text": "STATE PARK",
+                    "width": 88.576,
+                    "x": 238.945,
+                    "y": 727.029
+                },
+                {
+                    "height": 7.479,
+                    "text": "GOLDEN GATE",
+                    "width": 43.265,
+                    "x": 283.56,
+                    "y": 634.59
+                },
+                {
+                    "height": 6.456,
+                    "text": "i",
+                    "width": 8.017,
+                    "x": 262.439,
+                    "y": 659.235
+                },
+                {
+                    "height": 7.794,
+                    "text": "r",
+                    "width": 8.006,
+                    "x": 258.294,
+                    "y": 663.624
+                },
+                {
+                    "height": 6.355,
+                    "text": "e",
+                    "width": 9.222,
+                    "x": 246.643,
+                    "y": 677.331
+                },
+                {
+                    "height": 7.764,
+                    "text": "e",
+                    "width": 9.236,
+                    "x": 248.356,
+                    "y": 672.863
+                },
+                {
+                    "height": 8.472,
+                    "text": "d",
+                    "width": 9.351,
+                    "x": 242.611,
+                    "y": 689.471
+                },
+                {
+                    "height": 6.057,
+                    "text": "C",
+                    "width": 9.154,
+                    "x": 245.035,
+                    "y": 684.234
+                },
+                {
+                    "height": 4.676,
+                    "text": "r",
+                    "width": 8.829,
+                    "x": 245.918,
+                    "y": 681.457
+                },
+                {
+                    "height": 9.467,
+                    "text": "o",
+                    "width": 7.709,
+                    "x": 239.675,
+                    "y": 692.083
+                },
+                {
+                    "height": 9.06,
+                    "text": "o",
+                    "width": 5.79,
+                    "x": 236.105,
+                    "y": 693.771
+                },
+                {
+                    "height": 8.51,
+                    "text": "w",
+                    "width": 6.051,
+                    "x": 230.632,
+                    "y": 694.45
+                },
+                {
+                    "height": 57.17,
+                    "text": "k T",
+                    "width": 58.224,
+                    "x": 208.567,
+                    "y": 654.77
+                },
+                {
+                    "height": 6.309,
+                    "text": "l",
+                    "width": 8.096,
+                    "x": 263.577,
+                    "y": 657.607
+                },
+                {
+                    "height": 8.344,
+                    "text": "a",
+                    "width": 9.034,
+                    "x": 260.093,
+                    "y": 660.702
+                },
+                {
+                    "height": 14.838,
+                    "text": "Red",
+                    "width": 15.082,
+                    "x": 217.381,
+                    "y": 693.814
+                },
+                {
+                    "height": 50.596,
+                    "text": "TO MUIR WOODS",
+                    "width": 57.437,
+                    "x": 202.422,
+                    "y": 642.315
+                },
+                {
+                    "height": 7.479,
+                    "text": "DAIRY",
+                    "width": 18.953,
+                    "x": 295.716,
+                    "y": 627.887
+                },
+                {
+                    "height": 9.626,
+                    "text": "y",
+                    "width": 7.144,
+                    "x": 330.879,
+                    "y": 568.023
+                },
+                {
+                    "height": 12.007,
+                    "text": "W a",
+                    "width": 11.627,
+                    "x": 320.932,
+                    "y": 569.277
+                },
+                {
+                    "height": 8.183,
+                    "text": "i",
+                    "width": 7.238,
+                    "x": 316.225,
+                    "y": 576.496
+                },
+                {
+                    "height": 8.563,
+                    "text": "K",
+                    "width": 10.148,
+                    "x": 307.022,
+                    "y": 588.437
+                },
+                {
+                    "height": 8.051,
+                    "text": "a",
+                    "width": 9.721,
+                    "x": 309.395,
+                    "y": 585.002
+                },
+                {
+                    "height": 8.176,
+                    "text": "a",
+                    "width": 9.689,
+                    "x": 311.467,
+                    "y": 581.658
+                },
+                {
+                    "height": 7.288,
+                    "text": "s",
+                    "width": 9.002,
+                    "x": 313.67,
+                    "y": 579.316
+                },
+                {
+                    "height": 8.318,
+                    "text": "M",
+                    "width": 10.027,
+                    "x": 298.849,
+                    "y": 570.703
+                },
+                {
+                    "height": 4.212,
+                    "text": "r",
+                    "width": 9.659,
+                    "x": 297.683,
+                    "y": 560.397
+                },
+                {
+                    "height": 6.278,
+                    "text": "B",
+                    "width": 10.009,
+                    "x": 296.648,
+                    "y": 553.132
+                },
+                {
+                    "height": 7.479,
+                    "text": "Pelican Inn",
+                    "width": 32.542,
+                    "x": 270.811,
+                    "y": 600.729
+                },
+                {
+                    "height": 5.919,
+                    "text": "y",
+                    "width": 9.092,
+                    "x": 288.973,
+                    "y": 581.637
+                },
+                {
+                    "height": 4.074,
+                    "text": "a",
+                    "width": 8.472,
+                    "x": 288.69,
+                    "y": 578.498
+                },
+                {
+                    "height": 7.479,
+                    "text": "W",
+                    "width": 8.731,
+                    "x": 288.492,
+                    "y": 571.275
+                },
+                {
+                    "height": 7.017,
+                    "text": "u i",
+                    "width": 20.715,
+                    "x": 290.89,
+                    "y": 563.907
+                },
+                {
+                    "height": 4.384,
+                    "text": "c",
+                    "width": 8.793,
+                    "x": 287.74,
+                    "y": 565.64
+                },
+                {
+                    "height": 6.246,
+                    "text": "fi",
+                    "width": 9.159,
+                    "x": 286.881,
+                    "y": 560.769
+                },
+                {
+                    "height": 3.917,
+                    "text": "i",
+                    "width": 8.642,
+                    "x": 286.434,
+                    "y": 558.599
+                },
+                {
+                    "height": 5.495,
+                    "text": "c",
+                    "width": 8.969,
+                    "x": 285.58,
+                    "y": 555.228
+                },
+                {
+                    "height": 6.614,
+                    "text": "e",
+                    "width": 10.156,
+                    "x": 295.626,
+                    "y": 548.317
+                },
+                {
+                    "height": 5.957,
+                    "text": "a",
+                    "width": 9.973,
+                    "x": 294.876,
+                    "y": 543.806
+                },
+                {
+                    "height": 4.052,
+                    "text": "c",
+                    "width": 9.54,
+                    "x": 295.675,
+                    "y": 540.483
+                },
+                {
+                    "height": 8.457,
+                    "text": "h",
+                    "width": 10.517,
+                    "x": 293.735,
+                    "y": 533.753
+                },
+                {
+                    "height": 7.013,
+                    "text": "a",
+                    "width": 9.292,
+                    "x": 284.139,
+                    "y": 551.1
+                },
+                {
+                    "height": 7.953,
+                    "text": "P",
+                    "width": 9.19,
+                    "x": 282.248,
+                    "y": 546.997
+                },
+                {
+                    "height": 85.072,
+                    "text": "T r a i l",
+                    "width": 85.368,
+                    "x": 258.341,
+                    "y": 483.516
+                },
+                {
+                    "height": 9.492,
+                    "text": "D",
+                    "width": 7.223,
+                    "x": 398.61,
+                    "y": 688.348
+                },
+                {
+                    "height": 8.593,
+                    "text": "i",
+                    "width": 4.649,
+                    "x": 403.351,
+                    "y": 689.86
+                },
+                {
+                    "height": 9.294,
+                    "text": "a",
+                    "width": 7.11,
+                    "x": 404.944,
+                    "y": 690.65
+                },
+                {
+                    "height": 8.218,
+                    "text": "s",
+                    "width": 7.528,
+                    "x": 407.767,
+                    "y": 693.031
+                },
+                {
+                    "height": 4.919,
+                    "text": "R",
+                    "width": 8.698,
+                    "x": 408.994,
+                    "y": 700.247
+                },
+                {
+                    "height": 3.034,
+                    "text": "i",
+                    "width": 8.597,
+                    "x": 408.719,
+                    "y": 704.392
+                },
+                {
+                    "height": 5.184,
+                    "text": "d",
+                    "width": 8.817,
+                    "x": 408.187,
+                    "y": 706.533
+                },
+                {
+                    "height": 4.502,
+                    "text": "g",
+                    "width": 8.497,
+                    "x": 408.08,
+                    "y": 711.342
+                },
+                {
+                    "height": 3.957,
+                    "text": "e",
+                    "width": 8.418,
+                    "x": 408.122,
+                    "y": 715.703
+                },
+                {
+                    "height": 4.293,
+                    "text": "T",
+                    "width": 8.57,
+                    "x": 407.941,
+                    "y": 721.43
+                },
+                {
+                    "height": 3.29,
+                    "text": "r",
+                    "width": 8.572,
+                    "x": 407.807,
+                    "y": 724.738
+                },
+                {
+                    "height": 4.71,
+                    "text": "a",
+                    "width": 8.743,
+                    "x": 407.482,
+                    "y": 727.334
+                },
+                {
+                    "height": 2.99,
+                    "text": "i",
+                    "width": 8.592,
+                    "x": 407.188,
+                    "y": 731.217
+                },
+                {
+                    "height": 3.177,
+                    "text": "l",
+                    "width": 8.612,
+                    "x": 406.932,
+                    "y": 733.115
+                },
+                {
+                    "height": 13.088,
+                    "text": "DIAS",
+                    "width": 25.978,
+                    "x": 356.541,
+                    "y": 680.278
+                },
+                {
+                    "height": 13.088,
+                    "text": "RIDGE",
+                    "width": 33.002,
+                    "x": 353.029,
+                    "y": 668.449
+                },
+                {
+                    "height": 10.141,
+                    "text": "T",
+                    "width": 9.045,
+                    "x": 458.26,
+                    "y": 671.25
+                },
+                {
+                    "height": 10.268,
+                    "text": "o",
+                    "width": 9.688,
+                    "x": 461.189,
+                    "y": 673.727
+                },
+                {
+                    "height": 10.609,
+                    "text": "H",
+                    "width": 10.667,
+                    "x": 466.339,
+                    "y": 678.761
+                },
+                {
+                    "height": 7.769,
+                    "text": "i",
+                    "width": 8.51,
+                    "x": 470.148,
+                    "y": 683.209
+                },
+                {
+                    "height": 9.462,
+                    "text": "g",
+                    "width": 10.373,
+                    "x": 471.482,
+                    "y": 685.184
+                },
+                {
+                    "height": 8.715,
+                    "text": "h",
+                    "width": 10.515,
+                    "x": 474.17,
+                    "y": 689.694
+                },
+                {
+                    "height": 9.887,
+                    "text": "w",
+                    "width": 11.243,
+                    "x": 476.302,
+                    "y": 694.288
+                },
+                {
+                    "height": 7.795,
+                    "text": "a",
+                    "width": 10.324,
+                    "x": 478.971,
+                    "y": 700.345
+                },
+                {
+                    "height": 7.343,
+                    "text": "y",
+                    "width": 10.146,
+                    "x": 480.743,
+                    "y": 704.428
+                },
+                {
+                    "height": 7.86,
+                    "text": "1",
+                    "width": 10.326,
+                    "x": 483.268,
+                    "y": 710.165
+                },
+                {
+                    "height": 6.621,
+                    "text": "0",
+                    "width": 10.157,
+                    "x": 485.277,
+                    "y": 715.009
+                },
+                {
+                    "height": 4.474,
+                    "text": "1",
+                    "width": 9.39,
+                    "x": 486.089,
+                    "y": 720.708
+                },
+                {
+                    "height": 9.05,
+                    "text": "G",
+                    "width": 9.829,
+                    "x": 489.107,
+                    "y": 667.893
+                },
+                {
+                    "height": 7.406,
+                    "text": "r",
+                    "width": 8.3,
+                    "x": 492.271,
+                    "y": 671.983
+                },
+                {
+                    "height": 8.525,
+                    "text": "e",
+                    "width": 8.923,
+                    "x": 494.233,
+                    "y": 674.074
+                },
+                {
+                    "height": 8.745,
+                    "text": "e",
+                    "width": 8.737,
+                    "x": 497.072,
+                    "y": 676.917
+                },
+                {
+                    "height": 9.233,
+                    "text": "n",
+                    "width": 8.734,
+                    "x": 500.218,
+                    "y": 679.586
+                },
+                {
+                    "height": 9.545,
+                    "text": "G",
+                    "width": 9.603,
+                    "x": 506.126,
+                    "y": 685.66
+                },
+                {
+                    "height": 9.245,
+                    "text": "u",
+                    "width": 8.713,
+                    "x": 510.116,
+                    "y": 689.116
+                },
+                {
+                    "height": 8.137,
+                    "text": "l",
+                    "width": 6.228,
+                    "x": 514.117,
+                    "y": 691.668
+                },
+                {
+                    "height": 8.949,
+                    "text": "c",
+                    "width": 6.487,
+                    "x": 516.382,
+                    "y": 692.607
+                },
+                {
+                    "height": 9.174,
+                    "text": "h",
+                    "width": 6.119,
+                    "x": 520.362,
+                    "y": 693.892
+                },
+                {
+                    "height": 8.52,
+                    "text": "T",
+                    "width": 4.178,
+                    "x": 529.817,
+                    "y": 694.439
+                },
+                {
+                    "height": 8.469,
+                    "text": "r",
+                    "width": 2.936,
+                    "x": 533.324,
+                    "y": 694.409
+                },
+                {
+                    "height": 8.757,
+                    "text": "a",
+                    "width": 4.744,
+                    "x": 535.82,
+                    "y": 694.502
+                },
+                {
+                    "height": 8.629,
+                    "text": "i",
+                    "width": 3.405,
+                    "x": 539.518,
+                    "y": 694.927
+                },
+                {
+                    "height": 8.642,
+                    "text": "l",
+                    "width": 3.835,
+                    "x": 541.264,
+                    "y": 695.362
+                },
+                {
+                    "height": 10.455,
+                    "text": "1",
+                    "width": 4.462,
+                    "x": 451.364,
+                    "y": 653.455
+                },
+                {
+                    "height": 8.203,
+                    "text": "S",
+                    "width": 10.043,
+                    "x": 345.068,
+                    "y": 587.451
+                },
+                {
+                    "height": 9.974,
+                    "text": "h",
+                    "width": 10.063,
+                    "x": 347.991,
+                    "y": 590.344
+                },
+                {
+                    "height": 10.277,
+                    "text": "o",
+                    "width": 9.672,
+                    "x": 351.9,
+                    "y": 593.548
+                },
+                {
+                    "height": 9.44,
+                    "text": "r",
+                    "width": 7.831,
+                    "x": 356.114,
+                    "y": 596.527
+                },
+                {
+                    "height": 10.319,
+                    "text": "e",
+                    "width": 7.682,
+                    "x": 359.778,
+                    "y": 598.063
+                },
+                {
+                    "height": 9.576,
+                    "text": "l",
+                    "width": 4.898,
+                    "x": 364.491,
+                    "y": 599.601
+                },
+                {
+                    "height": 9.589,
+                    "text": "i",
+                    "width": 4.715,
+                    "x": 366.784,
+                    "y": 600.25
+                },
+                {
+                    "height": 10.435,
+                    "text": "n",
+                    "width": 7.732,
+                    "x": 368.672,
+                    "y": 600.898
+                },
+                {
+                    "height": 10.8,
+                    "text": "H",
+                    "width": 10.419,
+                    "x": 377.096,
+                    "y": 608.082
+                },
+                {
+                    "height": 10.023,
+                    "text": "e",
+                    "width": 9.297,
+                    "x": 372.074,
+                    "y": 603.546
+                },
+                {
+                    "height": 9.176,
+                    "text": "i",
+                    "width": 6.615,
+                    "x": 382.407,
+                    "y": 611.525
+                },
+                {
+                    "height": 9.565,
+                    "text": "g",
+                    "width": 5.254,
+                    "x": 387.152,
+                    "y": 612.474
+                },
+                {
+                    "height": 10.359,
+                    "text": "h",
+                    "width": 7.381,
+                    "x": 391.076,
+                    "y": 612.955
+                },
+                {
+                    "height": 11.345,
+                    "text": "w",
+                    "width": 10.209,
+                    "x": 395.081,
+                    "y": 614.754
+                },
+                {
+                    "height": 10.043,
+                    "text": "a",
+                    "width": 9.26,
+                    "x": 400.246,
+                    "y": 618.5
+                },
+                {
+                    "height": 9.212,
+                    "text": "y",
+                    "width": 9.567,
+                    "x": 403.252,
+                    "y": 621.899
+                },
+                {
+                    "height": 10.596,
+                    "text": "M",
+                    "width": 9.914,
+                    "x": 346.806,
+                    "y": 561.21
+                },
+                {
+                    "height": 8.569,
+                    "text": "i",
+                    "width": 4.819,
+                    "x": 353.515,
+                    "y": 564.156
+                },
+                {
+                    "height": 9.355,
+                    "text": "d",
+                    "width": 6.78,
+                    "x": 355.562,
+                    "y": 564.842
+                },
+                {
+                    "height": 27.136,
+                    "text": "d l e G",
+                    "width": 20.489,
+                    "x": 360.362,
+                    "y": 558.639
+                },
+                {
+                    "height": 8.823,
+                    "text": "r",
+                    "width": 4.621,
+                    "x": 376.987,
+                    "y": 571.134
+                },
+                {
+                    "height": 8.981,
+                    "text": "e",
+                    "width": 5.379,
+                    "x": 379.984,
+                    "y": 571.76
+                },
+                {
+                    "height": 11.537,
+                    "text": "e n",
+                    "width": 7.328,
+                    "x": 384.67,
+                    "y": 571.792
+                },
+                {
+                    "height": 9.176,
+                    "text": "G",
+                    "width": 6.509,
+                    "x": 394.157,
+                    "y": 574.006
+                },
+                {
+                    "height": 9.115,
+                    "text": "u",
+                    "width": 5.942,
+                    "x": 398.979,
+                    "y": 574.945
+                },
+                {
+                    "height": 8.642,
+                    "text": "l",
+                    "width": 3.806,
+                    "x": 403.092,
+                    "y": 575.81
+                },
+                {
+                    "height": 8.929,
+                    "text": "c",
+                    "width": 5.111,
+                    "x": 404.907,
+                    "y": 576.262
+                },
+                {
+                    "height": 9.288,
+                    "text": "h",
+                    "width": 6.506,
+                    "x": 407.894,
+                    "y": 577.088
+                },
+                {
+                    "height": 9.255,
+                    "text": "T",
+                    "width": 6.575,
+                    "x": 413.749,
+                    "y": 579.012
+                },
+                {
+                    "height": 8.838,
+                    "text": "r",
+                    "width": 5.69,
+                    "x": 416.878,
+                    "y": 580.222
+                },
+                {
+                    "height": 9.293,
+                    "text": "a",
+                    "width": 7.051,
+                    "x": 419.337,
+                    "y": 581.38
+                },
+                {
+                    "height": 8.413,
+                    "text": "i",
+                    "width": 5.515,
+                    "x": 422.849,
+                    "y": 583.033
+                },
+                {
+                    "height": 8.355,
+                    "text": "l",
+                    "width": 5.694,
+                    "x": 424.578,
+                    "y": 584.055
+                },
+                {
+                    "height": 14.28,
+                    "text": "RECREATION AREA",
+                    "width": 133.832,
+                    "x": 334.019,
+                    "y": 487.63
+                },
+                {
+                    "height": 14.28,
+                    "text": "GOLDEN GATE",
+                    "width": 100.29,
+                    "x": 348.816,
+                    "y": 517.225
+                },
+                {
+                    "height": 14.28,
+                    "text": "NATIONAL",
+                    "width": 75.616,
+                    "x": 361.148,
+                    "y": 502.427
+                },
+                {
+                    "height": 7.114,
+                    "text": "U",
+                    "width": 6.394,
+                    "x": 459.191,
+                    "y": 509.558
+                },
+                {
+                    "height": 6.568,
+                    "text": "P",
+                    "width": 4.166,
+                    "x": 463.613,
+                    "y": 511.203
+                },
+                {
+                    "height": 9.444,
+                    "text": "C",
+                    "width": 10.379,
+                    "x": 391.998,
+                    "y": 456.571
+                },
+                {
+                    "height": 10.033,
+                    "text": "o",
+                    "width": 10.005,
+                    "x": 395.441,
+                    "y": 460.083
+                },
+                {
+                    "height": 10.318,
+                    "text": "a",
+                    "width": 8.204,
+                    "x": 400.463,
+                    "y": 462.888
+                },
+                {
+                    "height": 9.793,
+                    "text": "s",
+                    "width": 6.577,
+                    "x": 404.731,
+                    "y": 464.846
+                },
+                {
+                    "height": 9.813,
+                    "text": "t",
+                    "width": 6.395,
+                    "x": 407.702,
+                    "y": 466.052
+                },
+                {
+                    "height": 10.304,
+                    "text": "a",
+                    "width": 7.486,
+                    "x": 410.711,
+                    "y": 467.228
+                },
+                {
+                    "height": 9.52,
+                    "text": "l",
+                    "width": 5.358,
+                    "x": 414.858,
+                    "y": 468.762
+                },
+                {
+                    "height": 10.104,
+                    "text": "F",
+                    "width": 6.587,
+                    "x": 419.338,
+                    "y": 470.381
+                },
+                {
+                    "height": 9.601,
+                    "text": "i",
+                    "width": 4.431,
+                    "x": 423.47,
+                    "y": 471.481
+                },
+                {
+                    "height": 9.798,
+                    "text": "r",
+                    "width": 5.078,
+                    "x": 425.842,
+                    "y": 471.993
+                },
+                {
+                    "height": 10.043,
+                    "text": "e",
+                    "width": 6.187,
+                    "x": 428.973,
+                    "y": 472.724
+                },
+                {
+                    "height": 10.05,
+                    "text": "R",
+                    "width": 6.388,
+                    "x": 435.669,
+                    "y": 474.01
+                },
+                {
+                    "height": 9.962,
+                    "text": "o",
+                    "width": 6.157,
+                    "x": 440.624,
+                    "y": 474.834
+                },
+                {
+                    "height": 9.857,
+                    "text": "a",
+                    "width": 5.613,
+                    "x": 445.605,
+                    "y": 475.456
+                },
+                {
+                    "height": 10.107,
+                    "text": "d",
+                    "width": 6.544,
+                    "x": 449.696,
+                    "y": 476.127
+                },
+                {
+                    "height": 7.068,
+                    "text": "Horses, Bikes,",
+                    "width": 39.191,
+                    "x": 86.58,
+                    "y": 431.03
+                },
+                {
+                    "height": 7.068,
+                    "text": "Hiking",
+                    "width": 18.507,
+                    "x": 86.58,
+                    "y": 423.873
+                },
+                {
+                    "height": 7.068,
+                    "text": "Horses and Hiking only",
+                    "width": 66.198,
+                    "x": 86.58,
+                    "y": 411.944
+                },
+                {
+                    "height": 7.068,
+                    "text": "Hiking only",
+                    "width": 32.714,
+                    "x": 86.58,
+                    "y": 400.016
+                },
+                {
+                    "height": 7.068,
+                    "text": "Dogs on leash allowed",
+                    "width": 64.778,
+                    "x": 86.58,
+                    "y": 388.087
+                },
+                {
+                    "height": 7.068,
+                    "text": "Main Road",
+                    "width": 30.603,
+                    "x": 86.58,
+                    "y": 376.158
+                },
+                {
+                    "height": 7.068,
+                    "text": "Secondary Road",
+                    "width": 45.806,
+                    "x": 86.58,
+                    "y": 364.23
+                },
+                {
+                    "height": 7.068,
+                    "text": "Creeks",
+                    "width": 18.734,
+                    "x": 86.58,
+                    "y": 352.301
+                },
+                {
+                    "height": 7.068,
+                    "text": "Emergency Phone",
+                    "width": 50.84,
+                    "x": 191.683,
+                    "y": 421.427
+                },
+                {
+                    "height": 7.068,
+                    "text": "Parking",
+                    "width": 21.555,
+                    "x": 191.683,
+                    "y": 409.356
+                },
+                {
+                    "height": 7.068,
+                    "text": "Picnic Area",
+                    "width": 30.961,
+                    "x": 191.683,
+                    "y": 397.284
+                },
+                {
+                    "height": 7.068,
+                    "text": "Trailhead",
+                    "width": 26.1,
+                    "x": 191.683,
+                    "y": 385.212
+                },
+                {
+                    "height": 7.068,
+                    "text": "Stables",
+                    "width": 20.559,
+                    "x": 191.683,
+                    "y": 373.141
+                },
+                {
+                    "height": 7.068,
+                    "text": "Food",
+                    "width": 14.082,
+                    "x": 191.683,
+                    "y": 361.069
+                },
+                {
+                    "height": 7.068,
+                    "text": "Lodging",
+                    "width": 23.195,
+                    "x": 191.683,
+                    "y": 348.997
+                },
+                {
+                    "height": 4.667,
+                    "text": "North",
+                    "width": 11.43,
+                    "x": 273.585,
+                    "y": 408.546
+                },
+                {
+                    "height": 8.414,
+                    "text": "0 0.5 miles",
+                    "width": 151.738,
+                    "x": 264.694,
+                    "y": 366.043
+                },
+                {
+                    "height": 15.405,
+                    "text": "Location",
+                    "width": 51.917,
+                    "x": 30,
+                    "y": 293.021
+                },
+                {
+                    "height": 8.414,
+                    "text": "Zen Center",
+                    "width": 36.901,
+                    "x": 473.026,
+                    "y": 618.074
+                },
+                {
+                    "height": 8.414,
+                    "text": "Green Gulch Farm",
+                    "width": 60.574,
+                    "x": 461.182,
+                    "y": 609.397
+                },
+                {
+                    "height": 6.428,
+                    "text": "H",
+                    "width": 4.313,
+                    "x": 467.197,
+                    "y": 511.496
+                },
+                {
+                    "height": 6.228,
+                    "text": "I",
+                    "width": 3.138,
+                    "x": 470.46,
+                    "y": 511.023
+                },
+                {
+                    "height": 6.596,
+                    "text": "L",
+                    "width": 4.738,
+                    "x": 471.605,
+                    "y": 510.129
+                },
+                {
+                    "height": 6.567,
+                    "text": "L",
+                    "width": 5.13,
+                    "x": 473.839,
+                    "y": 508.943
+                },
+                {
+                    "height": 6.56,
+                    "text": "L",
+                    "width": 5.175,
+                    "x": 485.142,
+                    "y": 501.996
+                },
+                {
+                    "height": 6.945,
+                    "text": "Y",
+                    "width": 5.613,
+                    "x": 487.242,
+                    "y": 500.684
+                },
+                {
+                    "height": 25.539,
+                    "text": "O N",
+                    "width": 31.649,
+                    "x": 470.285,
+                    "y": 492.423
+                },
+                {
+                    "height": 8.897,
+                    "text": "T",
+                    "width": 5.125,
+                    "x": 486.098,
+                    "y": 471.048
+                },
+                {
+                    "height": 9.122,
+                    "text": "o",
+                    "width": 5.964,
+                    "x": 489.279,
+                    "y": 471.576
+                },
+                {
+                    "height": 9.292,
+                    "text": "T",
+                    "width": 7.017,
+                    "x": 494.798,
+                    "y": 473.391
+                },
+                {
+                    "height": 9.278,
+                    "text": "e",
+                    "width": 6.79,
+                    "x": 498.124,
+                    "y": 474.751
+                },
+                {
+                    "height": 8.564,
+                    "text": "e",
+                    "width": 8.895,
+                    "x": 510.372,
+                    "y": 558.73
+                },
+                {
+                    "height": 6.201,
+                    "text": "r",
+                    "width": 8.767,
+                    "x": 508.381,
+                    "y": 556.765
+                },
+                {
+                    "height": 7.564,
+                    "text": "G",
+                    "width": 9.617,
+                    "x": 506.407,
+                    "y": 552.253
+                },
+                {
+                    "height": 9.111,
+                    "text": "e",
+                    "width": 5.833,
+                    "x": 515.91,
+                    "y": 560.897
+                },
+                {
+                    "height": 9.316,
+                    "text": "n",
+                    "width": 6.615,
+                    "x": 520.273,
+                    "y": 560.57
+                },
+                {
+                    "height": 9.345,
+                    "text": "G",
+                    "width": 9.736,
+                    "x": 524.79,
+                    "y": 556.265
+                },
+                {
+                    "height": 7.902,
+                    "text": "u",
+                    "width": 9.46,
+                    "x": 527.74,
+                    "y": 552.893
+                },
+                {
+                    "height": 7.016,
+                    "text": "e",
+                    "width": 9.292,
+                    "x": 504.433,
+                    "y": 546.243
+                },
+                {
+                    "height": 5.389,
+                    "text": "l",
+                    "width": 8.448,
+                    "x": 529.71,
+                    "y": 551.208
+                },
+                {
+                    "height": 7.321,
+                    "text": "l",
+                    "width": 7.37,
+                    "x": 503.651,
+                    "y": 543.421
+                },
+                {
+                    "height": 9.155,
+                    "text": "d",
+                    "width": 8.855,
+                    "x": 500.309,
+                    "y": 540.395
+                },
+                {
+                    "height": 6.238,
+                    "text": "c",
+                    "width": 8.974,
+                    "x": 530.536,
+                    "y": 548.424
+                },
+                {
+                    "height": 8.046,
+                    "text": "d",
+                    "width": 9.447,
+                    "x": 497.107,
+                    "y": 537.206
+                },
+                {
+                    "height": 7.195,
+                    "text": "h",
+                    "width": 9.429,
+                    "x": 531.77,
+                    "y": 544.366
+                },
+                {
+                    "height": 5.026,
+                    "text": "i",
+                    "width": 8.532,
+                    "x": 496.052,
+                    "y": 535.708
+                },
+                {
+                    "height": 7.879,
+                    "text": "M",
+                    "width": 9.317,
+                    "x": 494.436,
+                    "y": 529.817
+                },
+                {
+                    "height": 7.199,
+                    "text": "T",
+                    "width": 9.294,
+                    "x": 534.233,
+                    "y": 538.685
+                },
+                {
+                    "height": 6.819,
+                    "text": "r",
+                    "width": 8.592,
+                    "x": 535.994,
+                    "y": 536.32
+                },
+                {
+                    "height": 7.968,
+                    "text": "l",
+                    "width": 6.541,
+                    "x": 542.872,
+                    "y": 529.532
+                },
+                {
+                    "height": 4.746,
+                    "text": "R",
+                    "width": 6.72,
+                    "x": 500.053,
+                    "y": 503.616
+                },
+                {
+                    "height": 6.386,
+                    "text": "F",
+                    "width": 3.424,
+                    "x": 495.671,
+                    "y": 499.595
+                },
+                {
+                    "height": 6.952,
+                    "text": "O",
+                    "width": 5.535,
+                    "x": 497.889,
+                    "y": 500.002
+                },
+                {
+                    "height": 124.214,
+                    "text": "a",
+                    "width": 118.077,
+                    "x": 485.841,
+                    "y": 464.887
+                },
+                {
+                    "height": 5.863,
+                    "text": "I",
+                    "width": 4.525,
+                    "x": 505.929,
+                    "y": 512.214
+                },
+                {
+                    "height": 6.804,
+                    "text": "C",
+                    "width": 5.155,
+                    "x": 507.841,
+                    "y": 512.868
+                },
+                {
+                    "height": 6.485,
+                    "text": "Y",
+                    "width": 4.214,
+                    "x": 511.759,
+                    "y": 513.9
+                },
+                {
+                    "height": 6.455,
+                    "text": "B",
+                    "width": 6.565,
+                    "x": 502.995,
+                    "y": 510.273
+                },
+                {
+                    "height": 6.789,
+                    "text": "C",
+                    "width": 5.998,
+                    "x": 514.614,
+                    "y": 513.074
+                },
+                {
+                    "height": 5.891,
+                    "text": "L",
+                    "width": 6.289,
+                    "x": 516.749,
+                    "y": 511.366
+                },
+                {
+                    "height": 10.063,
+                    "text": "E S",
+                    "width": 9.775,
+                    "x": 517.795,
+                    "y": 505.784
+                },
+                {
+                    "height": 9.132,
+                    "text": "e",
+                    "width": 5.92,
+                    "x": 510.763,
+                    "y": 478.862
+                },
+                {
+                    "height": 8.814,
+                    "text": "s",
+                    "width": 4.534,
+                    "x": 514.846,
+                    "y": 479.789
+                },
+                {
+                    "height": 8.79,
+                    "text": "s",
+                    "width": 4.346,
+                    "x": 517.673,
+                    "y": 480.374
+                },
+                {
+                    "height": 8.955,
+                    "text": "e",
+                    "width": 5.298,
+                    "x": 520.538,
+                    "y": 480.933
+                },
+                {
+                    "height": 8.88,
+                    "text": "e",
+                    "width": 5.076,
+                    "x": 524.674,
+                    "y": 481.572
+                },
+                {
+                    "height": 8.871,
+                    "text": "V",
+                    "width": 5.606,
+                    "x": 530.77,
+                    "y": 482.329
+                },
+                {
+                    "height": 8.819,
+                    "text": "a",
+                    "width": 4.908,
+                    "x": 535.105,
+                    "y": 482.785
+                },
+                {
+                    "height": 8.627,
+                    "text": "l",
+                    "width": 3.38,
+                    "x": 538.902,
+                    "y": 483.297
+                },
+                {
+                    "height": 8.641,
+                    "text": "l",
+                    "width": 3.705,
+                    "x": 540.73,
+                    "y": 483.672
+                },
+                {
+                    "height": 9.375,
+                    "text": "n",
+                    "width": 6.875,
+                    "x": 502.033,
+                    "y": 476.166
+                },
+                {
+                    "height": 9.307,
+                    "text": "n",
+                    "width": 6.58,
+                    "x": 506.382,
+                    "y": 477.601
+                },
+                {
+                    "height": 9.176,
+                    "text": "e",
+                    "width": 6.114,
+                    "x": 542.473,
+                    "y": 484.189
+                },
+                {
+                    "height": 9.122,
+                    "text": "y",
+                    "width": 6.228,
+                    "x": 546.01,
+                    "y": 485.433
+                },
+                {
+                    "height": 8.893,
+                    "text": "P",
+                    "width": 5.113,
+                    "x": 474.709,
+                    "y": 425.943
+                },
+                {
+                    "height": 8.508,
+                    "text": "i",
+                    "width": 2.424,
+                    "x": 479.113,
+                    "y": 426.479
+                },
+                {
+                    "height": 8.581,
+                    "text": "r",
+                    "width": 3.324,
+                    "x": 481.208,
+                    "y": 426.406
+                },
+                {
+                    "height": 9.256,
+                    "text": "a",
+                    "width": 6.583,
+                    "x": 483.211,
+                    "y": 425.353
+                },
+                {
+                    "height": 8.185,
+                    "text": "t",
+                    "width": 7.573,
+                    "x": 486.038,
+                    "y": 423.993
+                },
+                {
+                    "height": 7.616,
+                    "text": "e",
+                    "width": 9.262,
+                    "x": 487.608,
+                    "y": 421.331
+                },
+                {
+                    "height": 5.069,
+                    "text": "s",
+                    "width": 8.853,
+                    "x": 489.263,
+                    "y": 419.202
+                },
+                {
+                    "height": 5.479,
+                    "text": "C",
+                    "width": 8.941,
+                    "x": 490.353,
+                    "y": 413.335
+                },
+                {
+                    "height": 5.821,
+                    "text": "o",
+                    "width": 9.072,
+                    "x": 490.916,
+                    "y": 408.84
+                },
+                {
+                    "height": 7.483,
+                    "text": "v",
+                    "width": 9.013,
+                    "x": 492.322,
+                    "y": 404.013
+                },
+                {
+                    "height": 9.101,
+                    "text": "e",
+                    "width": 8.204,
+                    "x": 495.497,
+                    "y": 400.433
+                },
+                {
+                    "height": 9.292,
+                    "text": "T",
+                    "width": 7.015,
+                    "x": 501.402,
+                    "y": 397.286
+                },
+                {
+                    "height": 8.849,
+                    "text": "r",
+                    "width": 5.518,
+                    "x": 504.836,
+                    "y": 396.458
+                },
+                {
+                    "height": 9.207,
+                    "text": "a",
+                    "width": 6.271,
+                    "x": 507.707,
+                    "y": 395.16
+                },
+                {
+                    "height": 8.637,
+                    "text": "i",
+                    "width": 4.108,
+                    "x": 511.705,
+                    "y": 394.613
+                },
+                {
+                    "height": 8.642,
+                    "text": "l",
+                    "width": 3.95,
+                    "x": 513.679,
+                    "y": 394.067
+                },
+                {
+                    "height": 8.414,
+                    "text": "1 kilometer",
+                    "width": 37.888,
+                    "x": 420.472,
+                    "y": 337.644
+                },
+                {
+                    "height": 9.349,
+                    "text": "PIRATES",
+                    "width": 30.792,
+                    "x": 465.76,
+                    "y": 347.448
+                },
+                {
+                    "height": 9.349,
+                    "text": "COVE",
+                    "width": 21.191,
+                    "x": 470.564,
+                    "y": 338.769
+                },
+                {
+                    "height": 15.405,
+                    "text": "Muir Beach is halfway between Stinson Beach and the Marin Headlands, where",
+                    "width": 406.089,
+                    "x": 142.8,
+                    "y": 293.021
+                },
+                {
+                    "height": 13.035,
+                    "text": "Shoreline Highway (Hwy. 1) meets Muir Woods Road. The Coastal, Redwood Creek,",
+                    "width": 425.801,
+                    "x": 142.8,
+                    "y": 281.821
+                },
+                {
+                    "height": 13.035,
+                    "text": "and Dias Ridge Trails connect with Muir Beach.",
+                    "width": 238.852,
+                    "x": 142.8,
+                    "y": 268.621
+                },
+                {
+                    "height": 13.035,
+                    "text": "EXPERIENCE YOUR AMERICA™ www.nps.gov/goga",
+                    "width": 438.997,
+                    "x": 144,
+                    "y": 16.75
+                }
+            ],
+            "number": 4,
+            "rotation": 0,
+            "text": "Coas\nt\nV\ni e\nw\nT\nr\na\ni\nl\n1\nTO STINSON B E A C H\nT\no\nS\nl\ni\nd\ne\nR\nan\nc\nh\nR\ne\nd\nw\no\no\nd\nC\nr\ne\ne\nk\n1\nO\nw\nl\nT\nr\na\ni\nl\nMUIR\nBEACH\nOVERLOOK\nMUIR BEACH\nP\nCOMMUNITY\nA\nC\nMUIR\nBEACH\nVault Toilets\nI F I C O C E A N\nMOUNT TAMALPAIS\nSTATE PARK\nGOLDEN GATE\ni\nr\ne\ne\nd\nC\nr\no\no\nw\nk T\nl\na\nRed\nTO MUIR WOODS\nDAIRY\ny\nW a\ni\nK\na\na\ns\nM\nr\nB\nPelican Inn\ny\na\nW\nu i\nc\nfi\ni\nc\ne\na\nc\nh\na\nP\nT r a i l\nD\ni\na\ns\nR\ni\nd\ng\ne\nT\nr\na\ni\nl\nDIAS\nRIDGE\nT\no\nH\ni\ng\nh\nw\na\ny\n1\n0\n1\nG\nr\ne\ne\nn\nG\nu\nl\nc\nh\nT\nr\na\ni\nl\n1\nS\nh\no\nr\ne\nl\ni\nn\nH\ne\ni\ng\nh\nw\na\ny\nM\ni\nd\nd l e G\nr\ne\ne n\nG\nu\nl\nc\nh\nT\nr\na\ni\nl\nRECREATION AREA\nGOLDEN GATE\nNATIONAL\nU\nP\nC\no\na\ns\nt\na\nl\nF\ni\nr\ne\nR\no\na\nd\nHorses, Bikes,\nHiking\nHorses and Hiking only\nHiking only\nDogs on leash allowed\nMain Road\nSecondary Road\nCreeks\nEmergency Phone\nParking\nPicnic Area\nTrailhead\nStables\nFood\nLodging\nNorth\n0 0.5 miles\nLocation Zen Center\nGreen Gulch Farm\nH\nI\nL\nL\nL\nY\nO N\nT\no\nT\ne\ne\nr\nG\ne\nn\nG\nu\ne\nl\nl\nd\nc\nd\nh\ni\nM\nT\nr\nl\nR\nF\nO\na i\nI\nC\nY\nB\nC\nL\nE S\ne\ns\ns\ne\ne\nV\na\nl\nl\nn\nn\ne\ny\nP\ni\nr\na\nt\ne\ns\nC\no\nv\ne\nT\nr\na\ni\nl\n1 kilometer\nPIRATES\nCOVE\nMuir Beach is halfway between Stinson Beach and the Marin Headlands, where\nShoreline Highway (Hwy. 1) meets Muir Woods Road. The Coastal, Redwood Creek,\nand Dias Ridge Trails connect with Muir Beach.\nEXPERIENCE YOUR AMERICA™ www.nps.gov/goga",
+            "width": 612
+        }
+    ]
+}

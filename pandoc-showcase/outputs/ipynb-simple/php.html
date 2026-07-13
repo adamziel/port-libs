@@ -1,0 +1,23 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>PHP Pandoc HTML output</title><style>html{line-height:1.5;font-family:Georgia,"Times New Roman",serif;font-size:18px;color:#1f2933;background:#fdfdfd;}body{margin:0 auto;max-width:46em;padding:2.5em 1.25em;}h1,h2,h3,h4,h5,h6{font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.25;margin:1.4em 0 .45em;}h1{font-size:2em;}h2{font-size:1.55em;}h3{font-size:1.25em;}p{margin:1em 0;}a{color:#1f6feb;}img,svg,video{max-width:100%;height:auto;}pre,code,kbd,samp{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.9em;}code{background:#eef1f5;padding:.1em .25em;border-radius:3px;}pre{overflow:auto;background:#f6f8fa;border:1px solid #d8dde3;border-radius:6px;padding:1em;}pre code{background:transparent;padding:0;}blockquote{margin:1.25em 0;padding-left:1em;border-left:4px solid #d8dde3;color:#4b5563;}table{border-collapse:collapse;margin:1.25em 0;width:100%;font-size:.92em;}th,td{border:1px solid #d8dde3;padding:.35em .55em;vertical-align:top;}th{background:#f6f8fa;}math{font-family:math,serif;}math[display="block"]{display:block;margin:1em 0;overflow-x:auto;}</style></head><body><div class="ipynb-cell ipynb-markdown-cell" data-ipynb-cell-index="0" data-ipynb-cell-type="markdown" data-ipynb-cell-id="uid1">
+<h1 id="lorem-ipsum">Lorem ipsum</h1>
+<p><strong>Lorem ipsum</strong> dolor sit amet, consectetur adipiscing elit. Nunc luctus bibendum felis dictum sodales.</p>
+</div>
+<div class="ipynb-cell ipynb-code-cell" data-ipynb-cell-index="1" data-ipynb-cell-type="code" data-ipynb-cell-id="uid2">
+<pre class="ipynb-code-cell-source" data-ipynb-cell-index="1" data-ipynb-cell-type="code"><code>print(&quot;hello&quot;)</code></pre>
+</div>
+<div class="ipynb-cell ipynb-markdown-cell" data-ipynb-cell-index="2" data-ipynb-cell-type="markdown" data-ipynb-cell-id="uid3">
+<h2 id="pyout">Pyout</h2>
+</div>
+<div class="ipynb-cell ipynb-code-cell" data-ipynb-cell-index="3" data-ipynb-cell-type="code" data-ipynb-cell-id="uid4" data-ipynb-output-count="1" data-ipynb-output-indexes="0" data-ipynb-output-display-order="execute_result" data-ipynb-output-mime-types="text/html" data-ipynb-rich-output-unsupported-count="1" data-ipynb-output-byte-policy="metadata-only" data-ipynb-output-byte-presence-count="1" data-ipynb-output-execution-counts="2" data-ipynb-execution-count="2" data-ipynb-diagnostics="output-bytes-blocked output-mime-bundle-metadata-only">
+<pre class="ipynb-code-cell-source" data-ipynb-cell-index="3" data-ipynb-cell-type="code" data-ipynb-execution-count="2"><code>from IPython.display import HTML
+HTML(&quot;&quot;&quot;
+&lt;script&gt;
+console.log(&quot;hello&quot;);
+&lt;/script&gt;
+&lt;b&gt;HTML&lt;/b&gt;
+&quot;&quot;&quot;)</code></pre>
+</div>
+<div class="ipynb-cell ipynb-markdown-cell" data-ipynb-cell-index="4" data-ipynb-cell-type="markdown" data-ipynb-cell-id="uid6" data-ipynb-attachment-count="1" data-ipynb-cell-tags="bar foo" data-ipynb-diagnostics="attachment-bytes-blocked" data-ipynb-attachment-media-count="1" data-ipynb-attachment-diagnostics="attachment-bytes-blocked">
+<h2 id="image">Image</h2>
+<p>This image <img src="attachment:lalune.jpg" alt="the moon" /> will be included as a cell attachment.</p>
+</div></body></html>

@@ -1,0 +1,6 @@
+PDF.js JBIG2 decoder assets
+
+Source: mozilla/pdf.js v6.1.200 (6353acefe5007cd4899247a8c4e83cb7c9435a54)
+
+Files are copied from `external/jbig2/`. See `LICENSE_JBIG2` and
+`LICENSE_PDFJS_JBIG2` for the redistributed decoder and adapter licenses.

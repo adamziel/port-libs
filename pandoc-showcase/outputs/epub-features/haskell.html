@@ -1,0 +1,208 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Haskell Pandoc HTML output</title><style>html{line-height:1.5;font-family:Georgia,"Times New Roman",serif;font-size:18px;color:#1f2933;background:#fdfdfd;}body{margin:0 auto;max-width:46em;padding:2.5em 1.25em;}h1,h2,h3,h4,h5,h6{font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.25;margin:1.4em 0 .45em;}h1{font-size:2em;}h2{font-size:1.55em;}h3{font-size:1.25em;}p{margin:1em 0;}a{color:#1f6feb;}img,svg,video{max-width:100%;height:auto;}pre,code,kbd,samp{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.9em;}code{background:#eef1f5;padding:.1em .25em;border-radius:3px;}pre{overflow:auto;background:#f6f8fa;border:1px solid #d8dde3;border-radius:6px;padding:1em;}pre code{background:transparent;padding:0;}blockquote{margin:1.25em 0;padding-left:1em;border-left:4px solid #d8dde3;color:#4b5563;}table{border-collapse:collapse;margin:1.25em 0;width:100%;font-size:.92em;}th,td{border:1px solid #d8dde3;padding:.35em .55em;vertical-align:top;}th{background:#f6f8fa;}math{font-family:math,serif;}math[display="block"]{display:block;margin:1em 0;overflow-x:auto;}</style></head><body><p><span id="front.xhtml"></span></p>
+<h1>Reflowable EPUB 3 Conformance Test Document: 0100</h1>
+<h2>Status of this Document</h2>
+<p>This publication is currently considered <span class="status">[UNDER
+DEVELOPMENT]</span> by the IDPF.</p>
+<p>This publication is part of version <span class="version">X.X</span>
+of the EPUB 3.0 Compliance Test Suite released on
+<time class="release">TBD</time>.</p>
+<p>Before using this publication to evaluate reading systems, testers
+are strongly encouraged to verify that they have the latest release by
+checking the current release version and date of the test suite at <a
+href="http://idpf.org/">TBD</a></p>
+<p>This publication is one of several that currently comprise the EPUB 3
+conformance test suite for reflowable content. The complete test suite
+includes all of the following publications:</p>
+<ol>
+<li>.</li>
+</ol>
+<h2>About this Document</h2>
+<p>This document focuses on human-evaluated binary (pass/fail) tests in
+a reflowable context. Tests for fixed-layout content and other
+individual tests that require a dedicated epub file are available in
+additional sibling documents; refer to the <a
+href="https://github.com/mgylling/epub-testsuite/wiki/Overview">test
+suite wiki</a>
+(<code>https://github.com/mgylling/epub-testsuite/wiki/Overview</code>)
+for additional information.</p>
+<h2>Conventions</h2>
+<p>The following conventions are used throughout the document:</p>
+<dl>
+<dt>1. Locating a test</dt>
+<dd>
+<div class="ctest">
+<p>Tests for <em>required</em> Reading System functionality are preceded
+by the label: <span class="nature"
+style="display: inline; font-size: 100%">[REQUIRED]</span></p>
+</div>
+<div class="otest">
+<p>Tests for <em>optional</em> Reading System functionality are preceded
+by the label: <span class="nature"
+style="display: inline; font-size: 100%">[OPTIONAL]</span></p>
+</div>
+</dd>
+<dt>2. Performing the test</dt>
+<dd>
+Each test includes a description of its purpose followed by the actual
+<strong>test statement, which can always be evaluated to true or
+false</strong>. These statements typically have the form: "If [some
+condition], the test passes".
+</dd>
+<dt>3. Scoring in the results form</dt>
+<dd>
+@@@TODO provide info on where to get the results form
+</dd>
+</dl>
+<p><span id="content-mathml-001.xhtml"></span></p>
+<section>
+<h2 id="content-mathml-001.xhtml_mathml">MathML</h2>
+<section id="content-mathml-001.xhtml_mathml-010" class="ctest">
+<h2><span class="nature">[REQUIRED]</span> <span
+class="test-id">mathml-010</span> Rendering</h2>
+<p>Tests whether MathML equation rendering is supported.</p>
+<span class="math display">$$\int_{- \infty}^{\infty}e^{- x^{2}}\, dx =
+\sqrt{\pi}$$</span> <span class="math display">$$\sum\limits_{n =
+1}^{\infty}\frac{1}{n^{2}} = \frac{\pi^{2}}{6}$$</span> <span
+class="math display">$$x = \frac{- b \pm \sqrt{b^{2} -
+4ac}}{2a}$$</span>
+<p>If the preceding equations are not presented as linear text (e.g.,
+x=-b±b2-4ac2a), the test passes.</p>
+</section>
+<section id="content-mathml-001.xhtml_mathml-020" class="otest">
+<h2><span class="nature">[OPTIONAL]</span> <span
+class="test-id">mathml-020</span> CSS Styling of the <code>math</code>
+element</h2>
+<p>Tests whether basic CSS styling of MathML is supported on the
+<code>math</code> element.</p>
+<span class="math inline">2<em>x</em>+<em>y</em> − <em>z</em></span>
+<p>The test passes if the equation has a yellow background and a dashed
+border.</p>
+<p>If the reading system does not have a viewport, or does not support
+CSS styles, this test should be marked <code>Not Supported</code>.</p>
+</section>
+<section id="content-mathml-001.xhtml_mathml-021" class="otest">
+<h2><span class="nature">[OPTIONAL]</span> <span
+class="test-id">mathml-021</span> CSS Styling of the <code>mo</code>
+element</h2>
+<p>Tests whether basic CSS styling of MathML is supported on the
+<code>mo</code> element.</p>
+<span class="math inline">2<em>x</em>+<em>y</em> − <em>z</em></span>
+<p>The test passes if the operators are enlarged relative to the other
+symbols and numbers.</p>
+<p>If the reading system does not have a viewport, or does not support
+CSS styles, this test should be marked <code>Not Supported</code>.</p>
+</section>
+<section id="content-mathml-001.xhtml_mathml-022" class="otest">
+<h2><span class="nature">[OPTIONAL]</span> <span
+class="test-id">mathml-022</span> CSS Styling of the <code>mi</code>
+element</h2>
+<p>Tests whether basic CSS styling of MathML is supported on the
+<code>mi</code> element.</p>
+<span class="math inline">2<em>x</em>+<em>y</em> − <em>z</em></span>
+<p>The test passes if the identifiers are bolded and blue.</p>
+<p>If the reading system does not have a viewport, or does not support
+CSS styles, this test should be marked <code>Not Supported</code>.</p>
+</section>
+<section id="content-mathml-001.xhtml_mathml-023" class="otest">
+<h2><span class="nature">[OPTIONAL]</span> <span
+class="test-id">mathml-023</span> CSS Styling of the <code>mn</code>
+element</h2>
+<p>Tests whether basic CSS styling of MathML is supported on the
+<code>mn</code> element.</p>
+<span class="math inline">2<em>x</em>+<em>y</em> − <em>z</em></span>
+<p>The test passes if the number 2 is italicized and blue.</p>
+<p>If the reading system does not have a viewport, or does not support
+CSS styles, this test should be marked <code>Not Supported</code>.</p>
+</section>
+<section id="content-mathml-001.xhtml_mathml-024" class="ctest">
+<h2><span class="nature">[REQUIRED]</span> <span
+class="test-id">mathml-024</span>Horizontal stretch, <code>mover</code>,
+<code>munder</code>, and <code>mspace</code> elements</h2>
+<p>Tests whether horizontal stretch, <code>mover</code>,
+<code>munder</code>, <code>mspace</code> elements are supported.</p>
+<span class="math display">$$c = \overset{\text{complex
+number}}{\overbrace{\underset{\text{real}}{\underbrace{\mspace{20mu}
+a\mspace{20mu}}} + \underset{\text{imaginary}}{\underbrace{\quad
+b{\mathbb{i}}\quad}}}}$$</span>
+<p>The test passes if the rendering looks like .</p>
+</section>
+<section id="content-mathml-001.xhtml_mathml-025" class="ctest">
+<h2><span class="nature">[REQUIRED]</span> <span
+class="test-id">mathml-025</span>Testing <code>mtable</code> with
+<code>colspan</code> and <code>rowspan</code> attributes, Hebrew and
+Script fonts</h2>
+<p>Tests whether <code>mtable</code> with <code>colspan</code> and
+<code>mspace</code> attributes (column and row spanning) are supported;
+uses Hebrew and Script alphabets.</p>
+<span class="math display">$$\begin{matrix}
+&amp; {\operatorname{cov}(\mathcal{L})} &amp; \longrightarrow &amp;
+{\operatorname{non}(\mathcal{K})} &amp; \longrightarrow &amp;
+{\operatorname{cof}(\mathcal{K})} &amp; \longrightarrow &amp;
+{\operatorname{cof}(\mathcal{L})} &amp; \longrightarrow &amp;
+2^{\aleph_{0}} \\
+&amp; \uparrow &amp; &amp; \uparrow &amp; &amp; \uparrow &amp; &amp;
+\uparrow &amp; &amp; \\
+&amp; {\mathfrak{b}} &amp; \longrightarrow &amp; {\mathfrak{d}} &amp;
+&amp; &amp; &amp; &amp; &amp; \\
+&amp; \uparrow &amp; &amp; \uparrow &amp; &amp; &amp; &amp; &amp; &amp;
+\\
+\aleph_{1} &amp; \longrightarrow &amp; {\operatorname{add}(\mathcal{L})}
+&amp; \longrightarrow &amp; {\operatorname{add}(\mathcal{K})} &amp;
+\longrightarrow &amp; {\operatorname{cov}(\mathcal{K})} &amp;
+\longrightarrow &amp; {\operatorname{non}(\mathcal{L})} &amp;
+\end{matrix}$$</span>
+<p>The test passes if the rendering looks like <a
+href="http://en.wikipedia.org/wiki/Cicho%C5%84&#39;s_diagram">Cichoń's
+Diagram</a>: .</p>
+</section>
+<section id="content-mathml-001.xhtml_mathml-026" class="ctest">
+<h2><span class="nature">[REQUIRED]</span> <span
+class="test-id">mathml-026</span>BiDi, RTL and Arabic alphabets</h2>
+<p>Tests whether right-to-left and Arabic alphabets are supported.</p>
+<span class="math display">$${د(س)} = \left\{ \begin{matrix}
+{\sum\limits_{ٮ = 1}^{ص}س^{ٮ}} &amp; {\text{إذاكان}س &gt; 0} \\
+{\int_{1}^{ص}{س^{ٮ}ءس}} &amp; {\text{إذاكان}س \in م} \\
+{{طا}\pi} &amp; {\text{غيرذلك}\left( \text{مع}\pi \simeq 3,141 \right)}
+\end{matrix} \right.$$</span>
+<p>The test passes if the rendering looks like the following image:</p>
+</section>
+<section id="content-mathml-001.xhtml_mathml-027" class="ctest">
+<h2><span class="nature">[REQUIRED]</span> <span
+class="test-id">mathml-027</span>Elementary math: long division
+notation</h2>
+<p>Tests whether <code>mlongdiv</code> elements (from elementary math)
+are supported.</p>
+<span class="math" data-xmlns="http://www.w3.org/1998/Math/MathML"> 3
+435.3 1306 12 10 9 16 15 1.0 9 1 </span>
+<p>The test passes if the rendering looks like the following image:
+.</p>
+</section>
+</section>
+<p><span id="content-switch-001.xhtml"></span></p>
+<h3
+id="content-switch-001.xhtml_epub-switch"><code>epub:switch</code></h3>
+<section id="content-switch-001.xhtml_switch-010" class="ctest">
+<h4><span class="nature">[REQUIRED]</span> <span
+class="test-id">switch-010</span> Support</h4>
+<p>Tests whether the <a
+href="http://idpf.org/epub/30/spec/epub30-contentdocs.html#sec-xhtml-content-switch"><code>epub:switch</code></a>
+element is supported.</p>
+<p>PASS</p>
+<p>If only the word "PASS" is rendered before this paragraph, the test
+passes. If both "PASS" and "FAIL" are rendered, or neither "PASS" nor
+"FAIL" is rendered, the test fails.</p>
+</section>
+<section id="content-switch-001.xhtml_switch-020" class="otest">
+<h4><span class="nature">[OPTIONAL]</span> <span
+class="test-id">switch-020</span> MathML Embedding</h4>
+<p>Tests whether the MathML namespace is recognized when used in an <a
+href="http://idpf.org/epub/30/spec/epub30-contentdocs.html#sec-xhtml-epub-case"><code>epub:case</code></a>
+element.</p>
+<p><span
+class="math inline">2<em>x</em>+<em>y</em> − <em>z</em></span></p>
+<p>If a MathML equation is rendered before this paragraph, the test
+passes.</p>
+<p>If test <code>switch-010</code> did not pass, this test should be
+marked <code>Not Supported</code>.</p>
+</section>
+</body></html>

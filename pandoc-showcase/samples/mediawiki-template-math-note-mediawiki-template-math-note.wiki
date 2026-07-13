@@ -1,0 +1,7 @@
+= Parser features =
+
+Before <!-- hidden markup --> after &amp;.
+
+<nowiki>''raw'' [[x]] &amp;</nowiki> <math>E=mc^2</math> <ref>Note ''body''</ref> A<br />B {{tmpl|x}}
+
+{{CURRENTYEAR}}

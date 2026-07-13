@@ -1,0 +1,141 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>PHP Pandoc HTML output</title><style>html{line-height:1.5;font-family:Georgia,"Times New Roman",serif;font-size:18px;color:#1f2933;background:#fdfdfd;}body{margin:0 auto;max-width:46em;padding:2.5em 1.25em;}h1,h2,h3,h4,h5,h6{font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.25;margin:1.4em 0 .45em;}h1{font-size:2em;}h2{font-size:1.55em;}h3{font-size:1.25em;}p{margin:1em 0;}a{color:#1f6feb;}img,svg,video{max-width:100%;height:auto;}pre,code,kbd,samp{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.9em;}code{background:#eef1f5;padding:.1em .25em;border-radius:3px;}pre{overflow:auto;background:#f6f8fa;border:1px solid #d8dde3;border-radius:6px;padding:1em;}pre code{background:transparent;padding:0;}blockquote{margin:1.25em 0;padding-left:1em;border-left:4px solid #d8dde3;color:#4b5563;}table{border-collapse:collapse;margin:1.25em 0;width:100%;font-size:.92em;}th,td{border:1px solid #d8dde3;padding:.35em .55em;vertical-align:top;}th{background:#f6f8fa;}math{font-family:math,serif;}math[display="block"]{display:block;margin:1em 0;overflow-x:auto;}</style></head><body><h1>commonmark.js</h1>
+<p><a href="https://github.com/commonmark/commonmark.js/actions"><img src="https://github.com/commonmark/commonmark.js/workflows/CI%20tests/badge.svg" alt="Build Status" /></a> <a href="https://www.npmjs.org/package/commonmark"><img src="https://img.shields.io/npm/v/commonmark.svg?style=flat" alt="NPM version" /></a></p>
+<p>CommonMark is a rationalized version of Markdown syntax, with a <a href="http://spec.commonmark.org">spec</a> and BSD-licensed reference implementations in C and JavaScript.</p>
+<p>For more information, see <a href="http://commonmark.org" class="uri">http://commonmark.org</a>.</p>
+<p>This repository contains the JavaScript reference implementation. It provides a library with functions for parsing CommonMark documents to an abstract syntax tree (AST), manipulating the AST, and rendering the document to HTML or to an XML representation of the AST.</p>
+<p>To play with this library without installing it, see the live dingus at <a href="http://try.commonmark.org/" class="uri">http://try.commonmark.org/</a>.</p>
+<h2>Installing</h2>
+<p>You can install the library using <code>npm</code>:</p>
+<pre><code>npm install commonmark</code></pre>
+<p>This package includes the commonmark library and a command-line executable, <code>commonmark</code>.</p>
+<p>For client-side use, you can use one of the single-file distributions provided in the <code>dist/</code> subdirectory of the node installation (<code>node_modules/commonmark/dist/</code>). Use either <code>commonmark.js</code> (readable source) or <code>commonmark.min.js</code> (minimized source).</p>
+<p>Alternatively, <code>bower install commonmark</code> will install the needed distribution files in <code>bower_components/commonmark/dist</code>.</p>
+<p>You can also use the version hosted by unpkg: for example, <a href="https://unpkg.com/commonmark@0.29.3/dist/commonmark.js" class="uri">https://unpkg.com/commonmark@0.29.3/dist/commonmark.js</a> for the unminimized version 0.29.3.</p>
+<h2>Building</h2>
+<p>Make sure to fetch dependencies with:</p>
+<pre><code>npm install</code></pre>
+<p>To run tests for the JavaScript library:</p>
+<pre><code>npm test</code></pre>
+<p>(Running the tests will also rebuild distribution files in <code>dist/</code>.)</p>
+<p>To run benchmarks against some other JavaScript converters:</p>
+<pre><code>make bench</code></pre>
+<p>To start an interactive dingus that you can use to try out the library:</p>
+<pre><code>make dingus</code></pre>
+<h2>Usage</h2>
+<p>Instead of converting Markdown directly to HTML, as most converters do, <code>commonmark.js</code> parses Markdown to an AST (abstract syntax tree), and then renders this AST as HTML.  This opens up the possibility of manipulating the AST between parsing and rendering.  For example, one could transform emphasis into ALL CAPS.</p>
+<p>Here&#039;s a basic usage example:</p>
+<pre class="js"><code>var reader = new commonmark.Parser();
+var writer = new commonmark.HtmlRenderer();
+var parsed = reader.parse(&quot;Hello *world*&quot;); // parsed is a &#039;Node&#039; tree
+// transform parsed if you like...
+var result = writer.render(parsed); // result is a String</code></pre>
+<p>The constructors for <code>Parser</code> and <code>HtmlRenderer</code> take an optional <code>options</code> parameter:</p>
+<pre class="js"><code>var reader = new commonmark.Parser({smart: true});
+var writer = new commonmark.HtmlRenderer({sourcepos: true});</code></pre>
+<p><code>Parser</code> currently supports the following:</p>
+<ul>
+<li><code>smart</code>:  if <code>true</code>, straight quotes will be made curly, <code>--</code> will be changed to an en dash, <code>---</code> will be changed to an em dash, and <code>...</code> will be changed to ellipses.</li>
+</ul>
+<p>Both <code>HtmlRenderer</code> and <code>XmlRenderer</code> (see below) support these options:</p>
+<ul>
+<li><code>sourcepos</code>:  if <code>true</code>, source position information for block-level elements will be rendered in the <code>data-sourcepos</code> attribute (for HTML) or the <code>sourcepos</code> attribute (for XML).</li>
+<li><code>safe</code>: if <code>true</code>, raw HTML will not be passed through to HTML output (it will be replaced by comments), and potentially unsafe URLs in links and images (those beginning with <code>javascript:</code>, <code>vbscript:</code>, <code>file:</code>, and with a few exceptions <code>data:</code>) will be replaced with empty strings.</li>
+<li><code>softbreak</code>: specify raw string to be used for a softbreak.</li>
+<li><code>esc</code>: specify a function to be used to escape strings.  Its argument is the string.</li>
+</ul>
+<p>For example, to make soft breaks render as hard breaks in HTML:</p>
+<pre class="js"><code>var writer = new commonmark.HtmlRenderer({softbreak: &quot;&lt;br /&gt;&quot;});</code></pre>
+<p>To make them render as spaces:</p>
+<pre class="js"><code>var writer = new commonmark.HtmlRenderer({softbreak: &quot; &quot;});</code></pre>
+<p><code>XmlRenderer</code> serves as an alternative to <code>HtmlRenderer</code> and will produce an XML representation of the AST:</p>
+<pre class="js"><code>var writer = new commonmark.XmlRenderer({sourcepos: true});</code></pre>
+<p>The parser returns a Node.  The following public properties are defined (those marked &quot;read-only&quot; have only a getter, not a setter):</p>
+<ul>
+<li><code>type</code> (read-only):  a String, one of <code>text</code>, <code>softbreak</code>, <code>linebreak</code>, <code>emph</code>, <code>strong</code>, <code>html_inline</code>, <code>link</code>, <code>image</code>, <code>code</code>, <code>document</code>, <code>paragraph</code>, <code>block_quote</code>, <code>item</code>, <code>list</code>, <code>heading</code>, <code>code_block</code>, <code>html_block</code>, <code>thematic_break</code>.</li>
+<li><code>firstChild</code> (read-only):  a Node or null.</li>
+<li><code>lastChild</code> (read-only): a Node or null.</li>
+<li><code>next</code> (read-only): a Node or null.</li>
+<li><code>prev</code> (read-only): a Node or null.</li>
+<li><code>parent</code> (read-only): a Node or null.</li>
+<li><code>sourcepos</code> (read-only): an Array with the following form: <code>[[startline, startcolumn], [endline, endcolumn]]</code>.</li>
+<li><code>isContainer</code> (read-only): <code>true</code> if the Node can contain other Nodes as children.</li>
+<li><code>literal</code>: the literal String content of the node or null.</li>
+<li><code>destination</code>: link or image destination (String) or null.</li>
+<li><code>title</code>: link or image title (String) or null.</li>
+<li><code>info</code>: fenced code block info string (String) or null.</li>
+<li><code>level</code>: heading level (Number).</li>
+<li><code>listType</code>: a String, either <code>bullet</code> or <code>ordered</code>.</li>
+<li><code>listTight</code>: <code>true</code> if list is tight.</li>
+<li><code>listStart</code>: a Number, the starting number of an ordered list.</li>
+<li><code>listDelimiter</code>: a String, either <code>)</code> or <code>.</code> for an ordered list.</li>
+<li><code>onEnter</code>, <code>onExit</code>: Strings, used only for <code>custom_block</code> or <code>custom_inline</code>.</li>
+</ul>
+<p>Nodes have the following public methods:</p>
+<ul>
+<li><code>appendChild(child)</code>:  Append a Node <code>child</code> to the end of the Node&#039;s children.</li>
+<li><code>prependChild(child)</code>:  Prepend a Node <code>child</code> to the beginning of the Node&#039;s children.</li>
+<li><code>unlink()</code>:  Remove the Node from the tree, severing its links with siblings and parents, and closing up gaps as needed.</li>
+<li><code>insertAfter(sibling)</code>: Insert a Node <code>sibling</code> after the Node.</li>
+<li><code>insertBefore(sibling)</code>: Insert a Node <code>sibling</code> before the Node.</li>
+<li><code>walker()</code>: Returns a NodeWalker that can be used to iterate through the Node tree rooted in the Node.</li>
+</ul>
+<p>The NodeWalker returned by <code>walker()</code> has two methods:</p>
+<ul>
+<li><code>next()</code>: Returns an object with properties <code>entering</code> (a boolean, which is <code>true</code> when we enter a Node from a parent or sibling, and <code>false</code> when we reenter it from a child).  Returns <code>null</code> when we have finished walking the tree.</li>
+<li><code>resumeAt(node, entering)</code>: Resets the iterator to resume at the specified node and setting for <code>entering</code>.  (Normally this isn&#039;t needed unless you do destructive updates to the Node tree.)</li>
+</ul>
+<p>Here is an example of the use of a NodeWalker to iterate through the tree, making transformations.  This simple example converts the contents of all <code>text</code> nodes to ALL CAPS:</p>
+<pre class="js"><code>var walker = parsed.walker();
+var event, node;
+
+while ((event = walker.next())) {
+  node = event.node;
+  if (event.entering &amp;&amp; node.type === &#039;text&#039;) {
+    node.literal = node.literal.toUpperCase();
+  }
+}</code></pre>
+<p>This more complex example converts emphasis to ALL CAPS:</p>
+<pre class="js"><code>var walker = parsed.walker();
+var event, node;
+var inEmph = false;
+
+while ((event = walker.next())) {
+  node = event.node;
+  if (node.type === &#039;emph&#039;) {
+    if (event.entering) {
+      inEmph = true;
+    } else {
+      inEmph = false;
+      // add Emph node&#039;s children as siblings
+      while (node.firstChild) {
+        node.insertBefore(node.firstChild);
+      }
+      // remove the empty Emph node
+      node.unlink()
+    }
+  } else if (inEmph &amp;&amp; node.type === &#039;text&#039;) {
+      node.literal = node.literal.toUpperCase();
+  }
+}</code></pre>
+<p>Exercises for the reader:  write a transform to</p>
+<ol type="1">
+<li>De-linkify a document, transforming links to regular text.</li>
+<li>Remove all raw HTML (<code>html_inline</code> and <code>html_block</code> nodes).</li>
+<li>Run fenced code blocks marked with a language name through a syntax highlighting library, replacing them with an <code>HtmlBlock</code> containing the highlighted code.</li>
+<li>Print warnings to the console for images without image descriptions or titles.</li>
+</ol>
+<h2>Command line</h2>
+<p>The command line executable parses CommonMark input from the specified files, or from stdin if no files are specified, and renders the result to stdout as HTML.  If multiple input files are specified, their contents are concatenated before parsing, with newlines between them.</p>
+<pre><code>commonmark inputfile.md &gt; outputfile.html
+commonmark intro.md chapter1.md chapter2.md &gt; book.html</code></pre>
+<p>Use <code>commonmark --help</code> to get a summary of options.</p>
+<h2>A note on security</h2>
+<p>The library does not attempt to sanitize link attributes or raw HTML.  If you use this library in applications that accept untrusted user input, you should either enable the <code>safe</code> option (see above) or run the output through an HTML sanitizer to protect against <a href="http://en.wikipedia.org/wiki/Cross-site_scripting">XSS attacks</a>.</p>
+<h2>Performance</h2>
+<p>Performance is excellent, roughly on par with <code>marked</code>.  On a benchmark converting an 11 MB Markdown file built by concatenating the Markdown sources of all localizations of the first edition of <a href="https://github.com/progit/progit/tree/master/en"><em>Pro Git</em></a> by Scott Chacon, the command-line tool, <code>commonmark</code> is just a bit slower than the C program <code>discount</code>, roughly ten times faster than PHP Markdown, a hundred times faster than Python Markdown, and more than a thousand times faster than <code>Markdown.pl</code>.</p>
+<p>Here are some focused benchmarks of four JavaScript libraries (using versions available on 24 Jan 2015).  They test performance on different kinds of Markdown texts.  (Most of these samples are taken from the <a href="https://github.com/markdown-it/markdown-it">markdown-it</a> repository.)  Results show a ratio of ops/second (higher is better) against showdown (which is usually the slowest implementation). Versions: showdown 1.3.0, marked 0.3.5, commonmark.js 0.22.1, markdown-it 5.0.2, node 5.3.0.  Hardware: 1.6GHz Intel Core i5, Mac OSX.</p>
+<p>| Sample                   |showdown  |commonmark|marked    |markdown-it| |--------------------------|---------:|---------:|---------:|----------:| |<a href="bench/samples/README.md">README.md</a>               |         1|       3.6|       3.1|        3.9| |<a href="bench/samples/block-bq-flat.md">block-bq-flat.md</a>        |         1|       4.8|       4.9|        4.9| |<a href="bench/samples/block-bq-nested.md">block-bq-nested.md</a>      |         1|      11.9|       6.8|       10.7| |<a href="bench/samples/block-code.md">block-code.md</a>           |         1|       4.7|      12.1|       23.0| |<a href="bench/samples/block-fences.md">block-fences.md</a>         |         1|       6.2|      21.2|       19.1| |<a href="bench/samples/block-heading.md">block-heading.md</a>        |         1|       5.0|       4.8|        6.5| |<a href="bench/samples/block-hr.md">block-hr.md</a>             |         1|       3.5|       3.3|        3.5| |<a href="bench/samples/block-html.md">block-html.md</a>           |         1|       2.1|       0.9|        3.8| |<a href="bench/samples/block-lheading.md">block-lheading.md</a>       |         1|       5.1|       4.9|        3.9| |<a href="bench/samples/block-list-flat.md">block-list-flat.md</a>      |         1|       4.7|       4.4|        7.4| |<a href="bench/samples/block-list-nested.md">block-list-nested.md</a>    |         1|       9.5|       7.8|       17.6| |<a href="bench/samples/block-ref-flat.md">block-ref-flat.md</a>       |         1|       0.8|       0.5|        0.6| |<a href="bench/samples/block-ref-nested.md">block-ref-nested.md</a>     |         1|       0.7|       0.6|        0.9| |<a href="bench/samples/inline-autolink.md">inline-autolink.md</a>      |         1|       2.3|       3.4|        2.5| |<a href="bench/samples/inline-backticks.md">inline-backticks.md</a>     |         1|       7.6|       5.3|        8.2| |<a href="bench/samples/inline-em-flat.md">inline-em-flat.md</a>       |         1|       1.5|       1.1|        1.6| |<a href="bench/samples/inline-em-nested.md">inline-em-nested.md</a>     |         1|       1.8|       1.3|        1.7| |<a href="bench/samples/inline-em-worst.md">inline-em-worst.md</a>      |         1|       2.4|       1.5|        2.5| |<a href="bench/samples/inline-entity.md">inline-entity.md</a>        |         1|       2.0|       3.8|        2.7| |<a href="bench/samples/inline-escape.md">inline-escape.md</a>        |         1|       2.2|       1.4|        5.0| |<a href="bench/samples/inline-html.md">inline-html.md</a>          |         1|       2.9|       3.7|        3.3| |<a href="bench/samples/inline-links-flat.md">inline-links-flat.md</a>    |         1|       2.7|       2.7|        2.2| |<a href="bench/samples/inline-links-nested.md">inline-links-nested.md</a>  |         1|       1.4|       0.5|        0.5| |<a href="bench/samples/inline-newlines.md">inline-newlines.md</a>      |         1|       2.3|       2.0|        3.5| |<a href="bench/samples/lorem1.md">lorem1.md</a>               |         1|       6.0|       2.9|        3.3| |<a href="bench/samples/rawtabs.md">rawtabs.md</a>              |         1|       4.6|       3.9|        6.7|</p>
+<p>To generate this table:</p>
+<pre><code>make bench-detailed</code></pre>
+<h2>Authors</h2>
+<p>John MacFarlane wrote the first version of the JavaScript implementation.  The block parsing algorithm was worked out together with David Greenspan.  Kārlis Gaņģis helped work out a better parsing algorithm for links and emphasis, eliminating several worst-case performance issues.  Vitaly Puzrin has offered much good advice about optimization and other issues.</p></body></html>

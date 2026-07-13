@@ -1,0 +1,817 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Haskell Pandoc HTML output</title><style>html{line-height:1.5;font-family:Georgia,"Times New Roman",serif;font-size:18px;color:#1f2933;background:#fdfdfd;}body{margin:0 auto;max-width:46em;padding:2.5em 1.25em;}h1,h2,h3,h4,h5,h6{font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.25;margin:1.4em 0 .45em;}h1{font-size:2em;}h2{font-size:1.55em;}h3{font-size:1.25em;}p{margin:1em 0;}a{color:#1f6feb;}img,svg,video{max-width:100%;height:auto;}pre,code,kbd,samp{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.9em;}code{background:#eef1f5;padding:.1em .25em;border-radius:3px;}pre{overflow:auto;background:#f6f8fa;border:1px solid #d8dde3;border-radius:6px;padding:1em;}pre code{background:transparent;padding:0;}blockquote{margin:1.25em 0;padding-left:1em;border-left:4px solid #d8dde3;color:#4b5563;}table{border-collapse:collapse;margin:1.25em 0;width:100%;font-size:.92em;}th,td{border:1px solid #d8dde3;padding:.35em .55em;vertical-align:top;}th{background:#f6f8fa;}math{font-family:math,serif;}math[display="block"]{display:block;margin:1em 0;overflow-x:auto;}</style></head><body><p>This is a set of tests for pandoc. Most of them are adapted from John
+Gruber's markdown test suite.</p>
+<h1 id="headers">Headers</h1>
+<h2 id="level-2-with-an-embedded-link">Level 2 with an <a
+href="/url">embedded link</a></h2>
+<h3 id="level-3-with-emphasis">Level 3 with <em>emphasis</em></h3>
+<h4 id="level-4">Level 4</h4>
+<h5 id="level-5">Level 5</h5>
+<h1 id="level-1">Level 1</h1>
+<h2 id="level-2-with-emphasis">Level 2 with <em>emphasis</em></h2>
+<h3 id="level-3">Level 3</h3>
+<p>with no blank line</p>
+<h2 id="level-2">Level 2</h2>
+<p>with no blank line</p>
+<h1 id="paragraphs">Paragraphs</h1>
+<p>Here's a regular paragraph.</p>
+<p>In Markdown 1.0.0 and earlier. Version 8. This line turns into a list
+item. Because a hard-wrapped line in the middle of a paragraph looked
+like a list item.</p>
+<p>Here's one with a bullet. * criminey.</p>
+<p>There should be a <strong>hard line break<br />
+</strong>here.</p>
+<h1 id="statements">Statements</h1>
+<h2>CAP TITLE</h2>
+<p>Some text to make this regular</p>
+<h1 id="block-quotes">Block Quotes</h1>
+<p>E-mail style:</p>
+<blockquote>
+<p>This is a block quote. It is pretty short.</p>
+</blockquote>
+<blockquote>
+<p>Code in a block quote:</p>
+<pre><code>sub status {
+    print &quot;working&quot;;
+}</code></pre>
+<p>A list:</p>
+<ol>
+<li><p>item one</p></li>
+<li><p>item two</p></li>
+</ol>
+<p>Nested block quotes:</p>
+<blockquote>
+<p>nested</p>
+</blockquote>
+<blockquote>
+<p>nested</p>
+</blockquote>
+</blockquote>
+<p>This should not be a block quote: 2 &gt; 1.</p>
+<p>Box-style:</p>
+<blockquote>
+<p>Example:</p>
+<pre><code>sub status {
+    print &quot;working&quot;;
+}</code></pre>
+</blockquote>
+<blockquote>
+<ol>
+<li><p>do laundry</p></li>
+<li><p>take out the trash</p></li>
+</ol>
+</blockquote>
+<p>Here's a nested one:</p>
+<blockquote>
+<p>Joe said:</p>
+<blockquote>
+<p>Don't quote me.</p>
+</blockquote>
+</blockquote>
+<p>And a following paragraph.</p>
+<p>Here is a block quote inside a paragraph. Start of a paragraph is
+here, and the quote is below:</p>
+<blockquote>
+<p>My block quote</p>
+</blockquote>
+<p>End of a paragraph</p>
+<h1 id="formulae">Formulae</h1>
+<h2 id="inline-formulae">Inline formulae with
+<em>inline-formula</em></h2>
+<p><strong>Inside a paragraph</strong>, should be natively coded inside
+the paragraph, and show inline:</p>
+<p>Einstein showed that <span
+class="math inline"><em>e</em> = <em>m</em><em>c</em><sup>2</sup></span>.
+This formula is important because…</p>
+<h2 id="disp-formulae">Block formulae with <em>disp-formula</em></h2>
+<p><strong>Inside a paragraph</strong>, should be natively coded inside
+the paragraph, but show as block:</p>
+<p>Einstein showed that <span
+class="math display"><em>e</em> = <em>m</em><em>c</em><sup>2</sup></span>.
+This formula is important because…</p>
+<p><strong>Outside a paragraph</strong>, should show as block:</p>
+<p>Einstein showed that</p>
+<div class="disp-formula">
+<p><span
+class="math display"><em>e</em> = <em>m</em><em>c</em><sup>2</sup></span></p>
+</div>
+<p>This formula is important because…</p>
+<h2 id="no-formula-wrapper">Without a formula wrapper</h2>
+<p><strong>Inside a paragraph</strong>, should show inline:</p>
+<p>Einstein showed that <span
+class="math inline"><em>e</em> = <em>m</em><em>c</em><sup>2</sup></span>.
+This formula is important because…</p>
+<p><strong>Outside a paragraph</strong>, should show as block:</p>
+<p>Einstein showed that</p>
+<p><span
+class="math display"><em>e</em> = <em>m</em><em>c</em><sup>2</sup></span></p>
+<p>This formula is important because…</p>
+<h2 id="misc-formulae">Formulae with miscelaneus elements</h2>
+<p>Regardless of whether or not they are inside a paragraph, should be
+wrapped in a div, and displayed in a block:</p>
+<p><strong>Inside a paragraph:</strong></p>
+<p>Einstein definitely showed that</p>
+<div class="disp-formula">
+<p>Abstract text</p>
+<p><img
+src="https://lh3.googleusercontent.com/dB7iirJ3ncQaVMBGE2YX-WCeoAVIChb6NAzoFcKCFChMsrixJvD7ZRbvcaC-ceXEzXYaoH4K5vaoRDsUyBHFkpIDPnsn3bnzovbvi0a2Gg=s660"
+title="This is the title of the graphic" id="graphic001"
+class="This is the role of graphic"
+alt="Alternative text of the graphic" /></p>
+<p><span
+class="math display"><em>e</em> = <em>m</em><em>c</em><sup>2</sup></span></p>
+</div>
+<p>. This formula is important because…</p>
+<p><strong>Outside of a paragraph:</strong></p>
+<p>Paragraph before: Einstein showed that</p>
+<div class="disp-formula">
+<p>Abstract text</p>
+<p><img src="Title 3" id="graphic003" alt="Alternative text 1" /></p>
+<p><span
+class="math display"><em>e</em> = <em>m</em><em>c</em><sup>2</sup></span></p>
+</div>
+<p>This formula is important because…</p>
+<figure id="fig-1">
+alternative-decription
+<p><img src="foo.png" /></p>
+<figcaption>bar</figcaption>
+</figure>
+<h1 id="code-blocks">Code Blocks</h1>
+<p>Code:</p>
+<pre><code>---- (should be four hyphens)
+
+sub status {
+    print &quot;working&quot;;
+}
+
+this code block is indented by one tab</code></pre>
+<p>And:</p>
+<pre><code>    this code block is indented by two tabs
+
+These should not be escaped:  \$ \\ \&gt; \[ \{</code></pre>
+<h1 id="lists">Lists</h1>
+<h2 id="unordered">Unordered</h2>
+<p>Asterisks tight:</p>
+<ul>
+<li><p>asterisk 1</p></li>
+<li><p>asterisk 2</p></li>
+<li><p>asterisk 3</p></li>
+</ul>
+<p>Asterisks loose:</p>
+<ul>
+<li><p>asterisk 1</p></li>
+<li><p>asterisk 2</p></li>
+<li><p>asterisk 3</p></li>
+</ul>
+<p>Pluses tight:</p>
+<ul>
+<li><p>Plus 1</p></li>
+<li><p>Plus 2</p></li>
+<li><p>Plus 3</p></li>
+</ul>
+<p>Pluses loose:</p>
+<ul>
+<li><p>Plus 1</p></li>
+<li><p>Plus 2</p></li>
+<li><p>Plus 3</p></li>
+</ul>
+<p>Minuses tight:</p>
+<ul>
+<li><p>Minus 1</p></li>
+<li><p>Minus 2</p></li>
+<li><p>Minus 3</p></li>
+</ul>
+<p>Minuses loose:</p>
+<ul>
+<li><p>Minus 1</p></li>
+<li><p>Minus 2</p></li>
+<li><p>Minus 3</p></li>
+</ul>
+<h2 id="ordered">Ordered</h2>
+<p>Tight:</p>
+<ol>
+<li><p>First</p></li>
+<li><p>Second</p></li>
+<li><p>Third</p></li>
+</ol>
+<p>and:</p>
+<ol>
+<li><p>One</p></li>
+<li><p>Two</p></li>
+<li><p>Three</p></li>
+</ol>
+<p>Loose using tabs:</p>
+<ol>
+<li><p>First</p></li>
+<li><p>Second</p></li>
+<li><p>Third</p></li>
+</ol>
+<p>and using spaces:</p>
+<ol>
+<li><p>One</p></li>
+<li><p>Two</p></li>
+<li><p>Three</p></li>
+</ol>
+<p>Multiple paragraphs:</p>
+<ol>
+<li><p>Item 1, graf one.</p>
+<p>Item 1. graf two. The quick brown fox jumped over the lazy dog's
+back.</p></li>
+<li><p>Item 2.</p></li>
+<li><p>Item 3.</p></li>
+</ol>
+<p>List styles:</p>
+<ol>
+<li><p>one</p></li>
+<li><p>two</p></li>
+<li><p>three</p></li>
+</ol>
+<ol type="i">
+<li><p>one</p></li>
+<li><p>two</p></li>
+<li><p>three</p></li>
+</ol>
+<h2 id="nested">Nested</h2>
+<ul>
+<li><p>Tab</p>
+<ul>
+<li><p>Tab</p>
+<ul>
+<li><p>Tab</p></li>
+</ul></li>
+</ul></li>
+</ul>
+<p>Here's another:</p>
+<ol>
+<li><p>First</p></li>
+<li><p>Second:</p>
+<ul>
+<li><p>Fee</p></li>
+<li><p>Fie</p></li>
+<li><p>Foe</p></li>
+</ul></li>
+<li><p>Third</p></li>
+</ol>
+<p>Same thing but with paragraphs:</p>
+<ol>
+<li><p>First</p></li>
+<li><p>Second:</p>
+<ul>
+<li><p>Fee</p></li>
+<li><p>Fie</p></li>
+<li><p>Foe</p></li>
+</ul></li>
+<li><p>Third</p></li>
+</ol>
+<h2 id="tabs-and-spaces">Tabs and spaces</h2>
+<ul>
+<li><p>this is a list item indented with tabs</p></li>
+<li><p>this is a list item indented with spaces</p>
+<ul>
+<li><p>this is an example list item indented with tabs</p></li>
+<li><p>this is an example list item indented with spaces</p></li>
+</ul></li>
+</ul>
+<h2 id="fancy-list-markers">Fancy list markers</h2>
+<p>Autonumbering:</p>
+<ol>
+<li><p>Autonumber.</p></li>
+<li><p>More.</p>
+<ol>
+<li><p>Nested.</p></li>
+</ol></li>
+</ol>
+<h2 id="definition">Definition</h2>
+<dl>
+<dt>Violin</dt>
+<dd>
+<p>Stringed musical instrument.</p>
+<p>Torture device.</p>
+</dd>
+<dt>Cello<strong><br />
+</strong>Violoncello</dt>
+<dd>
+<p>Low-voiced stringed instrument.</p>
+</dd>
+</dl>
+<h2 id="list-inside-paragraph">List inside a paragraph</h2>
+<p>Start of a paragraph.</p>
+<ul>
+<li><p>Red</p></li>
+<li><p>Blue</p></li>
+</ul>
+<p>End of paragraph.</p>
+<h1 id="inline-markup">Inline Markup</h1>
+<p>This is <em>emphasized</em>, and so <em>is this</em>.</p>
+<p>This is <strong>strong</strong>, and so <strong>is this</strong>.</p>
+<p>Empty <strong></strong> and <em></em>.</p>
+<p>An <em><a href="/url">emphasized link</a></em>.</p>
+<p><strong><em>This is strong and em.</em></strong></p>
+<p>So is <strong><em>this</em></strong> word.</p>
+<p><strong><em>This is strong and em.</em></strong></p>
+<p>So is <strong><em>this</em></strong> word.</p>
+<p>This is code: <code>&gt;</code>, <code>$</code>, <code>\</code>,
+<code>\$</code>, <code>&lt;html&gt;</code>.</p>
+<p>This is <span class="smallcaps">small caps</span>.</p>
+<p>These are all underlined: foo and bar.</p>
+<p>These are all strikethrough: <del>foo</del>, <del>bar</del>, and
+<del>baz</del>.</p>
+<h1 id="smart-quotes-ellipses-dashes">Smart quotes, ellipses,
+dashes</h1>
+<p>"Hello," said the spider. "'Shelob' is my name."</p>
+<p>'A', 'B', and 'C' are letters.</p>
+<p>'Oak,' 'elm,' and 'beech' are names of trees. So is 'pine.'</p>
+<p>'He said, "I want to go."' Were you alive in the 70's?</p>
+<p>Here is some quoted '<code>code</code>' and a "<a
+href="http://example.com/?foo=1&amp;bar=2">quoted link</a>".</p>
+<p>Some dashes: one---two --- three--four -- five.</p>
+<p>Dashes between numbers: 5-7, 255-66, 1987-1999.</p>
+<p>Ellipses...and. . .and . . . .</p>
+<h1 id="latex">LaTeX</h1>
+<ul>
+<li><p>\cite[22-23]{smith.1899}</p></li>
+<li><p>\doublespacing</p></li>
+<li><p>$2+2=4$</p></li>
+<li><p>$x \in y$</p></li>
+<li><p>$\alpha \wedge \omega$</p></li>
+<li><p>$223$</p></li>
+<li><p>$p$-Tree</p></li>
+<li><p>$\frac{d}{dx}f(x)=\lim_{h\to 0}\frac{f(x+h)-f(x)}{h}$</p></li>
+<li><p>Here's one that has a line break in it: $\alpha + \omega \times
+x^2$.</p></li>
+</ul>
+<p>These shouldn't be math:</p>
+<ul>
+<li><p>To get the famous equation, write
+<code>$e = mc^2$</code>.</p></li>
+<li><p>$22,000 is a <em>lot</em> of money. So is $34,000. (It worked if
+"lot" is emphasized.)</p></li>
+<li><p>Escaped <code>$</code>: $73 <em>this should be emphasized</em>
+23$.</p></li>
+</ul>
+<p>Here's a LaTeX table:</p>
+<p>\begin{tabular}{|l|l|}\hline Animal &amp; Number \\ \hline Dog &amp;
+2 \\ Cat &amp; 1 \\ \hline \end{tabular}</p>
+<h1 id="special-characters">Special Characters</h1>
+<p>Here is some unicode:</p>
+<ul>
+<li><p>I hat: Î</p></li>
+<li><p>o umlaut: ö</p></li>
+<li><p>section: §</p></li>
+<li><p>set membership: elem</p></li>
+<li><p>copyright: ©</p></li>
+</ul>
+<p>AT&amp;T has an ampersand in their name.</p>
+<p>AT&amp;T is another way to write it.</p>
+<p>This &amp; that.</p>
+<p>4 &lt; 5.</p>
+<p>6 &gt; 5.</p>
+<p>Backslash: \</p>
+<p>Backtick: `</p>
+<p>Asterisk: *</p>
+<p>Underscore: _</p>
+<p>Left brace: {</p>
+<p>Right brace: }</p>
+<p>Left bracket: [</p>
+<p>Right bracket: ]</p>
+<p>Left paren: (</p>
+<p>Right paren: )</p>
+<p>Greater-than: &gt;</p>
+<p>Hash: #</p>
+<p>Period: .</p>
+<p>Bang: !</p>
+<p>Plus: +</p>
+<p>Minus: -</p>
+<h1 id="links">Links</h1>
+<h2 id="explicit">Explicit</h2>
+<p>Just a <a href="/url/">URL</a>.</p>
+<p><a href="/url/" title="title">URL and title</a>.</p>
+<p><a href="/url/" title="title preceded by two spaces">URL and
+title</a>.</p>
+<p><a href="/url/" title="title preceded by a tab">URL and
+title</a>.</p>
+<p><a href="/url/" title="title with &quot;quotes&quot; in it">URL and
+title</a></p>
+<p><a href="/url/" title="title with single quotes">URL and
+title</a></p>
+<p>Email link (nobody [at] nowhere.net)</p>
+<p><a href="">Empty</a>.</p>
+<h2 id="reference">Reference</h2>
+<p>Foo <a href="/url/">bar</a>.</p>
+<p>Foo <a href="/url/">bar</a>.</p>
+<p>Foo <a href="/url/">bar</a>.</p>
+<p>With <a href="/url/">embedded [brackets]</a>.</p>
+<p><a href="/url/">b</a> by itself should be a link.</p>
+<p>Indented <a href="/url">once</a>.</p>
+<p>Indented <a href="/url">twice</a>.</p>
+<p>Indented <a href="/url">thrice</a>.</p>
+<p>This should [not] be a link.</p>
+<pre><code>[not]: /url</code></pre>
+<p>Foo <a href="/url/"
+title="Title with &quot;quotes&quot; inside">bar</a>.</p>
+<p>Foo <a href="/url/"
+title="Title with &quot;quote&quot; inside">biz</a>.</p>
+<h2 id="with-ampersands">With ampersands</h2>
+<p>Here's a <a href="http://example.com/?foo=1&amp;bar=2">link with an
+ampersand in the URL</a>.</p>
+<p>Here's a link with an amersand in the link text: <a
+href="http://att.com/" title="AT&amp;T">AT&amp;T</a>.</p>
+<p>Here's an <a href="/script?foo=1&amp;bar=2">inline link</a>.</p>
+<p>Here's an <a href="/script?foo=1&amp;bar=2">inline link in pointy
+braces</a>.</p>
+<h2 id="autolinks">Autolinks</h2>
+<p>With an ampersand: <a
+href="http://example.com/?foo=1&amp;bar=2">http://example.com/?foo=1&amp;bar=2</a></p>
+<ul>
+<li><p>In a list?</p></li>
+<li><p><a href="http://example.com/">http://example.com/</a></p></li>
+<li><p>It should.</p></li>
+</ul>
+<p>An e-mail address: nobody [at] nowhere.net</p>
+<blockquote>
+<p>Blockquoted: <a
+href="http://example.com/">http://example.com/</a></p>
+</blockquote>
+<p>Auto-links should not occur here:
+<code>&lt;http://example.com/&gt;</code></p>
+<pre><code>or here: &lt;http://example.com/&gt;</code></pre>
+<h1 id="images">Images</h1>
+<p>From "Voyage dans la Lune" by Georges Melies (1902):</p>
+<p><img src="lalune.jpg" title="Voyage dans la Lune" /></p>
+<p>Here is a movie <img src="movie.jpg" /> icon.</p>
+<h1 id="footnotes">Footnotes</h1>
+<p>Here is a footnote reference<a href="#note_1">(1)</a>, and another<a
+href="#note_longnote">(longnote)</a>. This should <em>not</em> be a
+footnote reference, because it contains a space^(my note).</p>
+<p><a href="#ref_1">(1)</a> Here is the footnote. It can go anywhere in
+the document, not just at the end.</p>
+<p><a href="#ref_longnote">(longnote)</a> Here's the other note. This
+one contains multiple blocks.</p>
+<p>Caret characters are used to indicate that the blocks all belong to a
+single footnote (as with block quotes).</p>
+<pre><code>  { &lt;code&gt; }</code></pre>
+<p>If you want, you can use a caret at the beginning of every line, as
+with blockquotes, but all that you need is a caret at the beginning of
+the first line of the block and any preceding blank lines.</p>
+<p>text <em>Leading space</em></p>
+<p><em>Trailing space</em> text</p>
+<p>text <em>Leading spaces</em></p>
+<p><em>Trailing spaces</em> text</p>
+<h1 id="tables">Tables</h1>
+<h2 id="tables-with-headers">Tables with Headers</h2>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th style="text-align: left;"><p>X</p></th>
+<th style="text-align: left;"><p>Y</p></th>
+<th style="text-align: left;"><p>Z</p></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><p>1</p></td>
+<td style="text-align: left;"><p>2</p></td>
+<td style="text-align: left;"><p>3</p></td>
+</tr>
+<tr>
+<td style="text-align: left;"><p>4</p></td>
+<td style="text-align: left;"><p>5</p></td>
+<td style="text-align: left;"><p>6</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th style="text-align: left;"><p>X</p></th>
+<th style="text-align: left;"><p>Y</p></th>
+<th style="text-align: left;"><p>Z</p></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><p>1</p></td>
+<td style="text-align: left;"><p>2</p></td>
+<td style="text-align: left;"><p>3</p></td>
+</tr>
+<tr>
+<td style="text-align: left;"><p>4</p></td>
+<td style="text-align: left;"><p>5</p></td>
+<td style="text-align: left;"><p>6</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th style="text-align: left;"><p>X</p></th>
+<th style="text-align: left;"><p>Y</p></th>
+<th style="text-align: left;"><p>Z</p></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><p>1</p></td>
+<td style="text-align: left;"><p>2</p></td>
+<td style="text-align: left;"><p>3</p></td>
+</tr>
+<tr>
+<td style="text-align: left;"><p>4</p></td>
+<td style="text-align: left;"><p>5</p></td>
+<td style="text-align: left;"><p>6</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th style="text-align: left;"><p>X</p></th>
+<th style="text-align: left;"><p>Y</p></th>
+<th style="text-align: left;"><p>Z</p></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><p>1</p></td>
+<td style="text-align: left;"><p>2</p></td>
+<td style="text-align: left;"><p>3</p></td>
+</tr>
+<tr>
+<td style="text-align: left;"><p>4</p></td>
+<td style="text-align: left;"><p>5</p></td>
+<td style="text-align: left;"><p>6</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th style="text-align: left;"><p>X</p></th>
+<th style="text-align: left;"><p>Y</p></th>
+<th style="text-align: left;"><p>Z</p></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><p>1</p></td>
+<td style="text-align: left;"><p>2</p></td>
+<td style="text-align: left;"><p>3</p></td>
+</tr>
+<tr>
+<td style="text-align: left;"><p>4</p></td>
+<td style="text-align: left;"><p>5</p></td>
+<td style="text-align: left;"><p>6</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th style="text-align: left;"><p>X</p></th>
+<th style="text-align: left;"><p>Y</p></th>
+<th style="text-align: left;"><p>Z</p></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><p>1</p></td>
+<td style="text-align: left;"><p>2</p></td>
+<td style="text-align: left;"><p>3</p></td>
+</tr>
+<tr>
+<td style="text-align: left;"><p>4</p></td>
+<td style="text-align: left;"><p>5</p></td>
+<td style="text-align: left;"><p>6</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th style="text-align: left;"><p>X</p></th>
+<th style="text-align: left;"><p>Y</p></th>
+<th style="text-align: left;"><p>Z</p></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><p>1</p></td>
+<td style="text-align: left;"><p>2</p></td>
+<td style="text-align: left;"><p>3</p></td>
+</tr>
+<tr>
+<td style="text-align: left;"><p>4</p></td>
+<td style="text-align: left;"><p>5</p></td>
+<td style="text-align: left;"><p>6</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th style="text-align: left;"><p>r1a</p></th>
+<th style="text-align: left;"><p>r1b</p></th>
+<th style="text-align: left;"><p>r1c</p></th>
+</tr>
+<tr>
+<th style="text-align: left;"><p>X</p></th>
+<th style="text-align: left;"><p>Y</p></th>
+<th style="text-align: left;"><p>Z</p></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><p>1</p></td>
+<td style="text-align: left;"><p>2</p></td>
+<td style="text-align: left;"><p>3</p></td>
+</tr>
+<tr>
+<td style="text-align: left;"><p>4</p></td>
+<td style="text-align: left;"><p>5</p></td>
+<td style="text-align: left;"><p>6</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th style="text-align: left;"><p>X</p></th>
+<th style="text-align: left;"><p>Y</p></th>
+<th style="text-align: left;"><p>Z</p></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><p>1</p></td>
+<td style="text-align: left;"><p>2</p></td>
+<td style="text-align: left;"><p>3</p></td>
+</tr>
+<tr>
+<td style="text-align: left;"><p>4</p></td>
+<td style="text-align: left;"><p>5</p></td>
+<td style="text-align: left;"><p>6</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<h2 id="tables-without-headers">Tables without Headers</h2>
+<div class="table-wrap">
+<table>
+<tbody>
+<tr>
+<td style="text-align: left;"><p>1</p></td>
+<td style="text-align: left;"><p>2</p></td>
+<td style="text-align: left;"><p>3</p></td>
+</tr>
+<tr>
+<td style="text-align: left;"><p>4</p></td>
+<td style="text-align: left;"><p>5</p></td>
+<td style="text-align: left;"><p>6</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="table-wrap">
+<table>
+<tbody>
+<tr>
+<td style="text-align: left;"><p>1</p></td>
+<td style="text-align: left;"><p>2</p></td>
+<td style="text-align: left;"><p>3</p></td>
+</tr>
+<tr>
+<td style="text-align: left;"><p>4</p></td>
+<td style="text-align: left;"><p>5</p></td>
+<td style="text-align: left;"><p>6</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="table-wrap">
+<table>
+<tbody>
+<tr>
+<td style="text-align: left;"><p>1</p></td>
+<td style="text-align: left;"><p>2</p></td>
+<td style="text-align: left;"><p>3</p></td>
+</tr>
+<tr>
+<td style="text-align: left;"><p>4</p></td>
+<td style="text-align: left;"><p>5</p></td>
+<td style="text-align: left;"><p>6</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="table-wrap">
+<table>
+<tbody>
+<tr>
+<td style="text-align: left;"><p>1</p></td>
+<td style="text-align: left;"><p>2</p></td>
+<td style="text-align: left;"><p>3</p></td>
+</tr>
+<tr>
+<td style="text-align: left;"><p>4</p></td>
+<td style="text-align: left;"><p>5</p></td>
+<td style="text-align: left;"><p>6</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<h2 id="table-with-spans-and-alignments">Tables with spans and
+alignments</h2>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th colspan="2" style="text-align: left;"><p>1</p></th>
+<th style="text-align: right;"><p>2</p></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td colspan="2" style="text-align: left;"><p>1</p></td>
+<td style="text-align: left;"><p>2</p></td>
+</tr>
+<tr>
+<td rowspan="2" style="text-align: left;"><p>4</p></td>
+<td style="text-align: left;"><p>5</p></td>
+<td style="text-align: left;"><p>6</p></td>
+</tr>
+<tr>
+<td colspan="2" style="text-align: left;"><p>7</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<h2 id="table-with-footer">Table with footer</h2>
+<div class="table-wrap">
+<table>
+<tbody>
+<tr>
+<td style="text-align: left;"><p>1</p></td>
+<td style="text-align: left;"><p>2</p></td>
+<td style="text-align: left;"><p>3</p></td>
+</tr>
+</tbody><tfoot>
+<tr>
+<td style="text-align: right;"><p>f1</p></td>
+<td style="text-align: left;"><p>f2</p></td>
+<td style="text-align: left;"><p>f3</p></td>
+</tr>
+<tr>
+<td style="text-align: right;"><p>f4</p></td>
+<td style="text-align: left;"><p>f5</p></td>
+<td style="text-align: left;"><p>f6</p></td>
+</tr>
+</tfoot>
+
+</table>
+</div>
+<h2 id="table-with-multiple-bodies">Table With Multiple Bodies</h2>
+<div class="table-wrap">
+<table>
+<tbody>
+<tr>
+<td style="text-align: right;"><p>a1</p></td>
+<td style="text-align: left;"><p>a2</p></td>
+<td style="text-align: left;"><p>a3</p></td>
+</tr>
+</tbody>
+<tbody>
+<tr>
+<td style="text-align: left;"><p>b1</p></td>
+<td style="text-align: left;"><p>b2</p></td>
+<td style="text-align: left;"><p>b3</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<h2 id="empty-tables">Empty Tables</h2>
+<p>This section should be empty.</p>
+<h1>References</h1>
+<div id="refs" role="list">
+
+</div>
+<h1>Notes</h1>
+<div id="refs" role="list">
+
+</div>
+</body></html>

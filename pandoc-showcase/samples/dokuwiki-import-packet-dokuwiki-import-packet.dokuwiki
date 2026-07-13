@@ -1,0 +1,17 @@
+====== DokuWiki import packet ======
+
+This paragraph has **strong text**, //emphasis//, __underline__, ''literal code'', and [[https://example.org|an external link]].
+
+{{data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9JJR0AAAAASUVORK5CYII=?240x120|Hosted import diagram}}
+
+  * Review the converted page
+    * Confirm the nested item
+  - Publish the result
+
+^ Source ^ Status ^
+| DokuWiki | Imported |
+| WordPress | Blocks |
+
+<code php>
+echo 'portable import';
+</code>

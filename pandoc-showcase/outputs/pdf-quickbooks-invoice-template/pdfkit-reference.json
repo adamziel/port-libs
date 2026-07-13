@@ -1,0 +1,635 @@
+{
+    "extractor": "macOS PDFKit",
+    "pageCount": 3,
+    "pages": [
+        {
+            "height": 792,
+            "lines": [
+                {
+                    "height": 37.865,
+                    "text": "Invoice template",
+                    "width": 266.28,
+                    "x": 36,
+                    "y": 669.888
+                },
+                {
+                    "height": 11.105,
+                    "text": "These invoice templates can be used to bill your clients in order to collect payment.",
+                    "width": 367.076,
+                    "x": 36,
+                    "y": 638.568
+                },
+                {
+                    "height": 11.105,
+                    "text": "Use the “Tax invoice” template if your business is registered for GST, otherwise, use the “Invoice” template.",
+                    "width": 474.07,
+                    "x": 36,
+                    "y": 595.008
+                },
+                {
+                    "height": 11.105,
+                    "text": "These templates contain the basic information typically contained in an invoice, such as: the invoice amount, the",
+                    "width": 495.44,
+                    "x": 36,
+                    "y": 551.328
+                },
+                {
+                    "height": 11.105,
+                    "text": "services/products provided and the payment due date. The tax invoice template also contains your ABN details, as well as",
+                    "width": 539.3,
+                    "x": 36,
+                    "y": 539.778
+                },
+                {
+                    "height": 11.105,
+                    "text": "the GST component from your sales.",
+                    "width": 163.065,
+                    "x": 36,
+                    "y": 528.258
+                },
+                {
+                    "height": 11.105,
+                    "text": "Simply complete the template fields, check the figures are correct and send the invoice to your client for payment.",
+                    "width": 500.849,
+                    "x": 36,
+                    "y": 484.698
+                },
+                {
+                    "height": 11.105,
+                    "text": "Looking to up your invoice game? With QuickBooks Online you can send customised, professional invoices from your",
+                    "width": 518.532,
+                    "x": 36,
+                    "y": 441.018
+                },
+                {
+                    "height": 11.105,
+                    "text": "phone or computer, no matter where you are. Smart predictions make it easy to know when your invoices will be paid, you",
+                    "width": 538.647,
+                    "x": 36,
+                    "y": 429.498
+                },
+                {
+                    "height": 11.105,
+                    "text": "can even automate gentle payment reminders for overdue invoices.",
+                    "width": 298.393,
+                    "x": 36,
+                    "y": 417.978
+                },
+                {
+                    "height": 11.105,
+                    "text": "Start a free 30-day QuickBooks Online trial today at www.quickbooks.intuit.com/au/",
+                    "width": 367.391,
+                    "x": 36,
+                    "y": 381.138
+                },
+                {
+                    "height": 8.965,
+                    "text": "All information and forms are provided “as is” without any warranty of any kind, express, implied or otherwise, including as to their legal effect and",
+                    "width": 513.678,
+                    "x": 49.2,
+                    "y": 82.096
+                },
+                {
+                    "height": 8.965,
+                    "text": "completeness. They are for general guidance and should be modified by you or your attorney to meet your specific needs and the laws of your country.",
+                    "width": 533.677,
+                    "x": 39.12,
+                    "y": 72.856
+                },
+                {
+                    "height": 8.965,
+                    "text": "Use at your own risk. Intuit, its employees or contractors who wrote or modified any form, are not providing legal or any other kind of advice and are not",
+                    "width": 534.578,
+                    "x": 38.64,
+                    "y": 63.736
+                },
+                {
+                    "height": 8.965,
+                    "text": "creating or entering into an attorney-client relationship. The information and forms are not a substitute for the advice of your own attorney. This",
+                    "width": 503.244,
+                    "x": 54.24,
+                    "y": 54.496
+                },
+                {
+                    "height": 8.965,
+                    "text": "document is not approved, endorsed by or affiliated with any state or governmental or licensing entity.",
+                    "width": 359.179,
+                    "x": 126.26,
+                    "y": 45.256
+                }
+            ],
+            "number": 1,
+            "rotation": 0,
+            "text": "Invoice template\nThese invoice templates can be used to bill your clients in order to collect payment.\nUse the “Tax invoice” template if your business is registered for GST, otherwise, use the “Invoice” template.\nThese templates contain the basic information typically contained in an invoice, such as: the invoice amount, the\nservices/products provided and the payment due date. The tax invoice template also contains your ABN details, as well as\nthe GST component from your sales.\nSimply complete the template fields, check the figures are correct and send the invoice to your client for payment.\nLooking to up your invoice game? With QuickBooks Online you can send customised, professional invoices from your\nphone or computer, no matter where you are. Smart predictions make it easy to know when your invoices will be paid, you\ncan even automate gentle payment reminders for overdue invoices.\nStart a free 30-day QuickBooks Online trial today at www.quickbooks.intuit.com/au/\nAll information and forms are provided “as is” without any warranty of any kind, express, implied or otherwise, including as to their legal effect and\ncompleteness. They are for general guidance and should be modified by you or your attorney to meet your specific needs and the laws of your country.\nUse at your own risk. Intuit, its employees or contractors who wrote or modified any form, are not providing legal or any other kind of advice and are not\ncreating or entering into an attorney-client relationship. The information and forms are not a substitute for the advice of your own attorney. This\ndocument is not approved, endorsed by or affiliated with any state or governmental or licensing entity.",
+            "width": 612
+        },
+        {
+            "height": 792,
+            "lines": [
+                {
+                    "height": 37.865,
+                    "text": "Tax nvoice",
+                    "width": 185.472,
+                    "x": 390.55,
+                    "y": 716.348
+                },
+                {
+                    "height": 12.31,
+                    "text": "Enter company name",
+                    "width": 111.349,
+                    "x": 72.024,
+                    "y": 633.902
+                },
+                {
+                    "height": 11.105,
+                    "text": "Street address",
+                    "width": 64.939,
+                    "x": 72.024,
+                    "y": 616.488
+                },
+                {
+                    "height": 11.105,
+                    "text": "City",
+                    "width": 17.111,
+                    "x": 72.024,
+                    "y": 598.968
+                },
+                {
+                    "height": 11.105,
+                    "text": "State, postcode",
+                    "width": 69.359,
+                    "x": 72.024,
+                    "y": 581.448
+                },
+                {
+                    "height": 11.105,
+                    "text": "Phone (02) 9999-9999",
+                    "width": 101.641,
+                    "x": 226.01,
+                    "y": 634.968
+                },
+                {
+                    "height": 11.105,
+                    "text": "Email name@company.com.au",
+                    "width": 140.687,
+                    "x": 226.01,
+                    "y": 617.448
+                },
+                {
+                    "height": 11.105,
+                    "text": "Website companyname.com.au",
+                    "width": 142.127,
+                    "x": 226.01,
+                    "y": 599.928
+                },
+                {
+                    "height": 11.105,
+                    "text": "ABN 123456789",
+                    "width": 74.389,
+                    "x": 226.01,
+                    "y": 582.408
+                },
+                {
+                    "height": 11.105,
+                    "text": "Bill to",
+                    "width": 27.669,
+                    "x": 70.584,
+                    "y": 525.138
+                },
+                {
+                    "height": 11.105,
+                    "text": "Client name",
+                    "width": 53.256,
+                    "x": 70.584,
+                    "y": 506.178
+                },
+                {
+                    "height": 11.105,
+                    "text": "Street address",
+                    "width": 64.939,
+                    "x": 70.584,
+                    "y": 487.098
+                },
+                {
+                    "height": 11.105,
+                    "text": "City,",
+                    "width": 19.92,
+                    "x": 70.584,
+                    "y": 468.138
+                },
+                {
+                    "height": 11.105,
+                    "text": "State, postcode",
+                    "width": 69.359,
+                    "x": 70.584,
+                    "y": 449.178
+                },
+                {
+                    "height": 11.105,
+                    "text": "Ship to",
+                    "width": 33.784,
+                    "x": 223.37,
+                    "y": 525.138
+                },
+                {
+                    "height": 11.105,
+                    "text": "Client name",
+                    "width": 53.255,
+                    "x": 223.37,
+                    "y": 506.058
+                },
+                {
+                    "height": 11.105,
+                    "text": "Street address",
+                    "width": 64.939,
+                    "x": 223.37,
+                    "y": 487.098
+                },
+                {
+                    "height": 11.105,
+                    "text": "City,",
+                    "width": 19.92,
+                    "x": 223.37,
+                    "y": 468.138
+                },
+                {
+                    "height": 11.105,
+                    "text": "State, postcode",
+                    "width": 69.363,
+                    "x": 223.37,
+                    "y": 449.058
+                },
+                {
+                    "height": 11.105,
+                    "text": "Details",
+                    "width": 32.639,
+                    "x": 385.03,
+                    "y": 525.138
+                },
+                {
+                    "height": 11.105,
+                    "text": "Invoice# 12345",
+                    "width": 67.652,
+                    "x": 385.03,
+                    "y": 506.058
+                },
+                {
+                    "height": 11.105,
+                    "text": "Invoice date: dd/mm/yyyy",
+                    "width": 112.858,
+                    "x": 385.03,
+                    "y": 487.098
+                },
+                {
+                    "height": 11.105,
+                    "text": "Terms: Net 30",
+                    "width": 63.236,
+                    "x": 385.03,
+                    "y": 468.138
+                },
+                {
+                    "height": 11.105,
+                    "text": "Due date: dd/mm/yyyy",
+                    "width": 99.418,
+                    "x": 385.03,
+                    "y": 449.058
+                },
+                {
+                    "height": 11.105,
+                    "text": "Description Qty/Hrs Rate Amount",
+                    "width": 464.495,
+                    "x": 73.104,
+                    "y": 409.698
+                },
+                {
+                    "height": 11.105,
+                    "text": "Enter your product or service description 0 0 $0.00",
+                    "width": 465.696,
+                    "x": 72.024,
+                    "y": 368.038
+                },
+                {
+                    "height": 11.105,
+                    "text": "Enter your product or service description 0 0 $0.00",
+                    "width": 465.285,
+                    "x": 72.024,
+                    "y": 350.518
+                },
+                {
+                    "height": 11.105,
+                    "text": "Customer message",
+                    "width": 92.11,
+                    "x": 72.024,
+                    "y": 298.078
+                },
+                {
+                    "height": 11.105,
+                    "text": "Hi,",
+                    "width": 12.131,
+                    "x": 72.024,
+                    "y": 280.558
+                },
+                {
+                    "height": 11.105,
+                    "text": "Thank you for your purchase. Please pay this",
+                    "width": 200.434,
+                    "x": 72.024,
+                    "y": 257.638
+                },
+                {
+                    "height": 11.105,
+                    "text": "invoice using the following payment details.",
+                    "width": 191.614,
+                    "x": 72.024,
+                    "y": 246.118
+                },
+                {
+                    "height": 11.105,
+                    "text": "Regards,",
+                    "width": 40.428,
+                    "x": 72.024,
+                    "y": 223.078
+                },
+                {
+                    "height": 11.105,
+                    "text": "Subtotal $0.00",
+                    "width": 179.69,
+                    "x": 357.67,
+                    "y": 298.078
+                },
+                {
+                    "height": 11.105,
+                    "text": "GST component $0.00",
+                    "width": 179.69,
+                    "x": 357.67,
+                    "y": 280.558
+                },
+                {
+                    "height": 11.105,
+                    "text": "Shipping $0.00",
+                    "width": 179.69,
+                    "x": 357.67,
+                    "y": 263.038
+                },
+                {
+                    "height": 17.795,
+                    "text": "Total AUD $0.00",
+                    "width": 179.187,
+                    "x": 359.95,
+                    "y": 221.218
+                }
+            ],
+            "number": 2,
+            "rotation": 0,
+            "text": "Tax nvoice\nEnter company name\nStreet address\nCity\nState, postcode\nPhone (02) 9999-9999\nEmail name@company.com.au\nWebsite companyname.com.au\nABN 123456789\nBill to\nClient name\nStreet address\nCity,\nState, postcode\nShip to\nClient name\nStreet address\nCity,\nState, postcode\nDetails\nInvoice# 12345\nInvoice date: dd/mm/yyyy\nTerms: Net 30\nDue date: dd/mm/yyyy\nDescription Qty/Hrs Rate Amount\nEnter your product or service description 0 0 $0.00\nEnter your product or service description 0 0 $0.00\nCustomer message\nHi,\nThank you for your purchase. Please pay this\ninvoice using the following payment details.\nRegards,\nSubtotal $0.00\nGST component $0.00\nShipping $0.00\nTotal AUD $0.00",
+            "width": 612
+        },
+        {
+            "height": 792,
+            "lines": [
+                {
+                    "height": 37.865,
+                    "text": "Invoice",
+                    "width": 117.026,
+                    "x": 458.98,
+                    "y": 716.948
+                },
+                {
+                    "height": 12.31,
+                    "text": "Enter company name",
+                    "width": 111.338,
+                    "x": 72.024,
+                    "y": 635.462
+                },
+                {
+                    "height": 11.105,
+                    "text": "Street address",
+                    "width": 64.939,
+                    "x": 72.024,
+                    "y": 618.048
+                },
+                {
+                    "height": 11.105,
+                    "text": "City",
+                    "width": 17.111,
+                    "x": 72.024,
+                    "y": 600.528
+                },
+                {
+                    "height": 11.105,
+                    "text": "State, postcode",
+                    "width": 69.374,
+                    "x": 72.024,
+                    "y": 583.008
+                },
+                {
+                    "height": 11.105,
+                    "text": "Phone (02) 9999-9999",
+                    "width": 101.641,
+                    "x": 226.01,
+                    "y": 636.528
+                },
+                {
+                    "height": 11.105,
+                    "text": "Email name@company.com.au",
+                    "width": 140.687,
+                    "x": 226.01,
+                    "y": 619.008
+                },
+                {
+                    "height": 11.105,
+                    "text": "Website companyname.com.au",
+                    "width": 142.034,
+                    "x": 226.01,
+                    "y": 601.488
+                },
+                {
+                    "height": 11.105,
+                    "text": "Bill to",
+                    "width": 27.669,
+                    "x": 70.584,
+                    "y": 526.698
+                },
+                {
+                    "height": 11.105,
+                    "text": "Client name",
+                    "width": 53.254,
+                    "x": 70.584,
+                    "y": 507.738
+                },
+                {
+                    "height": 11.105,
+                    "text": "Street address",
+                    "width": 64.939,
+                    "x": 70.584,
+                    "y": 488.658
+                },
+                {
+                    "height": 11.105,
+                    "text": "City,",
+                    "width": 19.92,
+                    "x": 70.584,
+                    "y": 469.698
+                },
+                {
+                    "height": 11.105,
+                    "text": "State, postcode",
+                    "width": 69.322,
+                    "x": 70.584,
+                    "y": 450.738
+                },
+                {
+                    "height": 11.105,
+                    "text": "Ship to",
+                    "width": 33.784,
+                    "x": 223.49,
+                    "y": 526.698
+                },
+                {
+                    "height": 11.105,
+                    "text": "Client name",
+                    "width": 53.28,
+                    "x": 223.49,
+                    "y": 507.618
+                },
+                {
+                    "height": 11.105,
+                    "text": "Street address",
+                    "width": 64.939,
+                    "x": 223.49,
+                    "y": 488.658
+                },
+                {
+                    "height": 11.105,
+                    "text": "City,",
+                    "width": 19.92,
+                    "x": 223.49,
+                    "y": 469.698
+                },
+                {
+                    "height": 11.105,
+                    "text": "State, postcode",
+                    "width": 69.322,
+                    "x": 223.49,
+                    "y": 450.618
+                },
+                {
+                    "height": 11.105,
+                    "text": "Details",
+                    "width": 32.639,
+                    "x": 385.03,
+                    "y": 527.058
+                },
+                {
+                    "height": 11.105,
+                    "text": "Invoice# 12345",
+                    "width": 67.679,
+                    "x": 385.03,
+                    "y": 508.098
+                },
+                {
+                    "height": 11.105,
+                    "text": "Invoice date: dd/mm/yyyy",
+                    "width": 112.747,
+                    "x": 385.03,
+                    "y": 489.018
+                },
+                {
+                    "height": 11.105,
+                    "text": "Terms: Net 30",
+                    "width": 63.236,
+                    "x": 385.03,
+                    "y": 470.058
+                },
+                {
+                    "height": 11.105,
+                    "text": "Due date: dd/mm/yyyy",
+                    "width": 99.361,
+                    "x": 385.03,
+                    "y": 451.098
+                },
+                {
+                    "height": 11.105,
+                    "text": "Description Qty/Hrs Rate Amount",
+                    "width": 464.526,
+                    "x": 73.104,
+                    "y": 411.618
+                },
+                {
+                    "height": 11.105,
+                    "text": "Enter your product or service description 0 0 $0.00",
+                    "width": 465.696,
+                    "x": 72.024,
+                    "y": 369.958
+                },
+                {
+                    "height": 11.105,
+                    "text": "Enter your product or service description 0 0 $0.00",
+                    "width": 465.696,
+                    "x": 72.024,
+                    "y": 352.558
+                },
+                {
+                    "height": 11.105,
+                    "text": "Customer message",
+                    "width": 92.11,
+                    "x": 72.024,
+                    "y": 299.998
+                },
+                {
+                    "height": 11.105,
+                    "text": "Hi,",
+                    "width": 12.131,
+                    "x": 72.024,
+                    "y": 282.478
+                },
+                {
+                    "height": 11.105,
+                    "text": "Thank you for your purchase. Please pay this",
+                    "width": 200.286,
+                    "x": 72.024,
+                    "y": 259.558
+                },
+                {
+                    "height": 11.105,
+                    "text": "invoice using the following payment details.",
+                    "width": 191.505,
+                    "x": 72.024,
+                    "y": 248.038
+                },
+                {
+                    "height": 11.105,
+                    "text": "Regards,",
+                    "width": 40.428,
+                    "x": 72.024,
+                    "y": 224.998
+                },
+                {
+                    "height": 11.105,
+                    "text": "Subtotal $0.00",
+                    "width": 179.69,
+                    "x": 357.67,
+                    "y": 282.478
+                },
+                {
+                    "height": 11.105,
+                    "text": "Shipping $0.00",
+                    "width": 179.69,
+                    "x": 357.67,
+                    "y": 264.958
+                },
+                {
+                    "height": 17.795,
+                    "text": "Total AUD $0.00",
+                    "width": 179.187,
+                    "x": 359.95,
+                    "y": 223.138
+                }
+            ],
+            "number": 3,
+            "rotation": 0,
+            "text": "Invoice\nEnter company name\nStreet address\nCity\nState, postcode\nPhone (02) 9999-9999\nEmail name@company.com.au\nWebsite companyname.com.au\nBill to\nClient name\nStreet address\nCity,\nState, postcode\nShip to\nClient name\nStreet address\nCity,\nState, postcode\nDetails\nInvoice# 12345\nInvoice date: dd/mm/yyyy\nTerms: Net 30\nDue date: dd/mm/yyyy\nDescription Qty/Hrs Rate Amount\nEnter your product or service description 0 0 $0.00\nEnter your product or service description 0 0 $0.00\nCustomer message\nHi,\nThank you for your purchase. Please pay this\ninvoice using the following payment details.\nRegards,\nSubtotal $0.00\nShipping $0.00\nTotal AUD $0.00",
+            "width": 612
+        }
+    ]
+}

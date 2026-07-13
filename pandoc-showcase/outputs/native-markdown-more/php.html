@@ -1,0 +1,247 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>PHP Pandoc HTML output</title><style>html{line-height:1.5;font-family:Georgia,"Times New Roman",serif;font-size:18px;color:#1f2933;background:#fdfdfd;}body{margin:0 auto;max-width:46em;padding:2.5em 1.25em;}h1,h2,h3,h4,h5,h6{font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.25;margin:1.4em 0 .45em;}h1{font-size:2em;}h2{font-size:1.55em;}h3{font-size:1.25em;}p{margin:1em 0;}a{color:#1f6feb;}img,svg,video{max-width:100%;height:auto;}pre,code,kbd,samp{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.9em;}code{background:#eef1f5;padding:.1em .25em;border-radius:3px;}pre{overflow:auto;background:#f6f8fa;border:1px solid #d8dde3;border-radius:6px;padding:1em;}pre code{background:transparent;padding:0;}blockquote{margin:1.25em 0;padding-left:1em;border-left:4px solid #d8dde3;color:#4b5563;}table{border-collapse:collapse;margin:1.25em 0;width:100%;font-size:.92em;}th,td{border:1px solid #d8dde3;padding:.35em .55em;vertical-align:top;}th{background:#f6f8fa;}math{font-family:math,serif;}math[display="block"]{display:block;margin:1em 0;overflow-x:auto;}</style></head><body><h1 id="additional-markdown-reader-tests">Additional markdown reader tests</h1>
+<h2 id="blank-line-before-url-in-link-reference">Blank line before URL in link reference</h2>
+<p><a href="/url">foo</a> and <a href="/url" title="title">bar</a></p>
+<h2 id="raw-context-environments">Raw ConTeXt environments</h2>
+<pre class="pandoc-raw-tex" data-pandoc-raw-format="tex"><code class="language-tex">\placeformula \startformula</code></pre>
+<p>L_{1} = L_{2} <span class="pandoc-raw-tex" data-pandoc-raw-format="tex">\stopformula</span></p>
+<pre class="pandoc-raw-tex" data-pandoc-raw-format="tex"><code class="language-tex">\start[a2]
+\start[a2]
+\stop[a2]
+\stop[a2]</code></pre>
+<h2 id="raw-latex-environments">Raw LaTeX environments</h2>
+<pre class="pandoc-raw-tex" data-pandoc-raw-format="tex"><code class="language-tex">\begin{center}
+\begin{tikzpicture}[baseline={([yshift=+-.5ex]current bounding box.center)}, level distance=24pt]
+\Tree [.{S} [.NP John\index{i} ] [.VP [.V likes ] [.NP himself\index{i,*j} ]]]
+\end{tikzpicture}
+\end{center}</code></pre>
+<h2 id="urls-with-spaces-and-punctuation">URLs with spaces and punctuation</h2>
+<p><a href="/bar%20and%20baz">foo</a> <a href="/bar%20and%20baz">foo</a> <a href="/bar%20and%20baz">foo</a> <a href="bar%20baz" title="title">foo</a></p>
+<p><a href="/foo%20foo">baz</a> <a href="/foo%20fee">bam</a> <a href="/foo/zee%20zob" title="title">bork</a></p>
+<p><a href="http://en.wikipedia.org/wiki/Ward&#039;s_method">Ward’s method.</a></p>
+<h2 id="horizontal-rules-with-spaces-at-end">Horizontal rules with spaces at end</h2>
+<hr />
+<hr />
+<h2 id="raw-html-before-header">Raw HTML before header</h2>
+<p><a></a></p>
+<h3 id="my-header">my header</h3>
+<h2 id="in-math">$ in math</h2>
+<p><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><semantics><mrow><mo>$</mo><mn>2</mn><mo>+</mo><mo>$</mo><mn>3</mn></mrow><annotation encoding="application/x-tex">\$2 + \$3</annotation></semantics></math></p>
+<p><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><semantics><mrow><mi>x</mi><mo>=</mo><mrow><mtext>the </mtext><mi>n</mi><mtext>th root of </mtext><mi>y</mi></mrow></mrow><annotation encoding="application/x-tex">x = \text{the $n$th root of $y$}</annotation></semantics></math></p>
+<p>This should not be math:</p>
+<p>$PATH 90 $PATH</p>
+<h2 id="commented-out-list-item">Commented-out list item</h2>
+<ul>
+<li>one &lt;!–</li>
+<li>two –&gt;</li>
+<li>three</li>
+</ul>
+<h2 id="indented-code-at-beginning-of-list">Indented code at beginning of list</h2>
+<ul>
+<li><pre><code>code
+code</code></pre>
+<ol type="1">
+<li><pre><code>code
+code</code></pre></li>
+<li><pre><code>code
+code</code></pre></li>
+</ol>
+<ul>
+<li><pre><code>code
+code</code></pre></li>
+<li>no code</li>
+</ul></li>
+</ul>
+<h2 id="backslash-newline">Backslash newline</h2>
+<p>hi<br />
+there</p>
+<h2 id="code-spans">Code spans</h2>
+<p><code>hi\</code></p>
+<p><code>hi there</code></p>
+<p><code>hi````there</code></p>
+<p>`hi</p>
+<p>there`</p>
+<h2 id="multilingual-urls">Multilingual URLs</h2>
+<p><a href="http://测.com?测=测" class="uri">http://测.com?测=测</a></p>
+<p><a href="/bar/测?x=测" title="title">foo</a></p>
+<p><a href="mailto:测@foo.测.baz" class="email">测@foo.测.baz</a></p>
+<h2 id="numbered-examples">Numbered examples</h2>
+<ol class="example" type="1">
+<li>First example.</li>
+<li>Second example.</li>
+</ol>
+<p>Explanation of examples (2) and (3).</p>
+<ol class="example" start="3" type="1">
+<li>Third example.</li>
+</ol>
+<h2 id="macros">Macros</h2>
+<pre class="pandoc-raw-tex" data-pandoc-raw-format="tex"><code class="language-tex">\newcommand{\tuple}[1]{\langle #1 \rangle}</code></pre>
+<p><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><semantics><mrow><mo>⟨</mo><mi>x</mi><mo>,</mo><mi>y</mi><mo>⟩</mo></mrow><annotation encoding="application/x-tex">\langle x,y \rangle</annotation></semantics></math></p>
+<h2 id="case-insensitive-references">Case-insensitive references</h2>
+<p><a href="/fum">Fum</a></p>
+<p><a href="/fum">FUM</a></p>
+<p><a href="/bat">bat</a></p>
+<h2 id="curly-smart-quotes">Curly smart quotes</h2>
+<p>“Hi”</p>
+<p>‘Hi’</p>
+<h2 id="consecutive-lists">Consecutive lists</h2>
+<ul>
+<li>one</li>
+<li>two</li>
+</ul>
+<ol type="1">
+<li>one</li>
+<li>two</li>
+</ol>
+<ol type="a">
+<li>one</li>
+<li>two</li>
+</ol>
+<h2 id="implicit-header-references">Implicit header references</h2>
+<h3 id="my-header-1">My header</h3>
+<h3 id="my-other-header">My other header</h3>
+<p>A link to <a href="#my-header">My header</a>.</p>
+<p>Another link to <a href="#my-header">it</a>.</p>
+<p>Should be <a href="#my-header">case insensitive</a>.</p>
+<p>Link to <a href="#foobar">Explicit header attributes</a>.</p>
+<p>But this is not a link to <a href="/foo">My other header</a>, since the reference is defined.</p>
+<h2 id="foobar" class="baz">Explicit header attributes</h2>
+<blockquote>
+<h2 id="foobar" class="baz">Header attributes inside block quote</h2>
+</blockquote>
+<h2 id="line-blocks">Line blocks</h2>
+<div class="line-block">But can a bee be said to be<br />    or not to be an entire bee,<br />        when half the bee is not a bee,<br />            due to some ancient injury?<br /><br />Continuation line<br />  and another</div>
+<h2 id="grid-tables">Grid Tables</h2>
+<table style="width:61%;">
+<colgroup><col style="width: 26%" /><col style="width: 16%" /><col style="width: 18%" /></colgroup>
+<thead>
+<tr><th>col 1</th><th>col 2</th><th>col 3</th></tr>
+</thead>
+<tbody>
+<tr><td>r1 a r1 bis</td><td>b b 2</td><td>c c 2</td></tr>
+<tr><td>r2 d</td><td>e</td><td>f</td></tr>
+</tbody>
+</table>
+<p>Headless</p>
+<table style="width:61%;">
+<colgroup><col style="width: 26%" /><col style="width: 16%" /><col style="width: 18%" /></colgroup>
+<tbody>
+<tr><td>r1 a r1 bis</td><td>b b 2</td><td>c c 2</td></tr>
+<tr><td>r2 d</td><td>e</td><td>f</td></tr>
+</tbody>
+</table>
+<p>With alignments</p>
+<table style="width:61%;">
+<colgroup><col style="width: 26%" /><col style="width: 16%" /><col style="width: 18%" /></colgroup>
+<thead>
+<tr><th style="text-align:right">col 1</th><th style="text-align:left">col 2</th><th style="text-align:center">col 3</th></tr>
+</thead>
+<tbody>
+<tr><td style="text-align:right">r1 a r1 bis</td><td style="text-align:left">b b 2</td><td style="text-align:center">c c 2</td></tr>
+<tr><td style="text-align:right">r2 d</td><td style="text-align:left">e</td><td style="text-align:center">f</td></tr>
+</tbody>
+</table>
+<p>Headless with alignments</p>
+<table style="width:61%;">
+<colgroup><col style="width: 26%" /><col style="width: 16%" /><col style="width: 18%" /></colgroup>
+<tbody>
+<tr><td style="text-align:right">r1 a r1 bis</td><td style="text-align:left">b b 2</td><td style="text-align:center">c c 2</td></tr>
+<tr><td style="text-align:right">r2 d</td><td style="text-align:left">e</td><td style="text-align:center">f</td></tr>
+</tbody>
+</table>
+<p>Spaces at ends of lines</p>
+<table style="width:61%;">
+<colgroup><col style="width: 26%" /><col style="width: 16%" /><col style="width: 18%" /></colgroup>
+<tbody>
+<tr><td>r1 a r1 bis</td><td>b b 2</td><td>c c 2</td></tr>
+<tr><td>r2 d</td><td>e</td><td>f</td></tr>
+</tbody>
+</table>
+<p>Multiple blocks in a cell</p>
+<table style="width:61%;">
+<colgroup><col style="width: 26%" /><col style="width: 16%" /><col style="width: 18%" /></colgroup>
+<tbody>
+<tr><td><h1 id="col-1">col 1</h1><p>col 1</p></td><td><h1 id="col-2">col 2</h1><p>col 2</p></td><td><h1 id="col-3">col 3</h1><p>col 3</p></td></tr>
+<tr><td><p>r1 a</p><p>r1 bis</p></td><td><ul>
+<li>b</li>
+<li>b 2</li>
+<li>b 2</li>
+</ul></td><td>c c 2 c 2</td></tr>
+</tbody>
+</table>
+<p>East Asian characters have double width</p>
+<table style="width:11%;">
+<colgroup><col style="width: 4%" /><col style="width: 6%" /></colgroup>
+<tbody>
+<tr><td>魚</td><td>fish</td></tr>
+</tbody>
+</table>
+<p>Zero-width space in German</p>
+<table style="width:22%;">
+<colgroup><col style="width: 11%" /><col style="width: 11%" /></colgroup>
+<tbody>
+<tr><td>German</td><td>English</td></tr>
+<tr><td>Auf‌lage</td><td>edition</td></tr>
+</tbody>
+</table>
+<p>Zero-width non-joiner in Persian</p>
+<table style="width:25%;">
+<colgroup><col style="width: 11%" /><col style="width: 13%" /></colgroup>
+<tbody>
+<tr><td>می‌خواهم</td><td>I want to</td></tr>
+</tbody>
+</table>
+<p>Empty cells</p>
+<table style="width:11%;">
+<colgroup><col style="width: 5%" /><col style="width: 5%" /></colgroup>
+<tbody>
+<tr><td></td><td></td></tr>
+</tbody>
+</table>
+<p>Table with cells spanning multiple rows or columns:</p>
+<table style="width:46%;">
+<colgroup><col style="width: 19%" /><col style="width: 11%" /><col style="width: 15%" /></colgroup>
+<thead>
+<tr><th colspan="2">Property</th><th>Earth</th></tr>
+</thead>
+<tbody>
+<tr><td rowspan="3">Temperature 1961-1990</td><td>min</td><td>-89.2 °C</td></tr>
+<tr><td>mean</td><td>14 °C</td></tr>
+<tr><td>min</td><td>56.7 °C</td></tr>
+</tbody>
+</table>
+<p>Table with complex header:</p>
+<table style="width:64%;">
+<colgroup><col style="width: 30%" /><col style="width: 11%" /><col style="width: 11%" /><col style="width: 11%" /></colgroup>
+<thead>
+<tr><th rowspan="2">Location</th><th colspan="3">Temperature 1961-1990 in degree Celsius</th></tr>
+<tr><th>min</th><th>mean</th><th>max</th></tr>
+</thead>
+<tbody>
+<tr><td>Antarctica</td><td>-89.2</td><td>N/A</td><td>19.8</td></tr>
+<tr><td>Earth</td><td>-89.2</td><td>14</td><td>56.7</td></tr>
+</tbody>
+</table>
+<h2 id="entities-in-links-and-titles">Entities in links and titles</h2>
+<p><a href="/ürl" title="öö!">link</a></p>
+<p><a href="http://göögle.com" class="uri">http://göögle.com</a></p>
+<p><a href="mailto:me@exämple.com" class="email">me@exämple.com</a></p>
+<p><a href="/ürl" title="öö!">foobar</a></p>
+<h2 id="parentheses-in-urls">Parentheses in URLs</h2>
+<p><a href="/hi(there)">link</a></p>
+<p><a href="/hithere)">link</a></p>
+<p><a href="hi_(there_(nested))">linky</a></p>
+<h2 id="backslashes-in-link-references">Backslashes in link references</h2>
+<p><a href="b">*<span class="pandoc-raw-tex" data-pandoc-raw-format="tex">\a</span></a></p>
+<h2 id="reference-link-fallbacks">Reference link fallbacks</h2>
+<p>[<em>not a link</em>] [<em>nope</em>]…</p>
+<h2 id="reference-link-followed-by-a-citation">Reference link followed by a citation</h2>
+<p>MapReduce is a paradigm popularized by <a href="http://google.com">Google</a> <span class="citation" data-cites="mapreduce">[@mapreduce]</span> as its most vocal proponent.</p>
+<h2 id="empty-reference-links">Empty reference links</h2>
+<p>bar</p>
+<p><a href="">foo2</a></p>
+<h2 id="wrapping-shouldnt-introduce-new-list-items">Wrapping shouldn’t introduce new list items</h2>
+<ul>
+<li>blah blah blah blah blah blah blah blah blah blah blah blah blah blah 2015.</li>
+</ul>
+<h2 id="bracketed-spans">Bracketed spans</h2>
+<p><span id="id" class="class" key="val"><em>foo</em> bar baz <a href="url">link</a></span></p></body></html>

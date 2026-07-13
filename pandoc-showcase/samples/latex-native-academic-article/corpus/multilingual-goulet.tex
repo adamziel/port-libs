@@ -1,0 +1,36 @@
+% Reduced extract from Vincent Goulet, Rédaction avec LaTeX.
+% License: CC BY-SA 4.0. See SOURCES.md for attribution and source revision.
+\documentclass{book}
+\usepackage{booktabs,tabularx}
+
+\begin{document}
+\chapter{Tableaux et figures}
+\label{chap:tableaux}
+
+Les tableaux et graphiques ne sont pas les éléments de texte les plus simples
+et rapides à créer avec \LaTeX. Pour ce type de contenu comme pour tout autre,
+\LaTeX fait ce qu'on lui demande, sans tenter de deviner notre pensée.
+
+\section{De la conception de beaux tableaux}
+\label{sec:tableaux:booktabs}
+
+Les tableaux servent à disposer de l'information sous forme de grille. Le
+paquetage \texttt{booktabs} recommande des filets horizontaux bien choisis et
+évite les filets verticaux. Voici un extrait de tableau adapté du manuel:
+
+\begin{table}
+\caption{Un exemple de tableau aéré}\label{tab:beau}
+\begin{tabularx}{\textwidth}{>{\bfseries}lXr}
+\toprule
+Etape & Description & Valeur \\
+\midrule
+0 & Le premier calcul reste lisible. & 52 \\
+1 & La largeur de cette colonne est ajustable. & 24 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+La seconde version est plus aérée et plus facile à consulter. Comme expliqué
+dans la section \autoref{sec:tableaux:booktabs}, les tableaux clairs ne
+nécessitent pas de filets verticaux.
+\end{document}

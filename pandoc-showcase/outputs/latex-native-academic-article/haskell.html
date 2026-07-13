@@ -1,0 +1,72 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Haskell Pandoc HTML output</title><style>html{line-height:1.5;font-family:Georgia,"Times New Roman",serif;font-size:18px;color:#1f2933;background:#fdfdfd;}body{margin:0 auto;max-width:46em;padding:2.5em 1.25em;}h1,h2,h3,h4,h5,h6{font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.25;margin:1.4em 0 .45em;}h1{font-size:2em;}h2{font-size:1.55em;}h3{font-size:1.25em;}p{margin:1em 0;}a{color:#1f6feb;}img,svg,video{max-width:100%;height:auto;}pre,code,kbd,samp{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.9em;}code{background:#eef1f5;padding:.1em .25em;border-radius:3px;}pre{overflow:auto;background:#f6f8fa;border:1px solid #d8dde3;border-radius:6px;padding:1em;}pre code{background:transparent;padding:0;}blockquote{margin:1.25em 0;padding-left:1em;border-left:4px solid #d8dde3;color:#4b5563;}table{border-collapse:collapse;margin:1.25em 0;width:100%;font-size:.92em;}th,td{border:1px solid #d8dde3;padding:.35em .55em;vertical-align:top;}th{background:#f6f8fa;}math{font-family:math,serif;}math[display="block"]{display:block;margin:1em 0;overflow-x:auto;}</style></head><body><h1 id="sec:methods">Methods</h1>
+<p>The method uses <strong>native PHP</strong> and links to <a
+href="https://example.test/method">the implementation note</a>. A
+footnote keeps context<a href="#fn1" class="footnote-ref" id="fnref1"
+role="doc-noteref"><sup>1</sup></a> close to its text.</p>
+<p>The energy estimate is <span
+class="math inline"><em>E</em> = <em>m</em><em>c</em><sup>2</sup></span>.</p>
+<p><span
+class="math display"><em>α</em> + <em>β</em> = <em>γ</em></span></p>
+<p><span class="math display">$$\begin{align}
+  f(x) &amp;= x^2 + 1 \\
+  g(x) &amp;= \frac{1}{x}
+\end{align}$$</span></p>
+<ul>
+<li><p>Preserve headings, labels, and links.</p></li>
+<li><p>Keep <code>inline code</code> as code.</p></li>
+</ul>
+<ol>
+<li><p>Parse source safely.</p></li>
+<li><p>Never execute TeX packages or shell escapes.</p></li>
+</ol>
+<blockquote>
+<p>Editable structure is more useful than a simulated printed page.</p>
+</blockquote>
+<figure id="fig:architecture">
+<img src="figures/architecture.svg" style="width:50.0%" />
+<figcaption>The import architecture.</figcaption>
+</figure>
+<table id="tab:gates">
+<caption>Import quality gates.</caption>
+<thead>
+<tr>
+<th style="text-align: left;">Gate</th>
+<th style="text-align: center;">Scope</th>
+<th style="text-align: right;">Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">Text</td>
+<td style="text-align: center;">Paragraphs</td>
+<td style="text-align: right;">Ready</td>
+</tr>
+<tr>
+<td style="text-align: left;">Media</td>
+<td style="text-align: center;">Figures</td>
+<td style="text-align: right;">Ready</td>
+</tr>
+</tbody>
+</table>
+<p>As shown in <a href="#fig:architecture"
+data-reference-type="ref+label" data-reference="fig:architecture">1</a>,
+the table in <a href="#tab:gates" data-reference-type="ref"
+data-reference="tab:gates">1</a> supports the method in <a
+href="#sec:methods" data-reference-type="ref"
+data-reference="sec:methods">1</a>. Equation <a href="#eq:identity"
+data-reference-type="ref" data-reference="eq:identity">[eq:identity]</a>
+remains math. <span class="citation"
+data-cites="knuth1984 lamport1994"></span></p>
+<h2 id="sec:appendix">Imported Appendix</h2>
+<p>The local include is parsed through a bounded PHP file resolver.
+Unknown commands such as remain visible raw TeX instead of being
+executed or discarded.</p>
+<section id="footnotes" class="footnotes footnotes-end-of-document"
+role="doc-endnotes">
+<hr />
+<ol>
+<li id="fn1"><p>Footnotes become WordPress note references.<a
+href="#fnref1" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
+</ol>
+</section>
+</body></html>

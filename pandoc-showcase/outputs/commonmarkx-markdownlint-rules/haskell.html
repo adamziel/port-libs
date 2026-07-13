@@ -1,0 +1,2282 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Haskell Pandoc HTML output</title><style>html{line-height:1.5;font-family:Georgia,"Times New Roman",serif;font-size:18px;color:#1f2933;background:#fdfdfd;}body{margin:0 auto;max-width:46em;padding:2.5em 1.25em;}h1,h2,h3,h4,h5,h6{font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.25;margin:1.4em 0 .45em;}h1{font-size:2em;}h2{font-size:1.55em;}h3{font-size:1.25em;}p{margin:1em 0;}a{color:#1f6feb;}img,svg,video{max-width:100%;height:auto;}pre,code,kbd,samp{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.9em;}code{background:#eef1f5;padding:.1em .25em;border-radius:3px;}pre{overflow:auto;background:#f6f8fa;border:1px solid #d8dde3;border-radius:6px;padding:1em;}pre code{background:transparent;padding:0;}blockquote{margin:1.25em 0;padding-left:1em;border-left:4px solid #d8dde3;color:#4b5563;}table{border-collapse:collapse;margin:1.25em 0;width:100%;font-size:.92em;}th,td{border:1px solid #d8dde3;padding:.35em .55em;vertical-align:top;}th{background:#f6f8fa;}math{font-family:math,serif;}math[display="block"]{display:block;margin:1em 0;overflow-x:auto;}</style></head><body><h1 id="rules">Rules</h1>
+<p>This document contains a description of all rules, what they are
+checking for, as well as examples of documents that break the rule and
+corrected versions of the examples.</p>
+<p><a name="md001"></a></p>
+<h2
+id="md001---heading-levels-should-only-increment-by-one-level-at-a-time"><code>MD001</code>
+- Heading levels should only increment by one level at a time</h2>
+<p>Tags: <code>headings</code></p>
+<p>Aliases: <code>heading-increment</code></p>
+<p>Parameters:</p>
+<ul>
+<li><code>front_matter_title</code>: RegExp for matching title in front
+matter (<code>string</code>, default <code>^\s*title\s*[:=]</code>)</li>
+</ul>
+<p>This rule is triggered when you skip heading levels in a Markdown
+document, for example:</p>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="fu"># Heading 1</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="fu">### Heading 3</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>We skipped out a 2nd level heading in this document</span></code></pre></div>
+<p>When using multiple heading levels, nested headings should increase
+by only one level at a time:</p>
+<div class="sourceCode" id="cb2"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="fu"># Heading 1</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="fu">## Heading 2</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="fu">### Heading 3</span></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a><span class="fu">#### Heading 4</span></span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a><span class="fu">## Another Heading 2</span></span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a><span class="fu">### Another Heading 3</span></span></code></pre></div>
+<p>If <a href="https://wikipedia.org/wiki/YAML">YAML</a> front matter is
+present and contains a <code>title</code> property (commonly used with
+blog posts), this rule treats that as a top level heading and will
+report a violation if the actual first heading is not a level 2 heading.
+To use a different property name in the front matter, specify the text
+of a regular expression via the <code>front_matter_title</code>
+parameter. To disable the use of front matter by this rule, specify
+<code>""</code> for <code>front_matter_title</code>. When front matter
+is not present, the first heading can be any level.</p>
+<p>Rationale: Headings represent the structure of a document and can be
+confusing when skipped - especially for accessibility scenarios. More
+information: <a
+href="https://www.w3.org/WAI/tutorials/page-structure/headings/">https://www.w3.org/WAI/tutorials/page-structure/headings/</a>.</p>
+<p><a name="md003"></a></p>
+<h2 id="md003---heading-style"><code>MD003</code> - Heading style</h2>
+<p>Tags: <code>headings</code></p>
+<p>Aliases: <code>heading-style</code></p>
+<p>Parameters:</p>
+<ul>
+<li><code>style</code>: Heading style (<code>string</code>, default
+<code>consistent</code>, values <code>atx</code> /
+<code>atx_closed</code> / <code>consistent</code> / <code>setext</code>
+/ <code>setext_with_atx</code> /
+<code>setext_with_atx_closed</code>)</li>
+</ul>
+<p>This rule is triggered when different heading styles are used in the
+same document:</p>
+<div class="sourceCode" id="cb3"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="fu"># ATX style H1</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="fu">## Closed ATX style H2 ##</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>Setext style H1</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a><span class="fu">===============</span></span></code></pre></div>
+<p>To fix the issue, use consistent heading styles throughout the
+document:</p>
+<div class="sourceCode" id="cb4"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="fu"># ATX style H1</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="fu">## ATX style H2</span></span></code></pre></div>
+<p>The <code>setext_with_atx</code> and
+<code>setext_with_atx_closed</code> settings allow ATX-style headings of
+level 3 or more in documents with setext-style headings (which only
+support level 1 and 2 headings):</p>
+<div class="sourceCode" id="cb5"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>Setext style H1</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="fu">===============</span></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>Setext style H2</span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>---------------</span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a><span class="fu">### ATX style H3</span></span></code></pre></div>
+<p>Note: The configured heading style can be a specific style to require
+(<code>atx</code>, <code>atx_closed</code>, <code>setext</code>,
+<code>setext_with_atx</code>, <code>setext_with_atx_closed</code>), or
+can require that all heading styles match the first heading style via
+<code>consistent</code>.</p>
+<p>Note: The placement of a horizontal rule directly below a line of
+text can trigger this rule by turning that text into a level 2
+setext-style heading:</p>
+<div class="sourceCode" id="cb6"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>A line of text followed by a horizontal rule becomes a heading</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>---</span></code></pre></div>
+<p>Rationale: Consistent formatting makes it easier to understand a
+document.</p>
+<p><a name="md004"></a></p>
+<h2 id="md004---unordered-list-style"><code>MD004</code> - Unordered
+list style</h2>
+<p>Tags: <code>bullet</code>, <code>ul</code></p>
+<p>Aliases: <code>ul-style</code></p>
+<p>Parameters:</p>
+<ul>
+<li><code>style</code>: List style (<code>string</code>, default
+<code>consistent</code>, values <code>asterisk</code> /
+<code>consistent</code> / <code>dash</code> / <code>plus</code> /
+<code>sublist</code>)</li>
+</ul>
+<p>Fixable: Some violations can be fixed by tooling</p>
+<p>This rule is triggered when the symbols used in the document for
+unordered list items do not match the configured unordered list
+style:</p>
+<div class="sourceCode" id="cb7"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="ss">* </span>Item 1</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="ss">+ </span>Item 2</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Item 3</span></code></pre></div>
+<p>To fix this issue, use the configured style for list items throughout
+the document:</p>
+<div class="sourceCode" id="cb8"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="ss">* </span>Item 1</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="ss">* </span>Item 2</span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a><span class="ss">* </span>Item 3</span></code></pre></div>
+<p>The configured list style can ensure all list styling is a specific
+symbol (<code>asterisk</code>, <code>plus</code>, <code>dash</code>),
+ensure each sublist has a consistent symbol that differs from its parent
+list (<code>sublist</code>), or ensure all list styles match the first
+list style (<code>consistent</code>).</p>
+<p>For example, the following is valid for the <code>sublist</code>
+style because the outer-most indent uses asterisk, the middle indent
+uses plus, and the inner-most indent uses dash:</p>
+<div class="sourceCode" id="cb9"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="ss">* </span>Item 1</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="ss">  + </span>Item 2</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a><span class="ss">    - </span>Item 3</span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a><span class="ss">  + </span>Item 4</span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a><span class="ss">* </span>Item 4</span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a><span class="ss">  + </span>Item 5</span></code></pre></div>
+<p>Rationale: Consistent formatting makes it easier to understand a
+document.</p>
+<p><a name="md005"></a></p>
+<h2
+id="md005---inconsistent-indentation-for-list-items-at-the-same-level"><code>MD005</code>
+- Inconsistent indentation for list items at the same level</h2>
+<p>Tags: <code>bullet</code>, <code>indentation</code>,
+<code>ul</code></p>
+<p>Aliases: <code>list-indent</code></p>
+<p>Fixable: Some violations can be fixed by tooling</p>
+<p>This rule is triggered when list items are parsed as being at the
+same level, but don’t have the same indentation:</p>
+<div class="sourceCode" id="cb10"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="ss">* </span>Item 1</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="ss">  * </span>Nested Item 1</span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a><span class="ss">  * </span>Nested Item 2</span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a><span class="ss">   * </span>A misaligned item</span></code></pre></div>
+<p>Usually, this rule will be triggered because of a typo. Correct the
+indentation for the list to fix it:</p>
+<div class="sourceCode" id="cb11"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="ss">* </span>Item 1</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="ss">  * </span>Nested Item 1</span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a><span class="ss">  * </span>Nested Item 2</span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a><span class="ss">  * </span>Nested Item 3</span></code></pre></div>
+<p>Sequentially-ordered list markers are usually left-aligned such that
+all items have the same starting column:</p>
+<div class="sourceCode" id="cb12"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>...</span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="ss">8. </span>Item</span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a><span class="ss">9. </span>Item</span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a><span class="ss">10. </span>Item</span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a><span class="ss">11. </span>Item</span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a>...</span></code></pre></div>
+<p>This rule also supports right-alignment of list markers such that all
+items have the same ending column:</p>
+<div class="sourceCode" id="cb13"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a>...</span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a><span class="ss"> 8. </span>Item</span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a><span class="ss"> 9. </span>Item</span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a><span class="ss">10. </span>Item</span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a><span class="ss">11. </span>Item</span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a>...</span></code></pre></div>
+<p>Rationale: Violations of this rule can lead to improperly rendered
+content.</p>
+<p><a name="md007"></a></p>
+<h2 id="md007---unordered-list-indentation"><code>MD007</code> -
+Unordered list indentation</h2>
+<p>Tags: <code>bullet</code>, <code>indentation</code>,
+<code>ul</code></p>
+<p>Aliases: <code>ul-indent</code></p>
+<p>Parameters:</p>
+<ul>
+<li><code>indent</code>: Spaces for indent (<code>integer</code>,
+default <code>2</code>)</li>
+<li><code>start_indent</code>: Spaces for first level indent (when
+start_indented is set) (<code>integer</code>, default
+<code>2</code>)</li>
+<li><code>start_indented</code>: Whether to indent the first level of
+the list (<code>boolean</code>, default <code>false</code>)</li>
+</ul>
+<p>Fixable: Some violations can be fixed by tooling</p>
+<p>This rule is triggered when list items are not indented by the
+configured number of spaces (default: 2).</p>
+<p>Example:</p>
+<div class="sourceCode" id="cb14"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="ss">* </span>List item</span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a><span class="ss">   * </span>Nested list item indented by 3 spaces</span></code></pre></div>
+<p>Corrected Example:</p>
+<div class="sourceCode" id="cb15"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="ss">* </span>List item</span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a><span class="ss">  * </span>Nested list item indented by 2 spaces</span></code></pre></div>
+<p>Note: This rule applies to a sublist only if its parent lists are all
+also unordered (otherwise, extra indentation of ordered lists interferes
+with the rule).</p>
+<p>The <code>start_indented</code> parameter allows the first level of
+lists to be indented by the configured number of spaces rather than
+starting at zero. The <code>start_indent</code> parameter allows the
+first level of lists to be indented by a different number of spaces than
+the rest (ignored when <code>start_indented</code> is not set).</p>
+<p>Rationale: Indenting by 2 spaces allows the content of a nested list
+to be in line with the start of the content of the parent list when a
+single space is used after the list marker. Indenting by 4 spaces is
+consistent with code blocks and simpler for editors to implement.
+Additionally, this can be a compatibility issue for other Markdown
+parsers, which require 4-space indents. More information: <a
+href="https://cirosantilli.com/markdown-style-guide#indentation-of-content-inside-lists">Markdown
+Style Guide</a>.</p>
+<p>Note: See <a href="Prettier.md">Prettier.md</a> for compatibility
+information.</p>
+<p><a name="md009"></a></p>
+<h2 id="md009---trailing-spaces"><code>MD009</code> - Trailing
+spaces</h2>
+<p>Tags: <code>whitespace</code></p>
+<p>Aliases: <code>no-trailing-spaces</code></p>
+<p>Parameters:</p>
+<ul>
+<li><code>br_spaces</code>: Spaces for line break (<code>integer</code>,
+default <code>2</code>)</li>
+<li><code>code_blocks</code>: Include code blocks (<code>boolean</code>,
+default <code>false</code>)</li>
+<li><code>list_item_empty_lines</code>: Allow spaces for empty lines in
+list items (<code>boolean</code>, default <code>false</code>)</li>
+<li><code>strict</code>: Include unnecessary breaks
+(<code>boolean</code>, default <code>false</code>)</li>
+</ul>
+<p>Fixable: Some violations can be fixed by tooling</p>
+<p>This rule is triggered on any lines that end with unexpected
+whitespace. To fix this, remove the trailing space from the end of the
+line.</p>
+<p>The <code>br_spaces</code> parameter allows an exception to this rule
+for a specific number of trailing spaces, typically used to insert an
+explicit line break. The default value allows 2 spaces to indicate a
+hard break (&lt;br&gt; element). (You must set <code>br_spaces</code> to
+a value &gt;= 2 for this parameter to take effect. Setting
+<code>br_spaces</code> to 1 behaves the same as 0, disallowing any
+trailing spaces.)</p>
+<p>By default, trailing space is allowed in indented and fenced code
+blocks because some programming languages require that. To report such
+instances, set the <code>code_blocks</code> parameter to
+<code>true</code>.</p>
+<p>By default, this rule will not trigger when the allowed number of
+spaces is used, even when it doesn’t create a hard break (for example,
+at the end of a paragraph). To report such instances, set the
+<code>strict</code> parameter to <code>true</code>.</p>
+<div class="sourceCode" id="cb16"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a>Text text text</span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a>text<span class="co">[</span><span class="ot">2 spaces</span><span class="co">]</span></span></code></pre></div>
+<p>Using spaces to indent blank lines inside a list item is usually not
+necessary, but some parsers require it. Set the
+<code>list_item_empty_lines</code> parameter to <code>true</code> to
+allow this (even when <code>strict</code> is <code>true</code>):</p>
+<div class="sourceCode" id="cb17"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>list item text</span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a>  <span class="co">[</span><span class="ot">2 spaces</span><span class="co">]</span></span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a>  list item text</span></code></pre></div>
+<p>Rationale: Except when being used to create a line break, trailing
+whitespace has no purpose and does not affect the rendering of
+content.</p>
+<p><a name="md010"></a></p>
+<h2 id="md010---hard-tabs"><code>MD010</code> - Hard tabs</h2>
+<p>Tags: <code>hard_tab</code>, <code>whitespace</code></p>
+<p>Aliases: <code>no-hard-tabs</code></p>
+<p>Parameters:</p>
+<ul>
+<li><code>code_blocks</code>: Include code blocks (<code>boolean</code>,
+default <code>true</code>)</li>
+<li><code>ignore_code_languages</code>: Fenced code languages to ignore
+(<code>string[]</code>, default <code>[]</code>)</li>
+<li><code>spaces_per_tab</code>: Number of spaces for each hard tab
+(<code>integer</code>, default <code>1</code>)</li>
+</ul>
+<p>Fixable: Some violations can be fixed by tooling</p>
+<p>This rule is triggered by any lines that contain hard tab characters
+instead of using spaces for indentation. To fix this, replace any hard
+tab characters with spaces instead.</p>
+<p>Example:</p>
+<!-- markdownlint-disable no-hard-tabs -->
+
+<div class="sourceCode" id="cb18"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a>Some text</span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a><span class="in">    * hard tab character used to indent the list item</span></span></code></pre></div>
+<!-- markdownlint-restore -->
+
+<p>Corrected example:</p>
+<div class="sourceCode" id="cb19"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a>Some text</span>
+<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a><span class="in">    * Spaces used to indent the list item instead</span></span></code></pre></div>
+<p>You have the option to exclude this rule for code blocks and spans.
+To do so, set the <code>code_blocks</code> parameter to
+<code>false</code>. Code blocks and spans are included by default since
+handling of tabs by Markdown tools can be inconsistent (e.g., using 4
+vs. 8 spaces).</p>
+<p>When code blocks are scanned (e.g., by default or if
+<code>code_blocks</code> is <code>true</code>), the
+<code>ignore_code_languages</code> parameter can be set to a list of
+languages that should be ignored (i.e., hard tabs will be allowed,
+though not required). This makes it easier for documents to include code
+for languages that require hard tabs.</p>
+<p>By default, violations of this rule are fixed by replacing the tab
+with 1 space character. To use a different number of spaces, set the
+<code>spaces_per_tab</code> parameter to the desired value.</p>
+<p>Rationale: Hard tabs are often rendered inconsistently by different
+editors and can be harder to work with than spaces.</p>
+<p>More information:</p>
+<ul>
+<li><a
+href="https://agiletribe.wordpress.com/2011/10/27/18-dont-use-tab-characters/">https://agiletribe.wordpress.com/2011/10/27/18-dont-use-tab-characters/</a></li>
+<li><a
+href="https://www.jwz.org/doc/tabs-vs-spaces.html">https://www.jwz.org/doc/tabs-vs-spaces.html</a></li>
+<li><a
+href="https://adamspiers.org/computing/why_no_tabs.html">https://adamspiers.org/computing/why_no_tabs.html</a></li>
+</ul>
+<p><a name="md011"></a></p>
+<h2 id="md011---reversed-link-syntax"><code>MD011</code> - Reversed link
+syntax</h2>
+<p>Tags: <code>links</code></p>
+<p>Aliases: <code>no-reversed-links</code></p>
+<p>Fixable: Some violations can be fixed by tooling</p>
+<p>This rule is triggered when text that appears to be a link is
+encountered, but where the syntax appears to have been reversed (the
+<code>[]</code> and <code>()</code> are reversed):</p>
+<div class="sourceCode" id="cb20"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a>(Incorrect link syntax)<span class="co">[</span><span class="ot">https://www.example.com/</span><span class="co">]</span></span></code></pre></div>
+<p>To fix this, swap the <code>[]</code> and <code>()</code> around:</p>
+<div class="sourceCode" id="cb21"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Correct link syntax</span><span class="co">](https://www.example.com/)</span></span></code></pre></div>
+<p>Note: <a href="https://wikipedia.org/wiki/Markdown_Extra">Markdown
+Extra</a>-style footnotes do not trigger this rule:</p>
+<div class="sourceCode" id="cb22"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a>For (example)<span class="ot">[^1]</span></span></code></pre></div>
+<p>Rationale: Reversed links are not rendered as usable links.</p>
+<p><a name="md012"></a></p>
+<h2 id="md012---multiple-consecutive-blank-lines"><code>MD012</code> -
+Multiple consecutive blank lines</h2>
+<p>Tags: <code>blank_lines</code>, <code>whitespace</code></p>
+<p>Aliases: <code>no-multiple-blanks</code></p>
+<p>Parameters:</p>
+<ul>
+<li><code>maximum</code>: Consecutive blank lines (<code>integer</code>,
+default <code>1</code>)</li>
+</ul>
+<p>Fixable: Some violations can be fixed by tooling</p>
+<p>This rule is triggered when there are multiple consecutive blank
+lines in the document:</p>
+<div class="sourceCode" id="cb23"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a>Some text here</span>
+<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-4"><a href="#cb23-4" aria-hidden="true" tabindex="-1"></a>Some more text here</span></code></pre></div>
+<p>To fix this, delete the offending lines:</p>
+<div class="sourceCode" id="cb24"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a>Some text here</span>
+<span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb24-3"><a href="#cb24-3" aria-hidden="true" tabindex="-1"></a>Some more text here</span></code></pre></div>
+<p>Note: this rule will not be triggered if there are multiple
+consecutive blank lines inside code blocks.</p>
+<p>Note: The <code>maximum</code> parameter can be used to configure the
+maximum number of consecutive blank lines.</p>
+<p>Rationale: Except in a code block, blank lines serve no purpose and
+do not affect the rendering of content.</p>
+<p><a name="md013"></a></p>
+<h2 id="md013---line-length"><code>MD013</code> - Line length</h2>
+<p>Tags: <code>line_length</code></p>
+<p>Aliases: <code>line-length</code></p>
+<p>Parameters:</p>
+<ul>
+<li><code>code_block_line_length</code>: Number of characters for code
+blocks (<code>integer</code>, default <code>80</code>)</li>
+<li><code>code_blocks</code>: Include code blocks (<code>boolean</code>,
+default <code>true</code>)</li>
+<li><code>heading_line_length</code>: Number of characters for headings
+(<code>integer</code>, default <code>80</code>)</li>
+<li><code>headings</code>: Include headings (<code>boolean</code>,
+default <code>true</code>)</li>
+<li><code>line_length</code>: Number of characters
+(<code>integer</code>, default <code>80</code>)</li>
+<li><code>stern</code>: Stern length checking (<code>boolean</code>,
+default <code>false</code>)</li>
+<li><code>strict</code>: Strict length checking (<code>boolean</code>,
+default <code>false</code>)</li>
+<li><code>tables</code>: Include tables (<code>boolean</code>, default
+<code>true</code>)</li>
+</ul>
+<p>This rule is triggered when there are lines that are longer than the
+configured <code>line_length</code> (default: 80 characters). To fix
+this, split the line up into multiple lines. To set a different maximum
+length for headings, use <code>heading_line_length</code>. To set a
+different maximum length for code blocks, use
+<code>code_block_line_length</code></p>
+<p>This rule has an exception when there is no whitespace beyond the
+configured line length. This allows you to include items such as long
+URLs without being forced to break them in the middle. To disable this
+exception, set the <code>strict</code> parameter to <code>true</code>
+and an issue will be reported when any line is too long. To warn for
+lines that are too long and could be fixed but allow long lines without
+spaces, set the <code>stern</code> parameter to <code>true</code>.</p>
+<p>For example (assuming normal behavior):</p>
+<div class="sourceCode" id="cb25"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a>IF THIS LINE IS THE MAXIMUM LENGTH</span>
+<span id="cb25-2"><a href="#cb25-2" aria-hidden="true" tabindex="-1"></a>This line is okay because there are-no-spaces-beyond-that-length</span>
+<span id="cb25-3"><a href="#cb25-3" aria-hidden="true" tabindex="-1"></a>This line is a violation because there are spaces beyond that length</span>
+<span id="cb25-4"><a href="#cb25-4" aria-hidden="true" tabindex="-1"></a>This-line-is-okay-because-there-are-no-spaces-anywhere-within</span></code></pre></div>
+<p>In <code>strict</code> mode, the last three lines above are all
+violations. In <code>stern</code> mode, the middle two lines above are
+both violations, but the last is okay.</p>
+<p>You have the option to exclude this rule for code blocks, tables, or
+headings. To do so, set the <code>code_blocks</code>,
+<code>tables</code>, or <code>headings</code> parameter(s) to false.</p>
+<p>Code blocks are included in this rule by default since it is often a
+requirement for document readability, and tentatively compatible with
+code rules. Still, some languages do not lend themselves to short
+lines.</p>
+<p>Lines with link/image reference definitions and standalone lines
+(i.e., not part of a paragraph) with only a link/image (possibly using
+(strong) emphasis) are always exempted from this rule (even in
+<code>strict</code> mode) because there is often no way to split such
+lines without breaking the URL.</p>
+<p>Rationale: Extremely long lines can be difficult to work with in some
+editors. More information: <a
+href="https://cirosantilli.com/markdown-style-guide#line-wrapping">https://cirosantilli.com/markdown-style-guide#line-wrapping</a>.</p>
+<p><a name="md014"></a></p>
+<h2
+id="md014---dollar-signs-used-before-commands-without-showing-output"><code>MD014</code>
+- Dollar signs used before commands without showing output</h2>
+<p>Tags: <code>code</code></p>
+<p>Aliases: <code>commands-show-output</code></p>
+<p>Fixable: Some violations can be fixed by tooling</p>
+<p>This rule is triggered when there are code blocks showing shell
+commands to be typed, and <em>all</em> of the shell commands are
+preceded by dollar signs ($):</p>
+<!-- markdownlint-disable commands-show-output -->
+
+<div class="sourceCode" id="cb26"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a>$ ls</span>
+<span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a>$ cat foo</span>
+<span id="cb26-3"><a href="#cb26-3" aria-hidden="true" tabindex="-1"></a>$ less bar</span></code></pre></div>
+<!-- markdownlint-restore -->
+
+<p>The dollar signs are unnecessary in this situation, and should not be
+included:</p>
+<div class="sourceCode" id="cb27"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a>ls</span>
+<span id="cb27-2"><a href="#cb27-2" aria-hidden="true" tabindex="-1"></a>cat foo</span>
+<span id="cb27-3"><a href="#cb27-3" aria-hidden="true" tabindex="-1"></a>less bar</span></code></pre></div>
+<p>Showing output for commands preceded by dollar signs does not trigger
+this rule:</p>
+<div class="sourceCode" id="cb28"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a>$ ls</span>
+<span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a>foo bar</span>
+<span id="cb28-3"><a href="#cb28-3" aria-hidden="true" tabindex="-1"></a>$ cat foo</span>
+<span id="cb28-4"><a href="#cb28-4" aria-hidden="true" tabindex="-1"></a>Hello world</span>
+<span id="cb28-5"><a href="#cb28-5" aria-hidden="true" tabindex="-1"></a>$ cat bar</span>
+<span id="cb28-6"><a href="#cb28-6" aria-hidden="true" tabindex="-1"></a>baz</span></code></pre></div>
+<p>Because some commands do not produce output, it is not a violation if
+<em>some</em> commands do not have output:</p>
+<div class="sourceCode" id="cb29"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a>$ mkdir test</span>
+<span id="cb29-2"><a href="#cb29-2" aria-hidden="true" tabindex="-1"></a>mkdir: created directory &#39;test&#39;</span>
+<span id="cb29-3"><a href="#cb29-3" aria-hidden="true" tabindex="-1"></a>$ ls test</span></code></pre></div>
+<p>Rationale: It is easier to copy/paste and less noisy if the dollar
+signs are omitted when they are not needed. See <a
+href="https://cirosantilli.com/markdown-style-guide#dollar-signs-in-shell-code">https://cirosantilli.com/markdown-style-guide#dollar-signs-in-shell-code</a>
+for more information.</p>
+<p><a name="md018"></a></p>
+<h2
+id="md018---no-space-after-hash-on-atx-style-heading"><code>MD018</code>
+- No space after hash on atx style heading</h2>
+<p>Tags: <code>atx</code>, <code>headings</code>,
+<code>spaces</code></p>
+<p>Aliases: <code>no-missing-space-atx</code></p>
+<p>Fixable: Some violations can be fixed by tooling</p>
+<p>This rule is triggered when spaces are missing after the hash
+characters in an atx style heading:</p>
+<div class="sourceCode" id="cb30"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a>#Heading 1</span>
+<span id="cb30-2"><a href="#cb30-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb30-3"><a href="#cb30-3" aria-hidden="true" tabindex="-1"></a>##Heading 2</span></code></pre></div>
+<p>To fix this, separate the heading text from the hash character by a
+single space:</p>
+<div class="sourceCode" id="cb31"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a><span class="fu"># Heading 1</span></span>
+<span id="cb31-2"><a href="#cb31-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb31-3"><a href="#cb31-3" aria-hidden="true" tabindex="-1"></a><span class="fu">## Heading 2</span></span></code></pre></div>
+<p>Rationale: Violations of this rule can lead to improperly rendered
+content.</p>
+<p><a name="md019"></a></p>
+<h2
+id="md019---multiple-spaces-after-hash-on-atx-style-heading"><code>MD019</code>
+- Multiple spaces after hash on atx style heading</h2>
+<p>Tags: <code>atx</code>, <code>headings</code>,
+<code>spaces</code></p>
+<p>Aliases: <code>no-multiple-space-atx</code></p>
+<p>Fixable: Some violations can be fixed by tooling</p>
+<p>This rule is triggered when more than one space is used to separate
+the heading text from the hash characters in an atx style heading:</p>
+<div class="sourceCode" id="cb32"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a><span class="fu">#  Heading 1</span></span>
+<span id="cb32-2"><a href="#cb32-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb32-3"><a href="#cb32-3" aria-hidden="true" tabindex="-1"></a><span class="fu">##  Heading 2</span></span></code></pre></div>
+<p>To fix this, separate the heading text from the hash character by a
+single space:</p>
+<div class="sourceCode" id="cb33"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a><span class="fu"># Heading 1</span></span>
+<span id="cb33-2"><a href="#cb33-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb33-3"><a href="#cb33-3" aria-hidden="true" tabindex="-1"></a><span class="fu">## Heading 2</span></span></code></pre></div>
+<p>Rationale: Extra space has no purpose and does not affect the
+rendering of content.</p>
+<p><a name="md020"></a></p>
+<h2
+id="md020---no-space-inside-hashes-on-closed-atx-style-heading"><code>MD020</code>
+- No space inside hashes on closed atx style heading</h2>
+<p>Tags: <code>atx_closed</code>, <code>headings</code>,
+<code>spaces</code></p>
+<p>Aliases: <code>no-missing-space-closed-atx</code></p>
+<p>Fixable: Some violations can be fixed by tooling</p>
+<p>This rule is triggered when spaces are missing inside the hash
+characters in a closed atx style heading:</p>
+<div class="sourceCode" id="cb34"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb34-1"><a href="#cb34-1" aria-hidden="true" tabindex="-1"></a>#Heading 1#</span>
+<span id="cb34-2"><a href="#cb34-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb34-3"><a href="#cb34-3" aria-hidden="true" tabindex="-1"></a>##Heading 2##</span></code></pre></div>
+<p>To fix this, separate the heading text from the hash character by a
+single space:</p>
+<div class="sourceCode" id="cb35"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb35-1"><a href="#cb35-1" aria-hidden="true" tabindex="-1"></a><span class="fu"># Heading 1 #</span></span>
+<span id="cb35-2"><a href="#cb35-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb35-3"><a href="#cb35-3" aria-hidden="true" tabindex="-1"></a><span class="fu">## Heading 2 ##</span></span></code></pre></div>
+<p>Note: this rule will fire if either side of the heading is missing
+spaces.</p>
+<p>Rationale: Violations of this rule can lead to improperly rendered
+content.</p>
+<p><a name="md021"></a></p>
+<h2
+id="md021---multiple-spaces-inside-hashes-on-closed-atx-style-heading"><code>MD021</code>
+- Multiple spaces inside hashes on closed atx style heading</h2>
+<p>Tags: <code>atx_closed</code>, <code>headings</code>,
+<code>spaces</code></p>
+<p>Aliases: <code>no-multiple-space-closed-atx</code></p>
+<p>Fixable: Some violations can be fixed by tooling</p>
+<p>This rule is triggered when more than one space is used to separate
+the heading text from the hash characters in a closed atx style
+heading:</p>
+<div class="sourceCode" id="cb36"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb36-1"><a href="#cb36-1" aria-hidden="true" tabindex="-1"></a><span class="fu">#  Heading 1  #</span></span>
+<span id="cb36-2"><a href="#cb36-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb36-3"><a href="#cb36-3" aria-hidden="true" tabindex="-1"></a><span class="fu">##  Heading 2  ##</span></span></code></pre></div>
+<p>To fix this, separate the heading text from the hash character by a
+single space:</p>
+<div class="sourceCode" id="cb37"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb37-1"><a href="#cb37-1" aria-hidden="true" tabindex="-1"></a><span class="fu"># Heading 1 #</span></span>
+<span id="cb37-2"><a href="#cb37-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb37-3"><a href="#cb37-3" aria-hidden="true" tabindex="-1"></a><span class="fu">## Heading 2 ##</span></span></code></pre></div>
+<p>Note: this rule will fire if either side of the heading contains
+multiple spaces.</p>
+<p>Rationale: Extra space has no purpose and does not affect the
+rendering of content.</p>
+<p><a name="md022"></a></p>
+<h2
+id="md022---headings-should-be-surrounded-by-blank-lines"><code>MD022</code>
+- Headings should be surrounded by blank lines</h2>
+<p>Tags: <code>blank_lines</code>, <code>headings</code></p>
+<p>Aliases: <code>blanks-around-headings</code></p>
+<p>Parameters:</p>
+<ul>
+<li><code>include_front_matter</code>: Include front matter content
+(<code>boolean</code>, default <code>false</code>)</li>
+<li><code>lines_above</code>: Blank lines above heading
+(<code>integer|integer[]</code>, default <code>1</code>)</li>
+<li><code>lines_below</code>: Blank lines below heading
+(<code>integer|integer[]</code>, default <code>1</code>)</li>
+</ul>
+<p>Fixable: Some violations can be fixed by tooling</p>
+<p>This rule is triggered when headings (any style) are either not
+preceded or not followed by at least one blank line:</p>
+<div class="sourceCode" id="cb38"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb38-1"><a href="#cb38-1" aria-hidden="true" tabindex="-1"></a><span class="fu"># Heading 1</span></span>
+<span id="cb38-2"><a href="#cb38-2" aria-hidden="true" tabindex="-1"></a>Some text</span>
+<span id="cb38-3"><a href="#cb38-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb38-4"><a href="#cb38-4" aria-hidden="true" tabindex="-1"></a>Some more text</span>
+<span id="cb38-5"><a href="#cb38-5" aria-hidden="true" tabindex="-1"></a><span class="fu">## Heading 2</span></span></code></pre></div>
+<p>To fix this, ensure that all headings have a blank line both before
+and after (except where the heading is at the beginning or end of the
+document):</p>
+<div class="sourceCode" id="cb39"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb39-1"><a href="#cb39-1" aria-hidden="true" tabindex="-1"></a><span class="fu"># Heading 1</span></span>
+<span id="cb39-2"><a href="#cb39-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb39-3"><a href="#cb39-3" aria-hidden="true" tabindex="-1"></a>Some text</span>
+<span id="cb39-4"><a href="#cb39-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb39-5"><a href="#cb39-5" aria-hidden="true" tabindex="-1"></a>Some more text</span>
+<span id="cb39-6"><a href="#cb39-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb39-7"><a href="#cb39-7" aria-hidden="true" tabindex="-1"></a><span class="fu">## Heading 2</span></span></code></pre></div>
+<p>The <code>lines_above</code> and <code>lines_below</code> parameters
+can be used to specify a different number of blank lines (including
+<code>0</code>) above or below each heading. If the value
+<code>-1</code> is used for either parameter, any number of blank lines
+is allowed. To customize the number of lines above or below each heading
+level individually, specify a <code>number[]</code> where values
+correspond to heading levels 1-6 (in order).</p>
+<p>Notes: If <code>lines_above</code> or <code>lines_below</code> are
+configured to require more than one blank line, <a
+href="md012.md">MD012/no-multiple-blanks</a> should also be customized.
+This rule checks for <em>at least</em> as many blank lines as specified;
+any extra blank lines are ignored.</p>
+<p>By default, <a href="https://wikipedia.org/wiki/YAML">YAML</a> front
+matter is ignored, so the following document reports no violations:</p>
+<div class="sourceCode" id="cb40"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb40-1"><a href="#cb40-1" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span>
+<span id="cb40-2"><a href="#cb40-2" aria-hidden="true" tabindex="-1"></a><span class="an">title:</span><span class="co"> Title</span></span>
+<span id="cb40-3"><a href="#cb40-3" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span>
+<span id="cb40-4"><a href="#cb40-4" aria-hidden="true" tabindex="-1"></a><span class="fu">## Heading</span></span></code></pre></div>
+<p>To require the configured number of blank lines between front matter
+content and a document’s first heading, set the
+<code>include_front_matter</code> parameter to <code>true</code>.</p>
+<p>Rationale: Aside from aesthetic reasons, some parsers, including
+<code>kramdown</code>, will not parse headings that don’t have a blank
+line before, and will parse them as regular text.</p>
+<p><a name="md023"></a></p>
+<h2
+id="md023---headings-must-start-at-the-beginning-of-the-line"><code>MD023</code>
+- Headings must start at the beginning of the line</h2>
+<p>Tags: <code>headings</code>, <code>spaces</code></p>
+<p>Aliases: <code>heading-start-left</code></p>
+<p>Fixable: Some violations can be fixed by tooling</p>
+<p>This rule is triggered when a heading is indented by one or more
+spaces:</p>
+<div class="sourceCode" id="cb41"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb41-1"><a href="#cb41-1" aria-hidden="true" tabindex="-1"></a>Some text</span>
+<span id="cb41-2"><a href="#cb41-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb41-3"><a href="#cb41-3" aria-hidden="true" tabindex="-1"></a>  # Indented heading</span></code></pre></div>
+<p>To fix this, ensure that all headings start at the beginning of the
+line:</p>
+<div class="sourceCode" id="cb42"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb42-1"><a href="#cb42-1" aria-hidden="true" tabindex="-1"></a>Some text</span>
+<span id="cb42-2"><a href="#cb42-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb42-3"><a href="#cb42-3" aria-hidden="true" tabindex="-1"></a><span class="fu"># Heading</span></span></code></pre></div>
+<p>Note that scenarios like block quotes “indent” the start of the line,
+so the following is also correct:</p>
+<div class="sourceCode" id="cb43"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb43-1"><a href="#cb43-1" aria-hidden="true" tabindex="-1"></a><span class="at">&gt; # Heading in Block Quote</span></span></code></pre></div>
+<p>Rationale: Headings that don’t start at the beginning of the line
+will not be parsed as headings, and will instead appear as regular
+text.</p>
+<p><a name="md024"></a></p>
+<h2
+id="md024---multiple-headings-with-the-same-content"><code>MD024</code>
+- Multiple headings with the same content</h2>
+<p>Tags: <code>headings</code></p>
+<p>Aliases: <code>no-duplicate-heading</code></p>
+<p>Parameters:</p>
+<ul>
+<li><code>siblings_only</code>: Only check sibling headings
+(<code>boolean</code>, default <code>false</code>)</li>
+</ul>
+<p>This rule is triggered if there are multiple headings in the document
+that have the same text:</p>
+<div class="sourceCode" id="cb44"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb44-1"><a href="#cb44-1" aria-hidden="true" tabindex="-1"></a><span class="fu"># Some text</span></span>
+<span id="cb44-2"><a href="#cb44-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb44-3"><a href="#cb44-3" aria-hidden="true" tabindex="-1"></a><span class="fu">## Some text</span></span></code></pre></div>
+<p>To fix this, ensure that the content of each heading is
+different:</p>
+<div class="sourceCode" id="cb45"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb45-1"><a href="#cb45-1" aria-hidden="true" tabindex="-1"></a><span class="fu"># Some text</span></span>
+<span id="cb45-2"><a href="#cb45-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb45-3"><a href="#cb45-3" aria-hidden="true" tabindex="-1"></a><span class="fu">## Some more text</span></span></code></pre></div>
+<p>If the parameter <code>siblings_only</code> is set to
+<code>true</code>, duplication is allowed for headings with different
+parents (as is common in changelogs):</p>
+<div class="sourceCode" id="cb46"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb46-1"><a href="#cb46-1" aria-hidden="true" tabindex="-1"></a><span class="fu"># Change log</span></span>
+<span id="cb46-2"><a href="#cb46-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb46-3"><a href="#cb46-3" aria-hidden="true" tabindex="-1"></a><span class="fu">## 1.0.0</span></span>
+<span id="cb46-4"><a href="#cb46-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb46-5"><a href="#cb46-5" aria-hidden="true" tabindex="-1"></a><span class="fu">### Features</span></span>
+<span id="cb46-6"><a href="#cb46-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb46-7"><a href="#cb46-7" aria-hidden="true" tabindex="-1"></a><span class="fu">## 2.0.0</span></span>
+<span id="cb46-8"><a href="#cb46-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb46-9"><a href="#cb46-9" aria-hidden="true" tabindex="-1"></a><span class="fu">### Features</span></span></code></pre></div>
+<p>Rationale: Some Markdown parsers generate anchors for headings based
+on the heading name; headings with the same content can cause problems
+with that.</p>
+<p><a name="md025"></a></p>
+<h2
+id="md025---multiple-top-level-headings-in-the-same-document"><code>MD025</code>
+- Multiple top-level headings in the same document</h2>
+<p>Tags: <code>headings</code></p>
+<p>Aliases: <code>single-h1</code>, <code>single-title</code></p>
+<p>Parameters:</p>
+<ul>
+<li><code>front_matter_title</code>: RegExp for matching title in front
+matter (<code>string</code>, default <code>^\s*title\s*[:=]</code>)</li>
+<li><code>level</code>: Heading level (<code>integer</code>, default
+<code>1</code>)</li>
+</ul>
+<p>This rule is triggered when a top-level heading is in use (the first
+line of the file is an h1 heading), and more than one h1 heading is in
+use in the document:</p>
+<div class="sourceCode" id="cb47"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb47-1"><a href="#cb47-1" aria-hidden="true" tabindex="-1"></a><span class="fu"># Top level heading</span></span>
+<span id="cb47-2"><a href="#cb47-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb47-3"><a href="#cb47-3" aria-hidden="true" tabindex="-1"></a><span class="fu"># Another top-level heading</span></span></code></pre></div>
+<p>To fix, structure your document so there is a single h1 heading that
+is the title for the document. Subsequent headings must be lower-level
+headings (h2, h3, etc.):</p>
+<div class="sourceCode" id="cb48"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb48-1"><a href="#cb48-1" aria-hidden="true" tabindex="-1"></a><span class="fu"># Title</span></span>
+<span id="cb48-2"><a href="#cb48-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb48-3"><a href="#cb48-3" aria-hidden="true" tabindex="-1"></a><span class="fu">## Heading</span></span>
+<span id="cb48-4"><a href="#cb48-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb48-5"><a href="#cb48-5" aria-hidden="true" tabindex="-1"></a><span class="fu">## Another heading</span></span></code></pre></div>
+<p>Note: The <code>level</code> parameter can be used to change the
+top-level (ex: to h2) in cases where an h1 is added externally.</p>
+<p>If <a href="https://wikipedia.org/wiki/YAML">YAML</a> front matter is
+present and contains a <code>title</code> property (commonly used with
+blog posts), this rule treats that as a top level heading and will
+report a violation for any subsequent top-level headings. To use a
+different property name in the front matter, specify the text of a
+regular expression via the <code>front_matter_title</code> parameter. To
+disable the use of front matter by this rule, specify <code>""</code>
+for <code>front_matter_title</code>.</p>
+<p>Rationale: A top-level heading is an h1 on the first line of the
+file, and serves as the title for the document. If this convention is in
+use, then there can not be more than one title for the document, and the
+entire document should be contained within this heading.</p>
+<p><a name="md026"></a></p>
+<h2 id="md026---trailing-punctuation-in-heading"><code>MD026</code> -
+Trailing punctuation in heading</h2>
+<p>Tags: <code>headings</code></p>
+<p>Aliases: <code>no-trailing-punctuation</code></p>
+<p>Parameters:</p>
+<ul>
+<li><code>punctuation</code>: Punctuation characters
+(<code>string</code>, default <code>.,;:!。，；：！</code>)</li>
+</ul>
+<p>Fixable: Some violations can be fixed by tooling</p>
+<p>This rule is triggered on any heading that has one of the specified
+normal or full-width punctuation characters as the last character in the
+line:</p>
+<div class="sourceCode" id="cb49"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb49-1"><a href="#cb49-1" aria-hidden="true" tabindex="-1"></a><span class="fu"># This is a heading.</span></span></code></pre></div>
+<p>To fix this, remove the trailing punctuation:</p>
+<div class="sourceCode" id="cb50"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb50-1"><a href="#cb50-1" aria-hidden="true" tabindex="-1"></a><span class="fu"># This is a heading</span></span></code></pre></div>
+<p>Note: The <code>punctuation</code> parameter can be used to specify
+what characters count as punctuation at the end of a heading. For
+example, you can change it to <code>".,;:"</code> to allow headings that
+end with an exclamation point. <code>?</code> is allowed by default
+because of how common it is in headings of FAQ-style documents. Setting
+the <code>punctuation</code> parameter to <code>""</code> allows all
+characters - and is equivalent to disabling the rule.</p>
+<p>Note: The trailing semicolon of <a
+href="https://wikipedia.org/wiki/List_of_XML_and_HTML_character_entity_references">HTML
+entity references</a> like <code>&amp;copy;</code>,
+<code>&amp;#169;</code>, and <code>&amp;#x000A9;</code> is ignored by
+this rule.</p>
+<p>Rationale: Headings are not meant to be full sentences. More
+information: <a
+href="https://cirosantilli.com/markdown-style-guide#punctuation-at-the-end-of-headers">Punctuation
+at the end of headers</a>.</p>
+<p><a name="md027"></a></p>
+<h2
+id="md027---multiple-spaces-after-blockquote-symbol"><code>MD027</code>
+- Multiple spaces after blockquote symbol</h2>
+<p>Tags: <code>blockquote</code>, <code>indentation</code>,
+<code>whitespace</code></p>
+<p>Aliases: <code>no-multiple-space-blockquote</code></p>
+<p>Parameters:</p>
+<ul>
+<li><code>list_items</code>: Include list items (<code>boolean</code>,
+default <code>true</code>)</li>
+</ul>
+<p>Fixable: Some violations can be fixed by tooling</p>
+<p>This rule is triggered when blockquotes have more than one space
+after the blockquote (<code>&gt;</code>) symbol:</p>
+<div class="sourceCode" id="cb51"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb51-1"><a href="#cb51-1" aria-hidden="true" tabindex="-1"></a><span class="at">&gt;  This is a blockquote with bad indentation</span></span>
+<span id="cb51-2"><a href="#cb51-2" aria-hidden="true" tabindex="-1"></a><span class="at">&gt;  there should only be one.</span></span></code></pre></div>
+<p>To fix, remove any extraneous space:</p>
+<div class="sourceCode" id="cb52"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb52-1"><a href="#cb52-1" aria-hidden="true" tabindex="-1"></a><span class="at">&gt; This is a blockquote with correct</span></span>
+<span id="cb52-2"><a href="#cb52-2" aria-hidden="true" tabindex="-1"></a><span class="at">&gt; indentation.</span></span></code></pre></div>
+<p>Inferring intended list indentation within a blockquote can be
+challenging; setting the <code>list_items</code> parameter to
+<code>false</code> disables this rule for ordered and unordered list
+items.</p>
+<p>Rationale: Consistent formatting makes it easier to understand a
+document.</p>
+<p><a name="md028"></a></p>
+<h2 id="md028---blank-line-inside-blockquote"><code>MD028</code> - Blank
+line inside blockquote</h2>
+<p>Tags: <code>blockquote</code>, <code>whitespace</code></p>
+<p>Aliases: <code>no-blanks-blockquote</code></p>
+<p>This rule is triggered when two blockquote blocks are separated by
+nothing but a blank line:</p>
+<div class="sourceCode" id="cb53"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb53-1"><a href="#cb53-1" aria-hidden="true" tabindex="-1"></a><span class="at">&gt; This is a blockquote</span></span>
+<span id="cb53-2"><a href="#cb53-2" aria-hidden="true" tabindex="-1"></a><span class="at">&gt; which is immediately followed by</span></span>
+<span id="cb53-3"><a href="#cb53-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb53-4"><a href="#cb53-4" aria-hidden="true" tabindex="-1"></a><span class="at">&gt; this blockquote. In some cases,</span></span>
+<span id="cb53-5"><a href="#cb53-5" aria-hidden="true" tabindex="-1"></a><span class="at">&gt; these may be merged into one blockquote.</span></span></code></pre></div>
+<p>To fix this, ensure that consecutive blockquotes have text (or an
+HTML comment) in between:</p>
+<div class="sourceCode" id="cb54"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb54-1"><a href="#cb54-1" aria-hidden="true" tabindex="-1"></a><span class="at">&gt; This is a blockquote.</span></span>
+<span id="cb54-2"><a href="#cb54-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb54-3"><a href="#cb54-3" aria-hidden="true" tabindex="-1"></a>This is paragraph text.</span>
+<span id="cb54-4"><a href="#cb54-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb54-5"><a href="#cb54-5" aria-hidden="true" tabindex="-1"></a><span class="at">&gt; This is a second blockquote.</span></span>
+<span id="cb54-6"><a href="#cb54-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb54-7"><a href="#cb54-7" aria-hidden="true" tabindex="-1"></a><span class="co">&lt;!-- This is an HTML comment --&gt;</span></span>
+<span id="cb54-8"><a href="#cb54-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb54-9"><a href="#cb54-9" aria-hidden="true" tabindex="-1"></a><span class="at">&gt; This is a third blockquote.</span></span></code></pre></div>
+<p>If they are meant to be a single quote, add the blockquote symbol at
+the beginning of the blank line:</p>
+<div class="sourceCode" id="cb55"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb55-1"><a href="#cb55-1" aria-hidden="true" tabindex="-1"></a><span class="at">&gt; This is a blockquote.</span></span>
+<span id="cb55-2"><a href="#cb55-2" aria-hidden="true" tabindex="-1"></a><span class="at">&gt;</span></span>
+<span id="cb55-3"><a href="#cb55-3" aria-hidden="true" tabindex="-1"></a><span class="at">&gt; This is the same blockquote.</span></span></code></pre></div>
+<p>Rationale: Some Markdown parsers will treat two blockquotes separated
+by one or more blank lines as the same blockquote, while others will
+treat them as separate blockquotes.</p>
+<p><a name="md029"></a></p>
+<h2 id="md029---ordered-list-item-prefix"><code>MD029</code> - Ordered
+list item prefix</h2>
+<p>Tags: <code>ol</code></p>
+<p>Aliases: <code>ol-prefix</code></p>
+<p>Parameters:</p>
+<ul>
+<li><code>style</code>: List style (<code>string</code>, default
+<code>one_or_ordered</code>, values <code>one</code> /
+<code>one_or_ordered</code> / <code>ordered</code> /
+<code>zero</code>)</li>
+</ul>
+<p>Fixable: Some violations can be fixed by tooling</p>
+<p>This rule is triggered for ordered lists that do not either start
+with ‘1.’ or do not have a prefix that increases in numerical order
+(depending on the configured style). The less-common pattern of using
+‘0.’ as a first prefix or for all prefixes is also supported.</p>
+<p>Example valid list if the style is configured as ‘one’:</p>
+<div class="sourceCode" id="cb56"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb56-1"><a href="#cb56-1" aria-hidden="true" tabindex="-1"></a><span class="ss">1. </span>Do this.</span>
+<span id="cb56-2"><a href="#cb56-2" aria-hidden="true" tabindex="-1"></a><span class="ss">1. </span>Do that.</span>
+<span id="cb56-3"><a href="#cb56-3" aria-hidden="true" tabindex="-1"></a><span class="ss">1. </span>Done.</span></code></pre></div>
+<p>Examples of valid lists if the style is configured as ‘ordered’:</p>
+<div class="sourceCode" id="cb57"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb57-1"><a href="#cb57-1" aria-hidden="true" tabindex="-1"></a><span class="ss">1. </span>Do this.</span>
+<span id="cb57-2"><a href="#cb57-2" aria-hidden="true" tabindex="-1"></a><span class="ss">2. </span>Do that.</span>
+<span id="cb57-3"><a href="#cb57-3" aria-hidden="true" tabindex="-1"></a><span class="ss">3. </span>Done.</span></code></pre></div>
+<div class="sourceCode" id="cb58"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb58-1"><a href="#cb58-1" aria-hidden="true" tabindex="-1"></a><span class="ss">0. </span>Do this.</span>
+<span id="cb58-2"><a href="#cb58-2" aria-hidden="true" tabindex="-1"></a><span class="ss">1. </span>Do that.</span>
+<span id="cb58-3"><a href="#cb58-3" aria-hidden="true" tabindex="-1"></a><span class="ss">2. </span>Done.</span></code></pre></div>
+<p>All three examples are valid when the style is configured as
+‘one_or_ordered’.</p>
+<p>Example valid list if the style is configured as ‘zero’:</p>
+<div class="sourceCode" id="cb59"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb59-1"><a href="#cb59-1" aria-hidden="true" tabindex="-1"></a><span class="ss">0. </span>Do this.</span>
+<span id="cb59-2"><a href="#cb59-2" aria-hidden="true" tabindex="-1"></a><span class="ss">0. </span>Do that.</span>
+<span id="cb59-3"><a href="#cb59-3" aria-hidden="true" tabindex="-1"></a><span class="ss">0. </span>Done.</span></code></pre></div>
+<p>Example invalid list for all styles:</p>
+<div class="sourceCode" id="cb60"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb60-1"><a href="#cb60-1" aria-hidden="true" tabindex="-1"></a><span class="ss">1. </span>Do this.</span>
+<span id="cb60-2"><a href="#cb60-2" aria-hidden="true" tabindex="-1"></a><span class="ss">3. </span>Done.</span></code></pre></div>
+<p>This rule supports 0-prefixing ordered list items for uniform
+indentation:</p>
+<div class="sourceCode" id="cb61"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb61-1"><a href="#cb61-1" aria-hidden="true" tabindex="-1"></a>...</span>
+<span id="cb61-2"><a href="#cb61-2" aria-hidden="true" tabindex="-1"></a><span class="ss">08. </span>Item</span>
+<span id="cb61-3"><a href="#cb61-3" aria-hidden="true" tabindex="-1"></a><span class="ss">09. </span>Item</span>
+<span id="cb61-4"><a href="#cb61-4" aria-hidden="true" tabindex="-1"></a><span class="ss">10. </span>Item</span>
+<span id="cb61-5"><a href="#cb61-5" aria-hidden="true" tabindex="-1"></a><span class="ss">11. </span>Item</span>
+<span id="cb61-6"><a href="#cb61-6" aria-hidden="true" tabindex="-1"></a>...</span></code></pre></div>
+<p>Note: This rule will report violations for cases like the following
+where an improperly-indented code block (or similar) appears between two
+list items and “breaks” the list in two:</p>
+<!-- markdownlint-disable code-fence-style -->
+
+<div class="sourceCode" id="cb62"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb62-1"><a href="#cb62-1" aria-hidden="true" tabindex="-1"></a><span class="ss">1. </span>First list</span>
+<span id="cb62-2"><a href="#cb62-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb62-3"><a href="#cb62-3" aria-hidden="true" tabindex="-1"></a><span class="in">```text</span></span>
+<span id="cb62-4"><a href="#cb62-4" aria-hidden="true" tabindex="-1"></a><span class="in">Code block</span></span>
+<span id="cb62-5"><a href="#cb62-5" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb62-6"><a href="#cb62-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb62-7"><a href="#cb62-7" aria-hidden="true" tabindex="-1"></a><span class="ss">1. </span>Second list</span></code></pre></div>
+<p>The fix is to indent the code block so it becomes part of the
+preceding list item as intended:</p>
+<div class="sourceCode" id="cb63"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb63-1"><a href="#cb63-1" aria-hidden="true" tabindex="-1"></a><span class="ss">1. </span>First list</span>
+<span id="cb63-2"><a href="#cb63-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb63-3"><a href="#cb63-3" aria-hidden="true" tabindex="-1"></a>   <span class="in">```text</span></span>
+<span id="cb63-4"><a href="#cb63-4" aria-hidden="true" tabindex="-1"></a><span class="in">   Code block</span></span>
+<span id="cb63-5"><a href="#cb63-5" aria-hidden="true" tabindex="-1"></a><span class="in">   ```</span></span>
+<span id="cb63-6"><a href="#cb63-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb63-7"><a href="#cb63-7" aria-hidden="true" tabindex="-1"></a><span class="ss">2. </span>Still first list</span></code></pre></div>
+<!-- markdownlint-restore -->
+
+<p>Rationale: Consistent formatting makes it easier to understand a
+document.</p>
+<p><a name="md030"></a></p>
+<h2 id="md030---spaces-after-list-markers"><code>MD030</code> - Spaces
+after list markers</h2>
+<p>Tags: <code>ol</code>, <code>ul</code>, <code>whitespace</code></p>
+<p>Aliases: <code>list-marker-space</code></p>
+<p>Parameters:</p>
+<ul>
+<li><code>ol_multi</code>: Spaces for multi-line ordered list items
+(<code>integer</code>, default <code>1</code>)</li>
+<li><code>ol_single</code>: Spaces for single-line ordered list items
+(<code>integer</code>, default <code>1</code>)</li>
+<li><code>ul_multi</code>: Spaces for multi-line unordered list items
+(<code>integer</code>, default <code>1</code>)</li>
+<li><code>ul_single</code>: Spaces for single-line unordered list items
+(<code>integer</code>, default <code>1</code>)</li>
+</ul>
+<p>Fixable: Some violations can be fixed by tooling</p>
+<p>This rule checks for the number of spaces between a list marker (e.g.
+‘<code>-</code>’, ‘<code>*</code>’, ‘<code>+</code>’ or
+‘<code>1.</code>’) and the text of the list item.</p>
+<p>The number of spaces checked for depends on the document style in
+use, but the default is 1 space after any list marker:</p>
+<div class="sourceCode" id="cb64"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb64-1"><a href="#cb64-1" aria-hidden="true" tabindex="-1"></a><span class="ss">* </span>Foo</span>
+<span id="cb64-2"><a href="#cb64-2" aria-hidden="true" tabindex="-1"></a><span class="ss">* </span>Bar</span>
+<span id="cb64-3"><a href="#cb64-3" aria-hidden="true" tabindex="-1"></a><span class="ss">* </span>Baz</span>
+<span id="cb64-4"><a href="#cb64-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb64-5"><a href="#cb64-5" aria-hidden="true" tabindex="-1"></a><span class="ss">1. </span>Foo</span>
+<span id="cb64-6"><a href="#cb64-6" aria-hidden="true" tabindex="-1"></a><span class="ss">1. </span>Bar</span>
+<span id="cb64-7"><a href="#cb64-7" aria-hidden="true" tabindex="-1"></a><span class="ss">1. </span>Baz</span>
+<span id="cb64-8"><a href="#cb64-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb64-9"><a href="#cb64-9" aria-hidden="true" tabindex="-1"></a><span class="ss">1. </span>Foo</span>
+<span id="cb64-10"><a href="#cb64-10" aria-hidden="true" tabindex="-1"></a><span class="ss">   * </span>Bar</span>
+<span id="cb64-11"><a href="#cb64-11" aria-hidden="true" tabindex="-1"></a><span class="ss">1. </span>Baz</span></code></pre></div>
+<p>A document style may change the number of spaces after unordered list
+items and ordered list items independently, as well as based on whether
+the content of every item in the list consists of a single paragraph or
+multiple paragraphs (including sub-lists and code blocks).</p>
+<p>For example, the style guide at <a
+href="https://cirosantilli.com/markdown-style-guide#spaces-after-list-marker">https://cirosantilli.com/markdown-style-guide#spaces-after-list-marker</a>
+specifies that 1 space after the list marker should be used if every
+item in the list fits within a single paragraph, but to use 2 or 3
+spaces (for ordered and unordered lists respectively) if there are
+multiple paragraphs of content inside the list:</p>
+<div class="sourceCode" id="cb65"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb65-1"><a href="#cb65-1" aria-hidden="true" tabindex="-1"></a><span class="ss">* </span>Foo</span>
+<span id="cb65-2"><a href="#cb65-2" aria-hidden="true" tabindex="-1"></a><span class="ss">* </span>Bar</span>
+<span id="cb65-3"><a href="#cb65-3" aria-hidden="true" tabindex="-1"></a><span class="ss">* </span>Baz</span></code></pre></div>
+<p>vs.</p>
+<div class="sourceCode" id="cb66"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb66-1"><a href="#cb66-1" aria-hidden="true" tabindex="-1"></a><span class="ss">*   </span>Foo</span>
+<span id="cb66-2"><a href="#cb66-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb66-3"><a href="#cb66-3" aria-hidden="true" tabindex="-1"></a>    Second paragraph</span>
+<span id="cb66-4"><a href="#cb66-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb66-5"><a href="#cb66-5" aria-hidden="true" tabindex="-1"></a><span class="ss">*   </span>Bar</span></code></pre></div>
+<p>or</p>
+<div class="sourceCode" id="cb67"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb67-1"><a href="#cb67-1" aria-hidden="true" tabindex="-1"></a><span class="ss">1.  </span>Foo</span>
+<span id="cb67-2"><a href="#cb67-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb67-3"><a href="#cb67-3" aria-hidden="true" tabindex="-1"></a>    Second paragraph</span>
+<span id="cb67-4"><a href="#cb67-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb67-5"><a href="#cb67-5" aria-hidden="true" tabindex="-1"></a><span class="ss">1.  </span>Bar</span></code></pre></div>
+<p>To fix this, ensure the correct number of spaces are used after the
+list marker for your selected document style.</p>
+<p>Rationale: Violations of this rule can lead to improperly rendered
+content.</p>
+<p>Note: See <a href="Prettier.md">Prettier.md</a> for compatibility
+information.</p>
+<p><a name="md031"></a></p>
+<h2
+id="md031---fenced-code-blocks-should-be-surrounded-by-blank-lines"><code>MD031</code>
+- Fenced code blocks should be surrounded by blank lines</h2>
+<p>Tags: <code>blank_lines</code>, <code>code</code></p>
+<p>Aliases: <code>blanks-around-fences</code></p>
+<p>Parameters:</p>
+<ul>
+<li><code>list_items</code>: Include list items (<code>boolean</code>,
+default <code>true</code>)</li>
+</ul>
+<p>Fixable: Some violations can be fixed by tooling</p>
+<p>This rule is triggered when fenced code blocks are either not
+preceded or not followed by a blank line:</p>
+<div class="sourceCode" id="cb68"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb68-1"><a href="#cb68-1" aria-hidden="true" tabindex="-1"></a>Some text</span>
+<span id="cb68-2"><a href="#cb68-2" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb68-3"><a href="#cb68-3" aria-hidden="true" tabindex="-1"></a><span class="in">Code block</span></span>
+<span id="cb68-4"><a href="#cb68-4" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb68-5"><a href="#cb68-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb68-6"><a href="#cb68-6" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb68-7"><a href="#cb68-7" aria-hidden="true" tabindex="-1"></a><span class="in">Another code block</span></span>
+<span id="cb68-8"><a href="#cb68-8" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb68-9"><a href="#cb68-9" aria-hidden="true" tabindex="-1"></a>Some more text</span></code></pre></div>
+<p>To fix this, ensure that all fenced code blocks have a blank line
+both before and after (except where the block is at the beginning or end
+of the document):</p>
+<div class="sourceCode" id="cb69"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb69-1"><a href="#cb69-1" aria-hidden="true" tabindex="-1"></a>Some text</span>
+<span id="cb69-2"><a href="#cb69-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb69-3"><a href="#cb69-3" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb69-4"><a href="#cb69-4" aria-hidden="true" tabindex="-1"></a><span class="in">Code block</span></span>
+<span id="cb69-5"><a href="#cb69-5" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb69-6"><a href="#cb69-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb69-7"><a href="#cb69-7" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb69-8"><a href="#cb69-8" aria-hidden="true" tabindex="-1"></a><span class="in">Another code block</span></span>
+<span id="cb69-9"><a href="#cb69-9" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb69-10"><a href="#cb69-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb69-11"><a href="#cb69-11" aria-hidden="true" tabindex="-1"></a>Some more text</span></code></pre></div>
+<p>Set the <code>list_items</code> parameter to <code>false</code> to
+disable this rule for list items. Disabling this behavior for lists can
+be useful if it is necessary to create a <a
+href="https://spec.commonmark.org/0.29/#tight">tight</a> list containing
+a code fence.</p>
+<p>Rationale: Aside from aesthetic reasons, some parsers, including
+kramdown, will not parse fenced code blocks that don’t have blank lines
+before and after them.</p>
+<p><a name="md032"></a></p>
+<h2
+id="md032---lists-should-be-surrounded-by-blank-lines"><code>MD032</code>
+- Lists should be surrounded by blank lines</h2>
+<p>Tags: <code>blank_lines</code>, <code>bullet</code>, <code>ol</code>,
+<code>ul</code></p>
+<p>Aliases: <code>blanks-around-lists</code></p>
+<p>Fixable: Some violations can be fixed by tooling</p>
+<p>This rule is triggered when lists (of any kind) are either not
+preceded or not followed by a blank line:</p>
+<div class="sourceCode" id="cb70"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb70-1"><a href="#cb70-1" aria-hidden="true" tabindex="-1"></a>Some text</span>
+<span id="cb70-2"><a href="#cb70-2" aria-hidden="true" tabindex="-1"></a><span class="ss">* </span>List item</span>
+<span id="cb70-3"><a href="#cb70-3" aria-hidden="true" tabindex="-1"></a><span class="ss">* </span>List item</span>
+<span id="cb70-4"><a href="#cb70-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb70-5"><a href="#cb70-5" aria-hidden="true" tabindex="-1"></a><span class="ss">1. </span>List item</span>
+<span id="cb70-6"><a href="#cb70-6" aria-hidden="true" tabindex="-1"></a><span class="ss">2. </span>List item</span>
+<span id="cb70-7"><a href="#cb70-7" aria-hidden="true" tabindex="-1"></a>***</span></code></pre></div>
+<p>In the first case above, text immediately precedes the unordered
+list. In the second case above, a thematic break immediately follows the
+ordered list. To fix violations of this rule, ensure that all lists have
+a blank line both before and after (except when the list is at the very
+beginning or end of the document):</p>
+<div class="sourceCode" id="cb71"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb71-1"><a href="#cb71-1" aria-hidden="true" tabindex="-1"></a>Some text</span>
+<span id="cb71-2"><a href="#cb71-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb71-3"><a href="#cb71-3" aria-hidden="true" tabindex="-1"></a><span class="ss">* </span>List item</span>
+<span id="cb71-4"><a href="#cb71-4" aria-hidden="true" tabindex="-1"></a><span class="ss">* </span>List item</span>
+<span id="cb71-5"><a href="#cb71-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb71-6"><a href="#cb71-6" aria-hidden="true" tabindex="-1"></a><span class="ss">1. </span>List item</span>
+<span id="cb71-7"><a href="#cb71-7" aria-hidden="true" tabindex="-1"></a><span class="ss">2. </span>List item</span>
+<span id="cb71-8"><a href="#cb71-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb71-9"><a href="#cb71-9" aria-hidden="true" tabindex="-1"></a>***</span></code></pre></div>
+<p>Note that the following case is <strong>not</strong> a violation of
+this rule:</p>
+<div class="sourceCode" id="cb72"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb72-1"><a href="#cb72-1" aria-hidden="true" tabindex="-1"></a><span class="ss">1. </span>List item</span>
+<span id="cb72-2"><a href="#cb72-2" aria-hidden="true" tabindex="-1"></a>   More item 1</span>
+<span id="cb72-3"><a href="#cb72-3" aria-hidden="true" tabindex="-1"></a><span class="ss">2. </span>List item</span>
+<span id="cb72-4"><a href="#cb72-4" aria-hidden="true" tabindex="-1"></a>More item 2</span></code></pre></div>
+<p>Although it is not indented, the text “More item 2” is referred to as
+a <a
+href="https://spec.commonmark.org/0.30/#lazy-continuation-line">lazy
+continuation line</a> and considered part of the second list item.</p>
+<p>Rationale: In addition to aesthetic reasons, some parsers, including
+kramdown, will not parse lists that don’t have blank lines before and
+after them.</p>
+<p><a name="md033"></a></p>
+<h2 id="md033---inline-html"><code>MD033</code> - Inline HTML</h2>
+<p>Tags: <code>html</code></p>
+<p>Aliases: <code>no-inline-html</code></p>
+<p>Parameters:</p>
+<ul>
+<li><code>allowed_elements</code>: Allowed elements
+(<code>string[]</code>, default <code>[]</code>)</li>
+<li><code>table_allowed_elements</code>: Allowed elements in tables
+(<code>string[]</code>, default <code>[]</code>)</li>
+</ul>
+<p>This rule is triggered whenever raw HTML is used in a Markdown
+document:</p>
+<div class="sourceCode" id="cb73"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb73-1"><a href="#cb73-1" aria-hidden="true" tabindex="-1"></a><span class="dt">&lt;</span><span class="kw">h1</span><span class="dt">&gt;</span>Inline HTML heading<span class="dt">&lt;/</span><span class="kw">h1</span><span class="dt">&gt;</span></span></code></pre></div>
+<p>To fix this, use ‘pure’ Markdown instead of including raw HTML:</p>
+<div class="sourceCode" id="cb74"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb74-1"><a href="#cb74-1" aria-hidden="true" tabindex="-1"></a><span class="fu"># Markdown heading</span></span></code></pre></div>
+<p>To allow specific HTML elements anywhere in Markdown content, set the
+<code>allowed_elements</code> parameter to a list of HTML element names.
+To allow a specific set of HTML elements within Markdown tables, set the
+<code>table_allowed_elements</code> parameter to a list of HTML element
+names. This can be used to permit the use of
+<code>&lt;br&gt;</code>-style line breaks only within Markdown
+tables.</p>
+<p>Rationale: Raw HTML is allowed in Markdown, but this rule is included
+for those who want their documents to only include “pure” Markdown, or
+for those who are rendering Markdown documents into something other than
+HTML.</p>
+<p><a name="md034"></a></p>
+<h2 id="md034---bare-url-used"><code>MD034</code> - Bare URL used</h2>
+<p>Tags: <code>links</code>, <code>url</code></p>
+<p>Aliases: <code>no-bare-urls</code></p>
+<p>Fixable: Some violations can be fixed by tooling</p>
+<p>This rule is triggered whenever a URL or email address appears
+without surrounding angle brackets:</p>
+<div class="sourceCode" id="cb75"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb75-1"><a href="#cb75-1" aria-hidden="true" tabindex="-1"></a>For more info, visit https://www.example.com/ or email user@example.com.</span></code></pre></div>
+<p>To fix this, add angle brackets around the URL or email address:</p>
+<div class="sourceCode" id="cb76"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb76-1"><a href="#cb76-1" aria-hidden="true" tabindex="-1"></a>For more info, visit <span class="ot">&lt;https://www.example.com/&gt;</span> or email <span class="ot">&lt;user@example.com&gt;</span>.</span></code></pre></div>
+<p>If a URL or email address contains non-ASCII characters, it may be
+not be handled as intended even when angle brackets are present. In such
+cases, <a
+href="https://wikipedia.org/wiki/Percent-encoding">percent-encoding</a>
+can be used to comply with the required syntax for URL and email.</p>
+<p>Note: To include a bare URL or email without it being converted into
+a link, wrap it in a code span:</p>
+<div class="sourceCode" id="cb77"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb77-1"><a href="#cb77-1" aria-hidden="true" tabindex="-1"></a><span class="an">Not a clickable link:</span><span class="co"> `https://www.example.com`</span></span></code></pre></div>
+<p>Note: The following scenario does not trigger this rule because it
+could be a shortcut link:</p>
+<div class="sourceCode" id="cb78"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb78-1"><a href="#cb78-1" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">https://www.example.com</span><span class="co">]</span></span></code></pre></div>
+<p>Note: The following syntax triggers this rule because the nested link
+could be a shortcut link (which takes precedence):</p>
+<div class="sourceCode" id="cb79"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb79-1"><a href="#cb79-1" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">text [shortcut] text</span><span class="co">](https://example.com)</span></span></code></pre></div>
+<p>To avoid this, escape both inner brackets:</p>
+<div class="sourceCode" id="cb80"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb80-1"><a href="#cb80-1" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">link \[text\] link</span><span class="co">](https://example.com)</span></span></code></pre></div>
+<p>Rationale: Without angle brackets, a bare URL or email isn’t
+converted into a link by some Markdown parsers.</p>
+<p><a name="md035"></a></p>
+<h2 id="md035---horizontal-rule-style"><code>MD035</code> - Horizontal
+rule style</h2>
+<p>Tags: <code>hr</code></p>
+<p>Aliases: <code>hr-style</code></p>
+<p>Parameters:</p>
+<ul>
+<li><code>style</code>: Horizontal rule style (<code>string</code>,
+default <code>consistent</code>)</li>
+</ul>
+<p>This rule is triggered when inconsistent styles of horizontal rules
+(also known as “thematic breaks”) are used in a document:</p>
+<div class="sourceCode" id="cb81"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb81-1"><a href="#cb81-1" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span>
+<span id="cb81-2"><a href="#cb81-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb81-3"><a href="#cb81-3" aria-hidden="true" tabindex="-1"></a><span class="co">- - -</span></span>
+<span id="cb81-4"><a href="#cb81-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb81-5"><a href="#cb81-5" aria-hidden="true" tabindex="-1"></a><span class="co">***</span></span>
+<span id="cb81-6"><a href="#cb81-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb81-7"><a href="#cb81-7" aria-hidden="true" tabindex="-1"></a><span class="co">* * *</span></span>
+<span id="cb81-8"><a href="#cb81-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb81-9"><a href="#cb81-9" aria-hidden="true" tabindex="-1"></a><span class="co">****</span></span></code></pre></div>
+<p>To fix this, use the same horizontal rule syntax everywhere:</p>
+<div class="sourceCode" id="cb82"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb82-1"><a href="#cb82-1" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span>
+<span id="cb82-2"><a href="#cb82-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb82-3"><a href="#cb82-3" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span>
+<span id="cb82-4"><a href="#cb82-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb82-5"><a href="#cb82-5" aria-hidden="true" tabindex="-1"></a>---</span></code></pre></div>
+<p>The <code>style</code> parameter’s default value
+<code>consistent</code> ensures all horizontal rules in a document match
+the first horizontal rule in that document. To enforce a specific
+pattern of characters, set the <code>style</code> parameter to that
+string (e.g., <code>"* * *"</code>).</p>
+<p>Note: In order to be recognized as a horizontal rule, a line must
+contain three or more matching <code>-</code>, <code>_</code>, or
+<code>*</code> characters with optional space between.</p>
+<p>Rationale: Consistent formatting makes it easier to understand a
+document.</p>
+<p><a name="md036"></a></p>
+<h2 id="md036---emphasis-used-instead-of-a-heading"><code>MD036</code> -
+Emphasis used instead of a heading</h2>
+<p>Tags: <code>emphasis</code>, <code>headings</code></p>
+<p>Aliases: <code>no-emphasis-as-heading</code></p>
+<p>Parameters:</p>
+<ul>
+<li><code>punctuation</code>: Punctuation characters
+(<code>string</code>, default <code>.,;:!?。，；：！？</code>)</li>
+</ul>
+<p>This check looks for instances where emphasized (i.e. bold or italic)
+text is used to separate sections, where a heading should be used
+instead:</p>
+<div class="sourceCode" id="cb83"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb83-1"><a href="#cb83-1" aria-hidden="true" tabindex="-1"></a>**My document**</span>
+<span id="cb83-2"><a href="#cb83-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb83-3"><a href="#cb83-3" aria-hidden="true" tabindex="-1"></a>Lorem ipsum dolor sit amet...</span>
+<span id="cb83-4"><a href="#cb83-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb83-5"><a href="#cb83-5" aria-hidden="true" tabindex="-1"></a>_Another section_</span>
+<span id="cb83-6"><a href="#cb83-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb83-7"><a href="#cb83-7" aria-hidden="true" tabindex="-1"></a>Consectetur adipiscing elit, sed do eiusmod.</span></code></pre></div>
+<p>To fix this, use Markdown headings instead of emphasized text to
+denote sections:</p>
+<div class="sourceCode" id="cb84"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb84-1"><a href="#cb84-1" aria-hidden="true" tabindex="-1"></a><span class="fu"># My document</span></span>
+<span id="cb84-2"><a href="#cb84-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb84-3"><a href="#cb84-3" aria-hidden="true" tabindex="-1"></a>Lorem ipsum dolor sit amet...</span>
+<span id="cb84-4"><a href="#cb84-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb84-5"><a href="#cb84-5" aria-hidden="true" tabindex="-1"></a><span class="fu">## Another section</span></span>
+<span id="cb84-6"><a href="#cb84-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb84-7"><a href="#cb84-7" aria-hidden="true" tabindex="-1"></a>Consectetur adipiscing elit, sed do eiusmod.</span></code></pre></div>
+<p>Note: This rule looks for single-line paragraphs that consist
+entirely of emphasized text. It won’t fire on emphasis used within
+regular text, multi-line emphasized paragraphs, or paragraphs ending in
+punctuation (normal or full-width). Similarly to rule MD026, you can
+configure what characters are recognized as punctuation.</p>
+<p>Rationale: Using emphasis instead of a heading prevents tools from
+inferring the structure of a document. More information: <a
+href="https://cirosantilli.com/markdown-style-guide#emphasis-vs-headers">https://cirosantilli.com/markdown-style-guide#emphasis-vs-headers</a>.</p>
+<p><a name="md037"></a></p>
+<h2 id="md037---spaces-inside-emphasis-markers"><code>MD037</code> -
+Spaces inside emphasis markers</h2>
+<p>Tags: <code>emphasis</code>, <code>whitespace</code></p>
+<p>Aliases: <code>no-space-in-emphasis</code></p>
+<p>Fixable: Some violations can be fixed by tooling</p>
+<p>This rule is triggered when emphasis markers (bold, italic) are used,
+but they have spaces between the markers and the text:</p>
+<div class="sourceCode" id="cb85"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb85-1"><a href="#cb85-1" aria-hidden="true" tabindex="-1"></a>Here is some ** bold ** text.</span>
+<span id="cb85-2"><a href="#cb85-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb85-3"><a href="#cb85-3" aria-hidden="true" tabindex="-1"></a>Here is some * italic * text.</span>
+<span id="cb85-4"><a href="#cb85-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb85-5"><a href="#cb85-5" aria-hidden="true" tabindex="-1"></a>Here is some more __ bold __ text.</span>
+<span id="cb85-6"><a href="#cb85-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb85-7"><a href="#cb85-7" aria-hidden="true" tabindex="-1"></a>Here is some more _ italic _ text.</span></code></pre></div>
+<p>To fix this, remove the spaces around the emphasis markers:</p>
+<div class="sourceCode" id="cb86"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb86-1"><a href="#cb86-1" aria-hidden="true" tabindex="-1"></a>Here is some **bold** text.</span>
+<span id="cb86-2"><a href="#cb86-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb86-3"><a href="#cb86-3" aria-hidden="true" tabindex="-1"></a>Here is some *italic* text.</span>
+<span id="cb86-4"><a href="#cb86-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb86-5"><a href="#cb86-5" aria-hidden="true" tabindex="-1"></a>Here is some more __bold__ text.</span>
+<span id="cb86-6"><a href="#cb86-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb86-7"><a href="#cb86-7" aria-hidden="true" tabindex="-1"></a>Here is some more _italic_ text.</span></code></pre></div>
+<p>Rationale: Emphasis is only parsed as such when the
+asterisks/underscores aren’t surrounded by spaces. This rule attempts to
+detect where they were surrounded by spaces, but it appears that
+emphasized text was intended by the author.</p>
+<p><a name="md038"></a></p>
+<h2 id="md038---spaces-inside-code-span-elements"><code>MD038</code> -
+Spaces inside code span elements</h2>
+<p>Tags: <code>code</code>, <code>whitespace</code></p>
+<p>Aliases: <code>no-space-in-code</code></p>
+<p>Fixable: Some violations can be fixed by tooling</p>
+<p>This rule is triggered for code spans containing content with
+unnecessary space next to the beginning or ending backticks:</p>
+<div class="sourceCode" id="cb87"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb87-1"><a href="#cb87-1" aria-hidden="true" tabindex="-1"></a><span class="in">`some text `</span></span>
+<span id="cb87-2"><a href="#cb87-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb87-3"><a href="#cb87-3" aria-hidden="true" tabindex="-1"></a><span class="in">` some text`</span></span>
+<span id="cb87-4"><a href="#cb87-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb87-5"><a href="#cb87-5" aria-hidden="true" tabindex="-1"></a><span class="in">`   some text   `</span></span></code></pre></div>
+<p>To fix this, remove the extra space characters from the beginning and
+ending:</p>
+<div class="sourceCode" id="cb88"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb88-1"><a href="#cb88-1" aria-hidden="true" tabindex="-1"></a><span class="in">`some text`</span></span></code></pre></div>
+<p>Note: A single leading <em>and</em> trailing space is allowed by the
+specification and trimmed by the parser to support code spans that begin
+or end with a backtick:</p>
+<div class="sourceCode" id="cb89"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb89-1"><a href="#cb89-1" aria-hidden="true" tabindex="-1"></a>`<span class="in">` `</span>backticks` ``</span>
+<span id="cb89-2"><a href="#cb89-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb89-3"><a href="#cb89-3" aria-hidden="true" tabindex="-1"></a>`<span class="in">` backtick`</span> ``</span></code></pre></div>
+<p>Note: When single-space padding is present in the input, it will be
+preserved (even if unnecessary):</p>
+<div class="sourceCode" id="cb90"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb90-1"><a href="#cb90-1" aria-hidden="true" tabindex="-1"></a><span class="in">` code `</span></span></code></pre></div>
+<p>Note: Code spans containing only spaces are allowed by the
+specification and are also preserved:</p>
+<div class="sourceCode" id="cb91"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb91-1"><a href="#cb91-1" aria-hidden="true" tabindex="-1"></a><span class="in">` `</span></span>
+<span id="cb91-2"><a href="#cb91-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb91-3"><a href="#cb91-3" aria-hidden="true" tabindex="-1"></a><span class="in">`   `</span></span></code></pre></div>
+<p>Rationale: Violations of this rule are usually unintentional and can
+lead to improperly-rendered content.</p>
+<p><a name="md039"></a></p>
+<h2 id="md039---spaces-inside-link-text"><code>MD039</code> - Spaces
+inside link text</h2>
+<p>Tags: <code>links</code>, <code>whitespace</code></p>
+<p>Aliases: <code>no-space-in-links</code></p>
+<p>Fixable: Some violations can be fixed by tooling</p>
+<p>This rule is triggered on links that have spaces surrounding the link
+text:</p>
+<div class="sourceCode" id="cb92"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb92-1"><a href="#cb92-1" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot"> a link </span><span class="co">](https://www.example.com/)</span></span></code></pre></div>
+<p>To fix this, remove the spaces surrounding the link text:</p>
+<div class="sourceCode" id="cb93"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb93-1"><a href="#cb93-1" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">a link</span><span class="co">](https://www.example.com/)</span></span></code></pre></div>
+<p>Rationale: Consistent formatting makes it easier to understand a
+document.</p>
+<p><a name="md040"></a></p>
+<h2
+id="md040---fenced-code-blocks-should-have-a-language-specified"><code>MD040</code>
+- Fenced code blocks should have a language specified</h2>
+<p>Tags: <code>code</code>, <code>language</code></p>
+<p>Aliases: <code>fenced-code-language</code></p>
+<p>Parameters:</p>
+<ul>
+<li><code>allowed_languages</code>: List of languages
+(<code>string[]</code>, default <code>[]</code>)</li>
+<li><code>language_only</code>: Require language only
+(<code>boolean</code>, default <code>false</code>)</li>
+</ul>
+<p>This rule is triggered when fenced code blocks are used, but a
+language isn’t specified:</p>
+<div class="sourceCode" id="cb94"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb94-1"><a href="#cb94-1" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb94-2"><a href="#cb94-2" aria-hidden="true" tabindex="-1"></a><span class="in">#!/bin/bash</span></span>
+<span id="cb94-3"><a href="#cb94-3" aria-hidden="true" tabindex="-1"></a><span class="in">echo Hello world</span></span>
+<span id="cb94-4"><a href="#cb94-4" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span></code></pre></div>
+<p>To fix this, add a language specifier to the code block:</p>
+<div class="sourceCode" id="cb95"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb95-1"><a href="#cb95-1" aria-hidden="true" tabindex="-1"></a><span class="in">```bash</span></span>
+<span id="cb95-2"><a href="#cb95-2" aria-hidden="true" tabindex="-1"></a><span class="co">#!/bin/bash</span></span>
+<span id="cb95-3"><a href="#cb95-3" aria-hidden="true" tabindex="-1"></a><span class="bu">echo</span> Hello world</span>
+<span id="cb95-4"><a href="#cb95-4" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span></code></pre></div>
+<p>To display a code block without syntax highlighting, use:</p>
+<div class="sourceCode" id="cb96"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb96-1"><a href="#cb96-1" aria-hidden="true" tabindex="-1"></a><span class="in">```text</span></span>
+<span id="cb96-2"><a href="#cb96-2" aria-hidden="true" tabindex="-1"></a><span class="in">Plain text in a code block</span></span>
+<span id="cb96-3"><a href="#cb96-3" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span></code></pre></div>
+<p>You can configure the <code>allowed_languages</code> parameter to
+specify a list of languages code blocks could use. Languages are case
+sensitive. The default value is <code>[]</code> which means any language
+specifier is valid.</p>
+<p>You can prevent extra data from being present in the info string of
+fenced code blocks. To do so, set the <code>language_only</code>
+parameter to <code>true</code>.</p>
+<!-- markdownlint-disable-next-line no-space-in-code -->
+
+<p>Info strings with leading/trailing whitespace (ex: <code>js </code>)
+or other content (ex: <code>ruby startline=3</code>) will trigger this
+rule.</p>
+<p>Rationale: Specifying a language improves content rendering by using
+the correct syntax highlighting for code. More information: <a
+href="https://cirosantilli.com/markdown-style-guide#option-code-fenced">https://cirosantilli.com/markdown-style-guide#option-code-fenced</a>.</p>
+<p><a name="md041"></a></p>
+<h2
+id="md041---first-line-in-a-file-should-be-a-top-level-heading"><code>MD041</code>
+- First line in a file should be a top-level heading</h2>
+<p>Tags: <code>headings</code></p>
+<p>Aliases: <code>first-line-h1</code>,
+<code>first-line-heading</code></p>
+<p>Parameters:</p>
+<ul>
+<li><code>allow_preamble</code>: Allow content before first heading
+(<code>boolean</code>, default <code>false</code>)</li>
+<li><code>front_matter_title</code>: RegExp for matching title in front
+matter (<code>string</code>, default <code>^\s*title\s*[:=]</code>)</li>
+<li><code>level</code>: Heading level (<code>integer</code>, default
+<code>1</code>)</li>
+</ul>
+<p>This rule is intended to ensure documents have a title and is
+triggered when the first line in a document is not a top-level (<a
+href="https://wikipedia.org/wiki/HTML">HTML</a> <code>h1</code>)
+heading:</p>
+<div class="sourceCode" id="cb97"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb97-1"><a href="#cb97-1" aria-hidden="true" tabindex="-1"></a>This is a document without a heading</span></code></pre></div>
+<p>To fix this, add a top-level heading to the beginning of the
+document:</p>
+<div class="sourceCode" id="cb98"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb98-1"><a href="#cb98-1" aria-hidden="true" tabindex="-1"></a><span class="fu"># Document Heading</span></span>
+<span id="cb98-2"><a href="#cb98-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb98-3"><a href="#cb98-3" aria-hidden="true" tabindex="-1"></a>This is a document with a top-level heading</span></code></pre></div>
+<p>Because it is common for projects on GitHub to use an image for the
+heading of <code>README.md</code> and that pattern is not well-supported
+by Markdown, HTML headings are also permitted by this rule. For
+example:</p>
+<div class="sourceCode" id="cb99"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb99-1"><a href="#cb99-1" aria-hidden="true" tabindex="-1"></a><span class="dt">&lt;</span><span class="kw">h1</span><span class="ot"> align</span><span class="op">=</span><span class="st">&quot;center&quot;</span><span class="dt">&gt;&lt;</span><span class="kw">img</span><span class="ot"> src</span><span class="op">=</span><span class="st">&quot;https://placekitten.com/300/150&quot;</span><span class="dt">/&gt;&lt;/</span><span class="kw">h1</span><span class="dt">&gt;</span></span>
+<span id="cb99-2"><a href="#cb99-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb99-3"><a href="#cb99-3" aria-hidden="true" tabindex="-1"></a>This is a document with a top-level HTML heading</span></code></pre></div>
+<p>In some cases, a document’s title heading may be preceded by text
+like a table of contents. This is not ideal for accessibility, but can
+be allowed by setting the <code>allow_preamble</code> parameter to
+<code>true</code>.</p>
+<div class="sourceCode" id="cb100"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb100-1"><a href="#cb100-1" aria-hidden="true" tabindex="-1"></a>This is a document with preamble text</span>
+<span id="cb100-2"><a href="#cb100-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb100-3"><a href="#cb100-3" aria-hidden="true" tabindex="-1"></a><span class="fu"># Document Heading</span></span></code></pre></div>
+<p>If <a href="https://wikipedia.org/wiki/YAML">YAML</a> front matter is
+present and contains a <code>title</code> property (commonly used with
+blog posts), this rule will not report a violation. To use a different
+property name in the front matter, specify the text of a <a
+href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Regular_expressions">regular
+expression</a> via the <code>front_matter_title</code> parameter. To
+disable the use of front matter by this rule, specify <code>""</code>
+for <code>front_matter_title</code>.</p>
+<p>The <code>level</code> parameter can be used to change the top-level
+heading (ex: to <code>h2</code>) in cases where an <code>h1</code> is
+added externally.</p>
+<p>Rationale: The top-level heading often acts as the title of a
+document. More information: <a
+href="https://cirosantilli.com/markdown-style-guide#top-level-header">https://cirosantilli.com/markdown-style-guide#top-level-header</a>.</p>
+<p><a name="md042"></a></p>
+<h2 id="md042---no-empty-links"><code>MD042</code> - No empty links</h2>
+<p>Tags: <code>links</code></p>
+<p>Aliases: <code>no-empty-links</code></p>
+<p>This rule is triggered when an empty link is encountered:</p>
+<div class="sourceCode" id="cb101"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb101-1"><a href="#cb101-1" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">an empty link</span><span class="co">]()</span></span></code></pre></div>
+<p>To fix the violation, provide a destination for the link:</p>
+<div class="sourceCode" id="cb102"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb102-1"><a href="#cb102-1" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">a valid link</span><span class="co">](https://example.com/)</span></span></code></pre></div>
+<p>Empty fragments will trigger this rule:</p>
+<div class="sourceCode" id="cb103"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb103-1"><a href="#cb103-1" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">an empty fragment</span><span class="co">](#)</span></span>
+<span id="cb103-2"><a href="#cb103-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb103-3"><a href="#cb103-3" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">an empty link definition</span><span class="co">][empty]</span></span>
+<span id="cb103-4"><a href="#cb103-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb103-5"><a href="#cb103-5" aria-hidden="true" tabindex="-1"></a><span class="ot">[empty]: </span>#</span></code></pre></div>
+<p>But non-empty fragments will not:</p>
+<div class="sourceCode" id="cb104"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb104-1"><a href="#cb104-1" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">a valid fragment</span><span class="co">](#fragment)</span></span></code></pre></div>
+<p>Empty link definitions</p>
+<p>Rationale: Empty links do not lead anywhere and therefore don’t
+function as links.</p>
+<p><a name="md043"></a></p>
+<h2 id="md043---required-heading-structure"><code>MD043</code> -
+Required heading structure</h2>
+<p>Tags: <code>headings</code></p>
+<p>Aliases: <code>required-headings</code></p>
+<p>Parameters:</p>
+<ul>
+<li><code>headings</code>: List of headings (<code>string[]</code>,
+default <code>[]</code>)</li>
+<li><code>match_case</code>: Match case of headings
+(<code>boolean</code>, default <code>false</code>)</li>
+</ul>
+<p>This rule is triggered when the headings in a file do not match the
+array of headings passed to the rule. It can be used to enforce a
+standard heading structure for a set of files.</p>
+<p>To require exactly the following structure:</p>
+<div class="sourceCode" id="cb105"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb105-1"><a href="#cb105-1" aria-hidden="true" tabindex="-1"></a><span class="fu"># Heading</span></span>
+<span id="cb105-2"><a href="#cb105-2" aria-hidden="true" tabindex="-1"></a><span class="fu">## Item</span></span>
+<span id="cb105-3"><a href="#cb105-3" aria-hidden="true" tabindex="-1"></a><span class="fu">### Detail</span></span></code></pre></div>
+<p>Set the <code>headings</code> parameter to:</p>
+<div class="sourceCode" id="cb106"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb106-1"><a href="#cb106-1" aria-hidden="true" tabindex="-1"></a><span class="ot">[</span></span>
+<span id="cb106-2"><a href="#cb106-2" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;# Heading&quot;</span><span class="ot">,</span></span>
+<span id="cb106-3"><a href="#cb106-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;## Item&quot;</span><span class="ot">,</span></span>
+<span id="cb106-4"><a href="#cb106-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;### Detail&quot;</span></span>
+<span id="cb106-5"><a href="#cb106-5" aria-hidden="true" tabindex="-1"></a><span class="ot">]</span></span></code></pre></div>
+<p>To allow optional headings as with the following structure:</p>
+<div class="sourceCode" id="cb107"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb107-1"><a href="#cb107-1" aria-hidden="true" tabindex="-1"></a><span class="fu"># Heading</span></span>
+<span id="cb107-2"><a href="#cb107-2" aria-hidden="true" tabindex="-1"></a><span class="fu">## Item</span></span>
+<span id="cb107-3"><a href="#cb107-3" aria-hidden="true" tabindex="-1"></a><span class="fu">### Detail (optional)</span></span>
+<span id="cb107-4"><a href="#cb107-4" aria-hidden="true" tabindex="-1"></a><span class="fu">## Foot</span></span>
+<span id="cb107-5"><a href="#cb107-5" aria-hidden="true" tabindex="-1"></a><span class="fu">### Notes (optional)</span></span></code></pre></div>
+<p>Use the special value <code>"*"</code> meaning “zero or more
+unspecified headings” or the special value <code>"+"</code> meaning “one
+or more unspecified headings” and set the <code>headings</code>
+parameter to:</p>
+<div class="sourceCode" id="cb108"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb108-1"><a href="#cb108-1" aria-hidden="true" tabindex="-1"></a><span class="ot">[</span></span>
+<span id="cb108-2"><a href="#cb108-2" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;# Heading&quot;</span><span class="ot">,</span></span>
+<span id="cb108-3"><a href="#cb108-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;## Item&quot;</span><span class="ot">,</span></span>
+<span id="cb108-4"><a href="#cb108-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;*&quot;</span><span class="ot">,</span></span>
+<span id="cb108-5"><a href="#cb108-5" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;## Foot&quot;</span><span class="ot">,</span></span>
+<span id="cb108-6"><a href="#cb108-6" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;*&quot;</span></span>
+<span id="cb108-7"><a href="#cb108-7" aria-hidden="true" tabindex="-1"></a><span class="ot">]</span></span></code></pre></div>
+<p>To allow a single required heading to vary as with a project
+name:</p>
+<div class="sourceCode" id="cb109"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb109-1"><a href="#cb109-1" aria-hidden="true" tabindex="-1"></a><span class="fu"># Project Name</span></span>
+<span id="cb109-2"><a href="#cb109-2" aria-hidden="true" tabindex="-1"></a><span class="fu">## Description</span></span>
+<span id="cb109-3"><a href="#cb109-3" aria-hidden="true" tabindex="-1"></a><span class="fu">## Examples</span></span></code></pre></div>
+<p>Use the special value <code>"?"</code> meaning “exactly one
+unspecified heading”:</p>
+<div class="sourceCode" id="cb110"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb110-1"><a href="#cb110-1" aria-hidden="true" tabindex="-1"></a><span class="ot">[</span></span>
+<span id="cb110-2"><a href="#cb110-2" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;?&quot;</span><span class="ot">,</span></span>
+<span id="cb110-3"><a href="#cb110-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;## Description&quot;</span><span class="ot">,</span></span>
+<span id="cb110-4"><a href="#cb110-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;## Examples&quot;</span></span>
+<span id="cb110-5"><a href="#cb110-5" aria-hidden="true" tabindex="-1"></a><span class="ot">]</span></span></code></pre></div>
+<p>When an error is detected, this rule outputs the line number of the
+first problematic heading (otherwise, it outputs the last line number of
+the file).</p>
+<p>Note that while the <code>headings</code> parameter uses the “##
+Text” ATX heading style for simplicity, a file may use any supported
+heading style.</p>
+<p>By default, the case of headings in the document is not required to
+match that of <code>headings</code>. To require that case match exactly,
+set the <code>match_case</code> parameter to <code>true</code>.</p>
+<p>Rationale: Projects may wish to enforce a consistent document
+structure across a set of similar content.</p>
+<p><a name="md044"></a></p>
+<h2
+id="md044---proper-names-should-have-the-correct-capitalization"><code>MD044</code>
+- Proper names should have the correct capitalization</h2>
+<p>Tags: <code>spelling</code></p>
+<p>Aliases: <code>proper-names</code></p>
+<p>Parameters:</p>
+<ul>
+<li><code>code_blocks</code>: Include code blocks (<code>boolean</code>,
+default <code>true</code>)</li>
+<li><code>html_elements</code>: Include HTML elements
+(<code>boolean</code>, default <code>true</code>)</li>
+<li><code>names</code>: List of proper names (<code>string[]</code>,
+default <code>[]</code>)</li>
+</ul>
+<p>Fixable: Some violations can be fixed by tooling</p>
+<p>This rule is triggered when any of the strings in the
+<code>names</code> array do not have the specified capitalization. It
+can be used to enforce a standard letter case for the names of projects
+and products.</p>
+<p>For example, the language “JavaScript” is usually written with both
+the ‘J’ and ‘S’ capitalized - though sometimes the ‘s’ or ‘j’ appear in
+lower-case. To enforce the proper capitalization, specify the desired
+letter case in the <code>names</code> array:</p>
+<div class="sourceCode" id="cb111"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb111-1"><a href="#cb111-1" aria-hidden="true" tabindex="-1"></a><span class="ot">[</span></span>
+<span id="cb111-2"><a href="#cb111-2" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;JavaScript&quot;</span></span>
+<span id="cb111-3"><a href="#cb111-3" aria-hidden="true" tabindex="-1"></a><span class="ot">]</span></span></code></pre></div>
+<p>Sometimes a proper name is capitalized differently in certain
+contexts. In such cases, add both forms to the <code>names</code>
+array:</p>
+<div class="sourceCode" id="cb112"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb112-1"><a href="#cb112-1" aria-hidden="true" tabindex="-1"></a><span class="ot">[</span></span>
+<span id="cb112-2"><a href="#cb112-2" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;GitHub&quot;</span><span class="ot">,</span></span>
+<span id="cb112-3"><a href="#cb112-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;github.com&quot;</span></span>
+<span id="cb112-4"><a href="#cb112-4" aria-hidden="true" tabindex="-1"></a><span class="ot">]</span></span></code></pre></div>
+<p>Set the <code>code_blocks</code> parameter to <code>false</code> to
+disable this rule for code blocks and spans. Set the
+<code>html_elements</code> parameter to <code>false</code> to disable
+this rule for HTML elements and attributes (such as when using a proper
+name as part of a path for <code>a</code>/<code>href</code> or
+<code>img</code>/<code>src</code>).</p>
+<p>Rationale: Incorrect capitalization of proper names is usually a
+mistake.</p>
+<p><a name="md045"></a></p>
+<h2
+id="md045---images-should-have-alternate-text-alt-text"><code>MD045</code>
+- Images should have alternate text (alt text)</h2>
+<p>Tags: <code>accessibility</code>, <code>images</code></p>
+<p>Aliases: <code>no-alt-text</code></p>
+<p>This rule reports a violation when an image is missing alternate text
+(alt text) information.</p>
+<p>Alternate text is commonly specified inline as:</p>
+<div class="sourceCode" id="cb113"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb113-1"><a href="#cb113-1" aria-hidden="true" tabindex="-1"></a><span class="al">![Alternate text](image.jpg)</span></span></code></pre></div>
+<p>Or with reference syntax as:</p>
+<div class="sourceCode" id="cb114"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb114-1"><a href="#cb114-1" aria-hidden="true" tabindex="-1"></a><span class="al">![Alternate text][ref]</span></span>
+<span id="cb114-2"><a href="#cb114-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb114-3"><a href="#cb114-3" aria-hidden="true" tabindex="-1"></a>...</span>
+<span id="cb114-4"><a href="#cb114-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb114-5"><a href="#cb114-5" aria-hidden="true" tabindex="-1"></a><span class="ot">[ref]: </span>image.jpg &quot;Optional title&quot;</span></code></pre></div>
+<p>Or with HTML as:</p>
+<div class="sourceCode" id="cb115"><pre
+class="sourceCode html"><code class="sourceCode html"><span id="cb115-1"><a href="#cb115-1" aria-hidden="true" tabindex="-1"></a><span class="dt">&lt;</span><span class="kw">img</span><span class="ot"> src</span><span class="op">=</span><span class="st">&quot;image.jpg&quot;</span><span class="ot"> alt</span><span class="op">=</span><span class="st">&quot;Alternate text&quot;</span><span class="ot"> </span><span class="dt">/&gt;</span></span></code></pre></div>
+<p>Note: If the <a
+href="https://developer.mozilla.org/en-US/docs/Web/Accessibility/ARIA/Reference/Attributes/aria-hidden">HTML
+<code>aria-hidden</code> attribute</a> is used to hide the image from
+assistive technology, this rule does not report a violation:</p>
+<div class="sourceCode" id="cb116"><pre
+class="sourceCode html"><code class="sourceCode html"><span id="cb116-1"><a href="#cb116-1" aria-hidden="true" tabindex="-1"></a><span class="dt">&lt;</span><span class="kw">img</span><span class="ot"> src</span><span class="op">=</span><span class="st">&quot;image.jpg&quot;</span><span class="ot"> aria-hidden</span><span class="op">=</span><span class="st">&quot;true&quot;</span><span class="ot"> </span><span class="dt">/&gt;</span></span></code></pre></div>
+<p>Guidance for writing alternate text is available from the <a
+href="https://www.w3.org/WAI/alt/">W3C</a>, <a
+href="https://wikipedia.org/wiki/Alt_attribute">Wikipedia</a>, and <a
+href="https://www.phase2technology.com/blog/no-more-excuses">other
+locations</a>.</p>
+<p>Rationale: Alternate text is important for accessibility and
+describes the content of an image for people who may not be able to see
+it.</p>
+<p><a name="md046"></a></p>
+<h2 id="md046---code-block-style"><code>MD046</code> - Code block
+style</h2>
+<p>Tags: <code>code</code></p>
+<p>Aliases: <code>code-block-style</code></p>
+<p>Parameters:</p>
+<ul>
+<li><code>style</code>: Block style (<code>string</code>, default
+<code>consistent</code>, values <code>consistent</code> /
+<code>fenced</code> / <code>indented</code>)</li>
+</ul>
+<p>This rule is triggered when unwanted or different code block styles
+are used in the same document.</p>
+<p>In the default configuration this rule reports a violation for the
+following document:</p>
+<!-- markdownlint-disable code-block-style -->
+
+<pre><code>Some text.
+
+    # Indented code
+
+More text.
+
+```ruby
+# Fenced code
+```
+
+More text.</code></pre>
+<!-- markdownlint-restore -->
+
+<p>To fix violations of this rule, use a consistent style (either
+indenting or code fences).</p>
+<p>The configured code block style can be specific (<code>fenced</code>,
+<code>indented</code>) or can require all code blocks match the first
+code block (<code>consistent</code>).</p>
+<p>Rationale: Consistent formatting makes it easier to understand a
+document.</p>
+<p><a name="md047"></a></p>
+<h2
+id="md047---files-should-end-with-a-single-newline-character"><code>MD047</code>
+- Files should end with a single newline character</h2>
+<p>Tags: <code>blank_lines</code></p>
+<p>Aliases: <code>single-trailing-newline</code></p>
+<p>Fixable: Some violations can be fixed by tooling</p>
+<p>This rule is triggered when there is not a single newline character
+at the end of a file.</p>
+<p>An example that triggers the rule:</p>
+<div class="sourceCode" id="cb118"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb118-1"><a href="#cb118-1" aria-hidden="true" tabindex="-1"></a><span class="fu"># Heading</span></span>
+<span id="cb118-2"><a href="#cb118-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb118-3"><a href="#cb118-3" aria-hidden="true" tabindex="-1"></a>This file ends without a newline.<span class="co">[</span><span class="ot">EOF</span><span class="co">]</span></span></code></pre></div>
+<p>To fix the violation, add a newline character to the end of the
+file:</p>
+<div class="sourceCode" id="cb119"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb119-1"><a href="#cb119-1" aria-hidden="true" tabindex="-1"></a><span class="fu"># Heading</span></span>
+<span id="cb119-2"><a href="#cb119-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb119-3"><a href="#cb119-3" aria-hidden="true" tabindex="-1"></a>This file ends with a newline.</span>
+<span id="cb119-4"><a href="#cb119-4" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">EOF</span><span class="co">]</span></span></code></pre></div>
+<p>Rationale: Some programs have trouble with files that do not end with
+a newline.</p>
+<p>More information: <a
+href="https://unix.stackexchange.com/questions/18743/whats-the-point-in-adding-a-new-line-to-the-end-of-a-file">What’s
+the point in adding a new line to the end of a file?</a></p>
+<p><a name="md048"></a></p>
+<h2 id="md048---code-fence-style"><code>MD048</code> - Code fence
+style</h2>
+<p>Tags: <code>code</code></p>
+<p>Aliases: <code>code-fence-style</code></p>
+<p>Parameters:</p>
+<ul>
+<li><code>style</code>: Code fence style (<code>string</code>, default
+<code>consistent</code>, values <code>backtick</code> /
+<code>consistent</code> / <code>tilde</code>)</li>
+</ul>
+<p>This rule is triggered when the symbols used in the document for
+fenced code blocks do not match the configured code fence style:</p>
+<div class="sourceCode" id="cb120"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb120-1"><a href="#cb120-1" aria-hidden="true" tabindex="-1"></a><span class="in">```ruby</span></span>
+<span id="cb120-2"><a href="#cb120-2" aria-hidden="true" tabindex="-1"></a><span class="co"># Fenced code</span></span>
+<span id="cb120-3"><a href="#cb120-3" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb120-4"><a href="#cb120-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb120-5"><a href="#cb120-5" aria-hidden="true" tabindex="-1"></a><span class="in">~~~ruby</span></span>
+<span id="cb120-6"><a href="#cb120-6" aria-hidden="true" tabindex="-1"></a><span class="co"># Fenced code</span></span>
+<span id="cb120-7"><a href="#cb120-7" aria-hidden="true" tabindex="-1"></a><span class="in">~~~</span></span></code></pre></div>
+<p>To fix this issue, use the configured code fence style throughout the
+document:</p>
+<div class="sourceCode" id="cb121"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb121-1"><a href="#cb121-1" aria-hidden="true" tabindex="-1"></a><span class="in">```ruby</span></span>
+<span id="cb121-2"><a href="#cb121-2" aria-hidden="true" tabindex="-1"></a><span class="co"># Fenced code</span></span>
+<span id="cb121-3"><a href="#cb121-3" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb121-4"><a href="#cb121-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb121-5"><a href="#cb121-5" aria-hidden="true" tabindex="-1"></a><span class="in">```ruby</span></span>
+<span id="cb121-6"><a href="#cb121-6" aria-hidden="true" tabindex="-1"></a><span class="co"># Fenced code</span></span>
+<span id="cb121-7"><a href="#cb121-7" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span></code></pre></div>
+<p>The configured code fence style can be a specific symbol to use
+(<code>backtick</code>, <code>tilde</code>) or it can require all code
+fences match the first code fence (<code>consistent</code>).</p>
+<p>Rationale: Consistent formatting makes it easier to understand a
+document.</p>
+<p><a name="md049"></a></p>
+<h2 id="md049---emphasis-style"><code>MD049</code> - Emphasis style</h2>
+<p>Tags: <code>emphasis</code></p>
+<p>Aliases: <code>emphasis-style</code></p>
+<p>Parameters:</p>
+<ul>
+<li><code>style</code>: Emphasis style (<code>string</code>, default
+<code>consistent</code>, values <code>asterisk</code> /
+<code>consistent</code> / <code>underscore</code>)</li>
+</ul>
+<p>Fixable: Some violations can be fixed by tooling</p>
+<p>This rule is triggered when the symbols used in the document for
+emphasis do not match the configured emphasis style:</p>
+<div class="sourceCode" id="cb122"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb122-1"><a href="#cb122-1" aria-hidden="true" tabindex="-1"></a>*Text*</span>
+<span id="cb122-2"><a href="#cb122-2" aria-hidden="true" tabindex="-1"></a>_Text_</span></code></pre></div>
+<p>To fix this issue, use the configured emphasis style throughout the
+document:</p>
+<div class="sourceCode" id="cb123"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb123-1"><a href="#cb123-1" aria-hidden="true" tabindex="-1"></a>*Text*</span>
+<span id="cb123-2"><a href="#cb123-2" aria-hidden="true" tabindex="-1"></a>*Text*</span></code></pre></div>
+<p>The configured emphasis style can be a specific symbol to use
+(<code>asterisk</code>, <code>underscore</code>) or can require all
+emphasis matches the first emphasis (<code>consistent</code>).</p>
+<p>Note: Emphasis within a word is restricted to <code>asterisk</code>
+in order to avoid unwanted emphasis for words containing internal
+underscores like_this_one.</p>
+<p>Rationale: Consistent formatting makes it easier to understand a
+document.</p>
+<p><a name="md050"></a></p>
+<h2 id="md050---strong-style"><code>MD050</code> - Strong style</h2>
+<p>Tags: <code>emphasis</code></p>
+<p>Aliases: <code>strong-style</code></p>
+<p>Parameters:</p>
+<ul>
+<li><code>style</code>: Strong style (<code>string</code>, default
+<code>consistent</code>, values <code>asterisk</code> /
+<code>consistent</code> / <code>underscore</code>)</li>
+</ul>
+<p>Fixable: Some violations can be fixed by tooling</p>
+<p>This rule is triggered when the symbols used in the document for
+strong do not match the configured strong style:</p>
+<div class="sourceCode" id="cb124"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb124-1"><a href="#cb124-1" aria-hidden="true" tabindex="-1"></a>**Text**</span>
+<span id="cb124-2"><a href="#cb124-2" aria-hidden="true" tabindex="-1"></a>__Text__</span></code></pre></div>
+<p>To fix this issue, use the configured strong style throughout the
+document:</p>
+<div class="sourceCode" id="cb125"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb125-1"><a href="#cb125-1" aria-hidden="true" tabindex="-1"></a>**Text**</span>
+<span id="cb125-2"><a href="#cb125-2" aria-hidden="true" tabindex="-1"></a>**Text**</span></code></pre></div>
+<p>The configured strong style can be a specific symbol to use
+(<code>asterisk</code>, <code>underscore</code>) or can require all
+strong matches the first strong (<code>consistent</code>).</p>
+<p>Note: Emphasis within a word is restricted to <code>asterisk</code>
+in order to avoid unwanted emphasis for words containing internal
+underscores like__this__one.</p>
+<p>Rationale: Consistent formatting makes it easier to understand a
+document.</p>
+<p><a name="md051"></a></p>
+<h2 id="md051---link-fragments-should-be-valid"><code>MD051</code> -
+Link fragments should be valid</h2>
+<p>Tags: <code>links</code></p>
+<p>Aliases: <code>link-fragments</code></p>
+<p>Parameters:</p>
+<ul>
+<li><code>ignore_case</code>: Ignore case of fragments
+(<code>boolean</code>, default <code>false</code>)</li>
+<li><code>ignored_pattern</code>: Pattern for ignoring additional
+fragments (<code>string</code>, default ``)</li>
+</ul>
+<p>Fixable: Some violations can be fixed by tooling</p>
+<p>This rule is triggered when a link fragment does not match any of the
+fragments that are automatically generated for headings in a
+document:</p>
+<div class="sourceCode" id="cb126"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb126-1"><a href="#cb126-1" aria-hidden="true" tabindex="-1"></a><span class="fu"># Heading Name</span></span>
+<span id="cb126-2"><a href="#cb126-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb126-3"><a href="#cb126-3" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Link</span><span class="co">](#fragment)</span></span></code></pre></div>
+<p>To fix this issue, change the link fragment to reference an existing
+heading’s generated name (see below):</p>
+<div class="sourceCode" id="cb127"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb127-1"><a href="#cb127-1" aria-hidden="true" tabindex="-1"></a><span class="fu"># Heading Name</span></span>
+<span id="cb127-2"><a href="#cb127-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb127-3"><a href="#cb127-3" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Link</span><span class="co">](#heading-name)</span></span></code></pre></div>
+<p>For consistency, this rule requires fragments to exactly match the <a
+href="https://github.com/gjtorikian/html-pipeline/blob/f13a1534cb650ba17af400d1acd3a22c28004c09/lib/html/pipeline/toc_filter.rb">GitHub
+heading algorithm</a> which converts letters to lowercase. Therefore,
+the following example is reported as a violation:</p>
+<div class="sourceCode" id="cb128"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb128-1"><a href="#cb128-1" aria-hidden="true" tabindex="-1"></a><span class="fu"># Heading Name</span></span>
+<span id="cb128-2"><a href="#cb128-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb128-3"><a href="#cb128-3" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Link</span><span class="co">](#Heading-Name)</span></span></code></pre></div>
+<p>To ignore case when comparing fragments with heading names, the
+<code>ignore_case</code> parameter can be set to <code>true</code>. In
+this configuration, the previous example is not reported as a
+violation.</p>
+<p>Alternatively, some platforms allow the syntax
+<code>{#named-anchor}</code> to be used within a heading to provide a
+specific name (consisting of only lower-case letters, numbers,
+<code>-</code>, and <code>_</code>):</p>
+<div class="sourceCode" id="cb129"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb129-1"><a href="#cb129-1" aria-hidden="true" tabindex="-1"></a><span class="fu"># Heading Name {#custom-name}</span></span>
+<span id="cb129-2"><a href="#cb129-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb129-3"><a href="#cb129-3" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Link</span><span class="co">](#custom-name)</span></span></code></pre></div>
+<p>Alternatively, any HTML tag with an <code>id</code> attribute or an
+<code>a</code> tag with a <code>name</code> attribute can be used to
+define a fragment:</p>
+<div class="sourceCode" id="cb130"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb130-1"><a href="#cb130-1" aria-hidden="true" tabindex="-1"></a><span class="dt">&lt;</span><span class="kw">a</span><span class="ot"> id</span><span class="op">=</span><span class="st">&quot;bookmark&quot;</span><span class="dt">&gt;&lt;/</span><span class="kw">a</span><span class="dt">&gt;</span></span>
+<span id="cb130-2"><a href="#cb130-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb130-3"><a href="#cb130-3" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Link</span><span class="co">](#bookmark)</span></span></code></pre></div>
+<p>An <code>a</code> tag can be useful in scenarios where a heading is
+not appropriate or for control over the text of the fragment
+identifier.</p>
+<p><a
+href="https://html.spec.whatwg.org/multipage/browsing-the-web.html#scrolling-to-a-fragment">HTML
+links to <code>#top</code> scroll to the top of a document</a>. This
+rule allows that syntax (using lower-case for consistency):</p>
+<div class="sourceCode" id="cb131"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb131-1"><a href="#cb131-1" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Link</span><span class="co">](#top)</span></span></code></pre></div>
+<p>This rule also recognizes the custom fragment syntax used by GitHub
+to highlight <a
+href="https://docs.github.com/en/get-started/writing-on-github/working-with-advanced-formatting/creating-a-permanent-link-to-a-code-snippet#linking-to-markdown">specific
+content in a document</a>.</p>
+<p>For example, this link to line 20:</p>
+<div class="sourceCode" id="cb132"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb132-1"><a href="#cb132-1" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Link</span><span class="co">](#L20)</span></span></code></pre></div>
+<p>And this link to content starting within line 19 running into line
+21:</p>
+<div class="sourceCode" id="cb133"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb133-1"><a href="#cb133-1" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Link</span><span class="co">](#L19C5-L21C11)</span></span></code></pre></div>
+<p>Some Markdown generators dynamically create and insert headings when
+building documents, for example by combining a fixed prefix like
+<code>figure-</code> and an incrementing numeric counter. To ignore such
+generated fragments, set the <code>ignored_pattern</code> <a
+href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Regular_expressions">regular
+expression</a> parameter to a pattern that matches (e.g.,
+<code>^figure-</code>).</p>
+<p>Rationale: <a
+href="https://docs.github.com/en/get-started/writing-on-github/getting-started-with-writing-and-formatting-on-github/basic-writing-and-formatting-syntax#section-links">GitHub
+section links</a> are created automatically for every heading when
+Markdown content is displayed on GitHub. This makes it easy to link
+directly to different sections within a document. However, section links
+change if headings are renamed or removed. This rule helps identify
+broken section links within a document.</p>
+<p>Note: Section links are <strong>not</strong> part of the CommonMark
+specification; this rule enforces the <a
+href="https://github.com/gjtorikian/html-pipeline/blob/f13a1534cb650ba17af400d1acd3a22c28004c09/lib/html/pipeline/toc_filter.rb">GitHub
+heading algorithm</a>:</p>
+<ol type="1">
+<li>Convert text to lowercase</li>
+<li>Remove punctuation characters</li>
+<li>Convert spaces to dashes</li>
+<li>Append an incrementing integer (as needed for uniqueness)</li>
+<li><a
+href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/encodeURIComponent">URI-encode</a>
+the result</li>
+</ol>
+<p><a name="md052"></a></p>
+<h2
+id="md052---reference-links-and-images-should-use-a-label-that-is-defined"><code>MD052</code>
+- Reference links and images should use a label that is defined</h2>
+<p>Tags: <code>images</code>, <code>links</code></p>
+<p>Aliases: <code>reference-links-images</code></p>
+<p>Parameters:</p>
+<ul>
+<li><code>ignored_labels</code>: Ignored link labels
+(<code>string[]</code>, default <code>["x"]</code>)</li>
+<li><code>shortcut_syntax</code>: Include shortcut syntax
+(<code>boolean</code>, default <code>false</code>)</li>
+</ul>
+<p>Links and images in Markdown can provide the link destination or
+image source at the time of use or can define it elsewhere and use a
+label for reference. The reference format is convenient for keeping
+paragraph text clutter-free and makes it easy to reuse the same URL in
+multiple places.</p>
+<p>There are three kinds of reference links and images:</p>
+<div class="sourceCode" id="cb134"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb134-1"><a href="#cb134-1" aria-hidden="true" tabindex="-1"></a><span class="an">Full:</span><span class="co"> [text][label]</span></span>
+<span id="cb134-2"><a href="#cb134-2" aria-hidden="true" tabindex="-1"></a><span class="an">Collapsed:</span><span class="co"> [label][]</span></span>
+<span id="cb134-3"><a href="#cb134-3" aria-hidden="true" tabindex="-1"></a><span class="an">Shortcut:</span><span class="co"> [label]</span></span>
+<span id="cb134-4"><a href="#cb134-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb134-5"><a href="#cb134-5" aria-hidden="true" tabindex="-1"></a>Full: <span class="al">![text][image]</span></span>
+<span id="cb134-6"><a href="#cb134-6" aria-hidden="true" tabindex="-1"></a>Collapsed: <span class="al">![image][]</span></span>
+<span id="cb134-7"><a href="#cb134-7" aria-hidden="true" tabindex="-1"></a>Shortcut: !<span class="co">[</span><span class="ot">image</span><span class="co">]</span></span>
+<span id="cb134-8"><a href="#cb134-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb134-9"><a href="#cb134-9" aria-hidden="true" tabindex="-1"></a><span class="ot">[label]: https://example.com/label</span></span>
+<span id="cb134-10"><a href="#cb134-10" aria-hidden="true" tabindex="-1"></a><span class="ot">[image]: https://example.com/image</span></span></code></pre></div>
+<p>A link or image renders correctly when the corresponding label is
+defined, but displays as text with brackets when the label is not
+present. By default, this rule warns of undefined labels for “full” and
+“collapsed” reference syntax but not for “shortcut” syntax because it is
+ambiguous.</p>
+<p>The text <code>[example]</code> could be a shortcut link or the text
+“example” in brackets, so “shortcut” syntax is ignored by default. To
+include “shortcut” syntax, set the <code>include_shortcut</code>
+parameter to <code>true</code>. Note that doing so produces warnings for
+<em>all</em> text in the document that <em>could</em> be a shortcut. If
+bracketed text is intentional, brackets can be escaped with the
+<code>\</code> character: <code>\[example\]</code>.</p>
+<p>If there are link labels that are deliberately unreferenced, they can
+be ignored by setting the <code>ignored_labels</code> parameter to the
+list of strings to ignore. The default value of this parameter ignores
+the checkbox syntax used by <a
+href="https://github.github.com/gfm/#task-list-items-extension-">GitHub
+Flavored Markdown task list items</a>:</p>
+<div class="sourceCode" id="cb135"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb135-1"><a href="#cb135-1" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="va">[x]</span> Checked task list item</span></code></pre></div>
+<p><a name="md053"></a></p>
+<h2
+id="md053---link-and-image-reference-definitions-should-be-needed"><code>MD053</code>
+- Link and image reference definitions should be needed</h2>
+<p>Tags: <code>images</code>, <code>links</code></p>
+<p>Aliases: <code>link-image-reference-definitions</code></p>
+<p>Parameters:</p>
+<ul>
+<li><code>ignored_definitions</code>: Ignored definitions
+(<code>string[]</code>, default <code>["//"]</code>)</li>
+</ul>
+<p>Fixable: Some violations can be fixed by tooling</p>
+<p>Links and images in Markdown can provide the link destination or
+image source at the time of use or can use a label to reference a
+definition elsewhere in the document. The latter reference format is
+convenient for keeping paragraph text clutter-free and makes it easy to
+reuse the same URL in multiple places.</p>
+<p>Because link and image reference definitions are located separately
+from where they are used, there are two scenarios where a definition can
+be unnecessary:</p>
+<ol type="1">
+<li>If a label is not referenced by any link or image in a document,
+that definition is unused and can be deleted.</li>
+<li>If a label is defined multiple times in a document, the first
+definition is used and the others can be deleted.</li>
+</ol>
+<p>This rule considers a reference definition to be used if any link or
+image reference has the corresponding label. The “full”, “collapsed”,
+and “shortcut” formats are all supported.</p>
+<p>If there are reference definitions that are deliberately
+unreferenced, they can be ignored by setting the
+<code>ignored_definitions</code> parameter to the list of strings to
+ignore. The default value of this parameter ignores the following
+convention for adding non-HTML comments to Markdown:</p>
+<div class="sourceCode" id="cb136"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb136-1"><a href="#cb136-1" aria-hidden="true" tabindex="-1"></a><span class="ot">[//]: </span># (This behaves like a comment)</span></code></pre></div>
+<p><a name="md054"></a></p>
+<h2 id="md054---link-and-image-style"><code>MD054</code> - Link and
+image style</h2>
+<p>Tags: <code>images</code>, <code>links</code></p>
+<p>Aliases: <code>link-image-style</code></p>
+<p>Parameters:</p>
+<ul>
+<li><code>autolink</code>: Allow autolinks (<code>boolean</code>,
+default <code>true</code>)</li>
+<li><code>collapsed</code>: Allow collapsed reference links and images
+(<code>boolean</code>, default <code>true</code>)</li>
+<li><code>full</code>: Allow full reference links and images
+(<code>boolean</code>, default <code>true</code>)</li>
+<li><code>inline</code>: Allow inline links and images
+(<code>boolean</code>, default <code>true</code>)</li>
+<li><code>shortcut</code>: Allow shortcut reference links and images
+(<code>boolean</code>, default <code>true</code>)</li>
+<li><code>url_inline</code>: Allow URLs as inline links
+(<code>boolean</code>, default <code>true</code>)</li>
+</ul>
+<p>Fixable: Some violations can be fixed by tooling</p>
+<p>Links and images in Markdown can provide the link destination or
+image source at the time of use or can use a label to reference a
+definition elsewhere in the document. The three reference formats are
+convenient for keeping paragraph text clutter-free and make it easy to
+reuse the same URL in multiple places.</p>
+<p>By default, this rule allows all link/image styles.</p>
+<p>Setting the <code>autolink</code> parameter to <code>false</code>
+disables autolinks:</p>
+<div class="sourceCode" id="cb137"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb137-1"><a href="#cb137-1" aria-hidden="true" tabindex="-1"></a><span class="ot">&lt;https://example.com&gt;</span></span></code></pre></div>
+<p>Setting the <code>inline</code> parameter to <code>false</code>
+disables inline links and images:</p>
+<div class="sourceCode" id="cb138"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb138-1"><a href="#cb138-1" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">link</span><span class="co">](https://example.com)</span></span>
+<span id="cb138-2"><a href="#cb138-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb138-3"><a href="#cb138-3" aria-hidden="true" tabindex="-1"></a><span class="al">![image](https://example.com)</span></span></code></pre></div>
+<p>Setting the <code>full</code> parameter to <code>false</code>
+disables full reference links and images:</p>
+<div class="sourceCode" id="cb139"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb139-1"><a href="#cb139-1" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">link</span><span class="co">][url]</span></span>
+<span id="cb139-2"><a href="#cb139-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb139-3"><a href="#cb139-3" aria-hidden="true" tabindex="-1"></a><span class="al">![image][url]</span></span>
+<span id="cb139-4"><a href="#cb139-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb139-5"><a href="#cb139-5" aria-hidden="true" tabindex="-1"></a><span class="ot">[url]: https://example.com</span></span></code></pre></div>
+<p>Setting the <code>collapsed</code> parameter to <code>false</code>
+disables collapsed reference links and images:</p>
+<div class="sourceCode" id="cb140"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb140-1"><a href="#cb140-1" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">url</span><span class="co">][]</span></span>
+<span id="cb140-2"><a href="#cb140-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb140-3"><a href="#cb140-3" aria-hidden="true" tabindex="-1"></a><span class="al">![url][]</span></span>
+<span id="cb140-4"><a href="#cb140-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb140-5"><a href="#cb140-5" aria-hidden="true" tabindex="-1"></a><span class="ot">[url]: https://example.com</span></span></code></pre></div>
+<p>Setting the <code>shortcut</code> parameter to <code>false</code>
+disables shortcut reference links and images:</p>
+<div class="sourceCode" id="cb141"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb141-1"><a href="#cb141-1" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">url</span><span class="co">]</span></span>
+<span id="cb141-2"><a href="#cb141-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb141-3"><a href="#cb141-3" aria-hidden="true" tabindex="-1"></a>!<span class="co">[</span><span class="ot">url</span><span class="co">]</span></span>
+<span id="cb141-4"><a href="#cb141-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb141-5"><a href="#cb141-5" aria-hidden="true" tabindex="-1"></a><span class="ot">[url]: https://example.com</span></span></code></pre></div>
+<p>To fix violations of this rule, change the link or image to use an
+allowed style. This rule can automatically fix violations when a link or
+image can be converted to the <code>inline</code> style (preferred) or a
+link can be converted to the <code>autolink</code> style (which does not
+support images and must be an absolute URL). This rule does <em>not</em>
+fix scenarios that require converting a link or image to the
+<code>full</code>, <code>collapsed</code>, or <code>shortcut</code>
+reference styles because that involves naming the reference and
+determining where to insert it in the document.</p>
+<p>Setting the <code>url_inline</code> parameter to <code>false</code>
+prevents the use of inline links with the same absolute URL
+text/destination and no title because such links can be converted to
+autolinks:</p>
+<div class="sourceCode" id="cb142"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb142-1"><a href="#cb142-1" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">https://example.com</span><span class="co">](https://example.com)</span></span></code></pre></div>
+<p>To fix <code>url_inline</code> violations, use the simpler autolink
+syntax instead:</p>
+<div class="sourceCode" id="cb143"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb143-1"><a href="#cb143-1" aria-hidden="true" tabindex="-1"></a><span class="ot">&lt;https://example.com&gt;</span></span></code></pre></div>
+<p>Rationale: Consistent formatting makes it easier to understand a
+document. Autolinks are concise, but appear as URLs which can be long
+and confusing. Inline links and images can include descriptive text, but
+take up more space in Markdown form. Reference links and images can be
+easier to read and manipulate in Markdown form, but require a separate
+link reference definition.</p>
+<p><a name="md055"></a></p>
+<h2 id="md055---table-pipe-style"><code>MD055</code> - Table pipe
+style</h2>
+<p>Tags: <code>table</code></p>
+<p>Aliases: <code>table-pipe-style</code></p>
+<p>Parameters:</p>
+<ul>
+<li><code>style</code>: Table pipe style (<code>string</code>, default
+<code>consistent</code>, values <code>consistent</code> /
+<code>leading_and_trailing</code> / <code>leading_only</code> /
+<code>no_leading_or_trailing</code> / <code>trailing_only</code>)</li>
+</ul>
+<p>This rule is triggered when a <a
+href="https://docs.github.com/en/get-started/writing-on-github/working-with-advanced-formatting/organizing-information-with-tables">GitHub
+Flavored Markdown table</a> is inconsistent about its use of leading and
+trailing pipe characters (<code>|</code>).</p>
+<p>By default (<code>consistent</code> style), the header row of the
+first table in a document is used to determine the style that is
+enforced for every table in the document. A specific style can be used
+instead (<code>leading_and_trailing</code>, <code>leading_only</code>,
+<code>no_leading_or_trailing</code>, <code>trailing_only</code>).</p>
+<p>This table’s header row has leading and trailing pipes, but its
+delimiter row is missing the trailing pipe and its first row of cells is
+missing the leading pipe:</p>
+<div class="sourceCode" id="cb144"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb144-1"><a href="#cb144-1" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> Header <span class="pp">|</span> Header <span class="pp">|</span></span>
+<span id="cb144-2"><a href="#cb144-2" aria-hidden="true" tabindex="-1"></a><span class="pp">| ------</span> <span class="pp">| ------</span></span>
+<span id="cb144-3"><a href="#cb144-3" aria-hidden="true" tabindex="-1"></a>  Cell   | Cell   |</span></code></pre></div>
+<p>To fix these issues, make sure there is a pipe character at the
+beginning and end of every row:</p>
+<div class="sourceCode" id="cb145"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb145-1"><a href="#cb145-1" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> Header <span class="pp">|</span> Header <span class="pp">|</span></span>
+<span id="cb145-2"><a href="#cb145-2" aria-hidden="true" tabindex="-1"></a><span class="pp">| ------</span> <span class="pp">| ------</span> <span class="pp">|</span></span>
+<span id="cb145-3"><a href="#cb145-3" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> Cell   <span class="pp">|</span> Cell   <span class="pp">|</span></span></code></pre></div>
+<p>Note that text immediately following a table (i.e., not separated by
+an empty line) is treated as part of the table (per the specification)
+and may also trigger this rule:</p>
+<div class="sourceCode" id="cb146"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb146-1"><a href="#cb146-1" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> Header <span class="pp">|</span> Header <span class="pp">|</span></span>
+<span id="cb146-2"><a href="#cb146-2" aria-hidden="true" tabindex="-1"></a><span class="pp">| ------</span> <span class="pp">| ------</span> <span class="pp">|</span></span>
+<span id="cb146-3"><a href="#cb146-3" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> Cell   <span class="pp">|</span> Cell   <span class="pp">|</span></span>
+<span id="cb146-4"><a href="#cb146-4" aria-hidden="true" tabindex="-1"></a>This text is part of the table</span></code></pre></div>
+<p>Rationale: Some parsers have difficulty with tables that are missing
+their leading or trailing pipe characters. The use of leading/trailing
+pipes can also help provide visual clarity.</p>
+<p><a name="md056"></a></p>
+<h2 id="md056---table-column-count"><code>MD056</code> - Table column
+count</h2>
+<p>Tags: <code>table</code></p>
+<p>Aliases: <code>table-column-count</code></p>
+<p>This rule is triggered when a <a
+href="https://docs.github.com/en/get-started/writing-on-github/working-with-advanced-formatting/organizing-information-with-tables">GitHub
+Flavored Markdown table</a> does not have the same number of cells in
+every row.</p>
+<p>This table’s second data row has too few cells and its third data row
+has too many cells:</p>
+<div class="sourceCode" id="cb147"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb147-1"><a href="#cb147-1" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> Header <span class="pp">|</span> Header <span class="pp">|</span></span>
+<span id="cb147-2"><a href="#cb147-2" aria-hidden="true" tabindex="-1"></a><span class="pp">| ------</span> <span class="pp">| ------</span> <span class="pp">|</span></span>
+<span id="cb147-3"><a href="#cb147-3" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> Cell   <span class="pp">|</span> Cell   <span class="pp">|</span></span>
+<span id="cb147-4"><a href="#cb147-4" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> Cell   <span class="pp">|</span></span>
+<span id="cb147-5"><a href="#cb147-5" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> Cell   <span class="pp">|</span> Cell   <span class="pp">|</span> Cell   <span class="pp">|</span></span></code></pre></div>
+<p>To fix these issues, ensure every row has the same number of
+cells:</p>
+<div class="sourceCode" id="cb148"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb148-1"><a href="#cb148-1" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> Header <span class="pp">|</span> Header <span class="pp">|</span></span>
+<span id="cb148-2"><a href="#cb148-2" aria-hidden="true" tabindex="-1"></a><span class="pp">| ------</span> <span class="pp">| ------</span> <span class="pp">|</span></span>
+<span id="cb148-3"><a href="#cb148-3" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> Cell   <span class="pp">|</span> Cell   <span class="pp">|</span></span>
+<span id="cb148-4"><a href="#cb148-4" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> Cell   <span class="pp">|</span> Cell   <span class="pp">|</span></span>
+<span id="cb148-5"><a href="#cb148-5" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> Cell   <span class="pp">|</span> Cell   <span class="pp">|</span></span></code></pre></div>
+<p>Note that a table’s header row and its delimiter row must have the
+same number of cells or it will not be recognized as a table (per
+specification).</p>
+<p>Rationale: Extra cells in a row are usually not shown, so their data
+is lost. Missing cells in a row create holes in the table and suggest an
+omission.</p>
+<p><a name="md058"></a></p>
+<h2
+id="md058---tables-should-be-surrounded-by-blank-lines"><code>MD058</code>
+- Tables should be surrounded by blank lines</h2>
+<p>Tags: <code>table</code></p>
+<p>Aliases: <code>blanks-around-tables</code></p>
+<p>Fixable: Some violations can be fixed by tooling</p>
+<p>This rule is triggered when tables are either not preceded or not
+followed by a blank line:</p>
+<div class="sourceCode" id="cb149"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb149-1"><a href="#cb149-1" aria-hidden="true" tabindex="-1"></a>Some text</span>
+<span id="cb149-2"><a href="#cb149-2" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> Header <span class="pp">|</span> Header <span class="pp">|</span></span>
+<span id="cb149-3"><a href="#cb149-3" aria-hidden="true" tabindex="-1"></a><span class="pp">| ------</span> <span class="pp">| ------</span> <span class="pp">|</span></span>
+<span id="cb149-4"><a href="#cb149-4" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> Cell   <span class="pp">|</span> Cell   <span class="pp">|</span></span>
+<span id="cb149-5"><a href="#cb149-5" aria-hidden="true" tabindex="-1"></a><span class="at">&gt; Blockquote</span></span></code></pre></div>
+<p>To fix violations of this rule, ensure that all tables have a blank
+line both before and after (except when the table is at the very
+beginning or end of the document):</p>
+<div class="sourceCode" id="cb150"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb150-1"><a href="#cb150-1" aria-hidden="true" tabindex="-1"></a>Some text</span>
+<span id="cb150-2"><a href="#cb150-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb150-3"><a href="#cb150-3" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> Header <span class="pp">|</span> Header <span class="pp">|</span></span>
+<span id="cb150-4"><a href="#cb150-4" aria-hidden="true" tabindex="-1"></a><span class="pp">| ------</span> <span class="pp">| ------</span> <span class="pp">|</span></span>
+<span id="cb150-5"><a href="#cb150-5" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> Cell   <span class="pp">|</span> Cell   <span class="pp">|</span></span>
+<span id="cb150-6"><a href="#cb150-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb150-7"><a href="#cb150-7" aria-hidden="true" tabindex="-1"></a><span class="at">&gt; Blockquote</span></span></code></pre></div>
+<p>Note that text immediately following a table (i.e., not separated by
+an empty line) is treated as part of the table (per the specification)
+and will not trigger this rule:</p>
+<div class="sourceCode" id="cb151"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb151-1"><a href="#cb151-1" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> Header <span class="pp">|</span> Header <span class="pp">|</span></span>
+<span id="cb151-2"><a href="#cb151-2" aria-hidden="true" tabindex="-1"></a><span class="pp">| ------</span> <span class="pp">| ------</span> <span class="pp">|</span></span>
+<span id="cb151-3"><a href="#cb151-3" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> Cell   <span class="pp">|</span> Cell   <span class="pp">|</span></span>
+<span id="cb151-4"><a href="#cb151-4" aria-hidden="true" tabindex="-1"></a>This text is part of the table and the next line is blank</span>
+<span id="cb151-5"><a href="#cb151-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb151-6"><a href="#cb151-6" aria-hidden="true" tabindex="-1"></a>Some text</span></code></pre></div>
+<p>Rationale: In addition to aesthetic reasons, some parsers will
+incorrectly parse tables that don’t have blank lines before and after
+them.</p>
+<p><a name="md059"></a></p>
+<h2 id="md059---link-text-should-be-descriptive"><code>MD059</code> -
+Link text should be descriptive</h2>
+<p>Tags: <code>accessibility</code>, <code>links</code></p>
+<p>Aliases: <code>descriptive-link-text</code></p>
+<p>Parameters:</p>
+<ul>
+<li><code>prohibited_texts</code>: Prohibited link texts
+(<code>string[]</code>, default
+<code>["click here","here","link","more"]</code>)</li>
+</ul>
+<p>This rule is triggered when a link has generic text like
+<code>[click here](...)</code> or <code>[link](...)</code>.</p>
+<p>Link text should be descriptive and communicate the purpose of the
+link (e.g., <code>[Download the budget document](...)</code> or
+<code>[CommonMark Specification](...)</code>). This is especially
+important for screen readers which sometimes present links without
+context.</p>
+<p>By default, this rule prohibits a small number of common English
+words/phrases. To customize that list of words/phrases, set the
+<code>prohibited_texts</code> parameter to an <code>Array</code> of
+<code>string</code>s.</p>
+<p>Note: For languages other than English, use the
+<code>prohibited_texts</code> parameter to customize the list for that
+language. It is <em>not</em> a goal for this rule to have translations
+for every language.</p>
+<p>Note: This rule checks Markdown links; HTML links are ignored.</p>
+<p>More information:</p>
+<ul>
+<li><a
+href="https://webaim.org/techniques/hypertext/">https://webaim.org/techniques/hypertext/</a></li>
+<li><a
+href="https://www.w3.org/WAI/WCAG21/Understanding/link-purpose-link-only.html">https://www.w3.org/WAI/WCAG21/Understanding/link-purpose-link-only.html</a></li>
+</ul>
+<p><a name="md060"></a></p>
+<h2 id="md060---table-column-style"><code>MD060</code> - Table column
+style</h2>
+<p>Tags: <code>table</code></p>
+<p>Aliases: <code>table-column-style</code></p>
+<p>Parameters:</p>
+<ul>
+<li><code>aligned_delimiter</code>: Aligned delimiter columns
+(<code>boolean</code>, default <code>false</code>)</li>
+<li><code>style</code>: Table column style (<code>string</code>, default
+<code>any</code>, values <code>aligned</code> / <code>any</code> /
+<code>compact</code> / <code>tight</code>)</li>
+</ul>
+<p>Fixable: Some violations can be fixed by tooling</p>
+<p>This rule is triggered when the column separator pipe characters
+(<code>|</code>) of a <a
+href="https://docs.github.com/en/get-started/writing-on-github/working-with-advanced-formatting/organizing-information-with-tables">GitHub
+Flavored Markdown table</a> are used inconsistently.</p>
+<p>This rule recognizes three table column styles based on popular
+use.</p>
+<p>Style <code>aligned</code> ensures pipe characters are vertically
+aligned:</p>
+<div class="sourceCode" id="cb152"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb152-1"><a href="#cb152-1" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> Character <span class="pp">|</span> Meaning <span class="pp">|</span></span>
+<span id="cb152-2"><a href="#cb152-2" aria-hidden="true" tabindex="-1"></a><span class="pp">| ---------</span> <span class="pp">| -------</span> <span class="pp">|</span></span>
+<span id="cb152-3"><a href="#cb152-3" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> Y         <span class="pp">|</span> Yes     <span class="pp">|</span></span>
+<span id="cb152-4"><a href="#cb152-4" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> N         <span class="pp">|</span> No      <span class="pp">|</span></span></code></pre></div>
+<p>The <code>aligned</code> style ignores cell content, so the following
+is also valid:</p>
+<div class="sourceCode" id="cb153"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb153-1"><a href="#cb153-1" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> Character <span class="pp">|</span> Meaning <span class="pp">|</span></span>
+<span id="cb153-2"><a href="#cb153-2" aria-hidden="true" tabindex="-1"></a><span class="pp">|-----------|---------|</span></span>
+<span id="cb153-3"><a href="#cb153-3" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span>     Y     <span class="pp">|</span>     Yes <span class="pp">|</span></span>
+<span id="cb153-4"><a href="#cb153-4" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span>     N     <span class="pp">|</span>      No <span class="pp">|</span></span></code></pre></div>
+<p>Style <code>compact</code> avoids extra padding with a single space
+around cell content:</p>
+<div class="sourceCode" id="cb154"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb154-1"><a href="#cb154-1" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> Character <span class="pp">|</span> Meaning <span class="pp">|</span></span>
+<span id="cb154-2"><a href="#cb154-2" aria-hidden="true" tabindex="-1"></a><span class="pp">| ---</span> <span class="pp">| ---</span> <span class="pp">|</span></span>
+<span id="cb154-3"><a href="#cb154-3" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> Y <span class="pp">|</span> Yes <span class="pp">|</span></span>
+<span id="cb154-4"><a href="#cb154-4" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> N <span class="pp">|</span> No <span class="pp">|</span></span></code></pre></div>
+<p>Style <code>tight</code> uses no padding at all for cell content:</p>
+<div class="sourceCode" id="cb155"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb155-1"><a href="#cb155-1" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span>Character<span class="pp">|</span>Meaning<span class="pp">|</span></span>
+<span id="cb155-2"><a href="#cb155-2" aria-hidden="true" tabindex="-1"></a><span class="pp">|---|---|</span></span>
+<span id="cb155-3"><a href="#cb155-3" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span>Y<span class="pp">|</span>Yes<span class="pp">|</span></span>
+<span id="cb155-4"><a href="#cb155-4" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span>N<span class="pp">|</span>No<span class="pp">|</span></span></code></pre></div>
+<p>When this rule’s <code>style</code> parameter is set to
+<code>aligned</code>, <code>compact</code>, or <code>tight</code>, every
+table must match the corresponding pattern and any violations will be
+reported. By default, or when the <code>any</code> style is used, each
+table is analyzed to see if it satisfies any supported style. If so, no
+violations are reported. If not, violations are be reported for
+whichever style would produce the <em>fewest</em> issues (i.e.,
+whichever style is the closest match).</p>
+<p>Setting the <code>aligned_delimiter</code> parameter to
+<code>true</code> requires pipe characters in the delimiter row to align
+with those in the header row. This can be used with <code>compact</code>
+and <code>tight</code> tables to make the header text more obvious.
+(It’s already required for tables with style <code>aligned</code>.)</p>
+<p>Style <code>compact</code> with <code>aligned_delimiter</code>:</p>
+<div class="sourceCode" id="cb156"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb156-1"><a href="#cb156-1" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> Character <span class="pp">|</span> Meaning <span class="pp">|</span></span>
+<span id="cb156-2"><a href="#cb156-2" aria-hidden="true" tabindex="-1"></a><span class="pp">| ---------</span> <span class="pp">| -------</span> <span class="pp">|</span></span>
+<span id="cb156-3"><a href="#cb156-3" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> Y <span class="pp">|</span> Yes <span class="pp">|</span></span>
+<span id="cb156-4"><a href="#cb156-4" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> N <span class="pp">|</span> No <span class="pp">|</span></span></code></pre></div>
+<p>Style <code>tight</code> with <code>aligned_delimiter</code>:</p>
+<div class="sourceCode" id="cb157"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb157-1"><a href="#cb157-1" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span>Character<span class="pp">|</span>Meaning<span class="pp">|</span></span>
+<span id="cb157-2"><a href="#cb157-2" aria-hidden="true" tabindex="-1"></a><span class="pp">|---------|-------|</span></span>
+<span id="cb157-3"><a href="#cb157-3" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span>Y<span class="pp">|</span>Yes<span class="pp">|</span></span>
+<span id="cb157-4"><a href="#cb157-4" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span>N<span class="pp">|</span>No<span class="pp">|</span></span></code></pre></div>
+<p>Violations for styles <code>compact</code> and <code>tight</code> are
+simple/independent and can be fixed automatically. However, fixing even
+single violations for style <code>aligned</code> may require modifying
+the entire table, and therefore are not automatic:</p>
+<div class="sourceCode" id="cb158"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb158-1"><a href="#cb158-1" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span>Alpha <span class="pp">|</span>Delta<span class="pp">|</span></span>
+<span id="cb158-2"><a href="#cb158-2" aria-hidden="true" tabindex="-1"></a><span class="pp">|------|-----|</span></span>
+<span id="cb158-3"><a href="#cb158-3" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span>Charlie<span class="pp">|</span>Beta<span class="pp">|</span></span></code></pre></div>
+<p><strong>Note</strong>: This rule does not require leading/trailing
+pipe characters, so this is also a valid table for style
+<code>compact</code>:</p>
+<div class="sourceCode" id="cb159"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb159-1"><a href="#cb159-1" aria-hidden="true" tabindex="-1"></a>Character | Meaning</span>
+<span id="cb159-2"><a href="#cb159-2" aria-hidden="true" tabindex="-1"></a>--- | ---</span>
+<span id="cb159-3"><a href="#cb159-3" aria-hidden="true" tabindex="-1"></a>Y | Yes</span>
+<span id="cb159-4"><a href="#cb159-4" aria-hidden="true" tabindex="-1"></a>N | No</span></code></pre></div>
+<p><strong>Note</strong>: Pipe alignment for the <code>aligned</code>
+style is based on visual appearance and not character count. Because
+editors typically render <a
+href="https://wikipedia.org/wiki/Emoji">emoji</a> and <a
+href="https://wikipedia.org/wiki/CJK_characters">CJK characters</a> at
+<em>twice</em> the width of <a
+href="https://wikipedia.org/wiki/Latin_script">Latin characters</a>,
+this rule takes that into account for tables using the
+<code>aligned</code> style. The following table is correctly formatted
+and will appear aligned in most editors and monospaced fonts:</p>
+<!-- markdownlint-capture -->
+
+<!-- markdownlint-disable extended-ascii -->
+
+<div class="sourceCode" id="cb160"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb160-1"><a href="#cb160-1" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> Response <span class="pp">|</span> Emoji <span class="pp">|</span></span>
+<span id="cb160-2"><a href="#cb160-2" aria-hidden="true" tabindex="-1"></a><span class="pp">| --------</span> <span class="pp">| -----</span> <span class="pp">|</span></span>
+<span id="cb160-3"><a href="#cb160-3" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> Yes      <span class="pp">|</span> ✅    <span class="pp">|</span></span>
+<span id="cb160-4"><a href="#cb160-4" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> No       <span class="pp">|</span> ❎    <span class="pp">|</span></span></code></pre></div>
+<!-- markdownlint-restore -->
+
+<p>Rationale: Consistent formatting makes it easier to understand a
+document.</p>
+<!-- markdownlint-configure-file {
+  "no-inline-html": {
+    "allowed_elements": [
+      "a"
+    ]
+  }
+} -->
+</body></html>
