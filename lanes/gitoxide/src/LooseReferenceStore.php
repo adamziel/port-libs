@@ -95,6 +95,38 @@ final class LooseReferenceStore
     /**
      * @return list<LooseReference>
      */
+    public function pseudoReferences(string $algorithm = 'sha1'): array
+    {
+        $gitDirectory = rtrim($this->gitDirectory, '/\\');
+        if (!is_dir($gitDirectory)) {
+            return [];
+        }
+
+        $references = [];
+        foreach (scandir($gitDirectory) ?: [] as $entry) {
+            if ($entry === '.' || $entry === '..' || str_ends_with($entry, '.lock')) {
+                continue;
+            }
+            if (!ReferenceName::isPseudoRef($entry)) {
+                continue;
+            }
+
+            $path = $gitDirectory . '/' . $entry;
+            if (!is_file($path)) {
+                continue;
+            }
+
+            $references[] = LooseReference::parse($entry, (string) file_get_contents($path), $algorithm);
+        }
+
+        usort($references, static fn (LooseReference $a, LooseReference $b): int => strcmp($a->name, $b->name));
+
+        return $references;
+    }
+
+    /**
+     * @return list<LooseReference>
+     */
     public function prefixed(string $prefix, string $algorithm = 'sha1'): array
     {
         ReferenceName::assertValidPartial(rtrim($prefix, '/'));
@@ -134,6 +166,58 @@ final class LooseReferenceStore
         usort($references, static fn (LooseReference $a, LooseReference $b): int => strcmp($a->name, $b->name));
 
         return $references;
+    }
+
+    /**
+     * @return list<array{name:string,reference:?LooseReference,error:?\InvalidArgumentException}>
+     */
+    public function prefixedResults(string $prefix, string $algorithm = 'sha1'): array
+    {
+        ReferenceName::assertValidPartial(rtrim($prefix, '/'));
+
+        $refsDirectory = rtrim($this->gitDirectory, '/\\') . '/refs';
+        if (!is_dir($refsDirectory)) {
+            return [];
+        }
+
+        $results = [];
+        $iterator = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($refsDirectory, \FilesystemIterator::SKIP_DOTS)
+        );
+
+        foreach ($iterator as $file) {
+            if (!$file instanceof \SplFileInfo || !$file->isFile()) {
+                continue;
+            }
+
+            $path = str_replace('\\', '/', $file->getPathname());
+            $gitDirectory = str_replace('\\', '/', rtrim($this->gitDirectory, '/\\')) . '/';
+            if (!str_starts_with($path, $gitDirectory)) {
+                continue;
+            }
+
+            $name = substr($path, strlen($gitDirectory));
+            if (str_ends_with($name, '.lock')) {
+                continue;
+            }
+            if (!str_starts_with($name, $prefix)) {
+                continue;
+            }
+
+            try {
+                $results[] = [
+                    'name' => $name,
+                    'reference' => LooseReference::parse($name, (string) file_get_contents($file->getPathname()), $algorithm),
+                    'error' => null,
+                ];
+            } catch (\InvalidArgumentException $exception) {
+                $results[] = ['name' => $name, 'reference' => null, 'error' => $exception];
+            }
+        }
+
+        usort($results, static fn (array $a, array $b): int => strcmp($a['name'], $b['name']));
+
+        return $results;
     }
 
     private function pathFor(string $name): string

@@ -52,7 +52,7 @@ final class CargoTargetMaterializer
             'totalBytes' => $totalBytes,
             'totalLines' => $totalLines,
             'directories' => $directoryList,
-            'nextProbe' => 'after materialization rerun CARGO_TARGET_DIR=/tmp/port-libs-gitoxide-cargo-workspace-target timeout 180 cargo test --workspace --locked --offline --no-run',
+            'nextProbe' => 'after materialization or from a complete checkout rerun CARGO_TARGET_DIR=/tmp/port-libs-gitoxide-cargo-workspace-target-offline cargo test --workspace --locked --offline --no-run',
         ];
     }
 
@@ -166,7 +166,7 @@ final class CargoTargetMaterializer
             'totalBytes' => $totalBytes,
             'totalLines' => $totalLines,
             'targets' => $rows,
-            'nextProbe' => 'CARGO_TARGET_DIR=/tmp/port-libs-gitoxide-cargo-workspace-target timeout 180 cargo test --workspace --locked --offline --no-run',
+            'nextProbe' => 'CARGO_TARGET_DIR=/tmp/port-libs-gitoxide-cargo-workspace-target-offline cargo test --workspace --locked --offline --no-run',
         ];
     }
 

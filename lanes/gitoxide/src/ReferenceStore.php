@@ -968,6 +968,19 @@ final class ReferenceStore
     /**
      * @return list<ResolvedReference>
      */
+    public function pseudoReferences(string $algorithm = 'sha1'): array
+    {
+        return array_map(
+            fn (LooseReference $reference): ResolvedReference => $this->storeRelativeReference(
+                ResolvedReference::fromLoose($reference)
+            ),
+            $this->loose->pseudoReferences($algorithm),
+        );
+    }
+
+    /**
+     * @return list<ResolvedReference>
+     */
     public function loosePrefixed(string $prefix, string $algorithm = 'sha1'): array
     {
         $lookupPrefix = $this->namespacePrefix === null ? $prefix : $this->namespacePrefix . $prefix;

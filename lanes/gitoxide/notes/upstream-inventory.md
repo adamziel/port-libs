@@ -13,6 +13,12 @@ Static tree denominator:
 - 214 files under upstream `tests/fixtures/generated-archives/`.
 - 2,877 files total in the upstream tree listing.
 
+Final denominator audit on 2026-06-26:
+
+- `rg` over the pinned checkout counted 2,922 upstream Rust `#[test]` attributes.
+- The upstream `tests/tools` helper crate contributes 36 of those `#[test]` attributes and is excluded from the Gitoxide behavior denominator.
+- `2,922 - 36 = 2,886`, matching the manifest denominator used for Gitoxide PHP parity.
+
 Targeted object/ref inventory inspected on 2026-05-22:
 
 - The `.upstream-cache/gitoxide` checkout is sparse/no-checkout (`core.sparseCheckout=true`), so crate files were inspected through `git ls-tree`, targeted `git show`, and targeted `git grep` rather than broad working-tree scans.

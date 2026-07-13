@@ -43,22 +43,24 @@ final class CargoWorkspaceEvidence
                     'testTargets' => 101,
                 ],
                 'workspaceNoRunOffline' => [
-                    'command' => 'CARGO_TARGET_DIR=/tmp/port-libs-gitoxide-cargo-workspace-target timeout 180 cargo test --workspace --locked --offline --no-run',
-                    'exitCode' => 101,
-                    'status' => 'blocked',
-                    'blocker' => 'sparse upstream cache is missing declared Cargo target source files during target resolution before compilation starts',
-                    'targetResolutionErrors' => 10,
-                    'blockingPackages' => self::workspaceNoRunBlockingPackages(),
+                    'command' => 'CARGO_TARGET_DIR=/tmp/port-libs-gitoxide-cargo-workspace-target-offline cargo test --workspace --locked --offline --no-run',
+                    'exitCode' => 0,
+                    'status' => 'passed',
+                    'durationSeconds' => 89.0,
+                    'workspaceMembers' => 70,
+                    'declaredTargets' => 126,
+                    'testTargets' => 101,
+                    'previousBlockingPackages' => self::workspaceNoRunBlockingPackages(),
                 ],
                 'defaultPackageNoRunOffline' => [
-                    'command' => 'CARGO_TARGET_DIR=/tmp/port-libs-gitoxide-default-target timeout 180 cargo test --locked --offline --no-run',
+                    'command' => 'CARGO_TARGET_DIR=/tmp/port-libs-gitoxide-default-target cargo test --locked --offline --no-run',
                     'exitCode' => 0,
                     'status' => 'passed',
                     'durationSeconds' => 50.13,
                     'builtExecutable' => 'unittests src/lib.rs',
                 ],
                 'defaultPackageLibOffline' => [
-                    'command' => 'CARGO_TARGET_DIR=/tmp/port-libs-gitoxide-default-target timeout 120 cargo test --locked --offline --lib',
+                    'command' => 'CARGO_TARGET_DIR=/tmp/port-libs-gitoxide-default-target cargo test --locked --offline --lib',
                     'exitCode' => 0,
                     'status' => 'passed',
                     'passed' => 4,
@@ -112,7 +114,7 @@ final class CargoWorkspaceEvidence
 
     public static function workspaceAdmissionStatus(): string
     {
-        return 'blocked: full offline Cargo workspace no-run fails during target resolution in the sparse checkout; target hydration closure is source-available for all missing declared targets; default gitoxide package no-run and lib tests pass offline';
+        return 'passed: full offline Cargo workspace no-run compiles all 70 workspace members, 126 declared targets, and 101 test-capable targets from a complete pinned upstream checkout; the previous sparse target materialization blocker is closed; default gitoxide package no-run and lib tests pass offline';
     }
 
     /**
@@ -156,14 +158,14 @@ final class CargoWorkspaceEvidence
             'blockingHydratableTargets' => count($blockingTargets),
             'nonBlockingHydratableTargets' => count($targets) - count($blockingTargets),
             'allMissingTargetsHydratable' => $missingPaths === $hydratedPaths,
-            'nextProbe' => 'materialize these target blobs into the sparse checkout or use a complete checkout, then rerun CARGO_TARGET_DIR=/tmp/port-libs-gitoxide-cargo-workspace-target timeout 180 cargo test --workspace --locked --offline --no-run',
+            'nextProbe' => 'rerun CARGO_TARGET_DIR=/tmp/port-libs-gitoxide-cargo-workspace-target-offline cargo test --workspace --locked --offline --no-run from a complete pinned checkout',
             'targets' => $targets,
         ];
     }
 
     public static function targetHydrationStatus(): string
     {
-        return 'closed-source-available: all 16 sparse-cache missing Cargo target files exist as blobs at the pinned upstream commit; the remaining runner gate is materialization plus full workspace no-run compilation';
+        return 'closed-runner-passed: all 16 sparse-cache missing Cargo target files exist as blobs at the pinned upstream commit, and full offline Cargo workspace no-run passes from a complete pinned checkout';
     }
 
     /**

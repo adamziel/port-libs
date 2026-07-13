@@ -2100,8 +2100,17 @@ return [
         );
         $t->same(null, $store->reflogContents('refs/symbolic'), 'symbolic direct creation does not write an object reflog entry');
 
-        file_put_contents($dir . '/refs/a.lock', 'held loose lowercase lock');
-        file_put_contents($dir . '/refs/A.lock', 'held loose uppercase lock');
+        $caseProbe = $dir . '/case-sensitivity-probe';
+        file_put_contents($caseProbe, 'probe');
+        $caseInsensitiveFilesystem = is_file($dir . '/CASE-SENSITIVITY-PROBE');
+        unlink($caseProbe);
+
+        $lowercaseLockContents = 'held loose lowercase lock';
+        $uppercaseLockContents = $caseInsensitiveFilesystem ? $lowercaseLockContents : 'held loose uppercase lock';
+        file_put_contents($dir . '/refs/a.lock', $lowercaseLockContents);
+        if (!$caseInsensitiveFilesystem) {
+            file_put_contents($dir . '/refs/A.lock', $uppercaseLockContents);
+        }
         $aReflogBefore = (string) $store->reflogContents('refs/a');
         $upperReflogBefore = (string) $store->reflogContents('refs/A');
         $sameTarget = $store->prepareLooseUpdateTransaction(
@@ -2119,16 +2128,42 @@ return [
             ReferenceStore::PACKED_DELETIONS_AND_NON_SYMBOLIC_UPDATES_REMOVE_LOOSE_SOURCE_REFERENCE,
         );
 
-        $t->same('held loose lowercase lock', file_get_contents($dir . '/refs/a.lock'));
-        $t->same('held loose uppercase lock', file_get_contents($dir . '/refs/A.lock'));
+        $t->same($lowercaseLockContents, file_get_contents($dir . '/refs/a.lock'));
+        $t->same($uppercaseLockContents, file_get_contents($dir . '/refs/A.lock'));
         $sameTargetEdits = $sameTarget->commit();
         $t->same(['refs/a', 'refs/A'], array_map(static fn ($edit): string => $edit->name, $sameTargetEdits));
-        $t->same('held loose lowercase lock', file_get_contents($dir . '/refs/a.lock'));
-        $t->same('held loose uppercase lock', file_get_contents($dir . '/refs/A.lock'));
+        $t->same($lowercaseLockContents, file_get_contents($dir . '/refs/a.lock'));
+        $t->same($uppercaseLockContents, file_get_contents($dir . '/refs/A.lock'));
         $t->same($aReflogBefore, $store->reflogContents('refs/a'), 'same-target packed refresh does not add reflog noise');
         $t->same($upperReflogBefore, $store->reflogContents('refs/A'), 'same-target uppercase packed refresh does not add reflog noise');
         unlink($dir . '/refs/a.lock');
-        unlink($dir . '/refs/A.lock');
+        if (!$caseInsensitiveFilesystem) {
+            unlink($dir . '/refs/A.lock');
+        }
+
+        if ($caseInsensitiveFilesystem) {
+            $deleteError = null;
+            try {
+                $store->prepareLooseDeleteTransaction(
+                    ['refs/a', 'refs/A', 'refs/symbolic'],
+                    ReferenceStore::PREVIOUS_MUST_EXIST,
+                    null,
+                    false,
+                    'sha1',
+                );
+            } catch (RuntimeException $exception) {
+                $deleteError = $exception->getMessage();
+            }
+
+            $t->contains('A lock could not be obtained for reference "refs/A"', (string) $deleteError);
+            $t->same(false, is_file($dir . '/packed-refs.lock'), 'case-folded packed delete collision rolls back the packed refs lock');
+            $t->same(false, is_file($dir . '/refs/a.lock'), 'case-folded packed delete collision rolls back the lowercase loose lock');
+            $t->same(false, is_file($dir . '/refs/A.lock'), 'case-folded packed delete collision leaves no uppercase loose lock');
+            $t->same(['refs/A', 'refs/a'], PackedReferences::open($dir . '/packed-refs')->names());
+            $t->same("ref: refs/heads/target\n", file_get_contents($dir . '/refs/symbolic'));
+
+            return;
+        }
 
         $delete = $store->prepareLooseDeleteTransaction(
             ['refs/a', 'refs/A', 'refs/symbolic'],

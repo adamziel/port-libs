@@ -220,16 +220,63 @@ final class ExternalMergeDriver
 
     private static function writeTemp(string $directory, string $contents): string
     {
-        $path = tempnam($directory, 'gix-merge-');
-        if ($path === false) {
-            throw new \RuntimeException('Could not create external merge driver tempfile');
-        }
-        if (file_put_contents($path, $contents) === false) {
-            unlink($path);
-            throw new \RuntimeException('Could not write external merge driver tempfile');
+        for ($attempt = 0; $attempt < 10; $attempt++) {
+            $path = self::joinPath($directory, 'gix-merge-' . bin2hex(random_bytes(8)));
+            $previousUmask = umask(0077);
+            try {
+                $handle = @fopen($path, 'xb');
+            } finally {
+                umask($previousUmask);
+            }
+            if ($handle === false) {
+                if (file_exists($path)) {
+                    continue;
+                }
+                throw new \RuntimeException('Could not create external merge driver tempfile');
+            }
+
+            try {
+                self::writeAll($handle, $contents);
+            } catch (\Throwable $throwable) {
+                fclose($handle);
+                unlink($path);
+                throw $throwable;
+            }
+
+            if (!fclose($handle)) {
+                unlink($path);
+                throw new \RuntimeException('Could not write external merge driver tempfile');
+            }
+
+            return $path;
         }
 
-        return $path;
+        throw new \RuntimeException('Could not create external merge driver tempfile');
+    }
+
+    /**
+     * @param resource $handle
+     */
+    private static function writeAll($handle, string $contents): void
+    {
+        $offset = 0;
+        $length = strlen($contents);
+        while ($offset < $length) {
+            $written = fwrite($handle, substr($contents, $offset));
+            if ($written === false || $written === 0) {
+                throw new \RuntimeException('Could not write external merge driver tempfile');
+            }
+            $offset += $written;
+        }
+    }
+
+    private static function joinPath(string $directory, string $basename): string
+    {
+        if ($directory === '' || str_ends_with($directory, '/') || str_ends_with($directory, '\\')) {
+            return $directory . $basename;
+        }
+
+        return $directory . DIRECTORY_SEPARATOR . $basename;
     }
 
     private static function singleQuote(string $value): string

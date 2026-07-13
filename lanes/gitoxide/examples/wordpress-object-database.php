@@ -253,10 +253,16 @@ if (!$caseDuplicateObject instanceof GitObject || $caseDuplicateOid === null) {
 }
 $caseDuplicateStore->write($caseDuplicateObject);
 $caseDuplicatePath = $caseDuplicateGitDir . '/objects/' . substr(strtoupper($caseDuplicateOid), 0, 2) . '/' . substr(strtoupper($caseDuplicateOid), 2);
-if (!is_dir(dirname($caseDuplicatePath)) && !mkdir(dirname($caseDuplicatePath), 0777, true) && !is_dir(dirname($caseDuplicatePath))) {
-    throw new RuntimeException("Unable to create case-variant loose object example directory: " . dirname($caseDuplicatePath));
+$caseDuplicateMaterialized = false;
+if (!file_exists($caseDuplicatePath) && !is_link($caseDuplicatePath)) {
+    if (!is_dir(dirname($caseDuplicatePath)) && !mkdir(dirname($caseDuplicatePath), 0777, true) && !is_dir(dirname($caseDuplicatePath))) {
+        throw new RuntimeException("Unable to create case-variant loose object example directory: " . dirname($caseDuplicatePath));
+    }
+    if (file_put_contents($caseDuplicatePath, 'stale case-variant loose object candidate') === false) {
+        throw new RuntimeException("Unable to create case-variant loose object example candidate: {$caseDuplicatePath}");
+    }
+    $caseDuplicateMaterialized = true;
 }
-file_put_contents($caseDuplicatePath, 'stale case-variant loose object candidate');
 $caseDuplicateIntegrity = (new ObjectDatabase($caseDuplicateGitDir))->verifyLooseIntegrity();
 
 $crlfCommitGitDir = sys_get_temp_dir() . '/port-libs-wordpress-odb-crlf-commit-' . bin2hex(random_bytes(4)) . '/.git';
@@ -356,6 +362,7 @@ return [
     'looseIntegrityEmptyFileRejected' => $looseIntegrityEmptyFileRejected,
     'looseIntegrityBrokenSymlinkRejected' => $looseIntegrityBrokenSymlinkRejected,
     'looseIntegrityTraversalErrorIgnored' => $looseIntegrityTraversalErrorIgnored,
+    'looseIntegrityCaseDuplicateMaterialized' => $caseDuplicateMaterialized,
     'looseIntegrityCaseDuplicateCount' => $caseDuplicateIntegrity[0]['statistics']['numObjects'],
     'looseIntegrityCaseDuplicateVerifiedIds' => $caseDuplicateIntegrity[0]['statistics']['verifiedObjectIds'],
     'looseIntegrityCrLfCommitHeaderRejected' => $looseIntegrityCrLfCommitHeaderRejected,

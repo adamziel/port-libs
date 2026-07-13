@@ -70,7 +70,7 @@ final class CommitSignature
         $time = substr($rest, 0, $timeLength);
 
         return [
-            'signature' => (new self($name, $email, $time))->trimmed(),
+            'signature' => new self($name, $email, $time),
             'rest' => substr($rest, $timeLength),
         ];
     }

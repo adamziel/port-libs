@@ -71,6 +71,69 @@ final class PackedReferences
         return new self($references, $hasHeader, $headerSorted, $headerPeeledState, $headerTraits);
     }
 
+    /**
+     * @return list<array{line:int,reference:?PackedReference,error:?\InvalidArgumentException}>
+     */
+    public static function iterResults(string $contents, string $algorithm = 'sha1'): array
+    {
+        $offset = 0;
+        $lineNumber = 1;
+        $results = [];
+        $pending = null;
+        $pendingLine = 0;
+
+        if ($contents !== '' && $contents[0] === '#') {
+            self::readIterationLine($contents, $offset);
+            $lineNumber++;
+        }
+
+        while ($offset < strlen($contents)) {
+            $line = self::readIterationLine($contents, $offset);
+
+            if (str_starts_with($line, '^')) {
+                if ($pending !== null && self::isObjectIdLine(substr($line, 1), $algorithm)) {
+                    $pending = new PackedReference(
+                        $pending->name,
+                        $pending->target,
+                        strtolower(substr($line, 1)),
+                    );
+                } else {
+                    if ($pending !== null) {
+                        $results[] = ['line' => $pendingLine, 'reference' => $pending, 'error' => null];
+                        $pending = null;
+                    }
+                    $results[] = [
+                        'line' => $lineNumber,
+                        'reference' => null,
+                        'error' => new \InvalidArgumentException(self::invalidLineMessage($lineNumber, $line)),
+                    ];
+                }
+                $lineNumber++;
+                continue;
+            }
+
+            if ($pending !== null) {
+                $results[] = ['line' => $pendingLine, 'reference' => $pending, 'error' => null];
+                $pending = null;
+            }
+
+            try {
+                $pending = self::referenceFromLine($line, $lineNumber, $algorithm);
+                $pendingLine = $lineNumber;
+            } catch (\InvalidArgumentException $exception) {
+                $results[] = ['line' => $lineNumber, 'reference' => null, 'error' => $exception];
+            }
+
+            $lineNumber++;
+        }
+
+        if ($pending !== null) {
+            $results[] = ['line' => $pendingLine, 'reference' => $pending, 'error' => null];
+        }
+
+        return $results;
+    }
+
     public static function open(string $path, string $algorithm = 'sha1'): self
     {
         if (!is_file($path)) {
@@ -194,6 +257,32 @@ final class PackedReferences
         return new PackedReference($name, ReferenceTarget::object($target, $algorithm), strtolower($peeled));
     }
 
+    private static function referenceFromLine(string $line, int $lineNumber, string $algorithm): PackedReference
+    {
+        $hashLength = ReferenceTarget::hashHexLength($algorithm);
+        $target = substr($line, 0, $hashLength);
+
+        try {
+            if (!self::isObjectIdLine($target, $algorithm) || substr($line, $hashLength, 1) !== ' ') {
+                throw new \InvalidArgumentException('invalid packed reference line');
+            }
+
+            return new PackedReference(
+                substr($line, $hashLength + 1),
+                ReferenceTarget::object($target, $algorithm),
+            );
+        } catch (\Throwable) {
+            throw new \InvalidArgumentException(self::invalidLineMessage($lineNumber, $line));
+        }
+    }
+
+    private static function isObjectIdLine(string $line, string $algorithm): bool
+    {
+        $hashLength = ReferenceTarget::hashHexLength($algorithm);
+
+        return strlen($line) === $hashLength && preg_match('/^[0-9a-fA-F]+$/', $line) === 1;
+    }
+
     /**
      * @return list<string>
      */
@@ -257,5 +346,31 @@ final class PackedReferences
         }
 
         return $line;
+    }
+
+    private static function readIterationLine(string $contents, int &$offset): string
+    {
+        $length = strlen($contents);
+        $lineEnd = strcspn($contents, "\r\n", $offset);
+        $endOffset = $offset + $lineEnd;
+        $line = substr($contents, $offset, $lineEnd);
+
+        if ($endOffset >= $length) {
+            $offset = $length;
+            return $line;
+        }
+
+        $newline = $contents[$endOffset];
+        $offset = $endOffset + 1;
+        if ($newline === "\r" && substr($contents, $offset, 1) === "\n") {
+            $offset++;
+        }
+
+        return $line;
+    }
+
+    private static function invalidLineMessage(int $lineNumber, string $line): string
+    {
+        return "Invalid reference in line {$lineNumber}: \"{$line}\"";
     }
 }

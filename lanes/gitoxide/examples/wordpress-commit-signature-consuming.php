@@ -22,13 +22,13 @@ try {
 return [
     'author' => [
         'identity' => $author['signature']->identity()->storageBytes(),
-        'time' => $author['signature']->time,
+        'time' => trim($author['signature']->time),
         'lenientTime' => $author['signature']->time(),
         'remainder' => $author['rest'],
     ],
     'reviewer' => [
         'identity' => $reviewer['signature']->identity()->storageBytes(),
-        'time' => $reviewer['signature']->time,
+        'time' => trim($reviewer['signature']->time),
         'remainder' => $reviewer['rest'],
     ],
     'nextLineRemainder' => $nextLine['rest'],

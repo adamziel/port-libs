@@ -102,6 +102,62 @@ return [
             @rmdir($worktree);
         }
     },
+    'external merge driver temp placeholders preserve supplied worktree spelling' => static function (TestRunner $t) use ($tempDir): void {
+        $root = $tempDir();
+        $target = $root . DIRECTORY_SEPARATOR . 'actual worktree';
+        $linked = $root . DIRECTORY_SEPARATOR . 'linked worktree';
+        $worktree = $target;
+        $command = null;
+
+        try {
+            if (!mkdir($target, 0700) && !is_dir($target)) {
+                throw new RuntimeException("Could not create temp directory: {$target}");
+            }
+            if (function_exists('symlink') && @symlink($target, $linked)) {
+                $worktree = $linked;
+            }
+
+            $driver = new ExternalMergeDriver(
+                'wp-json',
+                'merge-driver "%O" "%A" "%B" %P %S %X %Y',
+            );
+            $command = $driver->prepareCommand(
+                'base',
+                'ours',
+                'theirs',
+                "wp-content/themes/acme's/theme.json",
+                null,
+                'current label',
+                "other's label",
+                worktreeDir: $worktree,
+            );
+
+            $t->true(
+                str_starts_with($command->ancestorPath, $worktree . DIRECTORY_SEPARATOR),
+                'ancestor tempfile path should preserve the supplied worktree spelling',
+            );
+            $t->true(
+                str_starts_with($command->currentPath, $worktree . DIRECTORY_SEPARATOR),
+                'current tempfile path should preserve the supplied worktree spelling',
+            );
+            $t->true(
+                str_starts_with($command->otherPath, $worktree . DIRECTORY_SEPARATOR),
+                'other tempfile path should preserve the supplied worktree spelling',
+            );
+            $t->contains('"' . $command->ancestorPath . '"', $command->command);
+            $t->contains('"' . $command->currentPath . '"', $command->command);
+            $t->contains('"' . $command->otherPath . '"', $command->command);
+            $t->contains("'wp-content/themes/acme'\\''s/theme.json'", $command->command);
+            $t->contains("'' 'current label' 'other'\\''s label'", $command->command);
+        } finally {
+            $command?->cleanup();
+            if (is_link($linked)) {
+                unlink($linked);
+            }
+            @rmdir($target);
+            @rmdir($root);
+        }
+    },
     'external merge driver command requires an injected runner for native readback' => static function (TestRunner $t): void {
         $method = new ReflectionMethod(ExternalMergeDriverCommand::class, 'run');
         $parameters = $method->getParameters();

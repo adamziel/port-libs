@@ -9,7 +9,7 @@ final class GitConfig
     private const WILDMATCH_RECURSION_LIMIT = 64;
 
     /**
-     * @param list<array{name:string,rawName:string,subsection:?string,entries:list<array{key:string,value:string}>,path:?string}> $sections
+     * @param list<array{name:string,rawName:string,subsection:?string,entries:list<array{key:string,value:string,implicit?:bool}>,path:?string}> $sections
      */
     private function __construct(private array $sections)
     {
@@ -118,6 +118,132 @@ final class GitConfig
     }
 
     /**
+     * @return list<string>
+     */
+    public function rawValues(string $section, ?string $subsection, string $key): array
+    {
+        $section = strtolower($section);
+        $key = strtolower($key);
+        $values = [];
+
+        foreach ($this->sections as $entrySection) {
+            if ($entrySection['name'] !== $section || $entrySection['subsection'] !== $subsection) {
+                continue;
+            }
+
+            foreach ($entrySection['entries'] as $entry) {
+                if ($entry['key'] === $key && !($entry['implicit'] ?? false)) {
+                    $values[] = $entry['value'];
+                }
+            }
+        }
+
+        return $values;
+    }
+
+    public function rawValue(string $section, ?string $subsection, string $key): ?string
+    {
+        $values = $this->rawValues($section, $subsection, $key);
+
+        return $values === [] ? null : $values[array_key_last($values)];
+    }
+
+    public function setRawValueBy(string $section, ?string $subsection, string $key, string $value): void
+    {
+        $sectionName = self::validateSectionName($section);
+        if ($subsection !== null) {
+            self::validateSubsection($subsection);
+        }
+        $valueName = self::validateValueName($key);
+        $sectionIndex = null;
+        $entryIndex = null;
+
+        foreach ($this->sections as $index => $entrySection) {
+            if ($entrySection['name'] !== strtolower($sectionName) || $entrySection['subsection'] !== $subsection) {
+                continue;
+            }
+
+            $sectionIndex = $index;
+            foreach ($entrySection['entries'] as $candidateEntryIndex => $entry) {
+                if ($entry['key'] === strtolower($valueName)) {
+                    $entryIndex = $candidateEntryIndex;
+                }
+            }
+        }
+
+        if ($sectionIndex === null) {
+            $this->sections[] = [
+                'name' => strtolower($sectionName),
+                'rawName' => $sectionName,
+                'subsection' => $subsection,
+                'entries' => [],
+                'path' => null,
+            ];
+            $sectionIndex = array_key_last($this->sections);
+        }
+
+        $entry = ['key' => strtolower($valueName), 'value' => $value, 'implicit' => false];
+        if ($entryIndex === null) {
+            $this->sections[$sectionIndex]['entries'][] = $entry;
+            return;
+        }
+
+        $this->sections[$sectionIndex]['entries'][$entryIndex] = $entry;
+    }
+
+    public function setExistingRawValueBy(string $section, ?string $subsection, string $key, string $value): void
+    {
+        $sectionName = self::validateSectionName($section);
+        if ($subsection !== null) {
+            self::validateSubsection($subsection);
+        }
+        $valueName = self::validateValueName($key);
+        $sectionIndex = null;
+        $entryIndex = null;
+
+        foreach ($this->sections as $index => $entrySection) {
+            if ($entrySection['name'] !== strtolower($sectionName) || $entrySection['subsection'] !== $subsection) {
+                continue;
+            }
+
+            $sectionIndex = $index;
+            foreach ($entrySection['entries'] as $candidateEntryIndex => $entry) {
+                if ($entry['key'] === strtolower($valueName) && !($entry['implicit'] ?? false)) {
+                    $entryIndex = $candidateEntryIndex;
+                }
+            }
+        }
+
+        if ($sectionIndex === null || $entryIndex === null) {
+            throw new \RuntimeException('The requested Git config value does not exist');
+        }
+
+        $this->sections[$sectionIndex]['entries'][$entryIndex] = [
+            'key' => strtolower($valueName),
+            'value' => $value,
+            'implicit' => false,
+        ];
+    }
+
+    public function toString(): string
+    {
+        $out = '';
+        foreach ($this->sections as $section) {
+            $out .= self::formatSectionHeader($section['rawName'], $section['subsection']) . "\n";
+            foreach ($section['entries'] as $entry) {
+                $out .= "\t" . $entry['key'];
+                if ($entry['implicit'] ?? false) {
+                    $out .= "\n";
+                    continue;
+                }
+                $out .= ' = ' . self::formatValue($entry['value']) . "\n";
+            }
+        }
+
+        return $out;
+    }
+
+    /**
      * @return list<array{name:string,subsection:?string,entries:list<array{key:string,value:string}>,path:?string}>
      */
     public function sections(): array
@@ -190,7 +316,7 @@ final class GitConfig
     }
 
     /**
-     * @return array{sections:list<array{name:string,rawName:string,subsection:?string,entries:list<array{key:string,value:string}>,path:?string}>,path:?string}
+     * @return array{sections:list<array{name:string,rawName:string,subsection:?string,entries:list<array{key:string,value:string,implicit?:bool}>,path:?string}>,path:?string}
      */
     private static function parseFile(string $path): array
     {
@@ -203,10 +329,14 @@ final class GitConfig
     }
 
     /**
-     * @return array{sections:list<array{name:string,rawName:string,subsection:?string,entries:list<array{key:string,value:string}>,path:?string}>,path:?string}
+     * @return array{sections:list<array{name:string,rawName:string,subsection:?string,entries:list<array{key:string,value:string,implicit?:bool}>,path:?string}>,path:?string}
      */
     private static function parse(string $contents, ?string $path): array
     {
+        if (str_starts_with($contents, "\xEF\xBB\xBF")) {
+            $contents = substr($contents, 3);
+        }
+
         $sections = [];
         $current = null;
         $logicalLines = self::logicalLines($contents);
@@ -217,10 +347,10 @@ final class GitConfig
                 continue;
             }
 
-            if (preg_match('/^\s*\[([A-Za-z0-9_.-]+)(?:\s+"((?:\\\\.|[^"])*)")?\]\s*(?:[#;].*)?$/', $line, $matches) === 1) {
+            if (preg_match('/^\s*\[([A-Za-z0-9.-]+)(?:\s+"((?:\\\\.|[^"])*)")?\]\s*(.*)$/', $line, $matches, PREG_UNMATCHED_AS_NULL) === 1) {
                 [$sectionName, $subsection] = self::parseSectionHeaderParts(
                     $matches[1],
-                    array_key_exists(2, $matches) ? self::unquoteSubsection($matches[2]) : null,
+                    $matches[2] !== null ? self::unquoteSubsection($matches[2]) : null,
                 );
                 $section = [
                     'name' => strtolower($sectionName),
@@ -231,20 +361,28 @@ final class GitConfig
                 ];
                 $sections[] = $section;
                 $current = array_key_last($sections);
-                continue;
+
+                $line = trim($matches[3] ?? '');
+                if ($line === '' || $line[0] === '#' || $line[0] === ';') {
+                    continue;
+                }
+            } elseif (str_starts_with(ltrim($line), '[')) {
+                throw new \RuntimeException("Invalid Git config section header: {$line}");
             }
 
             if ($current === null) {
                 continue;
             }
 
-            if (preg_match('/^\s*([A-Za-z][A-Za-z0-9-]*)\s*(?:=\s*(.*))?$/', $line, $matches) !== 1) {
-                continue;
+            if (preg_match('/^\s*([A-Za-z][A-Za-z0-9-]*)\s*(?:=\s*(.*))?$/', $line, $matches, PREG_UNMATCHED_AS_NULL) !== 1) {
+                throw new \RuntimeException("Invalid Git config value line: {$line}");
             }
 
+            $implicit = $matches[2] === null;
             $sections[$current]['entries'][] = [
                 'key' => strtolower($matches[1]),
-                'value' => self::parseValue($matches[2] ?? 'true'),
+                'value' => $implicit ? 'true' : self::parseValue($matches[2]),
+                'implicit' => $implicit,
             ];
         }
 
@@ -253,7 +391,7 @@ final class GitConfig
 
     /**
      * @param array<int|string, array{key?:string,value?:string,0?:string,1?:string}|string> $entries
-     * @return array{sections:list<array{name:string,rawName:string,subsection:?string,entries:list<array{key:string,value:string}>,path:?string}>,path:?string}
+     * @return array{sections:list<array{name:string,rawName:string,subsection:?string,entries:list<array{key:string,value:string,implicit?:bool}>,path:?string}>,path:?string}
      */
     private static function parseEnvironmentPairs(array $entries): array
     {
@@ -297,6 +435,7 @@ final class GitConfig
             $sections[$sectionIndex]['entries'][] = [
                 'key' => $parsed['key'],
                 'value' => $value,
+                'implicit' => false,
             ];
         }
 
@@ -416,7 +555,7 @@ final class GitConfig
             return self::unquote(substr($value, 1, -1));
         }
 
-        return $value;
+        return str_replace('\"', '"', $value);
     }
 
     private static function stripInlineComment(string $value): string
@@ -488,7 +627,10 @@ final class GitConfig
      */
     private static function parseSectionHeaderParts(string $name, ?string $quotedSubsection): array
     {
+        self::validateSectionName($name);
+
         if ($quotedSubsection !== null) {
+            self::validateSubsection($quotedSubsection);
             return [$name, $quotedSubsection];
         }
 
@@ -497,7 +639,12 @@ final class GitConfig
             return [$name, null];
         }
 
-        return [substr($name, 0, $dot), substr($name, $dot + 1)];
+        $section = substr($name, 0, $dot);
+        $subsection = substr($name, $dot + 1);
+        self::validateSectionName($section);
+        self::validateSubsection($subsection);
+
+        return [$section, $subsection];
     }
 
     private static function unquoteSubsection(string $value): string
@@ -517,6 +664,81 @@ final class GitConfig
         }
 
         return $out;
+    }
+
+    private static function validateSectionName(string $name): string
+    {
+        if (preg_match('/^[A-Za-z0-9-]+(?:\.[A-Za-z0-9.-]+)?$/', $name) !== 1) {
+            throw new \InvalidArgumentException("Invalid Git config section name: {$name}");
+        }
+
+        return $name;
+    }
+
+    private static function validateValueName(string $name): string
+    {
+        if (preg_match('/^[A-Za-z][A-Za-z0-9-]*$/', $name) !== 1) {
+            throw new \InvalidArgumentException("Invalid Git config value name: {$name}");
+        }
+
+        return $name;
+    }
+
+    private static function validateSubsection(string $subsection): void
+    {
+        if (str_contains($subsection, "\n") || str_contains($subsection, "\0")) {
+            throw new \InvalidArgumentException('Invalid Git config subsection');
+        }
+    }
+
+    private static function formatSectionHeader(string $name, ?string $subsection): string
+    {
+        self::validateSectionName($name);
+        if ($subsection === null) {
+            return '[' . $name . ']';
+        }
+
+        self::validateSubsection($subsection);
+        $escaped = str_replace(['\\', '"'], ['\\\\', '\\"'], $subsection);
+
+        return '[' . $name . ' "' . $escaped . '"]';
+    }
+
+    private static function formatValue(string $value): string
+    {
+        if ($value === '') {
+            return '""';
+        }
+
+        $needsQuotes = trim($value) !== $value
+            || str_contains($value, "\n")
+            || str_contains($value, "\t")
+            || str_contains($value, "\x08")
+            || str_contains($value, '"')
+            || str_contains($value, '\\')
+            || str_starts_with($value, '#')
+            || str_starts_with($value, ';')
+            || str_contains($value, ' #')
+            || str_contains($value, ' ;');
+
+        if (!$needsQuotes) {
+            return $value;
+        }
+
+        $out = '"';
+        $length = strlen($value);
+        for ($index = 0; $index < $length; $index++) {
+            $out .= match ($value[$index]) {
+                "\n" => '\n',
+                "\t" => '\t',
+                "\x08" => '\b',
+                '"' => '\"',
+                '\\' => '\\\\',
+                default => $value[$index],
+            };
+        }
+
+        return $out . '"';
     }
 
     /**
@@ -671,12 +893,20 @@ final class GitConfig
             $pattern .= '**';
         }
 
-        $gitDirPath = self::normalizePath($gitDir);
-        if (self::wildmatch($pattern, $gitDirPath, $ignoreCase)) {
-            return true;
+        $gitDirPaths = array_unique([
+            self::normalizePath($gitDir),
+            self::realpathLikeGitoxide($gitDir),
+        ]);
+
+        foreach (self::gitDirPatternCandidates($pattern) as $candidatePattern) {
+            foreach ($gitDirPaths as $gitDirPath) {
+                if (self::wildmatch($candidatePattern, $gitDirPath, $ignoreCase)) {
+                    return true;
+                }
+            }
         }
 
-        return self::wildmatch($pattern, self::realpathLikeGitoxide($gitDir), $ignoreCase);
+        return false;
     }
 
     /**
@@ -827,6 +1057,92 @@ final class GitConfig
         }
 
         return DIRECTORY_SEPARATOR === '\\' && preg_match('/^[A-Za-z]:\//', $path) === 1;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function gitDirPatternCandidates(string $pattern): array
+    {
+        $patterns = [$pattern => true];
+        $realPattern = self::realpathPatternPrefix($pattern);
+        if ($realPattern !== null) {
+            $patterns[$realPattern] = true;
+        }
+
+        return array_keys($patterns);
+    }
+
+    private static function realpathPatternPrefix(string $pattern): ?string
+    {
+        if (str_starts_with($pattern, '//')) {
+            return null;
+        }
+
+        $metaIndex = self::firstWildmatchMetaIndex($pattern);
+        $literalLength = $metaIndex ?? strlen($pattern);
+        $literalPrefix = substr($pattern, 0, $literalLength);
+        if ($literalPrefix === '' || !self::isAbsolutePath($literalPrefix)) {
+            return null;
+        }
+
+        if ($metaIndex !== null && !str_ends_with($literalPrefix, '/')) {
+            $probe = self::dirnamePath($literalPrefix);
+        } else {
+            $probe = rtrim($literalPrefix, '/');
+            if ($probe === '') {
+                $probe = '/';
+            }
+        }
+
+        if ($probe === '.' || !self::isAbsolutePath($probe)) {
+            return null;
+        }
+
+        $real = realpath($probe);
+        if (!is_string($real)) {
+            return null;
+        }
+
+        return self::normalizePath($real) . substr($pattern, strlen($probe));
+    }
+
+    private static function firstWildmatchMetaIndex(string $pattern): ?int
+    {
+        $length = strlen($pattern);
+        for ($index = 0; $index < $length; $index++) {
+            $byte = $pattern[$index];
+            if ($byte === '\\') {
+                $index++;
+                continue;
+            }
+            if ($byte === '*' || $byte === '?' || $byte === '[') {
+                return $index;
+            }
+        }
+
+        return null;
+    }
+
+    private static function dirnamePath(string $path): string
+    {
+        $path = rtrim($path, '/');
+        if ($path === '') {
+            return '/';
+        }
+
+        $slash = strrpos($path, '/');
+        if ($slash === false) {
+            return '.';
+        }
+        if ($slash === 0) {
+            return '/';
+        }
+        if (DIRECTORY_SEPARATOR === '\\' && $slash === 2 && preg_match('/^[A-Za-z]:/', $path) === 1) {
+            return substr($path, 0, 3);
+        }
+
+        return substr($path, 0, $slash);
     }
 
     private static function realpathLikeGitoxide(string $path): string

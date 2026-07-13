@@ -67,7 +67,7 @@ return [
             'gix-tempfile',
         ], CargoWorkspaceEvidence::workspaceNoRunBlockingPackages());
     },
-    'distinguishes full workspace blocker from default package cargo pass' => static function (TestRunner $t): void {
+    'records full workspace no-run pass and default package cargo pass' => static function (TestRunner $t): void {
         $commands = CargoWorkspaceEvidence::current()['cargoCommands'];
 
         $t->same(0, $commands['metadataOffline']['exitCode']);
@@ -75,10 +75,12 @@ return [
         $t->same(70, $commands['metadataOffline']['workspaceMembers']);
         $t->same(126, $commands['metadataOffline']['targets']);
 
-        $t->same(101, $commands['workspaceNoRunOffline']['exitCode']);
-        $t->same('blocked', $commands['workspaceNoRunOffline']['status']);
-        $t->same(10, $commands['workspaceNoRunOffline']['targetResolutionErrors']);
-        $t->contains('target resolution', $commands['workspaceNoRunOffline']['blocker']);
+        $t->same(0, $commands['workspaceNoRunOffline']['exitCode']);
+        $t->same('passed', $commands['workspaceNoRunOffline']['status']);
+        $t->same(70, $commands['workspaceNoRunOffline']['workspaceMembers']);
+        $t->same(126, $commands['workspaceNoRunOffline']['declaredTargets']);
+        $t->same(101, $commands['workspaceNoRunOffline']['testTargets']);
+        $t->true($commands['workspaceNoRunOffline']['durationSeconds'] > 0);
 
         $t->same(0, $commands['defaultPackageNoRunOffline']['exitCode']);
         $t->same('passed', $commands['defaultPackageNoRunOffline']['status']);
@@ -91,8 +93,8 @@ return [
         $t->same(0, $commands['defaultPackageLibOffline']['failed']);
         $t->same(0, $commands['defaultPackageLibOffline']['filteredOut']);
 
-        $t->contains('full offline Cargo workspace no-run fails', CargoWorkspaceEvidence::workspaceAdmissionStatus());
-        $t->contains('target hydration closure is source-available', CargoWorkspaceEvidence::workspaceAdmissionStatus());
+        $t->contains('full offline Cargo workspace no-run compiles', CargoWorkspaceEvidence::workspaceAdmissionStatus());
+        $t->contains('previous sparse target materialization blocker is closed', CargoWorkspaceEvidence::workspaceAdmissionStatus());
         $t->contains('default gitoxide package no-run and lib tests pass', CargoWorkspaceEvidence::workspaceAdmissionStatus());
     },
     'preserves exact sparse-cache missing cargo target paths' => static function (TestRunner $t): void {
@@ -124,7 +126,7 @@ return [
         $t->same(true, $closure['allMissingTargetsHydratable']);
         $t->contains('git ls-tree -r', $closure['sourceTruth']);
         $t->contains('cargo test --workspace --locked --offline --no-run', $closure['nextProbe']);
-        $t->contains('all 16 sparse-cache missing Cargo target files exist as blobs', CargoWorkspaceEvidence::targetHydrationStatus());
+        $t->contains('full offline Cargo workspace no-run passes', CargoWorkspaceEvidence::targetHydrationStatus());
 
         $byPath = [];
         foreach ($closure['targets'] as $target) {
