@@ -13,18 +13,26 @@ final class HtmlReader
     private const MICRODATA_MAX_PROPERTIES_PER_ITEM = 64;
     private const MICRODATA_MAX_VALUE_BYTES = 512;
 
-    private readonly MarkdownReader $reader;
+    private ?MarkdownReader $reader = null;
 
     /**
      * @param array<string, mixed> $options
      */
     public function __construct(private readonly array $options = [])
     {
-        $this->reader = new MarkdownReader(array_replace([
+    }
+
+    private function markdownReader(): MarkdownReader
+    {
+        if ($this->reader instanceof MarkdownReader) {
+            return $this->reader;
+        }
+
+        return $this->reader = new MarkdownReader(array_replace([
             'htmlNativeDivs' => true,
             'htmlReader' => true,
             'htmlRawHtml' => false,
-        ], $options));
+        ], $this->options));
     }
 
     public function read(string $bytes): AstNode
@@ -43,20 +51,36 @@ final class HtmlReader
 
         $htmlTreeConstructionBackend = self::htmlTreeConstructionBackendForSource($bytes);
         $structuralBytes = self::flattenHtmlPictureContainers($bytes);
-        $standaloneImageChildren = self::standaloneImageFragmentChildren($structuralBytes);
+        $probeStandaloneFragments = ($this->options['htmlSkipStandaloneFragmentProbes'] ?? false) !== true;
+        $standaloneImageChildren = $probeStandaloneFragments && self::sourceMayContainHtmlOpeningTag($structuralBytes, 'img')
+            ? self::standaloneImageFragmentChildren($structuralBytes)
+            : null;
         if ($standaloneImageChildren !== null) {
             $children = $standaloneImageChildren;
             $consumedFootnoteContainerCount = 0;
             $attrs = [];
-        } elseif (($standaloneProgressChildren = $this->standaloneProgressFragmentChildren($structuralBytes)) !== null) {
+        } elseif (
+            $probeStandaloneFragments
+            && self::sourceMayContainHtmlOpeningTag($structuralBytes, 'progress')
+            && ($standaloneProgressChildren = $this->standaloneProgressFragmentChildren($structuralBytes)) !== null
+        ) {
             $children = $standaloneProgressChildren;
             $consumedFootnoteContainerCount = 0;
             $attrs = [];
-        } elseif (($standaloneMediaFallbackChildren = $this->standaloneMediaFallbackFragmentChildren($structuralBytes)) !== null) {
+        } elseif (
+            $probeStandaloneFragments
+            && (self::sourceMayContainHtmlOpeningTag($structuralBytes, 'audio')
+                || self::sourceMayContainHtmlOpeningTag($structuralBytes, 'video'))
+            && ($standaloneMediaFallbackChildren = $this->standaloneMediaFallbackFragmentChildren($structuralBytes)) !== null
+        ) {
             $children = $standaloneMediaFallbackChildren;
             $consumedFootnoteContainerCount = 0;
             $attrs = [];
-        } elseif (($standaloneTransparentChildren = $this->standaloneTransparentInlineFragmentChildren($structuralBytes)) !== null) {
+        } elseif (
+            $probeStandaloneFragments
+            && self::sourceMayContainHtmlOpeningTag($structuralBytes, 'time')
+            && ($standaloneTransparentChildren = $this->standaloneTransparentInlineFragmentChildren($structuralBytes)) !== null
+        ) {
             $children = $standaloneTransparentChildren;
             $consumedFootnoteContainerCount = 0;
             $attrs = [];
@@ -70,12 +94,14 @@ final class HtmlReader
             }
             $readerBytes = self::flattenHtmlMenuContainers($readerBytes);
             $readerBytes = self::flattenOrphanTableFragmentContainers($readerBytes);
-            $segmentedDocument = $this->readInlineTopLevelSourceSegments($readerBytes);
+            $segmentedDocument = self::htmlSourceLooksLikeWholeDocument($readerBytes)
+                ? null
+                : $this->readInlineTopLevelSourceSegments($readerBytes);
             if ($segmentedDocument !== null) {
                 [$children, $attrs] = $segmentedDocument;
                 $consumedFootnoteContainerCount = 0;
             } else {
-                $document = $this->reader->readHtml($readerBytes);
+                $document = $this->markdownReader()->readHtml($readerBytes);
                 [$children, $consumedFootnoteContainerCount] = self::containsAstNodeType($document->children, 'note')
                     && $this->consumeFootnoteContainers()
                     ? self::stripConsumedHtmlFootnoteContainers($document->children)
@@ -94,7 +120,7 @@ final class HtmlReader
             }
         }
         $children = self::restoreHtmlTableBodyRowHeadColumns($children);
-        $children = self::restoreHtmlDefinitionPlainBlocks($bytes, $children);
+        $children = $this->restoreHtmlDefinitionPlainBlocks($bytes, $children);
         $meta = $attrs['meta'] ?? [];
         if (!is_array($meta)) {
             $meta = [];
@@ -141,7 +167,7 @@ final class HtmlReader
             return $document;
         }
 
-        $fallback = $this->reader->read($bytes);
+        $fallback = $this->markdownReader()->read($bytes);
         if ($fallback->children === []) {
             return $document;
         }
@@ -405,6 +431,10 @@ final class HtmlReader
 
     private static function flattenHtmlPictureContainers(string $bytes): string
     {
+        if (stripos($bytes, '<picture') === false) {
+            return $bytes;
+        }
+
         try {
             $source = self::parseHtmlRewriteSource($bytes);
             if ($source === null || !self::flattenHtmlPictureElements($source['dom'])) {
@@ -415,6 +445,25 @@ final class HtmlReader
         } catch (\Throwable) {
             return $bytes;
         }
+    }
+
+    private static function sourceMayContainHtmlOpeningTag(string $bytes, string $tag): bool
+    {
+        return stripos($bytes, '<' . $tag) !== false;
+    }
+
+    /**
+     * @param list<string> $tags
+     */
+    private static function sourceMayContainAnyHtmlOpeningTag(string $bytes, array $tags): bool
+    {
+        foreach ($tags as $tag) {
+            if (self::sourceMayContainHtmlOpeningTag($bytes, $tag)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static function flattenHtmlPictureElements(?\DOMDocument $dom): bool
@@ -470,6 +519,10 @@ final class HtmlReader
 
     private static function flattenHtmlTemplateContainers(string $bytes): string
     {
+        if (!self::sourceMayContainHtmlOpeningTag($bytes, 'template')) {
+            return $bytes;
+        }
+
         try {
             $source = self::parseHtmlRewriteSource($bytes);
             if ($source === null || !self::flattenHtmlTemplateElements($source['dom'])) {
@@ -525,6 +578,10 @@ final class HtmlReader
 
     private static function flattenHtmlFallbackContentContainers(string $bytes): string
     {
+        if (!self::sourceMayContainAnyHtmlOpeningTag($bytes, ['iframe', 'noscript', 'object'])) {
+            return $bytes;
+        }
+
         try {
             $source = self::parseHtmlRewriteSource($bytes);
             if ($source === null || !self::flattenHtmlFallbackContentElements($source['dom'])) {
@@ -642,6 +699,10 @@ final class HtmlReader
 
     private static function flattenHtmlRawTextFallbackContainers(string $bytes): string
     {
+        if (!self::sourceMayContainAnyHtmlOpeningTag($bytes, ['noembed', 'noframes', 'plaintext', 'xmp'])) {
+            return $bytes;
+        }
+
         try {
             $source = self::parseHtmlRewriteSource($bytes);
             if ($source === null || !self::flattenHtmlRawTextFallbackElements($source['dom'])) {
@@ -705,6 +766,10 @@ final class HtmlReader
 
     private static function flattenHtmlAttributeLessButtonContainers(string $bytes): string
     {
+        if (!self::sourceMayContainHtmlOpeningTag($bytes, 'button')) {
+            return $bytes;
+        }
+
         try {
             $source = self::parseHtmlRewriteSource($bytes);
         } catch (\Throwable) {
@@ -742,6 +807,10 @@ final class HtmlReader
 
     private static function flattenHtmlDetailsSummaryContainers(string $bytes): string
     {
+        if (!self::sourceMayContainHtmlOpeningTag($bytes, 'details')) {
+            return $bytes;
+        }
+
         try {
             $source = self::parseHtmlRewriteSource($bytes);
         } catch (\Throwable) {
@@ -792,6 +861,10 @@ final class HtmlReader
 
     private static function flattenHtmlMenuContainers(string $bytes): string
     {
+        if (!self::sourceMayContainHtmlOpeningTag($bytes, 'menu')) {
+            return $bytes;
+        }
+
         try {
             $source = self::parseHtmlRewriteSource($bytes);
         } catch (\Throwable) {
@@ -917,6 +990,10 @@ final class HtmlReader
 
     private static function flattenOrphanTableFragmentContainers(string $bytes): string
     {
+        if (self::htmlSourceLooksLikeWholeDocument($bytes)) {
+            return $bytes;
+        }
+
         try {
             $body = Html5Dom::parseHtmlFragment($bytes);
             $fragmentContext = Html5Dom::htmlFragmentTreeConstructionContext($bytes);
@@ -1414,7 +1491,7 @@ final class HtmlReader
         $children = [];
         $attrs = [];
         foreach ($segments as $segment) {
-            $document = $this->reader->readHtml($segment);
+            $document = $this->markdownReader()->readHtml($segment);
             array_push($children, ...$document->children);
             if ($attrs === []) {
                 $attrs = $document->attrs;
@@ -1593,9 +1670,12 @@ final class HtmlReader
         if (($this->options['htmlNativeDivs'] ?? true) !== true) {
             return $children;
         }
+        if (!self::sourceMayContainHtmlOpeningTag($bytes, 'main')) {
+            return $children;
+        }
 
         try {
-            $dom = Html5Dom::parseHtmlDocument($bytes);
+            $dom = $this->parseHtmlDocumentForPostprocessing($bytes);
         } catch (\Throwable) {
             return $children;
         }
@@ -1719,13 +1799,26 @@ final class HtmlReader
     {
         $restored = [];
         foreach ($children as $child) {
-            $nestedChildren = self::restoreHtmlTableBodyRowHeadColumns($child->children);
-            $attrs = $child->attrs;
+            $originalChildren = $child->children;
+            $nestedChildren = self::restoreHtmlTableBodyRowHeadColumns($originalChildren);
+            $baseAttrs = $child->baseAttrs();
+            $attrs = $baseAttrs;
             if ($child->type === 'table_body' && !array_key_exists('rowHeadColumns', $attrs)) {
                 $rowHeadColumns = self::htmlTableBodyRowHeadColumns($nestedChildren);
                 if ($rowHeadColumns > 0) {
                     $attrs['rowHeadColumns'] = $rowHeadColumns;
                 }
+            }
+
+            if ($attrs === $baseAttrs && $nestedChildren === $originalChildren) {
+                $restored[] = $child;
+                continue;
+            }
+
+            $resolver = $child->attributeResolver();
+            if ($resolver instanceof LazyTableGeometryAttributes) {
+                $restored[] = new AstNode($child->type, $attrs, $nestedChildren, $resolver->forRebuiltNode());
+                continue;
             }
 
             $restored[] = new AstNode($child->type, $attrs, $nestedChildren);
@@ -1805,9 +1898,13 @@ final class HtmlReader
      * @param list<AstNode> $children
      * @return list<AstNode>
      */
-    private static function restoreHtmlDefinitionPlainBlocks(string $bytes, array $children): array
+    private function restoreHtmlDefinitionPlainBlocks(string $bytes, array $children): array
     {
-        $plainDefinitionFlags = self::htmlDefinitionPlainBlockFlags($bytes);
+        if (!self::sourceMayContainHtmlOpeningTag($bytes, 'dd')) {
+            return $children;
+        }
+
+        $plainDefinitionFlags = $this->htmlDefinitionPlainBlockFlags($bytes);
         if ($plainDefinitionFlags === []) {
             return $children;
         }
@@ -1820,10 +1917,10 @@ final class HtmlReader
     /**
      * @return list<bool>
      */
-    private static function htmlDefinitionPlainBlockFlags(string $bytes): array
+    private function htmlDefinitionPlainBlockFlags(string $bytes): array
     {
         try {
-            $dom = Html5Dom::parseHtmlDocument($bytes);
+            $dom = $this->parseHtmlDocumentForPostprocessing($bytes);
         } catch (\Throwable) {
             return [];
         }
@@ -1838,6 +1935,15 @@ final class HtmlReader
         }
 
         return $flags;
+    }
+
+    private function parseHtmlDocumentForPostprocessing(string $bytes): \DOMDocument
+    {
+        if (($this->options['htmlSourcePrevalidated'] ?? false) === true) {
+            return Html5Dom::parsePrevalidatedHtmlDocument($bytes);
+        }
+
+        return Html5Dom::parseHtmlDocument($bytes);
     }
 
     private static function htmlElementHasDefinitionBlockChild(\DOMElement $element): bool
@@ -2412,7 +2518,7 @@ final class HtmlReader
                 return true;
             }
 
-            foreach ($child->attrs as $value) {
+            foreach ($child->baseAttrs() as $value) {
                 if (self::attributeValueContainsAstNodeType($value, $type)) {
                     return true;
                 }
@@ -2550,6 +2656,16 @@ final class HtmlReader
             'htmlMicrodataValueByteLimit' => self::MICRODATA_MAX_VALUE_BYTES,
         ];
 
+        // An HTML document cannot expose a microdata item without an
+        // `itemscope` attribute. EPUB's prevalidated XHTML path can skip a
+        // second complete DOM parse when that marker is absent.
+        if (
+            ($this->options['htmlSkipEmptyMicrodataMetadata'] ?? false) === true
+            && !Html5Dom::sourceMayContainMicrodataItemScope($bytes)
+        ) {
+            return $this->emptyMicrodataMetadata($base);
+        }
+
         try {
             $dom = Html5Dom::parseHtmlDocument($bytes);
         } catch (\Throwable) {
@@ -2607,6 +2723,25 @@ final class HtmlReader
             'htmlMicrodataItems' => $items,
             'htmlMicrodataTopLevelItemIndexes' => $topLevelIndexes,
             'htmlMicrodataDiagnostics' => array_values(array_unique($diagnostics)),
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $base
+     * @return array<string, mixed>
+     */
+    private function emptyMicrodataMetadata(array $base): array
+    {
+        return $base + [
+            'htmlMicrodataParseStatus' => 'parsed',
+            'htmlMicrodataItemCount' => 0,
+            'htmlMicrodataReportedItemCount' => 0,
+            'htmlMicrodataTopLevelItemCount' => 0,
+            'htmlMicrodataPropertyCount' => 0,
+            'htmlMicrodataPropertyNames' => [],
+            'htmlMicrodataItems' => [],
+            'htmlMicrodataTopLevelItemIndexes' => [],
+            'htmlMicrodataDiagnostics' => [],
         ];
     }
 
@@ -2934,6 +3069,6 @@ final class HtmlReader
 
     private static function resolveHtmlUrl(string $url, ?string $baseHref): string
     {
-        return XmlHtmlDom::resolveHtmlResourceUrlReference($url, $baseHref) ?? $url;
+        return HtmlResourceUrlResolver::resolve($url, $baseHref) ?? $url;
     }
 }

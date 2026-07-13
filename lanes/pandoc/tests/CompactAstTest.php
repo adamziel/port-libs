@@ -154,4 +154,24 @@ return [
             $t->same(PandocConverter::write($expanded, $format), PandocConverter::write($compact, $format));
         }
     },
+    'serialized AST children preserve materialization and writer output' => static function (TestRunner $t) use ($materialize): void {
+        $children = [
+            new AstNode('text', ['text' => 'Before ']),
+            new AstNode('softbreak'),
+            new AstNode('emph', [], [new AstNode('text', ['text' => 'emphasized'])]),
+            new AstNode('linebreak'),
+            new AstNode('text', ['text' => 'after']),
+        ];
+        $compact = new AstNode('document', [], [
+            AstNode::withSerializedChildren('paragraph', [], $children),
+        ]);
+        $expanded = new AstNode('document', [], [
+            new AstNode('paragraph', [], $children),
+        ]);
+
+        $t->same($materialize($expanded), $materialize($compact));
+        foreach (['wordpress', 'html', 'markdown', 'native', 'plain'] as $format) {
+            $t->same(PandocConverter::write($expanded, $format), PandocConverter::write($compact, $format));
+        }
+    },
 ];

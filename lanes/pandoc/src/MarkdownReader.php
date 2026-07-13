@@ -197,7 +197,16 @@ final class MarkdownReader
 
     private function tableWithReviewPacket(AstNode $table): AstNode
     {
-        return TableGeometry::withReviewPacket($table);
+        if (($this->options['htmlLazyTableGeometry'] ?? false) !== true) {
+            return TableGeometry::withReviewPacket($table);
+        }
+
+        return new AstNode(
+            $table->type,
+            $table->baseAttrs(),
+            $table->children,
+            new LazyTableGeometryAttributes(),
+        );
     }
 
     public function readBytes(string $bytes, ?string $encoding = null, ?string $normalizationForm = null): AstNode
@@ -3676,10 +3685,17 @@ final class MarkdownReader
     private function parseHtmlFullDocumentDom(string $html): ?\DOMDocument
     {
         try {
-            return Html5Dom::parseHtmlDocument($html);
+            return $this->htmlSourceIsPrevalidated()
+                ? Html5Dom::parsePrevalidatedHtmlDocument($html)
+                : Html5Dom::parseHtmlDocument($html);
         } catch (\Throwable) {
             return null;
         }
+    }
+
+    private function htmlSourceIsPrevalidated(): bool
+    {
+        return ($this->options['htmlSourcePrevalidated'] ?? false) === true;
     }
 
     private function htmlDocumentBodyElement(\DOMDocument $dom): ?\DOMElement
@@ -10533,7 +10549,7 @@ final class MarkdownReader
 
     private function resolveHtmlUrl(string $url): string
     {
-        return XmlHtmlDom::resolveHtmlResourceUrlReference($url, $this->htmlBaseHref) ?? $url;
+        return HtmlResourceUrlResolver::resolve($url, $this->htmlBaseHref) ?? $url;
     }
 
     /**

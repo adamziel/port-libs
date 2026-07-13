@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PortLibs\Pandoc;
 
-final class ZipPackage
+final class ZipPackage implements EpubArchive
 {
     private const EOCD_SIGNATURE = "PK\x05\x06";
     private const CENTRAL_DIRECTORY_SIGNATURE = "PK\x01\x02";

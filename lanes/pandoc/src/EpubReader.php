@@ -47,7 +47,7 @@ final class EpubReader
     public function read(string $bytes): AstNode
     {
         try {
-            $package = ZipPackage::fromString($bytes);
+            $package = EpubArchiveFactory::fromString($bytes);
         } catch (\RuntimeException|\InvalidArgumentException $exception) {
             return $this->fallbackDocument($bytes, $exception->getMessage());
         }
@@ -118,7 +118,7 @@ final class EpubReader
         return substr($bytes, 0, 8192) . "\n...";
     }
 
-    private function readZipPackage(ZipPackage $zip): AstNode
+    private function readZipPackage(EpubArchive $zip): AstNode
     {
         $container_xml = $this->zipEntryContents($zip, 'META-INF/container.xml');
         if (!is_string($container_xml)) {
@@ -134,7 +134,7 @@ final class EpubReader
         return $this->readPackage($zip, $rootfile, $opf_xml);
     }
 
-    private function readPackage(ZipPackage $zip, string $rootfile, string $opf_xml): AstNode
+    private function readPackage(EpubArchive $zip, string $rootfile, string $opf_xml): AstNode
     {
         $dom = $this->loadXml($opf_xml, 'EPUB OPF package');
         $package = $dom->documentElement;
@@ -147,13 +147,10 @@ final class EpubReader
         $manifest = $this->manifest($package);
         $package_links = $this->packageLinks($package, $rootfile, $base_path, $manifest);
         $package_link_vocabulary = null;
-        $package_model = $this->packageModel($zip);
-        if ($package_model instanceof EpubPackage) {
-            $package_links = $this->withPackageLinkVocabulary($package_links, $package_model->packageLinks());
-            $package_metadata = $package_model->metadata();
-            if (is_array($package_metadata['linkVocabulary'] ?? null)) {
-                $package_link_vocabulary = $package_metadata['linkVocabulary'];
-            }
+        if ($this->canAnnotateEpubPackageLinks($zip, $package)) {
+            $package_link_annotations = EpubLinkVocabulary::annotate($package_links, $package->getAttribute('prefix'));
+            $package_links = $package_link_annotations['links'];
+            $package_link_vocabulary = $package_link_annotations['summary'];
         }
         $spine_items = $this->spineItems($package, $base_path, $manifest);
         $guide_references = $this->guideReferences($package, $base_path, $manifest);
@@ -225,11 +222,16 @@ final class EpubReader
             $content_base_href = $content_dom instanceof \DOMDocument
                 ? $this->epubContentDocumentBaseHref($content_dom)
                 : null;
-            $footnote_definitions = $this->epubFootnoteDefinitionsInReferenceOrder($content_dom, $item['href']);
+            $footnote_definitions = $this->epubFootnoteDefinitionsInReferenceOrder(
+                $content_dom,
+                $item['href'],
+                $content_document_was_xml
+            );
             $note_reference_hrefs = $this->epubNoteReferenceHrefs($content_dom, $content_base_href);
             $link_attribute_overlays_by_href = $this->epubBodyLinkAttributeOverlaysByHref($content_dom, $content_base_href);
             $picture_raw_html_overlays = $this->epubPictureRawHtmlOverlaysInImageOrder($content_dom, $content_base_href);
             $this->recordEpubContentRawMediaResources(
+                $content_dom,
                 $xhtml,
                 $this->dirname($this->stripUrlQueryAndFragment($item['href'])),
                 $base_path,
@@ -237,7 +239,7 @@ final class EpubReader
                 $media_bag_resources,
                 $media_bag_sources
             );
-            $document = $this->epubContentHtmlReader()->read($this->contentDocumentMarkupForHtmlReader(
+            $document = $this->epubContentHtmlReader($content_document_was_xml)->read($this->contentDocumentMarkupForHtmlReader(
                 $xhtml,
                 $content_dom,
                 $content_base_href,
@@ -265,6 +267,7 @@ final class EpubReader
                 $media_bag_sources
             );
             $document = $this->normalizeEpubChapterSectioningContent($document);
+            $document = $this->compactEpubInlineChildren($document);
             $children[] = $this->spineMarker($this->spineFilename($item['href']));
             array_push($children, ...$document->children);
         }
@@ -799,75 +802,17 @@ final class EpubReader
         return $links;
     }
 
-    private function packageModel(ZipPackage $zip): ?EpubPackage
+    private function canAnnotateEpubPackageLinks(EpubArchive $zip, \DOMElement $package): bool
     {
+        if ($package->namespaceURI !== 'http://www.idpf.org/2007/opf' || !$zip->has('mimetype')) {
+            return false;
+        }
+
         try {
-            return EpubPackage::fromPackage($zip);
+            return trim($zip->read('mimetype')) === 'application/epub+zip';
         } catch (\Throwable) {
-            return null;
+            return false;
         }
-    }
-
-    /**
-     * @param list<array<string, mixed>> $readerLinks
-     * @param list<array<string, mixed>> $packageLinks
-     * @return list<array<string, mixed>>
-     */
-    private function withPackageLinkVocabulary(array $readerLinks, array $packageLinks): array
-    {
-        if (count($readerLinks) !== count($packageLinks)) {
-            return $readerLinks;
-        }
-
-        foreach ($readerLinks as $index => $readerLink) {
-            $packageLink = $packageLinks[$index] ?? null;
-            if (!is_array($packageLink) || !$this->samePackageLinkVocabularySubject($readerLink, $packageLink)) {
-                return $readerLinks;
-            }
-        }
-
-        foreach ($readerLinks as $index => $readerLink) {
-            $packageLink = $packageLinks[$index];
-            foreach (['relVocabulary', 'propertyVocabulary'] as $field) {
-                if (is_array($packageLink[$field] ?? null)) {
-                    $readerLink[$field] = $packageLink[$field];
-                }
-            }
-            $readerLinks[$index] = $readerLink;
-        }
-
-        return $readerLinks;
-    }
-
-    /**
-     * @param array<string, mixed> $readerLink
-     * @param array<string, mixed> $packageLink
-     */
-    private function samePackageLinkVocabularySubject(array $readerLink, array $packageLink): bool
-    {
-        return (int) ($readerLink['index'] ?? -1) === (int) ($packageLink['index'] ?? -2)
-            && (string) ($readerLink['href'] ?? '') === (string) ($packageLink['href'] ?? '')
-            && $this->stringListValue($readerLink['rel'] ?? []) === $this->stringListValue($packageLink['rel'] ?? [])
-            && $this->stringListValue($readerLink['properties'] ?? []) === $this->stringListValue($packageLink['properties'] ?? []);
-    }
-
-    /**
-     * @return list<string>
-     */
-    private function stringListValue(mixed $value): array
-    {
-        if (!is_array($value)) {
-            return [];
-        }
-
-        $strings = [];
-        foreach ($value as $item) {
-            if (is_string($item)) {
-                $strings[] = $item;
-            }
-        }
-
-        return $strings;
     }
 
     /**
@@ -1367,7 +1312,7 @@ final class EpubReader
      * @param array<string, array<string, mixed>> $manifest
      * @return array{resources: list<string>, entries: list<array{text: string, href: string, level: int}>, landmarks: list<array{text: string, href: string, level: int, epubTypes: list<string>}>, pageList: list<array{text: string, href: string, level: int}>, auxiliary: list<array{text: string, href: string, level: int, sectionType: string}>, sections: list<array{type: string, types: list<string>, label: string, resource: string, entryCount: int, entries: list<array<string, mixed>>}>, sectionTypes: list<string>}
      */
-    private function toc(ZipPackage $zip, string $base_path, array $manifest, string $spine_toc_id): array
+    private function toc(EpubArchive $zip, string $base_path, array $manifest, string $spine_toc_id): array
     {
         $resources = [];
         $nav_entries = [];
@@ -1908,7 +1853,7 @@ final class EpubReader
         }
     }
 
-    private function epubContentHtmlReader(): HtmlReader
+    private function epubContentHtmlReader(bool $source_prevalidated = false): HtmlReader
     {
         return new HtmlReader([
             'htmlReaderBackend' => HtmlReader::BACKEND_HTML_DOCUMENT_MARKDOWN_BRIDGE,
@@ -1923,13 +1868,21 @@ final class EpubReader
             'htmlConsumeFootnoteContainers' => false,
             'htmlStripRawInlineWrappers' => false,
             'htmlFlattenDetailsSummaryContainers' => false,
+            'htmlSourcePrevalidated' => $source_prevalidated,
+            'htmlSkipEmptyMicrodataMetadata' => $source_prevalidated,
+            'htmlSkipStandaloneFragmentProbes' => $source_prevalidated,
+            'htmlLazyTableGeometry' => $source_prevalidated,
         ]);
     }
 
     /**
      * @return list<list<AstNode>>
      */
-    private function epubFootnoteDefinitionsInReferenceOrder(?\DOMDocument $dom, string $content_path): array
+    private function epubFootnoteDefinitionsInReferenceOrder(
+        ?\DOMDocument $dom,
+        string $content_path,
+        bool $source_prevalidated = false
+    ): array
     {
         if (!$dom instanceof \DOMDocument) {
             return [];
@@ -1946,7 +1899,7 @@ final class EpubReader
                 continue;
             }
 
-            $blocks = $this->epubFootnoteDefinitionBlocks($element);
+            $blocks = $this->epubFootnoteDefinitionBlocks($element, $source_prevalidated);
             if ($blocks !== []) {
                 $definitions_by_id[$id] = $blocks;
             }
@@ -2118,7 +2071,7 @@ final class EpubReader
             return $base_href ?? '';
         }
 
-        return XmlHtmlDom::resolveHtmlResourceUrlReference($xml_base, $base_href) ?? $xml_base;
+        return HtmlResourceUrlResolver::resolve($xml_base, $base_href) ?? $xml_base;
     }
 
     private function resolveEpubContentXmlBaseReferences(\DOMElement $element, ?string $base_href): void
@@ -2167,7 +2120,7 @@ final class EpubReader
             return;
         }
 
-        $resolved = XmlHtmlDom::resolveHtmlResourceUrlReference($value, $base_href);
+        $resolved = HtmlResourceUrlResolver::resolve($value, $base_href);
         if ($resolved === null || $resolved === $value) {
             return;
         }
@@ -2202,7 +2155,7 @@ final class EpubReader
     private function epubContentHrefKeys(string $href, ?string $base_href): array
     {
         $keys = [$href];
-        $resolved = XmlHtmlDom::resolveHtmlResourceUrlReference($href, $base_href);
+        $resolved = HtmlResourceUrlResolver::resolve($href, $base_href);
         if ($resolved !== null && $resolved !== '' && !in_array($resolved, $keys, true)) {
             $keys[] = $resolved;
         }
@@ -2323,7 +2276,7 @@ final class EpubReader
             }
         }
 
-        return $changed ? new AstNode($node->type, $node->attrs, $children) : $node;
+        return $changed ? $this->epubNodeFrom($node, $node->baseAttrs(), $children) : $node;
     }
 
     /**
@@ -2349,7 +2302,7 @@ final class EpubReader
         ++$image_index;
         if (($overlay['block'] ?? false) === true && $overlay['sources'] !== []) {
             $blocks = [
-                new AstNode($node->type, $node->attrs, [
+                $this->epubNodeFrom($node, $node->baseAttrs(), [
                     new AstNode('raw_html_inline', ['html' => $overlay['picture']]),
                 ]),
             ];
@@ -2357,7 +2310,7 @@ final class EpubReader
                 $blocks[] = new AstNode('raw_html', ['html' => $source]);
                 $blocks[] = new AstNode('raw_html', ['html' => '</source>']);
             }
-            $blocks[] = new AstNode($node->type, $node->attrs, [
+            $blocks[] = $this->epubNodeFrom($node, $node->baseAttrs(), [
                 $image,
                 new AstNode('raw_html_inline', ['html' => '</picture>']),
             ]);
@@ -2366,9 +2319,9 @@ final class EpubReader
         }
 
         return [
-            new AstNode(
-                $node->type,
-                $node->attrs,
+            $this->epubNodeFrom(
+                $node,
+                $node->baseAttrs(),
                 [
                     ...$this->epubPictureRawHtmlInlineOpenNodes($overlay),
                     $image,
@@ -2533,7 +2486,7 @@ final class EpubReader
     /**
      * @return list<AstNode>
      */
-    private function epubFootnoteDefinitionBlocks(\DOMElement $definition): array
+    private function epubFootnoteDefinitionBlocks(\DOMElement $definition, bool $source_prevalidated = false): array
     {
         $clone = $definition->cloneNode(true);
         if (!$clone instanceof \DOMElement) {
@@ -2541,7 +2494,7 @@ final class EpubReader
         }
 
         $link_attribute_overlays = $this->epubFootnoteLinkAttributeOverlays($clone);
-        $body = Html5Dom::serializeHtmlChildren($clone);
+        $body = $this->serializeEpubFootnoteDefinitionChildren($clone);
         if (trim($body) === '') {
             return [];
         }
@@ -2550,7 +2503,7 @@ final class EpubReader
             . $body
             . '</body></html>';
 
-        $blocks = $this->epubContentHtmlReader()->read($wrapped)->children;
+        $blocks = $this->epubContentHtmlReader($source_prevalidated)->read($wrapped)->children;
         if ($link_attribute_overlays === []) {
             return $blocks;
         }
@@ -2562,6 +2515,28 @@ final class EpubReader
         }
 
         return $restored_blocks;
+    }
+
+    private function serializeEpubFootnoteDefinitionChildren(\DOMElement $definition): string
+    {
+        $document = $definition->ownerDocument;
+        if (
+            $document instanceof \DOMDocument
+            && $document->documentElement instanceof \DOMElement
+            && $document->documentElement->namespaceURI === 'http://www.w3.org/1999/xhtml'
+        ) {
+            $markup = '';
+            foreach ($definition->childNodes as $child) {
+                $serialized = $document->saveXML($child);
+                if (is_string($serialized)) {
+                    $markup .= $serialized;
+                }
+            }
+
+            return $markup;
+        }
+
+        return Html5Dom::serializeHtmlChildren($definition);
     }
 
     /**
@@ -2586,7 +2561,8 @@ final class EpubReader
      */
     private function restoreEpubFootnoteLinkAttributes(AstNode $node, array $link_attribute_overlays, int &$link_index): AstNode
     {
-        $attrs = $node->attrs;
+        $base_attrs = $node->baseAttrs();
+        $attrs = $base_attrs;
         if ($node->type === 'link') {
             $has_overlay = array_key_exists($link_index, $link_attribute_overlays);
             $overlay = $has_overlay ? $link_attribute_overlays[$link_index] : ['id' => '', 'classes' => [], 'attributes' => []];
@@ -2626,7 +2602,7 @@ final class EpubReader
         }
 
         $children = [];
-        $changed = $attrs !== $node->attrs;
+        $changed = $attrs !== $base_attrs;
         foreach ($node->children as $child) {
             $updated = $this->restoreEpubFootnoteLinkAttributes($child, $link_attribute_overlays, $link_index);
             $children[] = $updated;
@@ -2635,7 +2611,7 @@ final class EpubReader
             }
         }
 
-        return $changed ? new AstNode($node->type, $attrs, $children) : $node;
+        return $changed ? $this->epubNodeFrom($node, $attrs, $children) : $node;
     }
 
     /**
@@ -2647,7 +2623,7 @@ final class EpubReader
             $children = $node->children === [] ? $definitions[$index] : $node->children;
             ++$index;
 
-            return new AstNode($node->type, $node->attrs, $children);
+            return $this->epubNodeFrom($node, $node->baseAttrs(), $children);
         }
 
         $children = [];
@@ -2660,7 +2636,7 @@ final class EpubReader
             }
         }
 
-        return $changed ? new AstNode($node->type, $node->attrs, $children) : $node;
+        return $changed ? $this->epubNodeFrom($node, $node->baseAttrs(), $children) : $node;
     }
 
     private function normalizeEpubMediaRawBlocks(AstNode $node): AstNode
@@ -2675,7 +2651,7 @@ final class EpubReader
             }
         }
 
-        return $changed ? new AstNode($node->type, $node->attrs, $children) : $node;
+        return $changed ? $this->epubNodeFrom($node, $node->baseAttrs(), $children) : $node;
     }
 
     private function normalizeEpubRawInlineVoidElements(AstNode $node): AstNode
@@ -2698,7 +2674,7 @@ final class EpubReader
             }
         }
 
-        return $changed ? new AstNode($node->type, $node->attrs, $children) : $node;
+        return $changed ? $this->epubNodeFrom($node, $node->baseAttrs(), $children) : $node;
     }
 
     private function epubRawInlineNeedsExplicitClose(AstNode $node, string $tag): bool
@@ -2818,7 +2794,7 @@ final class EpubReader
         $names = $opening['name'] === 'video' ? ['src', 'poster'] : ['src'];
         $urls = [];
         foreach ($names as $name) {
-            $url = trim((string) (XmlHtmlDom::attribute($element, $name) ?? ''));
+            $url = $element->hasAttribute($name) ? trim($element->getAttribute($name)) : '';
             if ($url !== '' && !in_array($url, $urls, true)) {
                 $urls[] = $url;
             }
@@ -2833,6 +2809,7 @@ final class EpubReader
      * @param array<string, string> $media_bag_sources
      */
     private function recordEpubContentRawMediaResources(
+        ?\DOMDocument $content_dom,
         string $xhtml,
         string $content_dir,
         string $package_base_path,
@@ -2840,9 +2817,18 @@ final class EpubReader
         array &$media_bag_resources,
         array &$media_bag_sources
     ): void {
-        try {
-            $dom = XmlHtmlDom::loadXmlDocument($xhtml, 'EPUB XHTML media resource scan');
-        } catch (\Throwable) {
+        $dom = $content_dom;
+        if (!$dom instanceof \DOMDocument) {
+            if (!$this->epubMarkupMayContainRawMediaElements($xhtml)) {
+                return;
+            }
+            try {
+                $dom = Html5Dom::parseHtmlDocument($this->contentDocumentMarkup($xhtml));
+            } catch (\Throwable) {
+                return;
+            }
+        }
+        if (!$dom instanceof \DOMDocument) {
             return;
         }
 
@@ -2857,7 +2843,7 @@ final class EpubReader
                 default => [],
             };
             foreach ($names as $name) {
-                $url = trim((string) XmlHtmlDom::attribute($element, $name));
+                $url = $element->hasAttribute($name) ? trim($element->getAttribute($name)) : '';
                 if ($url === '') {
                     continue;
                 }
@@ -2869,6 +2855,17 @@ final class EpubReader
                 }
             }
         }
+    }
+
+    private function epubMarkupMayContainRawMediaElements(string $markup): bool
+    {
+        foreach (['<audio', '<source', '<track', '<video'] as $needle) {
+            if (stripos($markup, $needle) !== false) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function rawHtmlOpeningElement(string $source, string $name): ?\DOMElement
@@ -3018,11 +3015,12 @@ final class EpubReader
         array &$media_bag_resources,
         array &$media_bag_sources
     ): AstNode {
+        $base_attrs = $node->baseAttrs();
         $is_footnote_definition_link = $node->type === 'link'
-            && ($node->attrs[self::EPUB_FOOTNOTE_DEFINITION_LINK_ATTR] ?? false) === true;
+            && ($base_attrs[self::EPUB_FOOTNOTE_DEFINITION_LINK_ATTR] ?? false) === true;
         $attrs = in_array($node->type, ['blockquote', 'definition_list'], true)
             ? []
-            : $this->fixEpubNodeAttrs($node->attrs, $filename, $this->shouldPrefixEpubNodeId($node->type));
+            : $this->fixEpubNodeAttrs($base_attrs, $filename, $this->shouldPrefixEpubNodeId($node->type));
         if ($node->type === 'list_item') {
             unset($attrs['text']);
         }
@@ -3064,7 +3062,39 @@ final class EpubReader
         }
         $children = $this->trimTextBeforeInlineImages($children);
 
-        return new AstNode($node->type, $attrs, $children);
+        return $this->epubNodeFrom($node, $attrs, $children);
+    }
+
+    /**
+     * EPUB normalizers rebuild only the nodes whose content or attributes
+     * changed. Preserve AstNode's compact direct-text representation when
+     * doing so; constructing a plain node here otherwise turns every text
+     * child back into a standalone PHP object.
+     *
+     * @param array<string, mixed> $attrs
+     * @param list<AstNode> $children
+     */
+    private function epubNode(string $type, array $attrs, array $children = []): AstNode
+    {
+        if ($children === []) {
+            return new AstNode($type, $attrs);
+        }
+
+        return AstNode::withCompactTextChildren($type, $attrs, $children);
+    }
+
+    /**
+     * @param array<string, mixed> $attrs
+     * @param list<AstNode> $children
+     */
+    private function epubNodeFrom(AstNode $source, array $attrs, array $children = []): AstNode
+    {
+        $resolver = $source->attributeResolver();
+        if ($resolver instanceof LazyTableGeometryAttributes) {
+            return new AstNode($source->type, $attrs, $children, $resolver->forRebuiltNode());
+        }
+
+        return $this->epubNode($source->type, $attrs, $children);
     }
 
     /**
@@ -3196,13 +3226,51 @@ final class EpubReader
             }
         }
 
-        $attrs = $node->attrs;
+        $attrs = $node->baseAttrs();
         if (array_key_exists(self::EPUB_SEMANTIC_TYPES_ATTR, $attrs)) {
             unset($attrs[self::EPUB_SEMANTIC_TYPES_ATTR]);
             $changed = true;
         }
 
-        return $changed ? new AstNode($node->type, $attrs, $children) : $node;
+        return $changed ? $this->epubNodeFrom($node, $attrs, $children) : $node;
+    }
+
+    /**
+     * The EPUB reader performs all reference and raw-markup repairs before
+     * this pass. Paragraph-like blocks can therefore retain their completed
+     * inline subtree as a lazy payload, keeping long prose books from holding
+     * one PHP object per word and soft break.
+     */
+    private function compactEpubInlineChildren(AstNode $node): AstNode
+    {
+        $children = [];
+        $changed = false;
+        foreach ($node->children as $child) {
+            $updated = $this->compactEpubInlineChildren($child);
+            $children[] = $updated;
+            if ($updated !== $child) {
+                $changed = true;
+            }
+        }
+
+        $attrs = $node->baseAttrs();
+        if ($this->canSerializeEpubInlineChildren($node, $children)) {
+            return AstNode::withSerializedChildren($node->type, $attrs, $children);
+        }
+
+        return $changed ? $this->epubNode($node->type, $attrs, $children) : $node;
+    }
+
+    /**
+     * @param list<AstNode> $children
+     */
+    private function canSerializeEpubInlineChildren(AstNode $node, array $children): bool
+    {
+        if (count($children) < 2) {
+            return false;
+        }
+
+        return in_array($node->type, ['paragraph', 'plain', 'heading'], true);
     }
 
     private function isEpubChapterSectioningDiv(AstNode $node): bool
@@ -3432,7 +3500,7 @@ final class EpubReader
      * @param array<string, string> $media_bag_sources
      * @return array{directory: list<array<string, mixed>>, diagnostics: list<string>}
      */
-    private function readEpubMediaBag(ZipPackage $zip, string $base_path, array $manifest, array $media_bag_sources): array
+    private function readEpubMediaBag(EpubArchive $zip, string $base_path, array $manifest, array $media_bag_sources): array
     {
         $bag = new MediaBag();
         $diagnostics = [];
@@ -3652,7 +3720,7 @@ final class EpubReader
         return strtolower(trim(explode(';', $media_type, 2)[0]));
     }
 
-    private function zipEntryContents(ZipPackage $zip, string $path): ?string
+    private function zipEntryContents(EpubArchive $zip, string $path): ?string
     {
         if (!$zip->has($path)) {
             return null;

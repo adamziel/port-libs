@@ -20,6 +20,7 @@ class AstNode
      *
      * - string: one `text` attribute and no children;
      * - AstNode: one child and no attributes;
+     * - AstSerializedChildren: lazily materialized children and no attributes;
      * - list<AstNode>: children and no attributes;
      * - array<string, mixed>: attributes and no children;
      * - list{array<string, mixed>|string, AstNode|list<AstNode>|null, ?AstAttributeResolver}:
@@ -31,9 +32,9 @@ class AstNode
      * per-instance cost, so avoiding an empty attribute map and an empty or
      * singleton children map has a material effect on document-sized ASTs.
      *
-     * @var string|AstNode|array<mixed>|null
+     * @var string|AstNode|AstSerializedChildren|array<mixed>|null
      */
-    private readonly string|self|array|null $storage;
+    private readonly string|self|AstSerializedChildren|array|null $storage;
 
     /**
      * @param array<string, mixed> $attrs
@@ -47,6 +48,7 @@ class AstNode
         ?AstAttributeResolver $attributeResolver = null,
         ?array $compactTextChildren = null,
         bool $deriveTextFromChildren = false,
+        ?AstSerializedChildren $serializedChildren = null,
     ) {
         if ($compactTextChildren !== null) {
             $this->storage = self::compactTextChildrenStorage($attrs, $compactTextChildren, $deriveTextFromChildren);
@@ -59,6 +61,16 @@ class AstNode
             && is_string($attrs['text'])
             ? $attrs['text']
             : null;
+        if ($serializedChildren !== null) {
+            $this->storage = $this->compoundStorage(
+                $text ?? $attrs,
+                $serializedChildren,
+                $attributeResolver,
+                $text === null && self::hasNumericKeys($attrs),
+            );
+
+            return;
+        }
         $childStorage = match (count($children)) {
             0 => null,
             1 => $children[0],
@@ -137,6 +149,27 @@ class AstNode
         }
 
         return new self($type, $attrs, compactTextChildren: $compactChildren);
+    }
+
+    /**
+     * Retain a stable public AST while storing a completed child list as a
+     * compact immutable payload. The list is recreated only for callers that
+     * inspect this node's children.
+     *
+     * @param array<string, mixed> $attrs
+     * @param list<AstNode> $children
+     */
+    public static function withSerializedChildren(string $type, array $attrs, array $children): self
+    {
+        if ($children === []) {
+            return new self($type, $attrs);
+        }
+
+        return new self(
+            $type,
+            $attrs,
+            serializedChildren: new AstSerializedChildren($children),
+        );
     }
 
     public function attr(string $name, mixed $default = null): mixed
@@ -228,6 +261,10 @@ class AstNode
             return [$children];
         }
 
+        if ($children instanceof AstSerializedChildren) {
+            return $children->materialize();
+        }
+
         if ($children === null) {
             return [];
         }
@@ -280,12 +317,12 @@ class AstNode
 
     /**
      * @param array<string, mixed>|string $attrs
-     * @param AstNode|list<AstNode>|null $children
+     * @param AstNode|AstSerializedChildren|list<AstNode>|null $children
      * @return list<mixed>
      */
     private function compoundStorage(
         array|string $attrs,
-        AstNode|array|null $children,
+        AstNode|AstSerializedChildren|array|null $children,
         ?AstAttributeResolver $resolver,
         bool $mustMark,
     ): array {
@@ -331,11 +368,11 @@ class AstNode
     }
 
     /**
-     * @return AstNode|list<AstNode|string>|null
+     * @return AstNode|AstSerializedChildren|list<AstNode|string>|null
      */
-    private function directChildren(): AstNode|array|null
+    private function directChildren(): AstNode|AstSerializedChildren|array|null
     {
-        if ($this->storage instanceof self) {
+        if ($this->storage instanceof self || $this->storage instanceof AstSerializedChildren) {
             return $this->storage;
         }
 
