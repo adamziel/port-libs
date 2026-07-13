@@ -4,6 +4,7 @@ const viewLabels = {
   wpBlocks: 'WordPress Block markup',
   haskell: 'Pandoc baseline',
 };
+const defaultView = 'wpBlocks';
 
 const examplePicker = document.getElementById('example-picker');
 const previousButton = document.getElementById('previous-example');
@@ -16,7 +17,7 @@ const frame = document.getElementById('example-frame');
 const state = {
   examples: [],
   selectedId: '',
-  view: 'phpHtml',
+  view: defaultView,
   automaticViewMaxBytes: 0,
   loadToken: 0,
 };
@@ -50,8 +51,17 @@ function createOption(value, label) {
 }
 
 function ensureBrowsableView() {
-  if (!isBrowsableView(selectedView())) {
-    state.view = 'phpHtml';
+  if (isBrowsableView(selectedView())) {
+    return;
+  }
+
+  const example = selectedExample();
+  for (const fallbackView of [defaultView, 'phpHtml', 'haskell']) {
+    const view = example && example.views ? example.views[fallbackView] : null;
+    if (isBrowsableView(view)) {
+      state.view = fallbackView;
+      return;
+    }
   }
 }
 
