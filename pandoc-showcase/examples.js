@@ -6,6 +6,8 @@ const viewLabels = {
 };
 const defaultView = 'wpBlocks';
 const exampleUrlParameter = 'example';
+const playgroundPluginBuild = 'document-inference-20260713';
+const playgroundClientModuleUrl = 'https://playground.wordpress.net/client/index.js';
 
 const examplePicker = document.getElementById('example-picker');
 const previousButton = document.getElementById('previous-example');
@@ -13,6 +15,8 @@ const nextButton = document.getElementById('next-example');
 const viewButtons = Array.from(document.querySelectorAll('[data-example-view]'));
 const viewerStatus = document.getElementById('viewer-status');
 const downloadSource = document.getElementById('download-source');
+const tryOwnFileButton = document.getElementById('try-own-file');
+const ownFileInput = document.getElementById('own-file-input');
 const frame = document.getElementById('example-frame');
 
 const state = {
@@ -22,6 +26,14 @@ const state = {
   view: defaultView,
   automaticViewMaxBytes: 0,
   loadToken: 0,
+  ownFileToken: 0,
+  ownFileBusy: false,
+  frameMode: 'example',
+  playgroundClient: null,
+  playgroundReady: false,
+  playgroundBootPromise: null,
+  startPlaygroundWeb: null,
+  decodePdfJbig2Rasters: null,
 };
 
 function selectedExample() {
@@ -141,14 +153,41 @@ function updateControls() {
   const examples = browsableExamples();
   const ready = examples.length > 0;
   const example = selectedExample();
-  examplePicker.disabled = !ready;
-  previousButton.disabled = examples.length < 2;
-  nextButton.disabled = examples.length < 2;
+  const busy = state.ownFileBusy;
+  examplePicker.disabled = !ready || busy;
+  previousButton.disabled = examples.length < 2 || busy;
+  nextButton.disabled = examples.length < 2 || busy;
   viewButtons.forEach((button) => {
     const view = example && example.views ? example.views[button.dataset.exampleView] : null;
-    button.disabled = !ready || !isBrowsableView(view);
+    button.disabled = !ready || !isBrowsableView(view) || busy;
   });
+  downloadSource.setAttribute('aria-disabled', String(busy));
+  downloadSource.tabIndex = busy ? -1 : 0;
+  tryOwnFileButton.disabled = busy;
+  ownFileInput.disabled = busy;
   updateViewButtons();
+}
+
+function setOwnFileBusy(busy, label = '') {
+  state.ownFileBusy = busy;
+  tryOwnFileButton.textContent = busy ? label : 'Try your own file';
+  updateControls();
+}
+
+function leavePlaygroundView() {
+  if (state.frameMode !== 'playground') {
+    frame.setAttribute('sandbox', '');
+    return;
+  }
+
+  state.ownFileToken += 1;
+  state.frameMode = 'example';
+  state.playgroundClient = null;
+  state.playgroundReady = false;
+  state.playgroundBootPromise = null;
+  delete frame.dataset.loadedPath;
+  frame.removeAttribute('src');
+  frame.setAttribute('sandbox', '');
 }
 
 function unloadCurrentExample() {
@@ -159,6 +198,10 @@ function unloadCurrentExample() {
 }
 
 function loadSelectedExample() {
+  if (state.ownFileBusy) {
+    return;
+  }
+  leavePlaygroundView();
   const example = selectedExample();
   const view = selectedView(example);
   if (!example || !isBrowsableView(view)) {
@@ -172,6 +215,7 @@ function loadSelectedExample() {
   frame.hidden = false;
   frame.loading = 'eager';
   frame.dataset.loadedPath = view.path;
+  frame.setAttribute('sandbox', '');
   frame.removeAttribute('src');
   frame.src = 'about:blank';
   setStatus('Loading ' + example.label + '…');
@@ -185,6 +229,9 @@ function loadSelectedExample() {
 }
 
 function moveExample(direction) {
+  if (state.ownFileBusy) {
+    return;
+  }
   const examples = browsableExamples();
   if (examples.length === 0) {
     setStatus('No browsable example is available.');
@@ -197,6 +244,234 @@ function moveExample(direction) {
     : (current + direction + examples.length) % examples.length;
   applySelectedExample(examples[nextIndex].id);
   syncExampleUrl();
+}
+
+function ownFileRequestIsCurrent(token) {
+  return token === state.ownFileToken && state.frameMode === 'playground';
+}
+
+async function bootOwnFilePlayground() {
+  if (state.playgroundReady) {
+    return;
+  }
+  if (state.playgroundBootPromise) {
+    await state.playgroundBootPromise;
+    return;
+  }
+
+  state.playgroundBootPromise = startOwnFilePlayground();
+  await state.playgroundBootPromise;
+}
+
+async function startOwnFilePlayground() {
+  try {
+    const pluginUrl = new URL(`playground/port-libs-playground-converter.zip?v=${playgroundPluginBuild}`, window.location.href).href;
+    if (!state.startPlaygroundWeb) {
+      const playgroundModule = await import(playgroundClientModuleUrl);
+      state.startPlaygroundWeb = playgroundModule.startPlaygroundWeb;
+    }
+    state.playgroundClient = await state.startPlaygroundWeb({
+      iframe: frame,
+      remoteUrl: 'https://playground.wordpress.net/remote.html',
+      blueprint: {
+        preferredVersions: {
+          php: '8.3',
+          wp: 'latest',
+        },
+        landingPage: '/',
+        features: {
+          networking: true,
+        },
+        steps: [
+          { step: 'login' },
+          {
+            step: 'installPlugin',
+            pluginData: {
+              resource: 'url',
+              url: pluginUrl,
+            },
+            options: {
+              activate: true,
+            },
+          },
+        ],
+      },
+    });
+    await state.playgroundClient.isReady();
+    state.playgroundReady = true;
+  } catch (error) {
+    state.playgroundBootPromise = null;
+    state.playgroundClient = null;
+    state.playgroundReady = false;
+    throw error;
+  }
+}
+
+async function openOwnFile(file) {
+  if (!file || file.size <= 0) {
+    setStatus('Choose a non-empty file to open in WordPress Playground.');
+    return;
+  }
+
+  const token = state.ownFileToken + 1;
+  state.ownFileToken = token;
+  const reusingPlayground = state.frameMode === 'playground'
+    && state.playgroundReady
+    && state.playgroundClient;
+  state.frameMode = 'playground';
+  state.loadToken += 1;
+  delete frame.dataset.loadedPath;
+  if (!reusingPlayground) {
+    frame.removeAttribute('src');
+    frame.removeAttribute('sandbox');
+  }
+  frame.hidden = false;
+  frame.loading = 'eager';
+  setOwnFileBusy(true, 'Preparing file…');
+  setStatus('Preparing ' + file.name + ' for WordPress Playground…');
+
+  try {
+    const payload = await payloadFromOwnFile(file, (message) => {
+      setOwnFileBusy(true, message);
+    });
+    if (!ownFileRequestIsCurrent(token)) {
+      return;
+    }
+
+    setOwnFileBusy(true, state.playgroundReady ? 'Converting…' : 'Opening Playground…');
+    await bootOwnFilePlayground();
+    if (!ownFileRequestIsCurrent(token)) {
+      return;
+    }
+
+    setOwnFileBusy(true, 'Converting…');
+    const response = await state.playgroundClient.request({
+      method: 'POST',
+      url: '/wp-json/port-libs/v1/convert',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const text = typeof response.text === 'function' ? await response.text() : response.text;
+    const data = JSON.parse(text);
+    if (!data.ok) {
+      throw new Error(data.message || 'Conversion failed.');
+    }
+    if (!ownFileRequestIsCurrent(token)) {
+      return;
+    }
+
+    await state.playgroundClient.goTo(playgroundPath(data.pageUrl));
+    if (ownFileRequestIsCurrent(token)) {
+      setStatus('Opened a new WordPress page for ' + file.name + '.');
+    }
+  } catch (error) {
+    if (ownFileRequestIsCurrent(token)) {
+      const message = error instanceof Error ? error.message : String(error);
+      setStatus('Could not open ' + file.name + ' in WordPress Playground: ' + message);
+    }
+  } finally {
+    if (token === state.ownFileToken) {
+      setOwnFileBusy(false);
+    }
+  }
+}
+
+async function payloadFromOwnFile(file, reportProgress) {
+  const payload = {
+    filename: file.name,
+    title: titleFromFilename(file.name),
+    imageMode: 'important',
+    pdfMode: 'layout',
+  };
+  if (!isLikelyPdfFile(file)) {
+    return {
+      ...payload,
+      bytes: await readFileAsBase64(file),
+    };
+  }
+
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const pdfRasterImages = await browserPdfRasterImages(bytes, reportProgress);
+  return {
+    ...payload,
+    bytes: base64FromBytes(bytes),
+    ...(pdfRasterImages.length > 0 ? { pdfRasterImages } : {}),
+  };
+}
+
+async function browserPdfRasterImages(bytes, reportProgress) {
+  try {
+    if (!state.decodePdfJbig2Rasters) {
+      const moduleUrl = new URL('pdf-jbig2-rasterizer.mjs?v=jbig2-raster-20260709', window.location.href).href;
+      ({ decodePdfJbig2Rasters: state.decodePdfJbig2Rasters } = await import(moduleUrl));
+    }
+    const result = await state.decodePdfJbig2Rasters(bytes, {
+      imageMode: 'important',
+      onProgress({ completed, total }) {
+        reportProgress(total > 0
+          ? `Preparing PDF images (${completed} of ${total})…`
+          : 'Preparing PDF images…');
+      },
+    });
+
+    return result.rasters.map((raster) => ({
+      object: raster.object,
+      bytes: base64FromBytes(raster.bytes),
+      mimeType: raster.mimeType,
+      width: raster.width,
+      height: raster.height,
+    }));
+  } catch {
+    return [];
+  }
+}
+
+function readFileAsBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.addEventListener('error', () => {
+      reject(reader.error || new Error('The file could not be read.'));
+    });
+    reader.addEventListener('load', () => {
+      const result = typeof reader.result === 'string' ? reader.result : '';
+      const comma = result.indexOf(',');
+      if (comma === -1) {
+        reject(new Error('The file could not be encoded.'));
+        return;
+      }
+      resolve(result.slice(comma + 1));
+    });
+    reader.readAsDataURL(file);
+  });
+}
+
+function base64FromBytes(bytes) {
+  let binary = '';
+  const chunkSize = 0x8000;
+  for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(offset, Math.min(offset + chunkSize, bytes.length)));
+  }
+
+  return btoa(binary);
+}
+
+function isLikelyPdfFile(file) {
+  return file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
+}
+
+function titleFromFilename(name) {
+  const last = name.split('/').filter(Boolean).pop() || name;
+  const stem = last.replace(/\.[^.]+$/, '').replace(/[-_]+/g, ' ').trim();
+  return stem ? stem.replace(/\b\w/g, (letter) => letter.toUpperCase()) : 'Converted document';
+}
+
+function playgroundPath(url) {
+  try {
+    const parsed = new URL(url);
+    return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+  } catch {
+    return url || '/';
+  }
 }
 
 async function initialize() {
@@ -225,6 +500,9 @@ async function initialize() {
 }
 
 examplePicker.addEventListener('change', () => {
+  if (state.ownFileBusy) {
+    return;
+  }
   applySelectedExample(examplePicker.value);
   syncExampleUrl();
 });
@@ -232,8 +510,33 @@ examplePicker.addEventListener('change', () => {
 previousButton.addEventListener('click', () => moveExample(-1));
 nextButton.addEventListener('click', () => moveExample(1));
 
+downloadSource.addEventListener('click', (event) => {
+  if (state.ownFileBusy) {
+    event.preventDefault();
+  }
+});
+
+tryOwnFileButton.addEventListener('click', () => {
+  if (state.ownFileBusy) {
+    return;
+  }
+  ownFileInput.value = '';
+  ownFileInput.click();
+});
+
+ownFileInput.addEventListener('change', () => {
+  const file = ownFileInput.files && ownFileInput.files[0];
+  ownFileInput.value = '';
+  if (file) {
+    void openOwnFile(file);
+  }
+});
+
 viewButtons.forEach((button) => {
   button.addEventListener('click', () => {
+    if (state.ownFileBusy) {
+      return;
+    }
     const nextView = button.dataset.exampleView;
     if (!nextView || !viewLabels[nextView] || nextView === state.view) {
       return;
