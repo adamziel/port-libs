@@ -4306,16 +4306,17 @@ function showcase_write_examples_page(string $siteDir, array $records, string $g
     $page .= '<title>Adam&#039;s Pandoc → PHP Port</title><link rel="stylesheet" href="examples.css?v=' . h($assetVersion) . '"></head>';
     $page .= '<body><main class="example-browser"><div class="picker-area"><div class="example-toolbar">';
     $page .= '<button id="previous-example" class="example-arrow previous-arrow" type="button" aria-label="Previous example" title="Previous example" disabled><span class="arrow-glyph" aria-hidden="true">←</span><span class="arrow-label">Previous example</span></button>';
-    $page .= '<div class="picker-controls"><h1 class="example-title">Adam&#039;s Pandoc → PHP Port</h1>';
-    $page .= '<label class="screen-reader-text" for="example-picker">Example</label><select id="example-picker" disabled><option>Loading examples…</option></select></div>';
+    $page .= '<h1 class="example-title">Adam&#039;s Pandoc → PHP Port</h1>';
+    $page .= '<div class="picker-controls"><label class="screen-reader-text" for="example-picker">Example</label><select id="example-picker" disabled><option>Loading examples…</option></select></div>';
     $page .= '<a id="download-source" class="download-source" href="" download hidden>Download original</a>';
     $page .= '<button id="try-own-file" class="try-own-file" type="button">Try your own file</button><input id="own-file-input" type="file" hidden>';
-    $page .= '<button id="next-example" class="example-arrow next-arrow" type="button" aria-label="Next example" title="Next example" disabled><span class="arrow-glyph" aria-hidden="true">→</span><span class="arrow-label">Next example</span></button></div></div>';
+    $page .= '<button id="next-example" class="example-arrow next-arrow" type="button" aria-label="Next example" title="Next example" disabled><span class="arrow-glyph" aria-hidden="true">→</span><span class="arrow-label">Next example</span></button></div>';
+    $page .= '<p id="viewer-status" class="viewer-status" role="status" aria-live="polite" hidden>Preparing the selected example…</p></div>';
     $page .= '<div class="view-tabs" role="group" aria-label="Preview format">';
     $page .= '<button type="button" data-example-view="phpHtml" aria-pressed="false" disabled>HTML</button>';
     $page .= '<button type="button" data-example-view="wpBlocks" aria-pressed="true" disabled>WordPress Block markup</button>';
     $page .= '<button type="button" data-example-view="haskell" aria-pressed="false" disabled>Pandoc baseline</button></div>';
-    $page .= '<section class="example-preview" aria-label="Example preview"><p id="viewer-status" class="screen-reader-text" aria-live="polite">Preparing the selected example…</p>';
+    $page .= '<section class="example-preview" aria-label="Example preview">';
     $page .= '<iframe id="example-frame" title="Selected converted example" sandbox hidden></iframe></section></main>';
     $page .= '<script type="module" src="examples.js?v=' . h($assetVersion) . '"></script></body></html>';
     file_put_contents($siteDir . '/examples.html', rtrim($page) . "\n");
@@ -4378,25 +4379,29 @@ select:disabled { cursor: not-allowed; opacity: .58; }
   min-width: 0;
 }
 .example-title {
-  margin: 0 0 6px;
+  grid-area: title;
+  align-self: end;
+  margin: 0;
   font-size: clamp(15px, 1.8vw, 20px);
   line-height: 1.25;
 }
 .example-toolbar {
   display: grid;
   grid-template-columns: var(--arrow-width) minmax(0, 1fr) auto auto var(--arrow-width);
+  grid-template-rows: auto 48px;
+  grid-template-areas:
+    "previous title . . next"
+    "previous picker download own next";
   align-items: stretch;
-  gap: var(--toolbar-gap);
+  column-gap: var(--toolbar-gap);
+  row-gap: 6px;
   min-width: 0;
 }
 .picker-controls {
-  display: grid;
-  grid-column: 2;
-  grid-template-rows: auto minmax(48px, 1fr);
+  grid-area: picker;
   min-width: 0;
 }
 #example-picker {
-  grid-row: 2;
   width: 100%;
   min-width: 0;
   height: 48px;
@@ -4410,7 +4415,7 @@ select:disabled { cursor: not-allowed; opacity: .58; }
 .download-source,
 .try-own-file {
   display: inline-flex;
-  align-self: end;
+  align-self: stretch;
   align-items: center;
   justify-content: center;
   height: 48px;
@@ -4424,11 +4429,11 @@ select:disabled { cursor: not-allowed; opacity: .58; }
   white-space: nowrap;
 }
 .download-source {
-  grid-column: 3;
+  grid-area: download;
   text-decoration: none;
 }
 .try-own-file {
-  grid-column: 4;
+  grid-area: own;
 }
 .download-source:hover { border-color: var(--accent); background: #e6eefb; }
 .try-own-file:hover:not(:disabled) { border-color: var(--accent); background: #e6eefb; }
@@ -4467,13 +4472,12 @@ select:disabled { cursor: not-allowed; opacity: .58; }
 }
 .example-arrow {
   display: flex;
-  grid-row: 1;
   align-self: stretch;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  width: var(--arrow-width);
-  min-height: 80px;
+  width: 100%;
+  min-height: 0;
   padding: 8px 6px;
   border: 1px solid #aeb9c7;
   border-radius: 8px;
@@ -4484,10 +4488,26 @@ select:disabled { cursor: not-allowed; opacity: .58; }
 .arrow-glyph { font-size: 42px; line-height: .9; }
 .arrow-label { margin-top: 7px; font-size: 12px; font-weight: 700; line-height: 1.15; text-align: center; }
 .previous-arrow {
-  grid-column: 1;
+  grid-area: previous;
 }
 .next-arrow {
-  grid-column: 5;
+  grid-area: next;
+}
+.viewer-status {
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  border: 1px solid #b8c7dc;
+  border-radius: 8px;
+  background: #f3f7fd;
+  color: #24446d;
+  font-size: 14px;
+  line-height: 1.35;
+}
+.viewer-status[hidden] { display: none; }
+.viewer-status[data-tone="error"] {
+  border-color: #d98f8f;
+  background: #fff5f5;
+  color: #8d2525;
 }
 .example-preview {
   display: grid;
@@ -4518,15 +4538,21 @@ select:disabled { cursor: not-allowed; opacity: .58; }
   border: 0;
 }
 @media (max-width: 640px) {
-  .picker-area { --arrow-width: 66px; --toolbar-gap: 8px; position: relative; width: 100%; max-width: 100%; padding: 10px calc(var(--arrow-width) + 18px) 8px; }
-  .example-title { margin-bottom: 5px; font-size: 16px; }
-  .example-toolbar { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto; }
-  .picker-controls { grid-column: 1; grid-row: 1; }
-  .download-source { grid-column: 1; grid-row: 2; width: 100%; }
-  .try-own-file { grid-column: 1; grid-row: 3; width: 100%; }
-  .example-arrow { position: absolute; top: 10px; bottom: 8px; z-index: 2; grid-row: auto; min-height: 0; }
-  .previous-arrow { grid-column: auto; left: 10px; }
-  .next-arrow { grid-column: auto; right: 10px; }
+  .picker-area { --arrow-width: clamp(54px, 17vw, 66px); --toolbar-gap: 8px; width: 100%; max-width: 100%; padding: 10px; }
+  .example-title { font-size: 16px; }
+  .example-toolbar {
+    grid-template-columns: var(--arrow-width) minmax(0, 1fr) var(--arrow-width);
+    grid-template-rows: auto 48px 48px 48px;
+    grid-template-areas:
+      "previous title next"
+      "previous picker next"
+      "previous download next"
+      "previous own next";
+    row-gap: 8px;
+  }
+  .download-source,
+  .try-own-file { min-width: 0; width: 100%; padding-inline: 8px; white-space: normal; }
+  .example-arrow { position: static; min-height: 0; }
   .arrow-glyph { font-size: 34px; }
   .arrow-label { margin-top: 5px; font-size: 10px; }
   .view-tabs { padding-inline: 6px; }
@@ -4546,8 +4572,9 @@ const viewLabels = {
 };
 const defaultView = 'wpBlocks';
 const exampleUrlParameter = 'example';
-const playgroundPluginBuild = 'pdf-provenance-recovery-20260713';
+const playgroundPluginBuild = 'epub-staged-upload-20260713';
 const playgroundClientModuleUrl = 'https://playground.wordpress.net/client/index.js';
+const playgroundUploadDirectory = '/tmp/port-libs-converter';
 
 const examplePicker = document.getElementById('example-picker');
 const previousButton = document.getElementById('previous-example');
@@ -4593,8 +4620,14 @@ function browsableExamples() {
   return state.examples.filter((example) => isBrowsableView(example.views && example.views.phpHtml));
 }
 
-function setStatus(message) {
+function setStatus(message, { visible = false, tone = 'info' } = {}) {
   viewerStatus.textContent = message;
+  viewerStatus.hidden = !visible;
+  if (visible) {
+    viewerStatus.dataset.tone = tone;
+  } else {
+    delete viewerStatus.dataset.tone;
+  }
 }
 
 function createOption(value, label) {
@@ -4867,32 +4900,56 @@ async function openOwnFile(file) {
   }
   frame.hidden = false;
   frame.loading = 'eager';
-  setOwnFileBusy(true, 'Preparing file…');
-  setStatus('Preparing ' + file.name + ' for WordPress Playground…');
+  setOwnFileBusy(true, state.playgroundReady ? 'Preparing file…' : 'Opening Playground…');
+  setStatus(state.playgroundReady
+    ? 'Preparing ' + file.name + ' for WordPress Playground…'
+    : 'Opening WordPress Playground for ' + file.name + '…', { visible: true });
 
+  let playgroundClient = null;
+  let stagedPath = '';
   try {
-    const payload = await payloadFromOwnFile(file, (message) => {
-      setOwnFileBusy(true, message);
-    });
-    if (!ownFileRequestIsCurrent(token)) {
-      return;
-    }
-
-    setOwnFileBusy(true, state.playgroundReady ? 'Converting…' : 'Opening Playground…');
     await bootOwnFilePlayground();
     if (!ownFileRequestIsCurrent(token)) {
       return;
     }
 
+    playgroundClient = state.playgroundClient;
+    if (!playgroundClient) {
+      throw new Error('WordPress Playground was not ready to receive the selected file.');
+    }
+
+    setOwnFileBusy(true, 'Preparing file…');
+    setStatus('Preparing ' + file.name + ' for upload…', { visible: true });
+    const prepared = await payloadFromOwnFile(file, (message) => {
+      setOwnFileBusy(true, message);
+      setStatus(message, { visible: true });
+    });
+    if (!ownFileRequestIsCurrent(token)) {
+      return;
+    }
+
+    setOwnFileBusy(true, 'Uploading…');
+    setStatus('Uploading ' + file.name + ' to WordPress Playground…', { visible: true });
+    stagedPath = await stageOwnFileInPlayground(playgroundClient, prepared.bytes, token);
+    if (!ownFileRequestIsCurrent(token)) {
+      return;
+    }
+
     setOwnFileBusy(true, 'Converting…');
-    const response = await state.playgroundClient.request({
+    setStatus('Converting ' + file.name + '…', { visible: true });
+    const response = await playgroundClient.request({
       method: 'POST',
       url: '/wp-json/port-libs/v1/convert',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({ ...prepared.payload, stagedPath }),
     });
     const text = typeof response.text === 'function' ? await response.text() : response.text;
-    const data = JSON.parse(text);
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      throw new Error('WordPress Playground returned an unreadable conversion response. Please try the file again.');
+    }
     if (!data.ok) {
       throw new Error(data.message || 'Conversion failed.');
     }
@@ -4900,16 +4957,24 @@ async function openOwnFile(file) {
       return;
     }
 
-    await state.playgroundClient.goTo(playgroundPath(data.pageUrl));
+    await playgroundClient.goTo(playgroundPath(data.pageUrl));
     if (ownFileRequestIsCurrent(token)) {
-      setStatus('Opened a new WordPress page for ' + file.name + '.');
+      setStatus('Opened a new WordPress page for ' + file.name + '.', { visible: true, tone: 'success' });
     }
   } catch (error) {
     if (ownFileRequestIsCurrent(token)) {
       const message = error instanceof Error ? error.message : String(error);
-      setStatus('Could not open ' + file.name + ' in WordPress Playground: ' + message);
+      setStatus('Could not open ' + file.name + ' in WordPress Playground: ' + message, { visible: true, tone: 'error' });
     }
   } finally {
+    if (stagedPath && playgroundClient) {
+      try {
+        await playgroundClient.unlink(stagedPath);
+      } catch {
+        // The converter removes successfully read sources. A failed request
+        // can still leave one behind, so cleanup remains best effort here.
+      }
+    }
     if (token === state.ownFileToken) {
       setOwnFileBusy(false);
     }
@@ -4917,6 +4982,7 @@ async function openOwnFile(file) {
 }
 
 async function payloadFromOwnFile(file, reportProgress) {
+  const bytes = new Uint8Array(await file.arrayBuffer());
   const payload = {
     filename: file.name,
     title: titleFromFilename(file.name),
@@ -4924,19 +4990,28 @@ async function payloadFromOwnFile(file, reportProgress) {
     pdfMode: 'layout',
   };
   if (!isLikelyPdfFile(file)) {
-    return {
-      ...payload,
-      bytes: await readFileAsBase64(file),
-    };
+    return { payload, bytes };
   }
 
-  const bytes = new Uint8Array(await file.arrayBuffer());
   const pdfRasterImages = await browserPdfRasterImages(bytes, reportProgress);
   return {
-    ...payload,
-    bytes: base64FromBytes(bytes),
-    ...(pdfRasterImages.length > 0 ? { pdfRasterImages } : {}),
+    bytes,
+    payload: {
+      ...payload,
+      ...(pdfRasterImages.length > 0 ? { pdfRasterImages } : {}),
+    },
   };
+}
+
+async function stageOwnFileInPlayground(playgroundClient, bytes, token) {
+  await playgroundClient.mkdirTree(playgroundUploadDirectory);
+  const id = typeof crypto.randomUUID === 'function'
+    ? crypto.randomUUID()
+    : String(Date.now()) + '-' + Math.random().toString(36).slice(2);
+  const stagedPath = playgroundUploadDirectory + '/' + token + '-' + id.replace(/[^A-Za-z0-9-]/g, '') + '.upload';
+  await playgroundClient.writeFile(stagedPath, bytes);
+
+  return stagedPath;
 }
 
 async function browserPdfRasterImages(bytes, reportProgress) {
@@ -4964,25 +5039,6 @@ async function browserPdfRasterImages(bytes, reportProgress) {
   } catch {
     return [];
   }
-}
-
-function readFileAsBase64(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.addEventListener('error', () => {
-      reject(reader.error || new Error('The file could not be read.'));
-    });
-    reader.addEventListener('load', () => {
-      const result = typeof reader.result === 'string' ? reader.result : '';
-      const comma = result.indexOf(',');
-      if (comma === -1) {
-        reject(new Error('The file could not be encoded.'));
-        return;
-      }
-      resolve(result.slice(comma + 1));
-    });
-    reader.readAsDataURL(file);
-  });
 }
 
 function base64FromBytes(bytes) {

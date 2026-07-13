@@ -479,6 +479,91 @@ return [
         $t->same('gfm', $data['format'] ?? null);
         $t->contains('Inferred heading', $GLOBALS['plpc_test_posts'][$data['postId']]['post_content'] ?? '');
     },
+    'playground endpoint converts a staged epub upload and removes its temporary file' => static function (TestRunner $t): void {
+        $GLOBALS['plpc_test_posts'] = [];
+        $fixture = dirname(__DIR__, 3) . '/pandoc-showcase/samples/epub-features-features.epub';
+        $bytes = file_get_contents($fixture);
+        $t->true(is_string($bytes) && $bytes !== '', 'Expected a readable EPUB fixture.');
+
+        $previousHost = $_SERVER['HTTP_HOST'] ?? null;
+        $_SERVER['HTTP_HOST'] = 'preview.playground.wordpress.net';
+        if (!is_dir(PLPC_STAGED_UPLOAD_DIRECTORY)) {
+            mkdir(PLPC_STAGED_UPLOAD_DIRECTORY, 0777, true);
+        }
+        $stagedPath = PLPC_STAGED_UPLOAD_DIRECTORY . '/' . bin2hex(random_bytes(12)) . '.upload';
+        file_put_contents($stagedPath, $bytes);
+
+        try {
+            $request = new WP_REST_Request(json_encode([
+                'filename' => 'features.epub',
+                'title' => 'Staged EPUB',
+                'stagedPath' => $stagedPath,
+            ], JSON_THROW_ON_ERROR));
+            $response = plpc_convert_uploaded_document($request);
+            $data = $response->get_data();
+
+            $t->same(200, $response->get_status());
+            $t->same(true, $data['ok'] ?? null);
+            $t->same('epub', $data['format'] ?? null);
+            $t->contains('Staged EPUB', $GLOBALS['plpc_test_posts'][$data['postId']]['post_title'] ?? '');
+            $t->same(false, is_file($stagedPath), 'The temporary staged source must be removed after it is read.');
+        } finally {
+            @unlink($stagedPath);
+            if ($previousHost === null) {
+                unset($_SERVER['HTTP_HOST']);
+            } else {
+                $_SERVER['HTTP_HOST'] = $previousHost;
+            }
+        }
+    },
+    'playground endpoint rejects staged paths outside its temporary upload namespace' => static function (TestRunner $t): void {
+        $previousHost = $_SERVER['HTTP_HOST'] ?? null;
+        $_SERVER['HTTP_HOST'] = 'preview.playground.wordpress.net';
+
+        try {
+            $request = new WP_REST_Request(json_encode([
+                'filename' => 'outside.epub',
+                'title' => 'Outside path',
+                'stagedPath' => '/tmp/not-a-port-libs-upload.epub',
+            ], JSON_THROW_ON_ERROR));
+            $response = plpc_convert_uploaded_document($request);
+            $data = $response->get_data();
+
+            $t->same(500, $response->get_status());
+            $t->same(false, $data['ok'] ?? null);
+            $t->contains('staged upload', strtolower((string) ($data['message'] ?? '')));
+        } finally {
+            if ($previousHost === null) {
+                unset($_SERVER['HTTP_HOST']);
+            } else {
+                $_SERVER['HTTP_HOST'] = $previousHost;
+            }
+        }
+    },
+    'playground endpoint rejects ambiguous staged and encoded document sources' => static function (TestRunner $t): void {
+        $previousHost = $_SERVER['HTTP_HOST'] ?? null;
+        $_SERVER['HTTP_HOST'] = 'preview.playground.wordpress.net';
+
+        try {
+            $request = new WP_REST_Request(json_encode([
+                'filename' => 'ambiguous.epub',
+                'stagedPath' => PLPC_STAGED_UPLOAD_DIRECTORY . '/unread.upload',
+                'bytes' => base64_encode('not used'),
+            ], JSON_THROW_ON_ERROR));
+            $response = plpc_convert_uploaded_document($request);
+            $data = $response->get_data();
+
+            $t->same(500, $response->get_status());
+            $t->same(false, $data['ok'] ?? null);
+            $t->contains('either staged bytes or encoded bytes', strtolower((string) ($data['message'] ?? '')));
+        } finally {
+            if ($previousHost === null) {
+                unset($_SERVER['HTTP_HOST']);
+            } else {
+                $_SERVER['HTTP_HOST'] = $previousHost;
+            }
+        }
+    },
     'playground importer accepts bounded browser decoded pdf rasters' => static function (TestRunner $t): void {
         $png = "\x89PNG\r\n\x1a\n"
             . pack('N', 13) . 'IHDR' . pack('NNCCCCC', 100, 100, 1, 0, 0, 0, 0)
