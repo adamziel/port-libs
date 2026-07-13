@@ -28,5 +28,8 @@ if (pluginBuildMatch) {
 }
 assert(js.includes('pdf-jbig2-rasterizer.mjs'), 'Expected the browser JBIG2 rasterizer to be loaded for PDF imports.');
 assert(js.includes('pdfRasterImages'), 'Expected browser-decoded PDF rasters to be included in the import payload.');
-assert(js.includes("doc: 'doc'"), 'Expected legacy DOC files to be mapped to the core DOC reader.');
+assert(!html.includes('id="format-input"'), 'Document type must not be exposed as a client-side form field.');
+assert(!js.includes('formatByExtension'), 'Document type inference must be authoritative on the server, not duplicated in the browser.');
+assert(!js.includes('format: upload.format'), 'The browser must not send a user-controlled document type hint.');
+assert(js.includes('function isLikelyPdfFile(file)'), 'Expected PDF-only browser preparation to remain available without choosing a document type.');
 assert(!js.includes('unsupportedMessage'), 'Supported document formats must not carry a client-side blanket rejection.');

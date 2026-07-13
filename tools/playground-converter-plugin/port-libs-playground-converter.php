@@ -8,6 +8,7 @@
 declare(strict_types=1);
 
 use PortLibs\Pandoc\PandocConverter;
+use PortLibs\Pandoc\PandocFormatRegistry;
 use PortLibs\Pandoc\PandocMediaExtractor;
 use PortLibs\Pandoc\ZipPackage;
 
@@ -120,7 +121,6 @@ function plpc_convert_uploaded_document(WP_REST_Request $request): WP_REST_Respo
         }
 
         $filename = sanitize_file_name((string) ($payload['filename'] ?? 'upload'));
-        $format = plpc_normalize_format((string) ($payload['format'] ?? ''), $filename);
         $title = sanitize_text_field((string) ($payload['title'] ?? 'Converted document'));
         if ($title === '') {
             $title = plpc_title_from_filename($filename);
@@ -138,7 +138,12 @@ function plpc_convert_uploaded_document(WP_REST_Request $request): WP_REST_Respo
             throw new RuntimeException('The uploaded file was empty or could not be decoded.');
         }
 
-        if (plpc_should_expand_zip_upload($format, $filename, $bytes)) {
+        $format = plpc_infer_document_format($filename, $bytes);
+        if ($format === '') {
+            throw new RuntimeException('Could not infer a supported document type from the uploaded filename or contents.');
+        }
+
+        if (plpc_should_expand_zip_upload($format, $bytes)) {
             return plpc_collection_response(plpc_collection_from_zip($bytes, $filename, $title), $title, $imageMode, $pdfMode);
         }
 
@@ -169,10 +174,9 @@ function plpc_convert_uploaded_document(WP_REST_Request $request): WP_REST_Respo
     }
 }
 
-function plpc_should_expand_zip_upload(string $format, string $filename, string $bytes): bool
+function plpc_should_expand_zip_upload(string $format, string $bytes): bool
 {
-    return ($format === 'zip' || strtolower(pathinfo($filename, PATHINFO_EXTENSION)) === 'zip')
-        && plpc_zip_package($bytes) !== null;
+    return $format === 'zip' && plpc_zip_package($bytes) !== null;
 }
 
 /**
@@ -422,7 +426,7 @@ function plpc_convertible_collection_files(array $collection): array
         if (plpc_path_is_image($path)) {
             continue;
         }
-        $format = plpc_normalize_format('', $path);
+        $format = plpc_infer_document_format($path, $file['bytes']);
         if ($format === '' || $format === 'zip') {
             continue;
         }
@@ -448,14 +452,17 @@ function plpc_convertible_collection_files(array $collection): array
 }
 
 /**
- * @param array{path: string, bytes: string, format?: string, pdfRasterImages?: list<array{object:string,contents:string,mimeType:string,width:int,height:int}>} $file
+ * @param array{path: string, bytes: string, pdfRasterImages?: list<array{object:string,contents:string,mimeType:string,width:int,height:int}>} $file
  * @param array{label: string, files: list<array{path: string, bytes: string}>}|null $collection
  * @return array{postId: int, pageUrl: string, editUrl: string, format: string, title: string, path: string, imageTagCount: int, imagesImported: int, diagnostics: list<string>, quality: array{status:string, flags:list<string>, warnings:list<string>}}
  */
 function plpc_convert_collection_file_to_page(array $file, ?array $collection = null, ?string $title = null, string $imageMode = 'important', string $pdfMode = 'layout'): array
 {
     $path = $file['path'];
-    $format = (string) ($file['format'] ?? plpc_normalize_format('', $path));
+    $format = plpc_infer_document_format($path, $file['bytes']);
+    if ($format === '' || $format === 'zip' || !PandocConverter::canRead($format)) {
+        throw new RuntimeException('Could not infer a supported document type for ' . basename($path) . '.');
+    }
     $postTitle = $title !== null && $title !== '' ? $title : plpc_title_from_filename($path);
     $options = plpc_converter_options($format, $pdfMode);
     $document = PandocConverter::read($file['bytes'], $format, $options['readerOptions']);
@@ -913,48 +920,145 @@ function plpc_converter_options(string $format, string $pdfMode = 'layout'): arr
     ];
 }
 
-function plpc_normalize_format(string $format, string $filename): string
+/**
+ * Choose the reader from the document itself and its filename. The client
+ * never needs to present a format picker or supply a trusted format hint.
+ */
+function plpc_infer_document_format(string $filename, string $bytes = ''): string
 {
-    $format = strtolower(str_replace('-', '_', trim($format)));
-    if ($format !== '') {
-        return $format;
+    // A verified file signature wins over a filename. This avoids routing a
+    // renamed PDF, RTF, or Office package through a text reader.
+    if ($bytes !== '') {
+        if (str_starts_with($bytes, '%PDF-')) {
+            return 'pdf';
+        }
+
+        if (preg_match('/^\s*\{\\\\rtf\d*/i', substr($bytes, 0, 256)) === 1) {
+            return 'rtf';
+        }
+
+        if (str_starts_with($bytes, "PK\x03\x04")) {
+            $package = plpc_zip_package($bytes);
+            if ($package !== null) {
+                return plpc_document_type_from_zip($package);
+            }
+        }
     }
 
-    $extension = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
-    $map = [
-        'bib' => 'bibtex',
-        'csv' => 'csv',
-        'doc' => 'doc',
-        'docbook' => 'docbook',
-        'docx' => 'docx',
-        'epub' => 'epub',
-        'fb2' => 'fb2',
-        'htm' => 'html',
-        'html' => 'html',
-        'ipynb' => 'ipynb',
-        'jira' => 'jira',
-        'json' => 'json',
-        'latex' => 'latex',
-        'man' => 'man',
-        'md' => 'markdown',
-        'mediawiki' => 'mediawiki',
-        'native' => 'native',
-        'odt' => 'odt',
-        'opml' => 'opml',
-        'pdf' => 'pdf',
-        'pptx' => 'pptx',
-        'ris' => 'ris',
-        'rtf' => 'rtf',
-        'tex' => 'latex',
-        'tsv' => 'tsv',
-        'txt' => 'markdown',
-        'wiki' => 'mediawiki',
-        'xlsx' => 'xlsx',
-        'xml' => 'xml',
-        'zip' => 'zip',
-    ];
+    $fromFilename = PandocFormatRegistry::inferDocumentTypeFromFilename($filename);
+    if ($fromFilename !== null) {
+        return PandocConverter::canonicalInputFormat($fromFilename);
+    }
 
-    return $map[$extension] ?? $extension;
+    if ($bytes === '') {
+        return '';
+    }
+
+    // Type detection should stay cheap even for a large upload. The file
+    // reader receives the original bytes after this bounded inspection.
+    $probe = ltrim(substr($bytes, 0, 65536), "\xEF\xBB\xBF \t\r\n");
+    if ($probe === '') {
+        return '';
+    }
+
+    $markupFormat = plpc_document_type_from_markup($probe);
+    if ($markupFormat !== null) {
+        return $markupFormat;
+    }
+
+    $decoded = json_decode($probe, true);
+    if (json_last_error() === JSON_ERROR_NONE) {
+        if (
+            is_array($decoded)
+            && isset($decoded['nbformat'], $decoded['cells'])
+            && is_int($decoded['nbformat'])
+            && is_array($decoded['cells'])
+        ) {
+            return 'ipynb';
+        }
+
+        return 'json';
+    }
+
+    return plpc_is_utf8_text_document($probe) ? 'markdown' : '';
+}
+
+function plpc_document_type_from_markup(string $probe): ?string
+{
+    $root = preg_replace('/^<\?xml\b[^?]*\?>\s*/i', '', $probe);
+    if (!is_string($root)) {
+        return null;
+    }
+
+    if (preg_match('/^(?:<!doctype\s+html\b|<html\b)/i', $root) === 1) {
+        return 'html';
+    }
+    if (preg_match('/^<opml\b/i', $root) === 1) {
+        return 'opml';
+    }
+    if (preg_match('/^<(?:article|aside|body|blockquote|div|figure|footer|h[1-6]|head|header|li|main|nav|ol|p|pre|section|table|tbody|td|th|thead|tr|ul)\b/i', $root) === 1) {
+        return 'html';
+    }
+    if (preg_match('/^<[a-z_][a-z0-9_.:-]*\b/i', $root) === 1) {
+        return 'xml';
+    }
+
+    return null;
+}
+
+function plpc_document_type_from_zip(ZipPackage $package): string
+{
+    if ($package->has('mimetype')) {
+        try {
+            $mimetype = trim($package->read('mimetype', 256));
+            if ($mimetype === 'application/epub+zip') {
+                return 'epub';
+            }
+            if ($mimetype === 'application/vnd.oasis.opendocument.text') {
+                return 'odt';
+            }
+        } catch (Throwable) {
+            // The archive remains a collection upload when its mimetype entry
+            // cannot be safely read.
+        }
+    }
+
+    $isOpenPackagingConvention = $package->has('[Content_Types].xml');
+    if ($isOpenPackagingConvention && $package->has('word/document.xml')) {
+        return 'docx';
+    }
+    if ($isOpenPackagingConvention && $package->has('ppt/presentation.xml')) {
+        return 'pptx';
+    }
+    if ($isOpenPackagingConvention && $package->has('xl/workbook.xml')) {
+        return 'xlsx';
+    }
+
+    return 'zip';
+}
+
+function plpc_is_utf8_text_document(string $bytes): bool
+{
+    $sample = substr($bytes, 0, 65536);
+
+    return !str_contains($sample, "\0")
+        && preg_match('//u', $sample) === 1;
+}
+
+/**
+ * @deprecated 0.1.0 Upload handlers use plpc_infer_document_format() and
+ *             never trust a caller-supplied format.
+ */
+function plpc_normalize_format(string $format, string $filename): string
+{
+    $inferred = plpc_infer_document_format($filename);
+    if ($inferred !== '') {
+        return $inferred;
+    }
+
+    $format = PandocConverter::canonicalInputFormat($format);
+
+    return PandocConverter::canRead($format) ? $format : '';
 }
 
 function plpc_normalize_image_mode(mixed $mode): string

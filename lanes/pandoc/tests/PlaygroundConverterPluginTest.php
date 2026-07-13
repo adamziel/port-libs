@@ -25,6 +25,20 @@ if (!class_exists('WP_REST_Response')) {
     }
 }
 
+if (!class_exists('WP_REST_Request')) {
+    class WP_REST_Request
+    {
+        public function __construct(private string $body)
+        {
+        }
+
+        public function get_body(): string
+        {
+            return $this->body;
+        }
+    }
+}
+
 if (!class_exists('WP_Error')) {
     class WP_Error
     {
@@ -399,6 +413,71 @@ return [
         $t->same('none', plpc_normalize_image_mode(false));
         $t->same('all', plpc_normalize_image_mode('all-images'));
         $t->same('all', plpc_normalize_image_mode(true));
+    },
+    'playground importer infers document types consistently for single files and collections' => static function (TestRunner $t): void {
+        $expectedByPath = [
+            'notes/guide.gfm' => 'gfm',
+            'notes/guide.dokuwiki' => 'dokuwiki',
+            'references/records.csl.json' => 'csljson',
+            'references/records.biblatex' => 'biblatex',
+            'papers/article.jats.xml' => 'jats',
+            'manuals/tool.mdoc' => 'mdoc',
+            'exports/library.enl' => 'endnotexml',
+            'notes/guide.rst' => 'rst',
+        ];
+
+        foreach ($expectedByPath as $path => $format) {
+            $t->same($format, plpc_infer_document_format($path, 'fixture bytes'), $path);
+        }
+
+        $documents = plpc_convertible_collection_files([
+            'label' => 'Inference fixtures',
+            'files' => array_map(
+                static fn (string $path): array => ['path' => $path, 'bytes' => 'fixture bytes'],
+                array_keys($expectedByPath)
+            ),
+        ]);
+        $inferredByPath = [];
+        foreach ($documents as $document) {
+            $inferredByPath[$document['path']] = $document['format'];
+        }
+        $t->same($expectedByPath, $inferredByPath);
+
+        $docx = PortLibs\Pandoc\ZipPackage::build([
+            ['name' => '[Content_Types].xml', 'data' => '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"/>'],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="urn:example"/>'],
+        ]);
+        $t->same('pdf', plpc_infer_document_format('upload', "%PDF-1.7\n"));
+        $t->same('rtf', plpc_infer_document_format('upload', '{\\rtf1\\ansi Inferred}'));
+        $t->same('docx', plpc_infer_document_format('upload', $docx));
+        $t->same('markdown', plpc_infer_document_format('upload', '# Untitled document'));
+
+        $t->same('pdf', plpc_infer_document_format('renamed.txt', "%PDF-1.7\n"), 'A verified signature must override a misleading filename.');
+        $t->same('opml', plpc_infer_document_format('upload', '<?xml version="1.0"?><opml version="2.0"><body/></opml>'));
+        $t->same('json', plpc_infer_document_format('upload', '{"title":"nbformat"}'), 'A string value must not turn arbitrary JSON into a notebook.');
+        $t->same('ipynb', plpc_infer_document_format('upload', '{"nbformat":4,"cells":[]}'));
+        $t->same('markdown', plpc_infer_document_format('upload', "😀 !!!"), 'Valid text need not contain letters or numbers.');
+
+        $collectionWithWordEntry = PortLibs\Pandoc\ZipPackage::build([
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="urn:example"/>'],
+        ]);
+        $t->same('zip', plpc_infer_document_format('upload', $collectionWithWordEntry), 'A collection is not an Office document without OPC metadata.');
+    },
+    'playground endpoint ignores a client document-type hint and uses inference' => static function (TestRunner $t): void {
+        $GLOBALS['plpc_test_posts'] = [];
+        $request = new WP_REST_Request(json_encode([
+            'filename' => 'guide.gfm',
+            'format' => 'pdf',
+            'title' => 'Inferred guide',
+            'bytes' => base64_encode('# Inferred heading'),
+        ], JSON_THROW_ON_ERROR));
+
+        $response = plpc_convert_uploaded_document($request);
+        $data = $response->get_data();
+
+        $t->same(true, $data['ok'] ?? null);
+        $t->same('gfm', $data['format'] ?? null);
+        $t->contains('Inferred heading', $GLOBALS['plpc_test_posts'][$data['postId']]['post_content'] ?? '');
     },
     'playground importer accepts bounded browser decoded pdf rasters' => static function (TestRunner $t): void {
         $png = "\x89PNG\r\n\x1a\n"
