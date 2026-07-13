@@ -71,6 +71,7 @@ select:disabled { cursor: not-allowed; opacity: .58; }
   grid-row: 2;
   width: 100%;
   min-width: 0;
+  height: 48px;
   min-height: 48px;
   padding: 8px 12px;
   border: 1px solid #aeb9c7;
@@ -84,16 +85,18 @@ select:disabled { cursor: not-allowed; opacity: .58; }
   align-self: end;
   align-items: center;
   justify-content: center;
+  height: 48px;
   min-height: 48px;
   padding: 8px 14px;
-  border: 1px solid var(--accent);
+  border: 1px solid #aeb9c7;
   border-radius: 8px;
-  background: var(--accent);
-  color: var(--accent-ink);
-  font-weight: 700;
+  background: #fff;
+  color: var(--ink);
+  font-weight: 600;
   text-decoration: none;
   white-space: nowrap;
 }
+.download-source:hover { border-color: var(--accent); background: #e6eefb; }
 .view-tabs {
   display: flex;
   grid-row: 2;

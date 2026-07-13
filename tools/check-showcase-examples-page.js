@@ -63,9 +63,14 @@ assert(!css.includes('grid-row: 2 / 5'), 'Arrows must not span the preview area.
 assert(css.includes('font-size: clamp(15px, 1.8vw, 20px)'), 'Expected a compact picker title.');
 assert(css.includes('border-radius: 8px 8px 0 0'), 'Expected view controls to look like tabs.');
 assert(css.includes('box-shadow: 0 1px 0 var(--paper)'), 'Expected the selected tab to join the preview panel.');
+assert(/#example-picker\s*\{[\s\S]*?height: 48px;/.test(css), 'Expected the picker to have a fixed 48px control height.');
+assert(/\.download-source\s*\{[\s\S]*?height: 48px;[\s\S]*?border: 1px solid #aeb9c7;[\s\S]*?background: #fff;[\s\S]*?color: var\(--ink\);/.test(css), 'Expected Download original to be a neutral control matching the picker height.');
 assert(js.includes("const catalogUrl = 'examples-index.json';"), 'Expected the compact example catalogue.');
 assert(js.includes("const defaultView = 'wpBlocks';"), 'Expected WordPress Block markup to be the initial view.');
 assert(js.includes('view: defaultView'), 'Expected the state to initialize to the default WordPress view.');
+assert(js.includes("const exampleUrlParameter = 'example';"), 'Expected a stable query parameter for linked examples.');
+assert(js.includes('new URL(window.location.href)'), 'Expected example links to preserve other URL state safely.');
+assert(js.includes('window.history.replaceState'), 'Expected picker navigation to keep the current URL shareable.');
 assert(!js.includes('manifest.json'), 'The lightweight page must not fetch the full manifest.');
 assert(!js.includes('formatFilter'), 'The browser must not retain format-filter logic.');
 assert(!js.includes('updateExampleDetails'), 'The browser must not retain metadata-panel logic.');
@@ -74,7 +79,8 @@ assert(js.includes("frame.src = 'about:blank';"), 'Expected the iframe to clear 
 assert(js.includes('frame.src = view.path;'), 'Expected the viewer to load only the selected result.');
 assert(js.includes('function browsableExamples()'), 'Expected the one-at-a-time browser to retain its mobile safety limit.');
 assert(js.includes('automaticViewMaxBytes'), 'Expected navigation to respect the mobile size limit.');
-assert(/examplePicker\.addEventListener\('change',[\s\S]*?loadSelectedExample\(\);/.test(js), 'Changing the example should load it immediately.');
+assert(/examplePicker\.addEventListener\('change',[\s\S]*?applySelectedExample\(examplePicker\.value\);[\s\S]*?syncExampleUrl\(\);/.test(js), 'Changing the example should update its shareable URL.');
+assert(/function moveExample[\s\S]*?applySelectedExample\(examples\[nextIndex\]\.id\);[\s\S]*?syncExampleUrl\(\);/.test(js), 'Arrow navigation should update the shareable URL.');
 assert(/button\.addEventListener\('click',[\s\S]*?state\.view = nextView;[\s\S]*?loadSelectedExample\(\);/.test(js), 'Changing the rendered view should load it immediately.');
 assert(js.includes('downloadSource.href = example.samplePath'), 'Expected Download original to follow the selected example.');
 

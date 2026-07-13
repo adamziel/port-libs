@@ -5,6 +5,7 @@ const viewLabels = {
   haskell: 'Pandoc baseline',
 };
 const defaultView = 'wpBlocks';
+const exampleUrlParameter = 'example';
 
 const examplePicker = document.getElementById('example-picker');
 const previousButton = document.getElementById('previous-example');
@@ -17,6 +18,7 @@ const frame = document.getElementById('example-frame');
 const state = {
   examples: [],
   selectedId: '',
+  defaultExampleId: '',
   view: defaultView,
   automaticViewMaxBytes: 0,
   loadToken: 0,
@@ -50,6 +52,28 @@ function createOption(value, label) {
   return option;
 }
 
+function exampleIdFromUrl() {
+  return new URL(window.location.href).searchParams.get(exampleUrlParameter);
+}
+
+function syncExampleUrl() {
+  const url = new URL(window.location.href);
+  const currentExampleId = url.searchParams.get(exampleUrlParameter);
+  if (state.selectedId) {
+    if (currentExampleId === state.selectedId) {
+      return;
+    }
+    url.searchParams.set(exampleUrlParameter, state.selectedId);
+  } else {
+    if (currentExampleId === null) {
+      return;
+    }
+    url.searchParams.delete(exampleUrlParameter);
+  }
+
+  window.history.replaceState(null, '', url);
+}
+
 function ensureBrowsableView() {
   if (isBrowsableView(selectedView())) {
     return;
@@ -65,22 +89,34 @@ function ensureBrowsableView() {
   }
 }
 
+function browsableExampleId(preferredId) {
+  const examples = browsableExamples();
+  if (examples.some((example) => example.id === preferredId)) {
+    return preferredId;
+  }
+
+  const defaultExample = examples.find((example) => example.id === state.defaultExampleId);
+  return defaultExample ? defaultExample.id : (examples[0] ? examples[0].id : '');
+}
+
+function applySelectedExample(preferredId, { load = true } = {}) {
+  state.selectedId = browsableExampleId(preferredId);
+  ensureBrowsableView();
+  examplePicker.value = state.selectedId;
+  updateDownloadSource();
+  updateControls();
+  if (load) {
+    loadSelectedExample();
+  }
+}
+
 function populateExamples(preferredId = state.selectedId) {
   const examples = browsableExamples();
   examplePicker.replaceChildren();
   examples.forEach((example) => {
     examplePicker.append(createOption(example.id, example.format + ' · ' + example.label));
   });
-
-  if (examples.some((example) => example.id === preferredId)) {
-    state.selectedId = preferredId;
-  } else {
-    state.selectedId = examples[0] ? examples[0].id : '';
-  }
-  ensureBrowsableView();
-  examplePicker.value = state.selectedId;
-  updateDownloadSource();
-  updateControls();
+  applySelectedExample(preferredId, { load: false });
 }
 
 function updateViewButtons() {
@@ -159,12 +195,8 @@ function moveExample(direction) {
   const nextIndex = current < 0
     ? (direction > 0 ? 0 : examples.length - 1)
     : (current + direction + examples.length) % examples.length;
-  state.selectedId = examples[nextIndex].id;
-  ensureBrowsableView();
-  examplePicker.value = state.selectedId;
-  updateDownloadSource();
-  updateControls();
-  loadSelectedExample();
+  applySelectedExample(examples[nextIndex].id);
+  syncExampleUrl();
 }
 
 async function initialize() {
@@ -179,8 +211,13 @@ async function initialize() {
     }
     state.automaticViewMaxBytes = catalog.automaticViewMaxBytes;
     state.examples = catalog.examples.filter((example) => example && example.id && example.views);
-    state.selectedId = catalog.defaultExampleId || state.examples[0].id;
+    state.defaultExampleId = catalog.defaultExampleId || state.examples[0].id;
+    const linkedExampleId = exampleIdFromUrl();
+    state.selectedId = linkedExampleId === null ? state.defaultExampleId : linkedExampleId;
     populateExamples(state.selectedId);
+    if (linkedExampleId !== null && linkedExampleId !== state.selectedId) {
+      syncExampleUrl();
+    }
     loadSelectedExample();
   } catch (error) {
     setStatus('Try reloading this page.');
@@ -188,11 +225,8 @@ async function initialize() {
 }
 
 examplePicker.addEventListener('change', () => {
-  state.selectedId = examplePicker.value;
-  ensureBrowsableView();
-  updateDownloadSource();
-  updateControls();
-  loadSelectedExample();
+  applySelectedExample(examplePicker.value);
+  syncExampleUrl();
 });
 
 previousButton.addEventListener('click', () => moveExample(-1));
