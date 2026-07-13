@@ -1333,6 +1333,32 @@ function wrap_local_html_document(string $body, string $title): string
 }
 
 /**
+ * Keep WordPress block output as the raw Gutenberg fragment that the parser
+ * round-trips, while giving the lightweight browser a standalone, readable
+ * document to load in its iframe.
+ */
+function wrap_wordpress_block_preview_document(string $body, string $title): string
+{
+    return '<!doctype html><html lang="en"><head><meta charset="utf-8">'
+        . '<meta name="viewport" content="width=device-width, initial-scale=1">'
+        . '<meta http-equiv="Content-Security-Policy" content="default-src &#39;none&#39;; img-src &#39;self&#39; data: https: http:; media-src &#39;self&#39; data: https: http:; style-src &#39;unsafe-inline&#39;; font-src &#39;self&#39; data:; connect-src &#39;none&#39;; object-src &#39;none&#39;; frame-src &#39;none&#39;; form-action &#39;none&#39;; base-uri &#39;none&#39;">'
+        . '<title>' . htmlspecialchars($title, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</title>'
+        . '<style>'
+        . 'html{line-height:1.5;font-family:Georgia,"Times New Roman",serif;font-size:18px;color:#1f2933;background:#fdfdfd;}'
+        . 'body{margin:0 auto;max-width:46em;padding:2.5em 1.25em;overflow-wrap:break-word;}'
+        . 'h1,h2,h3,h4,h5,h6{font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.25;margin:1.4em 0 .45em;}'
+        . 'h1{font-size:2em;}h2{font-size:1.55em;}h3{font-size:1.25em;}p{margin:1em 0;}'
+        . 'a{color:#1f6feb;}img,svg,video{max-width:100%;height:auto;}.wp-block-image{margin:1.25em 0;}.wp-block-image img{display:block;}'
+        . 'pre,code,kbd,samp{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.9em;}'
+        . 'code{background:#eef1f5;padding:.1em .25em;border-radius:3px;}.wp-block-code,.wp-block-verse,pre{overflow:auto;background:#f6f8fa;border:1px solid #d8dde3;border-radius:6px;padding:1em;}.wp-block-code code,pre code{background:transparent;padding:0;}'
+        . '.wp-block-quote,blockquote{margin:1.25em 0;padding-left:1em;border-left:4px solid #d8dde3;color:#4b5563;}'
+        . '.wp-block-table{max-width:100%;margin:1.25em 0;overflow-x:auto;}.wp-block-table table,table{width:100%;border-collapse:collapse;font-size:.92em;}.wp-block-table th,.wp-block-table td,th,td{border:1px solid #d8dde3;padding:.35em .55em;vertical-align:top;}.wp-block-table th,th{background:#f6f8fa;}'
+        . '.wp-block-group{margin:1.25em 0;}.wp-block-separator,hr{border:0;border-top:1px solid #d8dde3;margin:2em 0;}.wp-element-caption,figcaption{margin-top:.45em;color:#4b5563;font-size:.9em;}'
+        . 'ul,ol{padding-left:1.5em;}li+li{margin-top:.25em;}math{font-family:math,serif;}math[display="block"]{display:block;margin:1em 0;overflow-x:auto;}'
+        . '</style></head><body>' . $body . '</body></html>';
+}
+
+/**
  * @param list<string> $cmd
  * @return array{exitCode:int, stdout:string, stderr:string}
  */
@@ -4158,6 +4184,37 @@ function showcase_examples_view(array $record, string $view, string $siteDir): a
 }
 
 /**
+ * @param array<string, mixed> $record
+ * @return array{ok:bool,path:string,bytes:int}
+ */
+function showcase_examples_wordpress_preview_view(array $record, string $siteDir): array
+{
+    $rawView = showcase_examples_view($record, 'wpBlocks', $siteDir);
+    if (!$rawView['ok'] || $rawView['path'] === '') {
+        return $rawView;
+    }
+
+    $rawPath = $siteDir . '/' . $rawView['path'];
+    $rawBody = is_file($rawPath) ? file_get_contents($rawPath) : false;
+    if (!is_string($rawBody)) {
+        return ['ok' => false, 'path' => '', 'bytes' => 0];
+    }
+
+    $previewPath = dirname($rawView['path']) . '/wordpress-blocks-preview.html';
+    $previewAbsolutePath = $siteDir . '/' . $previewPath;
+    $previewBody = wrap_wordpress_block_preview_document($rawBody, 'PHP WordPress Block markup preview');
+    if (file_put_contents($previewAbsolutePath, $previewBody) === false) {
+        return ['ok' => false, 'path' => '', 'bytes' => 0];
+    }
+
+    return [
+        'ok' => true,
+        'path' => $previewPath,
+        'bytes' => (int) filesize($previewAbsolutePath),
+    ];
+}
+
+/**
  * @param list<array<string, mixed>> $records
  * @return array{generatedAt:string,automaticViewMaxBytes:int,defaultExampleId:string,examples:list<array<string,mixed>>}
  */
@@ -4180,7 +4237,7 @@ function showcase_examples_index(array $records, string $siteDir, string $genera
             'sampleSize' => (int) ($record['sampleSize'] ?? 0),
             'views' => [
                 'phpHtml' => showcase_examples_view($record, 'phpHtml', $siteDir),
-                'wpBlocks' => showcase_examples_view($record, 'wpBlocks', $siteDir),
+                'wpBlocks' => showcase_examples_wordpress_preview_view($record, $siteDir),
                 'haskell' => showcase_examples_view($record, 'haskell', $siteDir),
             ],
         ];
@@ -4246,14 +4303,15 @@ function showcase_write_examples_page(string $siteDir, array $records, string $g
     $assetVersion = substr(hash('sha256', $indexJson . "\n" . $css . "\n" . $javascript), 0, 12);
     $page = '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">';
     $page .= '<title>Adam&#039;s Pandoc → PHP Port</title><link rel="stylesheet" href="examples.css?v=' . h($assetVersion) . '"></head>';
-    $page .= '<body><main class="example-browser"><div class="picker-area"><div class="example-toolbar"><div class="picker-controls"><h1 class="example-title">Adam&#039;s Pandoc → PHP Port</h1>';
-    $page .= '<div class="picker-input-row"><button id="previous-example" class="example-arrow previous-arrow" type="button" aria-label="Previous example" title="Previous example" disabled><span aria-hidden="true">←</span></button>';
-    $page .= '<label class="screen-reader-text" for="example-picker">Example</label><select id="example-picker" disabled><option>Loading examples…</option></select>';
-    $page .= '<button id="next-example" class="example-arrow next-arrow" type="button" aria-label="Next example" title="Next example" disabled><span aria-hidden="true">→</span></button></div></div>';
-    $page .= '<a id="download-source" class="download-source" href="" download hidden>Download original</a></div></div>';
+    $page .= '<body><main class="example-browser"><div class="picker-area"><div class="example-toolbar">';
+    $page .= '<button id="previous-example" class="example-arrow previous-arrow" type="button" aria-label="Previous example" title="Previous example" disabled><span class="arrow-glyph" aria-hidden="true">←</span><span class="arrow-label">Previous example</span></button>';
+    $page .= '<div class="picker-controls"><h1 class="example-title">Adam&#039;s Pandoc → PHP Port</h1>';
+    $page .= '<label class="screen-reader-text" for="example-picker">Example</label><select id="example-picker" disabled><option>Loading examples…</option></select></div>';
+    $page .= '<a id="download-source" class="download-source" href="" download hidden>Download original</a>';
+    $page .= '<button id="next-example" class="example-arrow next-arrow" type="button" aria-label="Next example" title="Next example" disabled><span class="arrow-glyph" aria-hidden="true">→</span><span class="arrow-label">Next example</span></button></div></div>';
     $page .= '<div class="view-tabs" role="group" aria-label="Preview format">';
-    $page .= '<button type="button" data-example-view="phpHtml" aria-pressed="true" disabled>HTML</button>';
-    $page .= '<button type="button" data-example-view="wpBlocks" aria-pressed="false" disabled>WordPress Block markup</button>';
+    $page .= '<button type="button" data-example-view="phpHtml" aria-pressed="false" disabled>HTML</button>';
+    $page .= '<button type="button" data-example-view="wpBlocks" aria-pressed="true" disabled>WordPress Block markup</button>';
     $page .= '<button type="button" data-example-view="haskell" aria-pressed="false" disabled>Pandoc baseline</button></div>';
     $page .= '<section class="example-preview" aria-label="Example preview"><p id="viewer-status" class="screen-reader-text" aria-live="polite">Preparing the selected example…</p>';
     $page .= '<iframe id="example-frame" title="Selected converted example" sandbox hidden></iframe></section></main>';
@@ -4304,37 +4362,40 @@ select:disabled { cursor: not-allowed; opacity: .58; }
 .example-browser {
   display: grid;
   grid-template-rows: auto auto minmax(0, 1fr);
+  width: 100%;
+  max-width: 100%;
   min-height: 100dvh;
+  min-width: 0;
+  overflow-x: hidden;
   background: var(--paper);
 }
 .picker-area {
-  --arrow-size: 56px;
+  --arrow-width: clamp(88px, 8vw, 120px);
   --toolbar-gap: 10px;
   padding: 12px clamp(14px, 3vw, 48px) 10px;
+  min-width: 0;
 }
 .example-title {
-  margin: 0 0 6px calc(var(--arrow-size) + var(--toolbar-gap));
-  font-size: clamp(16px, 2vw, 22px);
+  margin: 0 0 6px;
+  font-size: clamp(15px, 1.8vw, 20px);
   line-height: 1.25;
 }
 .example-toolbar {
-  display: flex;
-  align-items: flex-end;
+  display: grid;
+  grid-template-columns: var(--arrow-width) minmax(0, 1fr) auto var(--arrow-width);
+  align-items: stretch;
   gap: var(--toolbar-gap);
   min-width: 0;
 }
 .picker-controls {
-  flex: 1 1 360px;
+  display: grid;
+  grid-column: 2;
+  grid-template-rows: auto minmax(48px, 1fr);
   min-width: 0;
 }
-.picker-input-row {
-  display: grid;
-  grid-template-columns: var(--arrow-size) minmax(0, 1fr) var(--arrow-size);
-  align-items: center;
-  gap: var(--toolbar-gap);
-}
 #example-picker {
-  grid-column: 2;
+  grid-row: 2;
+  width: 100%;
   min-width: 0;
   min-height: 48px;
   padding: 8px 12px;
@@ -4345,7 +4406,8 @@ select:disabled { cursor: not-allowed; opacity: .58; }
 }
 .download-source {
   display: inline-flex;
-  flex: 0 0 auto;
+  grid-column: 3;
+  align-self: end;
   align-items: center;
   justify-content: center;
   min-height: 48px;
@@ -4391,25 +4453,28 @@ select:disabled { cursor: not-allowed; opacity: .58; }
   box-shadow: 0 1px 0 var(--paper);
 }
 .example-arrow {
-  display: grid;
-  place-items: center;
-  width: var(--arrow-size);
-  height: 48px;
-  min-height: 48px;
-  padding: 0;
+  display: flex;
+  grid-row: 1;
+  align-self: stretch;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: var(--arrow-width);
+  min-height: 80px;
+  padding: 8px 6px;
   border: 1px solid #aeb9c7;
   border-radius: 8px;
   background: #fff;
   color: var(--accent);
-  font-size: 34px;
-  line-height: 1;
 }
 .example-arrow:hover:not(:disabled) { border-color: var(--accent); background: #e6eefb; }
+.arrow-glyph { font-size: 42px; line-height: .9; }
+.arrow-label { margin-top: 7px; font-size: 12px; font-weight: 700; line-height: 1.15; text-align: center; }
 .previous-arrow {
   grid-column: 1;
 }
 .next-arrow {
-  grid-column: 3;
+  grid-column: 4;
 }
 .example-preview {
   display: grid;
@@ -4440,14 +4505,18 @@ select:disabled { cursor: not-allowed; opacity: .58; }
   border: 0;
 }
 @media (max-width: 640px) {
-  .picker-area { --arrow-size: 44px; padding: 10px 10px 8px; }
+  .picker-area { --arrow-width: 66px; --toolbar-gap: 8px; position: relative; width: 100%; max-width: 100%; padding: 10px calc(var(--arrow-width) + 18px) 8px; }
   .example-title { margin-bottom: 5px; font-size: 16px; }
-  .example-toolbar { flex-wrap: wrap; }
-  .picker-controls { flex-basis: 100%; }
-  .download-source { width: 100%; }
+  .example-toolbar { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto; }
+  .picker-controls { grid-column: 1; grid-row: 1; }
+  .download-source { grid-column: 1; grid-row: 2; width: 100%; }
+  .example-arrow { position: absolute; top: 10px; bottom: 8px; z-index: 2; grid-row: auto; min-height: 0; }
+  .previous-arrow { grid-column: auto; left: 10px; }
+  .next-arrow { grid-column: auto; right: 10px; }
+  .arrow-glyph { font-size: 34px; }
+  .arrow-label { margin-top: 5px; font-size: 10px; }
   .view-tabs { padding-inline: 6px; }
   .view-tabs button { min-height: 42px; margin-top: 6px; padding: 8px 10px; font-size: 13px; }
-  .example-arrow { font-size: 30px; }
 }
 CSS;
 }
@@ -4461,6 +4530,7 @@ const viewLabels = {
   wpBlocks: 'WordPress Block markup',
   haskell: 'Pandoc baseline',
 };
+const defaultView = 'wpBlocks';
 
 const examplePicker = document.getElementById('example-picker');
 const previousButton = document.getElementById('previous-example');
@@ -4473,7 +4543,7 @@ const frame = document.getElementById('example-frame');
 const state = {
   examples: [],
   selectedId: '',
-  view: 'phpHtml',
+  view: defaultView,
   automaticViewMaxBytes: 0,
   loadToken: 0,
 };
@@ -4507,8 +4577,17 @@ function createOption(value, label) {
 }
 
 function ensureBrowsableView() {
-  if (!isBrowsableView(selectedView())) {
-    state.view = 'phpHtml';
+  if (isBrowsableView(selectedView())) {
+    return;
+  }
+
+  const example = selectedExample();
+  for (const fallbackView of [defaultView, 'phpHtml', 'haskell']) {
+    const view = example && example.views ? example.views[fallbackView] : null;
+    if (isBrowsableView(view)) {
+      state.view = fallbackView;
+      return;
+    }
   }
 }
 

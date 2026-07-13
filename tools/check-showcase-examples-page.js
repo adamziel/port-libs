@@ -40,23 +40,32 @@ assert((html.match(/<select\b/g) || []).length === 1, 'Expected one example sele
 assert(!html.includes('format-filter'), 'The browser must not render a format selector.');
 assert(/<a\b[^>]*\bid="download-source"[^>]*\bdownload\b[^>]*>Download original<\/a>/.test(html), 'Expected a Download original button.');
 assert(html.includes('<div class="picker-controls"><h1 class="example-title">Adam&#039;s Pandoc → PHP Port</h1>'), 'Expected the compact title immediately above the picker.');
-assert(/<div class="picker-input-row"><button[^>]*\bid="previous-example"[\s\S]*?<select[^>]*\bid="example-picker"[\s\S]*?<button[^>]*\bid="next-example"/.test(html), 'Expected the arrows to flank only the example picker.');
+assert(/<div class="example-toolbar"><button[^>]*\bid="previous-example"[\s\S]*?<select[^>]*\bid="example-picker"[\s\S]*?<a[^>]*\bid="download-source"[\s\S]*?<button[^>]*\bid="next-example"/.test(html), 'Expected the toolbar order to be previous, picker, download, next.');
 for (const removedControl of ['Upstream source', 'Open result', 'Open full comparison', 'Full showcase (desktop)', 'catalog-summary', 'current-example-title']) {
   assert(!html.includes(removedControl), 'The reduced browser must not include ' + removedControl + '.');
 }
 assert(/<button[^>]*\bid="previous-example"[^>]*\baria-label="Previous example"[^>]*>[\s\S]*?←/.test(html), 'Expected an accessible previous-example arrow.');
 assert(/<button[^>]*\bid="next-example"[^>]*\baria-label="Next example"[^>]*>[\s\S]*?→/.test(html), 'Expected an accessible next-example arrow.');
+assert(html.includes('<span class="arrow-label">Previous example</span>'), 'Expected a visible previous-example label.');
+assert(html.includes('<span class="arrow-label">Next example</span>'), 'Expected a visible next-example label.');
 for (const tab of ['HTML', 'WordPress Block markup', 'Pandoc baseline']) {
   assert(html.includes('>' + tab + '</button>'), 'Expected the ' + tab + ' preview tab.');
 }
+assert(/data-example-view="phpHtml" aria-pressed="false"/.test(html), 'Expected HTML to start inactive.');
+assert(/data-example-view="wpBlocks" aria-pressed="true"/.test(html), 'Expected WordPress Block markup to be the default tab.');
 assert(fullShowcase.includes('href="examples.html"'), 'The full showcase should link to the lightweight browser.');
 assert(css.includes('min-height: 100dvh'), 'Expected the browser to fill the screen.');
-assert(css.includes('grid-template-columns: var(--arrow-size) minmax(0, 1fr) var(--arrow-size);'), 'Expected arrows directly beside the picker.');
+assert(css.includes('grid-template-columns: var(--arrow-width) minmax(0, 1fr) auto var(--arrow-width);'), 'Expected a wide-arrow picker toolbar.');
+assert(css.includes('align-self: stretch;'), 'Expected desktop arrows to fill the height of the picker bar.');
+assert(css.includes('position: absolute; top: 10px; bottom: 8px;'), 'Expected mobile arrows to fill the picker-and-download bar.');
+assert(css.includes('.next-arrow { grid-column: auto; right: 10px; }'), 'Expected the mobile next arrow to remain inside the viewport.');
 assert(!css.includes('grid-row: 2 / 5'), 'Arrows must not span the preview area.');
-assert(css.includes('font-size: clamp(16px, 2vw, 22px)'), 'Expected a compact picker title.');
+assert(css.includes('font-size: clamp(15px, 1.8vw, 20px)'), 'Expected a compact picker title.');
 assert(css.includes('border-radius: 8px 8px 0 0'), 'Expected view controls to look like tabs.');
 assert(css.includes('box-shadow: 0 1px 0 var(--paper)'), 'Expected the selected tab to join the preview panel.');
 assert(js.includes("const catalogUrl = 'examples-index.json';"), 'Expected the compact example catalogue.');
+assert(js.includes("const defaultView = 'wpBlocks';"), 'Expected WordPress Block markup to be the initial view.');
+assert(js.includes('view: defaultView'), 'Expected the state to initialize to the default WordPress view.');
 assert(!js.includes('manifest.json'), 'The lightweight page must not fetch the full manifest.');
 assert(!js.includes('formatFilter'), 'The browser must not retain format-filter logic.');
 assert(!js.includes('updateExampleDetails'), 'The browser must not retain metadata-panel logic.');
@@ -99,13 +108,31 @@ for (const example of index.examples || []) {
     if (!view || typeof view !== 'object') {
       continue;
     }
-    assert(view.path === (fullView.path || ''), example.id + ' ' + viewName + ' path diverged from the full manifest.');
+    const rawPath = fullView.path || '';
+    const expectedPath = viewName === 'wpBlocks' && fullView.ok === true
+      ? rawPath.replace(/wordpress-blocks\.html$/, 'wordpress-blocks-preview.html')
+      : rawPath;
+    assert(view.path === expectedPath, example.id + ' ' + viewName + ' path diverged from the full manifest.');
     assert(view.ok === (fullView.ok === true), example.id + ' ' + viewName + ' status diverged from the full manifest.');
     if (view.ok) {
       const outputPath = siteFile(view.path);
       assert(fs.existsSync(outputPath), example.id + ' ' + viewName + ' output file is missing.');
       if (fs.existsSync(outputPath)) {
         assert(view.bytes === fs.statSync(outputPath).size, example.id + ' ' + viewName + ' byte count is stale.');
+      }
+
+      if (viewName === 'wpBlocks') {
+        const rawOutputPath = siteFile(rawPath);
+        assert(fs.existsSync(rawOutputPath), example.id + ' raw WordPress block output is missing.');
+        if (fs.existsSync(rawOutputPath) && fs.existsSync(outputPath)) {
+          const rawOutput = fs.readFileSync(rawOutputPath, 'utf8');
+          const previewOutput = fs.readFileSync(outputPath, 'utf8');
+          assert(!/^\s*<!doctype html/i.test(rawOutput), example.id + ' canonical WordPress output must remain a raw fragment.');
+          assert(/^\s*<!doctype html/i.test(previewOutput), example.id + ' WordPress preview must be a standalone document.');
+          assert(previewOutput.includes('Content-Security-Policy'), example.id + ' WordPress preview must isolate raw block HTML.');
+          assert(previewOutput.includes('.wp-block-table'), example.id + ' WordPress preview must style core block markup.');
+          assert(previewOutput.endsWith(rawOutput + '</body></html>'), example.id + ' WordPress preview must preserve the raw block fragment.');
+        }
       }
     }
   }
