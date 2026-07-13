@@ -1723,6 +1723,22 @@ $pdfWithSimpleFontWidthsForPositioning = static function (): string {
         . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n%%EOF";
 };
 
+$pdfWithIndirectSimpleFontPositionedWords = static function (): string {
+    $widthArray = implode(' ', array_fill(0, 91, 1000));
+    $content = 'BT /Fedge 12 Tf 1 0 0 1 72 720 Tm (Yo) Tj 1 0 0 1 50 720 Tm 46 0 Td (ur) Tj ET '
+        . 'BT /Fedge 12 Tf 1 0 0 1 72 704 Tm (w) Tj 1 0 0 1 50 704 Tm 34 0 Td (ith) Tj ET '
+        . 'BT /Fedge 12 Tf 1 0 0 1 72 688 Tm (go) Tj 1 0 0 1 50 688 Tm 58 0 Td (to) Tj ET';
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /Fedge 4 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding 6 0 R /FirstChar 32 /LastChar 122 /Widths 7 0 R >>\nendobj\n"
+        . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "6 0 obj\n<< /Type /Encoding /BaseEncoding /WinAnsiEncoding >>\nendobj\n"
+        . "7 0 obj\n[{$widthArray}]\nendobj\n%%EOF";
+};
+
 $pdfWithCidWidthsForPositioning = static function (): string {
     $cmap = "/CIDInit /ProcSet findresource begin\n"
         . "12 dict begin\n"
@@ -5412,7 +5428,86 @@ return [
         $t->true($rightFirst !== false, 'right column prose is segmented');
         $t->true($leftThird < $rightFirst, 'left column is emitted before right column');
     },
-    'merges same-baseline positioned prose continuations before column ordering' => static function (TestRunner $t) use ($pdfWithContent): void {
+    'preserves aligned monospaced code columns until listing detection' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $itemsFromRuns = (function (array $runs): array {
+            return $this->positionedProseLineItemsFromTextRuns($runs);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($itemsFromRuns instanceof \Closure);
+
+        $run = static function (
+            string $text,
+            float $x,
+            float $y,
+            bool $wordBoundaryBefore,
+            string $wordBoundarySource
+        ): array {
+            $width = strlen($text) * 5.0;
+
+            return [
+                'text' => $text,
+                'page' => 1,
+                'x1' => $x,
+                'y1' => $y,
+                'x2' => $x + $width,
+                'y2' => $y + 10.0,
+                'textX1' => $x,
+                'textY1' => $y + 2.0,
+                'textX2' => $x + $width,
+                'textY2' => $y + 2.0,
+                'fontSize' => 10.0,
+                'wordBoundaryBefore' => $wordBoundaryBefore,
+                'wordBoundarySource' => $wordBoundarySource,
+            ];
+        };
+
+        $runs = [];
+        for ($index = 0; $index < 6; $index++) {
+            $y = 700.0 - $index * 12.0;
+            $runs[] = $run('r' . $index . ' := ld a[' . $index . ']', 72.0, $y, true, 'line-break');
+            // The extractor did not report a boundary before this comment,
+            // but its five-column gap is still physical code layout, not a
+            // prose continuation.
+            $runs[] = $run('// note ' . $index, 162.0, $y, false, 'text-position-continuation');
+        }
+
+        $items = $itemsFromRuns($runs);
+        $t->same(6, count($items));
+        $t->true(array_reduce(
+            $items,
+            static fn (bool $allCode, array $item): bool => $allCode && (($item['code'] ?? false) === true),
+            true
+        ));
+        $t->same([
+            'r0 := ld a[0]     // note 0',
+            'r1 := ld a[1]     // note 1',
+            'r2 := ld a[2]     // note 2',
+            'r3 := ld a[3]     // note 3',
+            'r4 := ld a[4]     // note 4',
+            'r5 := ld a[5]     // note 5',
+        ], array_column($items, 'text'));
+
+        $runsWithReportedBoundary = [];
+        for ($index = 0; $index < 6; $index++) {
+            $y = 600.0 - $index * 12.0;
+            $runsWithReportedBoundary[] = $run('r' . $index . ' := ld a[' . $index . ']', 72.0, $y, true, 'line-break');
+            // Here the source reports an additional layout separator before
+            // the distinct, aligned comment run. It must survive alongside
+            // the measured grid padding without depending on code spelling.
+            $runsWithReportedBoundary[] = $run('// note ' . $index, 162.0, $y, true, 'tj-layout');
+        }
+
+        $itemsWithReportedBoundary = $itemsFromRuns($runsWithReportedBoundary);
+        $t->same([
+            'r0 := ld a[0]      // note 0',
+            'r1 := ld a[1]      // note 1',
+            'r2 := ld a[2]      // note 2',
+            'r3 := ld a[3]      // note 3',
+            'r4 := ld a[4]      // note 4',
+            'r5 := ld a[5]      // note 5',
+        ], array_column($itemsWithReportedBoundary, 'text'));
+    },
+    'keeps same-baseline positioned prose fragments separate without a continuation boundary' => static function (TestRunner $t) use ($pdfWithContent): void {
         $pdf = $pdfWithContent(
             'BT /F1 12 Tf '
             . '1 0 0 1 72 748 Tm (This paper examines how pharmaceutical Artificial Intelligen) Tj '
@@ -5434,14 +5529,12 @@ return [
         $meta = $document->attr('meta');
 
         $t->same('text-geometry', $meta['pdfTextRepairSource']);
-        $t->contains('This paper examines how pharmaceutical Artificial Intelligence advancements may affect development of', $text);
-        $t->contains('new drugs in the coming years. The question was answered by review.', $text);
-        $t->contains('Research journals and market projections support this conclusion.', $text);
-        $t->contains('The paper argues that continued innovation matters.', $text);
-        $t->true(!str_contains($text, 'Artificial Intelligen ce'));
-        $t->true(!str_contains($text, 'coming yea rs'));
-        $t->true(!str_contains($text, 'market projecti ons'));
-        $t->true(!str_contains($text, 'paper argu es'));
+        $t->contains('This paper examines how pharmaceutical Artificial Intelligen', $text);
+        $t->contains('ce advancements may affect development of', $text);
+        $t->contains('new drugs in the coming yea', $text);
+        $t->contains('rs. The question was answered by review.', $text);
+        $t->true(!str_contains($text, 'Artificial Intelligence advancements'));
+        $t->true(!str_contains($text, 'coming years. The question'));
     },
     'does not bridge distant source-order fragments on one positioned baseline' => static function (TestRunner $t): void {
         $reader = new PdfReader();
@@ -5600,7 +5693,7 @@ return [
             '• After removing gloves.',
         ], $repaired);
     },
-    'merges pdf word prefixes split onto separate text lines' => static function (TestRunner $t): void {
+    'keeps ambiguous pdf word prefixes on separate text lines without structural evidence' => static function (TestRunner $t): void {
         $reader = new PdfReader();
         $repair = (function (array $lines): array {
             return $this->repairProseTextLines($lines, true);
@@ -5617,55 +5710,159 @@ return [
         ]);
 
         $t->same([
-            'Click the link for more information.',
-            'Left, top and bottom images show a ceremony.',
+            'Cl',
+            'ick the link for more information.',
+            'Le',
+            'ft, top and bottom images show a ceremony.',
             'We',
             'explain the method without joining real short words.',
         ], $repaired);
     },
-    'merges single-letter pdf word prefixes only with raw run evidence' => static function (TestRunner $t): void {
+    'derives source fragment separators from the matched positioned occurrence' => static function (TestRunner $t): void {
         $reader = new PdfReader();
-        $repair = (function (array $lines, array $runs): array {
-            return $this->repairProseTextLines($lines, true, [], $this->pdfTextRunSplitWordHints($runs));
+        $join = (function (array $sourceItems, array $positionedItem): ?string {
+            return $this->sourcePdfJoinedFragmentLineItem($sourceItems, array_keys($sourceItems), $positionedItem)['text'] ?? null;
+        })->bindTo($reader, PdfReader::class);
+        $t->true($join instanceof \Closure);
+
+        $sourceItems = [
+            ['page' => 1, 'stream' => 1, 'text' => 'This sentence begins'],
+            ['page' => 1, 'stream' => 1, 'text' => 'all'],
+            ['page' => 1, 'stream' => 1, 'text' => 'owed'],
+            ['page' => 1, 'stream' => 1, 'text' => 'and continues enough.'],
+        ];
+
+        $t->same(
+            'This sentence begins all owed and continues enough.',
+            $join($sourceItems, ['text' => 'This sentence begins all owed and continues enough.'])
+        );
+        $t->same(
+            'This sentence begins allowed and continues enough.',
+            $join($sourceItems, ['text' => 'This sentence begins allowed and continues enough.'])
+        );
+        $t->same(
+            null,
+            $join($sourceItems, ['text' => 'This sentence begins all—owed and continues enough.'])
+        );
+    },
+    'reconciles internal and inter-fragment pdf separators from one matched visual occurrence' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $join = (function (array $sourceItems, array $positionedItem): ?string {
+            return $this->sourcePdfJoinedFragmentLineItem($sourceItems, array_keys($sourceItems), $positionedItem)['text'] ?? null;
+        })->bindTo($reader, PdfReader::class);
+        $t->true($join instanceof \Closure);
+
+        $sourceItems = [
+            ['page' => 1, 'stream' => 1, 'text' => 'A neutral marker ati'],
+            ['page' => 1, 'stream' => 1, 'text' => '2'],
+            ['page' => 1, 'stream' => 1, 'text' => 'continues normally.'],
+        ];
+        $compactBeforeI = strlen('Aneutralmarkerat');
+        $compactBeforeTwo = strlen('Aneutralmarkerati');
+
+        $t->same(
+            'A neutral marker at i2 continues normally.',
+            $join($sourceItems, [
+                // This visual text alone is not authoritative: it includes
+                // a gap before the compact superscript fragment. The local
+                // boundary map proves the exact two decisions instead.
+                'text' => 'A neutral marker at i 2 continues normally.',
+                'sourceVerifiedBoundarySeparators' => [
+                    $compactBeforeI => ' ',
+                    $compactBeforeTwo => '',
+                ],
+            ])
+        );
+    },
+    'keeps source delimiter notation local when styled geometry disagrees' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $join = (function (array $sourceItems, array $positionedItem): ?string {
+            return $this->sourcePdfJoinedFragmentLineItem($sourceItems, array_keys($sourceItems), $positionedItem)['text'] ?? null;
+        })->bindTo($reader, PdfReader::class);
+        $t->true($join instanceof \Closure);
+
+        // The middle atom was emitted with a different inline style. Its
+        // positioned advances look like `Q(xy) continues`, while the exact
+        // source delimiter run records `Q(x` / `y` / `)continues`. This is
+        // notation structure, not a rule for these particular letters.
+        $sourceItems = [
+            ['page' => 1, 'stream' => 1, 'text' => 'A neutral value Q(x'],
+            ['page' => 1, 'stream' => 1, 'text' => 'y'],
+            ['page' => 1, 'stream' => 1, 'text' => ')continues in prose.'],
+        ];
+        $compactBeforeY = strlen('AneutralvalueQ(x');
+        $compactBeforeClosing = $compactBeforeY + 1;
+        $compactAfterClosing = $compactBeforeClosing + 1;
+
+        $t->same(
+            'A neutral value Q(x y)continues in prose.',
+            $join($sourceItems, [
+                'text' => 'A neutral value Q(xy) continues in prose.',
+                'sourceVerifiedBoundarySeparators' => [
+                    $compactBeforeY => '',
+                    $compactBeforeClosing => '',
+                    $compactAfterClosing => ' ',
+                ],
+            ])
+        );
+    },
+    'preserves an attached compact identifier through generic prose spacing' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $join = (function (array $sourceItems, array $positionedItem): ?string {
+            return $this->sourcePdfJoinedFragmentLineItem($sourceItems, array_keys($sourceItems), $positionedItem)['text'] ?? null;
+        })->bindTo($reader, PdfReader::class);
+        $repair = (function (string $line): string {
+            return $this->repairGluedProseLine($line);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($join instanceof \Closure);
+        $t->true($repair instanceof \Closure);
+
+        // A detached source label remains ambiguous and is spaced by the
+        // generic prose pass. The second label is attached to its sentence
+        // punctuation in the same source record, and its own positioned
+        // boundary proves that its numeric style fragment is compact.
+        $sourceItems = [
+            ['page' => 1, 'stream' => 1, 'text' => 'A neutral label R'],
+            ['page' => 1, 'stream' => 1, 'text' => '42'],
+            ['page' => 1, 'stream' => 1, 'text' => '.R'],
+            ['page' => 1, 'stream' => 1, 'text' => '16'],
+            ['page' => 1, 'stream' => 1, 'text' => ' continues in prose.'],
+        ];
+        $compactBeforeFirstNumber = strlen('AneutrallabelR');
+        $compactAfterSentenceDot = $compactBeforeFirstNumber + 3;
+        $compactBeforeSecondNumber = $compactBeforeFirstNumber + 4;
+
+        $joined = $join($sourceItems, [
+            'text' => 'A neutral label R42. R16 continues in prose.',
+            'sourceVerifiedBoundarySeparators' => [
+                $compactBeforeFirstNumber => '',
+                $compactAfterSentenceDot => ' ',
+                $compactBeforeSecondNumber => '',
+            ],
+        ]);
+        $t->same('A neutral label R 42. R16 continues in prose.', $repair((string) $joined));
+    },
+    'does not rewrite repeated source spellings without local positioning' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $repair = (function (array $lines): array {
+            return $this->repairProseTextLines($lines, true);
         })->bindTo($reader, PdfReader::class);
         $t->true($repair instanceof \Closure);
 
-        $withHint = $repair([
-            'W',
-            'eekend visitors catch a few fish',
-            '(photos from the source)',
-        ], [
-            'W',
-            'eekend visitors catch a few fish',
-            ' ',
-        ]);
-        $withoutHint = $repair([
-            'A',
-            'winding scenic drive to diverse viewpoints.',
-            'Next sentence.',
-        ], [
-            'A',
-            'winding scenic drive to diverse viewpoints.',
-            'Next sentence.',
-        ]);
-        $flowchartLabel = $repair([
-            'T',
-            'race',
-            'Execute',
-        ], [
-            'T',
-            'race',
-            'Execute',
+        $repaired = $repair([
+            'Dogs on leash all owed.',
+            'The balance is all owed today.',
         ]);
 
-        $t->same(['Weekend visitors catch a few fish (photos from the source)'], $withHint);
-        $t->same(['A', 'winding scenic drive to diverse viewpoints.', 'Next sentence.'], $withoutHint);
-        $t->same(['T', 'race', 'Execute'], $flowchartLabel);
+        $t->same([
+            'Dogs on leash all owed.',
+            'The balance is all owed today.',
+        ], $repaired);
     },
-    'repairs pdf spaces inserted inside words only with raw run evidence' => static function (TestRunner $t): void {
+    'keeps unverified inline fragment spaces in source text' => static function (TestRunner $t): void {
         $reader = new PdfReader();
-        $repair = (function (array $lines, array $runs): array {
-            return $this->repairProseTextLines($lines, true, [], $this->pdfTextRunSplitWordHints($runs));
+        $repair = (function (array $lines): array {
+            return $this->repairProseTextLines($lines, true);
         })->bindTo($reader, PdfReader::class);
         $t->true($repair instanceof \Closure);
 
@@ -5675,43 +5872,15 @@ return [
             'Horses and Hiking o nly',
             'Dogs on leash all owed',
             'A normal phrase in a sentence stays spaced.',
-        ], [
-            'developed',
-            ' ',
-            'w',
-            'ith',
-            ' ',
-            'support.',
-            'd b',
-            'y a representative.',
-            'g o',
-            'nl',
-            'y',
-            'Hi',
-            'h all',
-            'owe',
-            'd',
-        ]);
-
-        $withoutHint = $repair([
-            'A normal phrase in a sentence stays spaced.',
-            'Use soap and water when hands look dirty.',
-        ], [
-            'normal phrase',
-            'soap and water',
         ]);
 
         $t->same([
-            'This brochure was developed with support.',
-            'Traditional prayer led by a representative.',
-            'Horses and Hiking only Dogs on leash allowed A normal phrase in a sentence stays spaced.',
+            'This brochure was developed w ith support.',
+            'Traditional prayer led b y a representative.',
+            'Horses and Hiking o nly Dogs on leash all owed A normal phrase in a sentence stays spaced.',
         ], $repaired);
-        $t->same([
-            'A normal phrase in a sentence stays spaced.',
-            'Use soap and water when hands look dirty.',
-        ], $withoutHint);
     },
-    'preserves uncertain pdf line end hyphen compounds without geometry' => static function (TestRunner $t): void {
+    'preserves ambiguous hard-hyphen line breaks without local provenance' => static function (TestRunner $t): void {
         $reader = new PdfReader();
         $repair = (function (array $lines): array {
             return $this->repairProseTextLines($lines, true);
@@ -5732,11 +5901,37 @@ return [
         ]);
 
         $t->same([
-            'expanded the lagoon, created frog-breeding habitat, and enhanced sand dunes. efficient type-specialized machine code hard-to-treat infections for the actual dynamic types.',
-            'Inadynamicallytypedprogramming language such as JavaScript.',
+            'expanded the lagoon, created frog-breeding habitat, and enhanced sand dunes. efficient type-specialized machine code hard-to-treat infections for the ac-tual dynamic types.',
+            'Inadynamicallytypedpro-gramming language such as JavaScript.',
         ], $repaired);
     },
-    'removes pdf line end hyphen when geometry shows a wrapped word' => static function (TestRunner $t): void {
+    'uses explicit hyphen boundaries without a continuation-case rule' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $repair = (function (array $lines): array {
+            return $this->repairProseTextLines($lines, true);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($repair instanceof \Closure);
+
+        $t->same([
+            'An unresolved pre-your regular continuation.',
+        ], $repair([
+            'An unresolved pre-',
+            'your regular continuation.',
+        ]));
+        $t->same([
+            'An unresolved pre-Your regular continuation.',
+        ], $repair([
+            'An unresolved pre-',
+            'Your regular continuation.',
+        ]));
+        $t->same([
+            'An explicit pre-Your regular continuation.',
+        ], $repair([
+            "An explicit pre\u{00AD}",
+            'Your regular continuation.',
+        ]));
+    },
+    'preserves a hard hyphen when same-page geometry cannot prove its meaning' => static function (TestRunner $t): void {
         $reader = new PdfReader();
         $repair = (function (array $lines, array $layouts): array {
             return $this->repairProseTextLines($lines, true, $layouts);
@@ -5747,11 +5942,236 @@ return [
         $next = ['text' => 'tual dynamic types.', 'page' => 1, 'x1' => 51.0, 'y1' => 88.0, 'x2' => 170.0, 'y2' => 98.0, 'fontSize' => 10.0];
 
         $t->same([
-            'for the actual dynamic types.',
+            'for the ac-tual dynamic types.',
         ], $repair([
             'for the ac-',
             'tual dynamic types.',
         ], [$previous, $next]));
+    },
+    'repairs only the exact source and layout occurrence of a wrapped hard hyphen' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $mark = (function (array $items, array $sourceItems): array {
+            return $this->markSourcePdfLocalWrappedHyphenJoins($items, $sourceItems);
+        })->bindTo($reader, PdfReader::class);
+        $repair = (function (array $lines, array $layouts): array {
+            return $this->repairProseTextLines($lines, true, $layouts);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($mark instanceof \Closure);
+        $t->true($repair instanceof \Closure);
+
+        $sourceItems = [
+            ['page' => 1, 'stream' => 1, 'text' => 'A separate renewal token supplies document evidence.'],
+            ['page' => 1, 'stream' => 1, 'text' => 'The first ordinary fragment ends renew-'],
+            ['page' => 1, 'stream' => 1, 'text' => 'al at this exact visual continuation.'],
+            ['page' => 1, 'stream' => 2, 'text' => 'A second ordinary fragment ends renew-'],
+            ['page' => 1, 'stream' => 3, 'text' => 'al without the same source/layout pair.'],
+        ];
+        $layout = [
+            'page' => 1,
+            'x1' => 72.0,
+            'x2' => 380.0,
+            'fontSize' => 10.0,
+            'sourceVerifiedGeometryText' => true,
+        ];
+        $items = [
+            array_replace($layout, ['text' => $sourceItems[0]['text'], 'sourceStream' => 1, 'sourcePdfSourceIndex' => 0, 'y1' => 730.0, 'y2' => 742.0]),
+            array_replace($layout, ['text' => $sourceItems[1]['text'], 'sourceStream' => 1, 'sourcePdfSourceIndex' => 1, 'y1' => 718.0, 'y2' => 730.0]),
+            array_replace($layout, ['text' => $sourceItems[2]['text'], 'sourceStream' => 1, 'sourcePdfSourceIndex' => 2, 'y1' => 706.0, 'y2' => 718.0]),
+            array_replace($layout, ['text' => $sourceItems[3]['text'], 'sourceStream' => 2, 'sourcePdfSourceIndex' => 3, 'y1' => 694.0, 'y2' => 706.0]),
+            array_replace($layout, ['text' => $sourceItems[4]['text'], 'sourceStream' => 3, 'sourcePdfSourceIndex' => 4, 'y1' => 682.0, 'y2' => 694.0]),
+        ];
+
+        $marked = $mark($items, $sourceItems);
+        $pair = $marked[1]['sourcePdfWrappedHyphenPairAfter'] ?? null;
+        $t->true(is_string($pair) && $pair !== '');
+        $t->same($pair, $marked[2]['sourcePdfWrappedHyphenPairBefore'] ?? null);
+        $t->same(null, $marked[3]['sourcePdfWrappedHyphenPairAfter'] ?? null);
+        $t->same(null, $marked[4]['sourcePdfWrappedHyphenPairBefore'] ?? null);
+
+        $repaired = $repair(array_column($marked, 'text'), $marked);
+        $t->contains('renewal at this exact visual continuation.', implode(' ', $repaired));
+        $t->contains('renew-al without the same source/layout pair.', implode(' ', $repaired));
+    },
+    'retains both local directions when chained wrapped hyphens share a source row' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $mark = (function (array $items, array $sourceItems): array {
+            return $this->markSourcePdfLocalWrappedHyphenJoins($items, $sourceItems);
+        })->bindTo($reader, PdfReader::class);
+        $repair = (function (array $lines, array $layouts): array {
+            return $this->repairProseTextLines($lines, true, $layouts);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($mark instanceof \Closure);
+        $t->true($repair instanceof \Closure);
+
+        $sourceItems = [
+            ['page' => 1, 'stream' => 1, 'text' => 'Riverbank and shoreline are both document-local ordinary words.'],
+            ['page' => 1, 'stream' => 2, 'text' => 'The first visual row ends river-'],
+            ['page' => 1, 'stream' => 2, 'text' => 'bank then ends shore-'],
+            ['page' => 1, 'stream' => 2, 'text' => 'line normally.'],
+        ];
+        $layout = [
+            'page' => 1,
+            'x1' => 72.0,
+            'x2' => 400.0,
+            'fontSize' => 10.0,
+            'sourceVerifiedGeometryText' => true,
+            'sourcePdfExactPositionedText' => true,
+        ];
+        $items = [
+            array_replace($layout, [
+                'text' => $sourceItems[1]['text'],
+                'sourceStream' => 2,
+                'sourcePdfSourceIndex' => 1,
+                'y1' => 718.0,
+                'y2' => 730.0,
+            ]),
+            array_replace($layout, [
+                'text' => $sourceItems[2]['text'],
+                'sourceStream' => 2,
+                'sourcePdfSourceIndex' => 2,
+                'y1' => 706.0,
+                'y2' => 718.0,
+            ]),
+            array_replace($layout, [
+                'text' => $sourceItems[3]['text'],
+                'sourceStream' => 2,
+                'sourcePdfSourceIndex' => 3,
+                'y1' => 694.0,
+                'y2' => 706.0,
+            ]),
+        ];
+
+        $marked = $mark($items, $sourceItems);
+        $firstPair = $marked[0]['sourcePdfWrappedHyphenPairAfter'] ?? null;
+        $secondPair = $marked[1]['sourcePdfWrappedHyphenPairAfter'] ?? null;
+        $t->true(is_string($firstPair) && $firstPair !== '');
+        $t->true(is_string($secondPair) && $secondPair !== '' && $secondPair !== $firstPair);
+        $t->same($firstPair, $marked[1]['sourcePdfWrappedHyphenPairBefore'] ?? null);
+        $t->same($secondPair, $marked[2]['sourcePdfWrappedHyphenPairBefore'] ?? null);
+
+        $repaired = $repair(array_column($marked, 'text'), $marked);
+        $t->same(['The first visual row ends riverbank then ends shoreline normally.'], $repaired);
+    },
+    'uses an exact short positioned continuation only within its local wrapped pair' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $mark = (function (array $items, array $sourceItems): array {
+            return $this->markSourcePdfLocalWrappedHyphenJoins($items, $sourceItems);
+        })->bindTo($reader, PdfReader::class);
+        $repair = (function (array $lines, array $layouts): array {
+            return $this->repairProseTextLines($lines, true, $layouts);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($mark instanceof \Closure);
+        $t->true($repair instanceof \Closure);
+
+        $sourceItems = [
+            ['page' => 1, 'stream' => 1, 'text' => 'A riverbank path supplies document-local evidence.'],
+            ['page' => 1, 'stream' => 2, 'text' => 'The matched source row ends river-'],
+            ['page' => 1, 'stream' => 2, 'text' => 'bank reference.'],
+            ['page' => 1, 'stream' => 3, 'text' => 'An unrelated short row ends river-'],
+            ['page' => 1, 'stream' => 3, 'text' => 'bank'],
+        ];
+        $layout = [
+            'page' => 1,
+            'x1' => 72.0,
+            'x2' => 400.0,
+            'fontSize' => 10.0,
+        ];
+        $items = [
+            array_replace($layout, [
+                'text' => $sourceItems[0]['text'],
+                'sourceStream' => 1,
+                'sourcePdfSourceIndex' => 0,
+                'sourceVerifiedGeometryText' => true,
+                'y1' => 742.0,
+                'y2' => 754.0,
+            ]),
+            array_replace($layout, [
+                'text' => $sourceItems[1]['text'],
+                'sourceStream' => 2,
+                'sourcePdfSourceIndex' => 1,
+                'sourceVerifiedGeometryText' => true,
+                'sourcePdfExactPositionedText' => true,
+                'y1' => 718.0,
+                'y2' => 730.0,
+            ]),
+            array_replace($layout, [
+                'text' => $sourceItems[2]['text'],
+                'sourceStream' => 2,
+                'sourcePdfSourceIndex' => 2,
+                // This short line deliberately has no broad geometry-text
+                // marker. Its exact source-to-positioned match is sufficient
+                // only beside the adjacent, continuous source row.
+                'sourcePdfExactPositionedText' => true,
+                'y1' => 706.0,
+                'y2' => 718.0,
+            ]),
+            array_replace($layout, [
+                'text' => $sourceItems[3]['text'],
+                'sourceStream' => 3,
+                'sourcePdfSourceIndex' => 3,
+                'sourceVerifiedGeometryText' => true,
+                'y1' => 682.0,
+                'y2' => 694.0,
+            ]),
+            array_replace($layout, [
+                'text' => $sourceItems[4]['text'],
+                'sourceStream' => 3,
+                'sourcePdfSourceIndex' => 4,
+                // A merely similar short source row is not evidence of a
+                // positioned match and must not inherit the previous pair.
+                'y1' => 670.0,
+                'y2' => 682.0,
+            ]),
+        ];
+
+        $marked = $mark($items, $sourceItems);
+        $pair = $marked[1]['sourcePdfWrappedHyphenPairAfter'] ?? null;
+        $t->true(is_string($pair) && $pair !== '');
+        $t->same($pair, $marked[2]['sourcePdfWrappedHyphenPairBefore'] ?? null);
+        $t->same(null, $marked[3]['sourcePdfWrappedHyphenPairAfter'] ?? null);
+        $t->same(null, $marked[4]['sourcePdfWrappedHyphenPairBefore'] ?? null);
+
+        $repaired = implode(' ', $repair(array_column($marked, 'text'), $marked));
+        $t->contains('riverbank reference.', $repaired);
+        $t->contains('river-bank', $repaired);
+    },
+    'removes a soft hyphen only from its locally proven wrapped pair' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $mark = (function (array $items, array $sourceItems): array {
+            return $this->markSourcePdfLocalWrappedHyphenJoins($items, $sourceItems);
+        })->bindTo($reader, PdfReader::class);
+        $repair = (function (array $lines, array $layouts): array {
+            return $this->repairProseTextLines($lines, true, $layouts);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($mark instanceof \Closure);
+        $t->true($repair instanceof \Closure);
+
+        $sourceItems = [
+            ['page' => 1, 'stream' => 1, 'text' => 'A preceding visual row establishes ordinary source flow.'],
+            ['page' => 1, 'stream' => 1, 'text' => "The exact visual row ends continu\u{00AD}"],
+            ['page' => 1, 'stream' => 1, 'text' => 'ation at this proven wrapped boundary.'],
+        ];
+        $layout = [
+            'page' => 1,
+            'x1' => 72.0,
+            'x2' => 420.0,
+            'fontSize' => 10.0,
+            'sourceVerifiedGeometryText' => true,
+        ];
+        $items = [
+            array_replace($layout, ['text' => $sourceItems[0]['text'], 'sourceStream' => 1, 'sourcePdfSourceIndex' => 0, 'y1' => 730.0, 'y2' => 742.0]),
+            array_replace($layout, ['text' => $sourceItems[1]['text'], 'sourceStream' => 1, 'sourcePdfSourceIndex' => 1, 'y1' => 718.0, 'y2' => 730.0]),
+            array_replace($layout, ['text' => $sourceItems[2]['text'], 'sourceStream' => 1, 'sourcePdfSourceIndex' => 2, 'y1' => 706.0, 'y2' => 718.0]),
+        ];
+
+        $marked = $mark($items, $sourceItems);
+        $pair = $marked[1]['sourcePdfWrappedHyphenPairAfter'] ?? null;
+        $t->true(is_string($pair) && $pair !== '');
+        $t->same($pair, $marked[2]['sourcePdfWrappedHyphenPairBefore'] ?? null);
+
+        $repaired = $repair(array_column($marked, 'text'), $marked);
+        $t->contains('continuation at this proven wrapped boundary.', implode(' ', $repaired));
+        $t->true(!str_contains(implode(' ', $repaired), 'continu-ation'));
     },
     'continues matching pdf body prose across a page boundary' => static function (TestRunner $t): void {
         $reader = new PdfReader();
@@ -5945,6 +6365,30 @@ return [
         $t->true(!isset($items[0]['sourcePdfReferenceEntry']));
         $t->same(true, $items[1]['sourcePdfReferenceEntry'] ?? null);
         $t->same(true, $items[2]['sourcePdfReferenceEntry'] ?? null);
+    },
+    'retains local separator repairs when a reference page keeps source order' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $referenceItems = (function (array $sourceItems, array $positionedItems): array {
+            return $this->sourcePdfReferenceItemsInSourceOrder($sourceItems, $positionedItems);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($referenceItems instanceof \Closure);
+
+        $items = $referenceItems([
+            ['page' => 1, 'stream' => 1, 'text' => '[1] alphaomega'],
+        ], [[
+            'text' => '[1] alpha omega',
+            'page' => 1,
+            'x1' => 72.0,
+            'y1' => 700.0,
+            'x2' => 220.0,
+            'y2' => 712.0,
+            'fontSize' => 10.0,
+            'code' => false,
+            'sourceVerifiedBoundarySeparators' => [8 => ' '],
+        ]]);
+
+        $t->same('[1] alpha omega', $items[0]['text'] ?? null);
+        $t->same(true, $items[0]['sourcePdfReferenceEntry'] ?? null);
     },
     'joins hyphenated bibliography wraps across a hanging indent' => static function (TestRunner $t): void {
         $reader = new PdfReader();
@@ -6255,6 +6699,92 @@ return [
         ]]);
         $t->same([], $result['sourceIndexes']);
     },
+    'uses positioned whitespace only for the exact matched source occurrence' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $match = (function (array $sourceItems, array $positionedItems): array {
+            return $this->matchSourcePdfLinesToPositionedItems($sourceItems, $positionedItems);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($match instanceof \Closure);
+
+        $sourceItems = [
+            ['page' => 1, 'stream' => 1, 'text' => 'A sometime occurrence needs local proof.'],
+            ['page' => 1, 'stream' => 1, 'text' => 'A sometime occurrence needs local proof.'],
+            ['page' => 1, 'stream' => 1, 'text' => 'The source layer split Y our regular word.'],
+        ];
+        $layout = [
+            'page' => 1,
+            'x1' => 72.0,
+            'x2' => 360.0,
+            'y2' => 712.0,
+            'fontSize' => 10.0,
+            'code' => false,
+        ];
+        $result = $match($sourceItems, [
+            array_replace($layout, [
+                'text' => 'A some time occurrence needs local proof.',
+                'y1' => 700.0,
+                'sourceVerifiedBoundarySeparators' => [5 => ' '],
+            ]),
+            array_replace($layout, ['text' => 'A sometime occurrence needs local proof.', 'y1' => 684.0, 'y2' => 696.0]),
+            array_replace($layout, [
+                'text' => 'The source layer split Your regular word.',
+                'y1' => 668.0,
+                'y2' => 680.0,
+                'sourceVerifiedBoundarySeparators' => [20 => ''],
+            ]),
+        ]);
+
+        $t->same([0 => true, 1 => true, 2 => true], $result['sourceIndexes']);
+        $t->same([
+            'A some time occurrence needs local proof.',
+            'A sometime occurrence needs local proof.',
+            'The source layer split Your regular word.',
+        ], array_column($result['items'], 'text'));
+    },
+    'withholds a local separator override for an unanchored duplicate compact source line' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $match = (function (array $sourceItems, array $positionedItems): array {
+            return $this->matchSourcePdfLinesToPositionedItems($sourceItems, $positionedItems);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($match instanceof \Closure);
+
+        $layout = [
+            'page' => 1,
+            'x1' => 72.0,
+            'x2' => 160.0,
+            'y1' => 700.0,
+            'y2' => 712.0,
+            'fontSize' => 10.0,
+            'code' => false,
+            'sourceVerifiedBoundarySeparators' => [2 => ' '],
+        ];
+        $unanchored = $match([
+            ['page' => 1, 'stream' => 1, 'text' => 'weare'],
+            ['page' => 1, 'stream' => 1, 'text' => 'weare'],
+        ], [array_replace($layout, ['text' => 'we are'])]);
+        $t->same('weare', $unanchored['items'][0]['text']);
+
+        $anchored = $match([
+            ['page' => 1, 'stream' => 1, 'text' => 'Anchor record.'],
+            ['page' => 1, 'stream' => 1, 'text' => 'weare'],
+            ['page' => 1, 'stream' => 1, 'text' => 'weare'],
+        ], [
+            array_replace($layout, [
+                'text' => 'Anchor record.',
+                'sourceVerifiedBoundarySeparators' => [],
+                'sourceOrderStart' => 10,
+                'sourceOrderEnd' => 10,
+            ]),
+            array_replace($layout, [
+                'text' => 'we are',
+                'y1' => 684.0,
+                'y2' => 696.0,
+                'sourceOrderStart' => 11,
+                'sourceOrderEnd' => 11,
+            ]),
+        ]);
+        $t->same('we are', $anchored['items'][1]['text']);
+    },
     'reconciles adjacent positioned style fragments with one source line' => static function (TestRunner $t): void {
         $reader = new PdfReader();
         $match = (function (array $sourceItems, array $positionedItems): array {
@@ -6288,6 +6818,8 @@ return [
                 'code' => false,
                 'sourceOrderStart' => 54,
                 'sourceOrderEnd' => 58,
+                'hasWordBoundaryBefore' => true,
+                'wordBoundaryBefore' => true,
             ],
         ]);
 
@@ -6296,7 +6828,184 @@ return [
         $t->same(92.0, $result['items'][0]['x1']);
         $t->same(300.0, $result['items'][0]['x2']);
     },
-    'reconciles short numeric source fragments only as positioned inline continuations' => static function (TestRunner $t): void {
+    'uses extractor boundary provenance for positioned fragment composition' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $compose = (function (bool $hasBoundary, bool $isWordBoundary): array {
+            $left = [
+                'text' => 'interdisciplin',
+                'page' => 1,
+                'x1' => 72.0,
+                'y1' => 700.0,
+                'x2' => 140.0,
+                'y2' => 712.0,
+                'fontSize' => 10.0,
+                'code' => false,
+                'sourceOrderStart' => 10,
+                'sourceOrderEnd' => 12,
+            ];
+            $right = [
+                'text' => 'arity is a regular word.',
+                'page' => 1,
+                'x1' => 141.0,
+                'y1' => 700.0,
+                'x2' => 280.0,
+                'y2' => 712.0,
+                'fontSize' => 10.0,
+                'code' => false,
+                'sourceOrderStart' => 13,
+                'sourceOrderEnd' => 18,
+                'hasWordBoundaryBefore' => $hasBoundary,
+                'wordBoundaryBefore' => $isWordBoundary,
+            ];
+            $source = $this->composePositionedPdfSourceLineFragments($left, $right);
+            $layout = $this->composePositionedPdfInlineLayoutFragments($left, $right);
+
+            return [
+                'source' => $source['text'] ?? null,
+                'inline' => $this->positionedPdfInlineContinuationText($left, [$left, $right], [1]),
+                'layout' => $layout['text'] ?? null,
+            ];
+        })->bindTo($reader, PdfReader::class);
+        $t->true($compose instanceof \Closure);
+
+        $t->same([
+            'source' => 'interdisciplinarity is a regular word.',
+            'inline' => 'interdisciplinarity is a regular word.',
+            'layout' => 'interdisciplinarity is a regular word.',
+        ], $compose(true, false));
+        $t->same([
+            'source' => 'interdisciplin arity is a regular word.',
+            'inline' => 'interdisciplin arity is a regular word.',
+            'layout' => 'interdisciplin arity is a regular word.',
+        ], $compose(true, true));
+        $t->same([
+            'source' => null,
+            'inline' => null,
+            'layout' => null,
+        ], $compose(false, false));
+    },
+    'keeps exact text bounds and local separator offsets through positioned composites' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $compose = (function (): array {
+            $left = [
+                'text' => 'weare',
+                'page' => 1,
+                'x1' => 70.0,
+                'y1' => 700.0,
+                'x2' => 110.0,
+                'y2' => 714.0,
+                'textX1' => 72.0,
+                'textY1' => 702.0,
+                'textX2' => 100.0,
+                'textY2' => 710.0,
+                'fontSize' => 10.0,
+                'sourceOrderStart' => 10,
+                'sourceOrderEnd' => 10,
+                'sourceVerifiedBoundarySeparators' => [2 => ' '],
+            ];
+            $right = [
+                'text' => 'againnow',
+                'page' => 1,
+                'x1' => 112.0,
+                'y1' => 699.0,
+                'x2' => 180.0,
+                'y2' => 716.0,
+                'textX1' => 114.0,
+                'textY1' => 701.0,
+                'textX2' => 160.0,
+                'textY2' => 711.0,
+                'fontSize' => 10.0,
+                'sourceOrderStart' => 11,
+                'sourceOrderEnd' => 11,
+                'hasWordBoundaryBefore' => true,
+                'wordBoundaryBefore' => true,
+                'wordBoundarySource' => 'line-break',
+                'sourceVerifiedBoundarySeparators' => [5 => ' '],
+            ];
+
+            return [
+                $this->composePositionedPdfSourceLineFragments($left, $right),
+                $this->composePositionedPdfInlineLayoutFragments($left, $right),
+            ];
+        })->bindTo($reader, PdfReader::class);
+        $t->true($compose instanceof \Closure);
+
+        foreach ($compose() as $item) {
+            $t->same('weare againnow', $item['text'] ?? null);
+            $t->same([72.0, 701.0, 160.0, 711.0], [
+                $item['textX1'] ?? null,
+                $item['textY1'] ?? null,
+                $item['textX2'] ?? null,
+                $item['textY2'] ?? null,
+            ]);
+            $t->same([2 => ' ', 5 => ' ', 10 => ' '], $item['sourceVerifiedBoundarySeparators'] ?? null);
+        }
+    },
+    'repairs only source-line separators proven by positioned boundary geometry' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $match = (function (array $sourceItems, array $runs): array {
+            return $this->matchSourcePdfLinesToPositionedItems(
+                $sourceItems,
+                $this->positionedProseLineItemsFromTextRuns($runs)
+            );
+        })->bindTo($reader, PdfReader::class);
+        $t->true($match instanceof \Closure);
+
+        $run = static function (
+            string $text,
+            float $x1,
+            float $x2,
+            float $y,
+            bool $wordBoundaryBefore = false,
+            ?string $wordBoundarySource = null
+        ): array {
+            $item = [
+                'text' => $text,
+                'page' => 1,
+                'stream' => 1,
+                'x1' => $x1,
+                'y1' => $y,
+                'x2' => $x2,
+                'y2' => $y + 10.0,
+                'textX1' => $x1,
+                'textY1' => $y,
+                'textX2' => $x2,
+                'textY2' => $y,
+                'fontSize' => 10.0,
+                'wordBoundaryBefore' => $wordBoundaryBefore,
+            ];
+            if ($wordBoundarySource !== null) {
+                $item['wordBoundarySource'] = $wordBoundarySource;
+            }
+
+            return $item;
+        };
+
+        $result = $match([
+            ['page' => 1, 'stream' => 1, 'text' => 'weareagain.'],
+            ['page' => 1, 'stream' => 1, 'text' => 'previewtext.'],
+            ['page' => 1, 'stream' => 1, 'text' => 'goto'],
+            ['page' => 1, 'stream' => 1, 'text' => 'anything'],
+        ], [
+            $run('we', 72.0, 84.0, 740.0),
+            $run('areagain.', 87.0, 132.0, 740.0, false, 'text-position-continuation'),
+            $run('pre', 72.0, 90.0, 720.0),
+            $run('viewtext.', 90.0, 138.0, 720.0, true, 'line-break'),
+            $run('go', 72.0, 84.0, 700.0),
+            $run('to', 88.0, 100.0, 700.0, true, 'line-break'),
+            $run('any', 72.0, 90.0, 680.0),
+            $run(' ', 90.0, 90.0, 680.0),
+            $run('thing', 90.0, 120.0, 680.0, true, 'line-break'),
+        ]);
+
+        $t->same([
+            'we areagain.',
+            'previewtext.',
+            'go to',
+            'any thing',
+        ], array_column($result['items'], 'text'));
+    },
+    'does not invent a separator for short numeric positioned fragments' => static function (TestRunner $t): void {
         $reader = new PdfReader();
         $match = (function (array $sourceItems, array $positionedItems): array {
             return $this->matchSourcePdfLinesToPositionedItems($sourceItems, $positionedItems);
@@ -6319,7 +7028,7 @@ return [
         ]]);
 
         $t->same([1 => true, 2 => true], $result['sourceIndexes']);
-        $t->same('2 and then', $result['items'][0]['text']);
+        $t->same('2and then', $result['items'][0]['text']);
         $t->same([1, 2], $result['items'][0]['sourcePdfSourceIndexes']);
     },
     'ends a PDF formula lead before a recoverable prose suffix' => static function (TestRunner $t): void {
@@ -6441,7 +7150,7 @@ return [
     'trims an unfinished pdf prose tail before a stacked table boundary' => static function (TestRunner $t): void {
         $reader = new PdfReader();
         $merge = (function (array $records, array $following): array {
-            return $this->mergeRepairedProseLines($records, [], $following);
+            return $this->mergeRepairedProseLines($records, $following);
         })->bindTo($reader, PdfReader::class);
         $t->true($merge instanceof \Closure);
 
@@ -6530,116 +7239,6 @@ return [
             'The caption is complete.',
             'The next paragraph is independent.',
         ], array_column($records, 'text'));
-    },
-    'corroborates raw pdf split fragments with a positioned baseline word' => static function (TestRunner $t): void {
-        $reader = new PdfReader();
-        $corroborate = (function (array $runs, array $hints, array $sourceItems = []): array {
-            return $this->pdfPositionedRunCorroboratedSplitFragmentHints($runs, $hints, $sourceItems);
-        })->bindTo($reader, PdfReader::class);
-        $t->true($corroborate instanceof \Closure);
-
-        $run = static function (string $text, float $x1, float $x2): array {
-            return [
-                'text' => $text,
-                'page' => 1,
-                'x1' => $x1,
-                'y1' => 700.0,
-                'x2' => $x2,
-                'y2' => 712.0,
-                'textX1' => $x1,
-                'textY1' => 704.0,
-                'textX2' => $x2,
-                'textY2' => 704.0,
-                'fontSize' => 10.0,
-            ];
-        };
-        $hints = [
-            "fragment\0w ith" => 'with',
-            "fragment\0pro viders" => 'providers',
-            "fragment\0and takes" => 'andtakes',
-            "fragment\0the trace" => 'thetrace',
-        ];
-
-        $t->same([
-            "fragment\0w ith" => 'with',
-            "fragment\0pro viders" => 'providers',
-        ], $corroborate([
-            $run('w', 72.0, 78.0),
-            $run('ith', 78.5, 92.0),
-            $run('pro', 120.0, 138.0),
-            $run('viders', 138.5, 172.0),
-            $run(' ', 172.0, 178.0),
-            $run('and', 180.0, 198.0),
-            $run(' ', 198.0, 204.0),
-            $run('takes', 204.0, 234.0),
-            $run('the', 260.0, 276.0),
-            $run('trace', 276.5, 304.0),
-        ], $hints, [
-            ['page' => 1, 'stream' => 1, 'text' => 'This sentence contains w ith an artificial PDF gap.'],
-            ['page' => 1, 'stream' => 1, 'text' => 'Healthcare pro viders'],
-            ['page' => 1, 'stream' => 1, 'text' => 'The trace tree records a loop entry.'],
-        ]));
-    },
-    'corroborates positioned line-end fragments against clipped PDF source lines' => static function (TestRunner $t): void {
-        $reader = new PdfReader();
-        $corroborate = (function (array $runs, array $hints, array $sourceItems): array {
-            return $this->pdfPositionedRunCorroboratedSplitFragmentHints($runs, $hints, $sourceItems);
-        })->bindTo($reader, PdfReader::class);
-        $t->true($corroborate instanceof \Closure);
-
-        $run = static function (string $text, float $x1, float $x2): array {
-            return [
-                'text' => $text,
-                'page' => 1,
-                'x1' => $x1,
-                'y1' => 700.0,
-                'x2' => $x2,
-                'y2' => 712.0,
-                'textX1' => $x1,
-                'textY1' => 704.0,
-                'textX2' => $x2,
-                'textY2' => 704.0,
-                'fontSize' => 10.0,
-            ];
-        };
-        $t->same([
-            "fragment\0pro viders" => 'providers',
-        ], $corroborate([
-            $run('Healthcare', 72.0, 132.0),
-            $run(' ', 132.0, 138.0),
-            $run('pro', 140.0, 158.0),
-            // The positioned layer retains a visible gap at the clipped
-            // source-line boundary, as it does in the real brochure.
-            $run('viders', 164.0, 199.5),
-        ], [
-            "fragment\0pro viders" => 'providers',
-        ], [
-            ['page' => 1, 'stream' => 1, 'text' => 'Healthcare pro'],
-        ]));
-    },
-    'keeps raw PDF fragment hints bounded to actual split runs' => static function (TestRunner $t): void {
-        $reader = new PdfReader();
-        $hints = (function (array $runs): array {
-            return $this->pdfTextRunSplitWordHints($runs);
-        })->bindTo($reader, PdfReader::class);
-        $t->true($hints instanceof \Closure);
-
-        $result = $hints([
-            'pro',
-            'viders',
-            ' ',
-            'A normal source line ends with the',
-            'trace monitor',
-            ' ',
-            'h all',
-            'owe',
-            'd',
-            ' ',
-        ]);
-
-        $t->same('providers', $result["fragment\0pro viders"] ?? null);
-        $t->same('allowed', $result["fragment\0all owed"] ?? null);
-        $t->true(!isset($result["fragment\0the trace"]));
     },
     'restores adjacent source PDF continuations without joining intervening panels' => static function (TestRunner $t): void {
         $reader = new PdfReader();
@@ -6946,12 +7545,16 @@ return [
         $t->same('ordered_list', $list[0]->type);
         $t->same(2, count($list[0]->children));
     },
-    'preserves visible soft hyphens in repaired pdf prose' => static function (TestRunner $t): void {
+    'preserves unproven soft hyphens visibly in repaired pdf prose' => static function (TestRunner $t): void {
         $reader = new PdfReader();
         $repair = (function (array $lines): array {
             return $this->repairProseTextLines($lines, true);
         })->bindTo($reader, PdfReader::class);
+        $repairLine = (function (string $line): string {
+            return $this->repairGluedProseLine($line);
+        })->bindTo($reader, PdfReader::class);
         $t->true($repair instanceof \Closure);
+        $t->true($repairLine instanceof \Closure);
 
         $t->same([
             'A hard-to-treat condition remains.',
@@ -6961,6 +7564,10 @@ return [
             "An alcohol\u{00AD}",
             'based hand rub helps.',
         ]));
+        $t->same(
+            'Use liquid soap if possible. Apply a nickel-or quarter-sized amount of soap to your hands.',
+            $repairLine("Use liquid soap if possible. Apply a nickel\u{00AD} or quarter\u{00AD}sized amount of soap to your hands.")
+        );
     },
     'does not split digit-leading bare domains during pdf prose repair' => static function (TestRunner $t): void {
         $reader = new PdfReader();
@@ -7089,115 +7696,29 @@ return [
 
         $t->same('The α symbol is used to mark the loop.', $repair('The αsymbol is used to mark the loop.'));
     },
-    'does not apply short positioned spacing hints inside compound identifiers' => static function (TestRunner $t): void {
+    'does not derive prose spacing from a matching spelling alone' => static function (TestRunner $t): void {
         $reader = new PdfReader();
         $repair = (function (string $line): string {
-            return $this->repairGluedProseLine($line, ["spacing\0format" => 'form at']);
+            return $this->repairGluedProseLine($line);
         })->bindTo($reader, PdfReader::class);
         $t->true($repair instanceof \Closure);
 
         $t->same('The date-format-xparb benchmark remains.', $repair('The date-format-xparb benchmark remains.'));
     },
-    'requires matching source evidence for bare positioned spacing pairs' => static function (TestRunner $t): void {
+    'preserves unverified hyphen boundaries without spelling repairs' => static function (TestRunner $t): void {
         $reader = new PdfReader();
-        $hintsFromRuns = (function (array $runs, array $sourceItems): array {
-            return $this->pdfPositionedRunSpacingHints($runs, $sourceItems);
-        })->bindTo($reader, PdfReader::class);
-        $t->true($hintsFromRuns instanceof \Closure);
-
-        $run = static function (string $text, float $x1, float $x2, float $y): array {
-            return [
-                'text' => $text,
-                'page' => 1,
-                'x1' => $x1,
-                'x2' => $x2,
-                'y1' => $y,
-                'y2' => $y + 12.0,
-                'textX1' => $x1,
-                'textX2' => $x2,
-                'textY1' => $y,
-                'textY2' => $y + 12.0,
-                'fontSize' => 10.0,
-            ];
-        };
-        $hints = $hintsFromRuns([
-            $run('able', 72.0, 96.0, 700.0),
-            $run('to', 98.0, 110.0, 700.0),
-            $run('continue', 112.0, 158.0, 700.0),
-            $run('form', 72.0, 96.0, 680.0),
-            $run('at', 98.0, 110.0, 680.0),
-            $run('least', 112.0, 144.0, 680.0),
-        ], [
-            ['page' => 1, 'stream' => 1, 'text' => 'ableto continue'],
-            ['page' => 1, 'stream' => 1, 'text' => 'form at least'],
-        ]);
-
-        $t->same('able to', $hints["spacing\0ableto"] ?? null);
-        $t->true(!isset($hints["spacing\0format"]));
-    },
-    'keeps positioned spacing sequences only when source text can contain the glued form' => static function (TestRunner $t): void {
-        $reader = new PdfReader();
-        $hintsFromRuns = (function (array $runs, array $sourceItems): array {
-            return $this->pdfPositionedRunSpacingHints($runs, $sourceItems);
-        })->bindTo($reader, PdfReader::class);
-        $t->true($hintsFromRuns instanceof \Closure);
-
-        $run = static function (string $text, float $x1, float $x2, float $y = 700.0): array {
-            return [
-                'text' => $text,
-                'page' => 1,
-                'x1' => $x1,
-                'x2' => $x2,
-                'y1' => $y,
-                'y2' => $y + 12.0,
-                'textX1' => $x1,
-                'textX2' => $x2,
-                'textY1' => $y,
-                'textY2' => $y + 12.0,
-                'fontSize' => 10.0,
-            ];
-        };
-        $hints = $hintsFromRuns([
-            $run('able', 72.0, 96.0),
-            $run('to', 98.0, 110.0),
-            $run('continue', 112.0, 158.0),
-            $run('form', 72.0, 96.0, 680.0),
-            $run('at', 98.0, 110.0, 680.0),
-            $run('least', 112.0, 144.0, 680.0),
-        ], [
-            ['page' => 1, 'stream' => 1, 'text' => 'abletocontinue'],
-            ['page' => 1, 'stream' => 1, 'text' => 'form at least'],
-        ]);
-
-        $t->same('able to continue', $hints["spacing\0abletocontinue"] ?? null);
-        $t->true(!isset($hints["spacing\0formatleast"]));
-    },
-    'repairs pdf hyphen fragments only with raw run evidence' => static function (TestRunner $t): void {
-        $reader = new PdfReader();
-        $repair = (function (array $lines, array $runs): array {
-            return $this->repairProseTextLines(
-                $lines,
-                true,
-                [],
-                $this->pdfTextRunHyphenatedSplitWordHints($this->pdfTextRunSplitWordHints($runs))
-            );
+        $repair = (function (array $lines): array {
+            return $this->repairProseTextLines($lines, true);
         })->bindTo($reader, PdfReader::class);
         $t->true($repair instanceof \Closure);
 
         $t->same([
-            'resources were most abundant, including the floodplain.',
-            'They bring deep-ocean nutrients to the redwood forest.',
+            'resources were most abundant, includ -ing the floodplain.',
+            'They bring deep-ocean nutrients to the red -wood forest.',
         ], $repair([
             'resources were most abundant, includ -',
             'ing the floodplain.',
             'They bring deep-ocean nutrients to the red -',
-            'wood forest.',
-        ], [
-            'resources were most abundant, includ',
-            '-',
-            'ing the floodplain.',
-            'nutrients to the red',
-            '-',
             'wood forest.',
         ]));
 
@@ -7208,29 +7729,18 @@ return [
             'specialized machine code',
             'hard-',
             'to-treat infections',
-        ], [
-            'efficient type',
-            '-',
-            'specialized machine code',
-            'hard',
-            '-',
-            'to-treat infections',
         ]));
 
         $t->same([
-            'Construction continued along the beachfront development corridor.',
+            'Construction continued along the beachfront develop-ment corridor.',
         ], $repair([
             "Construction continued along the beachfront develop\u{00AD} ment corridor.",
-        ], [
-            'Construction continued along the beachfront develop',
-            "\u{00AD}",
-            'ment corridor.',
         ]));
     },
-    'does not join complete lowercase pdf table cell words as split fragments' => static function (TestRunner $t): void {
+    'does not rewrite a table cell from an unrelated spelling' => static function (TestRunner $t): void {
         $reader = new PdfReader();
-        $repair = (function (array $lines, array $runs): array {
-            return $this->repairProseTextLines($lines, true, [], $this->pdfTextRunSplitWordHints($runs));
+        $repair = (function (array $lines): array {
+            return $this->repairProseTextLines($lines, true);
         })->bindTo($reader, PdfReader::class);
         $t->true($repair instanceof \Closure);
 
@@ -7245,23 +7755,13 @@ return [
             'boolean',
             'enumeration for null, undefined, true, false',
             'Dogs on leash all owed',
-        ], [
-            'object',
-            'pointer',
-            '',
-            'boolean',
-            'enumeration',
-            '',
-            'all',
-            'owed',
-            '',
         ]);
 
         $t->same([
             'Tag',
             'JS Type',
             'Description',
-            '000 object pointer to JSObject handle 110 boolean enumeration for null, undefined, true, false Dogs on leash allowed',
+            '000 object pointer to JSObject handle 110 boolean enumeration for null, undefined, true, false Dogs on leash all owed',
         ], $repaired);
     },
     'preserves stacked pdf text cells as tables without merging surrounding prose' => static function (TestRunner $t): void {
@@ -7305,16 +7805,15 @@ return [
         $normalize = (function (array $lines): array {
             return $this->normalizeLines($lines);
         })->bindTo($reader, PdfReader::class);
-        $runText = (function (string $text): string {
-            return $this->pdfTextRunString($text);
-        })->bindTo($reader, PdfReader::class);
         $t->true($normalize instanceof \Closure);
-        $t->true($runText instanceof \Closure);
 
-        $t->same(['setting the stage for the site’s return'], $normalize([
+        $t->same([
+            'setting the stage for the site’s return',
+            '“quoted”',
+        ], $normalize([
             "setting the stage for the site\x92s return",
+            "\x93quoted\x94",
         ]));
-        $t->same('“quoted”', $runText("\x93quoted\x94"));
     },
     'repairs pdf control glyphs used for fi ligatures in extracted text' => static function (TestRunner $t): void {
         $reader = new PdfReader();
@@ -7346,22 +7845,17 @@ return [
             'TraceMonkey and HTMLParser remain readable.',
         ]));
     },
-    'keeps full pdf line endings as word boundaries when split fragment hints are built' => static function (TestRunner $t): void {
+    'keeps full pdf line-end fragments visible without positioned occurrence evidence' => static function (TestRunner $t): void {
         $reader = new PdfReader();
-        $repair = (function (array $lines, array $runs): array {
-            return $this->repairProseTextLines(
-                $lines,
-                true,
-                [],
-                $this->pdfTextRunSplitWordHints($runs)
-            );
+        $repair = (function (array $lines): array {
+            return $this->repairProseTextLines($lines, true);
         })->bindTo($reader, PdfReader::class);
         $t->true($repair instanceof \Closure);
 
         $t->same([
             'choice is based on the expectation that programs spend most of their time in hot loops.',
             'The result is computed using trace trees.',
-            'The recorder observed recording in one line.',
+            'The recorder observed recor ding in one line.',
         ], $repair([
             'choice is based on the expectation that programs spend most of',
             'their time in hot loops.',
@@ -7369,113 +7863,7 @@ return [
             'trace trees.',
             'The recorder observed recor',
             'ding in one line.',
-        ], [
-            'choice is based on the expectation that programs spend most of',
-            'their time in hot loops.',
-            'The result is computed using',
-            'trace trees.',
-            'observed recor',
-            'ding in one line.',
         ]));
-    },
-    'repairs glued pdf prose using positioned run spacing evidence' => static function (TestRunner $t): void {
-        $reader = new PdfReader();
-        $run = static function (string $text, float $x1, float $x2, float $y = 100.0): array {
-            return [
-                'text' => $text,
-                'page' => 1,
-                'x1' => $x1,
-                'x2' => $x2,
-                'y1' => $y,
-                'y2' => $y + 12.0,
-                'textX1' => $x1,
-                'textX2' => $x2,
-                'textY1' => $y,
-                'textY2' => $y + 12.0,
-                'fontSize' => 10.0,
-            ];
-        };
-        $repair = (function (array $lines, array $runs): array {
-            return $this->repairProseTextLines(
-                $lines,
-                true,
-                [],
-                array_replace($this->pdfTextRunSplitWordHints([]), $this->pdfPositionedRunSpacingHints($runs))
-            );
-        })->bindTo($reader, PdfReader::class);
-        $t->true($repair instanceof \Closure);
-
-        $repaired = $repair([
-            'performanceofthegeneratedmachinecode. Oursystemuses mixedmode execution.',
-            'Thetracetreefortheinnerloop records asideexit without duplicating theouterloop.',
-            'The VM is ableto continue when Redwood remains a single word.',
-            'The recorder finishesthe outer trace.',
-            'The compiler keeps trace calls readable while nativecode is repaired.',
-        ], [
-            $run('performance', 10.0, 70.0),
-            $run('of', 72.0, 82.0),
-            $run('the', 84.0, 100.0),
-            $run('generated', 102.0, 150.0),
-            $run('machine', 152.0, 190.0),
-            $run('code.', 192.0, 220.0),
-            $run('Our', 224.0, 244.0),
-            $run('system', 246.0, 282.0),
-            $run('uses', 284.0, 306.0),
-            $run('mixed', 308.0, 340.0),
-            $run('mode', 342.0, 366.0),
-            ['text' => 'The', 'page' => 1, 'x1' => 10.0, 'x2' => 30.0, 'y1' => 80.0, 'y2' => 92.0, 'textX1' => 10.0, 'textX2' => 30.0, 'textY1' => 80.0, 'textY2' => 92.0, 'fontSize' => 10.0],
-            ['text' => 'trace', 'page' => 1, 'x1' => 32.0, 'x2' => 60.0, 'y1' => 80.0, 'y2' => 92.0, 'textX1' => 32.0, 'textX2' => 60.0, 'textY1' => 80.0, 'textY2' => 92.0, 'fontSize' => 10.0],
-            ['text' => 'tree', 'page' => 1, 'x1' => 62.0, 'x2' => 86.0, 'y1' => 80.0, 'y2' => 92.0, 'textX1' => 62.0, 'textX2' => 86.0, 'textY1' => 80.0, 'textY2' => 92.0, 'fontSize' => 10.0],
-            ['text' => 'for', 'page' => 1, 'x1' => 88.0, 'x2' => 104.0, 'y1' => 80.0, 'y2' => 92.0, 'textX1' => 88.0, 'textX2' => 104.0, 'textY1' => 80.0, 'textY2' => 92.0, 'fontSize' => 10.0],
-            ['text' => 'the', 'page' => 1, 'x1' => 106.0, 'x2' => 124.0, 'y1' => 80.0, 'y2' => 92.0, 'textX1' => 106.0, 'textX2' => 124.0, 'textY1' => 80.0, 'textY2' => 92.0, 'fontSize' => 10.0],
-            ['text' => 'inner', 'page' => 1, 'x1' => 126.0, 'x2' => 154.0, 'y1' => 80.0, 'y2' => 92.0, 'textX1' => 126.0, 'textX2' => 154.0, 'textY1' => 80.0, 'textY2' => 92.0, 'fontSize' => 10.0],
-            ['text' => 'loop', 'page' => 1, 'x1' => 156.0, 'x2' => 180.0, 'y1' => 80.0, 'y2' => 92.0, 'textX1' => 156.0, 'textX2' => 180.0, 'textY1' => 80.0, 'textY2' => 92.0, 'fontSize' => 10.0],
-            ['text' => 'a', 'page' => 1, 'x1' => 220.0, 'x2' => 226.0, 'y1' => 80.0, 'y2' => 92.0, 'textX1' => 220.0, 'textX2' => 226.0, 'textY1' => 80.0, 'textY2' => 92.0, 'fontSize' => 10.0],
-            ['text' => 'side', 'page' => 1, 'x1' => 228.0, 'x2' => 252.0, 'y1' => 80.0, 'y2' => 92.0, 'textX1' => 228.0, 'textX2' => 252.0, 'textY1' => 80.0, 'textY2' => 92.0, 'fontSize' => 10.0],
-            ['text' => 'exit', 'page' => 1, 'x1' => 254.0, 'x2' => 278.0, 'y1' => 80.0, 'y2' => 92.0, 'textX1' => 254.0, 'textX2' => 278.0, 'textY1' => 80.0, 'textY2' => 92.0, 'fontSize' => 10.0],
-            ['text' => 'the', 'page' => 1, 'x1' => 316.0, 'x2' => 334.0, 'y1' => 80.0, 'y2' => 92.0, 'textX1' => 316.0, 'textX2' => 334.0, 'textY1' => 80.0, 'textY2' => 92.0, 'fontSize' => 10.0],
-            ['text' => 'outer', 'page' => 1, 'x1' => 336.0, 'x2' => 364.0, 'y1' => 80.0, 'y2' => 92.0, 'textX1' => 336.0, 'textX2' => 364.0, 'textY1' => 80.0, 'textY2' => 92.0, 'fontSize' => 10.0],
-            ['text' => 'loop.', 'page' => 1, 'x1' => 366.0, 'x2' => 394.0, 'y1' => 80.0, 'y2' => 92.0, 'textX1' => 366.0, 'textX2' => 394.0, 'textY1' => 80.0, 'textY2' => 92.0, 'fontSize' => 10.0],
-            ['text' => 'able', 'page' => 1, 'x1' => 10.0, 'x2' => 36.0, 'y1' => 60.0, 'y2' => 72.0, 'textX1' => 10.0, 'textX2' => 36.0, 'textY1' => 60.0, 'textY2' => 72.0, 'fontSize' => 10.0],
-            ['text' => 'to', 'page' => 1, 'x1' => 39.0, 'x2' => 51.0, 'y1' => 60.0, 'y2' => 72.0, 'textX1' => 39.0, 'textX2' => 51.0, 'textY1' => 60.0, 'textY2' => 72.0, 'fontSize' => 10.0],
-            ['text' => 'Red', 'page' => 1, 'x1' => 90.0, 'x2' => 110.0, 'y1' => 60.0, 'y2' => 72.0, 'textX1' => 90.0, 'textX2' => 110.0, 'textY1' => 60.0, 'textY2' => 72.0, 'fontSize' => 10.0],
-            ['text' => 'wo', 'page' => 1, 'x1' => 112.0, 'x2' => 126.0, 'y1' => 60.0, 'y2' => 72.0, 'textX1' => 112.0, 'textX2' => 126.0, 'textY1' => 60.0, 'textY2' => 72.0, 'fontSize' => 10.0],
-            ['text' => 'od', 'page' => 1, 'x1' => 128.0, 'x2' => 142.0, 'y1' => 60.0, 'y2' => 72.0, 'textX1' => 128.0, 'textX2' => 142.0, 'textY1' => 60.0, 'textY2' => 72.0, 'fontSize' => 10.0],
-            $run('The', 10.0, 28.0, 40.0),
-            $run('recorder', 32.0, 76.0, 40.0),
-            $run('finishes', 80.0, 124.0, 40.0),
-            $run('the', 10.0, 28.0, 28.0),
-            $run('outer', 32.0, 62.0, 28.0),
-            $run('trace.', 66.0, 96.0, 28.0),
-            $run('tra', 10.0, 28.0, 12.0),
-            $run('ce', 28.0, 40.0, 12.0),
-            $run('native', 80.0, 116.0, 12.0),
-            $run('code', 119.0, 143.0, 12.0),
-        ]);
-
-        $t->same([
-            'performance of the generated machine code. Our system uses mixed mode execution.',
-            'The trace tree for the inner loop records a side exit without duplicating the outer loop. The VM is able to continue when Redwood remains a single word.',
-            'The recorder finishes the outer trace.',
-            'The compiler keeps trace calls readable while native code is repaired.',
-        ], $repaired);
-
-        $letterSpaced = $repair([
-            'Muir Beach and Redwood Creek stay readable.',
-        ], [
-            $run('M', 10.0, 16.0),
-            $run('u', 18.0, 24.0),
-            $run('ir', 26.0, 36.0),
-            $run('Beach', 42.0, 72.0),
-            $run('and', 78.0, 96.0),
-            $run('Red', 102.0, 122.0),
-            $run('w', 124.0, 130.0),
-            $run('oo', 132.0, 144.0),
-            $run('d', 146.0, 152.0),
-            $run('Creek', 158.0, 188.0),
-        ]);
-
-        $t->same(['Muir Beach and Redwood Creek stay readable.'], $letterSpaced);
     },
     'repairs whitespace inserted inside pdf url text' => static function (TestRunner $t): void {
         $reader = new PdfReader();
@@ -7498,21 +7886,19 @@ return [
             'Alternates: www.first.example www.second.example',
         ], $repaired);
     },
-    'repairs corroborated split pdf fragments without broader prose repair' => static function (TestRunner $t): void {
+    'does not repair a split fragment without a local positioned occurrence' => static function (TestRunner $t): void {
         $reader = new PdfReader();
-        $repair = (function (array $lines, array $hints): array {
-            return $this->repairProseTextLines($lines, false, [], $hints);
+        $repair = (function (array $lines): array {
+            return $this->repairProseTextLines($lines, false);
         })->bindTo($reader, PdfReader::class);
         $t->true($repair instanceof \Closure);
 
         $repaired = $repair([
             'This sentence keeps ordinary spacing but has one w ith artifact.',
-        ], [
-            "fragment\0w ith" => 'with',
         ]);
 
         $t->same([
-            'This sentence keeps ordinary spacing but has one with artifact.',
+            'This sentence keeps ordinary spacing but has one w ith artifact.',
         ], $repaired);
     },
     'preserves pdf acronym digits and url path digits during prose repair' => static function (TestRunner $t): void {
@@ -7765,6 +8151,65 @@ return [
         $t->true(!str_contains($blocks, 'Clientnumber'));
         $t->true(!str_contains($blocks, 'Issuedate'));
     },
+    'keeps whitespace-only positioned provenance on its visual baseline' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $normalize = (function (array $runs): array {
+            return iterator_to_array($this->positionedRunsWithLiteralWhitespaceProvenance($runs), false);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($normalize instanceof \Closure);
+
+        $run = static function (string $text, float $x1, float $y): array {
+            return [
+                'text' => $text,
+                'page' => 1,
+                'stream' => 1,
+                'x1' => $x1,
+                'y1' => $y,
+                'x2' => $x1 + max(0.0, strlen($text) * 5.0),
+                'y2' => $y + 10.0,
+                'textX1' => $x1,
+                'textY1' => $y,
+                'textX2' => $x1 + max(0.0, strlen($text) * 5.0),
+                'textY2' => $y + 10.0,
+                'fontSize' => 10.0,
+            ];
+        };
+
+        $differentBaseline = $normalize([
+            $run('left', 72.0, 720.0),
+            $run(' ', 92.0, 720.0),
+            $run('right', 72.0, 700.0),
+        ]);
+        $sameBaseline = $normalize([
+            $run('left', 72.0, 720.0),
+            $run(' ', 92.0, 720.0),
+            $run('right', 96.0, 720.0),
+        ]);
+
+        $t->same(2, count($differentBaseline));
+        $t->same(false, $differentBaseline[1]['startsWithWhitespace'] ?? null);
+        $t->same(true, $sameBaseline[1]['startsWithWhitespace'] ?? null);
+    },
+    'carries literal whitespace-only positioned runs into the following table cell text' => static function (TestRunner $t) use ($pdfWithContent): void {
+        $pdf = $pdfWithContent(
+            'BT /F1 10 Tf '
+            . '1 0 0 1 72 720 Tm (Details) Tj 1 0 0 1 330 720 Tm (Code) Tj '
+            . '1 0 0 1 72 704 Tm (3.) Tj ( ) Tj (YIELD) Tj ( ) Tj (ESTIMATE) Tj ( ) Tj (\\(184.30) Tj ( ) Tj (million) Tj ( ) Tj (tons\\)) Tj 1 0 0 1 330 704 Tm (A-01) Tj '
+            . '1 0 0 1 72 688 Tm (4.) Tj ( ) Tj (AREA) Tj ( ) Tj (ESTIMATE) Tj 1 0 0 1 330 688 Tm (A-02) Tj '
+            . 'ET'
+        );
+
+        $document = (new PdfReader())->read($pdf);
+        $blocks = PandocConverter::write($document, 'blocks');
+        $meta = $document->attr('meta');
+
+        $t->same('table', $document->children[0]->type);
+        $t->same('geometry', $meta['pdfTableReconstruction']);
+        $t->contains('<td>3. YIELD ESTIMATE (184.30 million tons)</td><td>A-01</td>', $blocks);
+        $t->contains('<td>4. AREA ESTIMATE</td><td>A-02</td>', $blocks);
+        $t->true(!str_contains($blocks, '3.YIELDESTIMATE(184.30milliontons)'));
+        $t->true(!str_contains($blocks, '<td> </td>'));
+    },
     'preserves decoded word gaps and rgb table cell fills' => static function (TestRunner $t) use ($pdfWithContent): void {
         $pdf = $pdfWithContent(
             'q /DeviceRGB cs 0.9647058823529412 0.9686274509803922 0.9803921568627451 scn 70 714 320 18 re f 420 714 85 18 re f Q '
@@ -7849,6 +8294,17 @@ return [
         $t->same(2, $meta['pdfFilledRectangles']);
         $t->contains('<td>A</td><td data-pdf-fill-color="#e6e6e6" style="background-color:#e6e6e6"></td><td>C</td>', $blocks);
         $t->true(!str_contains($blocks, 'data-pdf-fill-color="#000000"'));
+    },
+    'preserves general positioned word continuations and calibrated spaces in pandoc ast blocks' => static function (TestRunner $t) use ($pdfWithIndirectSimpleFontPositionedWords): void {
+        $document = (new PdfReader())->read($pdfWithIndirectSimpleFontPositionedWords());
+        $blocks = PandocConverter::write($document, 'blocks');
+
+        $t->contains('>Your<', $blocks);
+        $t->contains('<p>with</p>', $blocks);
+        $t->contains('<p>go to</p>', $blocks);
+        $t->true(!str_contains($blocks, 'Yo ur'));
+        $t->true(!str_contains($blocks, 'w ith'));
+        $t->true(!str_contains($blocks, 'goto'));
     },
     'uses pdf simple font Widths for positioned text in pandoc ast blocks' => static function (TestRunner $t) use ($pdfWithSimpleFontWidthsForPositioning): void {
         $document = (new PdfReader())->read($pdfWithSimpleFontWidthsForPositioning());

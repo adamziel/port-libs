@@ -135,7 +135,7 @@
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p>Categories and Subject Descriptors D.3.4 [ Programming Languages]: Processors — Incremental compilers, code generation.</p>
+<p>Categories and Subject Descriptors D.3.4 [Programming Languages]: Processors — Incremental compilers, code generation.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
@@ -179,7 +179,7 @@
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p>Every compiled trace contains all the guards (checks) required to validate the speculation. If one of the guards fails (if control flow is different, or a value of a different type is generated), the trace exits. If an exit becomes hot, the VM can record a trace starting at the exit to cover the new path. In this way, the VM records a trace tree covering all the hot paths through the loop.</p>
+<p>Every compiled trace contains all the guards (checks) required to validate the speculation. If one of the guards fails (if control flow is different, or a value of a different type is generated), the trace exits. If an exit becomes hot, the VM can record a branch trace starting at the exit to cover the new path. In this way, the VM records a trace tree covering all the hot paths through the loop.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
@@ -240,18 +240,18 @@
 
 <!-- wp:code -->
 <pre class="wp-block-code"><code>v0 := ld state[748]      // load primes from the trace activation record
-       st sp[0], v0      // store primes to interpreter stack
+      st sp[0], v0       // store primes to interpreter stack
 v1 := ld state[764]      // load k from the trace activation record
-v2 := i2f(v1)            // convert k from int to double
-       st sp[8], v1      // store k to interpreter stack
-       st sp[16], 0      // store false to interpreter stack
-v3 := ld v0[4]           // load class word for primes
-v4 := and v3, -4         // mask out object class tag for primes
+v2 := i2f(v1)           // convert k from int to double
+      st sp[8], v1       // store k to interpreter stack
+      st sp[16], 0       // store false to interpreter stack
+v3 := ld v0[4]          // load class word for primes
+v4 := and v3, -4        // mask out object class tag for primes
 v5 := eq v4, Array       // test whether primes is an array
-       xf v5             // side exit if v5 is false
-v6 := js_Array_set(v0, v2, false)  // call function to set array element
-v7 := eq v6, 0           // test return value from call
-       xt v7             // side exit if js_Array_set returns false.</code></pre>
+      xf v5             // side exit if v5 is false
+v6 := js_Array_set(v0, v2, false)   // call function to set array element
+v7 := eq v6, 0          // test return value from call
+      xt v7             // side exit if js_Array_set returns false.</code></pre>
 <!-- /wp:code -->
 
 <!-- wp:paragraph -->
@@ -260,26 +260,26 @@ v7 := eq v6, 0           // test return value from call
 
 <!-- wp:code -->
 <pre class="wp-block-code"><code>mov edx, ebx(748)       // load primes from the trace activation record
-mov edi(0), edx         // (*) store primes to interpreter stack
+mov edi(0), edx        // (*) store primes to interpreter stack
 mov esi, ebx(764)       // load k from the trace activation record
-mov edi(8), esi         // (*) store k to interpreter stack
-mov edi(16), 0          // (*) store false to interpreter stack
-mov eax, edx(4)         // (*) load object class word for primes
-and eax, -4             // (*) mask out object class tag for primes
-cmp eax, Array          // (*) test whether primes is an array
-jne side_exit_1         // (*) side exit if primes is not an array
-sub esp, 8              // bump stack for call alignment convention
-push false              // push last argument for call
-push esi                // push first argument for call
+mov edi(8), esi        // (*) store k to interpreter stack
+mov edi(16), 0         // (*) store false to interpreter stack
+mov eax, edx(4)        // (*) load object class word for primes
+and eax, -4            // (*) mask out object class tag for primes
+cmp eax, Array         // (*) test whether primes is an array
+jne side_exit_1        // (*) side exit if primes is not an array
+sub esp, 8             // bump stack for call alignment convention
+push false             // push last argument for call
+push esi               // push first argument for call
 call js_Array_set       // call function to set array element
-add esp, 8              // clean up extra stack space
-mov ecx, ebx            // (*) created by register allocator
-test eax, eax           // (*) test return value of js_Array_set
-je side_exit_2          // (*) side exit if call failed
+add esp, 8             // clean up extra stack space
+mov ecx, ebx           // (*) created by register allocator
+test eax, eax          // (*) test return value of js_Array_set
+je side_exit_2         // (*) side exit if call failed
 side_exit_1:
 mov ecx, ebp(-4)        // restore ecx
-mov esp, ebp            // restore esp
-jmp epilog              // jump to ret statement</code></pre>
+mov esp, ebp           // restore esp
+jmp epilog             // jump to ret statement</code></pre>
 <!-- /wp:code -->
 
 <!-- wp:paragraph -->
@@ -299,7 +299,7 @@ jmp epilog              // jump to ret statement</code></pre>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p>i=4. On this iteration, TraceMonkey calls T 16. Because i=4, the if statement on line 2 is taken. This branch was not taken in the original trace, so this causes T16 to fail a guard and take a side exit. The exit is not yet hot, so TraceMonkey returns to the interpreter, which executes the continue statement. i=5. TraceMonkey calls T 16, which in turn calls the nested trace T 45. T16 loops back to its own header, starting the next iteration without ever returning to the monitor. i=6. On this iteration, the side exit on line 2 is taken again. This time, the side exit becomes hot, so a trace T 23, 1 is recorded that covers line 3 and returns to the loop header. Thus, the end of T 23, 1 jumps directly to the start of T 16. The side exit is patched so that on future iterations, it jumps directly to T 23, 1.</p>
+<p>i=4. On this iteration, TraceMonkey calls T 16. Because i=4, the if statement on line 2 is taken. This branch was not taken in the original trace, so this causes T 16 to fail a guard and take a side exit. The exit is not yet hot, so TraceMonkey returns to the interpreter, which executes the continue statement. i=5. TraceMonkey calls T 16, which in turn calls the nested trace T 45. T16 loops back to its own header, starting the next iteration without ever returning to the monitor. i=6. On this iteration, the side exit on line 2 is taken again. This time, the side exit becomes hot, so a trace T 23, 1 is recorded that covers line 3 and returns to the loop header. Thus, the end of T 23, 1 jumps directly to the start of T 16. The side exit is patched so that on future iterations, it jumps directly to T 23, 1.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
@@ -371,11 +371,7 @@ jmp epilog              // jump to ret statement</code></pre>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p>Representation specialization: numbers. JavaScript has no integer type, only a Number type that is the set of 64-bit IEEE- 754 floating-pointer numbers (“doubles”). But many JavaScript operators, in particular array accesses and bitwise operators, really operate on integers, so they first convert the number to an integer, and then convert any integer result back to a double.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
-<p>Clearly, a JavaScript VM that wants to be fast must find a way to operate on integers directly and avoid these conversions.</p>
+<p>Representation specialization: numbers. JavaScript has no integer type, only a Number type that is the set of 64-bit IEEE-754 floating-pointer numbers (“doubles”). But many JavaScript operators, in particular array accesses and bitwise operators, really operate on integers, so they first convert the number to an integer, and then convert any integer result back to a double.1 Clearly, a JavaScript VM that wants to be fast must find a way to operate on integers directly and avoid these conversions.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
@@ -439,7 +435,7 @@ jmp epilog              // jump to ret statement</code></pre>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p>1 Arrays are actually worse than this: if the index value is a number, it must be converted from a double to a string for the property access operator, and then to an integer internally to the array implementation.</p>
+<p>Arrays are actually worse than this: if the index value is a number, it must be converted from a double to a string for the property access operator, and then to an integer internally to the array implementation.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
@@ -491,7 +487,7 @@ jmp epilog              // jump to ret statement</code></pre>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p>For example, the program might exit at i5 and record a branch trace that incorporates the outer loop: {i5, i7, i1, i6, i7, i1, α}. Later, the program might take the other branch at i2 and then exit, recording another branch trace incorporating the outer loop: {i2, i4, i5, i7, i1, i6, i7, i1, α}. Thus, the outer loop is recorded and compiled twice, and both copies must be retained in the trace cache.</p>
+<p>For example, the program might exit at i5 and record a branch trace that incorporates the outer loop: {i, i, i, i, i, i, α}. Later, the program might take the other branch at i2 and then exit, recording another branch trace incorporating the outer loop: {i2, i4, i5, i7, i1, i6, i7, i1, α}. Thus, the outer loop is recorded and compiled twice, and both copies must be retained in the trace cache.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
@@ -523,11 +519,11 @@ jmp epilog              // jump to ret statement</code></pre>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p>The algorithm for building nested trace trees is as follows. We start tracing at loop headers exactly as in the basic tracing system. When we exit a loop (detected by comparing the interpreter PC with the range given by the loop edge), we stop the trace. The key step of the algorithm occurs when we are recording a trace for loop L R (R for loop being recorded) and we reach the header of a different loop L O (O for other loop). Note that L O must be an inner loop of L R because we stop the trace when we exit a loop.</p>
+<p>The algorithm for building nested trace trees is as follows. We start tracing at loop headers exactly as in the basic tracing system. When we exit a loop (detected by comparing the interpreter PC with the range given by the loop edge), we stop the trace. The key step of the algorithm occurs when we are recording a trace for loop LR (Rfor loop being recorded) and we reach the header of a different loop LO (Ofor other loop). Note that LO must be an inner loop of LR because we stop the trace when we exit a loop.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:list -->
-<ul><li>If L O has a type-matching compiled trace tree, we call L O as a nested trace tree. If the call succeeds, then we record the call in the trace for L R. On future executions, the trace for L R will call the inner trace directly.</li><li>If L O does not have a type-matching compiled trace tree yet, we have to obtain it before we are able to proceed. In order to do this, we simply abort recording the first trace. The trace monitor will see the inner loop header, and will immediately start recording the inner loop.</li></ul>
+<ul><li>If LO has a type-matching compiled trace tree, we call LO as a nested trace tree. If the call succeeds, then we record the call in the trace for LR. On future executions, the trace for LR will call the inner trace directly.</li><li>If LO does not have a type-matching compiled trace tree yet, we have to obtain it before we are able to proceed. In order to do this, we simply abort recording the first trace. The trace monitor will see the inner loop header, and will immediately start recording the inner loop. 2</li></ul>
 <!-- /wp:list -->
 
 <!-- wp:paragraph -->
@@ -567,7 +563,7 @@ jmp epilog              // jump to ret statement</code></pre>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p>2 Instead of aborting the outer recording, we could principally merely suspend the recording, but that would require the implementation to be able to record several traces simultaneously, complicating the implementation, while saving only a few iterations in the interpreter.</p>
+<p>Instead of aborting the outer recording, we could principally merely suspend the recording, but that would require the implementation to be able to record several traces simultaneously, complicating the implementation, while saving only a few iterations in the interpreter.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:heading {"level":2} -->
@@ -579,7 +575,7 @@ jmp epilog              // jump to ret statement</code></pre>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p>Every time the trace recorder emits a LIR instruction, the instruction is immediately passed to the first filter in the forward pipeline. Thus, forward filter optimizations are performed as the trace is recorded. Each filter may pass each instruction to the next filter unchanged, write a different instruction to the next filter, or write no instruction at all. For example, the constant folding filter can replace a multiply instruction like v 13: = mul 3, 1000 with a constant instruction v 13 = 3000.</p>
+<p>Every time the trace recorder emits a LIR instruction, the instruction is immediately passed to the first filter in the forward pipeline. Thus, forward filter optimizations are performed as the trace is recorded. Each filter may pass each instruction to the next filter unchanged, write a different instruction to the next filter, or write no instruction at all. For example, the constant folding filter can replace a multiply instruction like v 13 : = mul3, 1000 with a constant instruction v 13 = 3000.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
@@ -587,7 +583,7 @@ jmp epilog              // jump to ret statement</code></pre>
 <!-- /wp:paragraph -->
 
 <!-- wp:list -->
-<ul><li>On ISAs without floating-point instructions, a soft-float filter converts floating-point LIR instructions to sequences of integer instructions.</li><li>CSE (constant subexpression elimination),</li><li>expression simplification, including constant folding and a few algebraic identities (e.g., a−a= 0), and</li><li>source language semantic-specific expression simplification, primarily algebraic identities that allow DOUBLE to be replaced with INT. For example, LIR that converts an INT to a DOUBLE and then back again would be removed by this filter.</li></ul>
+<ul><li>On ISAs without floating-point instructions, a soft-float filter converts floating-point LIR instructions to sequences of integer instructions.</li><li>CSE (constant subexpression elimination),</li><li>expression simplification, including constant folding and a few algebraic identities (e.g., a − a = 0), and</li><li>source language semantic-specific expression simplification, primarily algebraic identities that allow DOUBLE to be replaced with INT. For example, LIR that converts an INT to a DOUBLE and then back again would be removed by this filter.</li></ul>
 <!-- /wp:list -->
 
 <!-- wp:paragraph -->
@@ -611,15 +607,15 @@ jmp epilog              // jump to ret statement</code></pre>
 <!-- /wp:heading -->
 
 <!-- wp:paragraph -->
-<p>We use a simple greedy register allocator that makes a single backward pass over the trace (it is integrated with the code generator). By the time the allocator has reached an instruction like v3 =add v1, v2, it has already assigned a register to v3. If v1 and v2 have not yet been assigned registers, the allocator assigns a free register to each. If there are no free registers, a value is selected for spilling. We use a class heuristic that selects the “oldest” register-carried value (6).</p>
+<p>We use a simple greedy register allocator that makes a single backward pass over the trace (it is integrated with the code generator). By the time the allocator has reached an instruction like v3 = add v1, v2, it has already assigned a register to v3. If v1 and v2 have not yet been assigned registers, the allocator assigns a free register to each. If there are no free registers, a value is selected for spilling. We use a class heuristic that selects the “oldest” register-carried value (6).</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p>The heuristic considers the set R of values v in registers immediately after the current instruction for spilling. Let v mbe the last instruction before the current where each v is referred to. Then the heuristic selects v with minimum v m. The motivation is that this frees up a register for as long as possible given a single spill.</p>
+<p>The heuristic considers the set R of values v in registers immediately after the current instruction for spilling. Let vm be the last instruction before the current where each v is referred to. Then the heuristic selects v with minimum vm. The motivation is that this frees up a register for as long as possible given a single spill.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p>If we need to spill a value v sat this point, we generate the restore code just after the code for the current instruction. The corresponding spill code is generated just after the last point where v swas used.</p>
+<p>If we need to spill a value vs at this point, we generate the restore code just after the code for the current instruction. The corresponding spill code is generated just after the last point where vs was used.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:heading {"level":2} -->
@@ -775,7 +771,7 @@ jmp epilog              // jump to ret statement</code></pre>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p>We developed a C++ static analysis and annotated some interpreter functions in order to verify that the call stack is refreshed at any point it needs to be used. In order to access the call stack, a function must be annotated as either F ORCES S TACK or R E-QUIRES S TACK. These annotations are also required in order to call R EQUIRES S TACK functions, which are presumed to access the call stack transitively. F ORCES S TACK is a trusted annotation, applied to only 5 functions, that means the function refreshes the call stack. R EQUIRES S TACK is an untrusted annotation that means the function may only be called if the call stack has already been refreshed.</p>
+<p>We developed a C++ static analysis and annotated some interpreter functions in order to verify that the call stack is refreshed at any point it needs to be used. In order to access the call stack, a function must be annotated as either FORCESSTACK or REQUIRESSTACK. These annotations are also required in order to call REQUIRESSTACK functions, which are presumed to access the call stack transitively. FORCESSTACK is a trusted annotation, applied to only 5 functions, that means the function refreshes the call stack. REQUIRESSTACK is an untrusted annotation that means the function may only be called if the call stack has already been refreshed.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
@@ -835,7 +831,7 @@ jmp epilog              // jump to ret statement</code></pre>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p>TraceMonkey is the fastest VM on 9 of the 26 benchmarks (3d-morph, bitops-3 bit-bits-in-byte, bitops-bitwise-and, crypto-sha1, math-cordic, math-partial-sums, math-spectral-norm, string-base 64, string-validate-input).</p>
+<p>TraceMonkey is the fastest VM on 9 of the 26 benchmarks (3d-morph, bitops-3 bit-bits-in-byte, bitops-bitwiseand, crypto-sha1, math-cordic, math-partial-sums, math-spectral-norm, string-base 64, string-validate-input).</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
@@ -851,7 +847,7 @@ jmp epilog              // jump to ret statement</code></pre>
 <!-- /wp:paragraph -->
 
 <!-- wp:list -->
-<ul><li>The implementation does not currently trace recursion, so TraceMonkey achieves a small speedup or no speedup on benchmarks that use recursion extensively: 3d-cube, 3d-raytrace, access-binary-trees, string-tagcloud, and controlflow-recursive.</li><li>The implementation does not currently trace eval and some other functions implemented in C. Because date-format-tofte and date-format-xparb use such functions in their main loops, we do not trace them.</li><li>The implementation does not currently trace through regular expression replace operations. The replace function can be passed a function object used to compute the replacement text.</li></ul>
+<ul><li>The implementation does not currently trace recursion, so TraceMonkey achieves a small speedup or no speedup on benchmarks that use recursion extensively: 3d-cube, 3d-raytrace, access-binary-trees, string-tagcloud, and controlflow-recursive.</li><li>The implementation does not currently traceevaland some other functions implemented in C. Because date-format-tofte and date-format-xparb use such functions in their main loops, we do not trace them.</li><li>The implementation does not currently trace through regular expression replace operations. The replace function can be passed a function object used to compute the replacement text.</li></ul>
 <!-- /wp:list -->
 
 <!-- wp:paragraph -->
@@ -875,98 +871,6 @@ jmp epilog              // jump to ret statement</code></pre>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p>3d-raytrace</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
-<p>access-binary-trees</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
-<p>access-fannkuch</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
-<p>access-nbody</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
-<p>access-nsieve</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
-<p>bitops-3 bit-bits-in-byte2 2 2</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
-<p>bitops-bits-in-byte</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
-<p>bitops-bitwise-and</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
-<p>bitops-nsieve-bits</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
-<p>controlflow-recursive 0 0 0</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
-<p>crypto-aes</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
-<p>crypto-md5</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
-<p>crypto-sha1</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
-<p>date-format-tofte</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
-<p>date-format-xparb</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
-<p>math-cordic</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
-<p>math-partial-sums</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
-<p>regexp-dna</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
-<p>string-base 64</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
-<p>string-fasta</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
-<p>string-tagcloud</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
-<p>string-unpack-code</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
-<p>string-validate-input 6 10 13</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>Figure 13. Detailed trace recording statistics for the SunSpider benchmark set.</p>
 <!-- /wp:paragraph -->
 
@@ -987,7 +891,7 @@ jmp epilog              // jump to ret statement</code></pre>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p>Our performance results confirm that type specialization using trace trees substantially improves performance. We are able to outperform the fastest available JavaScript compiler (V8) and the fastest available JavaScript inline threaded interpreter (SFX) on 9 of 26 benchmarks.</p>
+<p>Our performance results confirm that type specialization using trace trees substantially improves performance.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:heading {"level":2} -->
@@ -1003,7 +907,7 @@ jmp epilog              // jump to ret statement</code></pre>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p>Pall’s LuaJIT is a Lua VM in development that uses trace compilation ideas. (1). There are no publications on LuaJIT but the creator has told us that LuaJIT has a similar design to our system, but will use a less aggressive type speculation (e.g., using a floating-point representation for all number values) and does not generate nested traces for nested loops.</p>
+<p>Pall’s LuaJIT is a Lua VM in development that uses trace com-pilation ideas. (1). There are no publications on LuaJIT but the cre-ator has told us that LuaJIT has a similar design to our system, but will use a less aggressive type speculation (e.g., using a floating-point representation for all number values) and does not generate nested traces for nested loops.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
@@ -1047,7 +951,7 @@ jmp epilog              // jump to ret statement</code></pre>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p>Native code generation by interpreters. The traditional interpreter design is a virtual machine that directly executes ASTs or machine-code-like bytecodes. Researchers have shown how to generate native code with nearly the same structure but better performance.</p>
+<p>Native code generation by interpreters. The traditional interpreter design is a virtual machine that directly executes ASTs or machine-code-like bytecodes. Researchers have shown how to gen-erate native code with nearly the same structure but better performance.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
@@ -1103,7 +1007,7 @@ jmp epilog              // jump to ret statement</code></pre>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p>The U. S. Government is authorized to reproduce and distribute reprints for Governmental purposes notwithstanding any copyright annotation thereon. Any opinions, findings, and conclusions or recommendations expressed here are those of the author and should not be interpreted as necessarily representing the official views, policies or endorsements, either expressed or implied, of the National Science foundation (NSF), any other agency of the U. S. Government, or any of the companies mentioned above.</p>
+<p>The U. S. Government is authorized to reproduce and distribute reprints for Governmental purposes notwithstanding any copyright annotation thereon. Any opinions, findings, and conclusions or recommendations expressed here are those of the author and should not be interpreted as necessarily representing the official views, policies or endorsements, either expressed or implied, of the Na-tional Science foundation (NSF), any other agency of the U. S. Gov-ernment, or any of the companies mentioned above.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:heading {"level":2} -->
@@ -1179,7 +1083,7 @@ jmp epilog              // jump to ret statement</code></pre>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p>[18] T. Suganuma, T. Yasue, and T. Nakatani. A Region-Based Compilation Technique for Dynamic Compilers. ACM Transactions on Programming Languages and Systems (TOPLAS), 28(1): 134–174, 2006.</p>
+<p>[18] T. Suganuma, T. Yasue, and T. Nakatani. A Region-Based Compilation Technique for Dynamic Compilers. ACM Transactions on Programming Languages and Systems (TOPLAS), 28 (1): 134–174, 2006.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
