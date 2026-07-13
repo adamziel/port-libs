@@ -42,37 +42,41 @@ final class PdfReader
             $extractorOptions['pdfMaxPositionedTextRuns'] = $this->automaticPositionedTextRunLimit($maxTextBytes);
         }
         $extractor = new PdfTextExtractor($extractorOptions);
-        $textLineItems = $this->normalizePdfTextLineItems($extractor->extractTextLineItems($pdfBytes));
-        $pdfTextLineCount = count($textLineItems);
-        $pdfTextBytes = $this->pdfTextLineItemsByteLength($textLineItems);
-        $limitedTextLineItems = $this->limitPdfTextLineItems($textLineItems, $maxTextBytes);
-        $limitedLines = array_column($limitedTextLineItems, 'text');
-        $pdfTextInsertedBytes = $this->pdfTextLineItemsByteLength($limitedTextLineItems);
-        unset($textLineItems);
-        $this->releaseTransientPdfMemory();
         $geometryTablesEnabled = !$fastTextOnly && $this->geometryTablesEnabled();
         $proseRepairEnabled = !$fastTextOnly && $this->proseTextRepairEnabled();
-        // Finish object-graph-heavy diagnostics before geometry extraction so
-        // their transient allocator pages can be released between phases.
+        // Complete object-graph-heavy diagnostics before retaining import
+        // facts, so its allocator pages do not overlap geometry records.
         $diagnostics = $fastTextOnly ? $this->fastTextOnlyDiagnostics() : $extractor->diagnostics($pdfBytes);
         $this->releaseTransientPdfMemory();
-        $runs = $fastTextOnly ? [] : $extractor->extractTextRuns($pdfBytes);
-        $pdfTextRunCount = count($runs);
+        $importFacts = $this->collectPdfImportFacts(
+            $extractor,
+            $pdfBytes,
+            $maxTextBytes,
+            !$fastTextOnly,
+            !$fastTextOnly && ($geometryTablesEnabled || $proseRepairEnabled),
+            $geometryTablesEnabled,
+            $proseRepairEnabled
+        );
+        $limitedTextLineItems = $importFacts['limitedTextLineItems'];
+        $limitedLines = array_column($limitedTextLineItems, 'text');
+        $pdfTextLineCount = $importFacts['textLineCount'];
+        $pdfTextBytes = $importFacts['textBytes'];
+        $pdfTextInsertedBytes = $this->pdfTextLineItemsByteLength($limitedTextLineItems);
+        $runs = $importFacts['rawRuns'];
+        $pdfTextRunCount = $importFacts['textRunCount'];
         // Raw text-showing operators can cross a visual line or a font switch.
         // When positioned text is available, it is the only reliable evidence
         // for spacing; otherwise a raw adjacency can turn "a trace" into
         // "atrace" or join the end of one line to the next.
         $rawSplitWordHints = $proseRepairEnabled ? $this->pdfTextRunSplitWordHints($runs) : [];
         unset($runs);
-        $this->releaseTransientPdfMemory();
-        $positionedRuns = (!$fastTextOnly && ($geometryTablesEnabled || $proseRepairEnabled)) ? $extractor->extractPositionedTextRuns($pdfBytes) : [];
-        $pdfPositionedTextRunCount = count($positionedRuns);
-        $limitedPositionedRuns = $this->limitPositionedTextRuns($positionedRuns, $maxTextBytes);
+        $limitedPositionedRuns = $importFacts['limitedPositionedTextRuns'];
+        $pdfPositionedTextRunCount = $importFacts['positionedTextRunCount'];
         $pdfPositionedTextInsertedRunCount = count($limitedPositionedRuns);
-        unset($positionedRuns);
-        $this->releaseTransientPdfMemory();
-        $filledRectangles = $geometryTablesEnabled ? $extractor->extractFilledRectangles($pdfBytes) : [];
+        $filledRectangles = $importFacts['filledRectangles'];
         $pdfFilledRectangleCount = count($filledRectangles);
+        unset($importFacts);
+        $this->releaseTransientPdfMemory();
         $repairSplitWordHints = [];
         // Split and spacing hints are only consumed by the prose-repair path.
         // Building them from every positioned glyph run can dominate memory on
@@ -334,6 +338,106 @@ final class PdfReader
         }
     }
 
+    /**
+     * Consume shared PDF facts as they are decoded. The reader ultimately
+     * needs only a bounded prefix of text and positioned runs, while raw text
+     * is retained only when prose repair needs cross-run evidence.
+     *
+     * @return array{
+     *     limitedTextLineItems: list<array{page: int, stream: int, text: string}>,
+     *     textLineCount: int,
+     *     textBytes: int,
+     *     rawRuns: list<string>,
+     *     textRunCount: int,
+     *     limitedPositionedTextRuns: list<array<string, mixed>>,
+     *     positionedTextRunCount: int,
+     *     filledRectangles: list<array<string, mixed>>
+     * }
+     */
+    private function collectPdfImportFacts(
+        PdfTextExtractor $extractor,
+        string $pdfBytes,
+        int $maxTextBytes,
+        bool $includeTextRuns,
+        bool $includePositionedTextRuns,
+        bool $includeFilledRectangles,
+        bool $retainRawRuns
+    ): array {
+        $limitedTextLineItems = [];
+        $textLineCount = 0;
+        $textBytes = 0;
+        $textSourceIndex = 0;
+        $limitedTextBytes = 0;
+        $textLimitReached = $maxTextBytes <= 0;
+        $rawRuns = [];
+        $textRunCount = 0;
+        $limitedPositionedTextRuns = [];
+        $positionedTextRunCount = 0;
+        $positionedBytes = 0;
+        $positionedLimitReached = $maxTextBytes <= 0;
+        $filledRectangles = [];
+
+        foreach ($extractor->streamImportFacts(
+            $pdfBytes,
+            $includeTextRuns,
+            $includePositionedTextRuns,
+            $includeFilledRectangles
+        ) as $facts) {
+            foreach ($facts['textLineItems'] as $item) {
+                $normalizedItem = $this->normalizePdfTextLineItem($item, $textSourceIndex);
+                $textSourceIndex++;
+                if ($normalizedItem === null) {
+                    continue;
+                }
+
+                $textBytes += strlen($normalizedItem['text']) + ($textLineCount === 0 ? 0 : 1);
+                $textLineCount++;
+                if (!$textLimitReached && !$this->appendLimitedPdfTextLineItem(
+                    $limitedTextLineItems,
+                    $limitedTextBytes,
+                    $normalizedItem,
+                    $maxTextBytes
+                )) {
+                    $textLimitReached = true;
+                }
+            }
+
+            foreach ($facts['textRuns'] as $run) {
+                $textRunCount++;
+                if ($retainRawRuns) {
+                    $rawRuns[] = $run;
+                }
+            }
+
+            foreach ($facts['positionedTextRuns'] as $run) {
+                $positionedTextRunCount++;
+                if (!$positionedLimitReached && !$this->appendLimitedPositionedTextRun(
+                    $limitedPositionedTextRuns,
+                    $positionedBytes,
+                    $run,
+                    $maxTextBytes
+                )) {
+                    $positionedLimitReached = true;
+                }
+            }
+
+            foreach ($facts['filledRectangles'] as $rectangle) {
+                $filledRectangles[] = $rectangle;
+            }
+        }
+
+        return [
+            'limitedTextLineItems' => $limitedTextLineItems,
+            'textLineCount' => $textLineCount,
+            'textBytes' => $textBytes,
+            'rawRuns' => $rawRuns,
+            'textRunCount' => $textRunCount,
+            'limitedPositionedTextRuns' => $limitedPositionedTextRuns,
+            'positionedTextRunCount' => $positionedTextRunCount,
+            'filledRectangles' => $filledRectangles,
+        ];
+    }
+
     private function geometryTablesEnabled(): bool
     {
         foreach (['pdfGeometryTables', 'geometryTables', 'extractGeometryTables'] as $key) {
@@ -508,21 +612,35 @@ final class PdfReader
     {
         $normalized = [];
         foreach ($items as $index => $item) {
-            $line = isset($item['text']) ? (string) $item['text'] : '';
-            $line = $this->normalizePdfTextEncoding($line);
-            $line = str_replace("\0", '', $line);
-            $line = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/u', ' ', $line) ?? $line;
-            $line = trim($line);
-            if ($line !== '') {
-                $normalized[] = [
-                    'page' => max(1, (int) ($item['page'] ?? $index + 1)),
-                    'stream' => max(1, (int) ($item['stream'] ?? $index + 1)),
-                    'text' => $line,
-                ];
+            $normalizedItem = $this->normalizePdfTextLineItem($item, $index);
+            if ($normalizedItem !== null) {
+                $normalized[] = $normalizedItem;
             }
         }
 
         return $normalized;
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @return array{page: int, stream: int, text: string}|null
+     */
+    private function normalizePdfTextLineItem(array $item, int $index): ?array
+    {
+        $line = isset($item['text']) ? (string) $item['text'] : '';
+        $line = $this->normalizePdfTextEncoding($line);
+        $line = str_replace("\0", '', $line);
+        $line = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/u', ' ', $line) ?? $line;
+        $line = trim($line);
+        if ($line === '') {
+            return null;
+        }
+
+        return [
+            'page' => max(1, (int) ($item['page'] ?? $index + 1)),
+            'stream' => max(1, (int) ($item['stream'] ?? $index + 1)),
+            'text' => $line,
+        ];
     }
 
     /**
@@ -589,28 +707,43 @@ final class PdfReader
      */
     private function limitPdfTextLineItems(array $items, int $maxBytes): array
     {
-        if ($maxBytes <= 0) {
-            return [];
-        }
-
         $limited = [];
         $bytes = 0;
         foreach ($items as $item) {
-            $line = $item['text'];
-            $nextBytes = strlen($line) + ($limited === [] ? 0 : 1);
-            if ($bytes + $nextBytes > $maxBytes) {
-                $remaining = $maxBytes - $bytes - ($limited === [] ? 0 : 1);
-                $line = $remaining > 0 ? trim(substr($line, 0, $remaining)) : '';
-                if ($line !== '') {
-                    $limited[] = array_replace($item, ['text' => $line]);
-                }
+            if (!$this->appendLimitedPdfTextLineItem($limited, $bytes, $item, $maxBytes)) {
                 break;
             }
-            $limited[] = $item;
-            $bytes += $nextBytes;
         }
 
         return $limited;
+    }
+
+    /**
+     * @param list<array{page: int, stream: int, text: string}> $items
+     * @param array{page: int, stream: int, text: string} $item
+     */
+    private function appendLimitedPdfTextLineItem(array &$items, int &$bytes, array $item, int $maxBytes): bool
+    {
+        if ($maxBytes <= 0) {
+            return false;
+        }
+
+        $line = $item['text'];
+        $nextBytes = strlen($line) + ($items === [] ? 0 : 1);
+        if ($bytes + $nextBytes > $maxBytes) {
+            $remaining = $maxBytes - $bytes - ($items === [] ? 0 : 1);
+            $line = $remaining > 0 ? trim(substr($line, 0, $remaining)) : '';
+            if ($line !== '') {
+                $items[] = array_replace($item, ['text' => $line]);
+            }
+
+            return false;
+        }
+
+        $items[] = $item;
+        $bytes += $nextBytes;
+
+        return true;
     }
 
     /**
@@ -619,28 +752,41 @@ final class PdfReader
      */
     private function limitPositionedTextRuns(array $runs, int $maxBytes): array
     {
-        if ($maxBytes <= 0) {
-            return [];
-        }
-
         $limited = [];
         $bytes = 0;
         foreach ($runs as $run) {
-            $text = isset($run['text']) ? (string) $run['text'] : '';
-            if ($text === '') {
-                continue;
-            }
-
-            $nextBytes = strlen($text) + ($limited === [] ? 0 : 1);
-            if ($bytes + $nextBytes > $maxBytes) {
+            if (!$this->appendLimitedPositionedTextRun($limited, $bytes, $run, $maxBytes)) {
                 break;
             }
-
-            $limited[] = $run;
-            $bytes += $nextBytes;
         }
 
         return $limited;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $runs
+     * @param array<string, mixed> $run
+     */
+    private function appendLimitedPositionedTextRun(array &$runs, int &$bytes, array $run, int $maxBytes): bool
+    {
+        if ($maxBytes <= 0) {
+            return false;
+        }
+
+        $text = isset($run['text']) ? (string) $run['text'] : '';
+        if ($text === '') {
+            return true;
+        }
+
+        $nextBytes = strlen($text) + ($runs === [] ? 0 : 1);
+        if ($bytes + $nextBytes > $maxBytes) {
+            return false;
+        }
+
+        $runs[] = $run;
+        $bytes += $nextBytes;
+
+        return true;
     }
 
     /**

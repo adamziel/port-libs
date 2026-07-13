@@ -48,8 +48,26 @@ final class MediaBag
 
     public function insertMedia(string $source, ?string $mimeType, string $contents): void
     {
+        $entry = self::directoryEntry($source, $mimeType, strlen($contents), sha1($contents));
+        $this->itemsByCanonicalSource[$entry['canonicalSource']] = $entry + ['contents' => $contents];
+    }
+
+    /**
+     * Build the stable media metadata without retaining its body. EPUB uses
+     * this after hashing a ZIP entry as a stream.
+     *
+     * @return array{source:string, canonicalSource:string, sourcePath:string, path:string, pathRepairSummary:string, mimeType:string, mimeTypeSource:string, inferredMimeType:string, mimeRepairSummary:string, sha1:string, byteLength:int}
+     */
+    public static function directoryEntry(string $source, ?string $mimeType, int $byteLength, string $sha1): array
+    {
         if ($source === '') {
             throw new \InvalidArgumentException('Media bag source must not be empty');
+        }
+        if ($byteLength < 0) {
+            throw new \InvalidArgumentException('Media bag byte length must not be negative');
+        }
+        if (preg_match('/^[a-f0-9]{40}$/', $sha1) !== 1) {
+            throw new \InvalidArgumentException('Media bag SHA-1 must be a lowercase hexadecimal digest');
         }
 
         $canonicalSource = self::canonicalizeSource($source);
@@ -63,12 +81,12 @@ final class MediaBag
         $normalizedMimeType = $mimeTypeSource === 'path'
             ? $inferredMimeType
             : $declaredMimeType;
-        $hashPath = sha1($contents) . self::extensionFor($normalizedMimeType, $sourcePath);
+        $hashPath = $sha1 . self::extensionFor($normalizedMimeType, $sourcePath);
         $path = str_starts_with($source, 'data:')
             ? $hashPath
             : (self::isSafeRelativeMediaPath($decodedSource) ? $decodedSource : $hashPath);
 
-        $this->itemsByCanonicalSource[$canonicalSource] = [
+        return [
             'source' => $source,
             'canonicalSource' => $canonicalSource,
             'sourcePath' => $sourcePath,
@@ -78,9 +96,8 @@ final class MediaBag
             'mimeTypeSource' => $mimeTypeSource,
             'inferredMimeType' => $inferredMimeType,
             'mimeRepairSummary' => self::mimeRepairSummary($source, $sourcePath, $path, $mimeTypeSource, $normalizedMimeType, $inferredMimeType),
-            'contents' => $contents,
-            'sha1' => sha1($contents),
-            'byteLength' => strlen($contents),
+            'sha1' => $sha1,
+            'byteLength' => $byteLength,
         ];
     }
 

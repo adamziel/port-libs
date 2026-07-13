@@ -10,7 +10,19 @@ namespace PortLibs\Pandoc;
  */
 interface EpubArchive
 {
+    /**
+     * @return list<string>
+     */
+    public function names(): array;
+
     public function has(string $partName): bool;
 
     public function read(string $partName): string;
+
+    public function readBounded(string $partName, int $maxUncompressedBytes): string;
+
+    /**
+     * @return array{byteLength:int, sha1:string}
+     */
+    public function entryDigest(string $partName): array;
 }

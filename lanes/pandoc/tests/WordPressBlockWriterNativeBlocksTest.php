@@ -12,6 +12,39 @@ $tableCell = static fn (string $value, array $attrs = []): AstNode => new AstNod
 $tableRow = static fn (array $cells): AstNode => new AstNode('table_row', [], $cells);
 
 return [
+    'emits the same wordpress blocks through a streaming sink' => static function (TestRunner $t) use ($paragraph, $text): void {
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['html' => '<del>']),
+            $paragraph('Deleted text.'),
+            new AstNode('raw_html', ['html' => '</del>']),
+            new AstNode('list_item', [], [$text('First')]),
+            new AstNode('list_item', [], [$text('Second')]),
+            new AstNode('paragraph', [], [
+                $text('With a note'),
+                new AstNode('note', [], [$paragraph('Footnote body.')]),
+            ]),
+        ]);
+
+        $expected = (new WordPressBlockWriter())->write($document);
+        $chunks = [];
+        (new WordPressBlockWriter())->writeTo($document, static function (string $chunk) use (&$chunks): void {
+            $chunks[] = $chunk;
+        });
+        $t->same($expected, implode('', $chunks));
+        $t->true(count($chunks) > 1, 'streaming writer should emit multiple bounded chunks');
+
+        $nodes = static function () use ($document): iterable {
+            foreach ($document->children as $node) {
+                yield $node;
+            }
+        };
+        $nodeChunks = [];
+        (new WordPressBlockWriter())->writeNodesTo($nodes(), static function (string $chunk) use (&$nodeChunks): void {
+            $nodeChunks[] = $chunk;
+        });
+        $t->same($expected, implode('', $nodeChunks));
+    },
+
     'renders metadata review as native group and list blocks' => static function (TestRunner $t) use ($text): void {
         $document = new AstNode('document', [
             'meta' => [

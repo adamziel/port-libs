@@ -17,7 +17,7 @@ final class EpubZipArchive implements EpubArchive
     private function __construct(
         private readonly \ZipArchive $archive,
         private readonly array $entries,
-        private readonly string $temporaryPath,
+        private readonly ?string $temporaryPath,
     ) {
     }
 
@@ -56,10 +56,34 @@ final class EpubZipArchive implements EpubArchive
         }
     }
 
+    public static function fromFile(string $path): self
+    {
+        if (!is_file($path) || !is_readable($path)) {
+            throw new \RuntimeException("Unable to open EPUB archive '{$path}'");
+        }
+
+        $archive = new \ZipArchive();
+        $opened = $archive->open($path, \ZipArchive::RDONLY);
+        if ($opened !== true) {
+            throw new \RuntimeException("Unable to open EPUB ZIP package '{$path}'");
+        }
+
+        try {
+            $entries = self::indexEntries($archive);
+        } catch (\Throwable $exception) {
+            $archive->close();
+            throw $exception;
+        }
+
+        return new self($archive, $entries, null);
+    }
+
     public function __destruct()
     {
         $this->archive->close();
-        @unlink($this->temporaryPath);
+        if ($this->temporaryPath !== null) {
+            @unlink($this->temporaryPath);
+        }
     }
 
     public function has(string $partName): bool
@@ -67,29 +91,146 @@ final class EpubZipArchive implements EpubArchive
         return isset($this->entries[self::normalizeLookupPartName($partName)]);
     }
 
+    /**
+     * @return list<string>
+     */
+    public function names(): array
+    {
+        return array_keys($this->entries);
+    }
+
     public function read(string $partName): string
+    {
+        return $this->readBounded($partName, PHP_INT_MAX);
+    }
+
+    public function readBounded(string $partName, int $maxUncompressedBytes): string
+    {
+        if ($maxUncompressedBytes < 0) {
+            throw new \InvalidArgumentException('ZIP entry read limit must not be negative');
+        }
+
+        [$name, $entry] = $this->entry($partName);
+        if ($entry['size'] > $maxUncompressedBytes) {
+            throw new \RuntimeException(
+                "ZIP package entry {$name} exceeds maximum uncompressed read size {$maxUncompressedBytes} bytes"
+            );
+        }
+        if ($entry['directory']) {
+            return '';
+        }
+
+        $stream = $this->openEntryStream($name);
+        $contents = '';
+        $length = 0;
+        $crc = hash_init('crc32b');
+        try {
+            while (!feof($stream)) {
+                $chunk = fread($stream, 8192);
+                if ($chunk === false) {
+                    throw new \RuntimeException("Unable to read ZIP package entry: {$name}");
+                }
+                if ($chunk === '') {
+                    continue;
+                }
+                $length += strlen($chunk);
+                if ($length > $maxUncompressedBytes) {
+                    throw new \RuntimeException(
+                        "ZIP package entry {$name} exceeds maximum uncompressed read size {$maxUncompressedBytes} bytes"
+                    );
+                }
+                hash_update($crc, $chunk);
+                $contents .= $chunk;
+            }
+        } finally {
+            fclose($stream);
+        }
+
+        $this->assertEntryIntegrity($name, $entry, $length, hash_final($crc));
+
+        return $contents;
+    }
+
+    /**
+     * @return array{byteLength:int, sha1:string}
+     */
+    public function entryDigest(string $partName): array
+    {
+        [$name, $entry] = $this->entry($partName);
+        if ($entry['directory']) {
+            return [
+                'byteLength' => 0,
+                'sha1' => sha1(''),
+            ];
+        }
+
+        $stream = $this->openEntryStream($name);
+        $length = 0;
+        $crc = hash_init('crc32b');
+        $sha1 = hash_init('sha1');
+        try {
+            while (!feof($stream)) {
+                $chunk = fread($stream, 8192);
+                if ($chunk === false) {
+                    throw new \RuntimeException("Unable to read ZIP package entry: {$name}");
+                }
+                if ($chunk === '') {
+                    continue;
+                }
+                $length += strlen($chunk);
+                hash_update($crc, $chunk);
+                hash_update($sha1, $chunk);
+            }
+        } finally {
+            fclose($stream);
+        }
+
+        $this->assertEntryIntegrity($name, $entry, $length, hash_final($crc));
+
+        return [
+            'byteLength' => $length,
+            'sha1' => hash_final($sha1),
+        ];
+    }
+
+    /**
+     * @return array{0:string, 1:array{index:int, size:int, crc:int, directory:bool}}
+     */
+    private function entry(string $partName): array
     {
         $name = self::normalizeLookupPartName($partName);
         $entry = $this->entries[$name] ?? null;
         if (!is_array($entry)) {
             throw new \RuntimeException("ZIP package entry not found: {$partName}");
         }
-        if ($entry['directory']) {
-            return '';
+
+        return [$name, $entry];
+    }
+
+    /**
+     * @return resource
+     */
+    private function openEntryStream(string $name)
+    {
+        $stream = $this->archive->getStream($name);
+        if (!is_resource($stream)) {
+            throw new \RuntimeException("Unable to open ZIP package entry stream: {$name}");
         }
 
-        $bytes = $this->archive->getFromIndex($entry['index']);
-        if (!is_string($bytes)) {
-            throw new \RuntimeException("Unable to read ZIP package entry: {$partName}");
-        }
-        if (strlen($bytes) !== $entry['size']) {
-            throw new \RuntimeException("ZIP package entry {$partName} expanded to an unexpected size");
-        }
-        if (self::unsignedCrc32($bytes) !== $entry['crc']) {
-            throw new \RuntimeException("ZIP package entry {$partName} failed CRC32 verification");
-        }
+        return $stream;
+    }
 
-        return $bytes;
+    /**
+     * @param array{index:int, size:int, crc:int, directory:bool} $entry
+     */
+    private function assertEntryIntegrity(string $name, array $entry, int $length, string $crc32b): void
+    {
+        if ($length !== $entry['size']) {
+            throw new \RuntimeException("ZIP package entry {$name} expanded to an unexpected size");
+        }
+        if ((int) hexdec($crc32b) !== $entry['crc']) {
+            throw new \RuntimeException("ZIP package entry {$name} failed CRC32 verification");
+        }
     }
 
     /**
@@ -158,10 +299,4 @@ final class EpubZipArchive implements EpubArchive
         }
     }
 
-    private static function unsignedCrc32(string $bytes): int
-    {
-        $crc = crc32($bytes);
-
-        return $crc < 0 ? $crc + 4294967296 : $crc;
-    }
 }

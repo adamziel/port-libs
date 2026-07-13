@@ -13,6 +13,13 @@ final class PandocHtmlTagSoupTableReader
     /** @var array<string, list<AstNode>> */
     private array $footnotes = [];
 
+    private PandocHtmlAttributeMapPool $attributeMapPool;
+
+    public function __construct(?PandocHtmlAttributeMapPool $attributeMapPool = null)
+    {
+        $this->attributeMapPool = $attributeMapPool ?? new PandocHtmlAttributeMapPool();
+    }
+
     /**
      * @return list<TagSoupTag>
      */
@@ -191,12 +198,11 @@ final class PandocHtmlTagSoupTableReader
         $count = count($tokens);
 
         for ($index = 0; $index < $count; ++$index) {
-            $token = $tokens->tokenAt($index);
-            if (!$token instanceof TagSoupTag || $token->type !== TagSoupTag::OPEN || !$this->isFootnoteContainer($token)) {
+            if ($tokens->typeAt($index) !== TagSoupTag::OPEN || !$this->isFootnoteContainerAt($tokens, $index)) {
                 continue;
             }
 
-            $containerEnd = $this->balancedTokenStreamElementEnd($tokens, $index, $token->name, $count);
+            $containerEnd = $this->balancedTokenStreamElementEnd($tokens, $index, $tokens->nameAt($index) ?? '', $count);
             $container = $tokens->slice($index, $containerEnd - $index);
             foreach ($this->footnoteDefinitionsFromTokens($container) as $id => $blocks) {
                 if (!isset($definitions[$id])) {
@@ -213,15 +219,12 @@ final class PandocHtmlTagSoupTableReader
     {
         $depth = 0;
         for ($index = $start; $index < $limit; ++$index) {
-            $token = $tokens->tokenAt($index);
-            if (!$token instanceof TagSoupTag) {
-                continue;
-            }
-            if ($token->type === TagSoupTag::OPEN && $token->name === $name) {
+            $type = $tokens->typeAt($index);
+            if ($type === TagSoupTag::OPEN && $tokens->nameAt($index) === $name) {
                 ++$depth;
                 continue;
             }
-            if ($token->type === TagSoupTag::CLOSE && $token->name === $name) {
+            if ($type === TagSoupTag::CLOSE && $tokens->nameAt($index) === $name) {
                 --$depth;
                 if ($depth <= 0) {
                     return $index + 1;
@@ -1347,6 +1350,17 @@ final class PandocHtmlTagSoupTableReader
         return in_array('footnotes', $this->classes($tag), true);
     }
 
+    private function isFootnoteContainerAt(TagSoupTokenStream $tokens, int $index): bool
+    {
+        if (strtolower(trim($tokens->attributeAt($index, 'role'))) === 'doc-endnotes') {
+            return true;
+        }
+
+        $classes = preg_split('/\s+/', trim($tokens->attributeAt($index, 'class')), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+
+        return in_array('footnotes', $classes, true);
+    }
+
     /**
      * @return list<string>
      */
@@ -1430,13 +1444,13 @@ final class PandocHtmlTagSoupTableReader
             $attrs['id'] = $id;
         }
         if ($classes !== []) {
-            $attrs['classes'] = $classes;
+            $attrs['classes'] = $this->attributeMapPool->intern($classes);
         }
         if ($attributes !== []) {
-            $attrs['attributes'] = $attributes;
+            $attrs['attributes'] = $this->attributeMapPool->intern($attributes);
         }
         if ($htmlAttributes !== []) {
-            $attrs['htmlAttributes'] = $htmlAttributes;
+            $attrs['htmlAttributes'] = $this->attributeMapPool->intern($htmlAttributes);
         }
 
         return $attrs;

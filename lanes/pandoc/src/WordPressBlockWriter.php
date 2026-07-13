@@ -34,90 +34,155 @@ final class WordPressBlockWriter
 
     public function write(AstNode $document): string
     {
+        $output = '';
+        $this->writeTo($document, static function (string $chunk) use (&$output): void {
+            $output .= $chunk;
+        });
+
+        return $output;
+    }
+
+    /**
+     * Emit WordPress block markup without retaining the final document string.
+     *
+     * @param callable(string): void $sink
+     */
+    public function writeTo(AstNode $document, callable $sink): void
+    {
         if ($document->type !== 'document') {
             throw new \InvalidArgumentException('WordPress writer expects a document node');
         }
 
+        $this->writeNodesTo($document->children, $sink, $document);
+    }
+
+    /**
+     * Emit a lazy sequence of top-level document nodes. The optional document
+     * carries metadata when callers request the metadata review block.
+     *
+     * @param iterable<AstNode> $nodes
+     * @param callable(string): void $sink
+     */
+    public function writeNodesTo(iterable $nodes, callable $sink, ?AstNode $metadataDocument = null): void
+    {
+        if ($metadataDocument !== null && $metadataDocument->type !== 'document') {
+            throw new \InvalidArgumentException('WordPress writer metadata source expects a document node');
+        }
+
         $previousFootnotes = $this->footnotes;
         $this->footnotes = [];
-        $output = '';
-        $outputBlockCount = 0;
-        $pendingList = [];
-        if ((bool) ($this->options['includeMetadata'] ?? false)) {
-            $metadataBlock = $this->renderMetadataReviewBlock($document);
-            if ($metadataBlock !== '') {
-                $this->appendTopLevelBlock($output, $outputBlockCount, $metadataBlock);
-            }
-        }
-        $children = $document->children;
-        for ($index = 0, $count = count($children); $index < $count; $index++) {
-            $node = $children[$index];
-            if ($node->type !== 'list_item') {
-                $this->flushList($pendingList, $output, $outputBlockCount);
-            }
-            if ($this->shouldSkipEmptyParagraphLikeBlock($node)) {
-                continue;
-            }
-            if ($node->type === 'heading') {
-                $level = (int) $node->attr('level', 2);
-                $headingAttrs = ['level' => $level];
-                $alignment = $this->blockTextAlignment($node);
-                if ($alignment !== '') {
-                    $headingAttrs['textAlign'] = $alignment;
+        try {
+            $outputBlockCount = 0;
+            $appendBlock = static function (string $block) use ($sink, &$outputBlockCount): void {
+                if ($outputBlockCount > 0) {
+                    $sink("\n\n");
                 }
-                $headingAttrs = array_replace($headingAttrs, $this->blockColorCommentAttrs($node));
-                $this->appendTopLevelBlock($output, $outputBlockCount, $this->blockComment('heading', $headingAttrs)
-                    . "\n" . '<h' . $level . $this->renderHeadingAttrs($node) . '>' . $this->renderInlines($node) . '</h' . $level . '>'
-                    . "\n" . '<!-- /wp:heading -->');
-            } elseif ($node->type === 'paragraph') {
-                $this->appendTopLevelBlock($output, $outputBlockCount, $this->renderParagraphBlock($node));
-            } elseif ($node->type === 'plain') {
-                $this->appendTopLevelBlock($output, $outputBlockCount, '<!-- wp:paragraph -->'
-                    . "\n" . '<p>' . $this->renderInlines($node) . '</p>'
-                    . "\n" . '<!-- /wp:paragraph -->');
-            } elseif ($node->type === 'bullet_list') {
-                $this->appendTopLevelBlock($output, $outputBlockCount, $this->renderList($node, false));
-            } elseif ($node->type === 'ordered_list') {
-                $this->appendTopLevelBlock($output, $outputBlockCount, $this->renderList($node, true));
-            } elseif ($node->type === 'definition_list') {
-                $this->appendTopLevelBlock($output, $outputBlockCount, $this->renderDefinitionList($node));
-            } elseif ($node->type === 'table') {
-                $this->appendTopLevelBlock($output, $outputBlockCount, $this->renderTable($node));
-            } elseif ($node->type === 'raw_html') {
-                $inlineContainer = $this->tryRenderRawHtmlInlineContainerParagraph($children, $index);
-                if ($inlineContainer !== null) {
-                    $this->appendTopLevelBlock($output, $outputBlockCount, $inlineContainer);
-                    continue;
+                $sink($block);
+                $outputBlockCount++;
+            };
+            $pendingList = [];
+            if ((bool) ($this->options['includeMetadata'] ?? false) && $metadataDocument !== null) {
+                $metadataBlock = $this->renderMetadataReviewBlock($metadataDocument);
+                if ($metadataBlock !== '') {
+                    $appendBlock($metadataBlock);
                 }
-                $this->appendTopLevelBlock($output, $outputBlockCount, $this->renderRawHtmlBlock($node));
-            } elseif ($node->type === 'raw_tex') {
-                $this->appendTopLevelBlock($output, $outputBlockCount, $this->renderRawTexBlock($node));
-            } elseif ($node->type === 'raw_block') {
-                $this->appendTopLevelBlock($output, $outputBlockCount, $this->renderRawFormatBlock($node));
-            } elseif ($node->type === 'code_block') {
-                $this->appendTopLevelBlock($output, $outputBlockCount, $this->renderCodeBlock($node));
-            } elseif ($node->type === 'figure') {
-                $this->appendTopLevelBlock($output, $outputBlockCount, $this->renderFigureBlock($node));
-            } elseif ($node->type === 'blockquote') {
-                $this->appendTopLevelBlock($output, $outputBlockCount, $this->renderBlockQuote($node));
-            } elseif ($node->type === 'line_block') {
-                $this->appendTopLevelBlock($output, $outputBlockCount, $this->renderLineBlockBlock($node));
-            } elseif ($node->type === 'div') {
-                $this->appendTopLevelBlock($output, $outputBlockCount, $this->renderDivBlock($node));
-            } elseif ($node->type === 'horizontal_rule') {
-                $this->appendTopLevelBlock($output, $outputBlockCount, $this->renderHorizontalRule());
-            } elseif ($node->type === 'list_item') {
-                $pendingList[] = '<li>' . $this->renderInlines($node) . '</li>';
             }
+            $lookahead = [];
+            foreach ($nodes as $node) {
+                if (!$node instanceof AstNode) {
+                    throw new \InvalidArgumentException('WordPress writer expects AstNode top-level nodes');
+                }
+                $lookahead[] = $node;
+                if (count($lookahead) >= 3) {
+                    $this->consumeTopLevelNode($lookahead, $pendingList, $appendBlock);
+                }
+            }
+            while ($lookahead !== []) {
+                $this->consumeTopLevelNode($lookahead, $pendingList, $appendBlock);
+            }
+            $this->flushList($pendingList, $appendBlock);
+            if ($this->footnotes !== []) {
+                $appendBlock($this->renderFootnotesBlock());
+            }
+        } finally {
+            $this->footnotes = $previousFootnotes;
         }
-        $this->flushList($pendingList, $output, $outputBlockCount);
-        if ($this->footnotes !== []) {
-            $this->appendTopLevelBlock($output, $outputBlockCount, $this->renderFootnotesBlock());
+    }
+
+    /**
+     * @param list<AstNode> $lookahead
+     * @param list<string> $pendingList
+     * @param callable(string): void $appendBlock
+     */
+    private function consumeTopLevelNode(array &$lookahead, array &$pendingList, callable $appendBlock): void
+    {
+        $node = $lookahead[0];
+        $inlineContainer = count($lookahead) >= 3
+            ? $this->tryRenderRawHtmlInlineContainerParagraph($lookahead[0], $lookahead[1], $lookahead[2])
+            : null;
+        if ($inlineContainer !== null) {
+            $this->flushList($pendingList, $appendBlock);
+            array_shift($lookahead);
+            array_shift($lookahead);
+            array_shift($lookahead);
+            $appendBlock($inlineContainer);
+
+            return;
         }
 
-        $this->footnotes = $previousFootnotes;
-
-        return $output;
+        array_shift($lookahead);
+        if ($node->type !== 'list_item') {
+            $this->flushList($pendingList, $appendBlock);
+        }
+        if ($this->shouldSkipEmptyParagraphLikeBlock($node)) {
+            return;
+        }
+        if ($node->type === 'heading') {
+            $level = (int) $node->attr('level', 2);
+            $headingAttrs = ['level' => $level];
+            $alignment = $this->blockTextAlignment($node);
+            if ($alignment !== '') {
+                $headingAttrs['textAlign'] = $alignment;
+            }
+            $headingAttrs = array_replace($headingAttrs, $this->blockColorCommentAttrs($node));
+            $appendBlock($this->blockComment('heading', $headingAttrs)
+                . "\n" . '<h' . $level . $this->renderHeadingAttrs($node) . '>' . $this->renderInlines($node) . '</h' . $level . '>'
+                . "\n" . '<!-- /wp:heading -->');
+        } elseif ($node->type === 'paragraph') {
+            $appendBlock($this->renderParagraphBlock($node));
+        } elseif ($node->type === 'plain') {
+            $appendBlock('<!-- wp:paragraph -->'
+                . "\n" . '<p>' . $this->renderInlines($node) . '</p>'
+                . "\n" . '<!-- /wp:paragraph -->');
+        } elseif ($node->type === 'bullet_list') {
+            $appendBlock($this->renderList($node, false));
+        } elseif ($node->type === 'ordered_list') {
+            $appendBlock($this->renderList($node, true));
+        } elseif ($node->type === 'definition_list') {
+            $appendBlock($this->renderDefinitionList($node));
+        } elseif ($node->type === 'table') {
+            $appendBlock($this->renderTable($node));
+        } elseif ($node->type === 'raw_html') {
+            $appendBlock($this->renderRawHtmlBlock($node));
+        } elseif ($node->type === 'raw_tex') {
+            $appendBlock($this->renderRawTexBlock($node));
+        } elseif ($node->type === 'raw_block') {
+            $appendBlock($this->renderRawFormatBlock($node));
+        } elseif ($node->type === 'code_block') {
+            $appendBlock($this->renderCodeBlock($node));
+        } elseif ($node->type === 'figure') {
+            $appendBlock($this->renderFigureBlock($node));
+        } elseif ($node->type === 'blockquote') {
+            $appendBlock($this->renderBlockQuote($node));
+        } elseif ($node->type === 'line_block') {
+            $appendBlock($this->renderLineBlockBlock($node));
+        } elseif ($node->type === 'div') {
+            $appendBlock($this->renderDivBlock($node));
+        } elseif ($node->type === 'horizontal_rule') {
+            $appendBlock($this->renderHorizontalRule());
+        } elseif ($node->type === 'list_item') {
+            $pendingList[] = '<li>' . $this->renderInlines($node) . '</li>';
+        }
     }
 
     private function isEmptyParagraphLikeBlock(AstNode $node): bool
@@ -519,19 +584,10 @@ final class WordPressBlockWriter
         return $html . '</div>';
     }
 
-    /**
-     * @param list<AstNode> $nodes
-     */
-    private function tryRenderRawHtmlInlineContainerParagraph(array $nodes, int &$index): ?string
+    private function tryRenderRawHtmlInlineContainerParagraph(AstNode $open, AstNode $body, AstNode $close): ?string
     {
-        $open = $nodes[$index] ?? null;
-        $body = $nodes[$index + 1] ?? null;
-        $close = $nodes[$index + 2] ?? null;
         if (
-            !$open instanceof AstNode
-            || !$body instanceof AstNode
-            || !$close instanceof AstNode
-            || $open->type !== 'raw_html'
+            $open->type !== 'raw_html'
             || !in_array($body->type, ['paragraph', 'plain'], true)
             || $close->type !== 'raw_html'
             || $this->shouldSkipEmptyParagraphLikeBlock($body)
@@ -550,8 +606,6 @@ final class WordPressBlockWriter
             return null;
         }
 
-        $index += 2;
-
         return '<!-- wp:paragraph -->'
             . "\n" . '<p>' . $openHtml . $this->renderInlines($body) . $closeHtml . '</p>'
             . "\n" . '<!-- /wp:paragraph -->';
@@ -560,26 +614,13 @@ final class WordPressBlockWriter
     /**
      * @param list<string> $items
      */
-    private function flushList(array &$items, string &$output, int &$outputBlockCount): void
+    private function flushList(array &$items, callable $appendBlock): void
     {
         if ($items === []) {
             return;
         }
-        $this->appendTopLevelBlock(
-            $output,
-            $outputBlockCount,
-            '<!-- wp:list -->' . "\n" . '<ul>' . implode('', $items) . '</ul>' . "\n" . '<!-- /wp:list -->'
-        );
+        $appendBlock('<!-- wp:list -->' . "\n" . '<ul>' . implode('', $items) . '</ul>' . "\n" . '<!-- /wp:list -->');
         $items = [];
-    }
-
-    private function appendTopLevelBlock(string &$output, int &$outputBlockCount, string $block): void
-    {
-        if ($outputBlockCount > 0) {
-            $output .= "\n\n";
-        }
-        $output .= $block;
-        $outputBlockCount++;
     }
 
     private function renderList(AstNode $node, bool $ordered): string

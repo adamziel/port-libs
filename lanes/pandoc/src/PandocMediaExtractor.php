@@ -21,7 +21,7 @@ final class PandocMediaExtractor
      *     diagnostics:list<string>
      * }
      */
-    public function extract(AstNode $document, string $bytes, string $format, array $options): array
+    public function extract(AstNode $document, string $bytes, string $format, array $options, ?EpubArchive $epubArchive = null): array
     {
         $destination = (string) ($options['destination'] ?? $options['extractMedia'] ?? $options['extract-media'] ?? 'media');
         $sourcePath = isset($options['sourcePath']) && is_string($options['sourcePath']) ? $options['sourcePath'] : null;
@@ -38,7 +38,7 @@ final class PandocMediaExtractor
         $imageSources = $this->imageSources($document);
         if ($imageSources !== []) {
             $this->loadDataUriImages($bag, $imageSources, $diagnostics);
-            $this->loadPackageImages($bag, $imageSources, $bytes, $format, $diagnostics);
+            $this->loadPackageImages($bag, $imageSources, $bytes, $format, $diagnostics, $epubArchive);
             if ($sourcePath !== null) {
                 $this->loadLocalImages($bag, $imageSources, $sourcePath, $diagnostics);
             }
@@ -59,6 +59,40 @@ final class PandocMediaExtractor
             'entries' => $extracted['entries'],
             'diagnostics' => array_values(array_unique(array_merge($diagnostics, $extracted['diagnostics']))),
         ];
+    }
+
+    /**
+     * Use a native file-backed EPUB archive when available so package media
+     * never requires retaining the whole source ZIP as a PHP string.
+     *
+     * @param array<string, mixed> $options
+     * @return array{
+     *     document:AstNode,
+     *     entries:list<array{path:string, mediaPath:string, mimeType:string, byteLength:int, sha1:string, source:string, canonicalSource:string, sourcePath:string, pathRepairSummary:string, extractionPathRepairSummary:string, mimeTypeSource:string, inferredMimeType:string, mimeRepairSummary:string, contents:string, linkedMimeGroup?:string, linkedMimeGroupSize?:int}>,
+     *     diagnostics:list<string>
+     * }
+     */
+    public function extractFile(AstNode $document, string $path, string $format, array $options): array
+    {
+        if (PandocConverter::canonicalInputFormat($format) === 'epub') {
+            try {
+                $epubArchive = EpubArchiveFactory::fromFile($path);
+            } catch (\Throwable) {
+                // Preserve the byte-backed fallback for ZIP variants the
+                // native extension cannot open.
+                $epubArchive = null;
+            }
+            if ($epubArchive !== null) {
+                return $this->extract($document, '', $format, $options, $epubArchive);
+            }
+        }
+
+        $bytes = file_get_contents($path);
+        if (!is_string($bytes)) {
+            throw new \RuntimeException("Unable to read '{$path}'.");
+        }
+
+        return $this->extract($document, $bytes, $format, $options);
     }
 
     private function normalizeImageMode(mixed $mode): string
@@ -203,14 +237,25 @@ final class PandocMediaExtractor
      * @param list<string> $sources
      * @param list<string> $diagnostics
      */
-    private function loadPackageImages(MediaBag $bag, array $sources, string $bytes, string $format, array &$diagnostics): void
+    private function loadPackageImages(
+        MediaBag $bag,
+        array $sources,
+        string $bytes,
+        string $format,
+        array &$diagnostics,
+        ?EpubArchive $epubArchive = null
+    ): void
     {
         if (!in_array($format, ['docx', 'epub', 'odt', 'odp', 'ods', 'pptx', 'xlsx'], true)) {
             return;
         }
 
         try {
-            $zip = ZipPackage::fromString($bytes);
+            $zip = $format === 'epub' && $epubArchive !== null
+                ? $epubArchive
+                : ($format === 'epub'
+                    ? EpubArchiveFactory::fromString($bytes)
+                    : ZipPackage::fromString($bytes));
         } catch (\Throwable) {
             $diagnostics[] = 'extract-media-package-unreadable';
 
@@ -228,7 +273,7 @@ final class PandocMediaExtractor
             }
 
             try {
-                $contents = $zip->read($entryName, self::MAX_PACKAGE_MEDIA_BYTES);
+                $contents = $zip->readBounded($entryName, self::MAX_PACKAGE_MEDIA_BYTES);
             } catch (\Throwable) {
                 $diagnostics[] = 'extract-media-package-read-failed:' . $this->diagnosticToken($source);
                 continue;

@@ -5130,6 +5130,19 @@ final class ZipPackage implements EpubArchive
     }
 
     /**
+     * @return array{byteLength:int, sha1:string}
+     */
+    public function entryDigest(string $partName): array
+    {
+        $contents = $this->read($partName);
+
+        return [
+            'byteLength' => strlen($contents),
+            'sha1' => sha1($contents),
+        ];
+    }
+
+    /**
      * @param list<string|array{name:string, required?:bool, kind?:string, role?:string, maxUncompressedBytes?:int|null}> $requests
      * @return array{
      *     requestedEntryCount:int,

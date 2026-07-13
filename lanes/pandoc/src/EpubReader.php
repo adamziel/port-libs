@@ -55,14 +55,66 @@ final class EpubReader
         return $this->readZipPackage($package);
     }
 
-    public function readEpubFile(string $path): AstNode
+    /**
+     * Yield completed top-level EPUB nodes as each spine item is processed.
+     * The generator return value is the final package metadata; callers that
+     * only need rendered output can avoid retaining the document-wide AST.
+     *
+     * @return \Generator<int, AstNode, mixed, array<string, mixed>>
+     */
+    public function streamNodes(string $bytes): \Generator
     {
-        $bytes = @file_get_contents($path);
-        if ($bytes === false) {
-            throw new \InvalidArgumentException("Unable to open EPUB package '{$path}'.");
+        try {
+            $package = EpubArchiveFactory::fromString($bytes);
+        } catch (\RuntimeException|\InvalidArgumentException $exception) {
+            $document = $this->fallbackDocument($bytes, $exception->getMessage());
+            foreach ($document->children as $child) {
+                yield $child;
+            }
+
+            return is_array($document->attr('meta', [])) ? $document->attr('meta', []) : [];
         }
 
-        return $this->read($bytes);
+        return yield from $this->streamZipPackageNodes($package);
+    }
+
+    public function readEpubFile(string $path): AstNode
+    {
+        try {
+            $package = EpubArchiveFactory::fromFile($path);
+        } catch (\RuntimeException|\InvalidArgumentException $exception) {
+            $bytes = @file_get_contents($path);
+            if ($bytes === false) {
+                throw new \InvalidArgumentException("Unable to open EPUB package '{$path}'.");
+            }
+
+            return $this->fallbackDocument($bytes, $exception->getMessage());
+        }
+
+        return $this->readZipPackage($package);
+    }
+
+    /**
+     * @return \Generator<int, AstNode, mixed, array<string, mixed>>
+     */
+    public function streamEpubFileNodes(string $path): \Generator
+    {
+        try {
+            $package = EpubArchiveFactory::fromFile($path);
+        } catch (\RuntimeException|\InvalidArgumentException $exception) {
+            $bytes = @file_get_contents($path);
+            if ($bytes === false) {
+                throw new \InvalidArgumentException("Unable to open EPUB package '{$path}'.");
+            }
+            $document = $this->fallbackDocument($bytes, $exception->getMessage());
+            foreach ($document->children as $child) {
+                yield $child;
+            }
+
+            return is_array($document->attr('meta', [])) ? $document->attr('meta', []) : [];
+        }
+
+        return yield from $this->streamZipPackageNodes($package);
     }
 
     private function fallbackDocument(string $bytes, string $error): AstNode
@@ -120,6 +172,21 @@ final class EpubReader
 
     private function readZipPackage(EpubArchive $zip): AstNode
     {
+        $nodes = $this->streamZipPackageNodes($zip);
+        $children = [];
+        foreach ($nodes as $node) {
+            $children[] = $node;
+        }
+        $metadata = $nodes->getReturn();
+
+        return new AstNode('document', ['meta' => $metadata], $children);
+    }
+
+    /**
+     * @return \Generator<int, AstNode, mixed, array<string, mixed>>
+     */
+    private function streamZipPackageNodes(EpubArchive $zip): \Generator
+    {
         $container_xml = $this->zipEntryContents($zip, 'META-INF/container.xml');
         if (!is_string($container_xml)) {
             throw new \InvalidArgumentException('EPUB package is missing META-INF/container.xml.');
@@ -131,10 +198,13 @@ final class EpubReader
             throw new \InvalidArgumentException("EPUB package is missing OPF rootfile '{$rootfile}'.");
         }
 
-        return $this->readPackage($zip, $rootfile, $opf_xml);
+        return yield from $this->streamPackageNodes($zip, $rootfile, $opf_xml);
     }
 
-    private function readPackage(EpubArchive $zip, string $rootfile, string $opf_xml): AstNode
+    /**
+     * @return \Generator<int, AstNode, mixed, array<string, mixed>>
+     */
+    private function streamPackageNodes(EpubArchive $zip, string $rootfile, string $opf_xml): \Generator
     {
         $dom = $this->loadXml($opf_xml, 'EPUB OPF package');
         $package = $dom->documentElement;
@@ -156,7 +226,6 @@ final class EpubReader
         $guide_references = $this->guideReferences($package, $base_path, $manifest);
         $accessibility = $this->accessibilityMetadata($package, $package_links);
         $toc = $this->toc($zip, $base_path, $manifest, $this->spineTocId($package));
-        $children = [];
         $resources = [];
         $referenced_resources = [];
         $media_bag_resources = [];
@@ -176,7 +245,7 @@ final class EpubReader
             if ($cover_resource !== null) {
                 $this->recordMediaBagSource($this->mediaBagSourceUrl($cover), $cover_resource, $media_bag_sources);
             }
-            $children[] = new AstNode('paragraph', ['text' => ''], [
+            yield new AstNode('paragraph', ['text' => ''], [
                 new AstNode('image', [
                     'url' => $cover,
                     'title' => '',
@@ -204,12 +273,12 @@ final class EpubReader
                 $this->recordReferencedResource($item['href'], '', $base_path, $referenced_resources);
                 $media_bag_resources[] = $href;
                 $this->recordMediaBagSource($this->mediaBagSourceUrl($item['href']), $href, $media_bag_sources);
-                $children[] = $this->spineMarker($this->spineFilename($item['href']));
-                $children[] = $this->directImageSpineBlock($item['href']);
+                yield $this->spineMarker($this->spineFilename($item['href']));
+                yield $this->directImageSpineBlock($item['href']);
                 continue;
             }
             if (!$this->isReadablePackageXhtml($media_type)) {
-                $children[] = $this->spineMarker($this->spineFilename($item['href']));
+                yield $this->spineMarker($this->spineFilename($item['href']));
                 continue;
             }
             $xhtml = $this->zipEntryContents($zip, $href);
@@ -268,8 +337,19 @@ final class EpubReader
             );
             $document = $this->normalizeEpubChapterSectioningContent($document);
             $document = $this->compactEpubInlineChildren($document);
-            $children[] = $this->spineMarker($this->spineFilename($item['href']));
-            array_push($children, ...$document->children);
+            yield $this->spineMarker($this->spineFilename($item['href']));
+            foreach ($document->children as $child) {
+                yield $child;
+            }
+            unset(
+                $document,
+                $content_dom,
+                $xhtml,
+                $footnote_definitions,
+                $note_reference_hrefs,
+                $link_attribute_overlays_by_href,
+                $picture_raw_html_overlays
+            );
         }
 
         $metadata['epubRootfile'] = $rootfile;
@@ -334,7 +414,7 @@ final class EpubReader
             $metadata['epubNavigationSections'] = $toc['sections'];
         }
 
-        return new AstNode('document', ['meta' => $metadata], $children);
+        return $metadata;
     }
 
     private function rootfilePath(string $container_xml): string
@@ -3502,23 +3582,33 @@ final class EpubReader
      */
     private function readEpubMediaBag(EpubArchive $zip, string $base_path, array $manifest, array $media_bag_sources): array
     {
-        $bag = new MediaBag();
         $diagnostics = [];
+        $entries = [];
         $media_types = $this->manifestMediaTypesByResourcePath($base_path, $manifest);
 
         foreach ($media_bag_sources as $source => $resource) {
-            $bytes = $this->zipEntryContents($zip, $resource);
-            if (!is_string($bytes)) {
+            if (!$zip->has($resource)) {
                 $diagnostics[] = 'epub-media-resource-missing:' . $resource;
                 continue;
             }
 
-            $bag->insertMedia($source, $media_types[$resource] ?? null, $bytes);
+            try {
+                $digest = $zip->entryDigest($resource);
+            } catch (\Throwable) {
+                $diagnostics[] = 'epub-media-resource-missing:' . $resource;
+                continue;
+            }
+            $entries[] = MediaBag::directoryEntry(
+                $source,
+                $media_types[$resource] ?? null,
+                (int) $digest['byteLength'],
+                (string) $digest['sha1']
+            );
             $diagnostics[] = 'epub-media-resource-loaded:' . $resource;
         }
 
         return [
-            'directory' => $this->epubMediaResourceDirectory($bag->directory(), $media_bag_sources, $base_path),
+            'directory' => $this->epubMediaResourceDirectory($entries, $media_bag_sources, $base_path),
             'diagnostics' => $diagnostics,
         ];
     }

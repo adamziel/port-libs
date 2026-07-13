@@ -69,6 +69,7 @@ if (function_exists('memory_reset_peak_usage')) {
     memory_reset_peak_usage();
 }
 
+$startedAt = hrtime(true);
 $baselineUsed = memory_get_usage();
 $baseline = memory_get_usage(true);
 $bytes = null;
@@ -80,16 +81,20 @@ if ($mode === 'bytes') {
     }
     $afterInputUsed = memory_get_usage();
     $afterInput = memory_get_usage(true);
+    $afterInputAt = hrtime(true);
     $document = PandocConverter::read($bytes, $from, $readerOptions);
 } else {
     $afterInputUsed = memory_get_usage();
     $afterInput = memory_get_usage(true);
+    $afterInputAt = hrtime(true);
     $document = PandocConverter::readFile($input, $from, $readerOptions);
 }
 
+$afterReadAt = hrtime(true);
 $afterReadUsed = memory_get_usage();
 $afterRead = memory_get_usage(true);
 $output = PandocConverter::write($document, $to, $writerOptions);
+$afterWriteAt = hrtime(true);
 $afterWriteUsed = memory_get_usage();
 $afterWrite = memory_get_usage(true);
 
@@ -121,6 +126,10 @@ echo json_encode([
     'afterReadDeltaBytes' => $afterRead - $baseline,
     'afterWriteUsedDeltaBytes' => $afterWriteUsed - $baselineUsed,
     'afterWriteDeltaBytes' => $afterWrite - $baseline,
+    'inputElapsedMs' => ($afterInputAt - $startedAt) / 1_000_000,
+    'readElapsedMs' => ($afterReadAt - $afterInputAt) / 1_000_000,
+    'writeElapsedMs' => ($afterWriteAt - $afterReadAt) / 1_000_000,
+    'totalElapsedMs' => ($afterWriteAt - $startedAt) / 1_000_000,
     'peakUsedBytes' => memory_get_peak_usage(),
     'peakBytes' => memory_get_peak_usage(true),
     'nodeCount' => $nodeCount,

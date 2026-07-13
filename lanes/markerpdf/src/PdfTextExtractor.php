@@ -604,7 +604,7 @@ final class PdfTextExtractor
         }
 
         $runs = [];
-        foreach ($this->limitedStreamContexts($pdfBytes) as $context) {
+        foreach ($this->limitedStreamContextIterator($pdfBytes) as $context) {
             foreach ($this->textRunsFromContentStream($context['stream'], $context['fontToUnicodeMaps'], $context['fontEncodings'], $context['propertyActualTexts'], $context['mcidActualTexts'], $context['propertyMcids']) as $run) {
                 if ($run !== '') {
                     $runs[] = $run;
@@ -627,7 +627,7 @@ final class PdfTextExtractor
         $runs = [];
         $streamNumber = 0;
         $maxRuns = $this->maxPositionedTextRuns();
-        foreach ($this->limitedStreamContexts($pdfBytes) as $context) {
+        foreach ($this->limitedStreamContextIterator($pdfBytes) as $context) {
             $streamNumber++;
             $page = is_int($context['page'] ?? null) ? $context['page'] : $streamNumber;
             foreach ($this->positionedTextRunsFromContentStream($context['stream'], $context['fontToUnicodeMaps'], $context['fontEncodings'], $context['propertyActualTexts'], $context['mcidActualTexts'], $context['propertyMcids']) as $run) {
@@ -664,7 +664,7 @@ final class PdfTextExtractor
 
         $rectangles = [];
         $streamNumber = 0;
-        foreach ($this->limitedStreamContexts($pdfBytes) as $context) {
+        foreach ($this->limitedStreamContextIterator($pdfBytes) as $context) {
             $streamNumber++;
             $page = is_int($context['page'] ?? null) ? $context['page'] : $streamNumber;
             foreach ($this->filledRectanglesFromContentStream($context['stream']) as $rectangle) {
@@ -685,6 +685,104 @@ final class PdfTextExtractor
         }
 
         return $rectangles;
+    }
+
+    /**
+     * Yields text and geometry facts one decoded content stream at a time.
+     * Consumers can retain a bounded prefix without materializing duplicate
+     * page-context and token arrays for each extraction mode.
+     *
+     * @return \Generator<int, array{
+     *     textLineItems: list<array{page: int, stream: int, text: string}>,
+     *     textRuns: list<string>,
+     *     positionedTextRuns: list<array{page: int, stream: int, text: string, x1: float, y1: float, x2: float, y2: float, textX1: float, textY1: float, textX2: float, textY2: float, fontSize: float, pageObject?: int}>,
+     *     filledRectangles: list<array{page: int, stream: int, x1: float, y1: float, x2: float, y2: float, fillColor: string, pageObject?: int}>
+     * }>
+     */
+    public function streamImportFacts(
+        string $pdfBytes,
+        bool $includeTextRuns = true,
+        bool $includePositionedTextRuns = true,
+        bool $includeFilledRectangles = true
+    ): \Generator {
+        if (!$this->canExtractEncryptedContent($pdfBytes)) {
+            return;
+        }
+
+        $streamNumber = 0;
+        $positionedRunCount = 0;
+        $maxPositionedRuns = $this->maxPositionedTextRuns();
+        foreach ($this->limitedStreamContextIterator($pdfBytes) as $context) {
+            $streamNumber++;
+            $page = is_int($context['page'] ?? null) ? $context['page'] : $streamNumber;
+            $pageObject = is_int($context['pageObject'] ?? null) ? $context['pageObject'] : null;
+            $textLineItems = [];
+            foreach ($this->textLinesFromContentStream($context['stream'], $context['fontToUnicodeMaps'], $context['fontEncodings'], $context['propertyActualTexts'], $context['mcidActualTexts'], $context['propertyMcids']) as $line) {
+                if ($line !== '') {
+                    $textLineItems[] = [
+                        'page' => $page,
+                        'stream' => $streamNumber,
+                        'text' => $line,
+                    ];
+                }
+            }
+
+            $textRuns = [];
+            if ($includeTextRuns) {
+                foreach ($this->textRunsFromContentStream($context['stream'], $context['fontToUnicodeMaps'], $context['fontEncodings'], $context['propertyActualTexts'], $context['mcidActualTexts'], $context['propertyMcids']) as $run) {
+                    if ($run !== '') {
+                        $textRuns[] = $run;
+                    }
+                }
+            }
+
+            $positionedTextRuns = [];
+            if ($includePositionedTextRuns && $positionedRunCount < $maxPositionedRuns) {
+                foreach ($this->positionedTextRunsFromContentStream($context['stream'], $context['fontToUnicodeMaps'], $context['fontEncodings'], $context['propertyActualTexts'], $context['mcidActualTexts'], $context['propertyMcids']) as $run) {
+                    if ($run['text'] === '') {
+                        continue;
+                    }
+
+                    $positionedRun = [
+                        'page' => $page,
+                        'stream' => $streamNumber,
+                    ] + $run;
+                    if ($pageObject !== null) {
+                        $positionedRun['pageObject'] = $pageObject;
+                    }
+                    $positionedTextRuns[] = $positionedRun;
+                    $positionedRunCount++;
+                    if ($positionedRunCount >= $maxPositionedRuns) {
+                        break;
+                    }
+                }
+            }
+
+            $filledRectangles = [];
+            if ($includeFilledRectangles) {
+                foreach ($this->filledRectanglesFromContentStream($context['stream']) as $rectangle) {
+                    if (($rectangle['fillColor'] ?? '') === '#ffffff') {
+                        continue;
+                    }
+
+                    $filledRectangle = [
+                        'page' => $page,
+                        'stream' => $streamNumber,
+                    ] + $rectangle;
+                    if ($pageObject !== null) {
+                        $filledRectangle['pageObject'] = $pageObject;
+                    }
+                    $filledRectangles[] = $filledRectangle;
+                }
+            }
+
+            yield [
+                'textLineItems' => $textLineItems,
+                'textRuns' => $textRuns,
+                'positionedTextRuns' => $positionedTextRuns,
+                'filledRectangles' => $filledRectangles,
+            ];
+        }
     }
 
     public function extractPlainText(string $pdfBytes): string
@@ -1119,7 +1217,7 @@ final class PdfTextExtractor
         $missingUnicodeFontEncodings = [];
         $suppressedGlyphRuns = 0;
 
-        foreach ($this->streamContexts($pdfBytes) as $context) {
+        foreach ($this->streamContextIterator($pdfBytes) as $context) {
             $diagnostics = $this->suppressedGlyphDiagnosticsFromContentStream(
                 $context['stream'],
                 $context['fontToUnicodeMaps'],
@@ -1384,7 +1482,7 @@ final class PdfTextExtractor
         $runsByPageObject = [];
         $totalRuns = 0;
         $maxRuns = $this->maxPositionedTextRuns();
-        foreach ($this->pageContentStreamContexts($objects) as $context) {
+        foreach ($this->pageContentStreamContextIterator($objects) as $context) {
             $pageObject = (int) ($context['pageObject'] ?? 0);
             if ($pageObject <= 0) {
                 continue;
@@ -4670,13 +4768,15 @@ final class PdfTextExtractor
         }
 
         $lines = [];
-        foreach ($this->limitedStreamContexts($pdfBytes) as $streamIndex => $context) {
-            $page = is_int($context['page'] ?? null) ? $context['page'] : $streamIndex + 1;
+        $streamNumber = 0;
+        foreach ($this->limitedStreamContextIterator($pdfBytes) as $context) {
+            $streamNumber++;
+            $page = is_int($context['page'] ?? null) ? $context['page'] : $streamNumber;
             foreach ($this->textLinesFromContentStream($context['stream'], $context['fontToUnicodeMaps'], $context['fontEncodings'], $context['propertyActualTexts'], $context['mcidActualTexts'], $context['propertyMcids']) as $line) {
                 if ($line !== '') {
                     $lines[] = [
                         'page' => $page,
-                        'stream' => $streamIndex + 1,
+                        'stream' => $streamNumber,
                         'text' => $line,
                     ];
                 }
@@ -4696,7 +4796,7 @@ final class PdfTextExtractor
         }
 
         $pages = [];
-        foreach ($this->limitedStreamContexts($pdfBytes) as $context) {
+        foreach ($this->limitedStreamContextIterator($pdfBytes) as $context) {
             $pages[] = implode("\n", $this->textLinesFromContentStream($context['stream'], $context['fontToUnicodeMaps'], $context['fontEncodings'], $context['propertyActualTexts'], $context['mcidActualTexts'], $context['propertyMcids']));
         }
 
@@ -4768,7 +4868,7 @@ final class PdfTextExtractor
     }
 
     /**
-     * @return list<array{
+     * @return \Generator<int, array{
      *     stream: string,
      *     fontToUnicodeMaps: array<string, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}>,
      *     fontEncodings: array<string, array{base: string, differences: array<int, string>, suppressUnmapped: bool}>,
@@ -4779,26 +4879,25 @@ final class PdfTextExtractor
      *     pageObject?: int
      * }>
      */
-    private function limitedStreamContexts(string $pdfBytes): array
+    private function limitedStreamContextIterator(string $pdfBytes): \Generator
     {
-        $contexts = $this->streamContexts($pdfBytes);
         $maxPages = $this->maxPages();
-        if ($maxPages === null || $contexts === []) {
-            return $contexts;
-        }
-
-        $limited = [];
         $seenPages = [];
-        foreach ($contexts as $index => $context) {
-            $page = is_int($context['page'] ?? null) ? $context['page'] : $index + 1;
+        $streamIndex = 0;
+        foreach ($this->streamContextIterator($pdfBytes) as $context) {
+            $streamIndex++;
+            if ($maxPages === null) {
+                yield $context;
+                continue;
+            }
+
+            $page = is_int($context['page'] ?? null) ? $context['page'] : $streamIndex;
             if (!isset($seenPages[$page]) && count($seenPages) >= $maxPages) {
                 continue;
             }
             $seenPages[$page] = true;
-            $limited[] = $context;
+            yield $context;
         }
-
-        return $limited;
     }
 
     private function maxPages(): ?int
@@ -4816,7 +4915,7 @@ final class PdfTextExtractor
     }
 
     /**
-     * @return list<array{
+     * @return \Generator<int, array{
      *     stream: string,
      *     fontToUnicodeMaps: array<string, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}>,
      *     fontEncodings: array<string, array{base: string, differences: array<int, string>, suppressUnmapped: bool}>,
@@ -4827,20 +4926,23 @@ final class PdfTextExtractor
      *     pageObject?: int
      * }>
      */
-    private function streamContexts(string $pdfBytes): array
+    private function streamContextIterator(string $pdfBytes): \Generator
     {
         $objects = $this->pdfObjects($pdfBytes);
-        $pageContexts = $this->pageContentStreamContexts($objects, $pdfBytes);
-        if ($pageContexts !== []) {
-            return $pageContexts;
+        $hasPageContexts = false;
+        foreach ($this->pageContentStreamContextIterator($objects, $pdfBytes) as $context) {
+            $hasPageContexts = true;
+            yield $context;
+        }
+        if ($hasPageContexts) {
+            return;
         }
         if ($this->xrefTrailerRootObjectNumber($pdfBytes) !== null
             && $this->catalogPagesRootObjectNumbers($objects, $pdfBytes) === []
         ) {
-            return [];
+            return;
         }
 
-        $contexts = [];
         $fontToUnicodeMaps = $this->fontToUnicodeMapsForResourceContext($pdfBytes, $objects, true);
         $fontEncodings = $this->fontEncodingsForResourceContext($pdfBytes, $objects, true);
         $propertyActualTexts = $this->propertyActualTextsFromContext($pdfBytes, $objects);
@@ -4860,7 +4962,7 @@ final class PdfTextExtractor
             if ($decoded === null) {
                 continue;
             }
-            $contexts[] = [
+            yield [
                 'stream' => $decoded,
                 'fontToUnicodeMaps' => $fontToUnicodeMaps,
                 'fontEncodings' => $fontEncodings,
@@ -4869,8 +4971,6 @@ final class PdfTextExtractor
                 'propertyMcids' => $propertyMcids,
             ];
         }
-
-        return $contexts;
     }
 
     /**
@@ -4956,7 +5056,7 @@ final class PdfTextExtractor
     private function streams(string $pdfBytes): array
     {
         $streams = [];
-        foreach ($this->streamContexts($pdfBytes) as $context) {
+        foreach ($this->streamContextIterator($pdfBytes) as $context) {
             $streams[] = $context['stream'];
         }
 
@@ -4965,7 +5065,7 @@ final class PdfTextExtractor
 
     /**
      * @param array<int, string> $objects
-     * @return list<array{
+     * @return \Generator<int, array{
      *     stream: string,
      *     fontToUnicodeMaps: array<string, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}>,
      *     fontEncodings: array<string, array{base: string, differences: array<int, string>, suppressUnmapped: bool}>,
@@ -4976,9 +5076,8 @@ final class PdfTextExtractor
      *     pageObject: int
      * }>
      */
-    private function pageContentStreamContexts(array $objects, ?string $pdfBytes = null): array
+    private function pageContentStreamContextIterator(array $objects, ?string $pdfBytes = null): \Generator
     {
-        $contexts = [];
         $pageNumber = 0;
         foreach ($this->limitedPageObjectNumbers($objects, $pdfBytes) as $objectNumber) {
             $pageNumber++;
@@ -5008,7 +5107,7 @@ final class PdfTextExtractor
                         $streamPropertyActualTexts = $propertyActualTexts;
                         $streamPropertyMcids = $propertyMcids;
                         $streamMcidActualTexts = $mcidActualTexts;
-                        $contexts[] = [
+                        yield [
                             'stream' => $this->expandContentStreamWithFormXObjects(
                                 $decoded,
                                 $objects,
@@ -5032,7 +5131,6 @@ final class PdfTextExtractor
             }
         }
 
-        return $contexts;
     }
 
     /**
@@ -5201,7 +5299,7 @@ final class PdfTextExtractor
 
         $tokens = [];
         $operands = [];
-        foreach ($this->contentTokens($stream) as $token) {
+        foreach ($this->contentTokenIterator($stream) as $token) {
             $tokens[] = $token;
 
             if ($token === 'Do') {
@@ -5415,7 +5513,7 @@ final class PdfTextExtractor
 
         $tokens = [];
         $operandIndexes = [];
-        foreach ($this->contentTokens($stream) as $token) {
+        foreach ($this->contentTokenIterator($stream) as $token) {
             if ($mcidMap !== [] && str_starts_with(trim($token), '<<')) {
                 $token = $this->renamedMcidDictionaryToken($token, $mcidMap);
             }
@@ -5742,7 +5840,7 @@ final class PdfTextExtractor
     ): array {
         $issues = [];
         $operands = [];
-        foreach ($this->contentTokens($stream) as $token) {
+        foreach ($this->contentTokenIterator($stream) as $token) {
             if ($token === 'Do') {
                 $name = $this->xObjectNameOperand($operands);
                 if ($name !== null && !array_key_exists($name, $xObjects)) {
@@ -5902,7 +6000,7 @@ final class PdfTextExtractor
         $ignoredCount = 0;
         $operands = [];
 
-        foreach ($this->contentTokens($stream) as $token) {
+        foreach ($this->contentTokenIterator($stream) as $token) {
             if ($token === 'Do') {
                 $name = $this->xObjectNameOperand($operands);
                 if ($name !== null && isset($xObjects[$name], $objects[$xObjects[$name]])) {
@@ -14314,7 +14412,7 @@ final class PdfTextExtractor
         $currentFontResource = null;
         $actualTextStack = [];
         $artifactStack = [];
-        foreach ($this->contentTokens($stream) as $token) {
+        foreach ($this->contentTokenIterator($stream) as $token) {
             if ($token === 'BDC') {
                 $isArtifact = $this->markedContentIsArtifact($operands);
                 $actualText = $isArtifact ? null : $this->actualTextOperand(
@@ -14396,7 +14494,7 @@ final class PdfTextExtractor
         $actualTextStack = [];
         $artifactStack = [];
 
-        foreach ($this->contentTokens($stream) as $token) {
+        foreach ($this->contentTokenIterator($stream) as $token) {
             if ($token === 'BDC') {
                 $isArtifact = $this->markedContentIsArtifact($operands);
                 $actualTextStack[] = $isArtifact ? null : $this->actualTextOperand(
@@ -14483,7 +14581,7 @@ final class PdfTextExtractor
         ];
         $stateStack = [];
 
-        foreach ($this->contentTokens($stream) as $token) {
+        foreach ($this->contentTokenIterator($stream) as $token) {
             if ($token === 'q') {
                 $stateStack[] = $state;
                 $operands = [];
@@ -14783,7 +14881,7 @@ final class PdfTextExtractor
         $artifactStack = [];
         $currentTransformationMatrix = $this->identityTransformationMatrix();
 
-        foreach ($this->contentTokens($stream) as $token) {
+        foreach ($this->contentTokenIterator($stream) as $token) {
             if ($token === 'BDC') {
                 $isArtifact = $this->markedContentIsArtifact($operands);
                 $actualText = $isArtifact ? null : $this->actualTextOperand(
@@ -15123,7 +15221,7 @@ final class PdfTextExtractor
         $currentTransformationMatrix = $this->identityTransformationMatrix();
         $maxRuns = $this->maxPositionedTextRuns();
 
-        foreach ($this->contentTokens($stream) as $token) {
+        foreach ($this->contentTokenIterator($stream) as $token) {
             if ($token === 'BDC') {
                 $isArtifact = $this->markedContentIsArtifact($operands);
                 $actualTextStack[] = $isArtifact ? null : $this->actualTextOperand(
@@ -15470,11 +15568,19 @@ final class PdfTextExtractor
      */
     private function contentTokens(string $stream): array
     {
+        return iterator_to_array($this->contentTokenIterator($stream), false);
+    }
+
+    /**
+     * @return \Generator<int, string>
+     */
+    private function contentTokenIterator(string $stream): \Generator
+    {
         if (strlen($stream) > $this->maxTokenizedContentStreamBytes()) {
-            return [];
+            return;
         }
 
-        $tokens = [];
+        $tokenCount = 0;
         $length = strlen($stream);
         $index = 0;
 
@@ -15493,72 +15599,44 @@ final class PdfTextExtractor
             }
 
             if ($char === '(') {
-                $tokens[] = $this->readLiteralToken($stream, $index);
-                if (count($tokens) >= $this->maxContentTokens()) {
-                    break;
-                }
-                continue;
-            }
-
-            if ($char === '<' && $index + 1 < $length && $stream[$index + 1] === '<') {
-                $tokens[] = $this->readDictionaryToken($stream, $index);
-                if (count($tokens) >= $this->maxContentTokens()) {
-                    break;
-                }
-                continue;
-            }
-
-            if ($char === '<' && ($index + 1 >= $length || $stream[$index + 1] !== '<')) {
-                $tokens[] = $this->readHexToken($stream, $index);
-                if (count($tokens) >= $this->maxContentTokens()) {
-                    break;
-                }
-                continue;
-            }
-
-            if ($char === '[') {
-                $tokens[] = $this->readArrayToken($stream, $index);
-                if (count($tokens) >= $this->maxContentTokens()) {
-                    break;
-                }
-                continue;
-            }
-
-            if ($char === '/') {
+                $token = $this->readLiteralToken($stream, $index);
+            } elseif ($char === '<' && $index + 1 < $length && $stream[$index + 1] === '<') {
+                $token = $this->readDictionaryToken($stream, $index);
+            } elseif ($char === '<' && ($index + 1 >= $length || $stream[$index + 1] !== '<')) {
+                $token = $this->readHexToken($stream, $index);
+            } elseif ($char === '[') {
+                $token = $this->readArrayToken($stream, $index);
+            } elseif ($char === '/') {
                 $start = $index;
                 $index++;
                 while ($index < $length && !$this->isDelimiter($stream[$index])) {
                     $index++;
                 }
-                $tokens[] = substr($stream, $start, $index - $start);
-                if (count($tokens) >= $this->maxContentTokens()) {
-                    break;
+                $token = substr($stream, $start, $index - $start);
+            } else {
+                $start = $index;
+                while ($index < $length && !$this->isDelimiter($stream[$index])) {
+                    $index++;
                 }
-                continue;
+                if ($index === $start) {
+                    $index++;
+                    continue;
+                }
+                $token = substr($stream, $start, $index - $start);
+                if ($token === 'BI') {
+                    $this->skipInlineImage($stream, $index);
+                    continue;
+                }
             }
 
-            $start = $index;
-            while ($index < $length && !$this->isDelimiter($stream[$index])) {
-                $index++;
-            }
-            if ($index === $start) {
-                $index++;
-                continue;
-            }
-            $token = substr($stream, $start, $index - $start);
-            if ($token === 'BI') {
-                $this->skipInlineImage($stream, $index);
-                continue;
-            }
             if ($token !== '') {
-                $tokens[] = $token;
-                if (count($tokens) >= $this->maxContentTokens()) {
-                    break;
+                yield $token;
+                $tokenCount++;
+                if ($tokenCount >= $this->maxContentTokens()) {
+                    return;
                 }
             }
         }
-
-        return $tokens;
     }
 
     private function maxTokenizedContentStreamBytes(): int
