@@ -119,9 +119,9 @@ $svgSymbolSignatures = static function (string $html): array {
 
     return $signatures;
 };
-$normalizedText = static fn (string $text): string => trim(preg_replace('/\s+/', ' ', $text) ?? '');
+$normalizedText = static fn (?string $text): string => trim(preg_replace('/\s+/', ' ', (string) $text) ?? '');
 
-return [
+$tests = [
     'extracts article text while removing navigation and asides' => static function (TestRunner $t): void {
         $html = '<html><head><title>Fallback</title><meta property="og:title" content="Clean Import"></head><body><nav>Menu</nav><article><h1>Clean Import</h1><p>This is the main migration paragraph, with enough text to score well.</p><p>Second paragraph for WordPress blocks.</p></article><aside>Ad text</aside></body></html>';
         $article = (new ArticleExtractor())->extract($html);
@@ -3798,3 +3798,68 @@ return [
         $t->contains('Classic editor exports can preserve editorial emphasis', $blocks);
     },
 ];
+
+$remainingMozillaFixtureNames = [
+    'aktualne',
+    'archive-of-our-own',
+    'blogger',
+    'breitbart',
+    'cnet',
+    'daringfireball-1',
+    'dropbox-blog',
+    'ebb-org',
+    'ehow-1',
+    'ehow-2',
+    'folha',
+    'gitlab-blog',
+    'gmw',
+    'herald-sun-1',
+    'hukumusume',
+    'ietf-1',
+    'lifehacker-working',
+    'lwn-1',
+    'mathjax',
+    'mercurial',
+    'missing-paragraphs',
+    'msn',
+    'pixnet',
+    'qq',
+    'quanta-1',
+    'reordering-paragraphs',
+    'royal-road',
+    'salon-1',
+    'seattletimes-1',
+    'spiceworks',
+    'svg-parsing',
+    'topicseed-1',
+    'videos-1',
+    'webmd-1',
+    'webmd-2',
+    'wikia',
+    'yahoo-1',
+    'youth',
+];
+
+foreach ($remainingMozillaFixtureNames as $fixtureName) {
+    $tests['maps remaining Mozilla ' . $fixtureName . ' fixture to upstream expected content'] = static function (TestRunner $t) use ($fixtureName, $fixtureText, $normalizedText): void {
+        $fixture = __DIR__ . '/../fixtures/mozilla/' . $fixtureName;
+        $source = (string) file_get_contents($fixture . '/source.html');
+        $expected = (string) file_get_contents($fixture . '/expected.html');
+        $metadata = json_decode((string) file_get_contents($fixture . '/expected-metadata.json'), true, 512, JSON_THROW_ON_ERROR);
+
+        $extractor = new ArticleExtractor();
+        $article = $extractor->extract($source, 'http://fakehost/test/page.html', true);
+
+        $t->same($metadata['title'] ?? null, $article->title, $fixtureName . ' title should match upstream');
+        $t->same($metadata['byline'] ?? null, $article->byline, $fixtureName . ' byline should match upstream');
+        $t->same($metadata['siteName'] ?? null, $article->siteName, $fixtureName . ' siteName should match upstream');
+        $t->same($metadata['publishedTime'] ?? null, $article->publishedTime, $fixtureName . ' publishedTime should match upstream');
+        $t->same($metadata['dir'] ?? null, $article->dir, $fixtureName . ' dir should match upstream');
+        $t->same($metadata['lang'] ?? null, $article->lang, $fixtureName . ' lang should match upstream');
+        $t->same($metadata['readerable'] ?? null, $extractor->isProbablyReaderable($source), $fixtureName . ' readerable result should match upstream');
+        $t->same($normalizedText($metadata['excerpt'] ?? null), $normalizedText($article->excerpt), $fixtureName . ' excerpt should match upstream');
+        $t->same($fixtureText($expected), $fixtureText($article->contentHtml), $fixtureName . ' content text should match upstream');
+    };
+}
+
+return $tests;

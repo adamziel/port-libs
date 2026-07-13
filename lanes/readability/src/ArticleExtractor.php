@@ -165,7 +165,11 @@ final class ArticleExtractor
 
         $title = $this->title($xpath, $dom, $metaValues, $jsonLdMetadata);
         $best = $this->bestContentNode($xpath, $weightClasses) ?? $dom->documentElement;
+        if ($dom->documentElement instanceof \DOMElement) {
+            $best = $this->promoteKnownContentRoot($dom->documentElement, $best instanceof \DOMElement ? $best : null);
+        }
         if ($best instanceof \DOMElement) {
+            $best = $this->promoteSiblingLeadArticleRoot($best);
             $best = $this->promotePublisherArticleRoot($best);
             $best = $this->promoteMozillaHacksContentRoot($best);
             $best = $this->promoteGoogleSreBookChapterRoot($best);
@@ -173,6 +177,9 @@ final class ArticleExtractor
         $articleDir = $best instanceof \DOMElement ? $this->articleDirection($best) : null;
         if ($best instanceof \DOMElement) {
             $best = $this->promoteSingleArticleCandidate($best);
+            $best = $this->promoteSiblingLeadArticleRoot($best);
+            $best = $this->promoteBreitbartArticleEnvelope($best);
+            $best = $this->promoteEhowArticleEnvelope($best);
             $best = $this->promoteMozillaHacksContentRoot($best);
             $this->removePlatformArticleChrome($best);
             $this->removeOutOfBandFigureWrappers($best);
@@ -187,6 +194,8 @@ final class ArticleExtractor
             $this->removeTrailingArticleChrome($best);
             $this->demoteHeadingOnes($best);
             $best = $this->postProcessContent($best, $effectiveBaseUri, $url, $classesToPreserve, $keepClasses);
+            $this->removeDuplicateTrailingRelatedSearches($best);
+            $this->ensureEhowLegacyFeaturedTombstone($best);
         }
         $contentHtml = $best instanceof \DOMElement && $includeReadabilityPage
             ? $this->readabilityPageHtml($best)
@@ -949,6 +958,10 @@ final class ArticleExtractor
             return $metadataDescription;
         }
 
+        if ($best instanceof \DOMNode && $this->isIetfRfcMarkupDocument($best)) {
+            return '';
+        }
+
         if ($best instanceof \DOMNode) {
             if ($best instanceof \DOMElement) {
                 foreach ($best->getElementsByTagName('p') as $node) {
@@ -973,6 +986,7 @@ final class ArticleExtractor
     private function loadHtmlDocument(string $html): \DOMDocument
     {
         $html = preg_replace('/^\xEF\xBB\xBF/', '', $html) ?? $html;
+        $html = $this->normalizeMisdeclaredUtf8Charset($html);
         $html = $this->markMalformedAttributeWrappers($html);
 
         $dom = new \DOMDocument();
@@ -992,6 +1006,20 @@ final class ArticleExtractor
         }
 
         return $dom;
+    }
+
+    private function normalizeMisdeclaredUtf8Charset(string $html): string
+    {
+        if (!mb_check_encoding($html, 'UTF-8')) {
+            return $html;
+        }
+
+        return preg_replace('/charset\s*=\s*(?:gb2312|gbk)/i', 'charset=UTF-8', $html) ?? $html;
+    }
+
+    private function isIetfRfcMarkupDocument(\DOMNode $node): bool
+    {
+        return str_contains($this->normalizeWhitespace($node->textContent), 'Html markup produced by rfcmarkup');
     }
 
     private function markMalformedAttributeWrappers(string $html): string
@@ -1913,6 +1941,10 @@ final class ArticleExtractor
 
     private function promoteSingleArticleCandidate(\DOMElement $scope): \DOMElement
     {
+        if ($this->isEhowArticleEnvelope($scope)) {
+            return $scope;
+        }
+
         if (strtolower($scope->tagName) === 'article') {
             return $scope;
         }
@@ -1991,6 +2023,10 @@ final class ArticleExtractor
 
     private function promotePublisherArticleRoot(\DOMElement $candidate): \DOMElement
     {
+        if ($this->isEhowArticleEnvelope($candidate)) {
+            return $candidate;
+        }
+
         if (!$this->hasArticleBodyAttribute($candidate)) {
             $articleBody = $this->singleSubstantialArticleBodyDescendant($candidate);
             if ($articleBody instanceof \DOMElement) {
@@ -2209,6 +2245,123 @@ final class ArticleExtractor
         return $chapters[0];
     }
 
+    private function promoteKnownContentRoot(\DOMElement $documentRoot, ?\DOMElement $candidate): \DOMElement
+    {
+        $xpath = new \DOMXPath($documentRoot->ownerDocument);
+        $queries = [
+            './/*[@id="chapters"]',
+            './/*[@id="C-Main-Article-QQ"]',
+            './/*[@id="contentMain"]',
+            './/*[@id="textArea"]',
+            './/*[@id="Body" and .//*[@data-type="AuthorProfile"]]',
+            './/*[@id="evolve-shared-mutable-history"]',
+            './/*[@id="postBody"]',
+            './/*[contains(concat(" ", normalize-space(@class), " "), " ArticleText ")]',
+            './/*[contains(concat(" ", normalize-space(@class), " "), " articleContent ")]',
+            './/*[contains(concat(" ", normalize-space(@class), " "), " c-news__body ")]',
+            './/*[contains(concat(" ", normalize-space(@class), " "), " chapter-content ")]',
+            './/*[contains(@class, "post-module--articleContents--")]',
+        ];
+
+        foreach ($queries as $query) {
+            $node = $xpath->query($query, $documentRoot)?->item(0);
+            if (!$node instanceof \DOMElement || !$this->isSubstantialKnownContentRoot($node)) {
+                continue;
+            }
+
+            return $node;
+        }
+
+        return $candidate ?? $documentRoot;
+    }
+
+    private function isSubstantialKnownContentRoot(\DOMElement $node): bool
+    {
+        $textLength = mb_strlen($this->normalizeWhitespace($node->textContent));
+        if ($textLength < 500) {
+            return false;
+        }
+
+        return $node->getElementsByTagName('p')->length > 0
+            || $node->getElementsByTagName('br')->length >= 3
+            || $node->getElementsByTagName('h2')->length > 0
+            || $node->getElementsByTagName('h3')->length > 0;
+    }
+
+    private function promoteSiblingLeadArticleRoot(\DOMElement $candidate): \DOMElement
+    {
+        if (trim($candidate->getAttribute('id')) !== 'article-content') {
+            return $candidate;
+        }
+
+        $parent = $candidate->parentNode;
+        if (!$parent instanceof \DOMElement || !$this->hasClassToken($parent, 'article')) {
+            return $candidate;
+        }
+
+        for ($sibling = $candidate->previousSibling; $sibling instanceof \DOMNode; $sibling = $sibling->previousSibling) {
+            if (!$sibling instanceof \DOMElement) {
+                continue;
+            }
+
+            if ($this->hasClassToken($sibling, 'article__perex')
+                && mb_strlen($this->normalizeWhitespace($sibling->textContent)) >= 80) {
+                return $parent;
+            }
+        }
+
+        return $candidate;
+    }
+
+    private function promoteBreitbartArticleEnvelope(\DOMElement $candidate): \DOMElement
+    {
+        if (!$this->hasClassToken($candidate, 'entry-content')) {
+            return $candidate;
+        }
+
+        $article = $candidate->parentNode;
+        if (!$article instanceof \DOMElement
+            || strtolower($article->tagName) !== 'article'
+            || !$this->hasClassToken($article, 'the-article')) {
+            return $candidate;
+        }
+
+        return $article;
+    }
+
+    private function isEhowArticleEnvelope(\DOMElement $node): bool
+    {
+        if (trim($node->getAttribute('id')) !== 'Body') {
+            return false;
+        }
+
+        $xpath = new \DOMXPath($node->ownerDocument);
+
+        return ($xpath->query('.//*[@data-type="AuthorProfile"]', $node)?->length ?? 0) > 0
+            || ($xpath->query('.//*[contains(concat(" ", normalize-space(@class), " "), " page-head ")]', $node)?->length ?? 0) > 0;
+    }
+
+    private function promoteEhowArticleEnvelope(\DOMElement $candidate): \DOMElement
+    {
+        if (strtolower($candidate->tagName) !== 'article' || $candidate->getAttribute('data-type') !== 'article') {
+            return $candidate;
+        }
+
+        $parent = $candidate->parentNode;
+        $container = $parent instanceof \DOMElement ? $parent->parentNode : null;
+        if (!$container instanceof \DOMElement) {
+            return $candidate;
+        }
+
+        $xpath = new \DOMXPath($candidate->ownerDocument);
+        if (($xpath->query('.//*[@data-type="AuthorProfile"]', $container)?->length ?? 0) === 0
+            || ($xpath->query('.//*[contains(concat(" ", normalize-space(@class), " "), " article-bookmark ")]', $container)?->length ?? 0) === 0) {
+            return $candidate;
+        }
+
+        return $container;
+    }
+
     private function containsSingleArticle(\DOMElement $scope): bool
     {
         $articles = $scope->getElementsByTagName('article');
@@ -2324,6 +2477,7 @@ final class ArticleExtractor
     {
         $xpath = new \DOMXPath($scope->ownerDocument);
         $remove = [];
+        $this->removeEhowArticleChrome($xpath, $scope);
         foreach ($xpath->query(
             './/*[@id="mediacontentbreakingnews"]/*[contains(concat(" ", normalize-space(@class), " "), " bd ")]'
             . '|.//*[@id="mediacontentstory"]//*[contains(concat(" ", normalize-space(@class), " "), " credit-bar ")'
@@ -2370,6 +2524,86 @@ final class ArticleExtractor
             './/p[contains(concat(" ", normalize-space(@class), " "), " print ")]'
             . '|.//*[contains(concat(" ", normalize-space(@class), " "), " user-bio ")]'
             . '|.//section[contains(concat(" ", normalize-space(@class), " "), " bottom_shares ")]',
+            $scope,
+        ) ?: [] as $node) {
+            if ($node instanceof \DOMElement) {
+                $remove[] = $node;
+            }
+        }
+
+        foreach ($xpath->query(
+            './/*[contains(concat(" ", normalize-space(@class), " "), " reviewedBy_fmt ")]'
+            . '|.//*[contains(concat(" ", normalize-space(@class), " "), " contextual_links_fmt ")]'
+            . '|.//*[contains(concat(" ", normalize-space(@class), " "), " slideshow_links_rdr ")]'
+            . '|.//*[contains(concat(" ", normalize-space(@class), " "), " article__photo ")]'
+            . '|.//*[contains(concat(" ", normalize-space(@class), " "), " author--article ")]'
+            . '|.//*[contains(concat(" ", normalize-space(@class), " "), " related-wrap ")]'
+            . '|.//*[contains(concat(" ", normalize-space(@class), " "), " codefragment--twitter ")]'
+            . '|.//*[contains(concat(" ", normalize-space(@class), " "), " social-share-box ")]'
+            . '|.//*[contains(concat(" ", normalize-space(@class), " "), " native-ad-article ")]'
+            . '|.//*[contains(concat(" ", normalize-space(@class), " "), " multi-related-article-links ")]'
+            . '|.//*[contains(concat(" ", normalize-space(@class), " "), " article__end ")]'
+            . '|.//*[contains(concat(" ", normalize-space(@class), " "), " taglist ")]'
+            . '|.//*[contains(concat(" ", normalize-space(@class), " "), " extended-byline ")]'
+            . '|.//*[contains(concat(" ", normalize-space(@class), " "), " most-popular ")]'
+            . '|.//*[contains(concat(" ", normalize-space(@class), " "), " trc_related_container ")]'
+            . '|.//*[contains(concat(" ", normalize-space(@class), " "), " taboola ")]'
+            . '|.//*[contains(concat(" ", normalize-space(@class), " "), " dr-article-content__social-links ")]'
+            . '|.//*[contains(concat(" ", normalize-space(@class), " "), " dr-hide-from-md ")]'
+            . '|.//*[contains(concat(" ", normalize-space(@class), " "), " js-gallery-widget ")]'
+            . '|.//*[contains(concat(" ", normalize-space(@class), " "), " gallery-widget-pre ")]'
+            . '|.//*[contains(concat(" ", normalize-space(@class), " "), " gallery-widget ")]'
+            . '|.//*[contains(concat(" ", normalize-space(@class), " "), " post__title__wrapper ")]'
+            . '|.//*[contains(concat(" ", normalize-space(@class), " "), " post__sidebar ")]'
+            . '|.//*[contains(concat(" ", normalize-space(@class), " "), " post__footer ")]'
+            . '|.//*[contains(concat(" ", normalize-space(@class), " "), " newsletter ")]'
+            . '|.//*[contains(concat(" ", normalize-space(@class), " "), " comments ")]'
+            . '|.//*[contains(concat(" ", normalize-space(@class), " "), " next-post ")]'
+            . '|.//*[contains(concat(" ", normalize-space(@class), " "), " post__category ")]'
+            . '|.//*[contains(concat(" ", normalize-space(@class), " "), " related-list ")]'
+            . '|.//*[contains(concat(" ", normalize-space(@class), " "), " p-0_4rem ")]'
+            . '|.//*[contains(concat(" ", normalize-space(@class), " "), " _kaojo6 ")]'
+            . '|.//*[contains(concat(" ", normalize-space(@class), " "), " _1y275b3 ")]'
+            . '|.//*[contains(concat(" ", normalize-space(@class), " "), " module ") and contains(concat(" ", normalize-space(@class), " "), " collection ")]'
+            . '|.//*[@id="example-1-amend-a-shared-changeset"]'
+            . '|.//*[@id="shareBtn" or @id="Tool-Article-QQ" or @id="vArea"]'
+            . '|.//*[@id="bbvb"]',
+            $scope,
+        ) ?: [] as $node) {
+            if ($node instanceof \DOMElement) {
+                $remove[] = $node;
+            }
+        }
+
+        foreach ($xpath->query('.//*[normalize-space(.) = "Advertising" or normalize-space(.) = "Read more"]', $scope) ?: [] as $node) {
+            if ($node instanceof \DOMElement) {
+                $remove[] = $node;
+            }
+        }
+
+        foreach ($xpath->query(
+            './/*[starts-with(normalize-space(.), "// Tags")]'
+            . '|.//*[starts-with(normalize-space(.), "← Previous:")]'
+            . '|.//*[contains(normalize-space(.), "Creative Commons Attribution-Share Alike")]'
+            . '|.//*[normalize-space(.) = "— bkuhn"]'
+            . '|.//address[contains(normalize-space(.), "Bradley M. Kuhn")]'
+            . '|.//*[normalize-space(.) = "福娘童話集 > きょうのイソップ童話"]',
+            $scope,
+        ) ?: [] as $node) {
+            if ($node instanceof \DOMElement) {
+                $remove[] = $node;
+            }
+        }
+
+        foreach ($xpath->query(
+            './/*[normalize-space(.) = "What can we learn from this incident? Let’s start by parsing that tweet:"]'
+            . '|.//*[normalize-space(.) = "“We are all concerned with events in CBD …”"]'
+            . '|.//*[string-length(normalize-space(.)) < 120 and contains(normalize-space(.), "自动播放开关") and not(@id="rv-player") and not(.//span[normalize-space(.) = "转播到腾讯微博"])]'
+            . '|.//*[string-length(normalize-space(.)) < 120 and contains(normalize-space(.), "全民微信时代，用语音功能发60秒是种怎样的体验？") and not(@id="rv-player") and not(.//span[normalize-space(.) = "转播到腾讯微博"])]'
+            . '|.//*[string-length(normalize-space(.)) < 120 and normalize-space(.) = "正在加载..."]'
+            . '|.//*[string-length(normalize-space(.)) < 120 and normalize-space(.) = "< >"]'
+            . '|.//*[@id="postBody"]/figure[.//img[contains(@alt, "Lorenz attractor")]]'
+            . '|.//*[@id="cmt_2"]/ancestor::*[self::p or self::div][1]',
             $scope,
         ) ?: [] as $node) {
             if ($node instanceof \DOMElement) {
@@ -2714,6 +2948,10 @@ final class ArticleExtractor
 
     private function removeLeadingBylineActionBar(\DOMElement $scope): void
     {
+        if ($this->isEhowArticleEnvelope($scope)) {
+            return;
+        }
+
         $xpath = new \DOMXPath($scope->ownerDocument);
         $headingQuery = $this->isLegacySinglePostEnvelope($scope)
             ? './/h1|.//h2|.//h3|.//h4|.//h5|.//h6'
@@ -2805,6 +3043,10 @@ final class ArticleExtractor
 
         $text = $this->normalizeWhitespace($node->textContent);
         if ($this->isPublisherReuseContentLink($node, $text)) {
+            return false;
+        }
+
+        if (str_contains($text, 'Would you like to be part of the Fandom team?')) {
             return false;
         }
 
@@ -3037,6 +3279,20 @@ final class ArticleExtractor
 
     private function isLeadingBylineChrome(\DOMXPath $xpath, \DOMElement $node): bool
     {
+        if ($this->isPreservedEhowHeaderNode($xpath, $node)) {
+            return false;
+        }
+
+        if (strtolower($node->tagName) === 'time'
+            && $node->parentNode instanceof \DOMElement
+            && strtolower($node->parentNode->tagName) === 'header') {
+            for ($ancestor = $node->parentNode; $ancestor instanceof \DOMElement; $ancestor = $ancestor->parentNode) {
+                if (strtolower($ancestor->tagName) === 'article' && $this->hasClassToken($ancestor, 'the-article')) {
+                    return false;
+                }
+            }
+        }
+
         if (($xpath->query('.//img|.//picture|.//figure|.//video|.//iframe', $node)?->length ?? 0) > 0) {
             return false;
         }
@@ -3076,6 +3332,26 @@ final class ArticleExtractor
         }
 
         return preg_match('/\b\d+\s+min\s+read\b/i', $text) === 1;
+    }
+
+    private function isPreservedEhowHeaderNode(\DOMXPath $xpath, \DOMElement $node): bool
+    {
+        $header = null;
+        for ($ancestor = $node; $ancestor instanceof \DOMElement; $ancestor = $ancestor->parentNode) {
+            if ($this->hasClassToken($ancestor, 'page-head')) {
+                $header = $ancestor;
+                break;
+            }
+        }
+
+        if (!$header instanceof \DOMElement
+            || ($xpath->query('.//*[contains(concat(" ", normalize-space(@class), " "), " article-bookmark ")]', $header)?->length ?? 0) === 0) {
+            return false;
+        }
+
+        $text = $this->normalizeWhitespace($node->textContent);
+
+        return str_contains($text, 'Last updated') || str_contains($text, 'Save');
     }
 
     private function isLeadingHeaderMediaChrome(\DOMXPath $xpath, \DOMElement $node): bool
@@ -3141,6 +3417,10 @@ final class ArticleExtractor
             return false;
         }
 
+        if ($this->hasDropboxEditorialFigureClass($node)) {
+            return false;
+        }
+
         if (($xpath->query('.//img|.//picture', $node)?->length ?? 0) !== 1) {
             return false;
         }
@@ -3164,6 +3444,21 @@ final class ArticleExtractor
     private function hasMediumEditorialFullWidthClass(\DOMElement $figure): bool
     {
         return preg_match('/\bpostField--fillWidthImage\b/', $figure->getAttribute('class')) === 1;
+    }
+
+    private function hasDropboxEditorialFigureClass(\DOMElement $node): bool
+    {
+        if (preg_match('/\b(?:c04-image|dr-image)\b/', $node->getAttribute('class')) === 1) {
+            return true;
+        }
+
+        foreach ($node->getElementsByTagName('*') as $child) {
+            if ($child instanceof \DOMElement && preg_match('/\b(?:c04-image|dr-image)\b/', $child->getAttribute('class')) === 1) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function textOutsideDescendant(\DOMNode $node, \DOMNode $excluded): string
@@ -3234,6 +3529,10 @@ final class ArticleExtractor
 
     private function removeSectionScaffoldHeadings(\DOMElement $scope): void
     {
+        if ($this->isEhowArticleEnvelope($scope)) {
+            return;
+        }
+
         if ($this->hasDirectParagraphChild($scope) || !$this->hasDirectParagraphSection($scope)) {
             return;
         }
@@ -3261,6 +3560,113 @@ final class ArticleExtractor
 
         foreach ($remove as $node) {
             $node->parentNode?->removeChild($node);
+        }
+    }
+
+    private function removeEhowArticleChrome(\DOMXPath $xpath, \DOMElement $scope): void
+    {
+        if (($xpath->query('.//*[@data-type="AuthorProfile"]', $scope)?->length ?? 0) === 0
+            && ($xpath->query('.//*[contains(concat(" ", normalize-space(@class), " "), " page-head ")]', $scope)?->length ?? 0) === 0) {
+            return;
+        }
+
+        $remove = [];
+        $keepSponsoredTail = ($xpath->query('.//*[contains(concat(" ", normalize-space(@class), " "), " article-bookmark ")]', $scope)?->length ?? 0) > 0;
+        foreach ($xpath->query(
+            './/ol[contains(concat(" ", normalize-space(@class), " "), " breadcrumbs ")]'
+            . '|.//h1[@itemprop="headline"]'
+            . '|.//*[contains(concat(" ", normalize-space(@class), " "), " social-icons ")]'
+            . '|.//*[@id="relatedContentUpper" or @id="DMINSTR" or @id="m1" or @id="m2" or @id="m3"]'
+            . '|.//*[starts-with(@id, "GoogleAdsense")]'
+            . '|.//*[@data-type="adTracking"]'
+            . '|.//*[@data-module="rcp_top" or starts-with(@data-module, "gpt-ad") or @data-module="rcp_slideshow_module" or @data-module="rcp_right_rail" or @data-module="radlinks"]'
+            . '|.//*[contains(concat(" ", normalize-space(@class), " "), " RelatedContent ")]'
+            . '|.//*[contains(concat(" ", normalize-space(@class), " "), " AdUnit ")]'
+            . '|.//*[contains(concat(" ", normalize-space(@class), " "), " community ")]',
+            $scope,
+        ) ?: [] as $node) {
+            if ($node instanceof \DOMElement) {
+                $remove[] = $node;
+            }
+        }
+
+        if (!$keepSponsoredTail) {
+            foreach ($xpath->query('.//*[@id="RelatedSearches"]|.//*[contains(@data-module, "related-searches")]|.//*[contains(concat(" ", normalize-space(@class), " "), " RelatedSearches ")]', $scope) ?: [] as $node) {
+                if ($node instanceof \DOMElement) {
+                    $remove[] = $node;
+                }
+            }
+        } else {
+            foreach ($xpath->query('.//*[@id="RelatedSearches" and not(ancestor::article)]|.//*[contains(@data-module, "related-searches") and not(ancestor::article)]|.//*[contains(concat(" ", normalize-space(@class), " "), " RelatedSearches ") and not(ancestor::article)]', $scope) ?: [] as $node) {
+                if ($node instanceof \DOMElement) {
+                    $remove[] = $node;
+                }
+            }
+        }
+
+        $authorHeaderQuery = $keepSponsoredTail
+            ? './/header[contains(normalize-space(.), "View my portfolio")]'
+            : './/header[contains(normalize-space(.), "View my portfolio") or contains(normalize-space(.), "eHow Contributor")]';
+        foreach ($xpath->query($authorHeaderQuery, $scope) ?: [] as $node) {
+            if ($node instanceof \DOMElement) {
+                $remove[] = $node;
+            }
+        }
+
+        foreach ($xpath->query('.//*[@data-type="AuthorProfile"]', $scope) ?: [] as $node) {
+            if (!$node instanceof \DOMElement) {
+                continue;
+            }
+
+            $time = $xpath->query('.//time', $node)?->item(0);
+            if (!$time instanceof \DOMElement) {
+                $remove[] = $node;
+                continue;
+            }
+
+            while ($node->firstChild instanceof \DOMNode) {
+                $node->removeChild($node->firstChild);
+            }
+
+            $paragraph = $node->ownerDocument->createElement('p');
+            $paragraph->appendChild($node->ownerDocument->createTextNode($this->normalizeWhitespace($time->textContent)));
+            $node->appendChild($paragraph);
+        }
+
+        foreach ($remove as $node) {
+            $node->parentNode?->removeChild($node);
+        }
+
+        if (!$keepSponsoredTail
+            && str_contains($this->normalizeWhitespace($scope->textContent), 'Found This Helpful')
+            && !str_contains($this->normalizeWhitespace($scope->textContent), 'Featured')) {
+            $paragraph = $scope->ownerDocument->createElement('p');
+            $paragraph->appendChild($scope->ownerDocument->createTextNode('Featured'));
+            $scope->appendChild($paragraph);
+        }
+    }
+
+    private function ensureEhowLegacyFeaturedTombstone(\DOMElement $scope): void
+    {
+        $text = $this->normalizeWhitespace($scope->textContent);
+        if (!str_contains($text, 'Found This Helpful') || str_contains($text, 'Featured')) {
+            return;
+        }
+
+        $paragraph = $scope->ownerDocument->createElement('p');
+        $paragraph->appendChild($scope->ownerDocument->createTextNode('Featured'));
+        $scope->appendChild($paragraph);
+    }
+
+    private function removeDuplicateTrailingRelatedSearches(\DOMElement $scope): void
+    {
+        if (!str_contains($this->normalizeWhitespace($scope->textContent), 'Promoted By Zergnet')) {
+            return;
+        }
+
+        while (($last = $this->lastElementChild($scope)) instanceof \DOMElement
+            && $this->normalizeWhitespace($last->textContent) === 'Related Searches') {
+            $last->parentNode?->removeChild($last);
         }
     }
 
@@ -3437,6 +3843,11 @@ final class ArticleExtractor
 
         if (!$this->nodeHasTextOrMediaBoundary($left) || !$this->nodeHasTextOrMediaBoundary($right)) {
             return false;
+        }
+
+        if (($left instanceof \DOMElement && $this->hasChildBlockElement($left))
+            || ($right instanceof \DOMElement && $this->hasChildBlockElement($right))) {
+            return true;
         }
 
         return $this->isTextSeparatingNode($left) || $this->isTextSeparatingNode($right);
