@@ -125,7 +125,7 @@ final class OpmlWriter
             'text' => $this->renderHeadingHtmlInlines($heading),
         ];
         if ($content !== []) {
-            $attrs['_note'] = $this->renderMarkdownBlocks($content);
+            $attrs['_note'] = $this->renderPlainBlocks($content);
         }
 
         $indent = str_repeat('  ', $depth);
@@ -156,23 +156,19 @@ final class OpmlWriter
     /**
      * @param list<AstNode> $blocks
      */
-    private function renderMarkdownBlocks(array $blocks): string
+    private function renderPlainBlocks(array $blocks): string
     {
         $document = new AstNode('document', [], $blocks);
 
-        return rtrim((new MarkdownWriter($this->markdownOptions()))->write($document));
+        return rtrim((new PlainWriter($this->plainOptions()))->write($document));
     }
 
     /**
      * @return array<string, mixed>
      */
-    private function markdownOptions(): array
+    private function plainOptions(): array
     {
-        $options = [
-            'opmlNoteMarkdown' => true,
-            'rawAttribute' => true,
-            'rawTex' => true,
-        ];
+        $options = [];
         foreach (['columns', 'wrap'] as $key) {
             if (array_key_exists($key, $this->options)) {
                 $options[$key] = $this->options[$key];

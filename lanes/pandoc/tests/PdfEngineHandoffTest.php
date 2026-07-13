@@ -20,8 +20,12 @@ $document = static function (): AstNode {
     ], $parsed->children);
 };
 
+$latexSource = static function (string $body = 'PDF Handoff Packet'): string {
+    return "\\documentclass{article}\n\\begin{document}\n" . $body . "\n\\end{document}\n";
+};
+
 return [
-    'plans latex pdf engine handoff without executing a tex engine' => static function (TestRunner $t) use ($document): void {
+    'keeps latex pdf engine handoff source-only without a native latex writer' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), [
             'engine' => 'xelatex',
@@ -38,13 +42,13 @@ return [
         $t->same('build/review-packet.tex', $plan['sourceFile']);
         $t->same('build/review-packet.pdf', $plan['outputFile']);
         $t->same(['xelatex', '-halt-on-error', '-interaction=nonstopmode', '-file-line-error', 'build/review-packet.tex'], $plan['argv']);
-        $t->contains('Reviewer formula $E = mc^2$ keeps raw source \\cite{packet}.', (string) $plan['sourceBytes']);
-        $t->same(hash('sha256', (string) $plan['sourceBytes']), $plan['sourceSha256']);
+        $t->same(null, $plan['sourceBytes']);
+        $t->same(null, $plan['sourceSha256']);
         $t->same('PDF Handoff Packet', $plan['metadata']['title']);
         $t->same(['Migration Desk', 'Content Reviewer'], $plan['metadata']['author']);
         $t->same('2026-06-04', $plan['metadata']['date']);
         $t->contains('pdf-engine-not-executed', implode(',', $plan['diagnostics']));
-        $t->contains('intermediate-source-rendered:latex', implode(',', $plan['diagnostics']));
+        $t->contains('intermediate-source-required:latex', implode(',', $plan['diagnostics']));
     },
 
     'maps pandoc pdf engine families to bounded intermediate handoff argv' => static function (TestRunner $t) use ($document): void {
@@ -88,7 +92,7 @@ return [
         $t->same(['pdfroff', '-o', 'review.pdf', 'review.ms'], $roff['argv']);
         $t->same('context', $context['intermediateFormat']);
         $t->same(null, $context['sourceBytes']);
-        $t->contains('intermediate-writer-pending:context', implode(',', $context['diagnostics']));
+        $t->contains('intermediate-source-required:context', implode(',', $context['diagnostics']));
     },
 
     'plans typst stdin source boundary provenance without staging a pseudo file' => static function (TestRunner $t) use ($document): void {
@@ -9950,11 +9954,12 @@ return [
         $t->same($plan['typstBoundaryMatrix'], $sequence['finalTypstBoundaryMatrix']);
     },
 
-    'plans pdf template variables headers and resource paths for source handoff' => static function (TestRunner $t) use ($document): void {
+    'plans pdf template variables headers and resource paths for source handoff' => static function (TestRunner $t) use ($document, $latexSource): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), [
             'engine' => 'xelatex',
             'outputPath' => 'handoff/review.pdf',
+            'source' => $latexSource('Template handoff packet.'),
             'templatePath' => 'templates/review.tex',
             'includeInHeader' => ['templates/header.tex', 'templates/fonts.tex'],
             'resourcePaths' => ['media', 'shared assets'],
@@ -10115,11 +10120,12 @@ MARKDOWN);
         $t->contains('pdf-engine-artifacts:6', implode(',', $plan['diagnostics']));
     },
 
-    'plans and validates latex recorder file dependencies without executing engines' => static function (TestRunner $t) use ($document): void {
+    'plans and validates latex recorder file dependencies without executing engines' => static function (TestRunner $t) use ($document, $latexSource): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), [
             'engine' => 'xelatex',
             'outputPath' => 'handoff/dependency.pdf',
+            'source' => $latexSource('Recorder dependency packet.'),
             'engineOptions' => ['-file-line-error', '-recorder'],
         ]);
         $pdfBytes = "%PDF-1.7\n% fake bounded handoff with recorder file\n%%EOF\n";
@@ -10137,12 +10143,14 @@ MARKDOWN);
 
         $missing = $handoff->fakeRun($plan, [
             'files' => [
+                'handoff/dependency.tex' => (string) $plan['sourceBytes'],
                 'handoff/dependency.fls' => $fls,
                 'handoff/dependency.pdf' => $pdfBytes,
             ],
         ]);
         $ok = $handoff->fakeRun($plan, [
             'files' => [
+                'handoff/dependency.tex' => (string) $plan['sourceBytes'],
                 'styles/review-header.tex' => '\usepackage{fontspec}',
                 'refs/migration-log.bib' => '@book{migration-log,title={Migration Log}}',
                 'handoff/dependency.fls' => $fls,
@@ -10152,6 +10160,7 @@ MARKDOWN);
         $sequence = $handoff->fakeRunSequence($plan, [
             [
                 'files' => [
+                    'handoff/dependency.tex' => (string) $plan['sourceBytes'],
                     'styles/review-header.tex' => '\usepackage{fontspec}',
                     'refs/migration-log.bib' => '@book{migration-log,title={Migration Log}}',
                     'handoff/dependency.fls' => $fls,
@@ -10189,11 +10198,12 @@ MARKDOWN);
         $t->same($ok['engineOutputFiles'], $sequence['finalEngineOutputFiles']);
     },
 
-    'fake runner parses latex transcript include graph without recorder files' => static function (TestRunner $t) use ($document): void {
+    'fake runner parses latex transcript include graph without recorder files' => static function (TestRunner $t) use ($document, $latexSource): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), [
             'engine' => 'xelatex',
             'outputPath' => 'handoff/transcript.pdf',
+            'source' => $latexSource('Transcript dependency packet.'),
             'engineOptions' => ['-file-line-error'],
         ]);
         $pdfBytes = "%PDF-1.7\n% fake bounded handoff with transcript inputs\n%%EOF\n";
@@ -10209,12 +10219,14 @@ MARKDOWN);
 
         $missing = $handoff->fakeRun($plan, [
             'files' => [
+                'handoff/transcript.tex' => (string) $plan['sourceBytes'],
                 'handoff/transcript.log' => $log,
                 'handoff/transcript.pdf' => $pdfBytes,
             ],
         ]);
         $ok = $handoff->fakeRun($plan, [
             'files' => [
+                'handoff/transcript.tex' => (string) $plan['sourceBytes'],
                 'styles/review-header.tex' => '\usepackage{fontspec}',
                 'media/logo.png' => 'fake logo bytes',
                 'handoff/transcript.log' => $log,
@@ -10224,6 +10236,7 @@ MARKDOWN);
         $sequence = $handoff->fakeRunSequence($plan, [
             [
                 'files' => [
+                    'handoff/transcript.tex' => (string) $plan['sourceBytes'],
                     'styles/review-header.tex' => '\usepackage{fontspec}',
                     'media/logo.png' => 'fake logo bytes',
                     'handoff/transcript.log' => $log,
@@ -10329,11 +10342,12 @@ MARKDOWN);
         ], $sequence['finalSourceMapLineRanges']);
     },
 
-    'plans tex jobname and output-directory sidecar artifacts without executing engines' => static function (TestRunner $t) use ($document): void {
+    'plans tex jobname and output-directory sidecar artifacts without executing engines' => static function (TestRunner $t) use ($document, $latexSource): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), [
             'engine' => 'xelatex',
             'outputPath' => 'handoff/review.pdf',
+            'source' => $latexSource('Redirected sidecar packet.'),
             'engineOptions' => ['-file-line-error', '-jobname=review-final', '-output-directory', 'build/pdf', '-recorder', '-synctex=1'],
         ]);
         $pdfBytes = "%PDF-1.7\n% fake bounded handoff with redirected sidecars\n%%EOF\n";
@@ -10348,6 +10362,7 @@ MARKDOWN);
         $bcf = '<bcf version="3.9" />';
         $result = $handoff->fakeRun($plan, [
             'files' => [
+                'handoff/review.tex' => (string) $plan['sourceBytes'],
                 'chapters/source-note.tex' => '\input{review}',
                 'build/pdf/review-final.log' => "This is XeTeX, Version 3.141592653\n",
                 'build/pdf/review-final.fls' => $fls,
@@ -10508,9 +10523,13 @@ MARKDOWN);
         $t->same('review', $result['artifactProvenanceReview']['reviewStatus']);
     },
 
-    'fake runner exposes tex artifact provenance review metadata' => static function (TestRunner $t) use ($document): void {
+    'fake runner exposes tex artifact provenance review metadata' => static function (TestRunner $t) use ($document, $latexSource): void {
         $handoff = new PdfEngineHandoff();
-        $plan = $handoff->plan($document(), ['engine' => 'lualatex', 'outputPath' => 'review.pdf']);
+        $plan = $handoff->plan($document(), [
+            'engine' => 'lualatex',
+            'outputPath' => 'review.pdf',
+            'source' => $latexSource('Artifact provenance packet.'),
+        ]);
         $pdfBytes = "%PDF-1.7\n% fake bounded provenance packet\n%%EOF\n";
         $log = implode("\n", [
             'This is LuaHBTeX, Version 1.18.0',
@@ -10522,6 +10541,7 @@ MARKDOWN);
 
         $result = $handoff->fakeRun($plan, [
             'files' => [
+                'review.tex' => (string) $plan['sourceBytes'],
                 'review.aux' => "\\relax\n",
                 'review.out' => '',
                 'review.log' => $log,
@@ -23600,9 +23620,13 @@ MARKDOWN);
         $t->contains('fake-runner-attempt-failed:1:engine-exit-1', implode(',', $failedAttempt['diagnostics']));
     },
 
-    'fake runner reports missing output non pdf bytes source mismatch and engine failures' => static function (TestRunner $t) use ($document): void {
+    'fake runner reports missing output non pdf bytes source mismatch and engine failures' => static function (TestRunner $t) use ($document, $latexSource): void {
         $handoff = new PdfEngineHandoff();
-        $plan = $handoff->plan($document(), ['engine' => 'pdflatex', 'outputPath' => 'review.pdf']);
+        $plan = $handoff->plan($document(), [
+            'engine' => 'pdflatex',
+            'outputPath' => 'review.pdf',
+            'source' => $latexSource('Mismatch packet.'),
+        ]);
 
         $missing = $handoff->fakeRun($plan);
         $nonPdf = $handoff->fakeRun($plan, ['files' => ['review.pdf' => '<html>not a pdf</html>']]);

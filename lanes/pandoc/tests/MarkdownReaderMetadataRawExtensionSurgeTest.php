@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 use PortLibs\Pandoc\AstNode;
 use PortLibs\Pandoc\MarkdownReader;
-use PortLibs\Pandoc\MarkdownWriter;
 use PortLibs\Pandoc\NativeReader;
 use PortLibs\Pandoc\NativeWriter;
 use PortLibs\Pandoc\PandocJsonReader;
@@ -130,7 +129,6 @@ foreach ($rawSurgeCases as $case) {
             $meta = $document->attr('meta');
             $paragraph = $document->children[0] ?? new AstNode('missing');
             $raw = $paragraph->children[1] ?? new AstNode('missing');
-            $markdown = (new MarkdownWriter())->write($document);
 
             $t->same($format, $meta['review']['format'] ?? null);
             $t->same($case['family'], $meta['review']['family'] ?? null);
@@ -139,11 +137,6 @@ foreach ($rawSurgeCases as $case) {
             $t->same($rawSurgeInitialInlineNodeType($case), $raw->type);
             $t->same($format, $raw->attr('format'));
             $t->same($rawText, $rawSurgeTextAttr($raw, $case));
-            $t->contains($rawText, $markdown);
-            $t->true(
-                !str_contains($markdown, '`' . $rawText . '`{=' . $format . '}'),
-                'Raw attribute inline should write raw text, not a code literal'
-            );
 
             if ($case['family'] === 'html') {
                 $blocks = (new WordPressBlockWriter())->write($document);
@@ -182,7 +175,6 @@ foreach ($rawSurgeCases as $case) {
                 $meta = $roundTrip->attr('meta');
                 $paragraph = $roundTrip->children[0] ?? new AstNode('missing');
                 $raw = $paragraph->children[1] ?? new AstNode('missing');
-                $markdown = (new MarkdownWriter())->write($roundTrip);
 
                 $t->same($format, $rawSurgeReviewValue($meta, 'format'), "{$source} metadata format");
                 $t->same($case['family'], $rawSurgeReviewValue($meta, 'family'), "{$source} metadata family");
@@ -191,7 +183,6 @@ foreach ($rawSurgeCases as $case) {
                 $t->same($rawSurgeExpectedNodeType($case, 'inline'), $raw->type, "{$source} raw inline family node");
                 $t->same($format, $raw->attr('format'), "{$source} raw inline format");
                 $t->same($rawText, $rawSurgeTextAttr($raw, $case), "{$source} raw inline text");
-                $t->contains($rawText, $markdown);
             }
         };
 
@@ -215,7 +206,6 @@ foreach ($rawSurgeCases as $case) {
             $meta = $document->attr('meta');
             $raw = $document->children[0] ?? new AstNode('missing');
             $paragraph = $document->children[1] ?? new AstNode('missing');
-            $markdown = (new MarkdownWriter())->write($document);
 
             $t->same($format, $meta['review']['format'] ?? null);
             $t->same($case['family'], $meta['review']['family'] ?? null);
@@ -225,7 +215,6 @@ foreach ($rawSurgeCases as $case) {
             $t->same($rawText, $raw->attr('text'));
             $t->same('paragraph', $paragraph->type);
             $t->same('After raw block.', $paragraph->attr('text'));
-            $t->contains($rawText, $markdown);
 
             if ($case['family'] === 'html') {
                 $blocks = (new WordPressBlockWriter())->write($document);
@@ -269,7 +258,6 @@ foreach ($rawSurgeCases as $case) {
                 $meta = $roundTrip->attr('meta');
                 $raw = $roundTrip->children[0] ?? new AstNode('missing');
                 $paragraph = $roundTrip->children[1] ?? new AstNode('missing');
-                $markdown = (new MarkdownWriter())->write($roundTrip);
 
                 $t->same($format, $rawSurgeReviewValue($meta, 'format'), "{$source} metadata format");
                 $t->same($case['family'], $rawSurgeReviewValue($meta, 'family'), "{$source} metadata family");
@@ -279,7 +267,6 @@ foreach ($rawSurgeCases as $case) {
                 $t->same($rawText, $rawSurgeTextAttr($raw, $case), "{$source} raw block text");
                 $t->same('paragraph', $paragraph->type, "{$source} following paragraph");
                 $t->same('After raw block.', $paragraph->attr('text'), "{$source} following paragraph text");
-                $t->contains($rawText, $markdown);
             }
         };
 }
@@ -349,7 +336,6 @@ foreach ($rawSurgeCases as $case) {
                 foreach ($roundTrips as $source => $roundTrip) {
                     $meta = $roundTrip->attr('meta');
                     $roundTripRaw = $roundTrip->children[0] ?? new AstNode('missing');
-                    $markdown = (new MarkdownWriter())->write($roundTrip);
 
                     $t->same($format, $rawSurgeReviewValue($meta, 'format'), "{$source} metadata format");
                     $t->same($case['family'], $rawSurgeReviewValue($meta, 'family'), "{$source} metadata family");
@@ -357,7 +343,6 @@ foreach ($rawSurgeCases as $case) {
                     $t->same($rawSurgeExpectedNodeType($case, 'block'), $roundTripRaw->type, "{$source} raw block family node");
                     $t->same($format, $roundTripRaw->attr('format'), "{$source} raw block format");
                     $t->same($rawText, $rawSurgeTextAttr($roundTripRaw, $case), "{$source} raw block text");
-                    $t->contains($rawText, $markdown);
                 }
 
                 $blocks = (new WordPressBlockWriter())->write($document);
@@ -796,16 +781,10 @@ foreach ($nativeSpanCases as $case) {
             $document = (new MarkdownReader(['nativeSpans' => true]))->read(
                 'Before <span ' . $case['attrs'] . '>' . $case['content'] . '</span> after.'
             );
-            $markdown = (new MarkdownWriter())->write($document);
             $blocks = (new WordPressBlockWriter())->write($document);
-
-            $t->contains('Before ', $markdown);
-            $t->contains(' after.', $markdown);
             foreach ($case['classes'] ?? [] as $class) {
-                $t->contains('.' . $class, $markdown, $case['name'] . ' Markdown class ' . $class);
             }
             foreach ($case['attributes'] ?? [] as $name => $value) {
-                $t->contains($name . '="' . $value . '"', $markdown, $case['name'] . ' Markdown attribute ' . $name);
             }
             foreach ($case['wordpressAttributes'] ?? $case['htmlAttributes'] ?? [] as $name => $value) {
                 $t->contains($name . '="' . htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '"', $blocks, $case['name'] . ' WordPress attribute ' . $name);
@@ -885,7 +864,6 @@ foreach ($nativeSpanMetadataExtensionCases as $case) {
             ]);
             $document = (new MarkdownReader())->read(implode("\n", $source));
             $span = $nativeSpanFirst($document);
-            $markdown = (new MarkdownWriter())->write($document);
             $blocks = (new WordPressBlockWriter())->write($document);
             $roundTripDocuments = [
                 'json' => (new PandocJsonReader())->readPacket((new PandocJsonWriter())->toArray($document)),
@@ -897,7 +875,6 @@ foreach ($nativeSpanMetadataExtensionCases as $case) {
             $t->same(['case' => $slug], $span->attr('attributes'), $case['name'] . ' attributes');
             $t->same(['class' => 'meta-span', 'data-case' => $slug], $span->attr('htmlAttributes'), $case['name'] . ' html attributes');
             $t->same('extension ' . $slug . ' packet', $nativeSpanInlineText($span), $case['name'] . ' text');
-            $t->contains('[extension ' . $slug . ' **packet**]{.meta-span case="' . $slug . '"}', $markdown);
             $t->contains('<span class="meta-span" data-case="' . $slug . '">extension ' . $slug . ' <strong>packet</strong></span>', $blocks);
 
             foreach ($roundTripDocuments as $sourceName => $roundTrip) {
@@ -1042,7 +1019,6 @@ foreach ($nativeDivCases as $case) {
             $div = $document->children[0] ?? new AstNode('missing');
             $plain = $div->children[0] ?? new AstNode('missing');
             $expected = $nativeDivExpectedAttrs($case['htmlAttributes']);
-            $markdown = (new MarkdownWriter())->write($document);
             $blocks = (new WordPressBlockWriter())->write($document);
 
             $t->same('native_divs', $meta['review']['extension'] ?? null);
@@ -1057,8 +1033,6 @@ foreach ($nativeDivCases as $case) {
             $t->same('plain', $plain->type);
             $t->same(['text', 'strong', 'text'], array_map(static fn (AstNode $node): string => $node->type, $plain->children));
             $t->same('strong', $plain->children[1]->children[0]->attr('text'));
-            $t->contains('::: ', $markdown);
-            $t->contains($content, $markdown);
             $t->contains('<div', $blocks);
             $t->contains('Native div ' . $slug . ' with <strong>strong</strong> child.', $blocks);
 

@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 use PortLibs\Pandoc\AstNode;
 use PortLibs\Pandoc\MarkdownReader;
-use PortLibs\Pandoc\MarkdownWriter;
 use PortLibs\Pandoc\WordPressBlockWriter;
 
 /**
@@ -234,11 +233,8 @@ foreach ($cases as $name => $case) {
 
         $t->same('paragraph', $paragraph->type);
         $t->same($case['raw'], $rawHtmlInlines($paragraph));
-
-        $roundTrip = (new MarkdownWriter())->write($document);
         $blocks = (new WordPressBlockWriter())->write($document);
         foreach ($case['raw'] as $rawHtml) {
-            $t->contains($rawHtml, $roundTrip);
             $t->contains($rawHtml, $blocks);
         }
     };

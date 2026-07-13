@@ -5,7 +5,6 @@ declare(strict_types=1);
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 use PortLibs\Pandoc\OdfReader;
-use PortLibs\Pandoc\MarkdownWriter;
 use PortLibs\Pandoc\WordPressBlockWriter;
 use PortLibs\Pandoc\ZipPackage;
 
@@ -488,7 +487,6 @@ $package = ZipPackage::fromParts([
 
 $reader = new OdfReader();
 $result = $reader->readPackage($package);
-$markdown = (new MarkdownWriter())->write($result['document']);
 $blocks = (new WordPressBlockWriter())->write($result['document']);
 
 if (($argv[1] ?? '') === '--self-test') {
@@ -616,9 +614,6 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($blocks, '<h1 id="source-overview-id" data-odf-heading-anchor-source="attribute" data-odf-heading-source-attribute="xml:id" data-odf-heading-source-id="source-overview-id" data-odf-heading-anchor-id="source-overview-id">Source overview heading</h1>')) {
         throw new RuntimeException('Expected ODT xml:id heading to render as a WordPress heading block');
-    }
-    if (!str_contains($markdown, '# Source overview heading {#source-overview-id data-odf-heading-anchor-source="attribute" data-odf-heading-source-attribute="xml:id" data-odf-heading-source-id="source-overview-id" data-odf-heading-anchor-id="source-overview-id"}')) {
-        throw new RuntimeException('Expected ODT xml:id heading provenance to render in Markdown handoff');
     }
     if (str_contains($blocks, '<h1 id="odt-source-packet"><span id="odt-source-packet"')) {
         throw new RuntimeException('Expected ODT heading bookmark to avoid nested empty anchor output');
@@ -1021,15 +1016,6 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($blocks, '<ol start="4" type="a"><li>Check sparse nested fallback style</li></ol>')) {
         throw new RuntimeException('Expected sparse ODT nested list levels to reuse the nearest lower list style');
-    }
-    if (!str_contains($markdown, '(1) Match ODT media to WordPress attachments')) {
-        throw new RuntimeException('Expected ODT list prefix/suffix to render two-parentheses Markdown markers');
-    }
-    if (!str_contains($markdown, 'd)  Check inherited nested checklist style')) {
-        throw new RuntimeException('Expected inherited ODT list suffix to render one-parenthesis Markdown markers');
-    }
-    if (!str_contains($markdown, 'd)  Check sparse nested fallback style')) {
-        throw new RuntimeException('Expected sparse ODT nested list fallback suffix to render one-parenthesis Markdown markers');
     }
     if (($result['importReport']['content']['noteCount'] ?? 0) < 2) {
         throw new RuntimeException('Expected ODT footnote and annotation notes to be reported');

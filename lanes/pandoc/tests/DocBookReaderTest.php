@@ -54,7 +54,6 @@ XML;
 
         $document = PandocConverter::read($docbook, 'docbook');
         $blocks = PandocConverter::write($document, 'blocks');
-        $markdown = PandocConverter::write($document, 'markdown');
         $meta = $document->attr('meta');
 
         $t->same('docbook', $document->attr('sourceFormat'));
@@ -85,9 +84,6 @@ XML;
         $t->contains('pandoc-definition-list docbook-bibliography', $blocks);
         $t->contains('<p class="pandoc-definition-term"><strong>ref-a</strong></p>', $blocks);
         $t->contains('<ul class="pandoc-definition-values"><li>DocBook Source. Smith. 2026</li></ul>', $blocks);
-        $t->contains('# Introduction', $markdown);
-        $t->contains('Field             Status', $markdown);
-        $t->contains('Parser            Ready', $markdown);
     },
     'resolves docbook media resources through media bag extraction' => static function (TestRunner $t): void {
         $svgBytes = "<svg><text>hero diagram</text></svg>\n";
@@ -287,7 +283,6 @@ XML;
 
         $document = PandocConverter::read($docbook, 'docbook');
         $blocks = PandocConverter::write($document, 'blocks');
-        $markdown = PandocConverter::write($document, 'markdown');
         $paragraph = $document->children[1];
 
         $t->same('paragraph', $paragraph->type);
@@ -305,8 +300,6 @@ XML;
         $t->contains('>DocBook Source</span>', $blocks);
         $t->contains('>Second Source</span>', $blocks);
         $t->contains('<a href="https://example.test/ref">external ref</a>', $blocks);
-        $t->same(2, substr_count($markdown, '[@ref-a]'));
-        $t->same(1, substr_count($markdown, '[@ref-b]'));
     },
     'maps docbook grouped citations with affixes into citation ast payloads' => static function (TestRunner $t): void {
         $docbook = <<<'XML'
@@ -325,7 +318,6 @@ XML;
 
         $document = PandocConverter::read($docbook, 'docbook');
         $blocks = PandocConverter::write($document, 'blocks');
-        $markdown = PandocConverter::write($document, 'markdown');
         $paragraph = $document->children[1];
         $citation = $paragraph->children[1];
 
@@ -343,7 +335,6 @@ XML;
         $t->contains('&quot;prefix&quot;:&quot;see&quot;', $blocks);
         $t->contains('&quot;suffix&quot;:&quot;p. 9&quot;', $blocks);
         $t->contains('&quot;mode&quot;:&quot;suppress_author&quot;', $blocks);
-        $t->contains('[see @ref-a p. 9; -@ref-b]', $markdown);
     },
     'maps docbook refentry callouts glossary segmented lists qanda and equations' => static function (TestRunner $t): void {
         $docbook = <<<'XML'
@@ -412,7 +403,6 @@ XML;
 
         $document = PandocConverter::read($docbook, 'docbook');
         $blocks = PandocConverter::write($document, 'blocks');
-        $markdown = PandocConverter::write($document, 'markdown');
         $meta = $document->attr('meta');
         $code = $document->children[3];
         $areas = $code->attr('docbookAreas');
@@ -441,8 +431,6 @@ XML;
         $t->contains('<span id="inline-co" class="docbook-callout" data-docbook-callout="true" data-docbook-callout-id="inline-co" data-docbook-callout-linkends="call-install" data-docbook-callout-label="1">1</span>', $blocks);
         $t->contains('<pre class="wp-block-code" data-docbook-area-count="1"><code class="language-bash">wp import</code></pre>', $blocks);
         $t->contains('<ol><li data-docbook-arearefs="co-install" data-docbook-callout-label="1">Run the import command.</li></ol>', $blocks);
-        $t->contains('[]{#install-anchor .anchor .docbook-anchor data-docbook-anchor="true"', $markdown);
-        $t->contains('[]{#idx-install .indexref .docbook-indexterm entry="Install; CLI"', $markdown);
     },
     'generates docbook callout labels for markers areas and callout lists' => static function (TestRunner $t): void {
         $docbook = <<<'XML'

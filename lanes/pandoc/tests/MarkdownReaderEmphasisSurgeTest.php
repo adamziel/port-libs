@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 use PortLibs\Pandoc\AstNode;
 use PortLibs\Pandoc\MarkdownReader;
-use PortLibs\Pandoc\MarkdownWriter;
 use PortLibs\Pandoc\WordPressBlockWriter;
 
 $plainText = static function (AstNode $node) use (&$plainText): string {
@@ -243,16 +242,11 @@ foreach ($delimiterSpecs as $delimiterName => $delimiters) {
                 $outer = $readFirstInline($markdown);
                 $inner = $firstChildOfType($outer, 'emph');
                 $blocks = (new WordPressBlockWriter())->write((new MarkdownReader())->read($markdown));
-                $roundTrip = (new MarkdownWriter())->write((new MarkdownReader())->read($markdown));
-                $roundTripOuter = $readFirstInline($roundTrip);
-                $roundTripInner = $firstChildOfType($roundTripOuter, 'emph');
 
                 $t->same('strong', $outer->type);
                 $t->same('emph', $inner->type);
                 $t->same($expectedInner, $plainText($inner));
                 $t->same('outer ' . $expectedInner, $plainText($outer));
-                $t->same('strong', $roundTripOuter->type);
-                $t->same('emph', $roundTripInner->type);
                 $t->contains('<strong', $blocks);
                 $t->contains('<em', $blocks);
             };
@@ -266,16 +260,11 @@ foreach ($delimiterSpecs as $delimiterName => $delimiters) {
                 $outer = $readFirstInline($markdown);
                 $inner = $firstChildOfType($outer, 'strong');
                 $blocks = (new WordPressBlockWriter())->write((new MarkdownReader())->read($markdown));
-                $roundTrip = (new MarkdownWriter())->write((new MarkdownReader())->read($markdown));
-                $roundTripOuter = $readFirstInline($roundTrip);
-                $roundTripInner = $firstChildOfType($roundTripOuter, 'strong');
 
                 $t->same('emph', $outer->type);
                 $t->same('strong', $inner->type);
                 $t->same($expectedInner, $plainText($inner));
                 $t->same('outer ' . $expectedInner, $plainText($outer));
-                $t->same('emph', $roundTripOuter->type);
-                $t->same('strong', $roundTripInner->type);
                 $t->contains('<strong', $blocks);
                 $t->contains('<em', $blocks);
             };

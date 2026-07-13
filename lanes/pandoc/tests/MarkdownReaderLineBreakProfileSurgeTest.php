@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 use PortLibs\Pandoc\AstNode;
 use PortLibs\Pandoc\MarkdownReader;
-use PortLibs\Pandoc\MarkdownWriter;
 use PortLibs\Pandoc\WordPressBlockWriter;
 
 $inlineText = static function (AstNode $node) use (&$inlineText): string {
@@ -176,7 +175,6 @@ return [
 
                 $t->same(['text', 'linebreak', 'text'], array_map(static fn (AstNode $node): string => $node->type, $paragraph->children), $format);
                 $t->same("alpha\nbeta", $paragraph->attr('text'), $format);
-                $t->same("alpha\\\nbeta", (new MarkdownWriter())->write($document), $format);
                 $t->contains('<p>alpha<br/>beta</p>', $blocks, $format);
                 $mapped++;
             }
@@ -208,7 +206,6 @@ return [
 
                 $t->same(['text'], array_map(static fn (AstNode $node): string => $node->type, $paragraph->children), $format);
                 $t->same('alphabeta', $paragraph->attr('text'), $format);
-                $t->same('alphabeta', (new MarkdownWriter())->write($document), $format);
                 $mapped++;
             }
 

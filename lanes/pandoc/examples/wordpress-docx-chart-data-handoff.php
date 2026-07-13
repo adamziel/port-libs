@@ -6,7 +6,6 @@ require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 use PortLibs\Pandoc\AstNode;
 use PortLibs\Pandoc\DocxReader;
-use PortLibs\Pandoc\MarkdownWriter;
 use PortLibs\Pandoc\WordPressBlockWriter;
 use PortLibs\Pandoc\ZipPackage;
 
@@ -136,7 +135,6 @@ XML],
 
 $result = (new DocxReader())->readPackage($package);
 $document = $result['document'];
-$markdown = (new MarkdownWriter())->write($document);
 $blocks = (new WordPressBlockWriter())->write($document);
 $chart = $document->children[0]->children[0] ?? null;
 
@@ -229,7 +227,6 @@ echo json_encode([
     'text' => $chart instanceof AstNode ? $chart->children[0]->attr('text') : null,
     'classes' => $chart instanceof AstNode ? $chart->attr('classes') : null,
     'attributes' => $chart instanceof AstNode ? $chart->attr('attributes') : null,
-    'markdown' => $markdown,
     'blocks' => $blocks,
     'relationshipCount' => $result['importReport']['relationshipCount'] ?? null,
     'reachableRelationshipCount' => $result['importReport']['reachableRelationshipCount'] ?? null,

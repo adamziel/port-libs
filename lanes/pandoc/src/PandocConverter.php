@@ -584,8 +584,6 @@ final class PandocConverter
             EpubWriter::class => new EpubWriter($options),
             HtmlWriter::class => new HtmlWriter($options),
             JsonWriter::class => new JsonWriter(),
-            LatexWriter::class => new LatexWriter($options),
-            MarkdownWriter::class => new MarkdownWriter(self::markdownWriterOptions($format, $options)),
             NativeWriter::class => new NativeWriter($options),
             OpmlWriter::class => new OpmlWriter($options),
             PlainWriter::class => new PlainWriter($options),
@@ -611,16 +609,4 @@ final class PandocConverter
         return $options;
     }
 
-    /**
-     * @param array<string, mixed> $options
-     * @return array<string, mixed>
-     */
-    private static function markdownWriterOptions(string $format, array $options): array
-    {
-        if (!isset($options['variant']) && $format !== 'markdown') {
-            $options['variant'] = $format;
-        }
-
-        return $options;
-    }
 }

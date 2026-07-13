@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 use PortLibs\Pandoc\AstNode;
 use PortLibs\Pandoc\MarkdownReader;
-use PortLibs\Pandoc\MarkdownWriter;
 use PortLibs\Pandoc\WordPressBlockWriter;
 
 $collectOrderedLists = static function (AstNode $node) use (&$collectOrderedLists): array {
@@ -107,7 +106,6 @@ foreach ($cases as $name => $case) {
         static function (TestRunner $t) use ($case, $collectOrderedLists, $itemTexts, $name): void {
             $document = (new MarkdownReader())->read($case['html']);
             $lists = $collectOrderedLists($document);
-            $markdown = (new MarkdownWriter())->write($document);
             $blocks = (new WordPressBlockWriter())->write($document);
 
             $t->same(count($case['lists']), count($lists), $name . ' ordered list count');
@@ -122,7 +120,6 @@ foreach ($cases as $name => $case) {
             }
 
             if (isset($case['markdown'])) {
-                $t->contains($case['markdown'], $markdown, $name . ' markdown decimal marker');
             }
             if (isset($case['wordpress'])) {
                 $t->contains($case['wordpress'], $blocks, $name . ' wordpress ordered-list output');

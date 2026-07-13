@@ -477,14 +477,14 @@ final class PandocFormatRegistry
      */
     private const PHP_OUTPUT_SUPPORT = [
         'commonmark' => [
-            'status' => 'partial',
-            'implementation' => MarkdownWriter::class,
-            'notes' => 'CommonMark writer branches are partially mapped through the MarkdownWriter variant option.',
+            'status' => 'unsupported',
+            'implementation' => '',
+            'notes' => 'No native PHP CommonMark writer is registered. CommonMark remains supported as an input format.',
         ],
         'commonmark_x' => [
-            'status' => 'partial',
-            'implementation' => MarkdownWriter::class,
-            'notes' => 'CommonMark with extensions is partially mapped through raw inline/block branch tests.',
+            'status' => 'unsupported',
+            'implementation' => '',
+            'notes' => 'No native PHP CommonMark-with-extensions writer is registered. The reader remains supported.',
         ],
         'docx' => [
             'status' => 'partial',
@@ -502,9 +502,9 @@ final class PandocFormatRegistry
             'notes' => 'Bounded EPUB3 output emits an OCF ZIP package with stored mimetype, container.xml, OPF metadata/manifest/spine, nav.xhtml, toc.ncx, stylesheet, default title page with landmarks, media resources, cover-image manifest properties, and writerSplitLevel XHTML spine splitting rendered through the shared HTML writer. Full Pandoc EPUB3 writer options, EPUB2, template customization, and advanced media parity remain open.',
         ],
         'gfm' => [
-            'status' => 'partial',
-            'implementation' => MarkdownWriter::class,
-            'notes' => 'GFM details/list/raw HTML writer behavior is partially mapped.',
+            'status' => 'unsupported',
+            'implementation' => '',
+            'notes' => 'No native PHP GFM writer is registered. GFM remains supported as an input format.',
         ],
         'html' => [
             'status' => 'partial',
@@ -522,9 +522,9 @@ final class PandocFormatRegistry
             'notes' => 'Writes the current Pandoc JSON AST encoding for the constructors covered by the shared PHP AST; complete constructor coverage remains open.',
         ],
         'latex' => [
-            'status' => 'partial',
-            'implementation' => LatexWriter::class,
-            'notes' => 'LaTeX writer covers bounded block, inline, math, and raw TeX slices; full writer parity remains open.',
+            'status' => 'unsupported',
+            'implementation' => '',
+            'notes' => 'No native PHP LaTeX writer is registered. LaTeX remains supported as an input format.',
         ],
         'man' => [
             'status' => 'unsupported',
@@ -532,29 +532,29 @@ final class PandocFormatRegistry
             'notes' => 'Roff manual registry evidence tracks the upstream man writer source semantics; no native PHP man writer is registered yet.',
         ],
         'markdown' => [
-            'status' => 'partial',
-            'implementation' => MarkdownWriter::class,
-            'notes' => 'Primary Markdown writer target with broad Pandoc Markdown behavior slices.',
+            'status' => 'unsupported',
+            'implementation' => '',
+            'notes' => 'No native PHP Markdown writer is registered. Markdown remains supported as an input format.',
         ],
         'markdown_github' => [
-            'status' => 'partial',
-            'implementation' => MarkdownWriter::class,
-            'notes' => 'Deprecated upstream token handled as a GFM-family Markdown writer variant.',
+            'status' => 'unsupported',
+            'implementation' => '',
+            'notes' => 'No native PHP GitHub Markdown writer is registered. The input alias remains supported.',
         ],
         'markdown_mmd' => [
-            'status' => 'partial',
-            'implementation' => MarkdownWriter::class,
-            'notes' => 'MultiMarkdown output is partially mapped through MarkdownWriter variants.',
+            'status' => 'unsupported',
+            'implementation' => '',
+            'notes' => 'No native PHP MultiMarkdown writer is registered. The reader remains supported.',
         ],
         'markdown_phpextra' => [
-            'status' => 'partial',
-            'implementation' => MarkdownWriter::class,
-            'notes' => 'PHP Markdown Extra output is partially mapped through MarkdownWriter variants.',
+            'status' => 'unsupported',
+            'implementation' => '',
+            'notes' => 'No native PHP Markdown Extra writer is registered. The reader remains supported.',
         ],
         'markdown_strict' => [
-            'status' => 'partial',
-            'implementation' => MarkdownWriter::class,
-            'notes' => 'Strict Markdown output lacks a complete extension disabling matrix.',
+            'status' => 'unsupported',
+            'implementation' => '',
+            'notes' => 'No native PHP strict Markdown writer is registered. The reader remains supported.',
         ],
         'ms' => [
             'status' => 'unsupported',

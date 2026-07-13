@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 use PortLibs\Pandoc\AstNode;
 use PortLibs\Pandoc\MarkdownReader;
-use PortLibs\Pandoc\MarkdownWriter;
 use PortLibs\Pandoc\NativeWriter;
 use PortLibs\Pandoc\WordPressBlockWriter;
 
@@ -55,13 +54,10 @@ $tests['round trips upstream markdown reader parse raw fixture through native ma
             '`<outline text="Legacy"/>`{=opml}',
         ]);
         $document = (new MarkdownReader())->read($source);
-        $markdown = (new MarkdownWriter())->write($document);
         $native = (new NativeWriter())->write($document);
         $blocks = (new WordPressBlockWriter())->write($document);
 
         $t->contains('*Hi `\foo{there}`{=latex}*', $fixture());
-        $t->contains('*Hi <blink>there</blink>*', $markdown);
-        $t->contains('`<outline text="Legacy"/>`{=opml}', $markdown);
         $t->contains('RawInline (Format "latex") "\\\\foo{there}"', $native);
         $t->contains('RawInline (Format "html") "<blink>"', $native);
         $t->contains('RawInline (Format "html") "</blink>"', $native);

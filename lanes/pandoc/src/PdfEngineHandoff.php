@@ -183,7 +183,7 @@ final class PdfEngineHandoff
         $typstOutputFormatPolicy = $this->typstOutputFormatPolicyFor($engine, $outputFile, $engineOptions);
         $sourceBytes = array_key_exists('source', $options)
             ? $this->requireString($options['source'], 'PDF intermediate source')
-            : $this->renderIntermediateSource($document, $profile['intermediate']);
+            : null;
         $sourceSha256 = is_string($sourceBytes) ? hash('sha256', $sourceBytes) : null;
         $templateFile = array_key_exists('templatePath', $options)
             ? $this->normalizeRelativePath($this->requireString($options['templatePath'], 'PDF template path'), 'PDF template path')
@@ -256,11 +256,9 @@ final class PdfEngineHandoff
 
         $diagnostics = ['pdf-engine-not-executed'];
         if ($sourceBytes === null) {
-            $diagnostics[] = 'intermediate-writer-pending:' . $profile['intermediate'];
-        } elseif (array_key_exists('source', $options)) {
-            $diagnostics[] = 'intermediate-source-supplied';
+            $diagnostics[] = 'intermediate-source-required:' . $profile['intermediate'];
         } else {
-            $diagnostics[] = 'intermediate-source-rendered:' . $profile['intermediate'];
+            $diagnostics[] = 'intermediate-source-supplied';
         }
         if ($sourceInput !== []) {
             $diagnostics[] = 'typst-source-input:' . $sourceInput['mode'];
@@ -6679,15 +6677,6 @@ final class PdfEngineHandoff
         $provenance['validationIssues'] = $validationIssues;
 
         return $provenance;
-    }
-
-    private function renderIntermediateSource(AstNode $document, string $intermediateFormat): ?string
-    {
-        if ($intermediateFormat === 'latex') {
-            return (new LatexWriter())->write($document);
-        }
-
-        return null;
     }
 
     /**

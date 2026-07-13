@@ -45,7 +45,6 @@ final class MarkdownUpstreamReaderEvidence
             'checkedInPath' => 'lanes/pandoc/fixtures/upstream-command-parse-raw.md',
             'coverageTests' => [
                 'lanes/pandoc/tests/MarkdownReaderParseRawFixtureCompletionTest.php',
-                'lanes/pandoc/tests/MarkdownWriterParseRawFixtureCompletionTest.php',
             ],
             'sha256' => 'e3b50f56f86883e3e323cf97d52cd07a3c3797fb7d5f89bbb422392e8008f72b',
             'bytes' => 379,
@@ -71,7 +70,6 @@ final class MarkdownUpstreamReaderEvidence
             'checkedInPath' => 'lanes/pandoc/fixtures/upstream-command-details-summary.md',
             'coverageTests' => [
                 'lanes/pandoc/tests/MarkdownReaderTest.php',
-                'lanes/pandoc/tests/MarkdownWriterDetailsSummaryFixtureCompletionTest.php',
             ],
             'sha256' => 'bd279e57d0cad59c8c7b9651f58fee3e763cb822af97ec34323144ea4fa0955c',
             'bytes' => 188,
@@ -97,7 +95,6 @@ final class MarkdownUpstreamReaderEvidence
             'checkedInPath' => 'lanes/pandoc/fixtures/upstream-markdown-angle-autolinks.md',
             'coverageTests' => [
                 'lanes/pandoc/tests/MarkdownReaderAngleAutolinkFixtureCompletionTest.php',
-                'lanes/pandoc/tests/MarkdownWriterAngleAutolinkFixtureCompletionTest.php',
             ],
             'sha256' => '203f0f64b99105e28b37ebd229ba6d8a6284aa41a1a9f17bdaf5aa3acfbb5836',
             'bytes' => 164,
@@ -122,7 +119,6 @@ final class MarkdownUpstreamReaderEvidence
             'checkedInPath' => 'lanes/pandoc/fixtures/upstream-markdown-citation-span-boundary.md',
             'coverageTests' => [
                 'lanes/pandoc/tests/MarkdownReaderCitationSpanBoundaryCompletionTest.php',
-                'lanes/pandoc/tests/MarkdownWriterCitationSpanBoundaryFixtureCompletionTest.php',
             ],
             'sha256' => '4a9c744c4eef5597fcd1c178fd756b18ee78e70e57230689c564d2f695bef6d1',
             'bytes' => 84,

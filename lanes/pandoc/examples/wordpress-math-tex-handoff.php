@@ -5,7 +5,6 @@ declare(strict_types=1);
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 use PortLibs\Pandoc\AstNode;
-use PortLibs\Pandoc\LatexWriter;
 use PortLibs\Pandoc\MarkdownReader;
 use PortLibs\Pandoc\MathTexConverter;
 use PortLibs\Pandoc\WordPressBlockWriter;
@@ -275,7 +274,6 @@ if (!$displayMath instanceof AstNode) {
 
 $summary = [
     'wordpressBlocks' => (new WordPressBlockWriter())->write($document),
-    'latex' => (new LatexWriter())->write($document),
     'inlineMathml' => $converter->mathMlFor($inlineMath),
     'mathml' => $converter->mathMlFor($displayMath),
     'macroExpandedMathml' => $converter->texToMathMl('\\wptuple{post_id,media_id}', false, $converter->macroDefinitionsFromDocument($document)),

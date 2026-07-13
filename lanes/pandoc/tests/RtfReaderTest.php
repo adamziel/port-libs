@@ -3,7 +3,6 @@
 declare(strict_types=1);
 
 use PortLibs\Pandoc\AstNode;
-use PortLibs\Pandoc\MarkdownWriter;
 use PortLibs\Pandoc\RtfReader;
 use PortLibs\Pandoc\WordPressBlockWriter;
 
@@ -58,17 +57,13 @@ RTF;
         $t->contains("\t" . 'cell', $text);
         $t->true(!str_contains($text, '?'), 'Expected unicode fallback marker to be skipped');
     },
-    'renders rtf reader output through markdown and wordpress writers' => static function (TestRunner $t): void {
+    'renders rtf reader output through wordpress blocks' => static function (TestRunner $t): void {
         $rtf = <<<'RTF'
 {\rtf1\ansi\pard First {\b bold} and {\i italic} plus {\ul under}.\par Second {\strike removed}.\par}
 RTF;
 
         $document = (new RtfReader())->read($rtf);
-        $markdown = (new MarkdownWriter())->write($document);
         $blocks = (new WordPressBlockWriter())->write($document);
-
-        $t->contains('First **bold** and *italic* plus [under]{.underline}.', $markdown);
-        $t->contains('Second ~~removed~~.', $markdown);
         $t->contains('<!-- wp:paragraph -->', $blocks);
         $t->contains('<p>First <strong>bold</strong> and <em>italic</em> plus <u>under</u>.</p>', $blocks);
         $t->contains('<p>Second <del>removed</del>.</p>', $blocks);

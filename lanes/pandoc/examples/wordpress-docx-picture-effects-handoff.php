@@ -6,7 +6,6 @@ require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 use PortLibs\Pandoc\AstNode;
 use PortLibs\Pandoc\DocxReader;
-use PortLibs\Pandoc\MarkdownWriter;
 use PortLibs\Pandoc\WordPressBlockWriter;
 use PortLibs\Pandoc\ZipPackage;
 
@@ -73,7 +72,6 @@ XML],
 
 $result = (new DocxReader())->readPackage($package);
 $document = $result['document'];
-$markdown = (new MarkdownWriter())->write($document);
 $blocks = (new WordPressBlockWriter())->write($document);
 $image = $document->children[0]->children[0] ?? null;
 
@@ -108,7 +106,6 @@ echo json_encode([
     'title' => $image instanceof AstNode ? $image->attr('title') : null,
     'classes' => $image instanceof AstNode ? $image->attr('classes') : null,
     'attributes' => $image instanceof AstNode ? $image->attr('attributes') : null,
-    'markdown' => $markdown,
     'blocks' => $blocks,
     'importReport' => $result['importReport']['media'] ?? null,
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";

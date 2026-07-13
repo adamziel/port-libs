@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 use PortLibs\Pandoc\AstNode;
 use PortLibs\Pandoc\MarkdownReader;
-use PortLibs\Pandoc\MarkdownWriter;
 
 $inlineText = null;
 $inlineText = static function (AstNode $node) use (&$inlineText): string {
@@ -35,15 +34,6 @@ $findInline = static function (AstNode $node, callable $predicate) use (&$findIn
 
     return new AstNode('missing');
 };
-
-$text = static fn (string $value): AstNode => new AstNode('text', ['text' => $value]);
-$line = static fn (string $value): AstNode => new AstNode('line', [], [$text($value)]);
-$lineBlockDocument = static fn (): AstNode => new AstNode('document', [], [
-    new AstNode('line_block', [], [
-        $line('alpha'),
-        $line('beta'),
-    ]),
-]);
 
 return [
     'maps markdown reader extension map string booleans through pandoc profile gates' =>
@@ -81,22 +71,8 @@ return [
             $t->same('span', $findInline($enabled, static fn (AstNode $node): bool => $node->type === 'span' && $node->attr('classes') === ['mark'])->type);
         },
 
-    'maps markdown writer extension map string booleans through pandoc profile gates' =>
-        static function (TestRunner $t) use ($lineBlockDocument): void {
-            $disabled = (new MarkdownWriter([
-                'extensions' => ['line_blocks' => 'false'],
-            ]))->write($lineBlockDocument());
-            $enabled = (new MarkdownWriter([
-                'format' => 'commonmark',
-                'extensions' => ['line_blocks' => 'true'],
-            ]))->write($lineBlockDocument());
-
-            $t->same("alpha\\\nbeta", $disabled);
-            $t->same("| alpha\n| beta", $enabled);
-        },
-
     'records markdown extension boolean coercion mapped-case count' =>
         static function (TestRunner $t): void {
-            $t->same(10, 4 + 4 + 2);
+            $t->same(8, 4 + 4);
         },
 ];

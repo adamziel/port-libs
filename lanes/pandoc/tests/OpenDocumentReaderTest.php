@@ -3,7 +3,6 @@
 declare(strict_types=1);
 
 use PortLibs\Pandoc\AstNode;
-use PortLibs\Pandoc\MarkdownWriter;
 use PortLibs\Pandoc\OpenDocumentReader;
 use PortLibs\Pandoc\WordPressBlockWriter;
 use PortLibs\Pandoc\ZipPackage;
@@ -208,21 +207,9 @@ return [
         $t->same('Migration team', $body->children[1]->children[2]->attr('text'));
     },
 
-    'renders ODT reader AST through Markdown and WordPress writers' => static function (TestRunner $t) use ($buildOdtPackage): void {
+    'renders ODT reader AST through WordPress blocks' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $document = (new OpenDocumentReader())->readDocument($buildOdtPackage());
-        $markdown = (new MarkdownWriter())->write($document);
         $blocks = (new WordPressBlockWriter())->write($document);
-
-        $t->contains('# ODT import packet', $markdown);
-        $t->contains('## Review checklist', $markdown);
-        $t->contains('Reviewer ***summary***  keeps [source link](https://example.test/source.odt?post=42)\\', $markdown);
-        $t->contains('and ^ODT^ notes[^1]', $markdown);
-        $t->contains('- Confirm media map', $markdown);
-        $t->contains('c)  Legal review', $markdown);
-        $t->contains('![ODT hero alt](Pictures/hero.png "ODT hero title")', $markdown);
-        $t->contains('| Status | Needs media review', $markdown);
-        $t->contains('| Owner  | Owner    | Migration team |', $markdown);
-        $t->contains('[^1]: ODT footnote source audit.', $markdown);
 
         $t->contains('<h1 id="odt-import-packet">ODT import packet</h1>', $blocks);
         $t->contains('<h2 id="review-checklist">Review checklist</h2>', $blocks);

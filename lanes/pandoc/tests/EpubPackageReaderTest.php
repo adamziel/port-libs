@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 use PortLibs\Pandoc\AstNode;
 use PortLibs\Pandoc\EpubPackageReader;
-use PortLibs\Pandoc\MarkdownWriter;
 use PortLibs\Pandoc\WordPressBlockWriter;
 
 $fixture = static fn (): string => dirname(__DIR__) . '/fixtures/epub3-package';
@@ -3639,7 +3638,6 @@ XML);
 
             $document = (new EpubPackageReader())->readDirectory($root);
             $wordpress = (new WordPressBlockWriter())->write($document);
-            $markdown = (new MarkdownWriter())->write($document);
             $figure = $document->children[0];
             $image = $figure->children[0];
             $captionInlines = $figure->attr('captionInlines');
@@ -3660,7 +3658,6 @@ XML);
             $t->same('EPUB/images/cover.png', $image->attr('url'));
             $t->same('Cover source', $image->attr('title'));
             $t->contains('<figcaption>Reviewed <em>cover</em> <a href="EPUB/audit.html#cover" title="Audit record">audit</a> <code>sha256</code></figcaption>', $wordpress);
-            $t->contains('![Reviewed *cover* [audit](EPUB/audit.html#cover "Audit record") `sha256`](EPUB/images/cover.png "Cover source")', $markdown);
         } finally {
             $removeDirectory($root);
         }
@@ -4772,10 +4769,6 @@ XML);
             $t->same(2, count($document->children));
             $t->contains('Bound widget fallback stays readable.', $document->children[0]->attr('text'));
             $t->contains('Regular chapter remains readable.', $document->children[1]->attr('text'));
-
-            $markdown = (new MarkdownWriter())->write($document);
-            $t->contains('Bound widget fallback stays readable.', $markdown);
-            $t->contains('Regular chapter remains readable.', $markdown);
         } finally {
             $removeDirectory($root);
         }

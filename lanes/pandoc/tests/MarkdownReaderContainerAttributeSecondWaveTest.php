@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 use PortLibs\Pandoc\AstNode;
 use PortLibs\Pandoc\MarkdownReader;
-use PortLibs\Pandoc\MarkdownWriter;
 
 $attributeToken = static function (string $value): string {
     return str_replace(['\\', ' '], ['\\\\', '\\ '], $value);
@@ -44,10 +43,6 @@ $assertAttributePacket = static function (TestRunner $t, AstNode $node, array $p
 };
 
 $assertRenderedEscapes = static function (TestRunner $t, AstNode $document, array $packet, string $label) use ($attributeToken): void {
-    $markdown = (new MarkdownWriter())->write($document);
-
-    $t->contains('#' . $attributeToken($packet['id']), $markdown, $label . ' rendered escaped id');
-    $t->contains('.' . $attributeToken($packet['class']), $markdown, $label . ' rendered escaped class');
 };
 
 $formatVariants = [

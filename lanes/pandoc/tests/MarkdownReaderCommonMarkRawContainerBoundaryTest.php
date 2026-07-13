@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 use PortLibs\Pandoc\AstNode;
 use PortLibs\Pandoc\MarkdownReader;
-use PortLibs\Pandoc\MarkdownWriter;
 use PortLibs\Pandoc\WordPressBlockWriter;
 
 $plainText = static function (AstNode $node) use (&$plainText): string {
@@ -116,7 +115,6 @@ foreach ($cases as $name => $case) {
             $raw = $firstRawHtml($owner->children);
             $first = $owner->children[0] ?? new AstNode('missing');
             $last = $owner->children[array_key_last($owner->children)] ?? new AstNode('missing');
-            $markdown = (new MarkdownWriter(['format' => 'commonmark']))->write($document);
             $blocks = (new WordPressBlockWriter())->write($document);
             $firstRawLine = strtok($case['source'], "\n") ?: $case['source'];
 
@@ -126,8 +124,6 @@ foreach ($cases as $name => $case) {
             $t->same($case['source'], $raw->attr('html'), $name . ' raw source');
             $t->same('before', $plainText($first), $name . ' leading text');
             $t->same('after', $plainText($last), $name . ' trailing text');
-            $t->contains($firstRawLine, $markdown, $name . ' markdown output');
-            $t->contains('after', $markdown, $name . ' markdown resumes');
             $t->contains($case['source'], $blocks, $name . ' wordpress raw handoff');
         };
 }

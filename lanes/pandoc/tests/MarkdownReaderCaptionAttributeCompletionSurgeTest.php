@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 use PortLibs\Pandoc\AstNode;
 use PortLibs\Pandoc\MarkdownReader;
-use PortLibs\Pandoc\MarkdownWriter;
 use PortLibs\Pandoc\WordPressBlockWriter;
 
 $inlineTypes = static fn (array $nodes): array => array_values(array_map(
@@ -146,7 +145,6 @@ foreach ($tableCases as $case) {
     $tests[$case['name']] = static function (TestRunner $t) use ($case, $makeCaptionedTableMarkdown, $inlineTypes): void {
         $document = (new MarkdownReader())->read($makeCaptionedTableMarkdown($case));
         $table = $document->children[0] ?? new AstNode('missing');
-        $markdown = (new MarkdownWriter())->write($document);
         $blocks = (new WordPressBlockWriter())->write($document);
 
         $t->same(1, count($document->children), $case['caseId'] . ' parses as a single table block');
@@ -160,8 +158,6 @@ foreach ($tableCases as $case) {
         $t->same(['text', 'strong', 'text'], $inlineTypes($table->attr('captionInlines', [])), $case['caseId'] . ' caption inlines');
         $t->same('Term', $table->children[0]->children[0]->children[0]->attr('text'), $case['caseId'] . ' header cell');
         $t->same('A' . $case['caseId'], $table->children[1]->children[0]->children[0]->attr('text'), $case['caseId'] . ' body cell');
-        $t->contains('{#' . $case['id'], $markdown);
-        $t->contains($case['markdownAttributeSource'], $markdown);
         $t->contains('id="' . $case['id'] . '"', $blocks);
         $t->contains('class="caption-attr table-' . $case['syntax'] . ' case-' . $case['caseId'] . '"', $blocks);
         $t->contains($case['handoff'], $blocks);
@@ -241,7 +237,6 @@ foreach ($figureCases as $case) {
         $document = (new MarkdownReader())->read($makeCaptionedFigureMarkdown($case));
         $figure = $document->children[0] ?? new AstNode('missing');
         $image = $figure->children[0] ?? new AstNode('missing');
-        $markdown = (new MarkdownWriter())->write($document);
         $blocks = (new WordPressBlockWriter())->write($document);
 
         $t->same(1, count($document->children), $case['caseId'] . ' parses as a single figure block');
@@ -257,8 +252,6 @@ foreach ($figureCases as $case) {
         $t->same($case['url'], $image->attr('url'), $case['caseId'] . ' image url');
         $t->same($case['title'], $image->attr('title'), $case['caseId'] . ' image title');
         $t->same($case['sourceLabel'], $image->attr('alt'), $case['caseId'] . ' image alt');
-        $t->contains('{#' . $case['id'], $markdown);
-        $t->contains($case['markdownAttributeSource'], $markdown);
         $t->contains('id="' . $case['id'] . '"', $blocks);
         $t->contains('class="wp-block-image caption-attr figure-' . $case['syntax'] . ' case-' . $case['caseId'] . '"', $blocks);
         $t->contains($case['handoff'], $blocks);

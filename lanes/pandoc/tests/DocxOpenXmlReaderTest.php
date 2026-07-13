@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 use PortLibs\Pandoc\AstNode;
 use PortLibs\Pandoc\DocxOpenXmlReader;
-use PortLibs\Pandoc\MarkdownWriter;
 use PortLibs\Pandoc\WordPressBlockWriter;
 use PortLibs\Pandoc\ZipPackage;
 
@@ -412,7 +411,6 @@ XML,
         $docx = $document->attr('docx');
         $image = $document->children[4]->children[1];
         $relationship = $docx['packageProvenance']['relationshipParts']['word/_rels/document.xml.rels']['relationships']['rImage'];
-        $markdown = (new MarkdownWriter())->write($document);
         $blocks = (new WordPressBlockWriter())->write($document);
 
         $t->same('word/media/review.png', $image->attr('url'));
@@ -432,7 +430,6 @@ XML,
         $t->same('display=preview', $relationship['targetQuery']);
         $t->same('inline', $relationship['targetFragment']);
         $t->same('?display=preview#inline', $relationship['targetReferenceSuffix']);
-        $t->contains('![Review screenshot](word/media/review.png "Review image")', $markdown);
         $t->contains('<img src="word/media/review.png" alt="Review screenshot" title="Review image"/>', $blocks);
     },
     'uses per-picture docx drawing nonvisual metadata within shared drawings' => static function (TestRunner $t): void {
@@ -461,7 +458,6 @@ XML,
         $imageParagraph = $document->children[4];
         $firstImage = $imageParagraph->children[1];
         $secondImage = $imageParagraph->children[2];
-        $markdown = (new MarkdownWriter())->write($document);
 
         $t->same('image', $firstImage->type);
         $t->same('rImage', $firstImage->attr('relationshipId'));
@@ -478,7 +474,6 @@ XML,
         $t->same('word/media/detail.png', $secondImage->attr('mediaPath'));
         $t->same('image/png', $secondImage->attr('contentType'));
         $t->same(strlen('detail png bytes'), $docx['media']['word/media/detail.png']['size']);
-        $t->contains('![Detail screenshot](word/media/detail.png "Detail image title")', $markdown);
     },
     'exposes docx package content type relationship and part inventory provenance' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
@@ -22145,11 +22140,7 @@ XML;
         $t->same('footnote', $missing->attr('sourceType'));
         $t->same(true, $missing->attr('missing'));
         $t->same(true, $missing->attr('customMarkFollows'));
-
-        $markdown = (new MarkdownWriter())->write($document);
         $blocks = (new WordPressBlockWriter())->write($document);
-        $t->contains('[^1]: Footnote [relationship source](https://example.test/footnote-source) note.', $markdown);
-        $t->contains('[^2]: Endnote package audit.', $markdown);
         $t->contains('<div class="wp-block-group footnotes" role="doc-endnotes">', $blocks);
         $t->contains('<ol><li id="fn-1"><p>Footnote <a href="https://example.test/footnote-source">relationship source</a> note.</p> <a href="#fnref-1" aria-label="Back to content">Back</a></li>', $blocks);
         $t->contains('<li id="fn-2"><p>Endnote package audit.</p>', $blocks);
@@ -22376,11 +22367,7 @@ XML;
         $t->same('Comment source keeps review context.', $commentNote->children[0]->attr('text'));
         $t->same('link', $commentNote->children[0]->children[1]->type);
         $t->same('https://example.test/comment-source', $commentNote->children[0]->children[1]->attr('url'));
-
-        $markdown = (new MarkdownWriter())->write($document);
         $blocks = (new WordPressBlockWriter())->write($document);
-        $t->contains('with reviewer commentcommented text[^1]', $markdown);
-        $t->contains('[^1]: Comment [source](https://example.test/comment-source) keeps review context.', $markdown);
         $t->contains('<div class="wp-block-group footnotes" role="doc-endnotes">', $blocks);
         $t->contains('<ol><li id="fn-1"><p>Comment <a href="https://example.test/comment-source">source</a> keeps review context.</p> <a href="#fnref-1" aria-label="Back to content">Back</a></li></ol>', $blocks);
     },
@@ -26176,15 +26163,9 @@ XML;
         $t->same('image/png', $image->attr('contentType'));
         $t->same(strlen('fake png bytes'), $docx['media']['word/media/review.png']['size']);
     },
-    'renders docx reader ast through markdown and wordpress writers' => static function (TestRunner $t): void {
+    'renders docx reader ast through WordPress blocks' => static function (TestRunner $t): void {
         $document = (new DocxOpenXmlReader())->readPackage(docx_openxml_reader_fixture_parts());
-        $markdown = (new MarkdownWriter())->write($document);
         $blocks = (new WordPressBlockWriter())->write($document);
-
-        $t->contains('# Imported DOCX Heading', $markdown);
-        $t->contains('[source link](https://example.test/source?post=42)', $markdown);
-        $t->contains('III) First review step', $markdown);
-        $t->contains('![Review screenshot](word/media/review.png "Review image")', $markdown);
         $t->contains('<h1 id="imported-docx-heading">Imported DOCX Heading</h1>', $blocks);
         $t->contains('<a href="https://example.test/source?post=42">source link</a>', $blocks);
         $t->contains('<ol start="3" type="I">', $blocks);

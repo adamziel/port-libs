@@ -5,7 +5,6 @@ declare(strict_types=1);
 use PortLibs\Pandoc\AstNode;
 use PortLibs\Pandoc\CitationCslProcessor;
 use PortLibs\Pandoc\MarkdownReader;
-use PortLibs\Pandoc\MarkdownWriter;
 use PortLibs\Pandoc\PandocJsonReader;
 use PortLibs\Pandoc\WordPressBlockWriter;
 
@@ -323,10 +322,6 @@ BIB;
 
         $document = (new MarkdownReader())->read('Review cites [see @smith1899; @doe2020, pp. 55-60] and @wp-team.');
         $processed = $processor->appendBibliography($document, 'Works Cited');
-        $markdown = (new MarkdownWriter())->write($processed);
-        $t->contains('Review cites (see Smith 1899; Doe and Roe 2020, pp. 55-60) and WordPress Migration Team (2024).', $markdown);
-        $t->contains('Smith 1899' . "\n" . ':   Smith, Ada. Migration Patterns. Archive Press, 1899. DOI 10.1234/source.', $markdown);
-        $t->contains('WordPress Migration Team 2024' . "\n" . ':   WordPress Migration Team. Reviewer Log. 2024. https://example.test/reviewer-log.', $markdown);
     },
     'normalizes biblatex status and taxonomy aliases into csl handoff' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -891,10 +886,6 @@ BIB;
         $t->same('Smith, Ada. Packet Audit Trails. Migration Futures Conference. Review Press, 2026. 12-18. Crossref: Migration Futures Conference (2026).', $processor->renderBibliographyEntry('source-audit'));
 
         $document = (new MarkdownReader())->read('Review cites @source-audit and [@chapter-review].');
-        $markdown = (new MarkdownWriter())->write($processor->appendBibliography($document, 'Works Cited'));
-        $t->contains('Review cites Smith (2026) and (Roe 2027).', $markdown);
-        $t->contains('Smith 2026' . "\n" . ':   Smith, Ada. Packet Audit Trails. Migration Futures Conference. Review Press, 2026. 12-18. Crossref: Migration Futures Conference (2026).', $markdown);
-        $t->contains('Roe 2027' . "\n" . ':   Roe, Pat. Chapter Review Notes. Manual Override. Review Press, 2027. Crossref: Migration Futures Conference (2026).', $markdown);
     },
     'maps bounded crossref parent subtitle and title addon into child containers' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -4804,11 +4795,6 @@ XML);
         $t->same('Submitted Review Packet :: early access queue :: 2024 :: circa :: Date markers: submitted circa (2024~)', $processor->renderBibliographyEntry('submitted-review'));
 
         $document = (new MarkdownReader())->read('Citation handoff [@available-review; @submitted-review].');
-        $markdown = (new MarkdownWriter())->write($processor->appendBibliography($document, 'Availability Sources'));
-        $t->contains('(Smith | available? | June 2026 | 2026-05-28; Ng | submitted circa | early access queue | 2024)', $markdown);
-        $t->contains('Submitted Review Packet :: early access queue :: 2024 :: circa :: Date markers: submitted circa', $markdown);
-        $t->contains('Available Source Packet :: 2026-06 :: uncertain :: 2026-05-28 :: Date markers: available-date uncertain (2026-06?) :: Date times: submitted 09:30', $markdown);
-        $t->true(strpos($markdown, 'Submitted Review Packet') < strpos($markdown, 'Available Source Packet'), 'submitted sort key orders bibliography entries before available source');
     },
     'maps bounded bibtex csl available and submitted dates into metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -5503,9 +5489,6 @@ XML);
 
         $document = (new MarkdownReader())->read('Date part source [@date-part-source] and range [@range-year-source] stay reviewable.');
         $processed = $processor->appendBibliography($document, 'Works Cited');
-        $markdown = (new MarkdownWriter())->write($processed);
-        $t->contains("Date part source (Date Desk Jun 5th '26) and range (Ng May '20/Jun '21) stay reviewable.", $markdown);
-        $t->contains("Date Desk 2026" . "\n" . ":   JUNE \\| day 05 \\| 2026 :: 6 06 \\'26 to 6 07 \\'26 :: 24/01/15", $markdown);
 
         $blocks = (new WordPressBlockWriter())->write($processed);
         $t->contains("<p>Date part source (Date Desk Jun 5th &#039;26) and range (Ng May &#039;20/Jun &#039;21) stay reviewable.</p>", $blocks);
@@ -5588,9 +5571,6 @@ XML);
 
         $document = (new MarkdownReader())->read('Date-form source [@date-form-source] and range [@range-form-source] stay reviewable.');
         $processed = $processor->appendBibliography($document, 'Works Cited');
-        $markdown = (new MarkdownWriter())->write($processed);
-        $t->contains('Date-form source (Date Form Desk March 9, 2027) and range (Ng May 2020/June 2021) stay reviewable.', $markdown);
-        $t->contains('Date Form Desk 2027' . "\n" . ':   Date Form Packet :: March 9, 2027 :: 3/10/2027/3/11/2027 :: event December 2026', $markdown);
 
         $blocks = (new WordPressBlockWriter())->write($processed);
         $t->contains('<p>Date-form source (Date Form Desk March 9, 2027) and range (Ng May 2020/June 2021) stay reviewable.</p>', $blocks);
@@ -5694,9 +5674,6 @@ XML);
 
         $document = (new MarkdownReader())->read('Localized date override [@localized-date-source] and range [@localized-range-source] stay reviewable.');
         $processed = $processor->appendBibliography($document, 'Works Cited');
-        $markdown = (new MarkdownWriter())->write($processed);
-        $t->contains('Localized date override (Date Override Desk Jun 5th, 2026) and range (Ng May 9th, 2020/Jun 11th, 2020) stay reviewable.', $markdown);
-        $t->contains('Date Override Desk 2026' . "\n" . ':   Localized Date Packet :: Jun 2026 :: 06/06/2026 through 06/07/2026', $markdown);
 
         $blocks = (new WordPressBlockWriter())->write($processed);
         $t->contains('<p>Localized date override (Date Override Desk Jun 5th, 2026) and range (Ng May 9th, 2020/Jun 11th, 2020) stay reviewable.</p>', $blocks);
@@ -5769,9 +5746,6 @@ XML);
 
         $document = (new MarkdownReader())->read('Date precision [@month-precision-source] and range precision [@range-precision-source] stay reviewable.');
         $processed = $processor->appendBibliography($document, 'Works Cited');
-        $markdown = (new MarkdownWriter())->write($processed);
-        $t->contains('Date precision (Date Parts Desk March 2027) and range precision (Ng May 2020/June 2021) stay reviewable.', $markdown);
-        $t->contains('Date Parts Desk 2027' . "\n" . ':   Month Precision Packet :: 2027 :: checked 3/2027 :: event December 15, 2026', $markdown);
 
         $blocks = (new WordPressBlockWriter())->write($processed);
         $t->contains('<p>Date precision (Date Parts Desk March 2027) and range precision (Ng May 2020/June 2021) stay reviewable.</p>', $blocks);
@@ -5865,9 +5839,6 @@ XML);
 
         $document = (new MarkdownReader())->read('Seasonal source [@season-source] and winter source [@winter-source] keep CSL season dates.');
         $processed = $processor->appendBibliography($document, 'Works Cited');
-        $markdown = (new MarkdownWriter())->write($processed);
-        $t->contains('Seasonal source (Season Desk Summer Field 2026) and winter source (Ng Winter Field 2024) keep CSL season dates.', $markdown);
-        $t->contains('Season Desk 2026' . "\n" . ':   Seasonal Packet :: Summer Field 2026 :: season Summer :: Date seasons: issued Summer; accessed Winter; original-date Autumn; event-date Spring :: checked Winter Field 2026 :: original Autumn Field 1999 :: event Spring Field 2025', $markdown);
 
         $blocks = (new WordPressBlockWriter())->write($processed);
         $t->contains('<p>Seasonal source (Season Desk Summer Field 2026) and winter source (Ng Winter Field 2024) keep CSL season dates.</p>', $blocks);
@@ -11123,11 +11094,6 @@ BIB;
         $t->same('listed as Zeta Source', $list->children[1]->attr('shorthandIntro'));
         $t->same([], CitationCslProcessor::fromBibtex('@book{ordinary-source,title={Ordinary Source},date={2026}}')->shorthandListBlocks());
 
-        $markdownList = (new MarkdownWriter())->write(new AstNode('document', [], $blocks));
-        $t->contains('List of Shorthands', $markdownList);
-        $t->contains('A-2' . "\n" . ':   Alpha Source Manual.', $markdownList);
-        $t->contains('Z-10' . "\n" . ':   listed as Zeta Source. Zeta Source Manual.', $markdownList);
-
         $document = (new MarkdownReader())->read('Shorthand list @zeta-shorthand, @alpha-shorthand, and [@fallback-shorthand] keeps source abbreviations visible.');
         $processed = $processor->appendShorthandList($processor->appendBibliography($document, 'Works Cited'), 'List of Shorthands');
         $blocksHtml = (new WordPressBlockWriter())->write($processed);
@@ -11990,12 +11956,6 @@ XML);
         $t->same(['missing-source'], $processor->missingCitationIds($document));
 
         $withBibliography = $processor->appendBibliography($document, 'Works Cited');
-        $markdown = (new MarkdownWriter())->write($withBibliography);
-        $t->contains('Archive says (see Smith 1899, pp. 33-35; also Doe and Roe 2020, chap. 1; 2024, sec. 2).', $markdown);
-        $t->contains('Forced locator (Smith 1899, ii, A, D-Z with a suffix).', $markdown);
-        $t->contains('URL key (URL Key Source 2000, p. 33).', $markdown);
-        $t->contains('Review keeps (see @missing-source; Smith 1899, p. 7) visible.', $markdown);
-        $t->contains('URL Key Source 2000' . "\n" . ':   URL Key Source. 2000. https://example.com/bib?name=foobar&date=2000.', $markdown);
 
         $blocks = (new WordPressBlockWriter())->write($withBibliography);
         $t->contains('<p>Archive says (see Smith 1899, pp. 33-35; also Doe and Roe 2020, chap. 1; 2024, sec. 2).</p>', $blocks);
@@ -12003,7 +11963,7 @@ XML);
         $t->contains('<p>Review keeps (see @missing-source; Smith 1899, p. 7) visible.</p>', $blocks);
         pandocTestAssertDefinitionEntry($t, $blocks, 'URL Key Source 2000', 'URL Key Source. 2000. https://example.com/bib?name=foobar&amp;date=2000.');
     },
-    'appends deterministic csl bibliography blocks for markdown and wordpress output' => static function (TestRunner $t) use ($cslJson): void {
+    'appends deterministic csl bibliography blocks for WordPress output' => static function (TestRunner $t) use ($cslJson): void {
         $processor = CitationCslProcessor::fromJson($cslJson());
         $document = (new MarkdownReader())->read(
             'Smith says @smith1899 and later [@doe2020].'
@@ -12027,14 +11987,6 @@ XML);
         $t->same('Smith, Ada. Migration Patterns. Archive Press, 1899. DOI 10.1234/source.', $processor->renderBibliographyEntry('smith1899'));
         $t->same('Doe, Jane; Roe, Pat. Field Notes. Journal of Imports. 2020. 55-60. https://example.test/field-notes.', $processor->renderBibliographyEntry('doe2020'));
         $t->same('WordPress Migration Team. Reviewer Log. 2024. https://example.test/reviewer-log.', $processor->renderBibliographyEntry('wp-team'));
-
-        $markdown = (new MarkdownWriter())->write($processed);
-        $t->contains('Smith says Smith (1899) and later (Doe and Roe 2020).', $markdown);
-        $t->contains('The migration team wrote WordPress Migration Team (2024).', $markdown);
-        $t->contains('Missing source [@missing] stays reviewable.', $markdown);
-        $t->contains('## Works Cited', $markdown);
-        $t->contains('Smith 1899' . "\n" . ':   Smith, Ada. Migration Patterns. Archive Press, 1899. DOI 10.1234/source.', $markdown);
-        $t->contains('Doe and Roe 2020' . "\n" . ':   Doe, Jane; Roe, Pat. Field Notes. Journal of Imports. 2020. 55-60. https://example.test/field-notes.', $markdown);
 
         $blocks = (new WordPressBlockWriter())->write($processed);
         $t->contains('<p>Smith says Smith (1899) and later (Doe and Roe 2020).</p>', $blocks);
@@ -12129,10 +12081,6 @@ XML,
         $t->same('Undated Packet o. J.', $processed->children[2]->children[2]->children[0]->attr('text'));
         $t->same('Mueller, Mia; Schmidt, Sam. Two Author Packet. 2024. https://example.test/two-authors.', $processor->renderBibliographyEntry('two-authors'));
         $t->same('Undated Packet.', $processor->renderBibliographyEntry('undated'));
-
-        $markdown = (new MarkdownWriter())->write($processed);
-        $t->contains('Review [Mueller und Schmidt 2024 | Garcia u. a. 2025 | Undated Packet o. J.]. Missing [@missing] stays visible.', $markdown);
-        $t->contains('Undated Packet o. J.' . "\n" . ':   Undated Packet.', $markdown);
 
         $blocks = (new WordPressBlockWriter())->write($processed);
         $t->contains('<p>Review [Mueller und Schmidt 2024 | Garcia u. a. 2025 | Undated Packet o. J.]. Missing [@missing] stays visible.</p>', $blocks);
@@ -12300,9 +12248,6 @@ XML);
 
         $document = (new MarkdownReader())->read('Term form review [@term-form-source] keeps CSL locale forms visible.');
         $processed = $processor->appendBibliography($document, 'Works Cited');
-        $markdown = (new MarkdownWriter())->write($processed);
-        $t->contains('Term form review (Smith | eds. Ng and Roe | review of Archive Desk | §§ 4-5) keeps CSL locale forms visible.', $markdown);
-        $t->contains('Smith 2026' . "\n" . ':   Term Form Packet :: acc. 2026-06-09 :: § review appendix', $markdown);
 
         $blocks = (new WordPressBlockWriter())->write($processed);
         $t->contains('<p>Term form review (Smith | eds. Ng and Roe | review of Archive Desk | §§ 4-5) keeps CSL locale forms visible.</p>', $blocks);
@@ -12405,11 +12350,6 @@ XML
         $t->same(true, $bibliography->attr('hangingIndent'));
         $t->same(0, $bibliography->attr('entrySpacing'));
         $t->same(1, $bibliography->attr('lineSpacing'));
-
-        $markdown = (new MarkdownWriter())->write($processed);
-        $t->contains('Review cites de la Cruz (2026) and (Adams and colleagues no source date).', $markdown);
-        $t->contains('de la Cruz 2026' . "\n" . ':   \[de la Cruz, Ana Maria. Source Packet. 2026. https://example.test/source-packet. Retrieved 2026-06-05.\]', $markdown);
-        $t->contains('Adams and colleagues no source date' . "\n" . ':   \[Adams, Ari; Baker, Bea; Clark, Cy. Undated Packet.\]', $markdown);
 
         $blocks = (new WordPressBlockWriter())->write($processed);
         pandocTestAssertDefinitionEntry($t, $blocks, 'de la Cruz 2026', '[de la Cruz, Ana Maria. Source Packet. 2026. https://example.test/source-packet. Retrieved 2026-06-05.]');
@@ -12584,14 +12524,6 @@ XML
         $t->same('Zed 2023', $bibliography->children[2]->children[0]->attr('text'));
         $t->same(['zed2023', 'adams2024', 'adams2020'], $processor->citationIds($document));
 
-        $markdown = (new MarkdownWriter())->write($processed);
-        $t->contains('Review cites (Adams 2024; Zed 2023; Adams 2020).', $markdown);
-        $adamsOldPosition = strpos($markdown, 'Adams 2020' . "\n" . ':   Adams, Ari. Older Adams Packet. 2020.');
-        $adamsNewPosition = strpos($markdown, 'Adams 2024' . "\n" . ':   Adams, Ari. Newer Adams Packet. 2024. https://example.test/adams-new.');
-        $zedPosition = strpos($markdown, 'Zed 2023' . "\n" . ':   Zed, Zoe. Zed Packet. 2023. https://example.test/zed.');
-        $t->true(is_int($adamsOldPosition) && is_int($adamsNewPosition) && is_int($zedPosition), 'Sorted bibliography entries were not rendered');
-        $t->true($adamsOldPosition < $adamsNewPosition && $adamsNewPosition < $zedPosition, 'Bibliography entries should follow CSL sort order');
-
         $blocks = (new WordPressBlockWriter())->write($processed);
         $t->contains('<p>Review cites (Adams 2024; Zed 2023; Adams 2020).</p>', $blocks);
         $blocksAdamsOldPosition = strpos($blocks, '<ul class="pandoc-definition-values"><li>Adams, Ari. Older Adams Packet. 2020.</li></ul>');
@@ -12697,12 +12629,6 @@ XML);
 
         $document = (new MarkdownReader())->read('Sort override review [@smith-zed-alpha; @smith-adams-zulu; @ng-chen-beta] stays stable.');
         $processed = $processor->appendBibliography($document, 'Works Cited');
-        $markdown = (new MarkdownWriter())->write($processed);
-        $ngPosition = strpos($markdown, 'Leading Ng Name Sort Packet ::');
-        $firstSmithPosition = strpos($markdown, 'First Cited Name Sort Packet ::');
-        $secondSmithPosition = strpos($markdown, 'Second Cited Name Sort Packet ::');
-        $t->true(is_int($ngPosition) && is_int($firstSmithPosition) && is_int($secondSmithPosition), 'CSL names sort override entries were not rendered');
-        $t->true($ngPosition < $firstSmithPosition && $firstSmithPosition < $secondSmithPosition, 'Bibliography should apply names-use-last sort override after truncating first names');
 
         $macroProcessor = CitationCslProcessor::fromItems($items)->withCslStyle(<<<'XML'
 <?xml version="1.0" encoding="UTF-8"?>
@@ -12841,14 +12767,6 @@ XML
         $t->same('Adams 2020', $bibliography->children[0]->children[0]->attr('text'));
         $t->same('Ng 2024', $bibliography->children[1]->children[0]->attr('text'));
         $t->same('Zed 2026', $bibliography->children[2]->children[0]->attr('text'));
-
-        $markdown = (new MarkdownWriter())->write($processed);
-        $t->contains('Macro sorted review [Zed | 2026 | Visible Zed Packet; Ng | 2024 | Visible Ng Packet; Adams | 2020 | Visible Adams Packet] keeps visible citations unchanged.', $markdown);
-        $adamsPosition = strpos($markdown, 'Adams 2020' . "\n" . ':   Adams \\| 2020 \\| Visible Adams Packet :: 900-Adams');
-        $ngPosition = strpos($markdown, 'Ng 2024' . "\n" . ':   Ng \\| 2024 \\| Visible Ng Packet :: 050-Ng');
-        $zedPosition = strpos($markdown, 'Zed 2026' . "\n" . ':   Zed \\| 2026 \\| Visible Zed Packet :: 001-Zed');
-        $t->true(is_int($adamsPosition) && is_int($ngPosition) && is_int($zedPosition), 'Macro-sorted bibliography entries were not rendered');
-        $t->true($adamsPosition < $ngPosition && $ngPosition < $zedPosition, 'Bibliography entries should follow rendered macro sort order descending');
 
         $blocks = (new WordPressBlockWriter())->write($processed);
         $t->contains('<p>Macro sorted review [Zed | 2026 | Visible Zed Packet; Ng | 2024 | Visible Ng Packet; Adams | 2020 | Visible Adams Packet] keeps visible citations unchanged.</p>', $blocks);
@@ -13402,11 +13320,6 @@ XML
 
         $document = (new MarkdownReader())->read('Review cites [@editor-source; @translator-source; @title-source] for incomplete source packets.');
         $processed = $processor->appendBibliography($document, 'Works Cited');
-        $markdown = (new MarkdownWriter())->write($processed);
-        $t->contains('Review cites (Curator 2025; Translator 2024; Orphan Packet 2023) for incomplete source packets.', $markdown);
-        $t->contains('Curator 2025' . "\n" . ':   Curator, E. Edited Packet.', $markdown);
-        $t->contains('Translator 2024' . "\n" . ':   Translator, T. Translated Packet.', $markdown);
-        $t->contains('Orphan Packet 2023' . "\n" . ':   Orphan Packet. title-only source packet.', $markdown);
 
         $blocks = (new WordPressBlockWriter())->write($processed);
         $t->contains('<p>Review cites (Curator 2025; Translator 2024; Orphan Packet 2023) for incomplete source packets.</p>', $blocks);
@@ -13864,9 +13777,6 @@ XML
 
         $document = (new MarkdownReader())->read('Review cites @source-packet and [@editor-packet].');
         $processed = $processor->appendBibliography($document, 'Works Cited');
-        $markdown = (new MarkdownWriter())->write($processed);
-        $t->contains('Review cites de la Cruz, Ng, et al. (2026) and (Curator 2025).', $markdown);
-        $t->contains('de la Cruz, Ng, et al. 2026' . "\n" . ':   de la Cruz, A. M.; Ng, N.; et al. Source Packet. 2026. https://example.test/source-packet.', $markdown);
 
         $blocks = (new WordPressBlockWriter())->write($processed);
         $t->contains('<p>Review cites de la Cruz, Ng, et al. (2026) and (Curator 2025).</p>', $blocks);
@@ -14967,9 +14877,6 @@ XML
 
         $document = (new MarkdownReader())->read('Review cites @last-source before bibliography handoff.');
         $processed = $processor->appendBibliography($document, 'Works Cited');
-        $markdown = (new MarkdownWriter())->write($processed);
-        $t->contains('Review cites de la Cruz, Ng, ' . $ellipsis . ', Smith (2026) before bibliography handoff.', $markdown);
-        $t->contains('de la Cruz, Ng, ' . $ellipsis . ', Smith 2026' . "\n" . ':   de la Cruz, A. M.; Ng, N.; ' . $ellipsis . '; Smith, S. Et Al Last Source Packet. https://example.test/et-al-last-source.', $markdown);
 
         $blocks = (new WordPressBlockWriter())->write($processed);
         $t->contains('<p>Review cites de la Cruz, Ng, ' . $ellipsis . ', Smith (2026) before bibliography handoff.</p>', $blocks);
@@ -15062,9 +14969,6 @@ XML
 
         $document = (new MarkdownReader())->read('Repeated source @team-source returns as [@team-source] for reviewer follow-up.');
         $processed = $processor->appendBibliography($document, 'Works Cited');
-        $markdown = (new MarkdownWriter())->write($processed);
-        $t->contains('Repeated source de la Cruz, Ng, and Okafor (2026) returns as (de la Cruz et al. 2026) for reviewer follow-up.', $markdown);
-        $t->contains('de la Cruz, Ng, and Okafor 2026' . "\n" . ':   de la Cruz, A. M.; N. Ng; O. Okafor. Repeated Team Source Packet. https://example.test/repeated-team-source.', $markdown);
 
         $blocks = (new WordPressBlockWriter())->write($processed);
         $t->contains('<p>Repeated source de la Cruz, Ng, and Okafor (2026) returns as (de la Cruz et al. 2026) for reviewer follow-up.</p>', $blocks);
@@ -15169,9 +15073,6 @@ XML
 
         $document = (new MarkdownReader())->read('Compact source [@compact-source] and literal source [@literal-source] preserve reviewer name forms.');
         $processed = $processor->appendBibliography($document, 'Works Cited');
-        $markdown = (new MarkdownWriter())->write($processed);
-        $t->contains('Compact source [de la Cruz and Ng | 2 contributors] and literal source [Migration Desk | 1 contributors] preserve reviewer name forms.', $markdown);
-        $t->contains('de la Cruz and Ng 2026' . "\n" . ':   DE LA CRUZ; NG :: 2 :: Compact Reviewer Packet :: https://example.test/compact-source', $markdown);
 
         $blocks = (new WordPressBlockWriter())->write($processed);
         $t->contains('<p>Compact source [de la Cruz and Ng | 2 contributors] and literal source [Migration Desk | 1 contributors] preserve reviewer name forms.</p>', $blocks);
@@ -15531,10 +15432,6 @@ XML
         $t->same('[see de la Cruz and Ng 2026, pp. 12-18; Archive Team undated]', $cluster->attr('rendered'));
         $t->same(true, $bibliography->attr('hangingIndent'));
 
-        $markdown = (new MarkdownWriter())->write($processed);
-        $t->contains('Review cites [see de la Cruz and Ng 2026, pp. 12-18; Archive Team undated].', $markdown);
-        $t->contains('de la Cruz and Ng 2026' . "\n" . ':   {de la Cruz, A. M.; Ng, N. Styled Source Packet. Import Review. 2026. pp. 12-18. doi:10.5555/review. Available at https://example.test/styled-source. Visited 2026-06-06.}', $markdown);
-
         $blocks = (new WordPressBlockWriter())->write($processed);
         $t->contains('<p>Review cites [see de la Cruz and Ng 2026, pp. 12-18; Archive Team undated].</p>', $blocks);
         pandocTestAssertDefinitionEntry($t, $blocks, 'de la Cruz and Ng 2026', '{de la Cruz, A. M.; Ng, N. Styled Source Packet. Import Review. 2026. pp. 12-18. doi:10.5555/review. Available at https://example.test/styled-source. Visited 2026-06-06.}');
@@ -15654,9 +15551,6 @@ XML
 
         $document = (new MarkdownReader())->read('Review cites [@case-source] and [@non-english-title] for title casing.');
         $processed = $processor->appendBibliography($document, 'Works Cited');
-        $markdown = (new MarkdownWriter())->write($processed);
-        $t->contains('Review cites (Migration Review: Source Import and API | SOURCE GUIDE | Review note | accessed) and (manual de migración y datos | GUÍA DE DATOS | Review note | accessed) for title casing.', $markdown);
-        $t->contains('de la Cruz 2026' . "\n" . ':   Migration review: source import and API. Journal Of Imported Sources. mixed case abstract. WORKING PAPER. Review Status: Import Queue Follow-Up.', $markdown);
 
         $blocks = (new WordPressBlockWriter())->write($processed);
         $t->contains('<p>Review cites (Migration Review: Source Import and API | SOURCE GUIDE | Review note | accessed) and (manual de migración y datos | GUÍA DE DATOS | Review note | accessed) for title casing.</p>', $blocks);
@@ -15760,9 +15654,6 @@ XML
 
         $document = (new MarkdownReader())->read('Review cites [see @source-packet; @issue-packet] for quoted source titles.');
         $processed = $processor->appendBibliography($document, 'Works Cited');
-        $markdown = (new MarkdownWriter())->write($processed);
-        $t->contains('Review cites (see “Source Packet” pp 12-18; “Issue Packet” no 3) for quoted source titles.', $markdown);
-        $t->contains('Review Desk 2026' . "\n" . ':   title “Source Packet”. \| pp 12-18 \| “Journal of Review.”', $markdown);
 
         $blocks = (new WordPressBlockWriter())->write($processed);
         $t->contains('<p>Review cites (see “Source Packet” pp 12-18; “Issue Packet” no 3) for quoted source titles.</p>', $blocks);
@@ -15857,9 +15748,6 @@ XML
 
         $document = (new MarkdownReader())->read('Quoted source @quote-source and suffix [@suffix-source] keep localized punctuation.');
         $processed = $processor->appendBibliography($document, 'Works Cited');
-        $markdown = (new MarkdownWriter())->write($processed);
-        $t->contains('Quoted source Quote Desk (2026) and suffix (“Suffix Packet”) keep localized punctuation.', $markdown);
-        $t->contains('Quote Desk 2026' . "\n" . ':   “Source Packet.” “Review Journal.” “reviewed.”', $markdown);
 
         $blocks = (new WordPressBlockWriter())->write($processed);
         $t->contains('<p>Quoted source Quote Desk (2026) and suffix (“Suffix Packet”) keep localized punctuation.</p>', $blocks);
@@ -15970,10 +15858,6 @@ XML
         $t->same('(see de la Cruz and Ng 2026, pp. 12-18)', $cluster->attr('rendered'));
         $t->same('Title Only Packet (undated)', $titleOnly->attr('rendered'));
         $t->same(true, $bibliography->attr('hangingIndent'));
-
-        $markdown = (new MarkdownWriter())->write($processed);
-        $t->contains('Review cites (see de la Cruz and Ng 2026, pp. 12-18) and Title Only Packet (undated).', $markdown);
-        $t->contains('de la Cruz and Ng 2026' . "\n" . ':   de la Cruz, Ana Maria; Ng, Nia. Macro Source Packet. Import Review. https://example.test/macro-source. Retrieved 2026-06-06.', $markdown);
 
         $blocks = (new WordPressBlockWriter())->write($processed);
         $t->contains('<p>Review cites (see de la Cruz and Ng 2026, pp. 12-18) and Title Only Packet (undated).</p>', $blocks);
@@ -16116,9 +16000,6 @@ XML
 
         $document = (new MarkdownReader())->read('Review cites [@article-doi; @web-url; @local-report].');
         $processed = $processor->appendBibliography($document, 'Works Cited');
-        $markdown = (new MarkdownWriter())->write($processed);
-        $t->contains('Review cites (de la Cruz: article 2026; Archive Team: 2024; Migration Committee: undated).', $markdown);
-        $t->contains('Migration Committee undated' . "\n" . ':   Migration Committee. Local Report Packet. no stable source locator.', $markdown);
 
         $blocks = (new WordPressBlockWriter())->write($processed);
         $t->contains('<p>Review cites (de la Cruz: article 2026; Archive Team: 2024; Migration Committee: undated).</p>', $blocks);
@@ -16855,9 +16736,6 @@ XML
             new AstNode('citation', ['id' => 'chapter-condition-source', 'text' => '[@chapter-condition-source]', 'locatorLabel' => 'sub verbo', 'locatorValue' => 'migration']),
         ]);
         $t->same('(de la Cruz, section-route ¶¶ 10–11; Archive Team, other-locator migration)', $direct);
-
-        $markdown = (new MarkdownWriter())->write($processed);
-        $t->contains('Review cites (de la Cruz, page-route p. 7; Archive Team, chapter-route chap. 2; de la Cruz, section-route §§ 4–5; de la Cruz, other-locator 3).', $markdown);
 
         $blocks = (new WordPressBlockWriter())->write($processed);
         $t->contains('<p>Review cites (de la Cruz, page-route p. 7; Archive Team, chapter-route chap. 2; de la Cruz, section-route §§ 4–5; de la Cruz, other-locator 3).</p>', $blocks);
@@ -18215,10 +18093,6 @@ XML
             new AstNode('citation', ['id' => 'locator-source', 'text' => '[@locator-source]', 'locator' => 'sec. 4-5']),
         ]));
 
-        $markdown = (new MarkdownWriter())->write($processed);
-        $t->contains('Review cites (see de la Cruz 2026, p. 7; Manual Chapter 2024, chap. 2; de la Cruz 2026, secs. 4–5; de la Cruz 2026, p. ii, A–D).', $markdown);
-        $t->contains('de la Cruz 2026' . "\n" . ':   de la Cruz, Ana Maria. Locator Source Packet. pp. 12-18.', $markdown);
-
         $blocks = (new WordPressBlockWriter())->write($processed);
         $t->contains('<p>Review cites (see de la Cruz 2026, p. 7; Manual Chapter 2024, chap. 2; de la Cruz 2026, secs. 4–5; de la Cruz 2026, p. ii, A–D).</p>', $blocks);
         pandocTestAssertDefinitionEntry($t, $blocks, 'de la Cruz 2026', 'de la Cruz, Ana Maria. Locator Source Packet. pp. 12-18.');
@@ -18325,9 +18199,6 @@ XML
             new AstNode('citation', ['id' => 'extended-locator-source', 'text' => '[@extended-locator-source]', 'locatorLabel' => 'eq.', 'locatorValue' => '3-4']),
         ]);
         $t->same('(Smith, extended fig. 8; Smith, extended eqs. 3–4)', $direct);
-
-        $markdown = (new MarkdownWriter())->write($processed);
-        $t->contains('Extended locators (Smith, extended fig. 2; Smith, extended tbls. 4–5; Smith, extended app. A; Smith, extended n. 7; Smith, extended ll. 10–12).', $markdown);
 
         $blocks = (new WordPressBlockWriter())->write($processed);
         $t->contains('<p>Extended locators (Smith, extended fig. 2; Smith, extended tbls. 4–5; Smith, extended app. A; Smith, extended n. 7; Smith, extended ll. 10–12).</p>', $blocks);
@@ -19627,17 +19498,6 @@ XML
         $t->same('subsequent', $afterMulti->attr('cslPosition'));
         $t->same('ibid', $afterSingle->attr('cslPosition'));
 
-        $markdown = (new MarkdownWriter())->write($processed);
-        $t->contains('First (de la Cruz 2026, p. 1).', $markdown);
-        $t->contains('Same locator (ibid).', $markdown);
-        $t->contains('Different locator (ibid, p. 2).', $markdown);
-        $t->contains('No locator (subsequent, de la Cruz 2026).', $markdown);
-        $t->contains('Within cluster (Ng 2025; ibid, p. 5).', $markdown);
-        $t->contains('After multi (subsequent, Ng 2025).', $markdown);
-        $t->contains('After single (ibid).', $markdown);
-        $t->contains('de la Cruz 2026' . "\n" . ':   de la Cruz, Ana Maria. Position Source A.', $markdown);
-        $t->contains('Ng 2025' . "\n" . ':   Ng, Nia. Position Source B.', $markdown);
-
         $blocks = (new WordPressBlockWriter())->write($processed);
         $t->contains('<p>Different locator (ibid, p. 2).</p>', $blocks);
         $t->contains('<p>Within cluster (Ng 2025; ibid, p. 5).</p>', $blocks);
@@ -19896,10 +19756,6 @@ XML
             ['display' => 'block', 'text' => 'Source: https://example.test/source-packet', 'formatting' => ['fontWeight' => 'light', 'verticalAlign' => 'sup']],
         ], $displayParts);
 
-        $markdown = (new MarkdownWriter())->write($processed);
-        $t->contains('Review cites de la Cruz (2026) for second-field bibliography output.', $markdown);
-        $t->contains('de la Cruz 2026' . "\n" . ':   \[source-packet\] de la Cruz, A. M. Source Packet. 2026. Review note: Attachment needs review. Source: https://example.test/source-packet', $markdown);
-
         $blocks = (new WordPressBlockWriter())->write($processed);
         $t->contains('<p>Review cites de la Cruz (2026) for second-field bibliography output.</p>', $blocks);
         pandocTestAssertDefinitionEntry($t, $blocks, 'de la Cruz 2026', '<div class="csl-entry"><div class="csl-left-margin csl-font-weight-bold" style="font-weight:bold">[source-packet]</div><div class="csl-right-inline csl-font-style-italic csl-font-variant-small-caps" style="font-style:italic;font-variant:small-caps">de la Cruz, A. M. Source Packet. 2026.</div><div class="csl-indent csl-text-decoration-underline" style="text-decoration:underline">Review note: Attachment needs review.</div><div class="csl-block csl-font-weight-light csl-vertical-align-sup" style="font-weight:300;vertical-align:super">Source: https://example.test/source-packet</div></div>');
@@ -19989,10 +19845,6 @@ XML
             ['display' => 'block', 'text' => 'Source: https://example.test/format-source', 'formatting' => ['textDecoration' => 'underline', 'verticalAlign' => 'sub']],
         ], $item->attr('cslDisplayParts'));
 
-        $markdown = (new MarkdownWriter())->write($processed);
-        $t->contains('Review cites Vale (2026) for formatted CSL display output.', $markdown);
-        $t->contains('Vale 2026' . "\n" . ':   \[format-source\] Format Packet. 2026. Source: https://example.test/format-source', $markdown);
-
         $blocks = (new WordPressBlockWriter())->write($processed);
         pandocTestAssertDefinitionEntry($t, $blocks, 'Vale 2026', '<div class="csl-entry"><div class="csl-left-margin csl-font-weight-bold" style="font-weight:bold">[format-source]</div><div class="csl-right-inline csl-font-style-italic csl-font-variant-small-caps" style="font-style:italic;font-variant:small-caps">Format Packet. 2026.</div><div class="csl-block csl-text-decoration-underline csl-vertical-align-sub" style="text-decoration:underline;vertical-align:sub">Source: https://example.test/format-source</div></div>');
 
@@ -20078,9 +19930,6 @@ XML
             ['text' => 'Ng & Sons 2025', 'formatting' => ['fontStyle' => 'italic']],
             ['text' => ')'],
         ], $cluster->attr('cslInlineParts'));
-
-        $markdown = (new MarkdownWriter())->write($processed);
-        $t->contains('Review cites (Vale 2026; Ng & Sons 2025) before import.', $markdown);
 
         $blocks = (new WordPressBlockWriter())->write($processed);
         $t->contains('<p>Review cites (<span class="csl-font-style-italic" style="font-style:italic">Vale 2026</span>; <span class="csl-font-style-italic" style="font-style:italic">Ng &amp; Sons 2025</span>) before import.</p>', $blocks);
@@ -20660,12 +20509,6 @@ XML
         $t->same('Ng 2026', $bibliography->children[1]->children[0]->attr('text'));
         $t->same('Smith 2026b', $bibliography->children[2]->children[0]->attr('text'));
         $t->same('Smith 2025', $bibliography->children[3]->children[0]->attr('text'));
-
-        $markdown = (new MarkdownWriter())->write($processed);
-        $t->contains('Review cites Smith (2026a), Ng (2026), and (Smith 2026b; Smith 2025) before the bibliography.', $markdown);
-        $t->contains('Smith 2026a' . "\n" . ':   Smith, A. 2026a. Post Import Packet. https://example.test/post-import.', $markdown);
-        $t->contains('Smith 2026b' . "\n" . ':   Smith, A. 2026b. Media Import Packet. https://example.test/media-import.', $markdown);
-        $t->contains('Ng 2026' . "\n" . ':   Ng, N. 2026. Ng Import Packet. https://example.test/ng-import.', $markdown);
 
         $blocks = (new WordPressBlockWriter())->write($processed);
         $t->contains('<p>Review cites Smith (2026a), Ng (2026), and (Smith 2026b; Smith 2025) before the bibliography.</p>', $blocks);
@@ -25810,11 +25653,6 @@ XML);
 
         $document = (new MarkdownReader())->read('Source sorted review [@late-source; @early-source; @middle-source] keeps import queues stable.');
         $processed = $processor->appendBibliography($document, 'Works Cited');
-        $markdown = (new MarkdownWriter())->write($processed);
-        $early = strpos($markdown, 'Early Imported Packet :: alpha import queue');
-        $middle = strpos($markdown, 'Middle Imported Packet :: middle import queue');
-        $late = strpos($markdown, 'Late Imported Packet :: zeta import queue');
-        $t->true(is_int($early) && is_int($middle) && is_int($late) && $early < $middle && $middle < $late, 'Source sort should order bibliography entries by source provenance');
 
         $blocks = (new WordPressBlockWriter())->write($processed);
         $t->contains('<p>Source sorted review [1 | Adams | alpha import queue; 2 | Ng | middle import queue; 3 | Zed | zeta import queue] keeps import queues stable.</p>', $blocks);
@@ -26082,11 +25920,6 @@ XML);
 
         $document = (new MarkdownReader())->read('Date sorted review [@late-access; @early-early-event; @early-late-event] keeps audit timestamps stable.');
         $processed = $processor->appendBibliography($document, 'Works Cited');
-        $markdown = (new MarkdownWriter())->write($processed);
-        $lateEvent = strpos($markdown, 'Late Event Packet :: 2026-06-01 :: 2026-06-09 :: 2021');
-        $earlyEvent = strpos($markdown, 'Early Event Packet :: 2026-06-01 :: 2026-06-03 :: 2018');
-        $lateAccess = strpos($markdown, 'Late Access Packet :: 2026-06-10 :: 2026-06-02 :: 2019');
-        $t->true(is_int($lateEvent) && is_int($earlyEvent) && is_int($lateAccess) && $lateEvent < $earlyEvent && $earlyEvent < $lateAccess, 'Date sort should order bibliography entries by accessed, descending event-date, and original-date');
 
         $blocks = (new WordPressBlockWriter())->write($processed);
         $t->contains('<p>Date sorted review [1 | Late Event Packet | 2026-06-01 | 2026-06-09 | 2021; 2 | Early Event Packet | 2026-06-01 | 2026-06-03 | 2018; 3 | Late Access Packet | 2026-06-10 | 2026-06-02 | 2019] keeps audit timestamps stable.</p>', $blocks);
@@ -26939,13 +26772,6 @@ XML);
 
         $document = (new MarkdownReader())->read('Volume review cites [@volume-ten; @volume-two; @volume-range; @volume-special] before import.');
         $processed = $processor->appendBibliography($document, 'Works Cited');
-        $markdown = (new MarkdownWriter())->write($processed);
-        $twoPos = strpos($markdown, 'Second Volume Packet :: vol. 2');
-        $rangePos = strpos($markdown, 'Range Volume Packet :: vols. 2-3');
-        $tenPos = strpos($markdown, 'Tenth Volume Packet :: vol. 10');
-        $specialPos = strpos($markdown, 'Special Volume Packet :: vol. Special edition');
-        $t->true(is_int($twoPos) && is_int($rangePos) && is_int($tenPos) && is_int($specialPos), 'Numeric sort bibliography entries should be present');
-        $t->true($twoPos < $rangePos && $rangePos < $tenPos && $tenPos < $specialPos, 'CSL numeric variable sort should compare numeric values before normalized text fallbacks');
 
         $blocks = (new WordPressBlockWriter())->write($processed);
         $t->contains('<p>Volume review cites (vol. 2 Second Volume Packet; vols. 2-3 Range Volume Packet; vol. 10 Tenth Volume Packet; vol. Special edition Special Volume Packet) before import.</p>', $blocks);

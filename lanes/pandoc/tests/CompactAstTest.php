@@ -31,7 +31,7 @@ return [
         $legacyWordPress = PandocConverter::write($legacy, 'wordpress');
         $compactWordPress = PandocConverter::write($compact, 'wordpress');
         $t->same($legacyWordPress, $compactWordPress, 'WordPress output must not force expanded table review metadata');
-        foreach (['wordpress', 'html', 'markdown', 'native', 'plain'] as $format) {
+        foreach (['wordpress', 'html', 'native', 'plain'] as $format) {
             $t->same(
                 PandocConverter::write($legacy, $format),
                 PandocConverter::write($compact, $format),
@@ -150,7 +150,7 @@ return [
         $t->same(['text' => 'Standalone text'], $single->attrs);
         $t->same('emphasized', $strong->children[0]->attr('text'));
         $t->same($materialize($expanded), $materialize($compact));
-        foreach (['wordpress', 'html', 'markdown', 'native', 'plain'] as $format) {
+        foreach (['wordpress', 'html', 'native', 'plain'] as $format) {
             $t->same(PandocConverter::write($expanded, $format), PandocConverter::write($compact, $format));
         }
     },
@@ -170,7 +170,7 @@ return [
         ]);
 
         $t->same($materialize($expanded), $materialize($compact));
-        foreach (['wordpress', 'html', 'markdown', 'native', 'plain'] as $format) {
+        foreach (['wordpress', 'html', 'native', 'plain'] as $format) {
             $t->same(PandocConverter::write($expanded, $format), PandocConverter::write($compact, $format));
         }
     },

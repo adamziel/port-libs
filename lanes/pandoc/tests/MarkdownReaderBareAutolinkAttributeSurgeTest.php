@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 use PortLibs\Pandoc\AstNode;
 use PortLibs\Pandoc\MarkdownReader;
-use PortLibs\Pandoc\MarkdownWriter;
 use PortLibs\Pandoc\WordPressBlockWriter;
 
 $firstLink = static function (AstNode $document): AstNode {
@@ -455,7 +454,6 @@ foreach ($cases as $name => $case) {
             $document = (new MarkdownReader(['format' => 'markdown+autolink_bare_uris']))->read($case['markdown']);
             $link = $firstLink($document);
             $blocks = (new WordPressBlockWriter())->write($document);
-            $roundTrip = (new MarkdownWriter())->write($document);
 
             $t->same('link', $link->type);
             $t->same($case['url'], $link->attr('url'));
@@ -467,7 +465,6 @@ foreach ($cases as $name => $case) {
 
             if (($case['id'] ?? null) !== null) {
                 $t->contains(' id="' . $html($case['id']) . '"', $blocks);
-                $t->contains('{#' . $case['id'], $roundTrip);
             }
             foreach ($case['classes'] as $class) {
                 $t->contains($class, $blocks);

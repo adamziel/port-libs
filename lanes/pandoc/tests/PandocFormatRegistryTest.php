@@ -18,12 +18,10 @@ use PortLibs\Pandoc\JiraReader;
 use PortLibs\Pandoc\JsonReader;
 use PortLibs\Pandoc\JsonWriter;
 use PortLibs\Pandoc\LatexReader;
-use PortLibs\Pandoc\LatexWriter;
 use PortLibs\Pandoc\LegacyDocReader;
 use PortLibs\Pandoc\ManReader;
 use PortLibs\Pandoc\MarkdownReader;
 use PortLibs\Pandoc\MarkdownUpstreamReaderEvidence;
-use PortLibs\Pandoc\MarkdownWriter;
 use PortLibs\Pandoc\MediaWikiReader;
 use PortLibs\Pandoc\MdocReader;
 use PortLibs\Pandoc\NativeReader;
@@ -211,8 +209,10 @@ return [
         $support = PandocFormatRegistry::phpOutputSupport();
 
         $t->same(PandocFormatRegistry::upstreamOutputFormats(), array_keys($support));
-        $t->same('partial', $support['markdown']['status']);
-        $t->same(MarkdownWriter::class, $support['markdown']['implementation']);
+        foreach (['commonmark', 'commonmark_x', 'gfm', 'latex', 'markdown', 'markdown_github', 'markdown_mmd', 'markdown_phpextra', 'markdown_strict'] as $format) {
+            $t->same('unsupported', $support[$format]['status'], "{$format} output should remain reader-only.");
+            $t->same('', $support[$format]['implementation'], "{$format} should not retain a native PHP writer implementation.");
+        }
         $t->same('partial', $support['html']['status']);
         $t->same(HtmlWriter::class, $support['html']['implementation']);
         $t->same('partial', $support['epub']['status']);
@@ -221,8 +221,6 @@ return [
         $t->same(EpubWriter::class, $support['epub3']['implementation']);
         $t->same('partial', $support['json']['status']);
         $t->same(JsonWriter::class, $support['json']['implementation']);
-        $t->same('partial', $support['latex']['status']);
-        $t->same(LatexWriter::class, $support['latex']['implementation']);
         $t->same('partial', $support['native']['status']);
         $t->same(NativeWriter::class, $support['native']['implementation']);
         $t->same('partial', $support['opml']['status']);
@@ -236,7 +234,7 @@ return [
         $t->same('unsupported', $support['epub2']['status']);
         $t->same('unsupported', $support['odt']['status']);
         $t->same('unsupported', $support['pdf']['status']);
-        $t->same(56, count(PandocFormatRegistry::unsupportedOutputFormats()));
+        $t->same(65, count(PandocFormatRegistry::unsupportedOutputFormats()));
     },
     'tracks wiki format registry status without claiming direct parity' => static function (TestRunner $t): void {
         $registry = PandocFormatRegistry::wikiFormatRegistry();
@@ -340,7 +338,7 @@ return [
         $t->same('', $outputSupport['ms']['implementation']);
         $t->contains('.ms/.roff extension inference', $outputSupport['ms']['notes']);
         $t->same(13, count(PandocFormatRegistry::unsupportedInputFormats()));
-        $t->same(56, count(PandocFormatRegistry::unsupportedOutputFormats()));
+        $t->same(65, count(PandocFormatRegistry::unsupportedOutputFormats()));
     },
     'tracks roff manual direction buckets without direct parity claims' => static function (TestRunner $t): void {
         $registry = PandocFormatRegistry::roffManualFormatRegistry();

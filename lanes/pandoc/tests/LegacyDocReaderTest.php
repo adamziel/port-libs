@@ -5,7 +5,6 @@ declare(strict_types=1);
 use PortLibs\Pandoc\AstNode;
 use PortLibs\Pandoc\CompoundFileBinary;
 use PortLibs\Pandoc\LegacyDocReader;
-use PortLibs\Pandoc\MarkdownWriter;
 use PortLibs\Pandoc\PandocConverter;
 use PortLibs\Pandoc\WordPressBlockWriter;
 
@@ -3138,7 +3137,6 @@ return [
         $result = (new LegacyDocReader())->readBytes($docBytes);
         $document = $result['document'];
         $blocks = (new WordPressBlockWriter())->write($document);
-        $markdown = (new MarkdownWriter())->write($document);
 
         $t->same('doc', $document->attr('sourceFormat'));
         $t->same('fib-text-range', $document->attr('textSource'));
@@ -3155,7 +3153,6 @@ return [
         $t->same('Reviewer notes keep hard', $document->children[1]->children[0]->attr('text'));
         $t->same('linebreak', $document->children[1]->children[1]->type);
         $t->same('breaks.', $document->children[1]->children[2]->attr('text'));
-        $t->contains('Reviewer notes keep hard', $markdown);
         $t->contains("<p>Reviewer notes keep hard<br/>breaks.</p>", $blocks);
     },
     'reads legacy DOC bytes through the converter local input path' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument): void {
@@ -3566,7 +3563,6 @@ return [
         $metadata = $result['metadata'];
         $documentVariables = $result['documentVariables'];
         $blocks = (new WordPressBlockWriter())->write($result['document']);
-        $markdown = (new MarkdownWriter())->write($result['document']);
 
         $t->same(3, count($documentVariables));
         $t->same(3, $metadata['documentVariableCount']);
@@ -3599,11 +3595,8 @@ return [
         $t->same('signature-blob-metadata-only', $documentVariables[2]['extractionPolicy']);
         $t->true(!array_key_exists('value', $documentVariables[2]));
         $t->contains('<p>Document variable review packet</p>', $blocks);
-        $t->contains('Document variable review packet', $markdown);
         $t->true(!str_contains($blocks, 'legacy-doc-2026'));
         $t->true(!str_contains($blocks, 'opaque signature bytes'));
-        $t->true(!str_contains($markdown, 'needs QA'));
-        $t->true(!str_contains($markdown, 'opaque signature bytes'));
     },
     'extracts legacy DOC SttbSavedBy save history as metadata-only review data' => static function (TestRunner $t) use ($buildCfb, $buildExtendedFibWordDocument, $sttbSavedBy, $u16, $u32): void {
         $saveHistoryTable = $sttbSavedBy([
@@ -3622,7 +3615,6 @@ return [
         $metadata = $result['metadata'];
         $saveHistory = $result['saveHistory'];
         $blocks = (new WordPressBlockWriter())->write($result['document']);
-        $markdown = (new MarkdownWriter())->write($result['document']);
 
         $t->same(2, count($saveHistory));
         $t->same(2, $metadata['saveHistoryCount']);
@@ -3641,10 +3633,8 @@ return [
         $t->same('SttbSavedBy', $saveHistory[0]['sourceTable']);
         $t->same('earliest-to-latest', $saveHistory[0]['order']);
         $t->contains('<p>Save history review packet</p>', $blocks);
-        $t->contains('Save history review packet', $markdown);
         $t->true(!str_contains($blocks, 'packet-v1.doc'));
         $t->true(!str_contains($blocks, 'Review Lead'));
-        $t->true(!str_contains($markdown, 'Final import.doc'));
 
         $buildDocBytes = static function (string $table) use ($buildCfb, $buildExtendedFibWordDocument, $u32): string {
             $wordDocument = $buildExtendedFibWordDocument("Malformed save history packet\r");
@@ -3705,7 +3695,6 @@ return [
         $externalFileReferences = $result['externalFileReferences'];
         $subdocumentReferences = $result['subdocumentReferences'];
         $blocks = (new WordPressBlockWriter())->write($result['document']);
-        $markdown = (new MarkdownWriter())->write($result['document']);
 
         $t->same(2, count($externalFileReferences));
         $t->same(2, $metadata['externalFileReferenceCount']);
@@ -3761,10 +3750,8 @@ return [
         $t->same(false, $subdocumentReferences[0]['canExposeBytes']);
         $t->same('master-subdocument-link', $subdocumentReferences[0]['relationshipRole']);
         $t->contains('<p>External filename review packet</p>', $blocks);
-        $t->contains('External filename review packet', $markdown);
         $t->true(!str_contains($blocks, 'chapter1.doc'));
         $t->true(!str_contains($blocks, 'mailmerge.csv'));
-        $t->true(!str_contains($markdown, 'Subdocs'));
 
         $buildDocBytes = static function (string $table) use ($buildCfb, $buildExtendedFibWordDocument, $u32): string {
             $wordDocument = $buildExtendedFibWordDocument("Malformed external filename packet\r");
@@ -3859,7 +3846,6 @@ return [
         $subdocumentReferences = $result['subdocumentReferences'];
         $metadata = $result['metadata'];
         $blocks = (new WordPressBlockWriter())->write($result['document']);
-        $markdown = (new MarkdownWriter())->write($result['document']);
 
         $t->same(2, count($subdocumentReferences));
         $t->same(2, $metadata['subdocumentReferenceCount']);
@@ -3887,7 +3873,6 @@ return [
         $t->same('external-url', $subdocumentReferences[1]['pathKind']);
         $t->same(3, $metadata['externalFileReferenceCount']);
         $t->contains('<p>Master document packet</p>', $blocks);
-        $t->contains('Master document packet', $markdown);
         $t->true(!str_contains($blocks, 'chapter2.doc'));
         $t->true(!str_contains($blocks, 'appendix-b.doc'));
     },
@@ -3931,7 +3916,6 @@ return [
         $textAttributes = $includedText->attr('attributes');
         $pictureAttributes = $includedPicture->attr('attributes');
         $blocks = (new WordPressBlockWriter())->write($result['document']);
-        $markdown = (new MarkdownWriter())->write($result['document']);
 
         $t->same('includetext', $textAttributes['data-legacy-doc-field']);
         $t->same('Subdocs\chapter1.doc', $textAttributes['data-legacy-doc-include-source']);
@@ -3955,7 +3939,6 @@ return [
         $t->contains('data-legacy-doc-include-external-reference-index="0"', $blocks);
         $t->contains('data-legacy-doc-include-external-reference-match="relative-path"', $blocks);
         $t->contains('data-legacy-doc-include-external-reference-file-system="fat+ntfs"', $blocks);
-        $t->contains('data-legacy-doc-include-external-reference-index="0"', $markdown);
         $t->true(!str_contains($blocks, 'C:\Legacy\Subdocs\chapter1.doc'));
     },
     'extracts legacy DOC SttbfRMark revision authors as metadata-only review data' => static function (TestRunner $t) use ($buildCfb, $buildExtendedFibWordDocument, $sttbUnicode, $u16, $u32): void {
@@ -3972,7 +3955,6 @@ return [
         $metadata = $result['metadata'];
         $revisionAuthors = $result['revisionAuthors'];
         $blocks = (new WordPressBlockWriter())->write($result['document']);
-        $markdown = (new MarkdownWriter())->write($result['document']);
 
         $t->same(3, count($revisionAuthors));
         $t->same(3, $metadata['revisionAuthorCount']);
@@ -3996,10 +3978,8 @@ return [
         $t->same('Review Editor', $revisionAuthors[2]['name']);
         $t->same('revision-author', $revisionAuthors[2]['reviewerRole']);
         $t->contains('<p>Revision author review packet</p>', $blocks);
-        $t->contains('Revision author review packet', $markdown);
         $t->true(!str_contains($blocks, 'Migration Lead'));
         $t->true(!str_contains($blocks, 'Review Editor'));
-        $t->true(!str_contains($markdown, 'Review Editor'));
 
         $buildDocBytes = static function (string $table) use ($buildCfb, $buildExtendedFibWordDocument, $u32): string {
             $wordDocument = $buildExtendedFibWordDocument("Malformed revision author packet\r");
@@ -4072,7 +4052,6 @@ return [
         $captionDefinitions = $result['captionDefinitions'];
         $autoCaptionRules = $result['autoCaptionRules'];
         $blocks = (new WordPressBlockWriter())->write($result['document']);
-        $markdown = (new MarkdownWriter())->write($result['document']);
 
         $t->same(2, count($captionDefinitions));
         $t->same(2, $metadata['captionDefinitionCount']);
@@ -4129,11 +4108,9 @@ return [
         $t->same(false, $autoCaptionRules[1]['canExposeBytes']);
         $t->same('metadata-only-native-review', $autoCaptionRules[1]['extractionPolicy']);
         $t->contains('<p>Caption template review packet</p>', $blocks);
-        $t->contains('Caption template review packet', $markdown);
         $t->true(!str_contains($blocks, 'Word.Picture.8'));
         $t->true(!str_contains($blocks, 'Excel.Chart.8'));
         $t->true(!str_contains($blocks, 'Figure'));
-        $t->true(!str_contains($markdown, 'Excel.Chart.8'));
 
         $buildDocBytes = static function (string $captionTableBytes, string $autoCaptionTableBytes) use ($buildCfb, $buildExtendedFibWordDocument, $u32): string {
             $wordDocument = $buildExtendedFibWordDocument("Malformed caption metadata packet\r", 0x0001);
@@ -4203,7 +4180,6 @@ return [
         $metadata = $result['metadata'];
         $routeSlip = $result['routeSlip'];
         $blocks = (new WordPressBlockWriter())->write($result['document']);
-        $markdown = (new MarkdownWriter())->write($result['document']);
 
         $t->same(2, $routeSlip['recipientCount']);
         $t->same(2, $metadata['routeSlipRecipientCount']);
@@ -4237,10 +4213,8 @@ return [
         $t->same(12, $routeSlip['recipients'][1]['entryIdByteCount']);
         $t->same('656e7472792d69642d303032', $routeSlip['recipients'][1]['entryIdHex']);
         $t->contains('<p>Route slip review packet</p>', $blocks);
-        $t->contains('Route slip review packet', $markdown);
         $t->true(!str_contains($blocks, 'Mira Reviewer'));
         $t->true(!str_contains($blocks, 'Please review before import.'));
-        $t->true(!str_contains($markdown, 'Archive Owner'));
 
         $buildDocBytes = static function (string $table) use ($buildCfb, $buildExtendedFibWordDocument, $u32): string {
             $wordDocument = $buildExtendedFibWordDocument("Malformed route slip packet\r");
@@ -4950,7 +4924,6 @@ return [
         $document = $result['document'];
         $metadata = $result['metadata'];
         $pictureReferences = $result['pictureReferences'] ?? [];
-        $markdown = (new MarkdownWriter())->write($document);
         $blocks = (new WordPressBlockWriter())->write($document);
 
         $t->same(true, $metadata['fibBase']['hasPictures'] ?? null);
@@ -4980,8 +4953,6 @@ return [
         $t->same('inline picture', $firstPicture->children[0]->attr('text'));
         $t->same('2', $secondPicture->attr('attributes')['data-legacy-doc-picture-ref']);
         $t->same('inline picture', $secondPicture->children[0]->attr('text'));
-
-        $t->contains('[inline picture]{.legacy-doc-picture-ref data-legacy-doc-picture-ref="1"', $markdown);
         $t->contains('<span class="legacy-doc-picture-ref" data-legacy-doc-picture-ref="1" data-legacy-doc-picture-reference-cp="' . (string) $firstPictureCp . '"', $blocks);
         $t->contains('data-legacy-doc-picture-policy="metadata-only-native-review">inline picture</span>', $blocks);
         $t->true(!str_contains($blocks, "\x01"), 'Legacy DOC picture placeholder control characters should not render to WordPress blocks');
@@ -5069,7 +5040,6 @@ return [
         $objects = $result['embeddedObjects'];
         $references = $result['embeddedObjectReferences'];
         $document = $result['document'];
-        $markdown = (new MarkdownWriter())->write($document);
         $blocks = (new WordPressBlockWriter())->write($document);
 
         $t->same(2, count($objects));
@@ -5138,7 +5108,6 @@ return [
         $t->same('ObjectPool/_42', $objectRef->attr('attributes')['data-legacy-doc-object-storage']);
         $t->same('legacy-sheet.xlsx', $objectRef->attr('attributes')['data-legacy-doc-object-label']);
         $t->same('embedded object: legacy-sheet.xlsx', $objectRef->children[0]->attr('text'));
-        $t->contains('[embedded object: legacy-sheet.xlsx]{.legacy-doc-object-ref data-legacy-doc-object-ref="1"', $markdown);
         $t->contains('<p>Embedded object <span class="legacy-doc-object-ref" data-legacy-doc-object-ref="1" data-legacy-doc-object-reference-cp="16"', $blocks);
         $t->contains('data-legacy-doc-object-label="legacy-sheet.xlsx" data-legacy-doc-object-native-data-bytes="26" data-legacy-doc-object-transmission-format="unicode-text" data-legacy-doc-object-has-native-data="true" data-legacy-doc-object-has-presentation-data="true">embedded object: legacy-sheet.xlsx</span> review packet</p>', $blocks);
         $t->true(!str_contains($blocks, "\x01"), 'Legacy DOC object placeholder control character should not render to WordPress blocks');
@@ -5682,7 +5651,6 @@ return [
         ]);
 
         $document = (new LegacyDocReader())->readBytes($docBytes)['document'];
-        $markdown = (new MarkdownWriter())->write($document);
         $blocks = (new WordPressBlockWriter())->write($document);
         $paragraph = $document->children[0];
 
@@ -5697,9 +5665,6 @@ return [
         $t->same('link', $internal->type);
         $t->same('#legacy_anchor', $internal->attr('url'));
         $t->same('anchor jump', $internal->children[0]->attr('text'));
-
-        $t->contains('Field link to [source dossier](https://example.test/legacy?post=42&step=doc "Source packet") and [anchor jump](#legacy_anchor).', $markdown);
-        $t->true(!str_contains($markdown, 'HYPERLINK'), 'Legacy DOC field instructions should not render to Markdown');
         $t->contains('<a href="https://example.test/legacy?post=42&amp;step=doc" title="Source packet">source dossier</a>', $blocks);
         $t->contains('<a href="#legacy_anchor">anchor jump</a>', $blocks);
         $t->true(!str_contains($blocks, 'HYPERLINK'), 'Legacy DOC field instructions should not render to WordPress blocks');
@@ -5709,7 +5674,6 @@ return [
         $document = $result['document'];
         $bookmarks = $result['bookmarks'];
         $paragraph = $document->children[0];
-        $markdown = (new MarkdownWriter())->write($document);
         $blocks = (new WordPressBlockWriter())->write($document);
 
         $t->same(2, count($bookmarks));
@@ -5741,8 +5705,6 @@ return [
         $t->same('legacy_anchor', $anchor->attr('attributes')['data-legacy-doc-bookmark']);
         $t->same('6', $anchor->attr('attributes')['data-legacy-doc-bookmark-start-cp']);
         $t->same('17', $anchor->attr('attributes')['data-legacy-doc-bookmark-end-cp']);
-
-        $t->contains('[target text]{#legacy_anchor .legacy-doc-bookmark data-legacy-doc-bookmark="legacy_anchor"', $markdown);
         $t->contains('<span id="legacy_anchor" class="legacy-doc-bookmark" data-legacy-doc-bookmark="legacy_anchor" data-legacy-doc-bookmark-start-cp="6" data-legacy-doc-bookmark-end-cp="17">target text</span>', $blocks);
     },
     'extracts legacy DOC footnote and endnote reference PLCs as review anchors' => static function (TestRunner $t) use ($buildCfb, $buildNoteTableDocStreams): void {
@@ -5751,7 +5713,6 @@ return [
         $footnotes = $result['footnotes'];
         $endnotes = $result['endnotes'];
         $paragraph = $document->children[0];
-        $markdown = (new MarkdownWriter())->write($document);
         $blocks = (new WordPressBlockWriter())->write($document);
 
         $t->same(1, count($footnotes));
@@ -5793,9 +5754,6 @@ return [
         $t->same('false', $endnoteRef->attr('attributes')['data-legacy-doc-note-auto-numbered']);
         $t->same('*', $endnoteRef->children[0]->children[0]->attr('text'));
         $t->same(' end', $paragraph->children[4]->attr('text'));
-
-        $t->contains('[^1^]{.legacy-doc-note-ref .legacy-doc-footnote-ref data-legacy-doc-note-type="footnote"', $markdown);
-        $t->contains('[^\*^]{.legacy-doc-note-ref .legacy-doc-endnote-ref data-legacy-doc-note-type="endnote"', $markdown);
         $t->contains('<span class="legacy-doc-note-ref legacy-doc-footnote-ref" data-legacy-doc-note-type="footnote" data-legacy-doc-note-index="1" data-legacy-doc-note-reference-cp="6" data-legacy-doc-note-text-start-cp="0" data-legacy-doc-note-text-end-cp="17" data-legacy-doc-note-auto-numbered="true"><sup>1</sup></span>', $blocks);
         $t->contains('<span class="legacy-doc-note-ref legacy-doc-endnote-ref" data-legacy-doc-note-type="endnote" data-legacy-doc-note-index="0" data-legacy-doc-note-reference-cp="13" data-legacy-doc-note-text-start-cp="0" data-legacy-doc-note-text-end-cp="11" data-legacy-doc-note-auto-numbered="false"><sup>*</sup></span>', $blocks);
         $t->true(!str_contains($blocks, "\x02"), 'Legacy DOC special footnote reference character should not render directly');
@@ -5807,7 +5765,6 @@ return [
         $commentAuthors = $result['commentAuthors'];
         $metadata = $result['metadata'];
         $paragraph = $document->children[0];
-        $markdown = (new MarkdownWriter())->write($document);
         $blocks = (new WordPressBlockWriter())->write($document);
 
         $t->same(1, count($comments));
@@ -5851,8 +5808,6 @@ return [
         $t->same('superscript', $commentRef->children[0]->type);
         $t->same('JD', $commentRef->children[0]->children[0]->attr('text'));
         $t->same(' beta', $paragraph->children[2]->attr('text'));
-
-        $t->contains('[^JD^]{.legacy-doc-comment-ref data-legacy-doc-comment-index="1"', $markdown);
         $t->contains('<span class="legacy-doc-comment-ref" data-legacy-doc-comment-index="1" data-legacy-doc-comment-reference-cp="6" data-legacy-doc-comment-text-start-cp="0" data-legacy-doc-comment-text-end-cp="31" data-legacy-doc-comment-author-index="2" data-legacy-doc-comment-author-initials="JD" data-legacy-doc-comment-author-name="Janet Doe" data-legacy-doc-comment-bookmark-tag="4660"><sup>JD</sup></span>', $blocks);
         $t->true(!str_contains($blocks, "\x05"), 'Legacy DOC special comment reference character should not render directly');
     },
@@ -5932,7 +5887,6 @@ return [
         $styles = $result['styles'];
         $metadata = $result['metadata'];
         $blocks = (new WordPressBlockWriter())->write($document);
-        $markdown = (new MarkdownWriter())->write($document);
 
         $t->same($styles, $document->attr('styles'));
         $t->same(2, $metadata['styleCount']);
@@ -5982,7 +5936,6 @@ return [
 
         foreach (['sprmPJc', 'sprmPDxaLeft', 'sprmCFBold', 'sprmCFItalic', 'metadata-only-native-review'] as $metadataText) {
             $t->true(!str_contains($blocks, $metadataText), 'Legacy DOC stylesheet formatting metadata should not render into WordPress blocks');
-            $t->true(!str_contains($markdown, $metadataText), 'Legacy DOC stylesheet formatting metadata should not render into Markdown');
         }
 
         $badUpx = $buildStyleSheetDocStreams([
@@ -6039,7 +5992,6 @@ return [
         $runs = $result['formattingRuns'];
         $metadata = $result['metadata'];
         $blocks = (new WordPressBlockWriter())->write($document);
-        $markdown = (new MarkdownWriter())->write($document);
 
         $t->same($runs, $document->attr('formattingRuns'));
         $t->same($runs, $metadata['formattingRuns']);
@@ -6114,10 +6066,8 @@ return [
         $t->same('Formatted review', $document->children[0]->children[0]->children[0]->children[0]->children[0]->attr('text'));
 
         $t->contains('<p><strong><em><u>Formatted review</u></em></strong> plain import</p>', $blocks);
-        $t->contains('***[Formatted review]{.underline}*** plain import', $markdown);
         foreach (['sprmCFBold', 'sprmCFItalic', 'sprmCKul', 'sprmCFVanish', 'metadata-only-native-review'] as $metadataText) {
             $t->true(!str_contains($blocks, $metadataText), 'Legacy DOC CHPX formatting metadata should not render into WordPress blocks');
-            $t->true(!str_contains($markdown, $metadataText), 'Legacy DOC CHPX formatting metadata should not render into Markdown');
         }
     },
     'suppresses legacy DOC CHPX hidden text while preserving review metadata' => static function (TestRunner $t) use ($buildCfb, $buildHiddenTextFormattingDocStreams): void {
@@ -6130,7 +6080,6 @@ return [
         $runs = $result['formattingRuns'];
         $metadata = $result['metadata'];
         $blocks = (new WordPressBlockWriter())->write($document);
-        $markdown = (new MarkdownWriter())->write($document);
 
         $t->same(3, $metadata['formattingRunCount']);
         $t->same(3, $metadata['characterFormattingRunCount']);
@@ -6174,10 +6123,8 @@ return [
         $t->same('Visible intro ', $document->children[0]->children[0]->attr('text'));
         $t->same('visible close', $document->children[0]->children[1]->attr('text'));
         $t->contains('<p>Visible intro visible close</p>', $blocks);
-        $t->contains('Visible intro visible close', $markdown);
         foreach ([$hiddenRunText, 'sprmCFVanish', 'suppressed-hidden-text-native-review'] as $hiddenText) {
             $t->true(!str_contains($blocks, $hiddenText), 'Legacy DOC hidden text and suppression metadata should not render into WordPress blocks');
-            $t->true(!str_contains($markdown, $hiddenText), 'Legacy DOC hidden text and suppression metadata should not render into Markdown');
         }
     },
     'links legacy DOC CHPX revision-mark runs to SttbfRMark authors for review' => static function (TestRunner $t) use ($buildCfb, $buildRevisionMarkedFormattingDocStreams): void {
@@ -6186,7 +6133,6 @@ return [
         $runs = $result['formattingRuns'];
         $metadata = $result['metadata'];
         $blocks = (new WordPressBlockWriter())->write($document);
-        $markdown = (new MarkdownWriter())->write($document);
 
         $t->same($runs, $document->attr('formattingRuns'));
         $t->same(2, $metadata['formattingRunCount']);
@@ -6215,11 +6161,8 @@ return [
 
         $t->contains('<p>Inserted review</p>', $blocks);
         $t->contains('<p>Deleted review</p>', $blocks);
-        $t->contains('Inserted review', $markdown);
-        $t->contains('Deleted review', $markdown);
         $t->true(!str_contains($blocks, 'Migration Lead'), 'Revision authors must stay metadata-only in WordPress blocks');
         $t->true(!str_contains($blocks, 'Review Editor'), 'Deleted-revision authors must stay metadata-only in WordPress blocks');
-        $t->true(!str_contains($markdown, 'Review Editor'), 'Revision authors must stay metadata-only in Markdown');
 
         $t->throws(\RuntimeException::class, static fn (): array => (new LegacyDocReader())->readBytes($buildCfb($buildRevisionMarkedFormattingDocStreams(9))));
     },
@@ -6229,7 +6172,6 @@ return [
         $runs = $result['formattingRuns'];
         $metadata = $result['metadata'];
         $blocks = (new WordPressBlockWriter())->write($document);
-        $markdown = (new MarkdownWriter())->write($document);
 
         $t->same($runs, $document->attr('formattingRuns'));
         $t->same($runs, $metadata['formattingRuns']);
@@ -6262,10 +6204,8 @@ return [
 
         $t->contains('<p>Paragraph property revision</p>', $blocks);
         $t->contains('<p>Plain paragraph</p>', $blocks);
-        $t->contains('Paragraph property revision', $markdown);
         $t->true(!str_contains($blocks, 'Migration Lead'), 'PAPX revision authors must stay metadata-only in WordPress blocks');
         $t->true(!str_contains($blocks, '2024-06-08T09:10:00'), 'PAPX revision timestamps must stay metadata-only in WordPress blocks');
-        $t->true(!str_contains($markdown, 'Migration Lead'), 'PAPX revision authors must stay metadata-only in Markdown');
 
         $t->throws(\RuntimeException::class, static fn (): array => (new LegacyDocReader())->readBytes($buildCfb($buildParagraphRevisionMarkedFormattingDocStreams(9))));
     },
@@ -6275,7 +6215,6 @@ return [
         $runs = $result['formattingRuns'];
         $metadata = $result['metadata'];
         $blocks = (new WordPressBlockWriter())->write($document);
-        $markdown = (new MarkdownWriter())->write($document);
 
         $t->same($runs, $document->attr('formattingRuns'));
         $t->same($runs, $metadata['formattingRuns']);
@@ -6380,10 +6319,8 @@ return [
         $t->true(!isset($plain['paragraphProperties']), 'Plain PAPX run should not invent paragraph properties');
         $t->contains('<p>Centered layout paragraph</p>', $blocks);
         $t->contains('<p>Plain paragraph</p>', $blocks);
-        $t->contains('Centered layout paragraph', $markdown);
         foreach (['sprmPJc', 'sprmPDxaLeft', 'sprmPDyaLine', 'metadata-only-native-review'] as $metadataText) {
             $t->true(!str_contains($blocks, $metadataText), 'Legacy DOC PAPX paragraph metadata should not render into WordPress blocks');
-            $t->true(!str_contains($markdown, $metadataText), 'Legacy DOC PAPX paragraph metadata should not render into Markdown');
         }
     },
     'rejects malformed legacy DOC formatting table BTE ranges before exposing metadata' => static function (TestRunner $t) use ($buildCfb, $buildFormattingTableDocStreams, $u32): void {
@@ -6486,7 +6423,6 @@ return [
         $result = (new LegacyDocReader())->readBytes($buildCfb($buildListTableDocStreams($text)));
         $document = $result['document'];
         $metadata = $result['metadata'];
-        $markdown = (new MarkdownWriter())->write($document);
         $blocks = (new WordPressBlockWriter())->write($document);
         $paragraph = $document->children[0];
 
@@ -6516,10 +6452,6 @@ return [
         $t->same('0', $attrs['data-legacy-doc-numbering-field-list-override-level']);
         $t->same('7', $attrs['data-legacy-doc-numbering-field-list-override-start-at']);
         $t->same('7.', $autoNumber->children[0]->attr('text'));
-
-        $t->contains('[7.]{.legacy-doc-field .legacy-doc-numbering-field .legacy-doc-field-autonum data-legacy-doc-field="autonum"', $markdown);
-        $t->contains('data-legacy-doc-numbering-field-list-lsid="1001"', $markdown);
-        $t->contains('data-legacy-doc-numbering-field-list-override-start-at="7"', $markdown);
         $t->contains('<span class="legacy-doc-field legacy-doc-numbering-field legacy-doc-field-autonum" data-legacy-doc-field="autonum" data-legacy-doc-field-instruction="AUTONUM \* Arabic" data-legacy-doc-numbering-field-type="auto-number" data-legacy-doc-field-format="Arabic" data-legacy-doc-numbering-field-list-policy="metadata-only-native-review"', $blocks);
         $t->contains('data-legacy-doc-numbering-field-list-text-template="%1."', $blocks);
         $t->contains('data-legacy-doc-numbering-field-list-override-start-at="7">7.</span>', $blocks);
@@ -6695,7 +6627,6 @@ return [
         ]);
 
         $document = (new LegacyDocReader())->readBytes($docBytes)['document'];
-        $markdown = (new MarkdownWriter())->write($document);
         $blocks = (new WordPressBlockWriter())->write($document);
         $paragraph = $document->children[0];
 
@@ -6732,10 +6663,6 @@ return [
         $t->same('DATE \@ "MMMM d, yyyy"', $date->attr('attributes')['data-legacy-doc-field-instruction']);
         $t->same('MMMM d, yyyy', $date->attr('attributes')['data-legacy-doc-field-format']);
         $t->same('June 5, 2026', $date->children[0]->attr('text'));
-
-        $t->contains('Page [7]{.legacy-doc-field .legacy-doc-field-page data-legacy-doc-field="page" data-legacy-doc-field-instruction="PAGE \\\\* Arabic" data-legacy-doc-field-format="Arabic"} of', $markdown);
-        $t->contains('section [3]{.legacy-doc-field .legacy-doc-field-section data-legacy-doc-field="section" data-legacy-doc-field-instruction="SECTION \\\\* Arabic" data-legacy-doc-field-format="Arabic"} of [4]{.legacy-doc-field .legacy-doc-field-sectionpages data-legacy-doc-field="sectionpages"', $markdown);
-        $t->contains('updated [June 5, 2026]{.legacy-doc-field .legacy-doc-field-date data-legacy-doc-field="date" data-legacy-doc-field-instruction="DATE \\\\@ \\"MMMM d, yyyy\\"" data-legacy-doc-field-format="MMMM d, yyyy"}.', $markdown);
         $t->contains('<span class="legacy-doc-field legacy-doc-field-page" data-legacy-doc-field="page" data-legacy-doc-field-instruction="PAGE \* Arabic" data-legacy-doc-field-format="Arabic">7</span>', $blocks);
         $t->contains('<span class="legacy-doc-field legacy-doc-field-section" data-legacy-doc-field="section" data-legacy-doc-field-instruction="SECTION \* Arabic" data-legacy-doc-field-format="Arabic">3</span>', $blocks);
         $t->contains('<span class="legacy-doc-field legacy-doc-field-sectionpages" data-legacy-doc-field="sectionpages" data-legacy-doc-field-instruction="SECTIONPAGES \* Arabic" data-legacy-doc-field-format="Arabic">4</span>', $blocks);
@@ -6761,7 +6688,6 @@ return [
         ]);
 
         $document = (new LegacyDocReader())->readBytes($docBytes)['document'];
-        $markdown = (new MarkdownWriter())->write($document);
         $blocks = (new WordPressBlockWriter())->write($document);
         $paragraph = $document->children[0];
 
@@ -6786,10 +6712,6 @@ return [
         $t->same('formdropdown', $dropdown->attr('attributes')['data-legacy-doc-field']);
         $t->same('dropdown', $dropdown->attr('attributes')['data-legacy-doc-form-field-type']);
         $t->same('Option B', $dropdown->children[0]->attr('text'));
-
-        $t->contains('[Alice Reviewer]{.legacy-doc-field .legacy-doc-form-field .legacy-doc-field-formtext data-legacy-doc-field="formtext"', $markdown);
-        $t->contains('[X]{.legacy-doc-field .legacy-doc-form-field .legacy-doc-field-formcheckbox data-legacy-doc-field="formcheckbox"', $markdown);
-        $t->contains('[Option B]{.legacy-doc-field .legacy-doc-form-field .legacy-doc-field-formdropdown data-legacy-doc-field="formdropdown"', $markdown);
         $t->contains('<span class="legacy-doc-field legacy-doc-form-field legacy-doc-field-formtext" data-legacy-doc-field="formtext" data-legacy-doc-field-instruction="FORMTEXT \* MERGEFORMAT" data-legacy-doc-form-field-type="text" data-legacy-doc-field-format="MERGEFORMAT">Alice Reviewer</span>', $blocks);
         $t->contains('<span class="legacy-doc-field legacy-doc-form-field legacy-doc-field-formcheckbox" data-legacy-doc-field="formcheckbox" data-legacy-doc-field-instruction="FORMCHECKBOX" data-legacy-doc-form-field-type="checkbox" data-legacy-doc-form-field-checked="true">X</span>', $blocks);
         $t->contains('<span class="legacy-doc-field legacy-doc-form-field legacy-doc-field-formdropdown" data-legacy-doc-field="formdropdown" data-legacy-doc-field-instruction="FORMDROPDOWN" data-legacy-doc-form-field-type="dropdown">Option B</span>', $blocks);
@@ -7212,7 +7134,6 @@ return [
         ]);
 
         $document = (new LegacyDocReader())->readBytes($docBytes)['document'];
-        $markdown = (new MarkdownWriter())->write($document);
         $blocks = (new WordPressBlockWriter())->write($document);
         $paragraph = $document->children[0];
 
@@ -7245,10 +7166,6 @@ return [
         $t->same('f h', $noteReference->attr('attributes')['data-legacy-doc-cross-reference-switches']);
         $t->same('true', $noteReference->attr('attributes')['data-legacy-doc-cross-reference-hyperlink']);
         $t->same('1', $noteReference->children[0]->attr('text'));
-
-        $t->contains('[Legacy DOC import]{.legacy-doc-field .legacy-doc-cross-reference .legacy-doc-field-ref data-legacy-doc-field="ref"', $markdown);
-        $t->contains('[7]{.legacy-doc-field .legacy-doc-cross-reference .legacy-doc-field-pageref data-legacy-doc-field="pageref"', $markdown);
-        $t->contains('[1]{.legacy-doc-field .legacy-doc-cross-reference .legacy-doc-field-noteref data-legacy-doc-field="noteref"', $markdown);
         $t->contains('<span class="legacy-doc-field legacy-doc-cross-reference legacy-doc-field-ref" data-legacy-doc-field="ref" data-legacy-doc-field-instruction="REF &quot;legacy_anchor&quot; \h" data-legacy-doc-cross-reference-type="bookmark" data-legacy-doc-cross-reference-target="legacy_anchor" data-legacy-doc-cross-reference-switches="h" data-legacy-doc-cross-reference-hyperlink="true">Legacy DOC import</span>', $blocks);
         $t->contains('<span class="legacy-doc-field legacy-doc-cross-reference legacy-doc-field-pageref" data-legacy-doc-field="pageref" data-legacy-doc-field-instruction="PAGEREF legacy_anchor \p" data-legacy-doc-cross-reference-type="bookmark-page" data-legacy-doc-cross-reference-target="legacy_anchor" data-legacy-doc-cross-reference-switches="p" data-legacy-doc-cross-reference-relative="true">7</span>', $blocks);
         $t->contains('<span class="legacy-doc-field legacy-doc-cross-reference legacy-doc-field-noteref" data-legacy-doc-field="noteref" data-legacy-doc-field-instruction="NOTEREF &quot;_RefNote&quot; \f \h" data-legacy-doc-cross-reference-type="note" data-legacy-doc-cross-reference-target="_RefNote" data-legacy-doc-cross-reference-switches="f h" data-legacy-doc-cross-reference-hyperlink="true">1</span>', $blocks);
@@ -7289,7 +7206,6 @@ return [
 
         $result = (new LegacyDocReader())->readBytes($docBytes);
         $document = $result['document'];
-        $markdown = (new MarkdownWriter())->write($document);
         $blocks = (new WordPressBlockWriter())->write($document);
         $paragraph = $document->children[0];
 
@@ -7324,10 +7240,6 @@ return [
         $t->same('MigrationBatch', $docVariable->attr('attributes')['data-legacy-doc-data-field-name']);
         $t->same('Upper', $docVariable->attr('attributes')['data-legacy-doc-field-format']);
         $t->same('LEGACY-DOC-42', $docVariable->children[0]->attr('text'));
-
-        $t->contains('[Ada Lovelace]{.legacy-doc-field .legacy-doc-data-field .legacy-doc-field-mergefield data-legacy-doc-field="mergefield"', $markdown);
-        $t->contains('data-legacy-doc-data-field-name="Customer Name"', $markdown);
-        $t->contains('[LEGACY-DOC-42]{.legacy-doc-field .legacy-doc-data-field .legacy-doc-field-docvariable data-legacy-doc-field="docvariable"', $markdown);
         $t->contains('data-legacy-doc-mail-merge-policy="metadata-only-native-review"', $blocks);
         $t->contains('data-legacy-doc-mail-merge-associated-data-source-index="8"', $blocks);
         $t->contains('data-legacy-doc-mail-merge-header-document-index="9"', $blocks);
@@ -7394,7 +7306,6 @@ return [
 
         $result = (new LegacyDocReader())->readBytes($docBytes);
         $document = $result['document'];
-        $markdown = (new MarkdownWriter())->write($document);
         $blocks = (new WordPressBlockWriter())->write($document);
         $paragraph = $document->children[0];
         $dataField = $paragraph->children[1];
@@ -7437,8 +7348,6 @@ return [
         $t->same($dataSource, $result['metadata']['mailMergeDataSource']);
         $t->same($headerDocument, $result['metadata']['mailMergeHeaderDocument']);
         $t->same(1, $result['metadata']['externalFileReferenceCount']);
-        $t->contains('[mail merge source]{.legacy-doc-field .legacy-doc-mail-merge-data-field .legacy-doc-field-data data-legacy-doc-field="data"', $markdown);
-        $t->contains('data-legacy-doc-mail-merge-data-source-basename="mailmerge-customers.csv"', $markdown);
         $t->contains('data-legacy-doc-mail-merge-header-document-basename="mailmerge-headers.doc"', $blocks);
         $t->contains('data-legacy-doc-mail-merge-external-reference-index="0"', $blocks);
         $t->contains('data-legacy-doc-mail-merge-switch-m="true"', $blocks);
@@ -7589,7 +7498,6 @@ return [
         ]);
 
         $document = (new LegacyDocReader())->readBytes($docBytes)['document'];
-        $markdown = (new MarkdownWriter())->write($document);
         $blocks = (new WordPressBlockWriter())->write($document);
         $paragraph = $document->children[0];
 
@@ -7612,10 +7520,6 @@ return [
         $t->same('Author', $info->attr('attributes')['data-legacy-doc-data-field-name']);
         $t->same('Upper', $info->attr('attributes')['data-legacy-doc-field-format']);
         $t->same('MIGRATION DESK', $info->children[0]->attr('text'));
-
-        $t->contains('[legacy-cms]{.legacy-doc-field .legacy-doc-data-field .legacy-doc-field-docproperty data-legacy-doc-field="docproperty"', $markdown);
-        $t->contains('data-legacy-doc-data-field-name="Source System"', $markdown);
-        $t->contains('[MIGRATION DESK]{.legacy-doc-field .legacy-doc-data-field .legacy-doc-field-info data-legacy-doc-field="info"', $markdown);
         $t->contains('<span class="legacy-doc-field legacy-doc-data-field legacy-doc-field-docproperty" data-legacy-doc-field="docproperty" data-legacy-doc-field-instruction="DOCPROPERTY &quot;Source System&quot; \* MERGEFORMAT" data-legacy-doc-data-field-type="document-property" data-legacy-doc-data-field-name="Source System" data-legacy-doc-field-format="MERGEFORMAT">legacy-cms</span>', $blocks);
         $t->contains('<span class="legacy-doc-field legacy-doc-data-field legacy-doc-field-info" data-legacy-doc-field="info" data-legacy-doc-field-instruction="INFO &quot;Author&quot; \* Upper" data-legacy-doc-data-field-type="document-info" data-legacy-doc-data-field-name="Author" data-legacy-doc-field-format="Upper">MIGRATION DESK</span>', $blocks);
         foreach (['DOCPROPERTY', 'INFO', 'Source System', 'Author'] as $instruction) {
@@ -7647,7 +7551,6 @@ return [
         ]);
 
         $document = (new LegacyDocReader())->readBytes($docBytes)['document'];
-        $markdown = (new MarkdownWriter())->write($document);
         $blocks = (new WordPressBlockWriter())->write($document);
         $paragraph = $document->children[0];
         $spansByField = [];
@@ -7683,9 +7586,6 @@ return [
             }
             $t->same($spec['result'], $span->children[0]->attr('text'));
         }
-
-        $t->contains('[MIGRATION DESK]{.legacy-doc-field .legacy-doc-data-field .legacy-doc-field-author data-legacy-doc-field="author"', $markdown);
-        $t->contains('data-legacy-doc-data-field-name="Revision Number"', $markdown);
         $t->contains('<span class="legacy-doc-field legacy-doc-data-field legacy-doc-field-author" data-legacy-doc-field="author" data-legacy-doc-field-instruction="AUTHOR \* Upper" data-legacy-doc-data-field-type="document-info" data-legacy-doc-data-field-name="Author" data-legacy-doc-data-field-built-in="true" data-legacy-doc-data-field-policy="cached-result-native-review" data-legacy-doc-data-field-result-kind="text" data-legacy-doc-field-format="Upper">MIGRATION DESK</span>', $blocks);
         $t->contains('<span class="legacy-doc-field legacy-doc-data-field legacy-doc-field-revnum" data-legacy-doc-field="revnum" data-legacy-doc-field-instruction="REVNUM" data-legacy-doc-data-field-type="document-statistic" data-legacy-doc-data-field-name="Revision Number" data-legacy-doc-data-field-built-in="true" data-legacy-doc-data-field-policy="cached-result-native-review" data-legacy-doc-data-field-result-kind="revision-number">12</span>', $blocks);
 
@@ -7884,7 +7784,6 @@ return [
         $document = $result['document'];
         $fields = $result['fields'];
         $paragraph = $document->children[0];
-        $markdown = (new MarkdownWriter())->write($document);
         $blocks = (new WordPressBlockWriter())->write($document);
 
         $t->same(6, $result['metadata']['fieldCharacterCount']);
@@ -7921,9 +7820,6 @@ return [
         $t->same('MERGEFORMAT', $shapeAttrs['data-legacy-doc-field-format']);
         $t->same('17', $shapeAttrs['data-legacy-doc-literal-field-result-character-count']);
         $t->same('shape placeholder', $shape->children[0]->attr('text'));
-
-        $t->contains('[DISPLAYED LITERAL]{.legacy-doc-field .legacy-doc-literal-field .legacy-doc-field-quote data-legacy-doc-field="quote"', $markdown);
-        $t->contains('[shape placeholder]{.legacy-doc-field .legacy-doc-literal-field .legacy-doc-field-shape data-legacy-doc-field="shape"', $markdown);
         $t->contains('<span class="legacy-doc-field legacy-doc-literal-field legacy-doc-field-quote" data-legacy-doc-field="quote" data-legacy-doc-field-instruction="QUOTE &quot;Hidden instruction literal&quot; \* Upper" data-legacy-doc-literal-field-type="literal-text" data-legacy-doc-literal-field-policy="metadata-only-native-review" data-legacy-doc-field-format="Upper" data-legacy-doc-literal-field-arguments="Hidden instruction literal" data-legacy-doc-literal-field-result-kind="displayed-result" data-legacy-doc-literal-field-result-character-count="17">DISPLAYED LITERAL</span>', $blocks);
         $t->contains('<span class="legacy-doc-field legacy-doc-literal-field legacy-doc-field-shape" data-legacy-doc-field="shape" data-legacy-doc-field-instruction="SHAPE &quot;Hidden shape instruction&quot; \* MERGEFORMAT" data-legacy-doc-literal-field-type="shape-quote-alias" data-legacy-doc-literal-field-policy="metadata-only-native-review" data-legacy-doc-literal-field-alias="quote" data-legacy-doc-field-format="MERGEFORMAT" data-legacy-doc-literal-field-arguments="Hidden shape instruction" data-legacy-doc-literal-field-result-kind="displayed-result" data-legacy-doc-literal-field-result-character-count="17">shape placeholder</span>', $blocks);
 
@@ -7966,7 +7862,6 @@ return [
         $document = $result['document'];
         $fields = $result['fields'];
         $paragraph = $document->children[0];
-        $markdown = (new MarkdownWriter())->write($document);
         $blocks = (new WordPressBlockWriter())->write($document);
 
         $t->same(3, $result['metadata']['fieldCharacterCount']);
@@ -7989,8 +7884,6 @@ return [
         $t->same('displayed-result', $equationAttrs['data-legacy-doc-equation-field-result-kind']);
         $t->same('7', $equationAttrs['data-legacy-doc-equation-field-result-character-count']);
         $t->same('(a)/(b)', $equation->children[0]->attr('text'));
-
-        $t->contains('[(a)/(b)]{.legacy-doc-field .legacy-doc-equation-field .legacy-doc-field-eq data-legacy-doc-field="eq"', $markdown);
         $t->contains('<span class="legacy-doc-field legacy-doc-equation-field legacy-doc-field-eq" data-legacy-doc-field="eq" data-legacy-doc-field-instruction="EQ \f(a,b) \* MERGEFORMAT" data-legacy-doc-equation-field-type="legacy-word-eq" data-legacy-doc-equation-field-policy="metadata-only-native-review" data-legacy-doc-field-format="MERGEFORMAT" data-legacy-doc-equation-field-code="\f(a,b)" data-legacy-doc-equation-field-result-kind="displayed-result" data-legacy-doc-equation-field-result-character-count="7">(a)/(b)</span>', $blocks);
 
         $visibleText = strip_tags($blocks);
@@ -8044,7 +7937,6 @@ return [
         $paragraph = $document->children[0];
         $fields = $result['fields'];
         $fieldCharacters = $result['fieldCharacters'];
-        $markdown = (new MarkdownWriter())->write($document);
         $blocks = (new WordPressBlockWriter())->write($document);
 
         $t->same(7, $result['metadata']['fieldCharacterCount']);
@@ -8090,16 +7982,11 @@ return [
         $t->same('docvariable', $docVariable->attr('attributes')['data-legacy-doc-field']);
         $t->same('MigrationBatch', $docVariable->attr('attributes')['data-legacy-doc-data-field-name']);
         $t->same('legacy-doc-42', $docVariable->children[0]->attr('text'));
-
-        $t->contains('[]{.legacy-doc-field .legacy-doc-set-field .legacy-doc-field-set data-legacy-doc-field="set"', $markdown);
-        $t->contains('data-legacy-doc-set-field-name="MigrationBatch"', $markdown);
-        $t->contains('data-legacy-doc-set-field-policy="signature-blob-metadata-only"', $markdown);
         $t->contains('<span class="legacy-doc-field legacy-doc-set-field legacy-doc-field-set" data-legacy-doc-field="set" data-legacy-doc-field-instruction="SET &quot;MigrationBatch&quot; &quot;legacy-doc-42&quot; \* MERGEFORMAT" data-legacy-doc-set-field-type="document-variable-assignment" data-legacy-doc-set-field-name="MigrationBatch" data-legacy-doc-field-format="MERGEFORMAT" data-legacy-doc-set-field-value-character-count="13" data-legacy-doc-set-field-value="legacy-doc-42"></span>', $blocks);
         $t->contains('<span class="legacy-doc-field legacy-doc-set-field legacy-doc-field-set" data-legacy-doc-field="set" data-legacy-doc-field-instruction="SET Sign [redacted]" data-legacy-doc-set-field-type="document-variable-assignment" data-legacy-doc-set-field-name="Sign" data-legacy-doc-field-instruction-redacted="true" data-legacy-doc-set-field-value-character-count="22" data-legacy-doc-set-field-redacted="true" data-legacy-doc-set-field-policy="signature-blob-metadata-only"></span>', $blocks);
         $t->true(!str_contains(strip_tags($blocks), 'SET'), 'Legacy DOC SET field instructions should not render as visible text');
         $t->true(!str_contains(strip_tags($blocks), 'MigrationBatch'), 'Legacy DOC SET field names should not render as visible text');
         $t->true(!str_contains($blocks, 'opaque signature bytes'), 'Legacy DOC signature SET values should not render in WordPress blocks');
-        $t->true(!str_contains($markdown, 'opaque signature bytes'), 'Legacy DOC signature SET values should not render in Markdown');
     },
     'preserves legacy DOC prompt field provenance around displayed results' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument): void {
         $fieldBegin = "\x13";
@@ -8116,7 +8003,6 @@ return [
         ]);
 
         $document = (new LegacyDocReader())->readBytes($docBytes)['document'];
-        $markdown = (new MarkdownWriter())->write($document);
         $blocks = (new WordPressBlockWriter())->write($document);
         $paragraph = $document->children[0];
 
@@ -8141,10 +8027,6 @@ return [
         $t->same('Needs QA', $fillIn->attr('attributes')['data-legacy-doc-prompt-default']);
         $t->same('d', $fillIn->attr('attributes')['data-legacy-doc-prompt-switches']);
         $t->same('Ready for WordPress', $fillIn->children[0]->attr('text'));
-
-        $t->contains('[Mira Reviewer]{.legacy-doc-field .legacy-doc-prompt-field .legacy-doc-field-ask data-legacy-doc-field="ask"', $markdown);
-        $t->contains('data-legacy-doc-prompt-field-name="ReviewOwner"', $markdown);
-        $t->contains('[Ready for WordPress]{.legacy-doc-field .legacy-doc-prompt-field .legacy-doc-field-fillin data-legacy-doc-field="fillin"', $markdown);
         $t->contains('<span class="legacy-doc-field legacy-doc-prompt-field legacy-doc-field-ask" data-legacy-doc-field="ask" data-legacy-doc-field-instruction="ASK ReviewOwner &quot;Who owns this packet?&quot; \d &quot;Mira&quot; \o" data-legacy-doc-prompt-field-type="bookmark-prompt" data-legacy-doc-prompt-field-name="ReviewOwner" data-legacy-doc-prompt-text="Who owns this packet?" data-legacy-doc-prompt-default="Mira" data-legacy-doc-prompt-switches="d o">Mira Reviewer</span>', $blocks);
         $t->contains('<span class="legacy-doc-field legacy-doc-prompt-field legacy-doc-field-fillin" data-legacy-doc-field="fillin" data-legacy-doc-field-instruction="FILLIN &quot;Migration note?&quot; \d &quot;Needs QA&quot;" data-legacy-doc-prompt-field-type="prompt" data-legacy-doc-prompt-text="Migration note?" data-legacy-doc-prompt-default="Needs QA" data-legacy-doc-prompt-switches="d">Ready for WordPress</span>', $blocks);
         foreach (['ASK', 'FILLIN'] as $instruction) {
@@ -8164,7 +8046,6 @@ return [
         ]);
 
         $document = (new LegacyDocReader())->readBytes($docBytes)['document'];
-        $markdown = (new MarkdownWriter())->write($document);
         $blocks = (new WordPressBlockWriter())->write($document);
         $paragraph = $document->children[0];
         $symbol = $paragraph->children[1];
@@ -8178,9 +8059,6 @@ return [
         $t->same('12', $symbol->attr('attributes')['data-legacy-doc-symbol-size']);
         $t->same('u', $symbol->attr('attributes')['data-legacy-doc-symbol-switches']);
         $t->same('·', $symbol->children[0]->attr('text'));
-
-        $t->contains('[·]{.legacy-doc-field .legacy-doc-symbol-field .legacy-doc-field-symbol data-legacy-doc-field="symbol"', $markdown);
-        $t->contains('data-legacy-doc-symbol-font="Symbol"', $markdown);
         $t->contains('<span class="legacy-doc-field legacy-doc-symbol-field legacy-doc-field-symbol" data-legacy-doc-field="symbol" data-legacy-doc-field-instruction="SYMBOL 183 \f &quot;Symbol&quot; \s 12 \u" data-legacy-doc-symbol-code="183" data-legacy-doc-symbol-font="Symbol" data-legacy-doc-symbol-size="12" data-legacy-doc-symbol-switches="u">·</span>', $blocks);
         $t->true(!str_contains(strip_tags($blocks), 'SYMBOL'), 'Legacy DOC symbol field instructions should not render as visible text');
     },
@@ -8201,7 +8079,6 @@ return [
         ]);
 
         $document = (new LegacyDocReader())->readBytes($docBytes)['document'];
-        $markdown = (new MarkdownWriter())->write($document);
         $blocks = (new WordPressBlockWriter())->write($document);
         $paragraph = $document->children[0];
 
@@ -8239,10 +8116,6 @@ return [
         $t->same('1', $toa->attr('attributes')['data-legacy-doc-generated-field-switch-c']);
         $t->same('true', $toa->attr('attributes')['data-legacy-doc-generated-field-switch-p']);
         $t->same('Case One 2', $toa->children[0]->attr('text'));
-
-        $t->contains("[Introduction\t1]{.legacy-doc-field .legacy-doc-generated-field .legacy-doc-field-toc data-legacy-doc-field=\"toc\"", $markdown);
-        $t->contains('[Legacy term, 4]{.legacy-doc-field .legacy-doc-generated-field .legacy-doc-field-index data-legacy-doc-field="index"', $markdown);
-        $t->contains('[Case One 2]{.legacy-doc-field .legacy-doc-generated-field .legacy-doc-field-toa data-legacy-doc-field="toa"', $markdown);
         $t->contains('<span class="legacy-doc-field legacy-doc-generated-field legacy-doc-field-toc" data-legacy-doc-field="toc" data-legacy-doc-field-instruction="TOC \o &quot;1-3&quot; \h \z \u" data-legacy-doc-generated-field-type="table-of-contents" data-legacy-doc-generated-field-switches="o h z u" data-legacy-doc-generated-field-switch-o="1-3" data-legacy-doc-generated-field-switch-h="true" data-legacy-doc-generated-field-switch-z="true" data-legacy-doc-generated-field-switch-u="true">Introduction	1</span>', $blocks);
         $t->contains('<span class="legacy-doc-field legacy-doc-generated-field legacy-doc-field-index" data-legacy-doc-field="index" data-legacy-doc-field-instruction="INDEX \c &quot;2&quot; \h &quot;A&quot;" data-legacy-doc-generated-field-type="index" data-legacy-doc-generated-field-switches="c h" data-legacy-doc-generated-field-switch-c="2" data-legacy-doc-generated-field-switch-h="A">Legacy term, 4</span>', $blocks);
         $t->contains('<span class="legacy-doc-field legacy-doc-generated-field legacy-doc-field-toa" data-legacy-doc-field="toa" data-legacy-doc-field-instruction="TOA \c &quot;1&quot; \p" data-legacy-doc-generated-field-type="table-of-authorities" data-legacy-doc-generated-field-switches="c p" data-legacy-doc-generated-field-switch-c="1" data-legacy-doc-generated-field-switch-p="true">Case One 2</span>', $blocks);
@@ -8265,7 +8138,6 @@ return [
         ]);
 
         $document = (new LegacyDocReader())->readBytes($docBytes)['document'];
-        $markdown = (new MarkdownWriter())->write($document);
         $blocks = (new WordPressBlockWriter())->write($document);
         $paragraph = $document->children[0];
 
@@ -8294,10 +8166,6 @@ return [
         $t->same('2', $listNumber->attr('attributes')['data-legacy-doc-numbering-field-switch-l']);
         $t->same('3', $listNumber->attr('attributes')['data-legacy-doc-numbering-field-switch-s']);
         $t->same('3.2', $listNumber->children[0]->attr('text'));
-
-        $t->contains('[4]{.legacy-doc-field .legacy-doc-numbering-field .legacy-doc-field-seq data-legacy-doc-field="seq"', $markdown);
-        $t->contains('data-legacy-doc-numbering-field-name="Figure"', $markdown);
-        $t->contains('[3.2]{.legacy-doc-field .legacy-doc-numbering-field .legacy-doc-field-listnum data-legacy-doc-field="listnum"', $markdown);
         $t->contains('<span class="legacy-doc-field legacy-doc-numbering-field legacy-doc-field-seq" data-legacy-doc-field="seq" data-legacy-doc-field-instruction="SEQ &quot;Figure&quot; \r 4 \* Arabic" data-legacy-doc-numbering-field-type="sequence" data-legacy-doc-field-format="Arabic" data-legacy-doc-numbering-field-name="Figure" data-legacy-doc-numbering-field-arguments="Figure" data-legacy-doc-numbering-field-switches="r" data-legacy-doc-numbering-field-switch-r="4">4</span>', $blocks);
         $t->contains('<span class="legacy-doc-field legacy-doc-numbering-field legacy-doc-field-listnum" data-legacy-doc-field="listnum" data-legacy-doc-field-instruction="LISTNUM &quot;LegalDefault&quot; \l 2 \s 3" data-legacy-doc-numbering-field-type="list-number" data-legacy-doc-numbering-field-name="LegalDefault" data-legacy-doc-numbering-field-arguments="LegalDefault" data-legacy-doc-numbering-field-switches="l s" data-legacy-doc-numbering-field-switch-l="2" data-legacy-doc-numbering-field-switch-s="3">3.2</span>', $blocks);
         foreach (['SEQ', 'LISTNUM'] as $instruction) {
@@ -8353,7 +8221,6 @@ return [
         $document = $result['document'];
         $fields = $result['fields'];
         $paragraph = $document->children[0];
-        $markdown = (new MarkdownWriter())->write($document);
         $blocks = (new WordPressBlockWriter())->write($document);
 
         $t->same(9, $result['metadata']['fieldCharacterCount']);
@@ -8389,10 +8256,6 @@ return [
         $t->same('AUTONUMLGL', $legal->attr('attributes')['data-legacy-doc-field-instruction']);
         $t->same('auto-number-legal', $legal->attr('attributes')['data-legacy-doc-numbering-field-type']);
         $t->same('2.1', $legal->children[0]->attr('text'));
-
-        $t->contains('[1]{.legacy-doc-field .legacy-doc-numbering-field .legacy-doc-field-autonum data-legacy-doc-field="autonum"', $markdown);
-        $t->contains('[II.]{.legacy-doc-field .legacy-doc-numbering-field .legacy-doc-field-autonumout data-legacy-doc-field="autonumout"', $markdown);
-        $t->contains('[2.1]{.legacy-doc-field .legacy-doc-numbering-field .legacy-doc-field-autonumlgl data-legacy-doc-field="autonumlgl"', $markdown);
         $t->contains('<span class="legacy-doc-field legacy-doc-numbering-field legacy-doc-field-autonum" data-legacy-doc-field="autonum" data-legacy-doc-field-instruction="AUTONUM \* Arabic" data-legacy-doc-numbering-field-type="auto-number" data-legacy-doc-field-format="Arabic">1</span>', $blocks);
         $t->contains('<span class="legacy-doc-field legacy-doc-numbering-field legacy-doc-field-autonumout" data-legacy-doc-field="autonumout" data-legacy-doc-field-instruction="AUTONUMOUT \s 2" data-legacy-doc-numbering-field-type="auto-number-outline" data-legacy-doc-numbering-field-switches="s" data-legacy-doc-numbering-field-switch-s="2">II.</span>', $blocks);
         $t->contains('<span class="legacy-doc-field legacy-doc-numbering-field legacy-doc-field-autonumlgl" data-legacy-doc-field="autonumlgl" data-legacy-doc-field-instruction="AUTONUMLGL" data-legacy-doc-numbering-field-type="auto-number-legal">2.1</span>', $blocks);
@@ -8417,7 +8280,6 @@ return [
         ]);
 
         $document = (new LegacyDocReader())->readBytes($docBytes)['document'];
-        $markdown = (new MarkdownWriter())->write($document);
         $blocks = (new WordPressBlockWriter())->write($document);
         $paragraph = $document->children[0];
 
@@ -8447,9 +8309,6 @@ return [
         $t->same('Heading 1', $includedText->attr('attributes')['data-legacy-doc-include-field-switch-c']);
         $t->same('true', $includedText->attr('attributes')['data-legacy-doc-include-field-lock-result']);
         $t->same('Imported clause', $includedText->children[0]->attr('text'));
-
-        $t->contains('[chart placeholder]{.legacy-doc-field .legacy-doc-include-field .legacy-doc-field-includepicture data-legacy-doc-field="includepicture"', $markdown);
-        $t->contains('[Imported clause]{.legacy-doc-field .legacy-doc-include-field .legacy-doc-field-includetext data-legacy-doc-field="includetext"', $markdown);
         $t->contains('<span class="legacy-doc-field legacy-doc-include-field legacy-doc-field-includepicture" data-legacy-doc-field="includepicture" data-legacy-doc-field-instruction="INCLUDEPICTURE &quot;C:\Legacy\Figures\chart.png&quot; \d \* MERGEFORMAT" data-legacy-doc-include-field-type="picture" data-legacy-doc-include-source="C:\Legacy\Figures\chart.png" data-legacy-doc-include-source-kind="file-path" data-legacy-doc-include-source-basename="chart.png" data-legacy-doc-field-format="MERGEFORMAT" data-legacy-doc-include-field-switches="d" data-legacy-doc-include-field-switch-d="true">chart placeholder</span>', $blocks);
         $t->contains('<span class="legacy-doc-field legacy-doc-include-field legacy-doc-field-includetext" data-legacy-doc-field="includetext" data-legacy-doc-field-instruction="INCLUDETEXT &quot;https://example.test/legacy/clause.doc&quot; \c &quot;Heading 1&quot; \!" data-legacy-doc-include-field-type="text" data-legacy-doc-include-source="https://example.test/legacy/clause.doc" data-legacy-doc-include-source-kind="external-url" data-legacy-doc-include-source-basename="clause.doc" data-legacy-doc-include-field-switches="c !" data-legacy-doc-include-field-switch-c="Heading 1" data-legacy-doc-include-field-lock-result="true">Imported clause</span>', $blocks);
         foreach (['INCLUDEPICTURE', 'INCLUDETEXT'] as $instruction) {
@@ -8497,7 +8356,6 @@ return [
         $document = $result['document'];
         $fields = $result['fields'];
         $paragraph = $document->children[0];
-        $markdown = (new MarkdownWriter())->write($document);
         $blocks = (new WordPressBlockWriter())->write($document);
 
         $t->same(6, $result['metadata']['fieldCharacterCount']);
@@ -8531,9 +8389,6 @@ return [
         $t->same('disabled', $goToButton->attr('attributes')['data-legacy-doc-action-field-execution']);
         $t->same('Jump to source', $goToButton->attr('attributes')['data-legacy-doc-action-field-display-text']);
         $t->same('Jump to source', $goToButton->children[0]->attr('text'));
-
-        $t->contains('[Approve packet]{.legacy-doc-field .legacy-doc-action-field .legacy-doc-field-macrobutton data-legacy-doc-field="macrobutton"', $markdown);
-        $t->contains('[Jump to source]{.legacy-doc-field .legacy-doc-action-field .legacy-doc-field-gotobutton data-legacy-doc-field="gotobutton"', $markdown);
         $t->contains('<span class="legacy-doc-field legacy-doc-action-field legacy-doc-field-macrobutton" data-legacy-doc-field="macrobutton" data-legacy-doc-field-instruction="MACROBUTTON ApproveImport &quot;Approve packet&quot;" data-legacy-doc-action-field-type="macro" data-legacy-doc-action-field-command="ApproveImport" data-legacy-doc-action-field-command-kind="macro" data-legacy-doc-action-field-policy="metadata-only-native-review" data-legacy-doc-action-field-execution="disabled" data-legacy-doc-action-field-display-text="Approve packet">Approve packet</span>', $blocks);
         $t->contains('<span class="legacy-doc-field legacy-doc-action-field legacy-doc-field-gotobutton" data-legacy-doc-field="gotobutton" data-legacy-doc-field-instruction="GOTOBUTTON legacy_anchor &quot;Jump to source&quot;" data-legacy-doc-action-field-type="navigation" data-legacy-doc-action-field-destination="legacy_anchor" data-legacy-doc-action-field-destination-kind="bookmark-or-goto-target" data-legacy-doc-action-field-policy="metadata-only-native-review" data-legacy-doc-action-field-execution="disabled" data-legacy-doc-action-field-display-text="Jump to source">Jump to source</span>', $blocks);
         foreach (['MACROBUTTON', 'GOTOBUTTON', 'ApproveImport', 'legacy_anchor'] as $instruction) {
@@ -8583,7 +8438,6 @@ return [
         $fields = $result['fields'];
         $paragraph = $document->children[0];
         $link = $paragraph->children[1];
-        $markdown = (new MarkdownWriter())->write($document);
         $blocks = (new WordPressBlockWriter())->write($document);
 
         $t->same(6, $result['metadata']['fieldCharacterCount']);
@@ -8606,8 +8460,6 @@ return [
         $t->same('page', $link->children[1]->attr('attributes')['data-legacy-doc-field']);
         $t->same('12', $link->children[1]->children[0]->attr('text'));
         $t->same(' checked', $link->children[2]->attr('text'));
-
-        $t->contains('[12]{.legacy-doc-field .legacy-doc-field-page data-legacy-doc-field="page"', $markdown);
         $t->contains('<a href="https://example.test/review" title="Review packet">Source p. <span class="legacy-doc-field legacy-doc-field-page" data-legacy-doc-field="page" data-legacy-doc-field-instruction="PAGE \* Arabic" data-legacy-doc-field-format="Arabic">12</span> checked</a>', $blocks);
         foreach (['HYPERLINK', 'PAGE'] as $instruction) {
             $t->true(!str_contains(strip_tags($blocks), $instruction), 'Legacy DOC nested field instructions should not render as visible text');

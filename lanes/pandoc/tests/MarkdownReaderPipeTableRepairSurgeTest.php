@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 use PortLibs\Pandoc\AstNode;
 use PortLibs\Pandoc\MarkdownReader;
-use PortLibs\Pandoc\MarkdownWriter;
 use PortLibs\Pandoc\TableGeometry;
 use PortLibs\Pandoc\WordPressBlockWriter;
 
@@ -210,7 +209,6 @@ foreach ($fixtures as $fixtureName => $fixture) {
                     $document = (new MarkdownReader())->read($markdown);
                     $table = $firstTable($document);
                     $packet = TableGeometry::reviewPacket($table, ['accessibility' => false]);
-                    $markdownOut = (new MarkdownWriter())->write(new AstNode('document', [], [$table]));
                     $blocks = (new WordPressBlockWriter())->write($document);
 
                     $t->same('table', $table->type);
@@ -232,10 +230,6 @@ foreach ($fixtures as $fixtureName => $fixture) {
                     foreach ($mode['expectedBody'] as $column => $expected) {
                         $t->same($expected, $tableCellText($table, 'body', 0, $column));
                     }
-
-                    $t->contains('#' . $id, $markdownOut);
-                    $t->contains('.pipe-repair', $markdownOut);
-                    $t->contains('data-mode="' . $modeName . '"', $markdownOut);
                     $t->contains('<figcaption', $blocks);
                     $t->contains($captionText, $blocks);
                     $t->contains('data-mode="' . $modeName . '"', $blocks);

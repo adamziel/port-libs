@@ -6,7 +6,6 @@ require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 use PortLibs\Pandoc\AstNode;
 use PortLibs\Pandoc\MarkdownReader;
-use PortLibs\Pandoc\MarkdownWriter;
 use PortLibs\Pandoc\UnicodeText;
 use PortLibs\Pandoc\WordPressBlockWriter;
 
@@ -1120,7 +1119,6 @@ $table = new AstNode('table', [
 ]);
 $document = new AstNode('document', $source->attrs, [...$source->children, $table]);
 
-$markdown = (new MarkdownWriter())->write($document);
 $blocks = (new WordPressBlockWriter())->write($document);
 
 if (($argv[1] ?? '') === '--self-test') {
@@ -1135,9 +1133,6 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (str_contains($document->children[1]->attr('text'), "\r")) {
         throw new RuntimeException('charset handoff self-test leaked raw carriage returns');
-    }
-    if (!str_contains($markdown, "| \u{9B5A}\u{9B5A}")) {
-        throw new RuntimeException('charset handoff self-test missing Unicode markdown table row');
     }
     if (!str_contains($blocks, "<td>\u{9B5A}\u{9B5A}</td><td>4</td>")) {
         throw new RuntimeException('charset handoff self-test missing WordPress Unicode table cells');
@@ -1789,5 +1784,4 @@ if (($argv[1] ?? '') === '--self-test') {
 echo 'Encoding: ' . ($document->attr('sourceEncoding')['encoding'] ?? '') . "\n";
 echo 'Repairs: ' . ($document->attr('sourceEncoding')['repairs'] ?? 0) . "\n\n";
 echo 'Line ending conversions: ' . ($document->attr('sourceLineEndings')['conversions'] ?? 0) . "\n\n";
-echo $markdown . "\n\n";
 echo $blocks . "\n";

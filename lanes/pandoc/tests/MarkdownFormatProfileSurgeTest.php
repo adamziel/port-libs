@@ -5,7 +5,6 @@ declare(strict_types=1);
 use PortLibs\Pandoc\AstNode;
 use PortLibs\Pandoc\MarkdownFormatProfile;
 use PortLibs\Pandoc\MarkdownReader;
-use PortLibs\Pandoc\MarkdownWriter;
 
 $text = static fn (string $value): AstNode => new AstNode('text', ['text' => $value]);
 $paragraph = static fn (string $value): AstNode => new AstNode('paragraph', [], [$text($value)]);
@@ -183,54 +182,6 @@ foreach ($profileCases as $case) {
             $t->same($case['footnotes'], $hasNote);
         };
 
-    $tests['maps upstream markdown writer format profile yaml metadata default ' . $case['format']] =
-        static function (TestRunner $t) use ($case, $slug, $paragraph): void {
-            $label = $slug($case['format']);
-            $document = new AstNode('document', [
-                'meta' => [
-                    'title' => 'Writer profile ' . $label,
-                    'review' => ['format' => $case['format'], 'kind' => 'writer-yaml'],
-                ],
-            ], [
-                $paragraph('Body ' . $label . '.'),
-            ]);
-            $markdown = (new MarkdownWriter(['format' => $case['format']]))->write($document);
-
-            $t->same($case['yamlMetadata'], str_starts_with($markdown, "---\n"));
-            if ($case['yamlMetadata']) {
-                $t->contains('title: "Writer profile ' . $label . '"', $markdown);
-                $t->contains('kind: writer-yaml', $markdown);
-            } else {
-                $t->same('Body ' . $label . '.', $markdown);
-            }
-        };
-
-    $tests['maps upstream markdown writer format profile raw family policy ' . $case['format']] =
-        static function (TestRunner $t) use ($case, $slug, $text): void {
-            $label = $slug($case['format']);
-            $document = new AstNode('document', [], [
-                new AstNode('paragraph', [], [
-                    $text('Inline ' . $label . ': '),
-                    new AstNode('raw_html_inline', ['html' => '<span data-profile="' . $label . '">html</span>']),
-                    $text(' '),
-                    new AstNode('raw_tex', ['tex' => '\\LaTeX{}']),
-                    $text(' '),
-                    new AstNode('raw_markdown', ['markdown' => '**raw-' . $label . '**']),
-                ]),
-                new AstNode('raw_html', ['html' => '<section data-profile="' . $label . '">html block</section>']),
-                new AstNode('raw_tex', ['tex' => '\\begin{center}' . "\n" . $label . "\n" . '\\end{center}']),
-                new AstNode('raw_markdown', ['markdown' => '> raw ' . $label]),
-            ]);
-            $markdown = (new MarkdownWriter(['format' => $case['format']]))->write($document);
-            $writerRawTex = $case['writerRawTex'] ?? $case['rawTex'];
-
-            $t->contains('<span data-profile="' . $label . '">html</span>', $markdown);
-            $t->contains('<section data-profile="' . $label . '">html block</section>', $markdown);
-            $t->contains('**raw-' . $label . '**', $markdown);
-            $t->contains('> raw ' . $label, $markdown);
-            $t->same($writerRawTex, str_contains($markdown, '\\LaTeX{}'));
-            $t->same($writerRawTex, str_contains($markdown, '\\begin{center}'));
-        };
 }
 
 $overrideCases = [

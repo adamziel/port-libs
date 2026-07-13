@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 use PortLibs\Pandoc\AstNode;
 use PortLibs\Pandoc\MarkdownReader;
-use PortLibs\Pandoc\MarkdownWriter;
 use PortLibs\Pandoc\WordPressBlockWriter;
 
 /**
@@ -412,11 +411,7 @@ foreach ($cases as $name => $case) {
             }
 
             $t->same($case['close'], $document->children[$closeIndex]->attr('html'), $case['markdown'] . ' closer');
-
-            $roundTrip = (new MarkdownWriter())->write($document);
             $blocks = (new WordPressBlockWriter())->write($document);
-            $t->contains($case['open'], $roundTrip, $case['markdown'] . ' markdown opener');
-            $t->contains($case['close'], $roundTrip, $case['markdown'] . ' markdown closer');
             $t->contains($case['open'], $blocks, $case['markdown'] . ' wordpress opener');
             $t->contains($case['close'], $blocks, $case['markdown'] . ' wordpress closer');
         };

@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 use PortLibs\Pandoc\AstNode;
 use PortLibs\Pandoc\MarkdownReader;
-use PortLibs\Pandoc\MarkdownWriter;
 use PortLibs\Pandoc\WordPressBlockWriter;
 
 $types = static fn (array $nodes): array => array_map(
@@ -43,7 +42,6 @@ return [
             $detailHeading = $detail->children[0] ?? new AstNode('missing');
             $peer = $document->children[2] ?? new AstNode('missing');
             $peerHeading = $peer->children[0] ?? new AstNode('missing');
-            $markdown = (new MarkdownWriter())->write($document);
             $blocks = (new WordPressBlockWriter())->write($document);
 
             $t->same(['paragraph', 'div', 'div'], $types($document->children));
@@ -59,10 +57,6 @@ return [
             $t->same('setext-peer', $peer->attr('id'));
             $t->same(['section', 'level1'], $peer->attr('classes'));
             $t->same('Setext Peer', $peerHeading->attr('text'));
-            $t->contains('::: {#setext-article .section .level1 .review data-source="commonmark-setext"}', $markdown);
-            $t->contains('::: {#setext-detail .section .level2}', $markdown);
-            $t->contains('::: {#setext-peer .section .level1}', $markdown);
-            $t->true(!str_contains($markdown, '# Setext Article {#setext-article'), 'Sectionized setext headings should not duplicate wrapper identifiers');
             $t->contains('<div id="setext-article" class="section level1 review" data-source="commonmark-setext"><h1>Setext Article</h1><p>Lead <strong>copy</strong>.</p><div id="setext-detail" class="section level2"><h2>Setext Detail</h2><p>Nested note.</p></div></div>', $blocks);
             $t->contains('<div id="setext-peer" class="section level1"><h1>Setext Peer</h1><p>Tail.</p></div>', $blocks);
         },
@@ -81,7 +75,6 @@ return [
 
             $section = $document->children[0] ?? new AstNode('missing');
             $heading = $section->children[0] ?? new AstNode('missing');
-            $markdown = (new MarkdownWriter())->write($document);
             $blocks = (new WordPressBlockWriter())->write($document);
 
             $t->same(['div'], $types($document->children));
@@ -91,8 +84,6 @@ return [
             $t->same('heading', $heading->type);
             $t->same('Literal Heading {#literal-heading .review}', $heading->attr('text'));
             $t->same('', $heading->attr('id', ''));
-            $t->contains('::: {#literal-heading-literal-heading-review .section .level1}', $markdown);
-            $t->contains('# Literal Heading {#literal-heading .review}', $markdown);
             $t->contains('<div id="literal-heading-literal-heading-review" class="section level1"><h1>Literal Heading {#literal-heading .review}</h1><p>Body.</p></div>', $blocks);
             $t->true(!str_contains($blocks, 'class="section level1 review"'), 'Plain commonmark should not promote literal header attribute text into section classes');
         },

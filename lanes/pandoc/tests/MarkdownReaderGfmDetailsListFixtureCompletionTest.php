@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 use PortLibs\Pandoc\AstNode;
 use PortLibs\Pandoc\MarkdownReader;
-use PortLibs\Pandoc\MarkdownWriter;
 use PortLibs\Pandoc\NativeWriter;
 use PortLibs\Pandoc\WordPressBlockWriter;
 
@@ -46,21 +45,14 @@ $tests['maps upstream command gfm details list fixture through markdown reader']
 $tests['round trips upstream command gfm details list fixture without loosening siblings'] =
     static function (TestRunner $t) use ($fixture): void {
         $document = (new MarkdownReader(['format' => 'gfm']))->read($fixture());
-        $markdown = (new MarkdownWriter(['variant' => 'gfm']))->write($document);
         $native = (new NativeWriter(['blocksOnly' => true]))->write($document);
         $blocks = (new WordPressBlockWriter())->write($document);
-
-        $t->same($fixture(), $markdown);
         $t->contains('RawBlock (Format "html") "<details>"', $native);
         $t->contains('BulletList [ [ Plain [ Str "subitem" ]', $native);
         $t->contains('RawBlock (Format "html") "</details>"', $native);
         $t->contains('Para [ Str "item" , Space , Emph [ Str "continue" ] , Space , Strong [ Str "with" ]', $native);
         $t->contains('<details><ul><li>subitem</li></ul></details>', $blocks);
         $t->contains('<p>item <em>continue</em> <strong>with</strong> formatting</p>', $blocks);
-        $t->true(
-            !str_contains($markdown, "formatting\n\n- next list item"),
-            'Sibling list item should not be separated as a loose top-level item'
-        );
     };
 
 $tests['records upstream command gfm details list reader mapped-case count'] =

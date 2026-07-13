@@ -3,7 +3,6 @@
 declare(strict_types=1);
 
 use PortLibs\Pandoc\AstNode;
-use PortLibs\Pandoc\MarkdownWriter;
 use PortLibs\Pandoc\TableGeometry;
 use PortLibs\Pandoc\WordPressBlockWriter;
 
@@ -1286,21 +1285,15 @@ return [
     'renders wordpress and markdown tables with span advanced alignments' => static function (TestRunner $t) use ($buildSpannedTableDocument): void {
         $document = $buildSpannedTableDocument();
         $blocks = (new WordPressBlockWriter())->write($document);
-        $markdown = (new MarkdownWriter())->write($document);
 
         $t->contains('<th colspan="2" style="text-align:left">Scope</th><th style="text-align:center">Status</th>', $blocks);
         $t->contains('<tr><td rowspan="2" style="text-align:left">Posts</td><td style="text-align:right">42</td><td style="text-align:center">Ready</td></tr><tr><td style="text-align:right">7</td><td style="text-align:center">Review</td></tr>', $blocks);
         $t->contains('<figcaption class="wp-element-caption">Migration review grid</figcaption>', $blocks);
-        $t->contains('<caption>Migration review grid</caption>', $markdown);
-        $t->contains('<th scope="colgroup" colspan="2" style="text-align:left">Scope</th><th scope="col" style="text-align:center">Status</th>', $markdown);
-        $t->contains('<tr><td rowspan="2" style="text-align:left">Posts</td><td style="text-align:right">42</td><td style="text-align:center">Ready</td></tr>', $markdown);
-        $t->contains('<tr><td style="text-align:right">7</td><td style="text-align:center">Review</td></tr>', $markdown);
     },
     'preserves pandoc table colspec columns beyond physical row cells' => static function (TestRunner $t) use ($buildColspecTableDocument): void {
         $document = $buildColspecTableDocument();
         $table = $document->children[0];
         $columnSpecs = TableGeometry::columnSpecs($table, 5);
-        $markdown = (new MarkdownWriter())->write($document);
         $blocks = (new WordPressBlockWriter())->write($document);
 
         $t->same(4, TableGeometry::columnCount($table));
@@ -1310,9 +1303,6 @@ return [
         $t->same(['left', 'center', 'right', 'left', 'default'], array_map(static fn (array $spec): string => $spec['alignment'], $columnSpecs));
         $t->same([0.2, 0.25, 0.25, 0.3, null], array_map(static fn (array $spec): ?float => $spec['width'], $columnSpecs));
         $t->same([true, true, true, true, false], array_map(static fn (array $spec): bool => $spec['declared'], $columnSpecs));
-        $t->contains('| Scope    |   Items    |     Status |              |', $markdown);
-        $t->contains('|:-------|:--------:|---------:|:-----------|', $markdown);
-        $t->contains('| Posts    |     42     |      Ready |              |', $markdown);
         $t->contains('<colgroup><col style="width:20%"/><col style="width:25%"/><col style="width:25%"/><col style="width:30%"/></colgroup>', $blocks);
         $t->contains('<figcaption class="wp-element-caption">Import queue with reserved audit column</figcaption>', $blocks);
     },
@@ -1446,7 +1436,6 @@ return [
         $table = $document->children[0];
         $packet = TableGeometry::reviewPacket($table, ['accessibility' => false]);
         $blocks = (new WordPressBlockWriter())->write($document);
-        $markdown = (new MarkdownWriter())->write($document);
 
         $t->same(['left', 'right', 'center', 'default'], TableGeometry::alignments($table, 4));
         $t->same(['left', 'right', 'center', 'default'], array_map(static fn (array $spec): string => $spec['alignment'], TableGeometry::columnSpecs($table, 4)));
@@ -1454,8 +1443,6 @@ return [
         $t->same(['left', 'right', 'center', 'default'], array_map(static fn (array $spec): string => $spec['alignment'], $packet['columns'] ?? []));
         $t->contains('<th style="text-align:left">Field</th><th style="text-align:right">Count</th><th style="text-align:center">State</th><th>Notes</th>', $blocks);
         $t->contains('<td style="text-align:left">Posts</td><td style="text-align:right">42</td><td style="text-align:center">Ready</td><td style="text-align:right">Needs alt text</td>', $blocks);
-        $t->contains('|:----|----:|:---:|--------------|', $markdown);
-        $t->contains('| Posts |    42 | Ready | Needs alt text |', $markdown);
     },
     'reports normalized relative widths when source colspecs exceed full table width' => static function (TestRunner $t) use ($buildOverfullColumnWidthDocument): void {
         $table = $buildOverfullColumnWidthDocument()->children[0];
@@ -1562,7 +1549,6 @@ return [
         $body = $table->children[1];
         $layout = TableGeometry::layoutRows($body->children, 4);
         $blocks = (new WordPressBlockWriter())->write($document);
-        $markdown = (new MarkdownWriter())->write($document);
 
         $t->same(2, TableGeometry::rowHeadColumns($body, 4));
         $t->same(1, TableGeometry::rowHeadColumns(new AstNode('table_body', ['rowHeadColumns' => '1'], []), 4));
@@ -1571,9 +1557,6 @@ return [
         $t->same([0, 1, 2, 3], array_map(static fn (array $cell): int => $cell['column'], $layout[0]['cells']));
         $t->same([1, 2, 3], array_map(static fn (array $cell): int => $cell['column'], $layout[1]['cells']));
         $t->contains('<tbody><tr><th rowspan="2" style="text-align:left">Pandoc</th><th style="text-align:left">Table geometry</th><td style="text-align:right">4</td><td style="text-align:center">Mapped</td></tr><tr><th style="text-align:left">DOCX handoff</th><td style="text-align:right">10</td><td style="text-align:center">Accepted</td></tr></tbody>', $blocks);
-        $t->contains('<caption>Lane coverage review</caption>', $markdown);
-        $t->contains('<th scope="rowgroup" rowspan="2" style="text-align:left">Pandoc</th><th scope="row" style="text-align:left">Table geometry</th><td style="text-align:right">4</td><td style="text-align:center">Mapped</td>', $markdown);
-        $t->contains('<th scope="row" style="text-align:left">DOCX handoff</th><td style="text-align:right">10</td><td style="text-align:center">Accepted</td>', $markdown);
     },
     'keeps rowspans scoped to table sections for wordpress and markdown handoff' => static function (TestRunner $t) use ($buildSectionScopedRowspanDocument): void {
         $document = $buildSectionScopedRowspanDocument();
@@ -1584,7 +1567,6 @@ return [
         $headLayout = TableGeometry::layoutRows($head->children, 2);
         $bodyLayout = TableGeometry::layoutRows($body->children, 2);
         $blocks = (new WordPressBlockWriter())->write($document);
-        $markdown = (new MarkdownWriter())->write($document);
 
         $t->same(2, TableGeometry::columnCount($table));
         $t->same('rowspan-crosses-section-boundary', $diagnostics[0]['code'] ?? null);
@@ -1597,11 +1579,6 @@ return [
         $t->same(1, $headLayout[0]['cells'][0]['rowspan']);
         $t->same([0, 1], array_map(static fn (array $cell): int => $cell['column'], $bodyLayout[0]['cells']));
         $t->contains('<thead><tr><th style="text-align:left">Scope</th><th style="text-align:right">Status</th></tr></thead><tbody><tr><td style="text-align:left">Posts</td><td style="text-align:right">Ready</td></tr></tbody><tfoot><tr><td style="text-align:left">Total</td><td style="text-align:right">1</td></tr></tfoot>', $blocks);
-        $t->contains('<caption>Section boundary review</caption>', $markdown);
-        $t->contains('<thead>', $markdown);
-        $t->contains('<tbody>', $markdown);
-        $t->contains('<tfoot>', $markdown);
-        $t->contains('<td style="text-align:left">Total</td><td style="text-align:right">1</td>', $markdown);
     },
     'diagnoses cells that exceed declared pandoc table columns without dropping content' => static function (TestRunner $t) use ($buildDeclaredColumnOverflowDocument): void {
         $document = $buildDeclaredColumnOverflowDocument();
@@ -1610,7 +1587,6 @@ return [
         $diagnostics = TableGeometry::diagnostics($table);
         $layout = TableGeometry::layoutRows($body->children, TableGeometry::columnCount($table));
         $blocks = (new WordPressBlockWriter())->write($document);
-        $markdown = (new MarkdownWriter())->write($document);
 
         $t->same(3, TableGeometry::columnCount($table));
         $t->same(['left', 'right', 'default'], TableGeometry::alignments($table, 3));
@@ -1631,9 +1607,6 @@ return [
         $t->same(0, $diagnostics[1]['column'] ?? null);
         $t->same(3, $diagnostics[1]['colspan'] ?? null);
         $t->contains('<tbody><tr><th rowspan="2" style="text-align:left">Posts</th><td style="text-align:right">Ready</td></tr><tr><td style="text-align:right">Needs media</td><td>Overflow note</td></tr><tr><th colspan="3" style="text-align:left">Full width audit note</th></tr></tbody>', $blocks);
-        $t->contains('<th scope="rowgroup" rowspan="2" style="text-align:left">Posts</th><td style="text-align:right">Ready</td>', $markdown);
-        $t->contains('<td style="text-align:right">Needs media</td><td>Overflow note</td>', $markdown);
-        $t->contains('<th scope="row" colspan="3" style="text-align:left">Full width audit note</th>', $markdown);
     },
     'reports source cell coordinates for rowspanned declared column conflicts' => static function (TestRunner $t) use ($buildSourceCoordinateOverflowDocument): void {
         $document = $buildSourceCoordinateOverflowDocument();
@@ -1676,7 +1649,6 @@ return [
         $diagnostics = TableGeometry::diagnostics($table);
         $coverage = TableGeometry::cellCoverage($table);
         $blocks = (new WordPressBlockWriter())->write($document);
-        $markdown = (new MarkdownWriter())->write($document);
 
         $t->same(3, TableGeometry::columnCount($table));
         $t->same([2], array_map(static fn (array $cell): int => $cell['column'], $layout[1]['cells']));
@@ -1704,8 +1676,6 @@ return [
         $t->same(0, $coverage[1]['sourceColumn']);
         $t->same(false, $coverage[1]['headerCell']);
         $t->contains('<tbody><tr><th colspan="2" rowspan="2" style="text-align:left">Posts</th></tr><tr><td>Unexpected source cell</td></tr></tbody>', $blocks);
-        $t->contains('<th scope="rowgroup" colspan="2" rowspan="2" style="text-align:left">Posts</th>', $markdown);
-        $t->contains('<td>Unexpected source cell</td>', $markdown);
     },
     'serializes source-to-visual column shifts for implicit rowspan handoffs' => static function (TestRunner $t) use ($buildImplicitColumnRowspanOverlapDocument): void {
         $document = $buildImplicitColumnRowspanOverlapDocument();
@@ -1715,7 +1685,6 @@ return [
         $diagnostics = TableGeometry::diagnostics($table);
         $packet = TableGeometry::reviewPacket($table, ['accessibility' => false]);
         $blocks = (new WordPressBlockWriter())->write($document);
-        $markdown = (new MarkdownWriter())->write($document);
 
         $t->same(4, TableGeometry::columnCount($table));
         $t->same(0, $packet['declaredColumnCount']);
@@ -1743,8 +1712,6 @@ return [
         $t->same([1], $packet['coverage'][2]['sourceColumns'] ?? null);
         $t->same(2, $packet['coverage'][2]['visualShift'] ?? null);
         $t->contains('<tbody><tr><td colspan="2" rowspan="2">Merged source</td></tr><tr><td>Unexpected source cell</td><td>Second conflict</td></tr></tbody>', $blocks);
-        $t->contains('<td colspan="2" rowspan="2">Merged source</td>', $markdown);
-        $t->contains('<td>Unexpected source cell</td><td>Second conflict</td>', $markdown);
         json_encode($packet, JSON_THROW_ON_ERROR);
     },
     'summarizes source-to-visual shift records for importer audits' => static function (TestRunner $t) use ($buildImplicitColumnRowspanOverlapDocument): void {
@@ -1786,7 +1753,6 @@ return [
         $diagnostics = TableGeometry::diagnostics($table);
         $packet = TableGeometry::reviewPacket($table, ['accessibility' => false]);
         $blocks = (new WordPressBlockWriter())->write($document);
-        $markdown = (new MarkdownWriter())->write($document);
 
         $t->same(3, TableGeometry::columnCount($table));
         $t->same([0, 1, 2], array_map(static fn (array $cell): int => $cell['column'], $layout[0]['cells']));
@@ -1819,8 +1785,6 @@ return [
         $t->contains('<table id="malformed-source-span-grid"><tbody><tr><td style="text-align:left">Posts</td><td style="text-align:right">42</td><td style="text-align:center">Ready</td></tr><tr><td style="text-align:left">Media</td><td style="text-align:right">7</td><td style="text-align:center">Review</td></tr></tbody></table>', $blocks);
         $t->true(!str_contains($blocks, 'colspan="0"'), 'Malformed colspan must not leak into WordPress table output');
         $t->true(!str_contains($blocks, 'rowspan="-3"'), 'Malformed rowspan must not leak into WordPress table output');
-        $t->contains('<td style="text-align:left">Posts</td><td style="text-align:right">42</td><td style="text-align:center">Ready</td>', $markdown);
-        $t->contains('<td style="text-align:left">Media</td><td style="text-align:right">7</td><td style="text-align:center">Review</td>', $markdown);
         json_encode($packet, JSON_THROW_ON_ERROR);
     },
     'builds section grids with covered and missing visual slots for importer audits' => static function (TestRunner $t) use ($buildSectionGridDocument): void {
@@ -1829,7 +1793,6 @@ return [
         $sectionGrids = TableGeometry::sectionGrids($table);
         $bodyGrid = $sectionGrids[1]['rows'];
         $blocks = (new WordPressBlockWriter())->write($document);
-        $markdown = (new MarkdownWriter())->write($document);
 
         $t->same(['head', 'body'], array_map(static fn (array $grid): string => $grid['section'], $sectionGrids));
         $t->same(4, $sectionGrids[0]['columnCount']);
@@ -1853,8 +1816,6 @@ return [
         $t->same(0, $bodyGrid[1][2]['sourceColumn']);
         $t->same('missing', $bodyGrid[1][3]['kind']);
         $t->contains('<tbody><tr><td colspan="2" rowspan="2" style="text-align:left">Posts</td><td style="text-align:right">Ready</td></tr><tr><td style="text-align:right">Needs media</td></tr></tbody>', $blocks);
-        $t->contains('<td colspan="2" rowspan="2" style="text-align:left">Posts</td><td style="text-align:right">Ready</td>', $markdown);
-        $t->contains('<td style="text-align:right">Needs media</td>', $markdown);
     },
     'summarizes visual row occupancy for table geometry review packets' => static function (TestRunner $t) use ($buildSectionGridDocument, $buildSpannedTableDocument): void {
         $packet = TableGeometry::reviewPacket($buildSectionGridDocument()->children[0], ['accessibility' => false]);
@@ -2638,7 +2599,6 @@ return [
             'accessibility' => false,
             'writers' => ['markdown', 'asciidoc', 'latex'],
         ]);
-        $markdown = (new MarkdownWriter())->write(new AstNode('document', [], [$table]));
         $blocks = (new WordPressBlockWriter())->write(new AstNode('document', [], [$table]));
 
         $t->same(['markdown-body-head-rows-flattened'], array_map(static fn (array $diagnostic): string => (string) $diagnostic['code'], $markdownDiagnostics));
@@ -2693,10 +2653,6 @@ return [
         $t->same(['asciidoc', 'markdown'], $packet['summary']['writerDowngradeWriters'] ?? null);
         $t->same(true, $packet['summary']['hasBodyHeadRows'] ?? null);
         $t->same(1, $packet['summary']['bodyHeadRowCount'] ?? null);
-
-        $t->contains('| Document | Items |  State   |', $markdown);
-        $t->contains('| Batch    | Queue | Decision |', $markdown);
-        $t->contains('| Posts    |    42 |  Review  |', $markdown);
         $t->contains('<thead><tr><th style="text-align:left">Document</th><th style="text-align:right">Items</th><th style="text-align:center">State</th></tr></thead><tbody><tr><th style="text-align:left">Batch</th><th style="text-align:right">Queue</th><th style="text-align:center">Decision</th></tr><tr><td style="text-align:left">Posts</td><td style="text-align:right">42</td><td style="text-align:center">Review</td></tr></tbody>', $blocks);
         json_encode($packet, JSON_THROW_ON_ERROR);
         json_encode($markdownDiagnostics, JSON_THROW_ON_ERROR);
@@ -2761,7 +2717,6 @@ return [
             'writers' => ['pipe-table', 'asciidoctor', 'xelatex'],
         ]);
         $blocks = (new WordPressBlockWriter())->write(new AstNode('document', [], [$table]));
-        $markdown = (new MarkdownWriter())->write(new AstNode('document', [], [$table]));
 
         $t->same(['markdown-table-bodies-flattened'], array_map(static fn (array $diagnostic): string => $diagnostic['code'], $markdownDiagnostics));
         $t->same(['asciidoc-table-bodies-review-required'], array_map(static fn (array $diagnostic): string => $diagnostic['code'], $asciidocDiagnostics));
@@ -2819,8 +2774,6 @@ return [
         $t->same('posts-body', $packet['rowGroups'][1]['sourceAttributes']['id'] ?? null);
         $t->same('pages-body', $packet['rowGroups'][2]['sourceAttributes']['id'] ?? null);
         $t->contains('<tbody id="posts-body" data-group="posts"><tr><td style="text-align:left">Posts</td><td style="text-align:right">42</td></tr><tr><td style="text-align:left">Media</td><td style="text-align:right">7</td></tr></tbody><tbody id="pages-body" data-group="pages"><tr><td style="text-align:left">Pages</td><td style="text-align:right">5</td></tr></tbody>', $blocks);
-        $t->contains('<tbody id="posts-body" data-group="posts">', $markdown);
-        $t->contains('<tbody id="pages-body" data-group="pages">', $markdown);
         json_encode($packet, JSON_THROW_ON_ERROR);
         json_encode($markdownDiagnostics, JSON_THROW_ON_ERROR);
     },
@@ -4525,7 +4478,6 @@ return [
         $markdownDiagnostics = TableGeometry::writerDowngradeDiagnostics($table, 'pipe-table');
         $asciidocDiagnostics = TableGeometry::writerDowngradeDiagnostics($table, 'asciidoctor');
         $blocks = (new WordPressBlockWriter())->write(new AstNode('document', [], [$table]));
-        $markdown = (new MarkdownWriter())->write(new AstNode('document', [], [$table]));
 
         $reviewCell = $packet['coverage'][2];
         $content = $reviewCell['content'] ?? [];
@@ -4571,7 +4523,6 @@ return [
         $t->same(['asciidoc', 'markdown'], $packet['summary']['writerDowngradeWriters'] ?? null);
 
         $t->contains('<td style="text-align:left"><p>Review <em>source</em></p><ul><li>Image alt text</li><li><strong>Resolve captions</strong></li></ul></td><td style="text-align:right">Ready</td>', $blocks);
-        $t->contains('| Review *source*<br /><br />- Image alt text<br />- **Resolve captions** | Ready |', $markdown);
         $t->same(false, array_key_exists('node', $content['blocks'][0] ?? []));
         json_encode($packet, JSON_THROW_ON_ERROR);
     },
@@ -4763,7 +4714,6 @@ return [
             'accessibility' => false,
             'writers' => ['markdown', 'asciidoc'],
         ]);
-        $markdown = (new MarkdownWriter())->write(new AstNode('document', [], [$table]));
         $blocks = (new WordPressBlockWriter())->write(new AstNode('document', [], [$table]));
 
         $t->same(['markdown-table-foot-flattened'], array_map(static fn (array $diagnostic): string => (string) $diagnostic['code'], $markdownDiagnostics));
@@ -4800,7 +4750,6 @@ return [
         $t->same(2, $packet['summary']['writerDowngradeCount'] ?? null);
         $t->same(['markdown-table-foot-flattened', 'asciidoc-table-foot-required'], $packet['summary']['writerDowngradeCodes'] ?? null);
         $t->same(['asciidoc', 'markdown'], $packet['summary']['writerDowngradeWriters'] ?? null);
-        $t->contains('| Total | Ready |', $markdown);
         $t->contains('<tfoot><tr><td style="text-align:left">Total</td><td style="text-align:right">Ready</td></tr></tfoot>', $blocks);
         json_encode($markdownDiagnostics, JSON_THROW_ON_ERROR);
         json_encode($asciidocDiagnostics, JSON_THROW_ON_ERROR);
@@ -4904,7 +4853,6 @@ return [
             'accessibility' => false,
             'writers' => ['markdown', 'asciidoc', 'latex', 'wordpress'],
         ]);
-        $markdown = (new MarkdownWriter())->write(new AstNode('document', [], [$table]));
         $blocks = (new WordPressBlockWriter())->write(new AstNode('document', [], [$table]));
 
         $t->same(0, TableGeometry::columnCount($table));
@@ -4946,7 +4894,6 @@ return [
         $t->same(['asciidoc', 'latex', 'markdown'], $packet['summary']['writerDowngradeWriters'] ?? null);
         $t->same($markdownDiagnostics, $packet['writerDowngrades']['markdown'] ?? null);
         $t->same([], $packet['writerDowngrades']['wordpress'] ?? null);
-        $t->same('', trim($markdown));
         $t->contains('<table><tbody id="empty-body"></tbody></table><figcaption class="wp-element-caption">Empty import table audit</figcaption>', $blocks);
         json_encode($diagnostics, JSON_THROW_ON_ERROR);
         json_encode($packet, JSON_THROW_ON_ERROR);
@@ -4994,7 +4941,6 @@ return [
             'accessibility' => false,
             'writers' => ['markdown', 'asciidoc', 'latex'],
         ]);
-        $markdown = (new MarkdownWriter())->write(new AstNode('document', [], [$table]));
         $blocks = (new WordPressBlockWriter())->write(new AstNode('document', [], [$table]));
 
         $t->same(
@@ -5037,7 +4983,6 @@ return [
         ], $packet['summary']['writerDowngradeCodes'] ?? null);
         $t->same(['asciidoc', 'latex', 'markdown'], $packet['summary']['writerDowngradeWriters'] ?? null);
         $t->same($markdownDiagnostics, $packet['writerDowngrades']['markdown'] ?? null);
-        $t->contains(': [Queue **short**] Block **caption** for reviewer<br />- Queue note', $markdown);
         $t->contains('data-pandoc-short-caption="Queue short"', $blocks);
         $t->contains('<strong>caption</strong>', $blocks);
         json_encode($packet, JSON_THROW_ON_ERROR);

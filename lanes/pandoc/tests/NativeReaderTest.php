@@ -4,9 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\Pandoc\AstNode;
 use PortLibs\Pandoc\CitationCslProcessor;
-use PortLibs\Pandoc\LatexWriter;
 use PortLibs\Pandoc\MarkdownReader;
-use PortLibs\Pandoc\MarkdownWriter;
 use PortLibs\Pandoc\NativeReader;
 use PortLibs\Pandoc\NativeWriter;
 use PortLibs\Pandoc\TableGeometry;
@@ -315,7 +313,6 @@ return [
         );
 
         $roundTrip = (new NativeReader())->read($nativeJson);
-        $roundTripMarkdown = (new MarkdownWriter())->write($roundTrip);
 
         $t->same('Para', $native['blocks'][0]['t']);
         $t->same([
@@ -339,7 +336,6 @@ return [
         ], $nativeInlineTypes);
         $t->same('paragraph', $roundTrip->children[0]->type);
         $t->same('Native AST roundtrip with code and link next line.', $roundTrip->children[0]->attr('text'));
-        $t->same('Native *AST* **roundtrip** with `code` and [link](https://example.test/source) next line.', $roundTripMarkdown);
     },
     'writes shared inline constructors as pandoc native ast constructors' => static function (TestRunner $t): void {
         $document = new AstNode('document', [
@@ -419,7 +415,7 @@ return [
         $t->same(['native-review'], $roundTripChildren[11]->attr('classes'));
         $t->same(['data-source' => 'shared-ast'], $roundTripChildren[11]->attr('attributes'));
     },
-    'preserves raw html through markdown writer serialization boundaries' => static function (TestRunner $t): void {
+    'preserves raw html through native and WordPress handoff boundaries' => static function (TestRunner $t): void {
         $rawHtmlDocument = new AstNode('document', [], [
             new AstNode('paragraph', [], [
                 new AstNode('text', ['text' => 'Before']),
@@ -429,11 +425,6 @@ return [
                 new AstNode('text', ['text' => 'after.']),
             ]),
         ]);
-
-        $t->same(
-            'Before <span data-review="reader-raw">HTML</span> after.',
-            (new MarkdownWriter())->write($rawHtmlDocument)
-        );
 
         $native = [
             'pandoc-api-version' => [1, 23, 1],
@@ -453,17 +444,12 @@ return [
             ],
         ];
         $nativeDocument = (new NativeReader())->read(json_encode($native, JSON_THROW_ON_ERROR));
-        $nativeMarkdown = (new MarkdownWriter())->write($nativeDocument);
         $blocks = (new WordPressBlockWriter())->write($nativeDocument);
 
         $t->same(
             ['text', 'raw_html_inline', 'text'],
             array_map(static fn (AstNode $node): string => $node->type, $nativeDocument->children[0]->children)
         );
-        $t->same(implode("\n\n", [
-            'Before <mark data-review="native-raw">raw</mark> after.',
-            '<aside data-review="native-block">Block raw</aside>',
-        ]), $nativeMarkdown);
         $t->contains('<p>Before <mark data-review="native-raw">raw</mark> after.</p>', $blocks);
 
         $generatedDocument = new AstNode('document', [], [
@@ -476,11 +462,6 @@ return [
             ]),
             new AstNode('raw_block', ['format' => 'html', 'text' => '<aside data-review="generic-block">Block</aside>']),
         ]);
-
-        $t->same(implode("\n\n", [
-            'Generated <span data-review="generic-raw">inline</span> boundary.',
-            '<aside data-review="generic-block">Block</aside>',
-        ]), (new MarkdownWriter())->write($generatedDocument));
     },
     'round trips native image and note inline constructors through shared ast' => static function (TestRunner $t): void {
         $native = [
@@ -1216,8 +1197,6 @@ return [
         $captionInlines = $table->attr('captionInlines');
         $shortCaptionInlines = $table->attr('shortCaptionInlines');
         $roundTrip = json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR);
-        $markdown = (new MarkdownWriter())->write($document);
-        $latex = (new LatexWriter())->write($document);
         $blocks = (new WordPressBlockWriter())->write($document);
         $packet = TableGeometry::reviewPacket($table, ['accessibility' => false]);
 
@@ -1240,11 +1219,6 @@ return [
         $t->same(true, is_array($shortCaptionInlines));
         $t->same(['text', 'strong'], array_map(static fn ($node): string => $node->type, $shortCaptionInlines));
         $t->same($nativeTable, $roundTrip['blocks'][0]);
-        $t->contains('Metric State', $markdown);
-        $t->contains('Posts Ready', $markdown);
-        $t->contains(': [Short **queue**] Long *caption*', $markdown);
-        $t->contains('[reviewer](https://example.test/review "Review") {#native-table .native-review data-source="batch-52"}', $markdown);
-        $t->same('', $latex);
         $t->contains('<figure class="wp-block-table" data-pandoc-short-caption="Short queue">', $blocks);
         $t->contains('<table id="native-table" class="native-review" data-source="batch-52">', $blocks);
         $t->contains('<figcaption class="wp-element-caption">Long <em>caption</em> <a href="https://example.test/review" title="Review">reviewer</a></figcaption>', $blocks);
@@ -1728,16 +1702,12 @@ return [
         $document = new AstNode('document', ['pandocApiVersion' => [1, 23, 1], 'meta' => []], [$sourceTable]);
 
         $sourcePacket = TableGeometry::reviewPacket($sourceTable, ['accessibility' => false]);
-        $markdown = (new MarkdownWriter())->write($document);
-        $latex = (new LatexWriter())->write($document);
         $native = json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR);
         $roundTrip = (new NativeReader())->read(json_encode($native, JSON_THROW_ON_ERROR));
         $table = $roundTrip->children[0];
         $roundTripPacket = TableGeometry::reviewPacket($table, ['accessibility' => false]);
 
         $t->same('shortCaptionBlocks', $sourcePacket['captions']['short']['source'] ?? null);
-        $t->contains(': [Queue *short*] Block **long** caption', $markdown);
-        $t->same('', $latex);
         $t->same('Caption', $native['blocks'][0]['c'][1]['t']);
         $t->same('Just', $native['blocks'][0]['c'][1]['c'][0]['t']);
         $t->same('ShortCaption', $native['blocks'][0]['c'][1]['c'][0]['c']['t']);
@@ -1750,7 +1720,7 @@ return [
         $t->same('shortCaptionInlines', $roundTripPacket['captions']['short']['source'] ?? null);
         $t->same(['text', 'emph'], $roundTripPacket['captions']['short']['inlineTypes'] ?? null);
     },
-    'maps native inline command constructors into latex writer output' => static function (TestRunner $t): void {
+    'maps native inline command constructors into the shared AST' => static function (TestRunner $t): void {
         $native = [
             'pandoc-api-version' => [1, 23, 1],
             'meta' => [],
@@ -1819,10 +1789,6 @@ return [
             'text',
             'math',
         ], array_map(static fn ($node): string => $node->type, $paragraph->children));
-        $t->same(
-            'Review \underline{required} \sout{stale} \textsuperscript{2} \textsubscript{n} \textsc{caps} `quoted\' \LaTeX{} $x^2$',
-            (new LatexWriter())->write($document)
-        );
     },
     'reads legacy native table constructors without dropping table structure' => static function (TestRunner $t): void {
         $native = 'Pandoc (Meta {unMeta = fromList []}) [Table [Str "Legacy",Space,Str "Table"] [AlignDefault,AlignRight] [0.0,0.25] [[Plain [Str "Name"]],[Plain [Str "Score"]]] [[[Plain [Str "Ada"]],[Plain [Str "10"]]]]]';

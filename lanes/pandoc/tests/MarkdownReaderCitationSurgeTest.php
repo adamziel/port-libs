@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 use PortLibs\Pandoc\AstNode;
 use PortLibs\Pandoc\MarkdownReader;
-use PortLibs\Pandoc\MarkdownWriter;
 use PortLibs\Pandoc\WordPressBlockWriter;
 
 $firstInline = static function (string $markdown): AstNode {
@@ -67,37 +66,12 @@ $escapedBracedCitationCases = [
     ['bracketed escaped open brace', '[@{source\{key}]', 'source{key', 'normal', null, null],
 ];
 
-$writerRoundTripCases = [
-    ['writer author space key', new AstNode('citation', ['id' => 'source key', 'mode' => 'author_in_text']), 'source key', 'citation'],
-    ['writer author close brace key', new AstNode('citation', ['id' => 'source}key', 'mode' => 'author_in_text']), 'source}key', 'citation'],
-    ['writer author backslash key', new AstNode('citation', ['id' => 'source\\archive', 'mode' => 'author_in_text']), 'source\\archive', 'citation'],
-    ['writer author bracket key', new AstNode('citation', ['id' => 'source]key', 'mode' => 'author_in_text']), 'source]key', 'citation'],
-    ['writer normal space key', new AstNode('citation', ['id' => 'review source']), 'review source', 'citation'],
-    ['writer normal close brace key', new AstNode('citation', ['id' => 'review}source']), 'review}source', 'citation'],
-    ['writer normal backslash key', new AstNode('citation', ['id' => 'review\\source']), 'review\\source', 'citation'],
-    ['writer suppress space key', new AstNode('citation', ['id' => 'missing source', 'mode' => 'suppress_author']), 'missing source', 'citation'],
-    ['writer suppress close brace key', new AstNode('citation', ['id' => 'missing}source', 'mode' => 'suppress_author']), 'missing}source', 'citation'],
-    ['writer group space keys', new AstNode('citation_group', [], [
-        new AstNode('citation', ['id' => 'source one']),
-        new AstNode('citation', ['id' => 'source two', 'mode' => 'suppress_author']),
-    ]), 'source one', 'citation_group'],
-    ['writer group escaped key', new AstNode('citation_group', [], [
-        new AstNode('citation', ['id' => 'source}one']),
-        new AstNode('citation', ['id' => 'source\\two', 'mode' => 'suppress_author']),
-    ]), 'source}one', 'citation_group'],
-    ['writer group bracket key', new AstNode('citation_group', [], [
-        new AstNode('citation', ['id' => 'source]one']),
-        new AstNode('citation', ['id' => 'source{two']),
-    ]), 'source]one', 'citation_group'],
-];
-
 $tests = [];
 
 foreach ($bareBracedCitationCases as [$name, $markdown, $id, $suffix]) {
     $tests["maps upstream pandoc markdown bare braced citation {$name}"] =
         static function (TestRunner $t) use ($firstInline, $markdown, $id, $suffix): void {
             $citation = $firstInline($markdown);
-            $roundTrip = (new MarkdownWriter())->write((new MarkdownReader())->read($markdown));
             $blocks = (new WordPressBlockWriter())->write((new MarkdownReader())->read($markdown));
 
             $t->same('citation', $citation->type);
@@ -105,7 +79,6 @@ foreach ($bareBracedCitationCases as [$name, $markdown, $id, $suffix]) {
             $t->same($id, $citation->attr('id'));
             $t->same($markdown, $citation->attr('text'));
             $t->same($suffix, $citation->attr('suffix'));
-            $t->same($markdown, $roundTrip);
             $t->contains(htmlspecialchars($markdown, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'), $blocks);
         };
 }
@@ -124,29 +97,9 @@ foreach ($escapedBracedCitationCases as [$name, $markdown, $id, $mode, $prefix, 
         };
 }
 
-foreach ($writerRoundTripCases as [$name, $node, $id, $expectedType]) {
-    $tests["round trips upstream pandoc markdown writer braced citation {$name}"] =
-        static function (TestRunner $t) use ($node, $id, $expectedType): void {
-            $document = new AstNode('document', [], [
-                new AstNode('paragraph', [], [$node]),
-            ]);
-            $markdown = (new MarkdownWriter())->write($document);
-            $parsed = (new MarkdownReader())->read($markdown)->children[0]->children[0] ?? new AstNode('missing');
-
-            $t->same($expectedType, $parsed->type);
-            if ($expectedType === 'citation_group') {
-                $t->same($id, $parsed->children[0]->attr('id'));
-                $t->same($markdown, $parsed->attr('text'));
-            } else {
-                $t->same($id, $parsed->attr('id'));
-                $t->same($markdown, $parsed->attr('text'));
-            }
-        };
-}
-
 $tests['records markdown braced citation surge mapped-case count'] =
-    static function (TestRunner $t) use ($bareBracedCitationCases, $escapedBracedCitationCases, $writerRoundTripCases): void {
-        $t->same(60, count($bareBracedCitationCases) + count($escapedBracedCitationCases) + count($writerRoundTripCases));
+    static function (TestRunner $t) use ($bareBracedCitationCases, $escapedBracedCitationCases): void {
+        $t->same(48, count($bareBracedCitationCases) + count($escapedBracedCitationCases));
     };
 
 return $tests;

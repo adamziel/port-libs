@@ -3,7 +3,6 @@
 declare(strict_types=1);
 
 use PortLibs\Pandoc\DocxReader;
-use PortLibs\Pandoc\MarkdownWriter;
 use PortLibs\Pandoc\WordPressBlockWriter;
 use PortLibs\Pandoc\ZipPackage;
 
@@ -110,7 +109,6 @@ $buildGeneratedFieldPackage = static function () use (
 return [
     'preserves DOCX generated table of contents and index field provenance' => static function (TestRunner $t) use ($buildGeneratedFieldPackage): void {
         $document = (new DocxReader())->readDocument($buildGeneratedFieldPackage());
-        $markdown = (new MarkdownWriter())->write($document);
         $blocks = (new WordPressBlockWriter())->write($document);
 
         $tocParagraph = $document->children[0];
@@ -157,12 +155,6 @@ return [
         $t->same('MERGEFORMAT', $indexAttrs['data-docx-field-format']);
         $t->same('A, source packet 4', $index->children[0]->attr('text'));
 
-        $t->contains('[Contents preview]{.docx-field .docx-field-toc .docx-generated-field .docx-generated-field-toc', $markdown);
-        $t->contains('data-docx-field-outline-levels="1-3"', $markdown);
-        $t->contains('data-docx-field-style-levels="Appendix,1,Review Heading,2"', $markdown);
-        $t->contains('[A, source packet 4]{.docx-field .docx-field-index .docx-generated-field .docx-generated-field-index', $markdown);
-        $t->contains('data-docx-field-bookmark="ReviewPacket"', $markdown);
-
         $t->contains('<span class="docx-field docx-field-toc docx-generated-field docx-generated-field-toc docx-field-omit-page-numbers docx-field-hyperlink docx-field-outline-levels docx-field-hide-web-layout"', $blocks);
         $t->contains('data-docx-field-style-levels="Appendix,1,Review Heading,2"', $blocks);
         $t->contains('<span class="docx-field docx-field-index docx-generated-field docx-generated-field-index"', $blocks);
@@ -170,7 +162,6 @@ return [
     },
     'preserves DOCX bibliography and citation field provenance' => static function (TestRunner $t) use ($buildGeneratedFieldPackage): void {
         $document = (new DocxReader())->readDocument($buildGeneratedFieldPackage());
-        $markdown = (new MarkdownWriter())->write($document);
         $blocks = (new WordPressBlockWriter())->write($document);
 
         $paragraph = $document->children[2];
@@ -206,11 +197,6 @@ return [
         $t->true(!isset($bibliographyAttrs['data-docx-field-target']), 'BIBLIOGRAPHY should not invent a target from switch values');
         $t->same('Smith, Source Packet.', $bibliography->children[0]->attr('text'));
 
-        $t->contains('[Smith 2024, 42]{.docx-field .docx-field-citation .docx-generated-field .docx-generated-field-citation', $markdown);
-        $t->contains('data-docx-field-target="Smith2024"', $markdown);
-        $t->contains('[Smith, Source Packet.]{.docx-field .docx-field-bibliography .docx-generated-field .docx-generated-field-bibliography', $markdown);
-        $t->contains('data-docx-field-locale-id="1033"', $markdown);
-
         $t->contains('<span class="docx-field docx-field-citation docx-generated-field docx-generated-field-citation"', $blocks);
         $t->contains('data-docx-field-target="Smith2024"', $blocks);
         $t->contains('<span class="docx-field docx-field-bibliography docx-generated-field docx-generated-field-bibliography"', $blocks);
@@ -218,7 +204,6 @@ return [
     },
     'preserves hidden DOCX index entry fields as Pandoc indexref spans' => static function (TestRunner $t) use ($buildGeneratedFieldPackage): void {
         $document = (new DocxReader())->readDocument($buildGeneratedFieldPackage());
-        $markdown = (new MarkdownWriter())->write($document);
         $blocks = (new WordPressBlockWriter())->write($document);
 
         $paragraph = $document->children[3];
@@ -263,12 +248,6 @@ return [
         $t->same('media_bookmark', $mediaAttrs['data-docx-field-bookmark']);
         $t->same('.', $paragraph->children[4]->attr('text'));
 
-        $t->contains('Index markers []{.indexref .docx-field .docx-field-xe .docx-index-entry .docx-index-entry-cross-reference .docx-index-entry-yomi .docx-index-entry-bold .docx-index-entry-italic data-docx-field="xe"', $markdown);
-        $t->contains('entry="Source Packet"', $markdown);
-        $t->contains('crossref="See source dossier"', $markdown);
-        $t->contains('yomi="sosupaketto"', $markdown);
-        $t->contains('[]{.indexref .docx-field .docx-field-xe .docx-index-entry data-docx-field="xe" data-docx-field-instruction="XE \\"Media Audit\\" \\\\f \\"A\\" \\\\r \\"media_bookmark\\"" entry="Media Audit"', $markdown);
-
         $t->contains('<span class="indexref docx-field docx-field-xe docx-index-entry docx-index-entry-cross-reference docx-index-entry-yomi docx-index-entry-bold docx-index-entry-italic"', $blocks);
         $t->contains('data-docx-index-entry="Source Packet"', $blocks);
         $t->contains('data-docx-field-cross-reference="See source dossier"', $blocks);
@@ -277,7 +256,6 @@ return [
     },
     'preserves DOCX ADDIN citation manager fields as review spans' => static function (TestRunner $t) use ($buildGeneratedFieldPackage): void {
         $document = (new DocxReader())->readDocument($buildGeneratedFieldPackage());
-        $markdown = (new MarkdownWriter())->write($document);
         $blocks = (new WordPressBlockWriter())->write($document);
 
         $cslPayload = '{"citationID":"source-note-1","citationItems":[{"id":"Smith2024"},{"id":"Jones2025"}],"properties":{"noteIndex":1}}';
@@ -338,11 +316,6 @@ return [
         $t->same('endnote', $endNoteReferenceList->attr('attributes')['data-docx-addin-provider']);
         $t->same('EndNote sources.', $endNoteReferenceList->children[0]->attr('text'));
 
-        $t->contains('[(Smith 2024; Jones 2025)]{.docx-field .docx-field-addin .docx-addin-field .docx-addin-csl-citation .docx-addin-provider-zotero', $markdown);
-        $t->contains('data-docx-addin-citation-item-count="2"', $markdown);
-        $t->contains('[Smith. Source Packet.]{.docx-field .docx-field-addin .docx-addin-field .docx-addin-csl-bibliography .docx-addin-provider-zotero', $markdown);
-        $t->contains('[\[EndNote 42\]]{.docx-field .docx-field-addin .docx-addin-field .docx-addin-endnote-citation .docx-addin-provider-endnote', $markdown);
-
         $t->contains('<span class="docx-field docx-field-addin docx-addin-field docx-addin-csl-citation docx-addin-provider-zotero"', $blocks);
         $t->contains('data-docx-addin-citation-item-ids="Smith2024,Jones2025"', $blocks);
         $t->contains('<span class="docx-field docx-field-addin docx-addin-field docx-addin-csl-bibliography docx-addin-provider-mendeley"', $blocks);
@@ -350,7 +323,6 @@ return [
     },
     'preserves DOCX table-of-figures TOC sequence switch provenance' => static function (TestRunner $t) use ($buildGeneratedFieldPackage): void {
         $document = (new DocxReader())->readDocument($buildGeneratedFieldPackage());
-        $markdown = (new MarkdownWriter())->write($document);
         $blocks = (new WordPressBlockWriter())->write($document);
 
         $paragraph = $document->children[5];
@@ -377,11 +349,6 @@ return [
         $t->same('Figure 1 - Workflow diagram', $listOfFigures->children[0]->attr('text'));
         $t->same('.', $paragraph->children[2]->attr('text'));
 
-        $t->contains('[Figure 1 - Workflow diagram]{.docx-field .docx-field-toc .docx-generated-field .docx-generated-field-toc .docx-field-hyperlink', $markdown);
-        $t->contains('data-docx-field-sequence="Figure"', $markdown);
-        $t->contains('data-docx-field-page-number-separator=" - "', $markdown);
-        $t->true(!str_contains($markdown, 'data-docx-field-columns="Figure"'), 'Markdown output should not label TOC \\c as columns');
-
         $t->contains('<span class="docx-field docx-field-toc docx-generated-field docx-generated-field-toc docx-field-hyperlink"', $blocks);
         $t->contains('data-docx-field-sequence="Figure"', $blocks);
         $t->contains('data-docx-field-page-number-separator=" - "', $blocks);
@@ -389,7 +356,6 @@ return [
     },
     'preserves DOCX table of authorities generated field category provenance' => static function (TestRunner $t) use ($buildGeneratedFieldPackage): void {
         $document = (new DocxReader())->readDocument($buildGeneratedFieldPackage());
-        $markdown = (new MarkdownWriter())->write($document);
         $blocks = (new WordPressBlockWriter())->write($document);
 
         $paragraph = $document->children[6];
@@ -417,11 +383,6 @@ return [
         $t->true(!isset($attrs['data-docx-field-target']), 'TOA switch values should not be reported as a field target');
         $t->same('Cases - Source Authority', $authorities->children[0]->attr('text'));
         $t->same('.', $paragraph->children[2]->attr('text'));
-
-        $t->contains('[Cases - Source Authority]{.docx-field .docx-field-toa .docx-generated-field .docx-generated-field-toa .docx-field-hyperlink', $markdown);
-        $t->contains('data-docx-generated-field-type="table-of-authorities"', $markdown);
-        $t->contains('data-docx-field-category="2"', $markdown);
-        $t->contains('data-docx-field-bookmark="LegalAuthorities"', $markdown);
 
         $t->contains('<span class="docx-field docx-field-toa docx-generated-field docx-generated-field-toa docx-field-hyperlink"', $blocks);
         $t->contains('data-docx-field-category="2"', $blocks);

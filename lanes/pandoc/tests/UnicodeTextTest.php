@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 use PortLibs\Pandoc\AstNode;
 use PortLibs\Pandoc\MarkdownReader;
-use PortLibs\Pandoc\MarkdownWriter;
 use PortLibs\Pandoc\PandocConverter;
 use PortLibs\Pandoc\UnicodeText;
 use PortLibs\Pandoc\WordPressBlockWriter;
@@ -2909,13 +2908,6 @@ return [
                 ]),
             ]),
         ]);
-
-        $t->same(implode("\n", [
-            '| Symbol | Width |',
-            '|------|-----|',
-            "| \u{2630}\u{268A}   | 4     |",
-            "| \u{1D300}\u{1D360}   | 4     |",
-        ]), (new MarkdownWriter())->write($document));
     },
     'applies east asian ambiguous width policy for display columns' => static function (TestRunner $t): void {
         $ambiguous = "\u{00B7}\u{03A9}\u{2014}\u{2026}\u{2122}";
@@ -3133,12 +3125,6 @@ return [
                 ]),
             ]),
         ]);
-
-        $t->same(implode("\n", [
-            '| Label | Value |',
-            '|-----|-----|',
-            "| A\tB | ok    |",
-        ]), (new MarkdownWriter())->write($document));
     },
     'keeps default ignorable controls zero width for display accounting' => static function (TestRunner $t): void {
         $softHyphen = "soft\u{00AD}hyphen";
@@ -3214,13 +3200,6 @@ return [
                 ]),
             ]),
         ]);
-
-        $t->same(implode("\n", [
-            '| CJK     | Plain | Comb |',
-            '|-------|-----|----|',
-            "| \u{9B5A}\u{9B5A}    | ok    | A\u{0301}    |",
-            "| Auf\u{200C}lage | long  | Cafe\u{0301} |",
-        ]), (new MarkdownWriter())->write($document));
     },
     'keeps decoded legacy text and unicode tables on the wordpress handoff path' => static function (TestRunner $t): void {
         $bytes = "# Cafe\xE9 Review\n\nEditor \x91source\x92 note.";
