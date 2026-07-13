@@ -6,8 +6,9 @@ const viewLabels = {
 };
 const defaultView = 'wpBlocks';
 const exampleUrlParameter = 'example';
-const playgroundPluginBuild = 'pdf-link-muir-safety-20260713';
+const playgroundPluginBuild = 'epub-xml-recovery-20260713';
 const playgroundClientModuleUrl = 'https://playground.wordpress.net/client/index.js';
+const playgroundUploadDirectory = '/tmp/port-libs-converter';
 
 const examplePicker = document.getElementById('example-picker');
 const previousButton = document.getElementById('previous-example');
@@ -53,8 +54,14 @@ function browsableExamples() {
   return state.examples.filter((example) => isBrowsableView(example.views && example.views.phpHtml));
 }
 
-function setStatus(message) {
+function setStatus(message, { visible = false, tone = 'info' } = {}) {
   viewerStatus.textContent = message;
+  viewerStatus.hidden = !visible;
+  if (visible) {
+    viewerStatus.dataset.tone = tone;
+  } else {
+    delete viewerStatus.dataset.tone;
+  }
 }
 
 function createOption(value, label) {
@@ -327,32 +334,56 @@ async function openOwnFile(file) {
   }
   frame.hidden = false;
   frame.loading = 'eager';
-  setOwnFileBusy(true, 'Preparing file…');
-  setStatus('Preparing ' + file.name + ' for WordPress Playground…');
+  setOwnFileBusy(true, state.playgroundReady ? 'Preparing file…' : 'Opening Playground…');
+  setStatus(state.playgroundReady
+    ? 'Preparing ' + file.name + ' for WordPress Playground…'
+    : 'Opening WordPress Playground for ' + file.name + '…', { visible: true });
 
+  let playgroundClient = null;
+  let stagedPath = '';
   try {
-    const payload = await payloadFromOwnFile(file, (message) => {
-      setOwnFileBusy(true, message);
-    });
-    if (!ownFileRequestIsCurrent(token)) {
-      return;
-    }
-
-    setOwnFileBusy(true, state.playgroundReady ? 'Converting…' : 'Opening Playground…');
     await bootOwnFilePlayground();
     if (!ownFileRequestIsCurrent(token)) {
       return;
     }
 
+    playgroundClient = state.playgroundClient;
+    if (!playgroundClient) {
+      throw new Error('WordPress Playground was not ready to receive the selected file.');
+    }
+
+    setOwnFileBusy(true, 'Preparing file…');
+    setStatus('Preparing ' + file.name + ' for upload…', { visible: true });
+    const prepared = await payloadFromOwnFile(file, (message) => {
+      setOwnFileBusy(true, message);
+      setStatus(message, { visible: true });
+    });
+    if (!ownFileRequestIsCurrent(token)) {
+      return;
+    }
+
+    setOwnFileBusy(true, 'Uploading…');
+    setStatus('Uploading ' + file.name + ' to WordPress Playground…', { visible: true });
+    stagedPath = await stageOwnFileInPlayground(playgroundClient, prepared.bytes, token);
+    if (!ownFileRequestIsCurrent(token)) {
+      return;
+    }
+
     setOwnFileBusy(true, 'Converting…');
-    const response = await state.playgroundClient.request({
+    setStatus('Converting ' + file.name + '…', { visible: true });
+    const response = await playgroundClient.request({
       method: 'POST',
       url: '/wp-json/port-libs/v1/convert',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({ ...prepared.payload, stagedPath }),
     });
     const text = typeof response.text === 'function' ? await response.text() : response.text;
-    const data = JSON.parse(text);
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      throw new Error('WordPress Playground returned an unreadable conversion response. Please try the file again.');
+    }
     if (!data.ok) {
       throw new Error(data.message || 'Conversion failed.');
     }
@@ -360,16 +391,24 @@ async function openOwnFile(file) {
       return;
     }
 
-    await state.playgroundClient.goTo(playgroundPath(data.pageUrl));
+    await playgroundClient.goTo(playgroundPath(data.pageUrl));
     if (ownFileRequestIsCurrent(token)) {
-      setStatus('Opened a new WordPress page for ' + file.name + '.');
+      setStatus('Opened a new WordPress page for ' + file.name + '.', { visible: true, tone: 'success' });
     }
   } catch (error) {
     if (ownFileRequestIsCurrent(token)) {
       const message = error instanceof Error ? error.message : String(error);
-      setStatus('Could not open ' + file.name + ' in WordPress Playground: ' + message);
+      setStatus('Could not open ' + file.name + ' in WordPress Playground: ' + message, { visible: true, tone: 'error' });
     }
   } finally {
+    if (stagedPath && playgroundClient) {
+      try {
+        await playgroundClient.unlink(stagedPath);
+      } catch {
+        // The converter removes successfully read sources. A failed request
+        // can still leave one behind, so cleanup remains best effort here.
+      }
+    }
     if (token === state.ownFileToken) {
       setOwnFileBusy(false);
     }
@@ -377,6 +416,7 @@ async function openOwnFile(file) {
 }
 
 async function payloadFromOwnFile(file, reportProgress) {
+  const bytes = new Uint8Array(await file.arrayBuffer());
   const payload = {
     filename: file.name,
     title: titleFromFilename(file.name),
@@ -384,19 +424,28 @@ async function payloadFromOwnFile(file, reportProgress) {
     pdfMode: 'layout',
   };
   if (!isLikelyPdfFile(file)) {
-    return {
-      ...payload,
-      bytes: await readFileAsBase64(file),
-    };
+    return { payload, bytes };
   }
 
-  const bytes = new Uint8Array(await file.arrayBuffer());
   const pdfRasterImages = await browserPdfRasterImages(bytes, reportProgress);
   return {
-    ...payload,
-    bytes: base64FromBytes(bytes),
-    ...(pdfRasterImages.length > 0 ? { pdfRasterImages } : {}),
+    bytes,
+    payload: {
+      ...payload,
+      ...(pdfRasterImages.length > 0 ? { pdfRasterImages } : {}),
+    },
   };
+}
+
+async function stageOwnFileInPlayground(playgroundClient, bytes, token) {
+  await playgroundClient.mkdirTree(playgroundUploadDirectory);
+  const id = typeof crypto.randomUUID === 'function'
+    ? crypto.randomUUID()
+    : String(Date.now()) + '-' + Math.random().toString(36).slice(2);
+  const stagedPath = playgroundUploadDirectory + '/' + token + '-' + id.replace(/[^A-Za-z0-9-]/g, '') + '.upload';
+  await playgroundClient.writeFile(stagedPath, bytes);
+
+  return stagedPath;
 }
 
 async function browserPdfRasterImages(bytes, reportProgress) {
@@ -424,25 +473,6 @@ async function browserPdfRasterImages(bytes, reportProgress) {
   } catch {
     return [];
   }
-}
-
-function readFileAsBase64(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.addEventListener('error', () => {
-      reject(reader.error || new Error('The file could not be read.'));
-    });
-    reader.addEventListener('load', () => {
-      const result = typeof reader.result === 'string' ? reader.result : '';
-      const comma = result.indexOf(',');
-      if (comma === -1) {
-        reject(new Error('The file could not be encoded.'));
-        return;
-      }
-      resolve(result.slice(comma + 1));
-    });
-    reader.readAsDataURL(file);
-  });
 }
 
 function base64FromBytes(bytes) {
