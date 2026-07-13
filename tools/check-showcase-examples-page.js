@@ -76,7 +76,7 @@ assert(js.includes('view: defaultView'), 'Expected the state to initialize to th
 assert(js.includes("const exampleUrlParameter = 'example';"), 'Expected a stable query parameter for linked examples.');
 assert(js.includes('new URL(window.location.href)'), 'Expected example links to preserve other URL state safely.');
 assert(js.includes('window.history.replaceState'), 'Expected picker navigation to keep the current URL shareable.');
-assert(js.includes("const playgroundPluginBuild = 'pdf-link-muir-safety-20260713';"), 'Expected the own-file importer to use the current Playground plugin build.');
+assert(js.includes("const playgroundPluginBuild = 'pdf-provenance-recovery-20260713';"), 'Expected the own-file importer to use the current Playground plugin build.');
 assert(js.includes("const playgroundClientModuleUrl = 'https://playground.wordpress.net/client/index.js';"), 'Expected Try your own file to use the Playground client.');
 assert(js.includes("php: '8.4'"), 'Expected own-file imports to use PHP 8.4 for EPUB and HTML documents.');
 assert(js.includes("const tryOwnFileButton = document.getElementById('try-own-file');"), 'Expected Try your own file controls to be wired.');

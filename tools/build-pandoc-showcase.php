@@ -4546,7 +4546,7 @@ const viewLabels = {
 };
 const defaultView = 'wpBlocks';
 const exampleUrlParameter = 'example';
-const playgroundPluginBuild = 'pdf-link-muir-safety-20260713';
+const playgroundPluginBuild = 'pdf-provenance-recovery-20260713';
 const playgroundClientModuleUrl = 'https://playground.wordpress.net/client/index.js';
 
 const examplePicker = document.getElementById('example-picker');
