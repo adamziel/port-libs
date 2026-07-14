@@ -1,5 +1,9 @@
-const pluginBuild = 'pdf-link-muir-safety-20260713';
+const pluginBuild = 'jp2-placeholder-20260714';
 const playgroundClientModuleUrl = 'https://playground.wordpress.net/client/index.js';
+// Keep browser-produced PDF rasters within the exact decoded-byte limit that
+// the Playground REST plugin accepts. Base64 expands this on the wire, but the
+// server limit is deliberately applied to the decoded media bytes.
+const pdfRasterPayloadByteLimit = 24_000_000;
 
 const iframe = document.getElementById('wp-playground');
 const playgroundPanel = document.getElementById('playground-panel');
@@ -30,6 +34,7 @@ let playgroundReady = false;
 let playgroundBootPromise = null;
 let startPlaygroundWeb = null;
 let decodePdfJbig2Rasters = null;
+let decodePdfJpxRasters = null;
 let selectedUpload = null;
 let conversionActive = false;
 let dragDepth = 0;
@@ -475,35 +480,82 @@ async function payloadFileEntry(entry, imageMode, reportProgress) {
 }
 
 async function browserPdfRasterImages(bytes, imageMode, reportProgress) {
-  try {
-    if (!decodePdfJbig2Rasters) {
-      const moduleUrl = new URL('pdf-jbig2-rasterizer.mjs?v=jbig2-raster-20260709', window.location.href).href;
-      ({ decodePdfJbig2Rasters } = await import(moduleUrl));
-    }
-    const result = await decodePdfJbig2Rasters(bytes, {
-      imageMode,
-      onProgress({ completed, total }) {
-        reportProgress(total > 0
-          ? `Preparing PDF images (${completed} of ${total})...`
-          : 'Preparing PDF images...');
+  const decoderEntries = [
+    {
+      label: 'JBIG2',
+      load: async () => {
+        if (!decodePdfJbig2Rasters) {
+          const module = await import(new URL('pdf-jbig2-rasterizer.mjs?v=jbig2-raster-20260709', window.location.href).href);
+          decodePdfJbig2Rasters = module.decodePdfJbig2Rasters;
+        }
+        return decodePdfJbig2Rasters;
       },
-    });
-    if (result.rasters.length > 0) {
-      log(`Prepared ${result.rasters.length} browser-decoded PDF image${result.rasters.length === 1 ? '' : 's'}.`);
+    },
+    {
+      label: 'JPEG 2000',
+      load: async () => {
+        if (!decodePdfJpxRasters) {
+          const module = await import(new URL('pdf-jpx-rasterizer.mjs?v=jpx-raster-20260714', window.location.href).href);
+          decodePdfJpxRasters = module.decodePdfJpxRasters;
+        }
+        return decodePdfJpxRasters;
+      },
+    },
+  ];
+  const loaded = await Promise.allSettled(decoderEntries.map(async (entry) => ({
+    entry,
+    decode: await entry.load(),
+  })));
+  const rasters = [];
+  const objects = new Set();
+  let remainingBytes = pdfRasterPayloadByteLimit;
+  for (const [index, result] of loaded.entries()) {
+    if (result.status !== 'fulfilled') {
+      log(`Browser ${decoderEntries[index]?.label || 'PDF'} image preparation was unavailable: ${errorMessage(result.reason)}`);
+      continue;
     }
-
-    return result.rasters.map((raster) => ({
-      object: raster.object,
-      bytes: base64FromBytes(raster.bytes),
-      mimeType: raster.mimeType,
-      width: raster.width,
-      height: raster.height,
-    }));
-  } catch (error) {
-    log(`Browser PDF image preparation was unavailable: ${error instanceof Error ? error.message : String(error)}`);
-
-    return [];
+    const { entry, decode } = result.value;
+    if (typeof decode !== 'function' || remainingBytes <= 0) {
+      continue;
+    }
+    try {
+      const decoded = await decode(bytes, {
+        imageMode,
+        maxPngBytes: remainingBytes,
+        onProgress({ completed, total }) {
+          reportProgress(total > 0
+            ? `Preparing PDF images (${completed} of ${total})...`
+            : 'Preparing PDF images...');
+        },
+      });
+      for (const raster of decoded.rasters || []) {
+        const object = String(Number(raster.object));
+        if (objects.has(object) || !(raster.bytes instanceof Uint8Array) || raster.bytes.length > remainingBytes) {
+          continue;
+        }
+        objects.add(object);
+        rasters.push(raster);
+        remainingBytes -= raster.bytes.length;
+      }
+    } catch (error) {
+      log(`Browser ${entry.label} image preparation was unavailable: ${errorMessage(error)}`);
+    }
   }
+  if (rasters.length > 0) {
+    log(`Prepared ${rasters.length} browser-decoded PDF image${rasters.length === 1 ? '' : 's'}.`);
+  }
+
+  return rasters.map((raster) => ({
+    object: raster.object,
+    bytes: base64FromBytes(raster.bytes),
+    mimeType: raster.mimeType,
+    width: raster.width,
+    height: raster.height,
+  }));
+}
+
+function errorMessage(error) {
+  return error instanceof Error ? error.message : String(error);
 }
 
 function selectedImageMode() {

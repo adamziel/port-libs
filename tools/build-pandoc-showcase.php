@@ -1431,7 +1431,7 @@ function write_output_from_process(string $dir, string $name, string $sourcePath
         if (is_string($candidate)) {
             $rasterResult = run_process([
                 'node',
-                $root . '/tools/decode-pdf-jbig2-media.mjs',
+                $root . '/tools/decode-pdf-raster-media.mjs',
                 '--input',
                 $sourcePath,
                 '--output',
@@ -1508,7 +1508,7 @@ function showcase_pdf_raster_images_from_manifest(string $path): array
         $width = $raster['width'] ?? null;
         $height = $raster['height'] ?? null;
         if (preg_match('/^\d+$/', $object) !== 1 || !is_string($contents) || $contents === ''
-            || $mimeType !== 'image/png' || !is_numeric($width) || !is_numeric($height)) {
+            || !in_array($mimeType, ['image/png', 'image/avif'], true) || !is_numeric($width) || !is_numeric($height)) {
             continue;
         }
         $rasters[] = [
@@ -4572,9 +4572,10 @@ const viewLabels = {
 };
 const defaultView = 'wpBlocks';
 const exampleUrlParameter = 'example';
-const playgroundPluginBuild = 'epub-xml-recovery-20260713';
+const playgroundPluginBuild = 'jp2-placeholder-20260714';
 const playgroundClientModuleUrl = 'https://playground.wordpress.net/client/index.js';
 const playgroundUploadDirectory = '/tmp/port-libs-converter';
+const playgroundPdfRasterByteLimit = 24_000_000;
 
 const examplePicker = document.getElementById('example-picker');
 const previousButton = document.getElementById('previous-example');
@@ -4601,6 +4602,7 @@ const state = {
   playgroundBootPromise: null,
   startPlaygroundWeb: null,
   decodePdfJbig2Rasters: null,
+  decodePdfJpxRasters: null,
 };
 
 function selectedExample() {
@@ -5015,30 +5017,75 @@ async function stageOwnFileInPlayground(playgroundClient, bytes, token) {
 }
 
 async function browserPdfRasterImages(bytes, reportProgress) {
-  try {
-    if (!state.decodePdfJbig2Rasters) {
-      const moduleUrl = new URL('pdf-jbig2-rasterizer.mjs?v=jbig2-raster-20260709', window.location.href).href;
-      ({ decodePdfJbig2Rasters: state.decodePdfJbig2Rasters } = await import(moduleUrl));
-    }
-    const result = await state.decodePdfJbig2Rasters(bytes, {
-      imageMode: 'important',
-      onProgress({ completed, total }) {
-        reportProgress(total > 0
-          ? `Preparing PDF images (${completed} of ${total})…`
-          : 'Preparing PDF images…');
+  const decoderEntries = [
+    {
+      label: 'JBIG2',
+      load: async () => {
+        if (!state.decodePdfJbig2Rasters) {
+          const module = await import(new URL('pdf-jbig2-rasterizer.mjs?v=jbig2-raster-20260709', window.location.href).href);
+          state.decodePdfJbig2Rasters = module.decodePdfJbig2Rasters;
+        }
+        return state.decodePdfJbig2Rasters;
       },
-    });
-
-    return result.rasters.map((raster) => ({
-      object: raster.object,
-      bytes: base64FromBytes(raster.bytes),
-      mimeType: raster.mimeType,
-      width: raster.width,
-      height: raster.height,
-    }));
-  } catch {
-    return [];
+    },
+    {
+      label: 'JPEG 2000',
+      load: async () => {
+        if (!state.decodePdfJpxRasters) {
+          const module = await import(new URL('pdf-jpx-rasterizer.mjs?v=jpx-raster-20260714', window.location.href).href);
+          state.decodePdfJpxRasters = module.decodePdfJpxRasters;
+        }
+        return state.decodePdfJpxRasters;
+      },
+    },
+  ];
+  const loaded = await Promise.allSettled(decoderEntries.map(async (entry) => ({
+    entry,
+    decode: await entry.load(),
+  })));
+  const rasters = [];
+  const objects = new Set();
+  let remainingBytes = playgroundPdfRasterByteLimit;
+  for (const [index, result] of loaded.entries()) {
+    if (result.status !== 'fulfilled') {
+      reportProgress(`Continuing without ${decoderEntries[index]?.label || 'one'} PDF image decoder…`);
+      continue;
+    }
+    const { decode } = result.value;
+    if (typeof decode !== 'function' || remainingBytes <= 0) {
+      continue;
+    }
+    try {
+      const decoded = await decode(bytes, {
+        imageMode: 'important',
+        maxPngBytes: remainingBytes,
+        onProgress({ completed, total }) {
+          reportProgress(total > 0
+            ? `Preparing PDF images (${completed} of ${total})…`
+            : 'Preparing PDF images…');
+        },
+      });
+      for (const raster of decoded.rasters || []) {
+        const object = String(Number(raster.object));
+        if (objects.has(object) || !(raster.bytes instanceof Uint8Array) || raster.bytes.length > remainingBytes) {
+          continue;
+        }
+        objects.add(object);
+        rasters.push(raster);
+        remainingBytes -= raster.bytes.length;
+      }
+    } catch {
+      reportProgress(`Continuing without ${result.value.entry.label} PDF image decoder…`);
+    }
   }
+
+  return rasters.map((raster) => ({
+    object: raster.object,
+    bytes: base64FromBytes(raster.bytes),
+    mimeType: raster.mimeType,
+    width: raster.width,
+    height: raster.height,
+  }));
 }
 
 function base64FromBytes(bytes) {

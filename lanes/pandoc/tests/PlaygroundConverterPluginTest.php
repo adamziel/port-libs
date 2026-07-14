@@ -393,6 +393,7 @@ return [
         $t->same(80000, $options['readerOptions']['maxTextBytes'] ?? null);
         $t->same(true, $options['readerOptions']['pdfGeometryTables'] ?? null);
         $t->same(true, $options['readerOptions']['pdfRepairProseText'] ?? null);
+        $t->same(true, $options['readerOptions']['pdfCollectImagePlacements'] ?? null);
     },
     'playground pdf importer can retry in text only mode without geometry tables' => static function (TestRunner $t): void {
         $options = plpc_converter_options('pdf', 'text-only');
@@ -616,7 +617,15 @@ return [
         $png = "\x89PNG\r\n\x1a\n"
             . pack('N', 13) . 'IHDR' . pack('NNCCCCC', 100, 100, 1, 0, 0, 0, 0)
             . pack('N', 0);
+        $content = "BT /F1 12 Tf 72 720 Td (Before image) Tj ET\n"
+            . "q 100 0 0 100 72 580 cm /Image17 Do Q\n"
+            . "BT /F1 12 Tf 72 540 Td (After image) Tj ET";
         $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 612 792] /Resources << /Font << /F1 9 0 R >> /XObject << /Image17 17 0 R >> >> >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+            . "9 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
             . "00017 0 obj\n"
             . "<< /Type /XObject /Subtype /Image /Width 100 /Height 100 /BitsPerComponent 1 /Filter /JBIG2Decode /Length 3 >>\n"
             . "stream\nabc\nendstream\nendobj\n%%EOF\n";
@@ -638,6 +647,42 @@ return [
         $t->true(in_array('extract-media-pdf-image-raster-loaded:00017:important', $result['diagnostics'] ?? [], true));
         $t->same(1, count($GLOBALS['plpc_test_attachments']));
         $t->contains('https://playground.test/uploads/attachment-1.png', $GLOBALS['plpc_test_posts'][1]['post_content'] ?? '');
+    },
+    'playground importer preserves an unrasterized JPEG 2000 PDF image as a downloadable attachment' => static function (TestRunner $t): void {
+        $GLOBALS['plpc_imported_media_by_hash'] = [];
+        $GLOBALS['plpc_test_uploads'] = [];
+        $GLOBALS['plpc_test_attachments'] = [];
+        $GLOBALS['plpc_test_posts'] = [];
+        $jpx = str_repeat('J', 8500);
+        $content = "BT /F1 12 Tf 72 720 Td (Before image) Tj ET\n"
+            . "q 100 0 0 100 72 580 cm /Image17 Do Q\n"
+            . "BT /F1 12 Tf 72 540 Td (After image) Tj ET";
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 612 792] /Resources << /Font << /F1 9 0 R >> /XObject << /Image17 17 0 R >> >> >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+            . "9 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+            . "00017 0 obj\n"
+            . "<< /Type /XObject /Subtype /Image /Width 100 /Height 100 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /JPXDecode /Length " . strlen($jpx) . " >>\n"
+            . "stream\n{$jpx}\nendstream\nendobj\n%%EOF\n";
+
+        $result = plpc_convert_collection_file_to_page([
+            'path' => 'scan.pdf',
+            'bytes' => $pdf,
+        ], null, 'JPEG 2000 import', 'important');
+        $blocks = (string) ($GLOBALS['plpc_test_posts'][$result['postId']]['post_content'] ?? '');
+
+        $t->same(1, $result['imageTagCount'] ?? null);
+        $t->same(1, $result['imagesImported'] ?? null);
+        $t->same(1, count($GLOBALS['plpc_test_uploads']));
+        $t->same($jpx, $GLOBALS['plpc_test_uploads'][0]['bits'] ?? null);
+        $t->same('image/jp2', $GLOBALS['plpc_test_attachments'][1]['post_mime_type'] ?? null);
+        $t->contains('pandoc-pdf-image-placeholder', $blocks);
+        $t->contains('href="https://playground.test/uploads/attachment-1.png"', $blocks);
+        $t->true(!str_contains($blocks, '<img'));
+        $t->true(in_array('extract-media-pdf-image-placeholder:00017:jpeg2000-raster-unavailable', $result['diagnostics'] ?? [], true));
+        $t->true(in_array('image-imported:media/pdf/image-00017.jp2=>1', $result['diagnostics'] ?? [], true));
     },
     'playground importer normalizes pdf retry modes' => static function (TestRunner $t): void {
         $t->same('layout', plpc_normalize_pdf_mode(''));

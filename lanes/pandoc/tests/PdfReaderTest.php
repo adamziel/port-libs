@@ -5557,6 +5557,67 @@ return [
 
         $t->contains('Quartz', $text);
     },
+    'does not fabricate body geometry for a source-only footnote marker' => static function (TestRunner $t): void {
+        $reader = new PdfReader();
+        $order = (function (array $sourceItems, array $match, bool $includeUnmatchedPositionedSupplements = true): array {
+            return $this->sourcePdfItemsInVisualOrder($sourceItems, $match, $includeUnmatchedPositionedSupplements);
+        })->bindTo($reader, PdfReader::class);
+        $t->true($order instanceof \Closure);
+
+        $sourceItems = [
+            ['page' => 1, 'stream' => 4, 'text' => 'The verified body line ends before the note.'],
+            ['page' => 1, 'stream' => 4, 'text' => '17'],
+            ['page' => 1, 'stream' => 4, 'text' => 'The verified note text starts here.'],
+        ];
+        $body = [
+            'text' => $sourceItems[0]['text'],
+            'page' => 1,
+            'x1' => 72.0,
+            'x2' => 400.0,
+            'y1' => 700.0,
+            'y2' => 712.0,
+            'fontSize' => 10.0,
+        ];
+        $footnote = [
+            'text' => $sourceItems[2]['text'],
+            'page' => 1,
+            'x1' => 72.0,
+            'x2' => 400.0,
+            'y1' => 684.0,
+            'y2' => 694.0,
+            'fontSize' => 8.0,
+            'sourceFootnotePrefixedGeometry' => true,
+        ];
+        $match = [
+            'sourceIndexes' => [0 => true, 2 => true],
+            'itemsBySourceIndex' => [0 => $body, 2 => $footnote],
+            'visualEntries' => [
+                ['item' => $body, 'sourceIndex' => 0],
+                ['item' => $footnote, 'sourceIndex' => 2],
+            ],
+        ];
+
+        $items = $order($sourceItems, $match, false);
+        $t->same([
+            'The verified body line ends before the note.',
+            'The verified note text starts here.',
+        ], array_column($items, 'text'));
+
+        unset($footnote['sourceFootnotePrefixedGeometry']);
+        $ordinaryItems = $order($sourceItems, array_replace($match, [
+            'itemsBySourceIndex' => [0 => $body, 2 => $footnote],
+            'visualEntries' => [
+                ['item' => $body, 'sourceIndex' => 0],
+                ['item' => $footnote, 'sourceIndex' => 2],
+            ],
+        ]), false);
+        $t->same([
+            'The verified body line ends before the note.',
+            '17',
+            'The verified note text starts here.',
+        ], array_column($ordinaryItems, 'text'));
+        $t->true(($ordinaryItems[1]['sourceSandwichedNeighborLayout'] ?? false) === true);
+    },
     'orders positioned prose columns before repairing pdf text' => static function (TestRunner $t) use ($pdfWithContent): void {
         $pdf = $pdfWithContent(
             'BT /F1 12 Tf '

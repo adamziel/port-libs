@@ -5,6 +5,81 @@ declare(strict_types=1);
 use PortLibs\Pandoc\AstNode;
 use PortLibs\Pandoc\PandocConverter;
 
+function pandoc_positioned_pdf_image_fixture(): string
+{
+    $jpeg = base64_decode('/9j/4AAQSkZJRgABAQAAAQABAAD/2w==', true);
+    if (!is_string($jpeg)) {
+        throw new RuntimeException('Unable to build JPEG fixture.');
+    }
+    $content = "BT /F1 12 Tf 72 720 Td (Before) Tj ET\n"
+        . "q 120 0 0 30 72 660 cm /Second Do Q\n"
+        . "BT /F1 12 Tf 72 620 Td (Middle) Tj ET\n"
+        . "q 120 0 0 30 72 580 cm /First Do Q\n"
+        . "BT /F1 12 Tf 72 540 Td (After) Tj ET\n"
+        . "q 8 0 0 8 72 500 cm /Mask Do Q";
+
+    $image = static fn (int $width, int $height, bool $mask = false): string =>
+        '<< /Type /XObject /Subtype /Image /Width ' . $width . ' /Height ' . $height
+        . ($mask ? ' /ImageMask true /BitsPerComponent 1' : ' /ColorSpace /DeviceRGB /BitsPerComponent 8')
+        . ' /Filter /DCTDecode /Length ' . strlen($jpeg) . " >>\nstream\n" . $jpeg . "\nendstream";
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 9 0 R >> /XObject << /First 7 0 R /Second 8 0 R /Unused 10 0 R /Mask 11 0 R >> >> >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n" . $content . "\nendstream\nendobj\n"
+        . "7 0 obj\n" . $image(120, 30) . "\nendobj\n"
+        . "8 0 obj\n" . $image(120, 30) . "\nendobj\n"
+        . "9 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+        . "10 0 obj\n" . $image(200, 100) . "\nendobj\n"
+        . "11 0 obj\n" . $image(8, 8, true) . "\nendobj\n%%EOF\n";
+}
+
+function pandoc_layout_fixture_image_object(int $width = 100, int $height = 100): string
+{
+    $jpeg = base64_decode('/9j/4AAQSkZJRgABAQAAAQABAAD/2w==', true);
+    if (!is_string($jpeg)) {
+        throw new RuntimeException('Unable to build JPEG fixture.');
+    }
+
+    return '<< /Type /XObject /Subtype /Image /Width ' . $width . ' /Height ' . $height
+        . ' /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ' . strlen($jpeg) . " >>\nstream\n"
+        . $jpeg . "\nendstream";
+}
+
+function pandoc_avif_raster_fixture(int $width, int $height): string
+{
+    // A minimal bounded AVIF container for media-path verification. The
+    // extractor only needs the ftyp brand and ispe dimensions; browser
+    // decoding remains the final validation boundary for real raster bytes.
+    return pack('N', 20) . 'ftyp' . 'avif' . pack('N', 0) . 'avif'
+        . pack('N', 20) . 'ispe' . pack('N', 0) . pack('N', $width) . pack('N', $height);
+}
+
+function pandoc_png_raster_fixture(int $width, int $height): string
+{
+    return "\x89PNG\r\n\x1a\n"
+        . pack('N', 13) . 'IHDR' . pack('NNCCCCC', $width, $height, 8, 2, 0, 0, 0)
+        . pack('N', 0);
+}
+
+/**
+ * @param array<int, string> $extraObjects
+ */
+function pandoc_single_page_layout_fixture(string $content, string $xObjects, array $extraObjects, string $extraResources = ''): string
+{
+    $pdf = "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 612 792] /Resources << /Font << /F1 9 0 R >> /XObject << {$xObjects} >> {$extraResources} >> >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n";
+    foreach ($extraObjects as $number => $body) {
+        $pdf .= $number . " 0 obj\n" . $body . "\nendobj\n";
+    }
+
+    return $pdf . "9 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n%%EOF\n";
+}
+
 return [
     'converts markdown to wordpress block markup through registered reader and local block writer alias' => static function (TestRunner $t): void {
         $blocks = PandocConverter::convert(
@@ -228,7 +303,252 @@ return [
             $cleanup($tmp);
         }
     },
-    'extracts browser friendly pdf image streams for media hosting review' => static function (TestRunner $t): void {
+    'places painted pdf images between their surrounding text and ignores technical objects' => static function (TestRunner $t): void {
+        $result = PandocConverter::convertWithMedia(pandoc_positioned_pdf_image_fixture(), 'pdf', 'wordpress', [
+            'extractMedia' => [
+                'destination' => 'media',
+                'imageMode' => 'all',
+            ],
+        ]);
+
+        $output = $result['output'];
+        $before = strpos($output, 'Before');
+        $image8 = strpos($output, 'media/pdf/image-8.jpg');
+        $middle = strpos($output, 'Middle');
+        $image7 = strpos($output, 'media/pdf/image-7.jpg');
+        $after = strpos($output, 'After');
+
+        $t->same(2, count($result['media']));
+        $t->true($before !== false && $image8 !== false && $middle !== false && $image7 !== false && $after !== false);
+        $t->true($before < $image8 && $image8 < $middle && $middle < $image7 && $image7 < $after);
+        $t->true(!str_contains($output, 'image-10.jpg'));
+        $t->true(!str_contains($output, 'image-11.jpg'));
+        $t->true(!str_contains($output, 'pandoc-pdf-extracted-images'));
+        $t->contains('data-pandoc-width="120pt"', $output);
+        $t->contains('style="width:120pt; height:30pt"', $output);
+        $t->true(in_array('extract-media-pdf-image-loaded:7:small', $result['diagnostics'], true));
+        $t->true(in_array('extract-media-pdf-image-loaded:8:small', $result['diagnostics'], true));
+    },
+    'collects image placement anchors when geometry tables and prose repair are disabled' => static function (TestRunner $t): void {
+        $document = PandocConverter::read(pandoc_positioned_pdf_image_fixture(), 'pdf', [
+            'pdfCollectImagePlacements' => true,
+            'geometryTables' => false,
+            'pdfRepairProseText' => false,
+        ]);
+        $meta = $document->attr('meta', []);
+
+        $t->true(is_array($meta));
+        $t->same(2, $meta['pdfPlacedImageCandidates'] ?? null);
+    },
+    'places a clipped image under a benign graphics state through the full media path' => static function (TestRunner $t): void {
+        $content = "BT /F1 12 Tf 72 720 Td (Before) Tj ET\n"
+            . "q 72 640 120 40 re W n q /GS1 gs 120 0 0 40 72 640 cm /A Do Q Q\n"
+            . "BT /F1 12 Tf 72 580 Td (After) Tj ET";
+        $result = PandocConverter::convertWithMedia(
+            pandoc_single_page_layout_fixture(
+                $content,
+                '/A 7 0 R',
+                [7 => pandoc_layout_fixture_image_object()],
+                '/ExtGState << /GS1 << /OP true /op false /OPM 1 /SM 0.001 >> >>'
+            ),
+            'pdf',
+            'wordpress',
+            ['extractMedia' => ['destination' => 'media', 'imageMode' => 'all']]
+        );
+
+        $before = strpos($result['output'], 'Before');
+        $image = strpos($result['output'], 'media/pdf/image-7.jpg');
+        $after = strpos($result['output'], 'After');
+
+        $t->same(1, count($result['media']));
+        $t->true($before !== false && $image !== false && $after !== false);
+        $t->true($before < $image && $image < $after);
+    },
+    'uses a dimension-validated AVIF supplemental raster for a painted PDF image' => static function (TestRunner $t): void {
+        $content = "BT /F1 12 Tf 72 720 Td (Before) Tj ET\n"
+            . "q 100 0 0 100 72 580 cm /A Do Q\n"
+            . "BT /F1 12 Tf 72 440 Td (After) Tj ET";
+        $result = PandocConverter::convertWithMedia(
+            pandoc_single_page_layout_fixture($content, '/A 7 0 R', [7 => pandoc_layout_fixture_image_object()]),
+            'pdf',
+            'wordpress',
+            [
+                'extractMedia' => [
+                    'destination' => 'media',
+                    'imageMode' => 'all',
+                    'pdfRasterImages' => [[
+                        'object' => '7',
+                        'contents' => pandoc_avif_raster_fixture(100, 100),
+                        'mimeType' => 'image/avif',
+                        'width' => 100,
+                        'height' => 100,
+                    ]],
+                ],
+            ]
+        );
+
+        $t->same(1, count($result['media']));
+        $t->same('image/avif', $result['media'][0]['mimeType'] ?? null);
+        $t->same('media/pdf/image-7.avif', $result['media'][0]['path'] ?? null);
+        $t->contains('src="media/pdf/image-7.avif"', $result['output']);
+        $t->true(in_array('extract-media-pdf-image-raster-loaded:7:important', $result['diagnostics'], true));
+    },
+    'keeps source-important PDF images when a replacement raster is smaller' => static function (TestRunner $t): void {
+        $content = "BT /F1 12 Tf 72 720 Td (Before) Tj ET\n"
+            . "q 146 0 0 68 72 580 cm /A Do Q\n"
+            . "BT /F1 12 Tf 72 480 Td (After) Tj ET";
+        $jpx = str_repeat('J', 8500);
+        $image = '<< /Type /XObject /Subtype /Image /Width 146 /Height 68 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /JPXDecode /Length '
+            . strlen($jpx) . " >>\nstream\n" . $jpx . "\nendstream";
+        $result = PandocConverter::convertWithMedia(
+            pandoc_single_page_layout_fixture($content, '/A 7 0 R', [7 => $image]),
+            'pdf',
+            'wordpress',
+            [
+                'extractMedia' => [
+                    'destination' => 'media',
+                    'imageMode' => 'important',
+                    'pdfRasterImages' => [[
+                        'object' => '7',
+                        'contents' => pandoc_png_raster_fixture(146, 68),
+                        'mimeType' => 'image/png',
+                        'width' => 146,
+                        'height' => 68,
+                    ]],
+                ],
+            ]
+        );
+
+        $t->same(1, count($result['media']));
+        $t->same('media/pdf/image-7.png', $result['media'][0]['path'] ?? null);
+        $t->contains('src="media/pdf/image-7.png"', $result['output']);
+        $t->true(in_array('extract-media-pdf-image-raster-loaded:7:important', $result['diagnostics'], true));
+    },
+    'retains JPEG 2000 PDF media behind a placeholder when no raster decoder is available' => static function (TestRunner $t): void {
+        $content = "BT /F1 12 Tf 72 720 Td (Before) Tj ET\n"
+            . "q 146 0 0 68 72 580 cm /A Do Q\n"
+            . "BT /F1 12 Tf 72 480 Td (After) Tj ET";
+        $jpx = str_repeat('J', 8500);
+        $image = '<< /Type /XObject /Subtype /Image /Width 146 /Height 68 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /JPXDecode /Length '
+            . strlen($jpx) . " >>\nstream\n" . $jpx . "\nendstream";
+        $result = PandocConverter::convertWithMedia(
+            pandoc_single_page_layout_fixture($content, '/A 7 0 R', [7 => $image]),
+            'pdf',
+            'wordpress',
+            ['extractMedia' => ['destination' => 'media', 'imageMode' => 'important']]
+        );
+
+        $t->same(1, count($result['media']));
+        $t->same('image/jp2', $result['media'][0]['mimeType'] ?? null);
+        $t->same('media/pdf/image-7.jp2', $result['media'][0]['path'] ?? null);
+        $t->same(strlen($jpx), $result['media'][0]['byteLength'] ?? null);
+        $t->same(sha1($jpx), $result['media'][0]['sha1'] ?? null);
+        $t->contains('pandoc-pdf-image-placeholder', $result['output']);
+        $t->contains('no JPEG 2000 decoder was available for a preview', $result['output']);
+        $t->contains('href="media/pdf/image-7.jp2"', $result['output']);
+        $t->true(!str_contains($result['output'], '<img'));
+        $t->true(in_array('extract-media-pdf-image-placeholder:7:jpeg2000-raster-unavailable', $result['diagnostics'], true));
+
+        $html = PandocConverter::convertWithMedia(
+            pandoc_single_page_layout_fixture($content, '/A 7 0 R', [7 => $image]),
+            'pdf',
+            'html',
+            ['extractMedia' => ['destination' => 'media', 'imageMode' => 'important']]
+        );
+        $t->contains('pandoc-pdf-image-placeholder', $html['output']);
+        $t->contains('href="media/pdf/image-7.jp2"', $html['output']);
+        $t->true(!str_contains($html['output'], '<img'));
+    },
+    'keeps image anchors in their own visual column' => static function (TestRunner $t): void {
+        $content = "BT /F1 12 Tf 72 720 Td (Before) Tj ET\n"
+            . "q 100 0 0 100 72 500 cm /A Do Q\n"
+            . "BT /F1 12 Tf 400 501 Td (Right nearby) Tj ET\n"
+            . "BT /F1 12 Tf 72 300 Td (After) Tj ET";
+        $result = PandocConverter::convertWithMedia(
+            pandoc_single_page_layout_fixture($content, '/A 7 0 R', [7 => pandoc_layout_fixture_image_object()]),
+            'pdf',
+            'wordpress',
+            ['extractMedia' => ['destination' => 'media', 'imageMode' => 'all']]
+        );
+        $output = $result['output'];
+        $before = strpos($output, 'Before');
+        $right = strpos($output, 'Right nearby');
+        $image = strpos($output, 'media/pdf/image-7.jpg');
+        $after = strpos($output, 'After');
+
+        $t->same(1, count($result['media']));
+        $t->true($before !== false && $right !== false && $image !== false && $after !== false);
+        $t->true($before < $right && $right < $image && $image < $after);
+    },
+    'keeps legitimate repeated paintings of the same PDF image object' => static function (TestRunner $t): void {
+        $content = "BT /F1 12 Tf 72 720 Td (Before) Tj ET\n"
+            . "q 100 0 0 40 72 650 cm /A Do Q\n"
+            . "q 100 0 0 40 72 570 cm /A Do Q\n"
+            . "BT /F1 12 Tf 72 500 Td (After) Tj ET";
+        $result = PandocConverter::convertWithMedia(
+            pandoc_single_page_layout_fixture($content, '/A 7 0 R', [7 => pandoc_layout_fixture_image_object()]),
+            'pdf',
+            'wordpress',
+            ['extractMedia' => ['destination' => 'media', 'imageMode' => 'all']]
+        );
+
+        $t->same(1, count($result['media']));
+        $t->same(2, substr_count($result['output'], '<img src="media/pdf/image-7.jpg"'));
+    },
+    'does not place an image when source-order anchors contradict visual order' => static function (TestRunner $t): void {
+        $content = "BT /F1 12 Tf 72 540 Td (After) Tj ET\n"
+            . "q 100 0 0 40 72 600 cm /A Do Q\n"
+            . "BT /F1 12 Tf 72 720 Td (Before) Tj ET";
+        $result = PandocConverter::convertWithMedia(
+            pandoc_single_page_layout_fixture($content, '/A 7 0 R', [7 => pandoc_layout_fixture_image_object()]),
+            'pdf',
+            'wordpress',
+            ['extractMedia' => ['destination' => 'media', 'imageMode' => 'all']]
+        );
+
+        $t->same(0, count($result['media']));
+        $t->true(!str_contains($result['output'], 'media/pdf/image-7.jpg'));
+        $t->true(in_array('extract-media-pdf-image-anchor-order-conflict:7', $result['diagnostics'], true));
+    },
+    'uses Form and enclosing matrices before anchoring a direct image beside Form text' => static function (TestRunner $t): void {
+        $formContent = 'BT /F1 12 Tf 0 0 Td (Form text) Tj ET';
+        $form = '<< /Type /XObject /Subtype /Form /BBox [0 0 612 792] /Matrix [2 0 0 3 10 20] /Resources << /Font << /F1 9 0 R >> >> /Length '
+            . strlen($formContent) . " >>\nstream\n{$formContent}\nendstream";
+        $content = "q 4 0 0 5 100 200 cm /F Do Q\nq 100 0 0 40 72 220 cm /A Do Q";
+        $result = PandocConverter::convertWithMedia(
+            pandoc_single_page_layout_fixture($content, '/F 5 0 R /A 7 0 R', [
+                5 => $form,
+                7 => pandoc_layout_fixture_image_object(),
+            ]),
+            'pdf',
+            'wordpress',
+            ['extractMedia' => ['destination' => 'media', 'imageMode' => 'all']]
+        );
+        $formText = strpos($result['output'], 'Form text');
+        $image = strpos($result['output'], 'media/pdf/image-7.jpg');
+
+        $t->same(1, count($result['media']));
+        $t->true($formText !== false && $image !== false);
+        $t->true($formText < $image);
+    },
+    'caps repeated page image placements before they become a gallery' => static function (TestRunner $t): void {
+        $placements = '';
+        for ($index = 0; $index < 17; $index++) {
+            $placements .= 'q 30 0 0 20 72 ' . (700 - ($index * 10)) . " cm /A Do Q\n";
+        }
+        $content = "BT /F1 12 Tf 72 750 Td (Before) Tj ET\n" . $placements . "BT /F1 12 Tf 72 500 Td (After) Tj ET";
+        $result = PandocConverter::convertWithMedia(
+            pandoc_single_page_layout_fixture($content, '/A 7 0 R', [7 => pandoc_layout_fixture_image_object()]),
+            'pdf',
+            'wordpress',
+            ['extractMedia' => ['destination' => 'media', 'imageMode' => 'all']]
+        );
+
+        $t->same(1, count($result['media']));
+        $t->same(16, substr_count($result['output'], '<img src="media/pdf/image-7.jpg"'));
+        $t->true(in_array('extract-media-pdf-image-placement-page-limit:1', $result['diagnostics'], true));
+    },
+    'does not extract unpainted pdf image streams for media hosting review' => static function (TestRunner $t): void {
         $jpeg = base64_decode('/9j/4AAQSkZJRgABAQAAAQABAAD/2w==', true);
         $t->true(is_string($jpeg));
         $pdf = "%PDF-1.4\n"
@@ -249,26 +569,14 @@ return [
         $extractor = new \PortLibs\Pandoc\PandocMediaExtractor();
         $result = $extractor->extract(new AstNode('document'), $pdf, 'pdf', ['destination' => 'media', 'imageMode' => 'all']);
 
-        $t->same(2, count($result['entries']));
-        $t->same('media/pdf/image-1.jpg', $result['entries'][0]['path'] ?? null);
-        $t->same('image/jpeg', $result['entries'][0]['mimeType'] ?? null);
-        $t->same($jpeg, $result['entries'][0]['contents'] ?? null);
+        $t->same(0, count($result['entries']));
         $t->true(in_array('extract-media-image-mode:all', $result['diagnostics'], true));
-        $t->true(in_array('extract-media-pdf-image-loaded:1:tiny', $result['diagnostics'], true));
-        $t->same('div', $result['document']->children[0]->type ?? null);
-        $t->same(['pandoc-pdf-extracted-images'], $result['document']->children[0]->attr('classes'));
-        $t->same('paragraph', $result['document']->children[0]->children[2]->type ?? null);
-        $t->same(['pandoc-pdf-image-block'], $result['document']->children[0]->children[2]->attr('classes'));
-        $t->same('image', $result['document']->children[0]->children[2]->children[0]->type ?? null);
-        $t->same('media/pdf/image-1.jpg', $result['document']->children[0]->children[2]->children[0]->attr('url'));
+        $t->true(in_array('extract-media-pdf-placement-unanchored-scan:0', $result['diagnostics'], true));
         $html = PandocConverter::write($result['document'], 'html');
-        $t->contains('<img src="media/pdf/image-1.jpg"', $html);
+        $t->true(!str_contains($html, '<img'));
 
         $important = $extractor->extract(new AstNode('document'), $pdf, 'pdf', ['destination' => 'media', 'imageMode' => 'important']);
-        $t->same(1, count($important['entries']));
-        $t->same('media/pdf/image-2.jpg', $important['entries'][0]['path'] ?? null);
-        $t->true(in_array('extract-media-pdf-image-unimportant:1:tiny', $important['diagnostics'], true));
-        $t->true(in_array('extract-media-pdf-image-loaded:2:important', $important['diagnostics'], true));
+        $t->same(0, count($important['entries']));
 
         $documentWithImage = new AstNode('document', [], [
             new AstNode('paragraph', [], [
@@ -280,7 +588,7 @@ return [
         $t->same(0, count($withoutImages['document']->children));
         $t->true(in_array('extract-media-image-mode:none', $withoutImages['diagnostics'], true));
     },
-    'transcodes simple flate encoded pdf image streams to png media' => static function (TestRunner $t): void {
+    'does not transcode unpainted or mask-only pdf image streams' => static function (TestRunner $t): void {
         $grayPixels = "\x00\xff";
         $grayStream = gzcompress($grayPixels);
         $oneBitPixels = "\x80";
@@ -303,18 +611,11 @@ return [
         $extractor = new \PortLibs\Pandoc\PandocMediaExtractor();
         $result = $extractor->extract(new AstNode('document'), $pdf, 'pdf', ['destination' => 'media', 'imageMode' => 'all']);
 
-        $t->same(2, count($result['entries']));
-        $t->same('media/pdf/image-1.png', $result['entries'][0]['path'] ?? null);
-        $t->same('image/png', $result['entries'][0]['mimeType'] ?? null);
-        $t->same("\x89PNG\r\n\x1a\n", substr((string) ($result['entries'][0]['contents'] ?? ''), 0, 8));
-        $t->same('media/pdf/image-2.png', $result['entries'][1]['path'] ?? null);
-        $t->same('image/png', $result['entries'][1]['mimeType'] ?? null);
-        $t->true(in_array('extract-media-pdf-image-loaded:1:tiny', $result['diagnostics'], true));
-        $t->true(in_array('extract-media-pdf-image-loaded:2:mask', $result['diagnostics'], true));
-        $t->same('media/pdf/image-1.png', $result['document']->children[0]->children[2]->children[0]->attr('url'));
-        $t->same('media/pdf/image-2.png', $result['document']->children[0]->children[3]->children[0]->attr('url'));
+        $t->same(0, count($result['entries']));
+        $t->same(0, count($result['document']->children));
+        $t->true(in_array('extract-media-pdf-placement-unanchored-scan:0', $result['diagnostics'], true));
     },
-    'uses validated supplemental rasters for otherwise non-embeddable pdf image streams' => static function (TestRunner $t): void {
+    'does not use supplemental rasters for unpainted pdf image streams' => static function (TestRunner $t): void {
         $png = "\x89PNG\r\n\x1a\n"
             . pack('N', 13) . 'IHDR' . pack('NNCCCCC', 100, 100, 1, 0, 0, 0, 0)
             . pack('N', 0);
@@ -336,12 +637,9 @@ return [
             ]],
         ]);
 
-        $t->same(1, count($result['entries']));
-        $t->same('media/pdf/image-00017.png', $result['entries'][0]['path'] ?? null);
-        $t->same('image/png', $result['entries'][0]['mimeType'] ?? null);
-        $t->same($png, $result['entries'][0]['contents'] ?? null);
-        $t->true(in_array('extract-media-pdf-image-raster-loaded:00017:important', $result['diagnostics'], true));
-        $t->same('media/pdf/image-00017.png', $result['document']->children[0]->children[2]->children[0]->attr('url'));
+        $t->same(0, count($result['entries']));
+        $t->same(0, count($result['document']->children));
+        $t->true(in_array('extract-media-pdf-placement-unanchored-scan:0', $result['diagnostics'], true));
 
         $mismatched = $extractor->extract(new AstNode('document'), $pdf, 'pdf', [
             'destination' => 'media',
@@ -355,7 +653,7 @@ return [
             ]],
         ]);
         $t->same(0, count($mismatched['entries']));
-        $t->true(in_array('extract-media-pdf-image-skipped:JBIG2Decode', $mismatched['diagnostics'], true));
+        $t->true(in_array('extract-media-pdf-placement-unanchored-scan:0', $mismatched['diagnostics'], true));
     },
     'fails explicitly for unsupported registry formats' => static function (TestRunner $t): void {
         $t->throws(\InvalidArgumentException::class, static function (): void {

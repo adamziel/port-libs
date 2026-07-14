@@ -79,7 +79,7 @@ assert(js.includes('view: defaultView'), 'Expected the state to initialize to th
 assert(js.includes("const exampleUrlParameter = 'example';"), 'Expected a stable query parameter for linked examples.');
 assert(js.includes('new URL(window.location.href)'), 'Expected example links to preserve other URL state safely.');
 assert(js.includes('window.history.replaceState'), 'Expected picker navigation to keep the current URL shareable.');
-assert(js.includes("const playgroundPluginBuild = 'epub-xml-recovery-20260713';"), 'Expected the own-file importer to use the current Playground plugin build.');
+assert(js.includes("const playgroundPluginBuild = 'jp2-placeholder-20260714';"), 'Expected the own-file importer to use the current Playground plugin build.');
 assert(js.includes("const playgroundClientModuleUrl = 'https://playground.wordpress.net/client/index.js';"), 'Expected Try your own file to use the Playground client.');
 assert(js.includes("const playgroundUploadDirectory = '/tmp/port-libs-converter';"), 'Expected own files to use Playground temporary staging.');
 assert(js.includes("php: '8.4'"), 'Expected own-file imports to use PHP 8.4 for EPUB and HTML documents.');
@@ -97,6 +97,11 @@ assert(js.includes('const reusingPlayground = state.frameMode === \'playground\'
 assert(js.includes('const busy = state.ownFileBusy;'), 'Expected browser controls to be disabled while an own-file import is active.');
 assert(js.includes("imageMode: 'important'"), 'Expected own-file imports to preserve the Playground image default.');
 assert(js.includes("pdfMode: 'layout'"), 'Expected own-file imports to preserve the Playground PDF default.');
+assert(js.includes('pdf-jpx-rasterizer.mjs'), 'Expected own-file PDF imports to load the JPEG 2000 rasterizer.');
+assert(js.includes('decodePdfJpxRasters'), 'Expected own-file PDF imports to prepare JPEG 2000 images.');
+assert(js.includes('Promise.allSettled'), 'A JPEG 2000 decoder failure must not discard usable JBIG2 rasters.');
+assert(js.includes('const playgroundPdfRasterByteLimit = 24_000_000;'), 'Expected own-file rasters to honor the Playground decoded-byte limit.');
+assert(js.includes('maxPngBytes: remainingBytes'), 'Expected own-file PDF decoders to share one raster byte budget.');
 assert(js.includes('new Uint8Array(await file.arrayBuffer())'), 'Expected all own files to be read as transferable bytes.');
 assert(js.includes('await playgroundClient.mkdirTree(playgroundUploadDirectory);'), 'Expected own files to create their Playground staging directory.');
 assert(js.includes('await playgroundClient.writeFile(stagedPath, bytes);'), 'Expected own files to stage bytes before the REST request.');

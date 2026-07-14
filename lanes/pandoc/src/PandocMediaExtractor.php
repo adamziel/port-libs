@@ -12,6 +12,10 @@ final class PandocMediaExtractor
     private const MAX_PDF_RASTER_IMAGE_BYTES = 16777216;
     private const MAX_PDF_RASTER_IMAGE_PIXELS = 48000000;
     private const MAX_PDF_IMAGES = 96;
+    private const MAX_PDF_IMAGE_PLACEMENT_CANDIDATES = 384;
+    private const MAX_PDF_IMAGE_PLACEMENT_CANDIDATES_PER_PAGE = 64;
+    private const MAX_PDF_IMAGE_PLACEMENTS = 96;
+    private const MAX_PDF_IMAGE_PLACEMENTS_PER_PAGE = 16;
 
     /**
      * @param array<string, mixed> $options
@@ -46,9 +50,23 @@ final class PandocMediaExtractor
 
         $pdfImagePlacements = [];
         if ($format === 'pdf' && $imageMode !== 'none') {
-            $pdfImagePlacements = $this->loadPdfImages($bag, $bytes, $diagnostics, $imageMode, $pdfRasterImages);
-            if ($pdfImagePlacements !== []) {
-                $document = $this->documentWithPdfImageBlocks($document, $pdfImagePlacements);
+            $placedPdfImages = $this->anchoredPdfImagePlacements(
+                $document,
+                $this->pdfImagePlacements($document, $bytes, $diagnostics),
+                $diagnostics
+            );
+            if ($placedPdfImages !== []) {
+                $pdfImagePlacements = $this->loadPdfImages(
+                    $bag,
+                    $bytes,
+                    $diagnostics,
+                    $imageMode,
+                    $placedPdfImages,
+                    $pdfRasterImages
+                );
+                if ($pdfImagePlacements !== []) {
+                    $document = $this->documentWithPlacedPdfImageBlocks($document, $pdfImagePlacements);
+                }
             }
         }
 
@@ -111,7 +129,7 @@ final class PandocMediaExtractor
     }
 
     /**
-     * Accept browser or host supplied PNG rasters for PDF image XObjects.
+     * Accept browser or host supplied web-safe rasters for PDF image XObjects.
      * A decoder remains outside this class, but the PDF object and intrinsic
      * dimensions are checked again before a raster can become document media.
      *
@@ -137,13 +155,13 @@ final class PandocMediaExtractor
             $width = $image['width'] ?? null;
             $height = $image['height'] ?? null;
             if (!is_string($contents) || $contents === '' || strlen($contents) > self::MAX_PDF_RASTER_IMAGE_BYTES
-                || $mimeType !== 'image/png' || !is_numeric($width) || !is_numeric($height)) {
+                || !in_array($mimeType, ['image/png', 'image/avif'], true) || !is_numeric($width) || !is_numeric($height)) {
                 continue;
             }
             $width = (int) $width;
             $height = (int) $height;
             if ($width <= 0 || $height <= 0 || $width * $height > self::MAX_PDF_RASTER_IMAGE_PIXELS
-                || !$this->pngHasDimensions($contents, $width, $height)) {
+                || !$this->pdfRasterHasDimensions($contents, $mimeType, $width, $height)) {
                 continue;
             }
 
@@ -361,15 +379,230 @@ final class PandocMediaExtractor
     }
 
     /**
+     * Prefer the compact placement map emitted by PdfReader. A direct media
+     * extraction call can still inspect paint locations, but without final
+     * text anchors it must not guess where an image belongs.
+     *
      * @param list<string> $diagnostics
-     * @param array<string,array{contents:string,mimeType:string,width:int,height:int}> $rasterImages
-     * @return list<array{source:string, page:int|null, object:string, mimeType:string, byteLength:int, width:int|null, height:int|null, imageMask:bool, importance:string}>
+     * @return list<array<string, mixed>>
      */
-    private function loadPdfImages(MediaBag $bag, string $bytes, array &$diagnostics, string $imageMode, array $rasterImages = []): array
+    private function pdfImagePlacements(AstNode $document, string $bytes, array &$diagnostics): array
     {
+        $metadata = $document->attr('meta', []);
+        $placements = is_array($metadata) ? ($metadata['pdfImagePlacements'] ?? null) : null;
+        if (is_array($placements)) {
+            $normalized = array_values(array_filter($placements, static fn (mixed $placement): bool => is_array($placement)));
+            $diagnostics[] = 'extract-media-pdf-placement-metadata:' . count($normalized);
+
+            return $normalized;
+        }
+
+        if (!class_exists(\PortLibs\MarkerPDF\PdfTextExtractor::class)) {
+            $diagnostics[] = 'extract-media-pdf-placement-unavailable';
+
+            return [];
+        }
+
+        try {
+            $placements = (new \PortLibs\MarkerPDF\PdfTextExtractor())->extractImagePlacements($bytes);
+            $diagnostics[] = 'extract-media-pdf-placement-unanchored-scan:' . count($placements);
+
+            return $placements;
+        } catch (\Throwable) {
+            $diagnostics[] = 'extract-media-pdf-placement-scan-failed';
+
+            return [];
+        }
+    }
+
+    /**
+     * @param list<array<string, mixed>> $placements
+     * @param list<string> $diagnostics
+     * @return list<array<string, mixed>>
+     */
+    private function anchoredPdfImagePlacements(AstNode $document, array $placements, array &$diagnostics): array
+    {
+        $anchored = [];
+        $seen = [];
+        $candidateCount = 0;
+        $candidateCountByPage = [];
+        $placementCountByPage = [];
+        $candidateLimitReported = false;
+        $placementLimitReported = false;
+        $candidatePageLimitReported = [];
+        $placementPageLimitReported = [];
+        foreach ($placements as $placement) {
+            if (!$this->pdfImagePlacementIsEligible($placement)) {
+                continue;
+            }
+            if (!is_numeric($placement['object'] ?? null)) {
+                continue;
+            }
+            $page = max(1, (int) ($placement['page'] ?? 1));
+            if ($candidateCount >= self::MAX_PDF_IMAGE_PLACEMENT_CANDIDATES) {
+                if (!$candidateLimitReported) {
+                    $diagnostics[] = 'extract-media-pdf-image-placement-candidate-limit';
+                    $candidateLimitReported = true;
+                }
+                break;
+            }
+            if (($candidateCountByPage[$page] ?? 0) >= self::MAX_PDF_IMAGE_PLACEMENT_CANDIDATES_PER_PAGE) {
+                if (!isset($candidatePageLimitReported[$page])) {
+                    $diagnostics[] = 'extract-media-pdf-image-placement-candidate-page-limit:' . $page;
+                    $candidatePageLimitReported[$page] = true;
+                }
+                continue;
+            }
+            $candidateCount++;
+            $candidateCountByPage[$page] = ($candidateCountByPage[$page] ?? 0) + 1;
+
+            $following = $this->uniquePdfImageTextAnchorIndex($document, $placement['followingText'] ?? null);
+            $preceding = $this->uniquePdfImageTextAnchorIndex($document, $placement['precedingText'] ?? null);
+            if ($following === null && $preceding === null) {
+                $diagnostics[] = 'extract-media-pdf-image-unanchored:' . (string) $placement['object'];
+                continue;
+            }
+            if ($following !== null && $preceding !== null && $preceding >= $following) {
+                // PDF paint order and the final prose order can disagree.
+                // When the two geometry anchors would bracket the image in
+                // reverse AST order, choosing one could move it to a wholly
+                // unrelated point in the document.
+                $diagnostics[] = 'extract-media-pdf-image-anchor-order-conflict:' . (string) $placement['object'];
+                continue;
+            }
+
+            $placement['anchorIndex'] = $following ?? $preceding;
+            $placement['anchorPosition'] = $following !== null ? 'before' : 'after';
+            $key = (string) ((int) $placement['object'])
+                . ':' . $page
+                . ':' . (string) $placement['anchorIndex']
+                . ':' . $placement['anchorPosition']
+                . ':' . (string) ($placement['paintOrder'] ?? '')
+                . ':' . $this->pdfImagePlacementBoundingBoxKey($placement['bbox'] ?? null);
+            if (isset($seen[$key])) {
+                $diagnostics[] = 'extract-media-pdf-image-placement-duplicate:' . (string) $placement['object'];
+                continue;
+            }
+            if (count($anchored) >= self::MAX_PDF_IMAGE_PLACEMENTS) {
+                if (!$placementLimitReported) {
+                    $diagnostics[] = 'extract-media-pdf-image-placement-limit';
+                    $placementLimitReported = true;
+                }
+                break;
+            }
+            if (($placementCountByPage[$page] ?? 0) >= self::MAX_PDF_IMAGE_PLACEMENTS_PER_PAGE) {
+                if (!isset($placementPageLimitReported[$page])) {
+                    $diagnostics[] = 'extract-media-pdf-image-placement-page-limit:' . $page;
+                    $placementPageLimitReported[$page] = true;
+                }
+                continue;
+            }
+            $seen[$key] = true;
+            $anchored[] = $placement;
+            $placementCountByPage[$page] = ($placementCountByPage[$page] ?? 0) + 1;
+        }
+
+        return $anchored;
+    }
+
+    /**
+     * The PDF reader distinguishes a safely anchored clipped image from an
+     * image whose geometry is unsafe. Keep backward compatibility with
+     * high-confidence metadata emitted before that distinction existed.
+     *
+     * @param array<string, mixed> $placement
+     */
+    private function pdfImagePlacementIsEligible(array $placement): bool
+    {
+        if (array_key_exists('placementEligible', $placement)) {
+            return $placement['placementEligible'] === true;
+        }
+
+        return ($placement['visible'] ?? false) === true
+            && ($placement['confidence'] ?? '') === 'high';
+    }
+
+    private function pdfImagePlacementBoundingBoxKey(mixed $bbox): string
+    {
+        if (!is_array($bbox)) {
+            return '';
+        }
+
+        $coordinates = [];
+        foreach (['x1', 'y1', 'x2', 'y2'] as $coordinate) {
+            $value = $bbox[$coordinate] ?? null;
+            if (!is_numeric($value)) {
+                return '';
+            }
+            $coordinates[] = rtrim(rtrim(sprintf('%.4F', (float) $value), '0'), '.');
+        }
+
+        return implode(',', $coordinates);
+    }
+
+    private function uniquePdfImageTextAnchorIndex(AstNode $document, mixed $anchor): ?int
+    {
+        if (!is_string($anchor)) {
+            return null;
+        }
+        $anchor = $this->normalizedPdfImageAnchorText($anchor);
+        if ($anchor === '' || strlen($anchor) < 3) {
+            return null;
+        }
+
+        $index = null;
+        foreach ($document->children as $candidateIndex => $block) {
+            if (!in_array($block->type, ['paragraph', 'heading', 'plain'], true)) {
+                continue;
+            }
+            $text = $this->normalizedPdfImageAnchorText((string) $block->attr('text', ''));
+            if ($text === '' || !str_contains($text, $anchor)) {
+                continue;
+            }
+            if ($index !== null) {
+                return null;
+            }
+            $index = $candidateIndex;
+        }
+
+        return $index;
+    }
+
+    private function normalizedPdfImageAnchorText(string $text): string
+    {
+        $text = trim(preg_replace('/\s+/u', ' ', $text) ?? $text);
+
+        return function_exists('mb_strtolower') ? mb_strtolower($text, 'UTF-8') : strtolower($text);
+    }
+
+    /**
+     * @param list<string> $diagnostics
+     * @param list<array<string, mixed>> $requestedPlacements
+     * @param array<string,array{contents:string,mimeType:string,width:int,height:int}> $rasterImages
+     * @return list<array<string, mixed>>
+     */
+    private function loadPdfImages(
+        MediaBag $bag,
+        string $bytes,
+        array &$diagnostics,
+        string $imageMode,
+        array $requestedPlacements,
+        array $rasterImages = []
+    ): array {
         if (strlen($bytes) > self::MAX_PDF_SCAN_BYTES) {
             $diagnostics[] = 'extract-media-pdf-scan-skipped:too-large';
 
+            return [];
+        }
+
+        $placementsByObject = [];
+        foreach ($requestedPlacements as $placement) {
+            if (!is_numeric($placement['object'] ?? null)) {
+                continue;
+            }
+            $placementsByObject[(string) ((int) $placement['object'])][] = $placement;
+        }
+        if ($placementsByObject === []) {
             return [];
         }
 
@@ -377,14 +610,19 @@ final class PandocMediaExtractor
             return [];
         }
 
-        $placements = [];
+        $assets = [];
         $loaded = 0;
         foreach ($matches as $match) {
+            $objectNumber = (string) $match[1];
+            $objectKey = (string) ((int) $objectNumber);
+            if (!isset($placementsByObject[$objectKey])) {
+                continue;
+            }
             if ($loaded >= self::MAX_PDF_IMAGES) {
                 $diagnostics[] = 'extract-media-pdf-image-limit';
                 break;
             }
-            $objectNumber = (string) $match[1];
+
             $body = (string) $match[3];
             if (!preg_match('#/Subtype\s*/Image\b#', $body)) {
                 continue;
@@ -393,6 +631,10 @@ final class PandocMediaExtractor
             $width = $this->pdfIntegerEntry($body, 'Width');
             $height = $this->pdfIntegerEntry($body, 'Height');
             $imageMask = $this->pdfBooleanEntry($body, 'ImageMask');
+            if ($imageMask) {
+                $diagnostics[] = 'extract-media-pdf-image-mask-skipped:' . $objectNumber;
+                continue;
+            }
 
             $stream = $this->pdfStreamBytes($body);
             if ($stream === null || $stream === '' || strlen($stream) > self::MAX_PDF_IMAGE_BYTES) {
@@ -401,12 +643,17 @@ final class PandocMediaExtractor
             }
 
             $filters = $this->pdfFilterNames($body);
-            $raster = $rasterImages[$objectNumber] ?? $rasterImages[(string) (int) $objectNumber] ?? null;
+            $raster = $rasterImages[$objectNumber] ?? $rasterImages[$objectKey] ?? null;
             if ($raster !== null && ($raster['width'] !== $width || $raster['height'] !== $height)) {
                 $diagnostics[] = 'extract-media-pdf-image-raster-skipped:dimensions:' . $objectNumber;
                 $raster = null;
             }
-            $importance = $this->pdfImageImportance($width, $height, $raster === null ? strlen($stream) : strlen($raster['contents']), $imageMask);
+            // Selection describes the image painted by the PDF, not the
+            // compression ratio of a browser-supplied replacement raster.
+            // A lossless PNG can be smaller than its JPX stream (or larger
+            // than a JBIG2 stream) without changing whether the source image
+            // is an important document asset.
+            $importance = $this->pdfImageImportance($width, $height, strlen($stream), false);
             if ($imageMode === 'important' && $importance !== 'important') {
                 $diagnostics[] = 'extract-media-pdf-image-unimportant:' . $objectNumber . ':' . $importance;
                 continue;
@@ -414,7 +661,7 @@ final class PandocMediaExtractor
 
             if ($raster !== null) {
                 $mimeType = $raster['mimeType'];
-                $extension = '.png';
+                $extension = $this->pdfRasterExtension($mimeType);
                 $imageBytes = $raster['contents'];
                 $diagnostics[] = 'extract-media-pdf-image-raster-loaded:' . $objectNumber . ':' . $importance;
             } else {
@@ -422,7 +669,7 @@ final class PandocMediaExtractor
                 $extension = $mimeType === 'image/jpeg' ? '.jpg' : '.jp2';
                 $imageBytes = $stream;
                 if ($mimeType === null) {
-                    $flateImage = $this->pdfFlateImagePng($body, $filters, $stream, $width, $height, $imageMask);
+                    $flateImage = $this->pdfFlateImagePng($body, $filters, $stream, $width, $height, false);
                     if ($flateImage === null) {
                         $diagnostics[] = 'extract-media-pdf-image-skipped:' . ($filters === [] ? 'unfiltered' : implode('+', $filters));
                         continue;
@@ -433,84 +680,212 @@ final class PandocMediaExtractor
 
             $source = 'pdf/image-' . $objectNumber . $extension;
             $bag->insertMedia($source, $mimeType, $imageBytes);
-            $placements[] = [
+            // JPEG 2000 is not a browser-safe image format. Keep the source
+            // bytes even when an optional rasterizer is unavailable, but do
+            // not leave a broken <img> in the converted document. The
+            // placement below becomes a download-oriented placeholder until
+            // a caller supplies a browser-compatible supplemental raster.
+            $webPreviewUnavailable = $raster === null && $mimeType === 'image/jp2';
+            $assets[$objectKey] = [
                 'source' => $source,
-                'page' => null,
                 'object' => $objectNumber,
                 'mimeType' => $mimeType,
                 'byteLength' => strlen($imageBytes),
                 'width' => $width,
                 'height' => $height,
-                'imageMask' => $imageMask,
+                'imageMask' => false,
                 'importance' => $importance,
+                'webPreviewUnavailable' => $webPreviewUnavailable,
             ];
+            if ($webPreviewUnavailable) {
+                $diagnostics[] = 'extract-media-pdf-image-placeholder:' . $objectNumber . ':jpeg2000-raster-unavailable';
+            }
             $diagnostics[] = 'extract-media-pdf-image-loaded:' . $objectNumber . ':' . $importance;
             $loaded++;
         }
 
-        return $placements;
+        $resolved = [];
+        foreach ($requestedPlacements as $placement) {
+            $objectKey = is_numeric($placement['object'] ?? null) ? (string) ((int) $placement['object']) : '';
+            if ($objectKey === '' || !isset($assets[$objectKey])) {
+                continue;
+            }
+            $resolved[] = array_replace($placement, $assets[$objectKey]);
+        }
+        foreach ($placementsByObject as $objectKey => $_placements) {
+            if (!isset($assets[$objectKey])) {
+                $diagnostics[] = 'extract-media-pdf-image-placement-unavailable:' . $objectKey;
+            }
+        }
+
+        return $resolved;
     }
 
     /**
-     * @param list<array{source:string, page:int|null, object:string, mimeType:string, byteLength:int, width:int|null, height:int|null, imageMask:bool, importance:string}> $placements
+     * @param list<array<string, mixed>> $placements
      */
-    private function documentWithPdfImageBlocks(AstNode $document, array $placements): AstNode
+    private function documentWithPlacedPdfImageBlocks(AstNode $document, array $placements): AstNode
     {
-        $imageBlocks = [];
+        $before = [];
+        $after = [];
         foreach ($placements as $placement) {
-            $attributes = [
-                'data-pandoc-pdf-image-object' => $placement['object'],
-                'data-pandoc-pdf-image-type' => $placement['mimeType'],
-                'data-pandoc-pdf-image-bytes' => (string) $placement['byteLength'],
-                'data-pandoc-pdf-image-importance' => $placement['importance'],
-            ];
-            if ($placement['width'] !== null) {
-                $attributes['data-pandoc-pdf-image-width'] = (string) $placement['width'];
+            $index = $placement['anchorIndex'] ?? null;
+            if (!is_int($index) && !is_numeric($index)) {
+                continue;
             }
-            if ($placement['height'] !== null) {
-                $attributes['data-pandoc-pdf-image-height'] = (string) $placement['height'];
+            $index = (int) $index;
+            if (!isset($document->children[$index])) {
+                continue;
             }
-            if ($placement['page'] !== null) {
-                $attributes['data-pandoc-pdf-page'] = (string) $placement['page'];
+            $target = ($placement['anchorPosition'] ?? '') === 'after' ? $after : $before;
+            $target[$index][] = $placement;
+            if (($placement['anchorPosition'] ?? '') === 'after') {
+                $after = $target;
+            } else {
+                $before = $target;
             }
-            $imageBlocks[] = new AstNode('paragraph', ['classes' => ['pandoc-pdf-image-block']], [
-                new AstNode('image', [
-                    'url' => $placement['source'],
-                    'title' => 'PDF image ' . $placement['object'],
-                    'attributes' => $attributes,
+        }
+
+        if ($before === [] && $after === []) {
+            return $document;
+        }
+
+        $sort = static function (array &$group): void {
+            usort($group, static function (array $left, array $right): int {
+                $paintOrder = ((int) ($left['paintOrder'] ?? 0)) <=> ((int) ($right['paintOrder'] ?? 0));
+                if ($paintOrder !== 0) {
+                    return $paintOrder;
+                }
+
+                return ((int) ($left['object'] ?? 0)) <=> ((int) ($right['object'] ?? 0));
+            });
+        };
+        foreach ($before as &$group) {
+            $sort($group);
+        }
+        unset($group);
+        foreach ($after as &$group) {
+            $sort($group);
+        }
+        unset($group);
+
+        $children = [];
+        foreach ($document->children as $index => $block) {
+            foreach ($before[$index] ?? [] as $placement) {
+                $children[] = $this->placedPdfImageBlock($placement);
+            }
+            $children[] = $block;
+            foreach ($after[$index] ?? [] as $placement) {
+                $children[] = $this->placedPdfImageBlock($placement);
+            }
+        }
+
+        return new AstNode($document->type, $document->attrs, $children);
+    }
+
+    /**
+     * @param array<string, mixed> $placement
+     */
+    private function placedPdfImageBlock(array $placement): AstNode
+    {
+        $attributes = [
+            'data-pandoc-pdf-image-object' => (string) $placement['object'],
+            'data-pandoc-pdf-image-type' => (string) $placement['mimeType'],
+            'data-pandoc-pdf-image-bytes' => (string) $placement['byteLength'],
+            'data-pandoc-pdf-image-importance' => (string) $placement['importance'],
+            'data-pandoc-pdf-image-placement' => 'inline',
+        ];
+        if (isset($placement['width']) && $placement['width'] !== null) {
+            $attributes['data-pandoc-pdf-image-width'] = (string) $placement['width'];
+        }
+        if (isset($placement['height']) && $placement['height'] !== null) {
+            $attributes['data-pandoc-pdf-image-height'] = (string) $placement['height'];
+        }
+        if (isset($placement['page'])) {
+            $attributes['data-pandoc-pdf-page'] = (string) $placement['page'];
+        }
+        if (is_array($placement['bbox'] ?? null)) {
+            foreach (['x1', 'y1', 'x2', 'y2'] as $coordinate) {
+                if (is_numeric($placement['bbox'][$coordinate] ?? null)) {
+                    $attributes['data-pandoc-pdf-image-' . $coordinate] = (string) $placement['bbox'][$coordinate];
+                }
+            }
+        }
+
+        if (($placement['webPreviewUnavailable'] ?? false) === true) {
+            $attributes['data-pandoc-pdf-image-rendering'] = 'unavailable';
+
+            return new AstNode('paragraph', [
+                'classes' => ['pandoc-pdf-image-block', 'pandoc-pdf-image-placed', 'pandoc-pdf-image-placeholder'],
+                'attributes' => $attributes,
+            ], [
+                new AstNode('span', [
+                    'classes' => ['pandoc-pdf-image-placeholder'],
+                    'attributes' => array_replace($attributes, ['role' => 'note']),
                 ], [
-                    new AstNode('text', ['text' => 'PDF image ' . $placement['object']]),
+                    new AstNode('text', [
+                        'text' => 'PDF image ' . (string) $placement['object']
+                            . ' was extracted as JPEG 2000 media, but no JPEG 2000 decoder was available for a preview. ',
+                    ]),
+                    new AstNode('link', [
+                        'url' => (string) $placement['source'],
+                        'title' => 'Download original JPEG 2000 image',
+                        'attributes' => ['data-pandoc-pdf-image-original' => 'true'],
+                    ], [
+                        new AstNode('text', ['text' => 'Download original image.']),
+                    ]),
                 ]),
             ]);
         }
 
-        if ($imageBlocks === []) {
-            return $document;
+        $imageAttrs = [
+            'url' => (string) $placement['source'],
+            'title' => 'PDF image ' . (string) $placement['object'],
+            'attributes' => $attributes,
+        ];
+        $displaySize = $this->pdfImageDisplaySize($placement['bbox'] ?? null);
+        if ($displaySize !== null) {
+            // PDF user-space units are points by default. Retaining the
+            // painted bounding-box size keeps an icon from expanding to its
+            // source bitmap dimensions when it is inserted into a flowing
+            // HTML/WordPress document.
+            $imageAttrs['width'] = $displaySize['width'];
+            $imageAttrs['height'] = $displaySize['height'];
         }
 
-        $section = new AstNode('div', [
-            'classes' => ['pandoc-pdf-extracted-images'],
-            'attributes' => [
-                'data-pandoc-pdf-image-placement' => 'separate-section',
-            ],
-        ], array_merge([
-            new AstNode('heading', [
-                'level' => 2,
-                'id' => 'extracted-pdf-images',
-                'classes' => ['pandoc-pdf-extracted-images-heading'],
-                'text' => 'Extracted PDF images',
-            ], [
-                new AstNode('text', ['text' => 'Extracted PDF images']),
+        return new AstNode('paragraph', ['classes' => ['pandoc-pdf-image-block', 'pandoc-pdf-image-placed']], [
+            new AstNode('image', $imageAttrs, [
+                new AstNode('text', ['text' => 'PDF image ' . (string) $placement['object']]),
             ]),
-            new AstNode('paragraph', [
-                'classes' => ['pandoc-pdf-extracted-images-note'],
-                'text' => 'These images were extracted from PDF image streams and are shown separately because exact PDF image placement is not yet reconstructed.',
-            ], [
-                new AstNode('text', ['text' => 'These images were extracted from PDF image streams and are shown separately because exact PDF image placement is not yet reconstructed.']),
-            ]),
-        ], $imageBlocks));
+        ]);
+    }
 
-        return new AstNode($document->type, $document->attrs, array_merge([$section], $document->children));
+    /**
+     * @return array{width:string,height:string}|null
+     */
+    private function pdfImageDisplaySize(mixed $bbox): ?array
+    {
+        if (!is_array($bbox)
+            || !is_numeric($bbox['x1'] ?? null) || !is_numeric($bbox['y1'] ?? null)
+            || !is_numeric($bbox['x2'] ?? null) || !is_numeric($bbox['y2'] ?? null)) {
+            return null;
+        }
+
+        $width = abs((float) $bbox['x2'] - (float) $bbox['x1']);
+        $height = abs((float) $bbox['y2'] - (float) $bbox['y1']);
+        if ($width <= 0.000001 || $height <= 0.000001 || $width > 10000.0 || $height > 10000.0) {
+            return null;
+        }
+
+        return [
+            'width' => $this->pdfPointDimension($width),
+            'height' => $this->pdfPointDimension($height),
+        ];
+    }
+
+    private function pdfPointDimension(float $value): string
+    {
+        return rtrim(rtrim(sprintf('%.4F', $value), '0'), '.') . 'pt';
     }
 
     private function pdfIntegerEntry(string $objectBody, string $name): ?int
@@ -691,6 +1066,91 @@ final class PandocMediaExtractor
         return is_array($dimensions)
             && (int) ($dimensions['width'] ?? 0) === $width
             && (int) ($dimensions['height'] ?? 0) === $height;
+    }
+
+    private function pdfRasterHasDimensions(string $bytes, string $mimeType, int $width, int $height): bool
+    {
+        return match ($mimeType) {
+            'image/png' => $this->pngHasDimensions($bytes, $width, $height),
+            'image/avif' => $this->avifHasDimensions($bytes, $width, $height),
+            default => false,
+        };
+    }
+
+    private function pdfRasterExtension(string $mimeType): string
+    {
+        return match ($mimeType) {
+            'image/avif' => '.avif',
+            default => '.png',
+        };
+    }
+
+    /**
+     * Verify the minimal AVIF container structure needed to bind a supplied
+     * browser/build raster to the PDF Image XObject dimensions. The decoder
+     * remains external, but requiring an AVIF brand and an ispe image-spatial
+     * extent avoids accepting a mislabeled opaque byte string.
+     */
+    private function avifHasDimensions(string $bytes, int $width, int $height): bool
+    {
+        $length = strlen($bytes);
+        if ($length < 24) {
+            return false;
+        }
+
+        $hasAvifBrand = false;
+        $offset = 0;
+        while ($offset + 8 <= $length) {
+            $header = unpack('Nsize', substr($bytes, $offset, 4));
+            $boxLength = is_array($header) ? (int) ($header['size'] ?? 0) : 0;
+            if ($boxLength === 0) {
+                $boxLength = $length - $offset;
+            }
+            // Extended-length ISO BMFF boxes are not needed for bounded image
+            // rasters. Reject them rather than risk an integer-width error.
+            if ($boxLength === 1 || $boxLength < 8 || $boxLength > $length - $offset) {
+                return false;
+            }
+
+            $type = substr($bytes, $offset + 4, 4);
+            if ($type === 'ftyp' && $boxLength >= 16) {
+                for ($brandOffset = $offset + 8; $brandOffset + 4 <= $offset + $boxLength; $brandOffset += 4) {
+                    $brand = substr($bytes, $brandOffset, 4);
+                    if ($brand === 'avif' || $brand === 'avis') {
+                        $hasAvifBrand = true;
+                        break;
+                    }
+                }
+            }
+            $offset += $boxLength;
+        }
+        if (!$hasAvifBrand) {
+            return false;
+        }
+
+        // `ispe` lives below the meta/iprp/ipco hierarchy. Looking for a
+        // bounded complete box is deliberately enough here: dimensions bind
+        // this media to an already validated PDF object and the browser still
+        // performs the definitive AVIF decode when it displays it.
+        $search = 0;
+        while (($typeOffset = strpos($bytes, 'ispe', $search)) !== false) {
+            $boxOffset = $typeOffset - 4;
+            if ($boxOffset >= 0 && $boxOffset + 20 <= $length) {
+                $header = unpack('Nsize', substr($bytes, $boxOffset, 4));
+                $boxLength = is_array($header) ? (int) ($header['size'] ?? 0) : 0;
+                if ($boxLength >= 20 && $boxLength <= $length - $boxOffset) {
+                    $dimensions = unpack('Nwidth/Nheight', substr($bytes, $boxOffset + 12, 8));
+                    if (is_array($dimensions)
+                        && (int) ($dimensions['width'] ?? 0) === $width
+                        && (int) ($dimensions['height'] ?? 0) === $height) {
+                        return true;
+                    }
+                }
+            }
+            $search = $typeOffset + 4;
+        }
+
+        return false;
     }
 
     private function pngEncodeGrayscale8(int $width, int $height, string $pixels): string

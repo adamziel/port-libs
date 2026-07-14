@@ -21,7 +21,7 @@ final class PdfReader
     private int $lowConfidenceGeometryTableCandidates = 0;
 
     /**
-     * @param array{maxTextBytes?: int, maxPages?: int, pdfMaxPages?: int, max_pages?: int, password?: string, pdfPassword?: string, geometryTables?: bool, pdfGeometryTables?: bool, extractGeometryTables?: bool, pdfRepairProseText?: bool, repairProseText?: bool, pdfFastTextOnly?: bool, fastTextOnly?: bool, pdfFastModeBytes?: int, maxPositionedTextRuns?: int, pdfMaxPositionedTextRuns?: int} $options
+     * @param array{maxTextBytes?: int, maxPages?: int, pdfMaxPages?: int, max_pages?: int, password?: string, pdfPassword?: string, geometryTables?: bool, pdfGeometryTables?: bool, extractGeometryTables?: bool, pdfRepairProseText?: bool, repairProseText?: bool, pdfFastTextOnly?: bool, fastTextOnly?: bool, pdfFastModeBytes?: int, maxPositionedTextRuns?: int, pdfMaxPositionedTextRuns?: int, pdfCollectImagePlacements?: bool, collectPdfImagePlacements?: bool} $options
      */
     public function __construct(private readonly array $options = [])
     {
@@ -60,7 +60,7 @@ final class PdfReader
             $pdfBytes,
             $maxTextBytes,
             !$fastTextOnly,
-            !$fastTextOnly && ($geometryTablesEnabled || $proseRepairEnabled),
+            !$fastTextOnly && ($geometryTablesEnabled || $proseRepairEnabled || $this->collectPdfImagePlacements()),
             $geometryTablesEnabled,
             $proseRepairEnabled
         );
@@ -114,6 +114,14 @@ final class PdfReader
             $positionedLineItems = $this->positionedProseLineItemsFromTextRuns($limitedPositionedRuns);
             $positionedLines = $this->positionedLineItemTexts($positionedLineItems);
         }
+        // Media placement may be requested even when the caller has left
+        // prose repair disabled. Retain only compact visual text lines as
+        // potential anchors; the raw glyph runs are still released below.
+        $imagePlacementLayouts = $this->collectPdfImagePlacements() && $limitedPositionedRuns !== []
+            ? ($positionedLineItems !== []
+                ? $positionedLineItems
+                : $this->positionedProseLineItemsFromTextRuns($limitedPositionedRuns))
+            : [];
         // Geometry tables are now materialized and prose uses compact visual
         // lines. Retaining every glyph-level record through matching and
         // repair needlessly dominates the peak for dense technical PDFs.
@@ -230,6 +238,19 @@ final class PdfReader
         // whitespace repair can make a valid annotation disappear.
         $appliedLinkAnnotations = $this->unambiguousLinkAnnotations($linkAnnotations, $blocks);
         $blocks = $appliedLinkAnnotations === [] ? $blocks : $this->applyLinkAnnotationsToBlocks($blocks, $appliedLinkAnnotations);
+        $pdfImagePlacements = [];
+        if (!$fastTextOnly && $this->collectPdfImagePlacements()) {
+            try {
+                $pdfImagePlacements = $this->imagePlacementsWithTextAnchors(
+                    $extractor->extractImagePlacements($pdfBytes),
+                    $imagePlacementLayouts !== [] ? $imagePlacementLayouts : $repairSourceLayouts
+                );
+            } catch (\Throwable) {
+                // Image placement is an optional enhancement. A malformed
+                // XObject must never make the text import fail.
+                $pdfImagePlacements = [];
+            }
+        }
         $pdfWarnings = is_array($diagnostics['warnings'] ?? null) ? array_values(array_map(static fn (mixed $warning): string => (string) $warning, $diagnostics['warnings'])) : [];
         if ($this->lowConfidenceGeometryTableCandidates > 0 && $geometryTableBlocks === []) {
             $pdfWarnings[] = 'PDF table-like geometry was preserved as text because native table confidence was low.';
@@ -289,6 +310,13 @@ final class PdfReader
             'pdfPopupAnnotations' => $popupAnnotations,
             'pdfAppearanceAnnotations' => $appearanceAnnotations,
             'pdfAppliedLinkAnnotations' => $appliedLinkAnnotations,
+            'pdfImagePlacements' => $pdfImagePlacements,
+            'pdfPlacedImageCandidates' => count(array_filter(
+                $pdfImagePlacements,
+                fn (array $placement): bool => $this->pdfImagePlacementIsEligible($placement)
+                    && (is_string($placement['precedingText'] ?? null)
+                        || is_string($placement['followingText'] ?? null))
+            )),
             'pdfPageExtractionIssues' => $diagnostics['pageExtractionIssues'],
             'pdfPagesWithExtractionIssues' => $diagnostics['pagesWithExtractionIssues'],
         ]);
@@ -430,9 +458,218 @@ final class PdfReader
         return false;
     }
 
+    private function collectPdfImagePlacements(): bool
+    {
+        foreach (['pdfCollectImagePlacements', 'collectPdfImagePlacements'] as $key) {
+            if (array_key_exists($key, $this->options)) {
+                return (bool) $this->options[$key];
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Preserve only compact text anchors with image-placement metadata. The
+     * final AST deliberately does not retain page geometry, so the media
+     * pass uses these anchors to insert a verified image near the text which
+     * surrounded it on the source page. Ambiguous or overlapping placements
+     * are left unanchored and therefore never become surprise image galleries.
+     *
+     * @param list<array<string, mixed>> $placements
+     * @param list<array<string, mixed>> $layouts
+     * @return list<array<string, mixed>>
+     */
+    private function imagePlacementsWithTextAnchors(array $placements, array $layouts): array
+    {
+        $layoutsByPage = [];
+        foreach ($layouts as $layout) {
+            $normalized = $this->pdfImagePlacementTextLayout($layout);
+            if ($normalized !== null) {
+                $layoutsByPage[$normalized['page']][] = $normalized;
+            }
+        }
+
+        $anchored = [];
+        foreach ($placements as $placement) {
+            if (!is_array($placement)) {
+                continue;
+            }
+            $page = max(1, (int) ($placement['page'] ?? 1));
+            $bbox = $placement['bbox'] ?? null;
+            if (!is_array($bbox)
+                || !isset($bbox['x1'], $bbox['y1'], $bbox['x2'], $bbox['y2'])
+                || !is_numeric($bbox['x1']) || !is_numeric($bbox['y1'])
+                || !is_numeric($bbox['x2']) || !is_numeric($bbox['y2'])) {
+                continue;
+            }
+
+            $record = $placement;
+            $record['page'] = $page;
+            $record['precedingText'] = null;
+            $record['followingText'] = null;
+            if (!$this->pdfImagePlacementIsEligible($placement)) {
+                $anchored[] = $record;
+                continue;
+            }
+
+            $image = [
+                'x1' => min((float) $bbox['x1'], (float) $bbox['x2']),
+                'y1' => min((float) $bbox['y1'], (float) $bbox['y2']),
+                'x2' => max((float) $bbox['x1'], (float) $bbox['x2']),
+                'y2' => max((float) $bbox['y1'], (float) $bbox['y2']),
+            ];
+            if ($image['x2'] - $image['x1'] <= 0.000001 || $image['y2'] - $image['y1'] <= 0.000001) {
+                $anchored[] = $record;
+                continue;
+            }
+
+            $pageLayouts = $layoutsByPage[$page] ?? [];
+            if ($pageLayouts === [] || $this->pdfImagePlacementOverlapsText($image, $pageLayouts)) {
+                $anchored[] = $record;
+                continue;
+            }
+
+            $imageCenterY = ($image['y1'] + $image['y2']) / 2.0;
+            $imageCenterX = ($image['x1'] + $image['x2']) / 2.0;
+            $preceding = [];
+            $following = [];
+            foreach ($pageLayouts as $layout) {
+                // A vertically-near line in another newspaper/brochure
+                // column is not a safe document-flow anchor. Prefer losing
+                // an image to placing it inside unrelated text.
+                if (!$this->pdfImagePlacementSharesHorizontalBand($image, $layout)) {
+                    continue;
+                }
+                $centerY = ($layout['y1'] + $layout['y2']) / 2.0;
+                if ($centerY > $imageCenterY + 0.5) {
+                    $preceding[] = $layout;
+                } elseif ($centerY < $imageCenterY - 0.5) {
+                    $following[] = $layout;
+                }
+            }
+
+            $precedingLayout = $this->nearestPdfImagePlacementTextAnchor($preceding, $imageCenterX, $imageCenterY);
+            $followingLayout = $this->nearestPdfImagePlacementTextAnchor($following, $imageCenterX, $imageCenterY);
+            $record['precedingText'] = $precedingLayout['text'] ?? null;
+            $record['followingText'] = $followingLayout['text'] ?? null;
+            $anchored[] = $record;
+        }
+
+        return $anchored;
+    }
+
+    /**
+     * A clipped image can have an inexact bounding box while remaining safe
+     * to place when it has a unique surrounding-text anchor. New extractor
+     * records state that explicitly; retain the older high-confidence rule
+     * for metadata produced by previous versions.
+     *
+     * @param array<string, mixed> $placement
+     */
+    private function pdfImagePlacementIsEligible(array $placement): bool
+    {
+        if (array_key_exists('placementEligible', $placement)) {
+            return $placement['placementEligible'] === true;
+        }
+
+        return ($placement['visible'] ?? false) === true
+            && ($placement['confidence'] ?? '') === 'high';
+    }
+
+    /**
+     * @param array<string, mixed> $layout
+     * @return array{page:int,text:string,x1:float,y1:float,x2:float,y2:float}|null
+     */
+    private function pdfImagePlacementTextLayout(array $layout): ?array
+    {
+        $text = trim(preg_replace('/\s+/u', ' ', (string) ($layout['text'] ?? '')) ?? (string) ($layout['text'] ?? ''));
+        if ($text === '' || $this->length($text) < 3
+            || !isset($layout['x1'], $layout['y1'], $layout['x2'], $layout['y2'])
+            || !is_numeric($layout['x1']) || !is_numeric($layout['y1'])
+            || !is_numeric($layout['x2']) || !is_numeric($layout['y2'])) {
+            return null;
+        }
+
+        $x1 = min((float) $layout['x1'], (float) $layout['x2']);
+        $y1 = min((float) $layout['y1'], (float) $layout['y2']);
+        $x2 = max((float) $layout['x1'], (float) $layout['x2']);
+        $y2 = max((float) $layout['y1'], (float) $layout['y2']);
+        if ($x2 - $x1 <= 0.000001 || $y2 - $y1 <= 0.000001) {
+            return null;
+        }
+
+        return [
+            'page' => max(1, (int) ($layout['page'] ?? 1)),
+            'text' => $text,
+            'x1' => $x1,
+            'y1' => $y1,
+            'x2' => $x2,
+            'y2' => $y2,
+        ];
+    }
+
+    /**
+     * @param array{x1:float,y1:float,x2:float,y2:float} $image
+     * @param list<array{page:int,text:string,x1:float,y1:float,x2:float,y2:float}> $layouts
+     */
+    private function pdfImagePlacementOverlapsText(array $image, array $layouts): bool
+    {
+        foreach ($layouts as $layout) {
+            $overlapWidth = min($image['x2'], $layout['x2']) - max($image['x1'], $layout['x1']);
+            $overlapHeight = min($image['y2'], $layout['y2']) - max($image['y1'], $layout['y1']);
+            if ($overlapWidth > 0.5 && $overlapHeight > 0.5) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param array{x1:float,y1:float,x2:float,y2:float} $image
+     * @param array{page:int,text:string,x1:float,y1:float,x2:float,y2:float} $layout
+     */
+    private function pdfImagePlacementSharesHorizontalBand(array $image, array $layout): bool
+    {
+        // Twelve PDF points is enough to tolerate tiny measurement drift
+        // without reaching into a separate page column.
+        $tolerance = 12.0;
+
+        return $layout['x2'] + $tolerance > $image['x1']
+            && $layout['x1'] - $tolerance < $image['x2'];
+    }
+
+    /**
+     * @param list<array{page:int,text:string,x1:float,y1:float,x2:float,y2:float}> $layouts
+     * @return array{page:int,text:string,x1:float,y1:float,x2:float,y2:float}|null
+     */
+    private function nearestPdfImagePlacementTextAnchor(array $layouts, float $imageCenterX, float $imageCenterY): ?array
+    {
+        if ($layouts === []) {
+            return null;
+        }
+
+        usort($layouts, static function (array $left, array $right) use ($imageCenterX, $imageCenterY): int {
+            $leftY = abs((($left['y1'] + $left['y2']) / 2.0) - $imageCenterY);
+            $rightY = abs((($right['y1'] + $right['y2']) / 2.0) - $imageCenterY);
+            if (abs($leftY - $rightY) > 0.001) {
+                return $leftY <=> $rightY;
+            }
+            $leftX = abs((($left['x1'] + $left['x2']) / 2.0) - $imageCenterX);
+            $rightX = abs((($right['x1'] + $right['x2']) / 2.0) - $imageCenterX);
+
+            return $leftX <=> $rightX;
+        });
+
+        return $layouts[0];
+    }
+
     private function needsPositionedPdfText(): bool
     {
-        return $this->geometryTablesEnabled() || $this->proseTextRepairEnabled();
+        return $this->geometryTablesEnabled()
+            || $this->proseTextRepairEnabled()
+            || $this->collectPdfImagePlacements();
     }
 
     private function hasExplicitPositionedTextRunLimit(): bool
@@ -3363,7 +3600,7 @@ final class PdfReader
             // Preserve it only when the immediately adjacent source records
             // on both sides are matched, share its stream, and occupy
             // consecutive, vertically ordered visual slots. This supplies a
-            // local placement proof without admitting isolated diagram labels
+            // local placement proof without admitting isolated figure labels
             // merely because the page otherwise has usable geometry.
             if (isset(
                 $sourceItems[$previousIndex],
@@ -3373,6 +3610,7 @@ final class PdfReader
             ) && $this->sourcePdfItemsShareStream($sourceItems[$previousIndex], $sourceItem)
                 && $this->sourcePdfItemsShareStream($sourceItem, $sourceItems[$nextIndex])
                 && $this->sourcePdfMatchedLayoutsSandwichSourceOnlyItem(
+                    $sourceItem,
                     $match['itemsBySourceIndex'][$previousIndex],
                     $match['itemsBySourceIndex'][$nextIndex],
                     $previousIndex,
@@ -6557,17 +6795,27 @@ final class PdfReader
     }
 
     /**
+     * @param array{page: int, stream: int, text: string} $sourceItem
      * @param array<string, mixed> $previousItem
      * @param array<string, mixed> $nextItem
      * @param list<array{item: array<string, mixed>, sourceIndex: int|null}> $visualEntries
      */
     private function sourcePdfMatchedLayoutsSandwichSourceOnlyItem(
+        array $sourceItem,
         array $previousItem,
         array $nextItem,
         int $previousSourceIndex,
         int $nextSourceIndex,
         array $visualEntries
     ): bool {
+        if ($this->sourcePdfSourceOnlyItemIsAdjacentFootnoteMarker(
+            $sourceItem,
+            $previousItem,
+            $nextItem
+        )) {
+            return false;
+        }
+
         if (!$this->pdfLayoutHasGeometry($previousItem)
             || !$this->pdfLayoutHasGeometry($nextItem)
             || (int) ($previousItem['page'] ?? 0) !== (int) ($nextItem['page'] ?? 0)) {
@@ -6595,6 +6843,32 @@ final class PdfReader
 
         return $previousVisualIndex !== null
             && $nextVisualIndex === $previousVisualIndex + 1;
+    }
+
+    /**
+     * A source stream can put a footnote marker before the footnote text,
+     * while the positioned layer includes that marker in the footnote line.
+     * Never fabricate body geometry for that marker merely because its source
+     * neighbors happen to be visually adjacent. Normal numeric body content
+     * is still eligible for local interpolation when neither neighbor carries
+     * independently verified footnote-prefix provenance.
+     *
+     * @param array{page: int, stream: int, text: string} $sourceItem
+     * @param array<string, mixed> $previousItem
+     * @param array<string, mixed> $nextItem
+     */
+    private function sourcePdfSourceOnlyItemIsAdjacentFootnoteMarker(
+        array $sourceItem,
+        array $previousItem,
+        array $nextItem
+    ): bool {
+        $marker = trim($sourceItem['text']);
+        if (preg_match('/^(?:[0-9]{1,3}|[*†‡])$/u', $marker) !== 1) {
+            return false;
+        }
+
+        return ($previousItem['sourceFootnotePrefixedGeometry'] ?? false) === true
+            || ($nextItem['sourceFootnotePrefixedGeometry'] ?? false) === true;
     }
 
     /**

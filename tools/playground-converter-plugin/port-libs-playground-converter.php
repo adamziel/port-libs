@@ -987,6 +987,10 @@ function plpc_converter_options(string $format, string $pdfMode = 'layout'): arr
         $readerOptions['maxTextBytes'] = 80000;
         $readerOptions['pdfGeometryTables'] = $pdfMode === 'layout';
         $readerOptions['pdfRepairProseText'] = true;
+        // The Playground invokes the reader and media extractor separately,
+        // so it must explicitly request the compact placement map that lets
+        // the media pass attach painted PDF images to nearby text.
+        $readerOptions['pdfCollectImagePlacements'] = true;
     }
     if ($canonicalFormat === 'docx') {
         $readerOptions['preserveRunStyles'] = true;
@@ -1332,6 +1336,20 @@ function plpc_collect_image_sources_from_html(string $html, array &$sources): vo
             $sources[$source] = true;
         }
     }
+
+    // A JPEG 2000 PDF image that could not be rasterized is represented by a
+    // marked download link rather than a broken <img>. Treat only that
+    // dedicated link as extracted media; ordinary document links must never
+    // be uploaded or rewritten as attachments.
+    foreach ($dom->getElementsByTagName('a') as $link) {
+        if (!$link instanceof DOMElement || $link->getAttribute('data-pandoc-pdf-image-original') !== 'true') {
+            continue;
+        }
+        $source = html_entity_decode(trim($link->getAttribute('href')), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        if ($source !== '') {
+            $sources[$source] = true;
+        }
+    }
 }
 
 /**
@@ -1536,6 +1554,17 @@ function plpc_replace_image_source_in_html(string $html, string $source, string 
         if ($attachmentId !== null && $attachmentId > 0) {
             plpc_add_dom_element_class($image, 'wp-image-' . $attachmentId);
         }
+        $matched = true;
+    }
+    foreach ($dom->getElementsByTagName('a') as $link) {
+        if (!$link instanceof DOMElement || $link->getAttribute('data-pandoc-pdf-image-original') !== 'true') {
+            continue;
+        }
+        $currentSource = html_entity_decode(trim($link->getAttribute('href')), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        if ($currentSource !== $source) {
+            continue;
+        }
+        $link->setAttribute('href', $url);
         $matched = true;
     }
     if (!$matched) {
@@ -1805,7 +1834,7 @@ function plpc_find_package_image_entry(ZipPackage $package, string $path): ?stri
 
 function plpc_path_is_image(string $path): bool
 {
-    return preg_match('/\.(?:avif|bmp|gif|jpe?g|png|svg|tiff?|webp)$/i', $path) === 1;
+    return preg_match('/\.(?:avif|bmp|gif|jpe?g|jp2|jpx|png|svg|tiff?|webp)$/i', $path) === 1;
 }
 
 /**
@@ -1880,6 +1909,7 @@ function plpc_mime_for_filename(string $filename): string
         'bmp' => 'image/bmp',
         'gif' => 'image/gif',
         'jpg', 'jpeg' => 'image/jpeg',
+        'jp2', 'jpx' => 'image/jp2',
         'png' => 'image/png',
         'svg' => 'image/svg+xml',
         'tif', 'tiff' => 'image/tiff',
@@ -1895,6 +1925,7 @@ function plpc_extension_for_mime(string $mimeType): string
         'image/bmp' => '.bmp',
         'image/gif' => '.gif',
         'image/jpeg' => '.jpg',
+        'image/jp2', 'image/jpx' => '.jp2',
         'image/png' => '.png',
         'image/svg+xml' => '.svg',
         'image/tiff' => '.tiff',

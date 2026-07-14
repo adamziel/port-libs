@@ -8,7 +8,7 @@ const MAX_PDF_BYTES = 24 * 1024 * 1024;
 const MAX_IMAGE_BYTES = 32 * 1024 * 1024;
 const MAX_IMAGE_PIXELS = 48_000_000;
 const MAX_IMAGES = 96;
-const MAX_TOTAL_PNG_BYTES = 24 * 1024 * 1024;
+const MAX_TOTAL_PNG_BYTES = 24_000_000;
 const PNG_SIGNATURE = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);
 const LENGTH_BASE = [3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 15, 17, 19, 23, 27, 31, 35, 43, 51, 59, 67, 83, 99, 115, 131, 163, 195, 227, 258];
 const LENGTH_EXTRA = [0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5, 0];
@@ -56,13 +56,14 @@ export async function decodePdfJbig2Rasters(input, options = {}) {
 
   const rasters = [];
   let totalPngBytes = 0;
+  const maxPngBytes = pngByteLimit(options.maxPngBytes);
   for (let index = 0; index < selected.length; index += 1) {
     const image = selected[index];
     options.onProgress?.({ completed: index, total: selected.length, object: image.object });
     try {
       const packed = decodeJbig2Bitmap(decoder, image);
       const png = encodeOneBitPng(image.width, image.height, packed);
-      if (totalPngBytes + png.length > (options.maxPngBytes || MAX_TOTAL_PNG_BYTES)) {
+      if (totalPngBytes + png.length > maxPngBytes) {
         diagnostics.push('pdf-jbig2-raster-total-limit');
         break;
       }
@@ -83,6 +84,17 @@ export async function decodePdfJbig2Rasters(input, options = {}) {
   }
 
   return { rasters, diagnostics };
+}
+
+function pngByteLimit(value) {
+  if (value === undefined) {
+    return MAX_TOTAL_PNG_BYTES;
+  }
+  const numeric = Number(value);
+
+  return Number.isFinite(numeric)
+    ? Math.max(0, Math.min(Math.floor(numeric), MAX_TOTAL_PNG_BYTES))
+    : MAX_TOTAL_PNG_BYTES;
 }
 
 export function encodeOneBitPng(width, height, packedPixels) {
