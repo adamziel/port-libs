@@ -246,7 +246,7 @@ final class HtmlWriter
             return $this->renderPptxChart($node, $chart);
         }
 
-        return '<p>' . $this->renderInlines($node->children) . '</p>';
+        return '<p' . $this->renderHtmlAttributes($node) . '>' . $this->renderInlines($node->children) . '</p>';
     }
 
     /**

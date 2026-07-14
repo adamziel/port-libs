@@ -1,0 +1,29 @@
+{
+    "extractor": "macOS PDFKit",
+    "pageCount": 1,
+    "pages": [
+        {
+            "height": 792,
+            "lines": [
+                {
+                    "height": 13.112,
+                    "text": "Test bold.",
+                    "width": 49.082,
+                    "x": 72,
+                    "y": 707.319
+                },
+                {
+                    "height": 13.112,
+                    "text": "Italic. Now Italic and bold.",
+                    "width": 131.78,
+                    "x": 72,
+                    "y": 682.264
+                }
+            ],
+            "number": 1,
+            "rotation": 0,
+            "text": "Test bold.\nItalic. Now Italic and bold.",
+            "width": 612
+        }
+    ]
+}

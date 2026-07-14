@@ -1,0 +1,36 @@
+{
+    "extractor": "macOS PDFKit",
+    "pageCount": 1,
+    "pages": [
+        {
+            "height": 841.89,
+            "lines": [
+                {
+                    "height": 16,
+                    "text": "Hello World Test Text",
+                    "width": 153.808,
+                    "x": 85.04,
+                    "y": 696.48
+                },
+                {
+                    "height": 16,
+                    "text": "Second line of text here",
+                    "width": 168.096,
+                    "x": 85.04,
+                    "y": 639.78
+                },
+                {
+                    "height": 16,
+                    "text": "Rotated page fixture",
+                    "width": 144.08,
+                    "x": 85.04,
+                    "y": 583.09
+                }
+            ],
+            "number": 1,
+            "rotation": 90,
+            "text": "Hello World Test Text\nSecond line of text here\nRotated page fixture",
+            "width": 595.28
+        }
+    ]
+}

@@ -17,6 +17,8 @@ on:
       - 'pandoc-showcase/vendor/pdfjs/**'
       - 'pandoc-showcase/playground/**'
       - 'tools/build-pandoc-showcase.php'
+      - 'tools/pdf-layout-corpus-manifest.json'
+      - 'tools/e2e-pdf-layout-corpus.mjs'
       - 'tools/check-showcase-examples-page.js'
       - 'tools/check-playground-converter-ui.js'
       - 'tools/decode-pdf-jbig2-media.mjs'
@@ -46,6 +48,8 @@ on:
       - 'pandoc-showcase/vendor/pdfjs/**'
       - 'pandoc-showcase/playground/**'
       - 'tools/build-pandoc-showcase.php'
+      - 'tools/pdf-layout-corpus-manifest.json'
+      - 'tools/e2e-pdf-layout-corpus.mjs'
       - 'tools/check-showcase-examples-page.js'
       - 'tools/check-playground-converter-ui.js'
       - 'tools/decode-pdf-jbig2-media.mjs'
@@ -81,10 +85,16 @@ jobs:
           extensions: dom, intl, mbstring, zip
           coverage: none
 
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
       - name: Lint converter files
         run: |
           php -l lanes/markerpdf/src/PdfMetadataExtractor.php
           php -l lanes/markerpdf/src/PdfTextExtractor.php
+          php -l lanes/markerpdf/tests/PdfDecodeParmsTest.php
           php -l lanes/markerpdf/tests/PdfMetadataHardeningTest.php
           php -l lanes/markerpdf/tests/PdfFormXObjectPlacementTest.php
           php -l lanes/pandoc/src/BibtexCslParser.php
@@ -103,6 +113,7 @@ jobs:
           php -l lanes/pandoc/tests/PdfFormXObjectPlacementMetadataTest.php
           php -l lanes/pandoc/tests/PandocImportMemoryBudgetTest.php
           php -l lanes/pandoc/tests/PdfReaderCorpusQualityTest.php
+          php -l lanes/pandoc/tests/PdfRegionAwareLayoutTest.php
           php -l lanes/pandoc/tests/PdfReaderTest.php
           php -l lanes/pandoc/tests/ShowcaseHaskellReferenceTimeoutTest.php
           php -l lanes/pandoc/tests/ShowcaseImportQualityManifestTest.php
@@ -117,6 +128,7 @@ jobs:
           node --check tools/decode-pdf-jbig2-media.mjs
           node --check tools/decode-pdf-jpx-media.mjs
           node --check tools/decode-pdf-raster-media.mjs
+          node --check tools/e2e-pdf-layout-corpus.mjs
           node tools/check-playground-converter-ui.js
           php tools/build-pandoc-showcase.php --build-examples-page
           node tools/check-showcase-examples-page.js
@@ -127,6 +139,7 @@ jobs:
       - name: Run converter tests
         run: |
           php tools/run-tests.php \
+            lanes/markerpdf/tests/PdfDecodeParmsTest.php \
             lanes/markerpdf/tests/PdfMetadataHardeningTest.php \
             lanes/markerpdf/tests/PdfFormXObjectPlacementTest.php \
             lanes/pandoc/tests/BibtexCslProcessorTest.php \
@@ -138,6 +151,7 @@ jobs:
             lanes/pandoc/tests/PdfFormXObjectPlacementMetadataTest.php \
             lanes/pandoc/tests/PandocImportMemoryBudgetTest.php \
             lanes/pandoc/tests/PdfReaderCorpusQualityTest.php \
+            lanes/pandoc/tests/PdfRegionAwareLayoutTest.php \
             lanes/pandoc/tests/PdfReaderTest.php \
             lanes/pandoc/tests/ShowcaseHaskellReferenceTimeoutTest.php \
             lanes/pandoc/tests/ShowcaseImportQualityManifestTest.php \
@@ -151,12 +165,50 @@ jobs:
       - name: Verify archive includes current converter code
         run: |
           set -euo pipefail
-          unzip -p pandoc-showcase/playground/port-libs-playground-converter.zip port-libs-playground-converter/port-libs-playground-converter.php | grep -q 'plpc_collection_from_zip'
-          unzip -p pandoc-showcase/playground/port-libs-playground-converter.zip port-libs-playground-converter/port-libs-playground-converter.php | grep -q 'plpc_find_collection_image'
-          unzip -l pandoc-showcase/playground/port-libs-playground-converter.zip | grep -q 'assets/admin-importer.mjs'
-          unzip -l pandoc-showcase/playground/port-libs-playground-converter.zip | grep -q 'assets/pdfjs-form-rasterizer.mjs'
-          unzip -l pandoc-showcase/playground/port-libs-playground-converter.zip | grep -q 'assets/vendor/pdfjs/pdf.min.js'
-          unzip -l pandoc-showcase/playground/port-libs-playground-converter.zip | grep -q 'assets/pdf-jpx-rasterizer.mjs'
-          unzip -l pandoc-showcase/playground/port-libs-playground-converter.zip | grep -q 'assets/pdf-jbig2-rasterizer.mjs'
-          unzip -l pandoc-showcase/playground/port-libs-playground-converter.zip | grep -q 'assets/vendor/pdfjs-openjpeg/openjpeg.wasm'
-          unzip -l pandoc-showcase/playground/port-libs-playground-converter.zip | grep -q 'assets/vendor/pdfjs-jbig2/jbig2.wasm'
+          archive=pandoc-showcase/playground/port-libs-playground-converter.zip
+          unzip -p "$archive" port-libs-playground-converter/port-libs-playground-converter.php > "$RUNNER_TEMP/port-libs-playground-converter.php"
+          unzip -Z1 "$archive" > "$RUNNER_TEMP/port-libs-playground-converter-files.txt"
+          grep -q 'plpc_collection_from_zip' "$RUNNER_TEMP/port-libs-playground-converter.php"
+          grep -q 'plpc_find_collection_image' "$RUNNER_TEMP/port-libs-playground-converter.php"
+          grep -q 'assets/admin-importer.js' "$RUNNER_TEMP/port-libs-playground-converter-files.txt"
+          grep -q 'assets/pdfjs-form-rasterizer.js' "$RUNNER_TEMP/port-libs-playground-converter-files.txt"
+          grep -q 'assets/vendor/pdfjs/pdf.min.js' "$RUNNER_TEMP/port-libs-playground-converter-files.txt"
+          grep -q 'assets/pdf-jpx-rasterizer.js' "$RUNNER_TEMP/port-libs-playground-converter-files.txt"
+          grep -q 'assets/pdf-jbig2-rasterizer.js' "$RUNNER_TEMP/port-libs-playground-converter-files.txt"
+          grep -q 'assets/vendor/pdfjs/wasm/openjpeg.wasm' "$RUNNER_TEMP/port-libs-playground-converter-files.txt"
+          grep -q 'assets/vendor/pdfjs/wasm/jbig2.wasm' "$RUNNER_TEMP/port-libs-playground-converter-files.txt"
+
+      - name: Verify PDF layout corpus in Chrome
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/pdf-layout-screenshots
+          php -S 127.0.0.1:4174 -t pandoc-showcase >/tmp/port-libs-showcase-server.log 2>&1 &
+          server_pid=$!
+          chrome_binary="$(command -v google-chrome || command -v google-chrome-stable || command -v chromium)"
+          "$chrome_binary" \
+            --headless=new \
+            --no-sandbox \
+            --disable-dev-shm-usage \
+            --remote-debugging-port=9222 \
+            --user-data-dir=/tmp/port-libs-chrome-profile \
+            about:blank >/tmp/port-libs-chrome.log 2>&1 &
+          chrome_pid=$!
+          trap 'kill "$server_pid" "$chrome_pid" 2>/dev/null || true' EXIT
+          for attempt in $(seq 1 50); do
+            if curl --silent --fail http://127.0.0.1:9222/json/version >/dev/null; then
+              break
+            fi
+            sleep 0.2
+          done
+          curl --silent --fail http://127.0.0.1:9222/json/version >/dev/null
+          node tools/e2e-pdf-layout-corpus.mjs \
+            --url http://127.0.0.1:4174/examples.html \
+            --output artifacts/pdf-layout-screenshots
+
+      - name: Upload PDF layout screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pdf-layout-screenshots
+          path: artifacts/pdf-layout-screenshots
+          if-no-files-found: warn

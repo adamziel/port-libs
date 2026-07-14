@@ -1,5 +1,5 @@
 {
-    "generatedAt": "2026-07-14T21:24:11+00:00",
+    "generatedAt": "2026-07-15T00:30:40+00:00",
     "pandocVersion": "pandoc 3.10\nFeatures: +server +lua\nScripting engine: Lua 5.4\nUser data directory: $REPO\nCopyright (C) 2006-2025 John MacFarlane. Web:  https://pandoc.org\nThis is free software; see the source for copying conditions. There is no\nwarranty, not even for merchantability or fitness for a particular purpose.",
     "mediaImageMode": "important",
     "formats": [
@@ -88,28 +88,28 @@
     ],
     "missingFormats": [],
     "conversionSummary": {
-        "totalSamples": 95,
-        "totalConversions": 285,
-        "successfulConversions": 272,
-        "failedConversions": 13,
+        "totalSamples": 109,
+        "totalConversions": 327,
+        "successfulConversions": 300,
+        "failedConversions": 27,
         "byConverter": {
             "wpBlocks": {
                 "label": "PHP WordPress blocks",
-                "ok": 95,
+                "ok": 109,
                 "failed": 0,
-                "total": 95
+                "total": 109
             },
             "phpHtml": {
                 "label": "PHP HTML",
-                "ok": 95,
+                "ok": 109,
                 "failed": 0,
-                "total": 95
+                "total": 109
             },
             "haskell": {
                 "label": "Haskell Pandoc HTML",
                 "ok": 82,
-                "failed": 13,
-                "total": 95
+                "failed": 27,
+                "total": 109
             }
         },
         "byFormat": {
@@ -306,10 +306,10 @@
                 "total": 6
             },
             "pdf": {
-                "samples": 9,
-                "ok": 18,
-                "failed": 9,
-                "total": 27
+                "samples": 23,
+                "ok": 46,
+                "failed": 23,
+                "total": 69
             },
             "pptx": {
                 "samples": 4,
@@ -356,9 +356,9 @@
         }
     },
     "faithfulnessSummary": {
-        "comparisons": 170,
-        "faithfulEnough": 170,
-        "review": 0,
+        "comparisons": 196,
+        "faithfulEnough": 194,
+        "review": 2,
         "divergent": 0,
         "noText": 0,
         "visualComparisons": 152,
@@ -366,7 +366,7 @@
         "visualReview": 0,
         "visualDivergent": 0,
         "visualNoStructure": 0,
-        "visualNotApplicable": 18
+        "visualNotApplicable": 44
     },
     "bibliographyComparisonSummary": {
         "samples": 10,
@@ -377,21 +377,21 @@
         "unavailable": 0
     },
     "importQualitySummary": {
-        "samples": 95,
-        "pass": 94,
-        "review": 1,
+        "samples": 109,
+        "pass": 105,
+        "review": 4,
         "fail": 0,
         "unbenchmarked": 0
     },
     "importQualitySegmentSummary": {
         "common": {
-            "samples": 48,
-            "pass": 47,
-            "review": 1,
+            "samples": 62,
+            "pass": 58,
+            "review": 4,
             "fail": 0,
             "unbenchmarked": 0,
             "wpFailures": 0,
-            "passReviewOrUnbenchmarked": 48,
+            "passReviewOrUnbenchmarked": 62,
             "formats": {
                 "csv": {
                     "samples": 2,
@@ -466,13 +466,13 @@
                     "passReviewOrUnbenchmarked": 3
                 },
                 "pdf": {
-                    "samples": 9,
-                    "pass": 8,
-                    "review": 1,
+                    "samples": 23,
+                    "pass": 19,
+                    "review": 4,
                     "fail": 0,
                     "unbenchmarked": 0,
                     "wpFailures": 0,
-                    "passReviewOrUnbenchmarked": 9
+                    "passReviewOrUnbenchmarked": 23
                 },
                 "pptx": {
                     "samples": 4,
@@ -785,19 +785,19 @@
                     "maxFail": 5
                 },
                 "actual": {
-                    "samples": 48,
+                    "samples": 62,
                     "wpFailures": 0,
-                    "pass": 47,
-                    "review": 1,
+                    "pass": 58,
+                    "review": 4,
                     "fail": 0,
                     "unbenchmarked": 0,
-                    "passReviewOrUnbenchmarked": 48
+                    "passReviewOrUnbenchmarked": 62
                 },
                 "checks": {
                     "minSamples": {
                         "status": "pass",
                         "expected": ">=44",
-                        "actual": 48
+                        "actual": 62
                     },
                     "maxWpFailures": {
                         "status": "pass",
@@ -807,12 +807,12 @@
                     "minPass": {
                         "status": "pass",
                         "expected": ">=29",
-                        "actual": 47
+                        "actual": 58
                     },
                     "minPassReviewOrUnbenchmarked": {
                         "status": "pass",
                         "expected": ">=39",
-                        "actual": 48
+                        "actual": 62
                     },
                     "maxFail": {
                         "status": "pass",
@@ -875,19 +875,19 @@
     },
     "blockUsage": {
         "totals": {
-            "code": 652,
+            "code": 653,
             "group": 401,
-            "heading": 4244,
+            "heading": 4274,
             "html": 52,
-            "image": 128,
-            "list": 1397,
-            "paragraph": 23401,
+            "image": 130,
+            "list": 1409,
+            "paragraph": 23486,
             "quote": 56,
             "separator": 66,
-            "table": 584,
-            "verse": 2
+            "table": 586,
+            "verse": 14
         },
-        "sampleCount": 95
+        "sampleCount": 108
     },
     "records": [
         {
@@ -4117,7 +4117,8 @@
             "haskell": {
                 "ok": true,
                 "path": "outputs/docx-oasis-kmip-spec/haskell.html",
-                "renderedWithCiteproc": false
+                "renderedWithCiteproc": false,
+                "cached": true
             },
             "phpHtml": {
                 "ok": true,
@@ -12150,7 +12151,8 @@
             "haskell": {
                 "ok": true,
                 "path": "outputs/odt-oasis-opendocument-schema/haskell.html",
-                "renderedWithCiteproc": false
+                "renderedWithCiteproc": false,
+                "cached": true
             },
             "phpHtml": {
                 "ok": true,
@@ -16296,6 +16298,2133 @@
             }
         },
         {
+            "id": "pdf-layout-unstructured-header-footer",
+            "format": "pdf",
+            "label": "Unstructured header and footer fixture",
+            "description": "Short prose document with page-furniture text that must not be merged into the body.",
+            "source": "Unstructured example-docs/pdf/header-test-doc.pdf",
+            "sourceUrl": "https://raw.githubusercontent.com/Unstructured-IO/unstructured/main/example-docs/pdf/header-test-doc.pdf",
+            "samplePath": "samples/pdf-layout-unstructured-header-footer-header-test-doc.pdf",
+            "sampleSize": 25602,
+            "preview": "",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\PdfReader",
+                "notes": "Project-local markerPDF bridge extracts searchable PDF text lines and structural provenance for simple PDFs. Complex multi-column or untagged PDFs may lose spacing/order or be exposed only as extraction diagnostics. PDF is not an upstream Pandoc input format."
+            },
+            "haskell": {
+                "ok": false,
+                "error": "Unknown input format 'pdf'\nPandoc can convert to PDF, but not from PDF.",
+                "path": "outputs/pdf-layout-unstructured-header-footer/haskell.html.error.txt"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/pdf-layout-unstructured-header-footer/php.html",
+                "media": [],
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important",
+                    "extract-media-pdf-placement-metadata:0"
+                ]
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/pdf-layout-unstructured-header-footer/wordpress-blocks.html",
+                "media": [],
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important",
+                    "extract-media-pdf-placement-metadata:0"
+                ]
+            },
+            "wpBlockCounts": {
+                "heading": 3,
+                "paragraph": 1
+            },
+            "sourceRawHtmlBlockCount": null,
+            "bibliographySource": null,
+            "importSemantics": null,
+            "externalReference": {
+                "ok": true,
+                "kind": "macos-pdfkit-text-geometry",
+                "label": "macOS PDFKit text and geometry reference",
+                "path": "outputs/pdf-layout-unstructured-header-footer/pdfkit.html",
+                "dataPath": "outputs/pdf-layout-unstructured-header-footer/pdfkit-reference.json",
+                "metrics": {
+                    "pageCount": 1,
+                    "textPageCount": 1,
+                    "lineCount": 4,
+                    "textBytes": 61,
+                    "tokenCount": 14
+                }
+            },
+            "bibliographyComparison": {
+                "available": false
+            },
+            "faithfulness": {
+                "baseline": "externalReference",
+                "comparisons": {
+                    "wpBlocks": {
+                        "label": "PHP WordPress blocks",
+                        "status": "faithful_enough",
+                        "score": 1,
+                        "textStatus": "faithful_enough",
+                        "textScore": 1,
+                        "visualStatus": "not_applicable",
+                        "visualScore": null
+                    },
+                    "phpHtml": {
+                        "label": "PHP HTML",
+                        "status": "faithful_enough",
+                        "score": 1,
+                        "textStatus": "faithful_enough",
+                        "textScore": 1,
+                        "visualStatus": "not_applicable",
+                        "visualScore": null
+                    }
+                }
+            },
+            "importQuality": {
+                "status": "pass",
+                "gates": {
+                    "text_completeness": {
+                        "status": "pass",
+                        "expected": ">=0.8",
+                        "actual": 1,
+                        "detail": "bidirectional stable body-text overlap with the independent macOS PDFKit reference"
+                    },
+                    "native_source_coverage": {
+                        "status": "pass",
+                        "expected": ">=0.65",
+                        "actual": 1,
+                        "detail": "native PDFKit source tokens retained in the WordPress output"
+                    },
+                    "pdf_geometry_reference": {
+                        "status": "pass",
+                        "expected": "native PDF page and line geometry",
+                        "actual": {
+                            "pages": 1,
+                            "textPages": 1,
+                            "lines": 4
+                        },
+                        "detail": "macOS PDFKit independently exposed source page boundaries and visual text lines; untagged PDFs do not expose an HTML heading/list/table/image tree."
+                    },
+                    "paragraph_merge_split": {
+                        "status": "pass",
+                        "expected": "at least 1 semantic text blocks",
+                        "actual": {
+                            "textBlocks": 4,
+                            "paragraphs": 1,
+                            "sourceLines": 4
+                        },
+                        "detail": "native line geometry guards against collapsing a multi-page source or emitting one paragraph for every visual line."
+                    },
+                    "media_imported": {
+                        "status": "pass",
+                        "expected": 0,
+                        "actual": 0,
+                        "detail": "no media extraction problems reported"
+                    },
+                    "anchor_validity": {
+                        "status": "pass",
+                        "expected": 0,
+                        "actual": 0,
+                        "detail": "all local fragment links resolve"
+                    },
+                    "custom_html_percentage": {
+                        "status": "pass",
+                        "expected": "<=0.05",
+                        "actual": 0,
+                        "detail": "0/4 WordPress blocks are Custom HTML"
+                    }
+                },
+                "summary": {
+                    "pass": 7,
+                    "review": 0,
+                    "fail": 0,
+                    "unbenchmarked": 0
+                }
+            }
+        },
+        {
+            "id": "pdf-layout-unstructured-multicolumn",
+            "format": "pdf",
+            "label": "Unstructured two-page multicolumn fixture",
+            "description": "Two-column article pages that exercise column order and paragraph continuation.",
+            "source": "Unstructured example-docs/pdf/multi-column-2p.pdf",
+            "sourceUrl": "https://raw.githubusercontent.com/Unstructured-IO/unstructured/main/example-docs/pdf/multi-column-2p.pdf",
+            "samplePath": "samples/pdf-layout-unstructured-multicolumn-multi-column-2p.pdf",
+            "sampleSize": 194794,
+            "preview": "%PDF-1.5\n%\u00bf\u00f7\u00a2\u00fe\n1 0 obj\n<< /Names 3 0 R /OpenAction 4 0 R /PageMode /UseOutlines /Pages 5 0 R /Type /Catalog >>\nendobj\n2 0 obj\n<< /Author () /CreationDate (D:20201002001208Z) /Creator (LaTeX with hyperref package) /Keywords () /ModDate (D:20201002001208Z) /PTEX.Fullbanner (This is pdfTeX, Version 3.14159265-2.6-1.40.17 \\(TeX Live 2016\\) kpathsea version 6.2.2) /Producer (pdfTeX-1.40.17) /Subject () /Title () /Trapped /False >>\nendobj\n3 0 obj\n<< /Dests 6 0 R >>\nendobj\n4 0 obj\n<< /D [ 7 0 R /Fit ] /S /GoTo >>\nendobj\n5 0 obj\n<< /Count 2 /Kids [ 7 0 R 8 0 R ] /Type /Pages >>\nendobj\n6 0 obj\n<< /Kids [ 9 0 R 10 0 R 11 0 R 12 0 R ] /Limits [ (Doc-Start) (table.caption.7) ] >>\nendobj\n7 0 obj\n<< /Annots [ 13 0 R 14 0 R 15 0 R 16 0 R 17 0 R 18 0 R 19 0 R 20 0 R 21 0 R 22 0 R 23 0 R 24 0 R 25 0 R 26 0 R 27 0 R 28 0 R 29 0 R 30 0 R 31 0 R 32 0 R 33 0 R 34 0 R 35 0 R 36 0 R ] /Contents [ 37 0 R 38 0 R ] /MediaBox [ 0 0 595.276 841.89 ] /Parent 5 0 R /Resources 39 0 R /Type /Page >>\nendobj\n8 0 obj\n<< /Annots [ 40 0 R 41 0 R 42 0 R 43 0 R 44 0 R 45 0 R 46 0 R 47 0 R 48 0 R 49 0 R 50 0 R 51 0 R 52 0 R 53 0 R 54 0 R 55 0 R 56 0 R 57 0 R 58 0 R 59 0 R ] /Contents 60 0 R /MediaBox [ 0 0 595.276 841.89 ] /Parent 5 0 R /Resources 61 0 R /Type /Page >>\nendobj\n9 0 obj\n<< /Kids [ 62 0 R 63 0 R 64 0 R 65 0 R 66 0 R 67 0 R ] /Limits [ (Doc-Start) (cite.huang2013learning) ] >>\nendobj\n10 0 obj\n<< /Kids [ 68 0 R 69 0 R 70 0 R 71 0 R 72 0 R 73 0 R ] /Limits [ (cite.humeau2020poly) (page.12) ] >>\nendobj\n11 0 obj\n<< /Kids [ 74 0 R 75 0 R 76 0 R 77 0 R 78 0 R 79 0 R ] /Limits [ (page.13) (subsection.5.3) ] >>\nendobj\n12 0 obj\n<< /Kids [ 80 0 R 81 0 R ] /Limits [ (subsection.5.4) (table.caption.7) ] >>\nendobj\n13 0 obj\n<< /A << /D (Hfootnote.1) /S /GoTo >> /Border [ 0 0 0 ] /C [ 1 0 0 ] /H /I /Rect [ 244.244 721.189 246.236 737.239 ] /Subtype /Link /Type /Annot >>\nendobj\n14 0 obj\n<< /A << /D (Hfootnote.2) /S /GoTo >> /Border [ 0 0 0 ] /C [ 1 0 0 ] /H /I /Rect [ 138.641 396.034 144.619 406.513 ] /Subtype /Link /Type /Annot >>\nendobj\n15 0 obj\n<< /A << /D (cite.voorhees1999trec) /S /GoTo >> /Border [ 0 0 0 ] /C [ 0 1 0 ] /H /I /Rect [ 248.091 351.27 289.936 363.064 ] /Subtype /Link /Type /Annot >>\nendobj\n16 0 obj\n<< /A << /D (cite.voorhees1999trec) /S /GoTo >> /Border [ 0 0 0 ] /C [ 0 1 0 ] /H /I /Rect [ 70.186 337.721 94.433 349.515 ] /Subtype /Link /Type /Annot >>\nendobj\n17 0 obj\n<< /A << /D (cite.ferrucci2012introduction) /S /GoTo >> /Border [ 0 0 0 ] /C [ 0 1 0 ] /H /I /Rect [ 169.97 297.073 208.638 308.867 ] /Subtype /Link /Type /Annot >>\nendobj\n18 0 obj\n<< /A << /D (cite.ferrucci2012introduction) /S /GoTo >> /Border [ 0 0 0 ] /C [ 0 1 0 ] /H /I /Rect [ 213.014 297.073 237.021 308.867 ] /Subtype /Link /Type /Annot >>\nendobj\n19 0 obj\n<< /A << /D (cite.moldovan2003performance) /S /GoTo >> /Border [ 0 0 0 ] /C [ 0 1 0 ] /H /I /Rect [ 244.457 297.073 291.264 308.867 ] /Subtype /Link /Type /Annot >>\nendobj\n20 0 obj\n<< /A << /D (cite.moldovan2003performance) /S /GoTo >> /Border [ 0 0 0 ] /C [ 0 1 0 ] /H /I /Rect [ 71.004 283.524 94.995 295.345 ] /Subtype /Link /Type /Annot >>\nendobj\n21 0 obj\n<< /A << /D (cite.moldovan2003performance) /S /GoTo >> /Border [ 0 0 0 ] /C [ 0 1 0 ] /H /I /Rect [ 99.857 283.524 124.104 295.345 ] /Subtype /Link /Type /Annot >>\nendobj\n22 0 obj\n<< /A << /D (cite.chen2017reading) /S /GoTo >> /Border [ 0 0 0 ] /C [ 0 1 0 ] /H /I /Rect [ 110.348 188.679 162.933 200.474 ] /Subtype /Link /Type /Annot >>\nendobj\n23 0 obj\n<< /A << /D (cite.chen2017reading) /S /GoTo >> /Border [ 0 0 0 ] /C [ 0 1 0 ] /H /I /Rect [ 167.849 188.679 192.096 200.474 ] /Subtype /Link /Type /Annot >>\nendobj\n24 0 obj\n<< /A << /D (Hfootnote.3) /S /GoTo >> /Border [ 0 0 0 ] /C [ 1 0 0 ] /H /I /Rect [ 192.832 148.032 199.308 161.78 ] /Subtype /Link /Type /Annot >>\nendobj\n25 0 obj\n<< /A << /S /URI /Type /Action /URI (https://github.com/facebookresearch/DPR) >> /Border [ 0 0 0 ] /C [ 0 1 1 ] /H /I /Rect [ 71.004 95.776 223.217 106.873 ] /Subtype /Link /Type /Annot >>\nendobj\n26 0 obj\n<< /A << /D (cite.yang2019end) /S /GoTo >> /Border [ 0 0 0 ] /C [ 0 1 0 ] /H /I /Rect [ 196.989 74.939 237.178 86.035 ] /Subtype /Link /Type /Annot >>\nendobj\n...",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\PdfReader",
+                "notes": "Project-local markerPDF bridge extracts searchable PDF text lines and structural provenance for simple PDFs. Complex multi-column or untagged PDFs may lose spacing/order or be exposed only as extraction diagnostics. PDF is not an upstream Pandoc input format."
+            },
+            "haskell": {
+                "ok": false,
+                "error": "Unknown input format 'pdf'\nPandoc can convert to PDF, but not from PDF.",
+                "path": "outputs/pdf-layout-unstructured-multicolumn/haskell.html.error.txt"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/pdf-layout-unstructured-multicolumn/php.html",
+                "media": [],
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important",
+                    "extract-media-pdf-placement-metadata:0"
+                ]
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/pdf-layout-unstructured-multicolumn/wordpress-blocks.html",
+                "media": [],
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important",
+                    "extract-media-pdf-placement-metadata:0"
+                ]
+            },
+            "wpBlockCounts": {
+                "heading": 5,
+                "list": 2,
+                "paragraph": 18
+            },
+            "sourceRawHtmlBlockCount": null,
+            "bibliographySource": null,
+            "importSemantics": null,
+            "externalReference": {
+                "ok": true,
+                "kind": "macos-pdfkit-text-geometry",
+                "label": "macOS PDFKit text and geometry reference",
+                "path": "outputs/pdf-layout-unstructured-multicolumn/pdfkit.html",
+                "dataPath": "outputs/pdf-layout-unstructured-multicolumn/pdfkit-reference.json",
+                "metrics": {
+                    "pageCount": 2,
+                    "textPageCount": 2,
+                    "lineCount": 197,
+                    "textBytes": 9008,
+                    "tokenCount": 1499
+                }
+            },
+            "bibliographyComparison": {
+                "available": false
+            },
+            "faithfulness": {
+                "baseline": "externalReference",
+                "comparisons": {
+                    "wpBlocks": {
+                        "label": "PHP WordPress blocks",
+                        "status": "faithful_enough",
+                        "score": 0.9202,
+                        "textStatus": "faithful_enough",
+                        "textScore": 0.9202,
+                        "visualStatus": "not_applicable",
+                        "visualScore": null
+                    },
+                    "phpHtml": {
+                        "label": "PHP HTML",
+                        "status": "faithful_enough",
+                        "score": 0.9202,
+                        "textStatus": "faithful_enough",
+                        "textScore": 0.9202,
+                        "visualStatus": "not_applicable",
+                        "visualScore": null
+                    }
+                }
+            },
+            "importQuality": {
+                "status": "pass",
+                "gates": {
+                    "text_completeness": {
+                        "status": "pass",
+                        "expected": ">=0.8",
+                        "actual": 0.919,
+                        "detail": "bidirectional stable body-text overlap with the independent macOS PDFKit reference"
+                    },
+                    "native_source_coverage": {
+                        "status": "pass",
+                        "expected": ">=0.65",
+                        "actual": 0.861,
+                        "detail": "native PDFKit source tokens retained in the WordPress output"
+                    },
+                    "pdf_geometry_reference": {
+                        "status": "pass",
+                        "expected": "native PDF page and line geometry",
+                        "actual": {
+                            "pages": 2,
+                            "textPages": 2,
+                            "lines": 197
+                        },
+                        "detail": "macOS PDFKit independently exposed source page boundaries and visual text lines; untagged PDFs do not expose an HTML heading/list/table/image tree."
+                    },
+                    "paragraph_merge_split": {
+                        "status": "pass",
+                        "expected": "at least 2 semantic text blocks and no more than 90% of 197 visual lines as paragraphs",
+                        "actual": {
+                            "textBlocks": 25,
+                            "paragraphs": 18,
+                            "sourceLines": 197
+                        },
+                        "detail": "native line geometry guards against collapsing a multi-page source or emitting one paragraph for every visual line."
+                    },
+                    "media_imported": {
+                        "status": "pass",
+                        "expected": 0,
+                        "actual": 0,
+                        "detail": "no media extraction problems reported"
+                    },
+                    "anchor_validity": {
+                        "status": "pass",
+                        "expected": 0,
+                        "actual": 0,
+                        "detail": "all local fragment links resolve"
+                    },
+                    "custom_html_percentage": {
+                        "status": "pass",
+                        "expected": "<=0.05",
+                        "actual": 0,
+                        "detail": "0/25 WordPress blocks are Custom HTML"
+                    }
+                },
+                "summary": {
+                    "pass": 7,
+                    "review": 0,
+                    "fail": 0,
+                    "unbenchmarked": 0
+                }
+            }
+        },
+        {
+            "id": "pdf-layout-unstructured-lists",
+            "format": "pdf",
+            "label": "Unstructured list fixture",
+            "description": "Mixed bullet and numbered list material with wrapped item text.",
+            "source": "Unstructured example-docs/pdf/list-item-example.pdf",
+            "sourceUrl": "https://raw.githubusercontent.com/Unstructured-IO/unstructured/main/example-docs/pdf/list-item-example.pdf",
+            "samplePath": "samples/pdf-layout-unstructured-lists-list-item-example.pdf",
+            "sampleSize": 48981,
+            "preview": "",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\PdfReader",
+                "notes": "Project-local markerPDF bridge extracts searchable PDF text lines and structural provenance for simple PDFs. Complex multi-column or untagged PDFs may lose spacing/order or be exposed only as extraction diagnostics. PDF is not an upstream Pandoc input format."
+            },
+            "haskell": {
+                "ok": false,
+                "error": "Unknown input format 'pdf'\nPandoc can convert to PDF, but not from PDF.",
+                "path": "outputs/pdf-layout-unstructured-lists/haskell.html.error.txt"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/pdf-layout-unstructured-lists/php.html",
+                "media": [],
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important",
+                    "extract-media-pdf-placement-metadata:0"
+                ]
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/pdf-layout-unstructured-lists/wordpress-blocks.html",
+                "media": [],
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important",
+                    "extract-media-pdf-placement-metadata:0"
+                ]
+            },
+            "wpBlockCounts": {
+                "heading": 1,
+                "list": 3,
+                "paragraph": 5
+            },
+            "sourceRawHtmlBlockCount": null,
+            "bibliographySource": null,
+            "importSemantics": null,
+            "externalReference": {
+                "ok": true,
+                "kind": "macos-pdfkit-text-geometry",
+                "label": "macOS PDFKit text and geometry reference",
+                "path": "outputs/pdf-layout-unstructured-lists/pdfkit.html",
+                "dataPath": "outputs/pdf-layout-unstructured-lists/pdfkit-reference.json",
+                "metrics": {
+                    "pageCount": 2,
+                    "textPageCount": 2,
+                    "lineCount": 81,
+                    "textBytes": 2611,
+                    "tokenCount": 338
+                }
+            },
+            "bibliographyComparison": {
+                "available": false
+            },
+            "faithfulness": {
+                "baseline": "externalReference",
+                "comparisons": {
+                    "wpBlocks": {
+                        "label": "PHP WordPress blocks",
+                        "status": "faithful_enough",
+                        "score": 0.9666,
+                        "textStatus": "faithful_enough",
+                        "textScore": 0.9666,
+                        "visualStatus": "not_applicable",
+                        "visualScore": null
+                    },
+                    "phpHtml": {
+                        "label": "PHP HTML",
+                        "status": "faithful_enough",
+                        "score": 0.9666,
+                        "textStatus": "faithful_enough",
+                        "textScore": 0.9666,
+                        "visualStatus": "not_applicable",
+                        "visualScore": null
+                    }
+                }
+            },
+            "importQuality": {
+                "status": "pass",
+                "gates": {
+                    "text_completeness": {
+                        "status": "pass",
+                        "expected": ">=0.8",
+                        "actual": 0.9631,
+                        "detail": "bidirectional stable body-text overlap with the independent macOS PDFKit reference"
+                    },
+                    "native_source_coverage": {
+                        "status": "pass",
+                        "expected": ">=0.65",
+                        "actual": 0.941,
+                        "detail": "native PDFKit source tokens retained in the WordPress output"
+                    },
+                    "pdf_geometry_reference": {
+                        "status": "pass",
+                        "expected": "native PDF page and line geometry",
+                        "actual": {
+                            "pages": 2,
+                            "textPages": 2,
+                            "lines": 81
+                        },
+                        "detail": "macOS PDFKit independently exposed source page boundaries and visual text lines; untagged PDFs do not expose an HTML heading/list/table/image tree."
+                    },
+                    "paragraph_merge_split": {
+                        "status": "pass",
+                        "expected": "at least 2 semantic text blocks and no more than 90% of 81 visual lines as paragraphs",
+                        "actual": {
+                            "textBlocks": 36,
+                            "paragraphs": 5,
+                            "sourceLines": 81
+                        },
+                        "detail": "native line geometry guards against collapsing a multi-page source or emitting one paragraph for every visual line."
+                    },
+                    "media_imported": {
+                        "status": "pass",
+                        "expected": 0,
+                        "actual": 0,
+                        "detail": "no media extraction problems reported"
+                    },
+                    "anchor_validity": {
+                        "status": "pass",
+                        "expected": 0,
+                        "actual": 0,
+                        "detail": "all local fragment links resolve"
+                    },
+                    "custom_html_percentage": {
+                        "status": "pass",
+                        "expected": "<=0.05",
+                        "actual": 0,
+                        "detail": "0/9 WordPress blocks are Custom HTML"
+                    }
+                },
+                "summary": {
+                    "pass": 7,
+                    "review": 0,
+                    "fail": 0,
+                    "unbenchmarked": 0
+                }
+            }
+        },
+        {
+            "id": "pdf-layout-unstructured-korean-table",
+            "format": "pdf",
+            "label": "Unstructured Korean table fixture",
+            "description": "Korean text and tabular material that exercise CMaps, non-Latin spacing, and geometry tables.",
+            "source": "Unstructured example-docs/pdf/korean-text-with-tables.pdf",
+            "sourceUrl": "https://raw.githubusercontent.com/Unstructured-IO/unstructured/main/example-docs/pdf/korean-text-with-tables.pdf",
+            "samplePath": "samples/pdf-layout-unstructured-korean-table-korean-text-with-tables.pdf",
+            "sampleSize": 88314,
+            "preview": "",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\PdfReader",
+                "notes": "Project-local markerPDF bridge extracts searchable PDF text lines and structural provenance for simple PDFs. Complex multi-column or untagged PDFs may lose spacing/order or be exposed only as extraction diagnostics. PDF is not an upstream Pandoc input format."
+            },
+            "haskell": {
+                "ok": false,
+                "error": "Unknown input format 'pdf'\nPandoc can convert to PDF, but not from PDF.",
+                "path": "outputs/pdf-layout-unstructured-korean-table/haskell.html.error.txt"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/pdf-layout-unstructured-korean-table/php.html",
+                "media": [],
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important",
+                    "extract-media-pdf-placement-metadata:0"
+                ]
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/pdf-layout-unstructured-korean-table/wordpress-blocks.html",
+                "media": [],
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important",
+                    "extract-media-pdf-placement-metadata:0"
+                ]
+            },
+            "wpBlockCounts": {
+                "list": 1,
+                "paragraph": 1,
+                "table": 2
+            },
+            "sourceRawHtmlBlockCount": null,
+            "bibliographySource": null,
+            "importSemantics": null,
+            "externalReference": {
+                "ok": true,
+                "kind": "macos-pdfkit-text-geometry",
+                "label": "macOS PDFKit text and geometry reference",
+                "path": "outputs/pdf-layout-unstructured-korean-table/pdfkit.html",
+                "dataPath": "outputs/pdf-layout-unstructured-korean-table/pdfkit-reference.json",
+                "metrics": {
+                    "pageCount": 1,
+                    "textPageCount": 1,
+                    "lineCount": 82,
+                    "textBytes": 2854,
+                    "tokenCount": 272
+                }
+            },
+            "bibliographyComparison": {
+                "available": false
+            },
+            "faithfulness": {
+                "baseline": "externalReference",
+                "comparisons": {
+                    "wpBlocks": {
+                        "label": "PHP WordPress blocks",
+                        "status": "faithful_enough",
+                        "score": 0.9659,
+                        "textStatus": "faithful_enough",
+                        "textScore": 0.9659,
+                        "visualStatus": "not_applicable",
+                        "visualScore": null
+                    },
+                    "phpHtml": {
+                        "label": "PHP HTML",
+                        "status": "faithful_enough",
+                        "score": 0.9659,
+                        "textStatus": "faithful_enough",
+                        "textScore": 0.9659,
+                        "visualStatus": "not_applicable",
+                        "visualScore": null
+                    }
+                }
+            },
+            "importQuality": {
+                "status": "pass",
+                "gates": {
+                    "text_completeness": {
+                        "status": "pass",
+                        "expected": ">=0.8",
+                        "actual": 0.8938,
+                        "detail": "bidirectional stable body-text overlap with the independent macOS PDFKit reference"
+                    },
+                    "native_source_coverage": {
+                        "status": "pass",
+                        "expected": ">=0.65",
+                        "actual": 0.989,
+                        "detail": "native PDFKit source tokens retained in the WordPress output"
+                    },
+                    "pdf_geometry_reference": {
+                        "status": "pass",
+                        "expected": "native PDF page and line geometry",
+                        "actual": {
+                            "pages": 1,
+                            "textPages": 1,
+                            "lines": 82
+                        },
+                        "detail": "macOS PDFKit independently exposed source page boundaries and visual text lines; untagged PDFs do not expose an HTML heading/list/table/image tree."
+                    },
+                    "paragraph_merge_split": {
+                        "status": "pass",
+                        "expected": "at least 1 semantic text blocks and no more than 90% of 82 visual lines as paragraphs",
+                        "actual": {
+                            "textBlocks": 58,
+                            "paragraphs": 1,
+                            "sourceLines": 82
+                        },
+                        "detail": "native line geometry guards against collapsing a multi-page source or emitting one paragraph for every visual line."
+                    },
+                    "media_imported": {
+                        "status": "pass",
+                        "expected": 0,
+                        "actual": 0,
+                        "detail": "no media extraction problems reported"
+                    },
+                    "anchor_validity": {
+                        "status": "pass",
+                        "expected": 0,
+                        "actual": 0,
+                        "detail": "all local fragment links resolve"
+                    },
+                    "custom_html_percentage": {
+                        "status": "pass",
+                        "expected": "<=0.05",
+                        "actual": 0,
+                        "detail": "0/4 WordPress blocks are Custom HTML"
+                    }
+                },
+                "summary": {
+                    "pass": 7,
+                    "review": 0,
+                    "fail": 0,
+                    "unbenchmarked": 0
+                }
+            }
+        },
+        {
+            "id": "pdf-layout-unstructured-ocr-overlay",
+            "format": "pdf",
+            "label": "Unstructured OCR text-layer fixture",
+            "description": "Image-backed page with an OCR text layer; duplicate overlay text must not leak into body flow.",
+            "source": "Unstructured example-docs/pdf/pdf-with-ocr-text.pdf",
+            "sourceUrl": "https://raw.githubusercontent.com/Unstructured-IO/unstructured/main/example-docs/pdf/pdf-with-ocr-text.pdf",
+            "samplePath": "samples/pdf-layout-unstructured-ocr-overlay-pdf-with-ocr-text.pdf",
+            "sampleSize": 446834,
+            "preview": "",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\PdfReader",
+                "notes": "Project-local markerPDF bridge extracts searchable PDF text lines and structural provenance for simple PDFs. Complex multi-column or untagged PDFs may lose spacing/order or be exposed only as extraction diagnostics. PDF is not an upstream Pandoc input format."
+            },
+            "haskell": {
+                "ok": false,
+                "error": "Unknown input format 'pdf'\nPandoc can convert to PDF, but not from PDF.",
+                "path": "outputs/pdf-layout-unstructured-ocr-overlay/haskell.html.error.txt"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/pdf-layout-unstructured-ocr-overlay/php.html",
+                "media": [],
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important",
+                    "extract-media-pdf-placement-metadata:1",
+                    "extract-media-pdf-image-unanchored:10"
+                ]
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/pdf-layout-unstructured-ocr-overlay/wordpress-blocks.html",
+                "media": [],
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important",
+                    "extract-media-pdf-placement-metadata:1",
+                    "extract-media-pdf-image-unanchored:10"
+                ]
+            },
+            "wpBlockCounts": {
+                "heading": 1,
+                "paragraph": 7
+            },
+            "sourceRawHtmlBlockCount": null,
+            "bibliographySource": null,
+            "importSemantics": null,
+            "externalReference": {
+                "ok": true,
+                "kind": "macos-pdfkit-text-geometry",
+                "label": "macOS PDFKit text and geometry reference",
+                "path": "outputs/pdf-layout-unstructured-ocr-overlay/pdfkit.html",
+                "dataPath": "outputs/pdf-layout-unstructured-ocr-overlay/pdfkit-reference.json",
+                "metrics": {
+                    "pageCount": 1,
+                    "textPageCount": 1,
+                    "lineCount": 21,
+                    "textBytes": 1154,
+                    "tokenCount": 223
+                }
+            },
+            "bibliographyComparison": {
+                "available": false
+            },
+            "faithfulness": {
+                "baseline": "externalReference",
+                "comparisons": {
+                    "wpBlocks": {
+                        "label": "PHP WordPress blocks",
+                        "status": "review",
+                        "score": 0.6964,
+                        "textStatus": "review",
+                        "textScore": 0.6964,
+                        "visualStatus": "not_applicable",
+                        "visualScore": null
+                    },
+                    "phpHtml": {
+                        "label": "PHP HTML",
+                        "status": "review",
+                        "score": 0.6964,
+                        "textStatus": "review",
+                        "textScore": 0.6964,
+                        "visualStatus": "not_applicable",
+                        "visualScore": null
+                    }
+                }
+            },
+            "importQuality": {
+                "status": "review",
+                "gates": {
+                    "text_completeness": {
+                        "status": "review",
+                        "expected": ">=0.8",
+                        "actual": 0.7246,
+                        "detail": "bidirectional stable body-text overlap with the independent macOS PDFKit reference"
+                    },
+                    "native_source_coverage": {
+                        "status": "review",
+                        "expected": ">=0.65",
+                        "actual": 0.561,
+                        "detail": "native PDFKit source tokens retained in the WordPress output"
+                    },
+                    "pdf_geometry_reference": {
+                        "status": "pass",
+                        "expected": "native PDF page and line geometry",
+                        "actual": {
+                            "pages": 1,
+                            "textPages": 1,
+                            "lines": 21
+                        },
+                        "detail": "macOS PDFKit independently exposed source page boundaries and visual text lines; untagged PDFs do not expose an HTML heading/list/table/image tree."
+                    },
+                    "paragraph_merge_split": {
+                        "status": "pass",
+                        "expected": "at least 1 semantic text blocks and no more than 90% of 21 visual lines as paragraphs",
+                        "actual": {
+                            "textBlocks": 8,
+                            "paragraphs": 7,
+                            "sourceLines": 21
+                        },
+                        "detail": "native line geometry guards against collapsing a multi-page source or emitting one paragraph for every visual line."
+                    },
+                    "media_imported": {
+                        "status": "pass",
+                        "expected": 0,
+                        "actual": 0,
+                        "detail": "no media extraction problems reported"
+                    },
+                    "anchor_validity": {
+                        "status": "pass",
+                        "expected": 0,
+                        "actual": 0,
+                        "detail": "all local fragment links resolve"
+                    },
+                    "custom_html_percentage": {
+                        "status": "pass",
+                        "expected": "<=0.05",
+                        "actual": 0,
+                        "detail": "0/8 WordPress blocks are Custom HTML"
+                    }
+                },
+                "summary": {
+                    "pass": 5,
+                    "review": 2,
+                    "fail": 0,
+                    "unbenchmarked": 0
+                }
+            }
+        },
+        {
+            "id": "pdf-layout-docling-code-formula",
+            "format": "pdf",
+            "label": "Docling code and formula fixture",
+            "description": "Two pages mixing prose, source code, and mathematical formula layout.",
+            "source": "docling-project/docling tests/data/pdf/sources/code_and_formula.pdf",
+            "sourceUrl": "https://raw.githubusercontent.com/docling-project/docling/main/tests/data/pdf/sources/code_and_formula.pdf",
+            "samplePath": "samples/pdf-layout-docling-code-formula-code_and_formula.pdf",
+            "sampleSize": 89031,
+            "preview": "",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\PdfReader",
+                "notes": "Project-local markerPDF bridge extracts searchable PDF text lines and structural provenance for simple PDFs. Complex multi-column or untagged PDFs may lose spacing/order or be exposed only as extraction diagnostics. PDF is not an upstream Pandoc input format."
+            },
+            "haskell": {
+                "ok": false,
+                "error": "Unknown input format 'pdf'\nPandoc can convert to PDF, but not from PDF.",
+                "path": "outputs/pdf-layout-docling-code-formula/haskell.html.error.txt"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/pdf-layout-docling-code-formula/php.html",
+                "media": [],
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important",
+                    "extract-media-pdf-placement-metadata:0"
+                ]
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/pdf-layout-docling-code-formula/wordpress-blocks.html",
+                "media": [],
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important",
+                    "extract-media-pdf-placement-metadata:0"
+                ]
+            },
+            "wpBlockCounts": {
+                "code": 1,
+                "heading": 3,
+                "paragraph": 4
+            },
+            "sourceRawHtmlBlockCount": null,
+            "bibliographySource": null,
+            "importSemantics": null,
+            "externalReference": {
+                "ok": true,
+                "kind": "macos-pdfkit-text-geometry",
+                "label": "macOS PDFKit text and geometry reference",
+                "path": "outputs/pdf-layout-docling-code-formula/pdfkit.html",
+                "dataPath": "outputs/pdf-layout-docling-code-formula/pdfkit-reference.json",
+                "metrics": {
+                    "pageCount": 2,
+                    "textPageCount": 2,
+                    "lineCount": 84,
+                    "textBytes": 5521,
+                    "tokenCount": 913
+                }
+            },
+            "bibliographyComparison": {
+                "available": false
+            },
+            "faithfulness": {
+                "baseline": "externalReference",
+                "comparisons": {
+                    "wpBlocks": {
+                        "label": "PHP WordPress blocks",
+                        "status": "faithful_enough",
+                        "score": 0.9873,
+                        "textStatus": "faithful_enough",
+                        "textScore": 0.9873,
+                        "visualStatus": "not_applicable",
+                        "visualScore": null
+                    },
+                    "phpHtml": {
+                        "label": "PHP HTML",
+                        "status": "faithful_enough",
+                        "score": 0.9873,
+                        "textStatus": "faithful_enough",
+                        "textScore": 0.9873,
+                        "visualStatus": "not_applicable",
+                        "visualScore": null
+                    }
+                }
+            },
+            "importQuality": {
+                "status": "pass",
+                "gates": {
+                    "text_completeness": {
+                        "status": "pass",
+                        "expected": ">=0.8",
+                        "actual": 0.9867,
+                        "detail": "bidirectional stable body-text overlap with the independent macOS PDFKit reference"
+                    },
+                    "native_source_coverage": {
+                        "status": "pass",
+                        "expected": ">=0.65",
+                        "actual": 0.981,
+                        "detail": "native PDFKit source tokens retained in the WordPress output"
+                    },
+                    "pdf_geometry_reference": {
+                        "status": "pass",
+                        "expected": "native PDF page and line geometry",
+                        "actual": {
+                            "pages": 2,
+                            "textPages": 2,
+                            "lines": 84
+                        },
+                        "detail": "macOS PDFKit independently exposed source page boundaries and visual text lines; untagged PDFs do not expose an HTML heading/list/table/image tree."
+                    },
+                    "paragraph_merge_split": {
+                        "status": "pass",
+                        "expected": "at least 2 semantic text blocks and no more than 90% of 84 visual lines as paragraphs",
+                        "actual": {
+                            "textBlocks": 8,
+                            "paragraphs": 4,
+                            "sourceLines": 84
+                        },
+                        "detail": "native line geometry guards against collapsing a multi-page source or emitting one paragraph for every visual line."
+                    },
+                    "media_imported": {
+                        "status": "pass",
+                        "expected": 0,
+                        "actual": 0,
+                        "detail": "no media extraction problems reported"
+                    },
+                    "anchor_validity": {
+                        "status": "pass",
+                        "expected": 0,
+                        "actual": 0,
+                        "detail": "all local fragment links resolve"
+                    },
+                    "custom_html_percentage": {
+                        "status": "pass",
+                        "expected": "<=0.05",
+                        "actual": 0,
+                        "detail": "0/8 WordPress blocks are Custom HTML"
+                    }
+                },
+                "summary": {
+                    "pass": 7,
+                    "review": 0,
+                    "fail": 0,
+                    "unbenchmarked": 0
+                }
+            }
+        },
+        {
+            "id": "pdf-layout-docling-right-to-left",
+            "format": "pdf",
+            "label": "Docling right-to-left fixture",
+            "description": "Arabic right-to-left prose and headings with mixed numeric content.",
+            "source": "docling-project/docling tests/data/pdf/sources/right_to_left_01.pdf",
+            "sourceUrl": "https://raw.githubusercontent.com/docling-project/docling/main/tests/data/pdf/sources/right_to_left_01.pdf",
+            "samplePath": "samples/pdf-layout-docling-right-to-left-right_to_left_01.pdf",
+            "sampleSize": 102852,
+            "preview": "",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\PdfReader",
+                "notes": "Project-local markerPDF bridge extracts searchable PDF text lines and structural provenance for simple PDFs. Complex multi-column or untagged PDFs may lose spacing/order or be exposed only as extraction diagnostics. PDF is not an upstream Pandoc input format."
+            },
+            "haskell": {
+                "ok": false,
+                "error": "Unknown input format 'pdf'\nPandoc can convert to PDF, but not from PDF.",
+                "path": "outputs/pdf-layout-docling-right-to-left/haskell.html.error.txt"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/pdf-layout-docling-right-to-left/php.html",
+                "media": [],
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important",
+                    "extract-media-pdf-placement-metadata:0"
+                ]
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/pdf-layout-docling-right-to-left/wordpress-blocks.html",
+                "media": [],
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important",
+                    "extract-media-pdf-placement-metadata:0"
+                ]
+            },
+            "wpBlockCounts": {
+                "heading": 1,
+                "paragraph": 9
+            },
+            "sourceRawHtmlBlockCount": null,
+            "bibliographySource": null,
+            "importSemantics": null,
+            "externalReference": {
+                "ok": true,
+                "kind": "macos-pdfkit-text-geometry",
+                "label": "macOS PDFKit text and geometry reference",
+                "path": "outputs/pdf-layout-docling-right-to-left/pdfkit.html",
+                "dataPath": "outputs/pdf-layout-docling-right-to-left/pdfkit-reference.json",
+                "metrics": {
+                    "pageCount": 1,
+                    "textPageCount": 1,
+                    "lineCount": 45,
+                    "textBytes": 2511,
+                    "tokenCount": 236
+                }
+            },
+            "bibliographyComparison": {
+                "available": false
+            },
+            "faithfulness": {
+                "baseline": "externalReference",
+                "comparisons": {
+                    "wpBlocks": {
+                        "label": "PHP WordPress blocks",
+                        "status": "faithful_enough",
+                        "score": 0.9597,
+                        "textStatus": "faithful_enough",
+                        "textScore": 0.9597,
+                        "visualStatus": "not_applicable",
+                        "visualScore": null
+                    },
+                    "phpHtml": {
+                        "label": "PHP HTML",
+                        "status": "faithful_enough",
+                        "score": 0.9597,
+                        "textStatus": "faithful_enough",
+                        "textScore": 0.9597,
+                        "visualStatus": "not_applicable",
+                        "visualScore": null
+                    }
+                }
+            },
+            "importQuality": {
+                "status": "review",
+                "gates": {
+                    "text_completeness": {
+                        "status": "review",
+                        "expected": ">=0.8",
+                        "actual": 0.7349,
+                        "detail": "bidirectional stable body-text overlap with the independent macOS PDFKit reference"
+                    },
+                    "native_source_coverage": {
+                        "status": "pass",
+                        "expected": ">=0.65",
+                        "actual": 0.958,
+                        "detail": "native PDFKit source tokens retained in the WordPress output"
+                    },
+                    "pdf_geometry_reference": {
+                        "status": "pass",
+                        "expected": "native PDF page and line geometry",
+                        "actual": {
+                            "pages": 1,
+                            "textPages": 1,
+                            "lines": 45
+                        },
+                        "detail": "macOS PDFKit independently exposed source page boundaries and visual text lines; untagged PDFs do not expose an HTML heading/list/table/image tree."
+                    },
+                    "paragraph_merge_split": {
+                        "status": "pass",
+                        "expected": "at least 1 semantic text blocks and no more than 90% of 45 visual lines as paragraphs",
+                        "actual": {
+                            "textBlocks": 10,
+                            "paragraphs": 9,
+                            "sourceLines": 45
+                        },
+                        "detail": "native line geometry guards against collapsing a multi-page source or emitting one paragraph for every visual line."
+                    },
+                    "media_imported": {
+                        "status": "pass",
+                        "expected": 0,
+                        "actual": 0,
+                        "detail": "no media extraction problems reported"
+                    },
+                    "anchor_validity": {
+                        "status": "pass",
+                        "expected": 0,
+                        "actual": 0,
+                        "detail": "all local fragment links resolve"
+                    },
+                    "custom_html_percentage": {
+                        "status": "pass",
+                        "expected": "<=0.05",
+                        "actual": 0,
+                        "detail": "0/10 WordPress blocks are Custom HTML"
+                    }
+                },
+                "summary": {
+                    "pass": 6,
+                    "review": 1,
+                    "fail": 0,
+                    "unbenchmarked": 0
+                }
+            }
+        },
+        {
+            "id": "pdf-layout-docling-pictures-captions",
+            "format": "pdf",
+            "label": "Docling picture classification fixture",
+            "description": "Picture regions, captions, and adjacent explanatory prose.",
+            "source": "docling-project/docling tests/data/pdf/sources/picture_classification.pdf",
+            "sourceUrl": "https://raw.githubusercontent.com/docling-project/docling/main/tests/data/pdf/sources/picture_classification.pdf",
+            "samplePath": "samples/pdf-layout-docling-pictures-captions-picture_classification.pdf",
+            "sampleSize": 212855,
+            "preview": "",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\PdfReader",
+                "notes": "Project-local markerPDF bridge extracts searchable PDF text lines and structural provenance for simple PDFs. Complex multi-column or untagged PDFs may lose spacing/order or be exposed only as extraction diagnostics. PDF is not an upstream Pandoc input format."
+            },
+            "haskell": {
+                "ok": false,
+                "error": "Unknown input format 'pdf'\nPandoc can convert to PDF, but not from PDF.",
+                "path": "outputs/pdf-layout-docling-pictures-captions/haskell.html.error.txt"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/pdf-layout-docling-pictures-captions/php.html",
+                "media": [
+                    {
+                        "path": "outputs/pdf-layout-docling-pictures-captions/media/pdf/image-11.jpg",
+                        "mediaPath": "pdf/image-11.jpg",
+                        "mimeType": "image/jpeg",
+                        "byteLength": 48607,
+                        "sha1": "5f49eb8888dc0edc79430a58c79de469adae0c3d",
+                        "source": "pdf/image-11.jpg",
+                        "canonicalSource": "pdf/image-11.jpg",
+                        "sourcePath": "pdf/image-11.jpg",
+                        "pathRepairSummary": "safe-relative-path",
+                        "extractionPathRepairSummary": "safe-relative-path",
+                        "mimeTypeSource": "declared",
+                        "inferredMimeType": "image/jpeg",
+                        "mimeRepairSummary": "declared-mime-matches-path"
+                    },
+                    {
+                        "path": "outputs/pdf-layout-docling-pictures-captions/media/pdf/image-2.jpg",
+                        "mediaPath": "pdf/image-2.jpg",
+                        "mimeType": "image/jpeg",
+                        "byteLength": 132658,
+                        "sha1": "e3c4af8edee8bb56734b9fd5d650dc8c05adb350",
+                        "source": "pdf/image-2.jpg",
+                        "canonicalSource": "pdf/image-2.jpg",
+                        "sourcePath": "pdf/image-2.jpg",
+                        "pathRepairSummary": "safe-relative-path",
+                        "extractionPathRepairSummary": "safe-relative-path",
+                        "mimeTypeSource": "declared",
+                        "inferredMimeType": "image/jpeg",
+                        "mimeRepairSummary": "declared-mime-matches-path"
+                    }
+                ],
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important",
+                    "extract-media-pdf-placement-metadata:2",
+                    "extract-media-pdf-image-loaded:11:important",
+                    "extract-media-pdf-image-loaded:2:important",
+                    "media-resource-mapped:pdf/image-11.jpg",
+                    "media-resource-mapped:pdf/image-2.jpg"
+                ]
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/pdf-layout-docling-pictures-captions/wordpress-blocks.html",
+                "media": [
+                    {
+                        "path": "outputs/pdf-layout-docling-pictures-captions/media/pdf/image-11.jpg",
+                        "mediaPath": "pdf/image-11.jpg",
+                        "mimeType": "image/jpeg",
+                        "byteLength": 48607,
+                        "sha1": "5f49eb8888dc0edc79430a58c79de469adae0c3d",
+                        "source": "pdf/image-11.jpg",
+                        "canonicalSource": "pdf/image-11.jpg",
+                        "sourcePath": "pdf/image-11.jpg",
+                        "pathRepairSummary": "safe-relative-path",
+                        "extractionPathRepairSummary": "safe-relative-path",
+                        "mimeTypeSource": "declared",
+                        "inferredMimeType": "image/jpeg",
+                        "mimeRepairSummary": "declared-mime-matches-path"
+                    },
+                    {
+                        "path": "outputs/pdf-layout-docling-pictures-captions/media/pdf/image-2.jpg",
+                        "mediaPath": "pdf/image-2.jpg",
+                        "mimeType": "image/jpeg",
+                        "byteLength": 132658,
+                        "sha1": "e3c4af8edee8bb56734b9fd5d650dc8c05adb350",
+                        "source": "pdf/image-2.jpg",
+                        "canonicalSource": "pdf/image-2.jpg",
+                        "sourcePath": "pdf/image-2.jpg",
+                        "pathRepairSummary": "safe-relative-path",
+                        "extractionPathRepairSummary": "safe-relative-path",
+                        "mimeTypeSource": "declared",
+                        "inferredMimeType": "image/jpeg",
+                        "mimeRepairSummary": "declared-mime-matches-path"
+                    }
+                ],
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important",
+                    "extract-media-pdf-placement-metadata:2",
+                    "extract-media-pdf-image-loaded:11:important",
+                    "extract-media-pdf-image-loaded:2:important",
+                    "media-resource-mapped:pdf/image-11.jpg",
+                    "media-resource-mapped:pdf/image-2.jpg"
+                ]
+            },
+            "wpBlockCounts": {
+                "heading": 1,
+                "image": 2,
+                "paragraph": 6
+            },
+            "sourceRawHtmlBlockCount": null,
+            "bibliographySource": null,
+            "importSemantics": null,
+            "externalReference": {
+                "ok": true,
+                "kind": "macos-pdfkit-text-geometry",
+                "label": "macOS PDFKit text and geometry reference",
+                "path": "outputs/pdf-layout-docling-pictures-captions/pdfkit.html",
+                "dataPath": "outputs/pdf-layout-docling-pictures-captions/pdfkit-reference.json",
+                "metrics": {
+                    "pageCount": 2,
+                    "textPageCount": 2,
+                    "lineCount": 50,
+                    "textBytes": 3426,
+                    "tokenCount": 581
+                }
+            },
+            "bibliographyComparison": {
+                "available": false
+            },
+            "faithfulness": {
+                "baseline": "externalReference",
+                "comparisons": {
+                    "wpBlocks": {
+                        "label": "PHP WordPress blocks",
+                        "status": "faithful_enough",
+                        "score": 0.9905,
+                        "textStatus": "faithful_enough",
+                        "textScore": 0.9905,
+                        "visualStatus": "not_applicable",
+                        "visualScore": null
+                    },
+                    "phpHtml": {
+                        "label": "PHP HTML",
+                        "status": "faithful_enough",
+                        "score": 0.9905,
+                        "textStatus": "faithful_enough",
+                        "textScore": 0.9905,
+                        "visualStatus": "not_applicable",
+                        "visualScore": null
+                    }
+                }
+            },
+            "importQuality": {
+                "status": "pass",
+                "gates": {
+                    "text_completeness": {
+                        "status": "pass",
+                        "expected": ">=0.8",
+                        "actual": 0.9495,
+                        "detail": "bidirectional stable body-text overlap with the independent macOS PDFKit reference"
+                    },
+                    "native_source_coverage": {
+                        "status": "pass",
+                        "expected": ">=0.65",
+                        "actual": 0.986,
+                        "detail": "native PDFKit source tokens retained in the WordPress output"
+                    },
+                    "pdf_geometry_reference": {
+                        "status": "pass",
+                        "expected": "native PDF page and line geometry",
+                        "actual": {
+                            "pages": 2,
+                            "textPages": 2,
+                            "lines": 50
+                        },
+                        "detail": "macOS PDFKit independently exposed source page boundaries and visual text lines; untagged PDFs do not expose an HTML heading/list/table/image tree."
+                    },
+                    "paragraph_merge_split": {
+                        "status": "pass",
+                        "expected": "at least 2 semantic text blocks and no more than 90% of 50 visual lines as paragraphs",
+                        "actual": {
+                            "textBlocks": 7,
+                            "paragraphs": 6,
+                            "sourceLines": 50
+                        },
+                        "detail": "native line geometry guards against collapsing a multi-page source or emitting one paragraph for every visual line."
+                    },
+                    "media_imported": {
+                        "status": "pass",
+                        "expected": 0,
+                        "actual": 0,
+                        "detail": "no media extraction problems reported"
+                    },
+                    "anchor_validity": {
+                        "status": "pass",
+                        "expected": 0,
+                        "actual": 0,
+                        "detail": "all local fragment links resolve"
+                    },
+                    "custom_html_percentage": {
+                        "status": "pass",
+                        "expected": "<=0.05",
+                        "actual": 0,
+                        "detail": "0/9 WordPress blocks are Custom HTML"
+                    }
+                },
+                "summary": {
+                    "pass": 7,
+                    "review": 0,
+                    "fail": 0,
+                    "unbenchmarked": 0
+                }
+            }
+        },
+        {
+            "id": "pdf-layout-docling-aircraft-handbook",
+            "format": "pdf",
+            "label": "Docling aircraft handbook sample",
+            "description": "Technical manual pages with headings, figures, labels, columns, and running page furniture.",
+            "source": "docling-project/docling tests/data/pdf/sources/amt_handbook_sample.pdf",
+            "sourceUrl": "https://raw.githubusercontent.com/docling-project/docling/main/tests/data/pdf/sources/amt_handbook_sample.pdf",
+            "samplePath": "samples/pdf-layout-docling-aircraft-handbook-amt_handbook_sample.pdf",
+            "sampleSize": 673416,
+            "preview": "",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\PdfReader",
+                "notes": "Project-local markerPDF bridge extracts searchable PDF text lines and structural provenance for simple PDFs. Complex multi-column or untagged PDFs may lose spacing/order or be exposed only as extraction diagnostics. PDF is not an upstream Pandoc input format."
+            },
+            "haskell": {
+                "ok": false,
+                "error": "Unknown input format 'pdf'\nPandoc can convert to PDF, but not from PDF.",
+                "path": "outputs/pdf-layout-docling-aircraft-handbook/haskell.html.error.txt"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/pdf-layout-docling-aircraft-handbook/php.html",
+                "media": [],
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important",
+                    "extract-media-pdf-placement-metadata:9"
+                ]
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/pdf-layout-docling-aircraft-handbook/wordpress-blocks.html",
+                "media": [],
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important",
+                    "extract-media-pdf-placement-metadata:9"
+                ]
+            },
+            "wpBlockCounts": {
+                "heading": 3,
+                "paragraph": 8
+            },
+            "sourceRawHtmlBlockCount": null,
+            "bibliographySource": null,
+            "importSemantics": null,
+            "pdfFormRenders": {
+                "ok": true,
+                "path": "outputs/pdf-layout-docling-aircraft-handbook/pdf-form-renders.json",
+                "bytes": 5344,
+                "count": 9
+            },
+            "externalReference": {
+                "ok": true,
+                "kind": "macos-pdfkit-text-geometry",
+                "label": "macOS PDFKit text and geometry reference",
+                "path": "outputs/pdf-layout-docling-aircraft-handbook/pdfkit.html",
+                "dataPath": "outputs/pdf-layout-docling-aircraft-handbook/pdfkit-reference.json",
+                "metrics": {
+                    "pageCount": 1,
+                    "textPageCount": 1,
+                    "lineCount": 75,
+                    "textBytes": 3690,
+                    "tokenCount": 667
+                }
+            },
+            "bibliographyComparison": {
+                "available": false
+            },
+            "faithfulness": {
+                "baseline": "externalReference",
+                "comparisons": {
+                    "wpBlocks": {
+                        "label": "PHP WordPress blocks",
+                        "status": "faithful_enough",
+                        "score": 0.9683,
+                        "textStatus": "faithful_enough",
+                        "textScore": 0.9683,
+                        "visualStatus": "not_applicable",
+                        "visualScore": null
+                    },
+                    "phpHtml": {
+                        "label": "PHP HTML",
+                        "status": "faithful_enough",
+                        "score": 0.9683,
+                        "textStatus": "faithful_enough",
+                        "textScore": 0.9683,
+                        "visualStatus": "not_applicable",
+                        "visualScore": null
+                    }
+                }
+            },
+            "importQuality": {
+                "status": "pass",
+                "gates": {
+                    "text_completeness": {
+                        "status": "pass",
+                        "expected": ">=0.8",
+                        "actual": 0.9889,
+                        "detail": "bidirectional stable body-text overlap with the independent macOS PDFKit reference"
+                    },
+                    "native_source_coverage": {
+                        "status": "pass",
+                        "expected": ">=0.65",
+                        "actual": 0.939,
+                        "detail": "native PDFKit source tokens retained in the WordPress output"
+                    },
+                    "pdf_geometry_reference": {
+                        "status": "pass",
+                        "expected": "native PDF page and line geometry",
+                        "actual": {
+                            "pages": 1,
+                            "textPages": 1,
+                            "lines": 75
+                        },
+                        "detail": "macOS PDFKit independently exposed source page boundaries and visual text lines; untagged PDFs do not expose an HTML heading/list/table/image tree."
+                    },
+                    "paragraph_merge_split": {
+                        "status": "pass",
+                        "expected": "at least 1 semantic text blocks and no more than 90% of 75 visual lines as paragraphs",
+                        "actual": {
+                            "textBlocks": 11,
+                            "paragraphs": 8,
+                            "sourceLines": 75
+                        },
+                        "detail": "native line geometry guards against collapsing a multi-page source or emitting one paragraph for every visual line."
+                    },
+                    "media_imported": {
+                        "status": "pass",
+                        "expected": 0,
+                        "actual": 0,
+                        "detail": "no media extraction problems reported"
+                    },
+                    "anchor_validity": {
+                        "status": "pass",
+                        "expected": 0,
+                        "actual": 0,
+                        "detail": "all local fragment links resolve"
+                    },
+                    "custom_html_percentage": {
+                        "status": "pass",
+                        "expected": "<=0.05",
+                        "actual": 0,
+                        "detail": "0/11 WordPress blocks are Custom HTML"
+                    }
+                },
+                "summary": {
+                    "pass": 7,
+                    "review": 0,
+                    "fail": 0,
+                    "unbenchmarked": 0
+                }
+            }
+        },
+        {
+            "id": "pdf-layout-docling-table-picture-boundary",
+            "format": "pdf",
+            "label": "Docling table mislabeled as picture fixture",
+            "description": "Compact regression page where a table-like region can be confused with a figure.",
+            "source": "docling-project/docling tests/data/pdf/sources/table_mislabeled_as_picture.pdf",
+            "sourceUrl": "https://raw.githubusercontent.com/docling-project/docling/main/tests/data/pdf/sources/table_mislabeled_as_picture.pdf",
+            "samplePath": "samples/pdf-layout-docling-table-picture-boundary-table_mislabeled_as_picture.pdf",
+            "sampleSize": 45661,
+            "preview": "",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\PdfReader",
+                "notes": "Project-local markerPDF bridge extracts searchable PDF text lines and structural provenance for simple PDFs. Complex multi-column or untagged PDFs may lose spacing/order or be exposed only as extraction diagnostics. PDF is not an upstream Pandoc input format."
+            },
+            "haskell": {
+                "ok": false,
+                "error": "Unknown input format 'pdf'\nPandoc can convert to PDF, but not from PDF.",
+                "path": "outputs/pdf-layout-docling-table-picture-boundary/haskell.html.error.txt"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/pdf-layout-docling-table-picture-boundary/php.html",
+                "media": [],
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important",
+                    "extract-media-pdf-placement-metadata:0"
+                ]
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/pdf-layout-docling-table-picture-boundary/wordpress-blocks.html",
+                "media": [],
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important",
+                    "extract-media-pdf-placement-metadata:0"
+                ]
+            },
+            "wpBlockCounts": {
+                "list": 6,
+                "paragraph": 18
+            },
+            "sourceRawHtmlBlockCount": null,
+            "bibliographySource": null,
+            "importSemantics": null,
+            "pdfFormRenders": {
+                "ok": true,
+                "path": "outputs/pdf-layout-docling-table-picture-boundary/pdf-form-renders.json",
+                "bytes": 1264,
+                "count": 2
+            },
+            "externalReference": {
+                "ok": true,
+                "kind": "macos-pdfkit-text-geometry",
+                "label": "macOS PDFKit text and geometry reference",
+                "path": "outputs/pdf-layout-docling-table-picture-boundary/pdfkit.html",
+                "dataPath": "outputs/pdf-layout-docling-table-picture-boundary/pdfkit-reference.json",
+                "metrics": {
+                    "pageCount": 1,
+                    "textPageCount": 1,
+                    "lineCount": 197,
+                    "textBytes": 3698,
+                    "tokenCount": 534
+                }
+            },
+            "bibliographyComparison": {
+                "available": false
+            },
+            "faithfulness": {
+                "baseline": "externalReference",
+                "comparisons": {
+                    "wpBlocks": {
+                        "label": "PHP WordPress blocks",
+                        "status": "faithful_enough",
+                        "score": 0.9626,
+                        "textStatus": "faithful_enough",
+                        "textScore": 0.9626,
+                        "visualStatus": "not_applicable",
+                        "visualScore": null
+                    },
+                    "phpHtml": {
+                        "label": "PHP HTML",
+                        "status": "faithful_enough",
+                        "score": 0.9626,
+                        "textStatus": "faithful_enough",
+                        "textScore": 0.9626,
+                        "visualStatus": "not_applicable",
+                        "visualScore": null
+                    }
+                }
+            },
+            "importQuality": {
+                "status": "pass",
+                "gates": {
+                    "text_completeness": {
+                        "status": "pass",
+                        "expected": ">=0.8",
+                        "actual": 0.8861,
+                        "detail": "bidirectional stable body-text overlap with the independent macOS PDFKit reference"
+                    },
+                    "native_source_coverage": {
+                        "status": "pass",
+                        "expected": ">=0.65",
+                        "actual": 0.94,
+                        "detail": "native PDFKit source tokens retained in the WordPress output"
+                    },
+                    "pdf_geometry_reference": {
+                        "status": "pass",
+                        "expected": "native PDF page and line geometry",
+                        "actual": {
+                            "pages": 1,
+                            "textPages": 1,
+                            "lines": 197
+                        },
+                        "detail": "macOS PDFKit independently exposed source page boundaries and visual text lines; untagged PDFs do not expose an HTML heading/list/table/image tree."
+                    },
+                    "paragraph_merge_split": {
+                        "status": "pass",
+                        "expected": "at least 1 semantic text blocks and no more than 90% of 197 visual lines as paragraphs",
+                        "actual": {
+                            "textBlocks": 24,
+                            "paragraphs": 18,
+                            "sourceLines": 197
+                        },
+                        "detail": "native line geometry guards against collapsing a multi-page source or emitting one paragraph for every visual line."
+                    },
+                    "media_imported": {
+                        "status": "pass",
+                        "expected": 0,
+                        "actual": 0,
+                        "detail": "no media extraction problems reported"
+                    },
+                    "anchor_validity": {
+                        "status": "pass",
+                        "expected": 0,
+                        "actual": 0,
+                        "detail": "all local fragment links resolve"
+                    },
+                    "custom_html_percentage": {
+                        "status": "pass",
+                        "expected": "<=0.05",
+                        "actual": 0,
+                        "detail": "0/24 WordPress blocks are Custom HTML"
+                    }
+                },
+                "summary": {
+                    "pass": 7,
+                    "review": 0,
+                    "fail": 0,
+                    "unbenchmarked": 0
+                }
+            }
+        },
+        {
+            "id": "pdf-layout-mineru-small-ocr",
+            "format": "pdf",
+            "label": "MinerU small OCR document",
+            "description": "Eight scanned pages used by MinerU to demonstrate OCR fallback behavior.",
+            "source": "opendatalab/MinerU demo/pdfs/small_ocr.pdf",
+            "sourceUrl": "https://raw.githubusercontent.com/opendatalab/MinerU/master/demo/pdfs/small_ocr.pdf",
+            "samplePath": "samples/pdf-layout-mineru-small-ocr-small_ocr.pdf",
+            "sampleSize": 453816,
+            "preview": "",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\PdfReader",
+                "notes": "Project-local markerPDF bridge extracts searchable PDF text lines and structural provenance for simple PDFs. Complex multi-column or untagged PDFs may lose spacing/order or be exposed only as extraction diagnostics. PDF is not an upstream Pandoc input format."
+            },
+            "haskell": {
+                "ok": false,
+                "error": "Unknown input format 'pdf'\nPandoc can convert to PDF, but not from PDF.",
+                "path": "outputs/pdf-layout-mineru-small-ocr/haskell.html.error.txt"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/pdf-layout-mineru-small-ocr/php.html",
+                "media": [],
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important",
+                    "extract-media-pdf-placement-metadata:0"
+                ]
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/pdf-layout-mineru-small-ocr/wordpress-blocks.html",
+                "media": [],
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important",
+                    "extract-media-pdf-placement-metadata:0"
+                ]
+            },
+            "wpBlockCounts": [],
+            "sourceRawHtmlBlockCount": null,
+            "bibliographySource": null,
+            "importSemantics": null,
+            "externalReference": {
+                "ok": true,
+                "kind": "macos-pdfkit-text-geometry",
+                "label": "macOS PDFKit text and geometry reference",
+                "path": "outputs/pdf-layout-mineru-small-ocr/pdfkit.html",
+                "dataPath": "outputs/pdf-layout-mineru-small-ocr/pdfkit-reference.json",
+                "metrics": {
+                    "pageCount": 8,
+                    "textPageCount": 0,
+                    "lineCount": 0,
+                    "textBytes": 0,
+                    "tokenCount": 0
+                }
+            },
+            "bibliographyComparison": {
+                "available": false
+            },
+            "faithfulness": {
+                "baseline": null,
+                "comparisons": []
+            },
+            "importQuality": {
+                "status": "review",
+                "gates": {
+                    "text_completeness": {
+                        "status": "pass",
+                        "expected": ">=0.8",
+                        "actual": 1,
+                        "detail": "bidirectional stable body-text overlap with the independent macOS PDFKit reference"
+                    },
+                    "native_source_coverage": {
+                        "status": "pass",
+                        "expected": ">=0.65",
+                        "actual": 1,
+                        "detail": "native PDFKit source tokens retained in the WordPress output"
+                    },
+                    "pdf_geometry_reference": {
+                        "status": "review",
+                        "expected": "page geometry plus browser or server OCR",
+                        "actual": {
+                            "pages": 8,
+                            "textPages": 0,
+                            "lines": 0
+                        },
+                        "detail": "PDFKit exposed scanned pages but no native text layer; this fixture requires the explicit OCR continuation path."
+                    },
+                    "paragraph_merge_split": {
+                        "status": "review",
+                        "expected": "semantic text blocks after OCR continuation",
+                        "actual": {
+                            "textBlocks": 0,
+                            "paragraphs": 0,
+                            "sourceLines": 0
+                        },
+                        "detail": "A page-only scan cannot be scored for paragraph reconstruction until OCR supplies text."
+                    },
+                    "media_imported": {
+                        "status": "pass",
+                        "expected": 0,
+                        "actual": 0,
+                        "detail": "no media extraction problems reported"
+                    },
+                    "anchor_validity": {
+                        "status": "pass",
+                        "expected": 0,
+                        "actual": 0,
+                        "detail": "all local fragment links resolve"
+                    },
+                    "custom_html_percentage": {
+                        "status": "pass",
+                        "expected": "<=0.05",
+                        "actual": 0,
+                        "detail": "0/0 WordPress blocks are Custom HTML"
+                    }
+                },
+                "summary": {
+                    "pass": 5,
+                    "review": 2,
+                    "fail": 0,
+                    "unbenchmarked": 0
+                }
+            }
+        },
+        {
+            "id": "pdf-layout-vdl-theatre-script",
+            "format": "pdf",
+            "label": "Theatre script formatting example",
+            "description": "A real theatre-format sample with character cues, dialogue, hanging continuations, and stage directions.",
+            "source": "Victorian Drama League / Australian Script Centre script format example",
+            "sourceUrl": "https://vdl.org.au/wp-content/uploads/2021/09/ASC_script_format_example.pdf",
+            "samplePath": "samples/pdf-layout-vdl-theatre-script-ASC_script_format_example.pdf",
+            "sampleSize": 169483,
+            "preview": "",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\PdfReader",
+                "notes": "Project-local markerPDF bridge extracts searchable PDF text lines and structural provenance for simple PDFs. Complex multi-column or untagged PDFs may lose spacing/order or be exposed only as extraction diagnostics. PDF is not an upstream Pandoc input format."
+            },
+            "haskell": {
+                "ok": false,
+                "error": "Unknown input format 'pdf'\nPandoc can convert to PDF, but not from PDF.",
+                "path": "outputs/pdf-layout-vdl-theatre-script/haskell.html.error.txt"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/pdf-layout-vdl-theatre-script/php.html",
+                "media": [],
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important",
+                    "extract-media-pdf-placement-metadata:1",
+                    "extract-media-pdf-image-unanchored:65"
+                ]
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/pdf-layout-vdl-theatre-script/wordpress-blocks.html",
+                "media": [],
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important",
+                    "extract-media-pdf-placement-metadata:1",
+                    "extract-media-pdf-image-unanchored:65"
+                ]
+            },
+            "wpBlockCounts": {
+                "heading": 6,
+                "paragraph": 5,
+                "verse": 12
+            },
+            "sourceRawHtmlBlockCount": null,
+            "bibliographySource": null,
+            "importSemantics": null,
+            "externalReference": {
+                "ok": true,
+                "kind": "macos-pdfkit-text-geometry",
+                "label": "macOS PDFKit text and geometry reference",
+                "path": "outputs/pdf-layout-vdl-theatre-script/pdfkit.html",
+                "dataPath": "outputs/pdf-layout-vdl-theatre-script/pdfkit-reference.json",
+                "metrics": {
+                    "pageCount": 3,
+                    "textPageCount": 3,
+                    "lineCount": 75,
+                    "textBytes": 3470,
+                    "tokenCount": 612
+                }
+            },
+            "bibliographyComparison": {
+                "available": false
+            },
+            "faithfulness": {
+                "baseline": "externalReference",
+                "comparisons": {
+                    "wpBlocks": {
+                        "label": "PHP WordPress blocks",
+                        "status": "faithful_enough",
+                        "score": 0.9825,
+                        "textStatus": "faithful_enough",
+                        "textScore": 0.9825,
+                        "visualStatus": "not_applicable",
+                        "visualScore": null
+                    },
+                    "phpHtml": {
+                        "label": "PHP HTML",
+                        "status": "faithful_enough",
+                        "score": 0.9825,
+                        "textStatus": "faithful_enough",
+                        "textScore": 0.9825,
+                        "visualStatus": "not_applicable",
+                        "visualScore": null
+                    }
+                }
+            },
+            "importQuality": {
+                "status": "pass",
+                "gates": {
+                    "text_completeness": {
+                        "status": "pass",
+                        "expected": ">=0.8",
+                        "actual": 0.9784,
+                        "detail": "bidirectional stable body-text overlap with the independent macOS PDFKit reference"
+                    },
+                    "native_source_coverage": {
+                        "status": "pass",
+                        "expected": ">=0.65",
+                        "actual": 0.966,
+                        "detail": "native PDFKit source tokens retained in the WordPress output"
+                    },
+                    "pdf_geometry_reference": {
+                        "status": "pass",
+                        "expected": "native PDF page and line geometry",
+                        "actual": {
+                            "pages": 3,
+                            "textPages": 3,
+                            "lines": 75
+                        },
+                        "detail": "macOS PDFKit independently exposed source page boundaries and visual text lines; untagged PDFs do not expose an HTML heading/list/table/image tree."
+                    },
+                    "paragraph_merge_split": {
+                        "status": "pass",
+                        "expected": "at least 3 semantic text blocks and no more than 90% of 75 visual lines as paragraphs",
+                        "actual": {
+                            "textBlocks": 23,
+                            "paragraphs": 5,
+                            "sourceLines": 75
+                        },
+                        "detail": "native line geometry guards against collapsing a multi-page source or emitting one paragraph for every visual line."
+                    },
+                    "media_imported": {
+                        "status": "pass",
+                        "expected": 0,
+                        "actual": 0,
+                        "detail": "no media extraction problems reported"
+                    },
+                    "anchor_validity": {
+                        "status": "pass",
+                        "expected": 0,
+                        "actual": 0,
+                        "detail": "all local fragment links resolve"
+                    },
+                    "custom_html_percentage": {
+                        "status": "pass",
+                        "expected": "<=0.05",
+                        "actual": 0,
+                        "detail": "0/23 WordPress blocks are Custom HTML"
+                    }
+                },
+                "summary": {
+                    "pass": 7,
+                    "review": 0,
+                    "fail": 0,
+                    "unbenchmarked": 0
+                }
+            }
+        },
+        {
+            "id": "pdf-layout-unstructured-rotated-page",
+            "format": "pdf",
+            "label": "Unstructured rotated-page fixture",
+            "description": "Minimal page-rotation fixture exercising transformed text coordinates.",
+            "source": "Unstructured example-docs/rotated-page-90.pdf",
+            "sourceUrl": "https://raw.githubusercontent.com/Unstructured-IO/unstructured/main/example-docs/rotated-page-90.pdf",
+            "samplePath": "samples/pdf-layout-unstructured-rotated-page-rotated-page-90.pdf",
+            "sampleSize": 1103,
+            "preview": "%PDF-1.3\n%\u00bf\u00f7\u00a2\u00fe\n1 0 obj\n<< /OpenAction [ 3 0 R /FitH null ] /PageLayout /OneColumn /Pages 4 0 R /Type /Catalog >>\nendobj\n2 0 obj\n<< /CreationDate (D:20260407162534Z) >>\nendobj\n3 0 obj\n<< /Contents 5 0 R /MediaBox 6 0 R /Parent 4 0 R /Resources 7 0 R /Rotate 90 /Type /Page >>\nendobj\n4 0 obj\n<< /Count 1 /Kids [ 3 0 R ] /Type /Pages >>\nendobj\n5 0 obj\n<< /Filter /FlateDecode /Length 135 >>\nstream\nx\u0153e\u00cb=\u000b\u00c20\u0014\u2026\u00e1\u00bd\u00bf\u00e2\u0152\u00ba\u00c4\u001b\u00cdGgA\u0011G\r8\u0017s\u00a3\u2022\u00d0H\u00bdb\u00beU\u0007\u0011\u20143\u001c\u00deg\u017dmE\u00caz<\u00aae\u00c0l\u00ad\u00a1\u009d\"BHX\u2026\u00d7U[E\u0006\u017eHi\u2021\u00101\u00d9p\u00ce\u0005\u2021\u00d2\u00e7\u02c6\u00c07\u0019g\u0090)\u00c2\u00e5\u00078\u00b3P\u00e6\u0003\u00f6|,]Dn;FI\u00901\u00c7\u2122{\u00fe3\u00b6v\u00ca\u00fb\u00b7\u00d9\u0015i\u201e#\u00ae\u00cd\u2030\u2018\u00daA\u00ee\u00df\u00fe\t\u00d9t0\u0017\nendstream\nendobj\n6 0 obj\n[ 0 0 595.28 841.89 ]\nendobj\n7 0 obj\n<< /Font << /F1 8 0 R >> /ProcSet [ /PDF /Text /ImageB /ImageC /ImageI ] >>\nendobj\n8 0 obj\n<< /BaseFont /Helvetica /Encoding /WinAnsiEncoding /Subtype /Type1 /Type /Font >>\nendobj\nxref\n0 9\n0000000000 65535 f \n0000000015 00000 n \n0000000120 00000 n \n0000000175 00000 n \n0000000282 00000 n \n0000000341 00000 n \n0000000548 00000 n \n0000000585 00000 n \n0000000676 00000 n \ntrailer << /Info 2 0 R /Root 1 0 R /Size 9 /ID [<e2ebc7683aef2ad80c0576086157aca3><714a94e24ca8cc0a9fc963581e05e875>] >>\nstartxref\n773\n%%EOF\n",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\PdfReader",
+                "notes": "Project-local markerPDF bridge extracts searchable PDF text lines and structural provenance for simple PDFs. Complex multi-column or untagged PDFs may lose spacing/order or be exposed only as extraction diagnostics. PDF is not an upstream Pandoc input format."
+            },
+            "haskell": {
+                "ok": false,
+                "error": "Unknown input format 'pdf'\nPandoc can convert to PDF, but not from PDF.",
+                "path": "outputs/pdf-layout-unstructured-rotated-page/haskell.html.error.txt"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/pdf-layout-unstructured-rotated-page/php.html",
+                "media": [],
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important",
+                    "extract-media-pdf-placement-metadata:0"
+                ]
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/pdf-layout-unstructured-rotated-page/wordpress-blocks.html",
+                "media": [],
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important",
+                    "extract-media-pdf-placement-metadata:0"
+                ]
+            },
+            "wpBlockCounts": {
+                "heading": 2,
+                "paragraph": 1
+            },
+            "sourceRawHtmlBlockCount": null,
+            "bibliographySource": null,
+            "importSemantics": null,
+            "externalReference": {
+                "ok": true,
+                "kind": "macos-pdfkit-text-geometry",
+                "label": "macOS PDFKit text and geometry reference",
+                "path": "outputs/pdf-layout-unstructured-rotated-page/pdfkit.html",
+                "dataPath": "outputs/pdf-layout-unstructured-rotated-page/pdfkit-reference.json",
+                "metrics": {
+                    "pageCount": 1,
+                    "textPageCount": 1,
+                    "lineCount": 3,
+                    "textBytes": 67,
+                    "tokenCount": 12
+                }
+            },
+            "bibliographyComparison": {
+                "available": false
+            },
+            "faithfulness": {
+                "baseline": "externalReference",
+                "comparisons": {
+                    "wpBlocks": {
+                        "label": "PHP WordPress blocks",
+                        "status": "faithful_enough",
+                        "score": 1,
+                        "textStatus": "faithful_enough",
+                        "textScore": 1,
+                        "visualStatus": "not_applicable",
+                        "visualScore": null
+                    },
+                    "phpHtml": {
+                        "label": "PHP HTML",
+                        "status": "faithful_enough",
+                        "score": 1,
+                        "textStatus": "faithful_enough",
+                        "textScore": 1,
+                        "visualStatus": "not_applicable",
+                        "visualScore": null
+                    }
+                }
+            },
+            "importQuality": {
+                "status": "pass",
+                "gates": {
+                    "text_completeness": {
+                        "status": "pass",
+                        "expected": ">=0.8",
+                        "actual": 1,
+                        "detail": "bidirectional stable body-text overlap with the independent macOS PDFKit reference"
+                    },
+                    "native_source_coverage": {
+                        "status": "pass",
+                        "expected": ">=0.65",
+                        "actual": 1,
+                        "detail": "native PDFKit source tokens retained in the WordPress output"
+                    },
+                    "pdf_geometry_reference": {
+                        "status": "pass",
+                        "expected": "native PDF page and line geometry",
+                        "actual": {
+                            "pages": 1,
+                            "textPages": 1,
+                            "lines": 3
+                        },
+                        "detail": "macOS PDFKit independently exposed source page boundaries and visual text lines; untagged PDFs do not expose an HTML heading/list/table/image tree."
+                    },
+                    "paragraph_merge_split": {
+                        "status": "pass",
+                        "expected": "at least 1 semantic text blocks",
+                        "actual": {
+                            "textBlocks": 3,
+                            "paragraphs": 1,
+                            "sourceLines": 3
+                        },
+                        "detail": "native line geometry guards against collapsing a multi-page source or emitting one paragraph for every visual line."
+                    },
+                    "media_imported": {
+                        "status": "pass",
+                        "expected": 0,
+                        "actual": 0,
+                        "detail": "no media extraction problems reported"
+                    },
+                    "anchor_validity": {
+                        "status": "pass",
+                        "expected": 0,
+                        "actual": 0,
+                        "detail": "all local fragment links resolve"
+                    },
+                    "custom_html_percentage": {
+                        "status": "pass",
+                        "expected": "<=0.05",
+                        "actual": 0,
+                        "detail": "0/3 WordPress blocks are Custom HTML"
+                    }
+                },
+                "summary": {
+                    "pass": 7,
+                    "review": 0,
+                    "fail": 0,
+                    "unbenchmarked": 0
+                }
+            }
+        },
+        {
+            "id": "pdf-layout-unstructured-emphasis",
+            "format": "pdf",
+            "label": "Unstructured emphasis fixture",
+            "description": "Inline bold and italic runs that must not create false word spaces or paragraph boundaries.",
+            "source": "Unstructured example-docs/pdf/emphasis-text.pdf",
+            "sourceUrl": "https://raw.githubusercontent.com/Unstructured-IO/unstructured/main/example-docs/pdf/emphasis-text.pdf",
+            "samplePath": "samples/pdf-layout-unstructured-emphasis-emphasis-text.pdf",
+            "sampleSize": 16576,
+            "preview": "",
+            "support": {
+                "status": "partial",
+                "implementation": "PortLibs\\Pandoc\\PdfReader",
+                "notes": "Project-local markerPDF bridge extracts searchable PDF text lines and structural provenance for simple PDFs. Complex multi-column or untagged PDFs may lose spacing/order or be exposed only as extraction diagnostics. PDF is not an upstream Pandoc input format."
+            },
+            "haskell": {
+                "ok": false,
+                "error": "Unknown input format 'pdf'\nPandoc can convert to PDF, but not from PDF.",
+                "path": "outputs/pdf-layout-unstructured-emphasis/haskell.html.error.txt"
+            },
+            "phpHtml": {
+                "ok": true,
+                "path": "outputs/pdf-layout-unstructured-emphasis/php.html",
+                "media": [],
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important",
+                    "extract-media-pdf-placement-metadata:0"
+                ]
+            },
+            "wpBlocks": {
+                "ok": true,
+                "path": "outputs/pdf-layout-unstructured-emphasis/wordpress-blocks.html",
+                "media": [],
+                "mediaDiagnostics": [
+                    "extract-media-image-mode:important",
+                    "extract-media-pdf-placement-metadata:0"
+                ]
+            },
+            "wpBlockCounts": {
+                "paragraph": 2
+            },
+            "sourceRawHtmlBlockCount": null,
+            "bibliographySource": null,
+            "importSemantics": null,
+            "externalReference": {
+                "ok": true,
+                "kind": "macos-pdfkit-text-geometry",
+                "label": "macOS PDFKit text and geometry reference",
+                "path": "outputs/pdf-layout-unstructured-emphasis/pdfkit.html",
+                "dataPath": "outputs/pdf-layout-unstructured-emphasis/pdfkit-reference.json",
+                "metrics": {
+                    "pageCount": 1,
+                    "textPageCount": 1,
+                    "lineCount": 2,
+                    "textBytes": 39,
+                    "tokenCount": 7
+                }
+            },
+            "bibliographyComparison": {
+                "available": false
+            },
+            "faithfulness": {
+                "baseline": "externalReference",
+                "comparisons": {
+                    "wpBlocks": {
+                        "label": "PHP WordPress blocks",
+                        "status": "faithful_enough",
+                        "score": 1,
+                        "textStatus": "faithful_enough",
+                        "textScore": 1,
+                        "visualStatus": "not_applicable",
+                        "visualScore": null
+                    },
+                    "phpHtml": {
+                        "label": "PHP HTML",
+                        "status": "faithful_enough",
+                        "score": 1,
+                        "textStatus": "faithful_enough",
+                        "textScore": 1,
+                        "visualStatus": "not_applicable",
+                        "visualScore": null
+                    }
+                }
+            },
+            "importQuality": {
+                "status": "pass",
+                "gates": {
+                    "text_completeness": {
+                        "status": "pass",
+                        "expected": ">=0.8",
+                        "actual": 1,
+                        "detail": "bidirectional stable body-text overlap with the independent macOS PDFKit reference"
+                    },
+                    "native_source_coverage": {
+                        "status": "pass",
+                        "expected": ">=0.65",
+                        "actual": 1,
+                        "detail": "native PDFKit source tokens retained in the WordPress output"
+                    },
+                    "pdf_geometry_reference": {
+                        "status": "pass",
+                        "expected": "native PDF page and line geometry",
+                        "actual": {
+                            "pages": 1,
+                            "textPages": 1,
+                            "lines": 2
+                        },
+                        "detail": "macOS PDFKit independently exposed source page boundaries and visual text lines; untagged PDFs do not expose an HTML heading/list/table/image tree."
+                    },
+                    "paragraph_merge_split": {
+                        "status": "pass",
+                        "expected": "at least 1 semantic text blocks",
+                        "actual": {
+                            "textBlocks": 2,
+                            "paragraphs": 2,
+                            "sourceLines": 2
+                        },
+                        "detail": "native line geometry guards against collapsing a multi-page source or emitting one paragraph for every visual line."
+                    },
+                    "media_imported": {
+                        "status": "pass",
+                        "expected": 0,
+                        "actual": 0,
+                        "detail": "no media extraction problems reported"
+                    },
+                    "anchor_validity": {
+                        "status": "pass",
+                        "expected": 0,
+                        "actual": 0,
+                        "detail": "all local fragment links resolve"
+                    },
+                    "custom_html_percentage": {
+                        "status": "pass",
+                        "expected": "<=0.05",
+                        "actual": 0,
+                        "detail": "0/2 WordPress blocks are Custom HTML"
+                    }
+                },
+                "summary": {
+                    "pass": 7,
+                    "review": 0,
+                    "fail": 0,
+                    "unbenchmarked": 0
+                }
+            }
+        },
+        {
             "id": "pdf-irs-w4",
             "format": "pdf",
             "label": "IRS Form W-4 PDF",
@@ -17059,7 +19188,7 @@
                 ]
             },
             "wpBlockCounts": {
-                "heading": 42,
+                "heading": 46,
                 "paragraph": 62
             },
             "sourceRawHtmlBlockCount": null,
@@ -17140,7 +19269,7 @@
                         "status": "pass",
                         "expected": "at least 2 semantic text blocks and no more than 90% of 414 visual lines as paragraphs",
                         "actual": {
-                            "textBlocks": 104,
+                            "textBlocks": 108,
                             "paragraphs": 62,
                             "sourceLines": 414
                         },
@@ -17162,7 +19291,7 @@
                         "status": "pass",
                         "expected": "<=0.05",
                         "actual": 0,
-                        "detail": "0/104 WordPress blocks are Custom HTML"
+                        "detail": "0/108 WordPress blocks are Custom HTML"
                     }
                 },
                 "summary": {

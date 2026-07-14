@@ -3548,6 +3548,7 @@ return [
 
         $t->same('paragraph', $document->children[0]->type);
         $t->same('link', $document->children[0]->children[0]->type);
+        $t->same('pdf-page-2', $document->children[1]->attr('id'));
         $t->same('#pdf-page-2', $document->children[0]->children[0]->attr('url'));
         $t->same('Jump to Details.', $document->children[0]->children[0]->children[0]->attr('text'));
         $t->same(1, count($meta['pdfLinkAnnotations']));
@@ -3556,7 +3557,7 @@ return [
         $t->same(2, $meta['pdfLinkAnnotations'][0]['targetPage']);
         $t->same('#pdf-page-2', $meta['pdfAppliedLinkAnnotations'][0]['uri']);
         $t->contains('<a href="#pdf-page-2">Jump to Details.</a>', $blocks);
-        $t->contains('<p>Details paragraph.</p>', $blocks);
+        $t->contains('<p id="pdf-page-2">Details paragraph.</p>', $blocks);
     },
     'uses pdf named destination link annotations for visible non url text' => static function (TestRunner $t): void {
         $pageOneContent = 'BT /F1 12 Tf 72 720 Td (Named Details.) Tj ET';
@@ -3576,6 +3577,7 @@ return [
         $meta = $document->attr('meta');
 
         $t->same('link', $document->children[0]->children[0]->type);
+        $t->same('pdf-page-2', $document->children[1]->attr('id'));
         $t->same('#pdf-page-2', $document->children[0]->children[0]->attr('url'));
         $t->same('Named Details.', $document->children[0]->children[0]->children[0]->attr('text'));
         $t->same(1, count($meta['pdfLinkAnnotations']));
@@ -3584,7 +3586,7 @@ return [
         $t->same('Fit', $meta['pdfLinkAnnotations'][0]['destinationType']);
         $t->same(2, $meta['pdfAppliedLinkAnnotations'][0]['targetPage']);
         $t->contains('<a href="#pdf-page-2">Named Details.</a>', $blocks);
-        $t->contains('<p>Named destination target.</p>', $blocks);
+        $t->contains('<p id="pdf-page-2">Named destination target.</p>', $blocks);
     },
     'reads LZW encoded pdf streams into pandoc ast blocks' => static function (TestRunner $t) use ($lzwEncode): void {
         $content = 'BT /F1 12 Tf 72 720 Td (LZW PDF Import) Tj T* (Clean WordPress Blocks) Tj ET';

@@ -1,0 +1,558 @@
+{
+    "extractor": "macOS PDFKit",
+    "pageCount": 3,
+    "pages": [
+        {
+            "height": 841.89,
+            "lines": [
+                {
+                    "height": 73.44,
+                    "text": "SCRIPT FORMAT",
+                    "width": 404.483,
+                    "x": 56.693,
+                    "y": 522.092
+                },
+                {
+                    "height": 73.44,
+                    "text": "EXAMPLE",
+                    "width": 237.84,
+                    "x": 56.693,
+                    "y": 450.092
+                }
+            ],
+            "number": 1,
+            "rotation": 0,
+            "text": "SCRIPT FORMAT\nEXAMPLE",
+            "width": 595.276
+        },
+        {
+            "height": 842,
+            "lines": [
+                {
+                    "height": 9.054,
+                    "text": "Script formatting example p.1",
+                    "width": 119.957,
+                    "x": 384.68,
+                    "y": 795.618
+                },
+                {
+                    "height": 8.304,
+                    "text": "SCRIPT FORMAT EXAMPLE",
+                    "width": 163.277,
+                    "x": 215.6,
+                    "y": 758.82
+                },
+                {
+                    "height": 10.908,
+                    "text": "There are a number of different ways that you can format a theatre script. The",
+                    "width": 373.508,
+                    "x": 89.96,
+                    "y": 729.06
+                },
+                {
+                    "height": 10.908,
+                    "text": "example below is a standard formatting and one that we like. (Note that theatre",
+                    "width": 382.147,
+                    "x": 89.96,
+                    "y": 715.26
+                },
+                {
+                    "height": 10.908,
+                    "text": "scripts and film scripts are usually formatted in different ways.)",
+                    "width": 305.2,
+                    "x": 89.96,
+                    "y": 701.46
+                },
+                {
+                    "height": 10.908,
+                    "text": "If you have already written your play and your formatting is different from this, don’t",
+                    "width": 410.874,
+                    "x": 89.96,
+                    "y": 673.86
+                },
+                {
+                    "height": 10.908,
+                    "text": "panic. Formatting for the theatre is flexible up to a point. As long as there is a clear",
+                    "width": 398.819,
+                    "x": 89.955,
+                    "y": 660.06
+                },
+                {
+                    "height": 10.908,
+                    "text": "differentiation between stage directions and dialogue, and the script is easy to read",
+                    "width": 396.136,
+                    "x": 89.961,
+                    "y": 646.26
+                },
+                {
+                    "height": 10.908,
+                    "text": "and carefully proofread, it may well be acceptable.",
+                    "width": 243.522,
+                    "x": 89.961,
+                    "y": 632.46
+                },
+                {
+                    "height": 10.908,
+                    "text": "Don’t forget to put your name and contact details on the cover page.",
+                    "width": 327.49,
+                    "x": 89.961,
+                    "y": 604.86
+                },
+                {
+                    "height": 8.304,
+                    "text": "ACT ONE",
+                    "width": 54.317,
+                    "x": 89.961,
+                    "y": 551.82
+                },
+                {
+                    "height": 8.304,
+                    "text": "SCENE 1",
+                    "width": 49.072,
+                    "x": 89.961,
+                    "y": 525.42
+                },
+                {
+                    "height": 10.908,
+                    "text": "Stage directions are usually given in italics. Some writers put them in UPPER CASE",
+                    "width": 406.577,
+                    "x": 89.961,
+                    "y": 495.66
+                },
+                {
+                    "height": 10.908,
+                    "text": "ITALICS. OTHERS JUST PUT THEM IN UPPER CASE. The main idea is to",
+                    "width": 376.089,
+                    "x": 89.956,
+                    "y": 481.86
+                },
+                {
+                    "height": 10.908,
+                    "text": "differentiate them clearly from the dialogue.",
+                    "width": 212.552,
+                    "x": 89.962,
+                    "y": 468.06
+                },
+                {
+                    "height": 10.908,
+                    "text": "CHARACTER 1",
+                    "width": 81.716,
+                    "x": 89.962,
+                    "y": 440.46
+                },
+                {
+                    "height": 10.908,
+                    "text": "CHARACTER 2",
+                    "width": 81.716,
+                    "x": 89.962,
+                    "y": 385.26
+                },
+                {
+                    "height": 10.908,
+                    "text": "CHARACTER 1",
+                    "width": 81.716,
+                    "x": 89.962,
+                    "y": 330.06
+                },
+                {
+                    "height": 10.908,
+                    "text": "CHARACTER 2",
+                    "width": 81.716,
+                    "x": 89.961,
+                    "y": 274.86
+                },
+                {
+                    "height": 10.908,
+                    "text": "CHARACTER 1",
+                    "width": 81.716,
+                    "x": 89.961,
+                    "y": 247.26
+                },
+                {
+                    "height": 10.908,
+                    "text": "Dialogue is written in sentence case. Character names are given in",
+                    "width": 318.142,
+                    "x": 180.68,
+                    "y": 440.46
+                },
+                {
+                    "height": 10.908,
+                    "text": "upper case – again to differentiate them clearly from the spoken",
+                    "width": 306.483,
+                    "x": 182.122,
+                    "y": 426.66
+                },
+                {
+                    "height": 10.908,
+                    "text": "dialogue.",
+                    "width": 44.167,
+                    "x": 182.122,
+                    "y": 412.86
+                },
+                {
+                    "height": 10.908,
+                    "text": "It’s a good idea to set a second-line tab so that dialogue always",
+                    "width": 302.523,
+                    "x": 182.12,
+                    "y": 385.26
+                },
+                {
+                    "height": 10.908,
+                    "text": "begins on the same vertical line. This makes it clearer and easier",
+                    "width": 309.171,
+                    "x": 182.116,
+                    "y": 371.46
+                },
+                {
+                    "height": 10.908,
+                    "text": "for actors to read.",
+                    "width": 84.488,
+                    "x": 182.122,
+                    "y": 357.66
+                },
+                {
+                    "height": 10.908,
+                    "text": "Dialogue is usually double-spaced between each character’s",
+                    "width": 287.764,
+                    "x": 182.12,
+                    "y": 330.06
+                },
+                {
+                    "height": 10.908,
+                    "text": "speech, but single-spaced within a character’s speech. This again",
+                    "width": 311.18,
+                    "x": 182.121,
+                    "y": 316.26
+                },
+                {
+                    "height": 10.908,
+                    "text": "makes it easier for the actors to differentiate between characters.",
+                    "width": 309.129,
+                    "x": 182.121,
+                    "y": 302.46
+                },
+                {
+                    "height": 10.908,
+                    "text": "Left align everything. Don’t right hand justify the document.",
+                    "width": 291.862,
+                    "x": 182.119,
+                    "y": 274.86
+                },
+                {
+                    "height": 10.908,
+                    "text": "Use a font like Times New Roman or Arial. Fonts like Courier",
+                    "width": 300.524,
+                    "x": 182.119,
+                    "y": 247.26
+                },
+                {
+                    "height": 10.908,
+                    "text": "New and Arial Narrow are hard to read, and fancy fonts are just a",
+                    "width": 314.457,
+                    "x": 182.115,
+                    "y": 233.46
+                },
+                {
+                    "height": 10.908,
+                    "text": "nuisance. Remember that this is a working document and must be",
+                    "width": 315.529,
+                    "x": 182.121,
+                    "y": 219.66
+                },
+                {
+                    "height": 10.908,
+                    "text": "easy for actors and directors to use.",
+                    "width": 169.453,
+                    "x": 182.121,
+                    "y": 205.86
+                },
+                {
+                    "height": 10.908,
+                    "text": "Pause",
+                    "width": 29.332,
+                    "x": 89.955,
+                    "y": 178.26
+                },
+                {
+                    "height": 10.908,
+                    "text": "CHARACTER 2",
+                    "width": 81.716,
+                    "x": 89.961,
+                    "y": 150.66
+                },
+                {
+                    "height": 10.908,
+                    "text": "CHARACTER 1",
+                    "width": 81.716,
+                    "x": 89.961,
+                    "y": 109.26
+                },
+                {
+                    "height": 10.908,
+                    "text": "If you need to write in a pause, it should go in italics or upper case,",
+                    "width": 322.22,
+                    "x": 182.119,
+                    "y": 150.66
+                },
+                {
+                    "height": 10.908,
+                    "text": "the same as other stage directions.",
+                    "width": 163.941,
+                    "x": 182.121,
+                    "y": 136.86
+                },
+                {
+                    "height": 10.908,
+                    "text": "(to herself) Brief stage directions that specifically apply to one",
+                    "width": 300.168,
+                    "x": 182.119,
+                    "y": 109.26
+                },
+                {
+                    "height": 10.908,
+                    "text": "character can be put in the dialogue like this.",
+                    "width": 214.959,
+                    "x": 182.121,
+                    "y": 95.46
+                },
+                {
+                    "height": 9.054,
+                    "text": "© Australian Script Centre 2004",
+                    "width": 129.793,
+                    "x": 374.84,
+                    "y": 36.019
+                }
+            ],
+            "number": 2,
+            "rotation": 0,
+            "text": "Script formatting example p.1\nSCRIPT FORMAT EXAMPLE\nThere are a number of different ways that you can format a theatre script. The\nexample below is a standard formatting and one that we like. (Note that theatre\nscripts and film scripts are usually formatted in different ways.)\nIf you have already written your play and your formatting is different from this, don’t\npanic. Formatting for the theatre is flexible up to a point. As long as there is a clear\ndifferentiation between stage directions and dialogue, and the script is easy to read\nand carefully proofread, it may well be acceptable.\nDon’t forget to put your name and contact details on the cover page.\nACT ONE\nSCENE 1\nStage directions are usually given in italics. Some writers put them in UPPER CASE\nITALICS. OTHERS JUST PUT THEM IN UPPER CASE. The main idea is to\ndifferentiate them clearly from the dialogue.\nCHARACTER 1 CHARACTER 2 CHARACTER 1 CHARACTER 2 CHARACTER 1 Dialogue is written in sentence case. Character names are given in\nupper case – again to differentiate them clearly from the spoken\ndialogue.\nIt’s a good idea to set a second-line tab so that dialogue always\nbegins on the same vertical line. This makes it clearer and easier\nfor actors to read.\nDialogue is usually double-spaced between each character’s\nspeech, but single-spaced within a character’s speech. This again\nmakes it easier for the actors to differentiate between characters.\nLeft align everything. Don’t right hand justify the document.\nUse a font like Times New Roman or Arial. Fonts like Courier\nNew and Arial Narrow are hard to read, and fancy fonts are just a\nnuisance. Remember that this is a working document and must be\neasy for actors and directors to use.\nPause\nCHARACTER 2 CHARACTER 1 If you need to write in a pause, it should go in italics or upper case,\nthe same as other stage directions.\n(to herself) Brief stage directions that specifically apply to one\ncharacter can be put in the dialogue like this.\n© Australian Script Centre 2004",
+            "width": 595
+        },
+        {
+            "height": 842,
+            "lines": [
+                {
+                    "height": 9.054,
+                    "text": "Script formatting example p.2",
+                    "width": 119.957,
+                    "x": 384.68,
+                    "y": 795.618
+                },
+                {
+                    "height": 8.304,
+                    "text": "SCENE 2",
+                    "width": 49.072,
+                    "x": 89.96,
+                    "y": 758.82
+                },
+                {
+                    "height": 10.908,
+                    "text": "It’s a good idea to keep stage directions to a minimum. Directors and actors need the",
+                    "width": 410.573,
+                    "x": 89.954,
+                    "y": 729.06
+                },
+                {
+                    "height": 10.908,
+                    "text": "space to put their own interpretations on what you have written. So forget about",
+                    "width": 385.434,
+                    "x": 89.954,
+                    "y": 715.26
+                },
+                {
+                    "height": 10.908,
+                    "text": "directions like ‘she picks up a glass of wine’ or ‘he smiles sadly’ unless it is integral",
+                    "width": 404.626,
+                    "x": 89.96,
+                    "y": 701.46
+                },
+                {
+                    "height": 10.908,
+                    "text": "to the action of the play. They just annoy the director.",
+                    "width": 257.881,
+                    "x": 89.96,
+                    "y": 687.66
+                },
+                {
+                    "height": 10.908,
+                    "text": "CHARACTER 3",
+                    "width": 81.716,
+                    "x": 89.96,
+                    "y": 660.06
+                },
+                {
+                    "height": 10.908,
+                    "text": "CHARACTER 1",
+                    "width": 81.716,
+                    "x": 89.96,
+                    "y": 604.86
+                },
+                {
+                    "height": 10.908,
+                    "text": "CHARACTER 3",
+                    "width": 81.716,
+                    "x": 89.959,
+                    "y": 535.86
+                },
+                {
+                    "height": 10.908,
+                    "text": "CHARACTER 1",
+                    "width": 81.716,
+                    "x": 89.96,
+                    "y": 494.46
+                },
+                {
+                    "height": 10.908,
+                    "text": "CHARACTER 2",
+                    "width": 81.716,
+                    "x": 89.96,
+                    "y": 397.86
+                },
+                {
+                    "height": 10.908,
+                    "text": "Don’t forget to paginate your script. It’s also a good idea to put the",
+                    "width": 321.301,
+                    "x": 182.118,
+                    "y": 660.06
+                },
+                {
+                    "height": 10.908,
+                    "text": "name of the script on each page as part of the header – in slightly",
+                    "width": 312.728,
+                    "x": 182.12,
+                    "y": 646.26
+                },
+                {
+                    "height": 10.908,
+                    "text": "smaller print than the dialogue.",
+                    "width": 149.546,
+                    "x": 182.12,
+                    "y": 632.46
+                },
+                {
+                    "height": 10.908,
+                    "text": "Some writers also like to put their name and the copyright symbol",
+                    "width": 316.908,
+                    "x": 182.118,
+                    "y": 604.86
+                },
+                {
+                    "height": 10.908,
+                    "text": "© on each page as a footer. You don’t need to do this. Your play is",
+                    "width": 321.35,
+                    "x": 182.12,
+                    "y": 591.06
+                },
+                {
+                    "height": 10.908,
+                    "text": "protected by copyright whether you put the copyright symbol on it",
+                    "width": 319.186,
+                    "x": 182.114,
+                    "y": 577.26
+                },
+                {
+                    "height": 10.908,
+                    "text": "or not.",
+                    "width": 31.321,
+                    "x": 182.119,
+                    "y": 563.46
+                },
+                {
+                    "height": 10.908,
+                    "text": "Leave a decent margin. And of course only use one side of A4",
+                    "width": 299.521,
+                    "x": 182.117,
+                    "y": 535.86
+                },
+                {
+                    "height": 10.908,
+                    "text": "paper.",
+                    "width": 29.528,
+                    "x": 182.114,
+                    "y": 522.06
+                },
+                {
+                    "height": 10.908,
+                    "text": "Proofread your finished script carefully AFTER you print it out",
+                    "width": 304.905,
+                    "x": 182.118,
+                    "y": 494.46
+                },
+                {
+                    "height": 10.908,
+                    "text": "and BEFORE you send it to us. Check spellings, punctuation, line",
+                    "width": 316.977,
+                    "x": 182.12,
+                    "y": 480.66
+                },
+                {
+                    "height": 10.908,
+                    "text": "spacings etc. Your play doesn’t have to be grammatically correct –",
+                    "width": 320.766,
+                    "x": 182.12,
+                    "y": 466.86
+                },
+                {
+                    "height": 10.908,
+                    "text": "and you might choose not to use standard punctuation – but it",
+                    "width": 295.659,
+                    "x": 182.12,
+                    "y": 453.06
+                },
+                {
+                    "height": 10.908,
+                    "text": "DOES need to be consistent. Poor proofreading suggests a lack of",
+                    "width": 316.24,
+                    "x": 182.12,
+                    "y": 439.26
+                },
+                {
+                    "height": 10.908,
+                    "text": "professionalism.",
+                    "width": 78.97,
+                    "x": 182.114,
+                    "y": 425.46
+                },
+                {
+                    "height": 10.908,
+                    "text": "When you submit a play script to a theatre company or a script",
+                    "width": 301.188,
+                    "x": 182.118,
+                    "y": 397.86
+                },
+                {
+                    "height": 10.908,
+                    "text": "development organisation, don’t staple it or bind it. Use a simple",
+                    "width": 311.212,
+                    "x": 182.12,
+                    "y": 384.06
+                },
+                {
+                    "height": 10.908,
+                    "text": "bulldog clip that can be easily removed.",
+                    "width": 191.557,
+                    "x": 182.115,
+                    "y": 370.26
+                },
+                {
+                    "height": 10.908,
+                    "text": "THE END",
+                    "width": 50.902,
+                    "x": 89.961,
+                    "y": 328.86
+                },
+                {
+                    "height": 9.054,
+                    "text": "© Australian Script Centre 2004",
+                    "width": 129.793,
+                    "x": 374.84,
+                    "y": 36.019
+                }
+            ],
+            "number": 3,
+            "rotation": 0,
+            "text": "Script formatting example p.2\nSCENE 2\nIt’s a good idea to keep stage directions to a minimum. Directors and actors need the\nspace to put their own interpretations on what you have written. So forget about\ndirections like ‘she picks up a glass of wine’ or ‘he smiles sadly’ unless it is integral\nto the action of the play. They just annoy the director.\nCHARACTER 3 CHARACTER 1 CHARACTER 3 CHARACTER 1 CHARACTER 2 Don’t forget to paginate your script. It’s also a good idea to put the\nname of the script on each page as part of the header – in slightly\nsmaller print than the dialogue.\nSome writers also like to put their name and the copyright symbol\n© on each page as a footer. You don’t need to do this. Your play is\nprotected by copyright whether you put the copyright symbol on it\nor not.\nLeave a decent margin. And of course only use one side of A4\npaper.\nProofread your finished script carefully AFTER you print it out\nand BEFORE you send it to us. Check spellings, punctuation, line\nspacings etc. Your play doesn’t have to be grammatically correct –\nand you might choose not to use standard punctuation – but it\nDOES need to be consistent. Poor proofreading suggests a lack of\nprofessionalism.\nWhen you submit a play script to a theatre company or a script\ndevelopment organisation, don’t staple it or bind it. Use a simple\nbulldog clip that can be easily removed.\nTHE END\n© Australian Script Centre 2004",
+            "width": 595
+        }
+    ]
+}

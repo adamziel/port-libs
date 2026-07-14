@@ -7476,7 +7476,12 @@ final class PdfTextExtractor
      */
     private function streamDecodeParmsFromValue(string $value, array $objects): array
     {
-        preg_match_all('/\bnull\b|<<(.*?)>>|(\d+)\s+\d+\s+R\b/s', $value, $matches, PREG_SET_ORDER);
+        preg_match_all(
+            '/\bnull\b|<<(.*?)>>|(\d+)\s+\d+\s+R\b/s',
+            $value,
+            $matches,
+            PREG_SET_ORDER | PREG_UNMATCHED_AS_NULL
+        );
         $parms = [];
         foreach ($matches as $match) {
             if ($match[0] === 'null') {
@@ -7489,7 +7494,11 @@ final class PdfTextExtractor
                 continue;
             }
 
-            $referenced = $objects[(int) $match[2]] ?? '';
+            $referenceObject = $match[2] ?? null;
+            if (!is_string($referenceObject) || $referenceObject === '') {
+                continue;
+            }
+            $referenced = $objects[(int) $referenceObject] ?? '';
             foreach ($this->streamDecodeParmsFromValue($referenced, $objects) as $entry) {
                 $parms[] = $entry;
             }
