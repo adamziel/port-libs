@@ -3600,7 +3600,7 @@ final class PdfReader
             // Preserve it only when the immediately adjacent source records
             // on both sides are matched, share its stream, and occupy
             // consecutive, vertically ordered visual slots. This supplies a
-            // local placement proof without admitting isolated diagram labels
+            // local placement proof without admitting isolated figure labels
             // merely because the page otherwise has usable geometry.
             if (isset(
                 $sourceItems[$previousIndex],
@@ -3610,6 +3610,7 @@ final class PdfReader
             ) && $this->sourcePdfItemsShareStream($sourceItems[$previousIndex], $sourceItem)
                 && $this->sourcePdfItemsShareStream($sourceItem, $sourceItems[$nextIndex])
                 && $this->sourcePdfMatchedLayoutsSandwichSourceOnlyItem(
+                    $sourceItem,
                     $match['itemsBySourceIndex'][$previousIndex],
                     $match['itemsBySourceIndex'][$nextIndex],
                     $previousIndex,
@@ -6794,17 +6795,27 @@ final class PdfReader
     }
 
     /**
+     * @param array{page: int, stream: int, text: string} $sourceItem
      * @param array<string, mixed> $previousItem
      * @param array<string, mixed> $nextItem
      * @param list<array{item: array<string, mixed>, sourceIndex: int|null}> $visualEntries
      */
     private function sourcePdfMatchedLayoutsSandwichSourceOnlyItem(
+        array $sourceItem,
         array $previousItem,
         array $nextItem,
         int $previousSourceIndex,
         int $nextSourceIndex,
         array $visualEntries
     ): bool {
+        if ($this->sourcePdfSourceOnlyItemIsAdjacentFootnoteMarker(
+            $sourceItem,
+            $previousItem,
+            $nextItem
+        )) {
+            return false;
+        }
+
         if (!$this->pdfLayoutHasGeometry($previousItem)
             || !$this->pdfLayoutHasGeometry($nextItem)
             || (int) ($previousItem['page'] ?? 0) !== (int) ($nextItem['page'] ?? 0)) {
@@ -6832,6 +6843,32 @@ final class PdfReader
 
         return $previousVisualIndex !== null
             && $nextVisualIndex === $previousVisualIndex + 1;
+    }
+
+    /**
+     * A source stream can put a footnote marker before the footnote text,
+     * while the positioned layer includes that marker in the footnote line.
+     * Never fabricate body geometry for that marker merely because its source
+     * neighbors happen to be visually adjacent. Normal numeric body content
+     * is still eligible for local interpolation when neither neighbor carries
+     * independently verified footnote-prefix provenance.
+     *
+     * @param array{page: int, stream: int, text: string} $sourceItem
+     * @param array<string, mixed> $previousItem
+     * @param array<string, mixed> $nextItem
+     */
+    private function sourcePdfSourceOnlyItemIsAdjacentFootnoteMarker(
+        array $sourceItem,
+        array $previousItem,
+        array $nextItem
+    ): bool {
+        $marker = trim($sourceItem['text']);
+        if (preg_match('/^(?:[0-9]{1,3}|[*†‡])$/u', $marker) !== 1) {
+            return false;
+        }
+
+        return ($previousItem['sourceFootnotePrefixedGeometry'] ?? false) === true
+            || ($nextItem['sourceFootnotePrefixedGeometry'] ?? false) === true;
     }
 
     /**

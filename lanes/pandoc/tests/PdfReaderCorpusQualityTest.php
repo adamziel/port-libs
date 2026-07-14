@@ -492,6 +492,7 @@ return [
         $t->contains('We call the resulting tracing VM TraceMonkey. TraceMonkey supports all the JavaScript features of SpiderMonkey', $blocks);
         $t->true(!str_contains($blocks, 'Trace- Monkey'), 'TraceMonkey must join geometry-confirmed repeated compounds across line-end hyphens.');
         $t->contains('each loop is entered with m different type maps (on geometric average)', $blocks);
+        $t->true(!str_contains($blocks, 'each 2 loop'), 'A source-only footnote marker must not acquire fabricated body geometry.');
         $t->contains('As long as m is close to 1, the resulting trace trees will be tractable.', $blocks);
         $t->true(
             !str_contains($blocks, '<p>is close to 1, the resulting trace trees will be tractable.</p>'),
