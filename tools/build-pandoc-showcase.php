@@ -4572,7 +4572,7 @@ const viewLabels = {
 };
 const defaultView = 'wpBlocks';
 const exampleUrlParameter = 'example';
-const playgroundPluginBuild = 'jp2-web-media-20260714';
+const playgroundPluginBuild = 'jp2-placeholder-20260714';
 const playgroundClientModuleUrl = 'https://playground.wordpress.net/client/index.js';
 const playgroundUploadDirectory = '/tmp/port-libs-converter';
 const playgroundPdfRasterByteLimit = 24_000_000;

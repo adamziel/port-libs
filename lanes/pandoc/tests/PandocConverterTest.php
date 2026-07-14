@@ -424,6 +424,41 @@ return [
         $t->contains('src="media/pdf/image-7.png"', $result['output']);
         $t->true(in_array('extract-media-pdf-image-raster-loaded:7:important', $result['diagnostics'], true));
     },
+    'retains JPEG 2000 PDF media behind a placeholder when no raster decoder is available' => static function (TestRunner $t): void {
+        $content = "BT /F1 12 Tf 72 720 Td (Before) Tj ET\n"
+            . "q 146 0 0 68 72 580 cm /A Do Q\n"
+            . "BT /F1 12 Tf 72 480 Td (After) Tj ET";
+        $jpx = str_repeat('J', 8500);
+        $image = '<< /Type /XObject /Subtype /Image /Width 146 /Height 68 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /JPXDecode /Length '
+            . strlen($jpx) . " >>\nstream\n" . $jpx . "\nendstream";
+        $result = PandocConverter::convertWithMedia(
+            pandoc_single_page_layout_fixture($content, '/A 7 0 R', [7 => $image]),
+            'pdf',
+            'wordpress',
+            ['extractMedia' => ['destination' => 'media', 'imageMode' => 'important']]
+        );
+
+        $t->same(1, count($result['media']));
+        $t->same('image/jp2', $result['media'][0]['mimeType'] ?? null);
+        $t->same('media/pdf/image-7.jp2', $result['media'][0]['path'] ?? null);
+        $t->same(strlen($jpx), $result['media'][0]['byteLength'] ?? null);
+        $t->same(sha1($jpx), $result['media'][0]['sha1'] ?? null);
+        $t->contains('pandoc-pdf-image-placeholder', $result['output']);
+        $t->contains('no JPEG 2000 decoder was available for a preview', $result['output']);
+        $t->contains('href="media/pdf/image-7.jp2"', $result['output']);
+        $t->true(!str_contains($result['output'], '<img'));
+        $t->true(in_array('extract-media-pdf-image-placeholder:7:jpeg2000-raster-unavailable', $result['diagnostics'], true));
+
+        $html = PandocConverter::convertWithMedia(
+            pandoc_single_page_layout_fixture($content, '/A 7 0 R', [7 => $image]),
+            'pdf',
+            'html',
+            ['extractMedia' => ['destination' => 'media', 'imageMode' => 'important']]
+        );
+        $t->contains('pandoc-pdf-image-placeholder', $html['output']);
+        $t->contains('href="media/pdf/image-7.jp2"', $html['output']);
+        $t->true(!str_contains($html['output'], '<img'));
+    },
     'keeps image anchors in their own visual column' => static function (TestRunner $t): void {
         $content = "BT /F1 12 Tf 72 720 Td (Before) Tj ET\n"
             . "q 100 0 0 100 72 500 cm /A Do Q\n"

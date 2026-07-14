@@ -1,4 +1,4 @@
-const pluginBuild = 'jp2-web-media-20260714';
+const pluginBuild = 'jp2-placeholder-20260714';
 const playgroundClientModuleUrl = 'https://playground.wordpress.net/client/index.js';
 // Keep browser-produced PDF rasters within the exact decoded-byte limit that
 // the Playground REST plugin accepts. Base64 expands this on the wire, but the

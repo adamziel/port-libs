@@ -67,6 +67,15 @@ for (const expected of [
 const disabled = await decodePdfJpxRasters(new Uint8Array(fs.readFileSync(motographPath)), { imageMode: 'none' });
 assert.equal(disabled.rasters.length, 0);
 
+const unavailableDecoder = await decodePdfJpxRasters(new Uint8Array(fs.readFileSync(motographPath)), {
+  imageMode: 'important',
+  decoderFactory: () => {
+    throw new Error('missing server decoder');
+  },
+});
+assert.equal(unavailableDecoder.rasters.length, 0, 'A missing JPEG 2000 decoder must not abort PDF import preparation.');
+assert.ok(unavailableDecoder.diagnostics.includes('pdf-jpx-raster-unavailable:missing-server-decoder'));
+
 const mismatchedDimensions = await decodePdfJpxRasters(jpxDimensionMismatchFixture(10, 10, 11, 10), {
   imageMode: 'all',
   decoderFactory: () => {

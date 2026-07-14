@@ -680,6 +680,12 @@ final class PandocMediaExtractor
 
             $source = 'pdf/image-' . $objectNumber . $extension;
             $bag->insertMedia($source, $mimeType, $imageBytes);
+            // JPEG 2000 is not a browser-safe image format. Keep the source
+            // bytes even when an optional rasterizer is unavailable, but do
+            // not leave a broken <img> in the converted document. The
+            // placement below becomes a download-oriented placeholder until
+            // a caller supplies a browser-compatible supplemental raster.
+            $webPreviewUnavailable = $raster === null && $mimeType === 'image/jp2';
             $assets[$objectKey] = [
                 'source' => $source,
                 'object' => $objectNumber,
@@ -689,7 +695,11 @@ final class PandocMediaExtractor
                 'height' => $height,
                 'imageMask' => false,
                 'importance' => $importance,
+                'webPreviewUnavailable' => $webPreviewUnavailable,
             ];
+            if ($webPreviewUnavailable) {
+                $diagnostics[] = 'extract-media-pdf-image-placeholder:' . $objectNumber . ':jpeg2000-raster-unavailable';
+            }
             $diagnostics[] = 'extract-media-pdf-image-loaded:' . $objectNumber . ':' . $importance;
             $loaded++;
         }
@@ -800,6 +810,32 @@ final class PandocMediaExtractor
                     $attributes['data-pandoc-pdf-image-' . $coordinate] = (string) $placement['bbox'][$coordinate];
                 }
             }
+        }
+
+        if (($placement['webPreviewUnavailable'] ?? false) === true) {
+            $attributes['data-pandoc-pdf-image-rendering'] = 'unavailable';
+
+            return new AstNode('paragraph', [
+                'classes' => ['pandoc-pdf-image-block', 'pandoc-pdf-image-placed', 'pandoc-pdf-image-placeholder'],
+                'attributes' => $attributes,
+            ], [
+                new AstNode('span', [
+                    'classes' => ['pandoc-pdf-image-placeholder'],
+                    'attributes' => array_replace($attributes, ['role' => 'note']),
+                ], [
+                    new AstNode('text', [
+                        'text' => 'PDF image ' . (string) $placement['object']
+                            . ' was extracted as JPEG 2000 media, but no JPEG 2000 decoder was available for a preview. ',
+                    ]),
+                    new AstNode('link', [
+                        'url' => (string) $placement['source'],
+                        'title' => 'Download original JPEG 2000 image',
+                        'attributes' => ['data-pandoc-pdf-image-original' => 'true'],
+                    ], [
+                        new AstNode('text', ['text' => 'Download original image.']),
+                    ]),
+                ]),
+            ]);
         }
 
         $imageAttrs = [

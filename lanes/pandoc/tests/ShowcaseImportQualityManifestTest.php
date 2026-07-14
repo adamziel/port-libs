@@ -314,8 +314,7 @@ return [
             $expectedQualityStatus = $id === 'pdf-muir-beach-brochure' ? 'review' : 'pass';
             $t->same($expectedQualityStatus, $quality['status'] ?? null, "{$id} should retain its measured PDF import-quality status.");
             $t->same('pass', $gates['text_completeness']['status'] ?? null, "{$id} should preserve PDFKit text.");
-            $expectedSourceCoverageStatus = $id === 'pdf-muir-beach-brochure' ? 'review' : 'pass';
-            $t->same($expectedSourceCoverageStatus, $gates['native_source_coverage']['status'] ?? null, "{$id} should retain native source-token coverage.");
+            $t->same('pass', $gates['native_source_coverage']['status'] ?? null, "{$id} should retain native source-token coverage.");
             $t->same('pass', $gates['pdf_geometry_reference']['status'] ?? null, "{$id} should retain native page and line geometry.");
             $t->same('pass', $gates['paragraph_merge_split']['status'] ?? null, "{$id} should avoid visual-line paragraph drift.");
         }
@@ -364,7 +363,7 @@ return [
             $t->same('pass', $gates['citeproc_entry_count']['status'] ?? null, "{$id} should pass Citeproc entry count.");
         }
     },
-    'showcase uses validated PNG rasters for JBIG2 PDF image objects' => static function (TestRunner $t) use ($showcaseManifest, $recordsById): void {
+    'showcase converts anchored JPEG 2000 PDF image media to a web-safe artifact' => static function (TestRunner $t) use ($showcaseManifest, $recordsById): void {
         $manifest = $showcaseManifest();
         $records = is_array($manifest['records'] ?? null) ? $manifest['records'] : [];
         $byId = $recordsById($records);
@@ -374,15 +373,18 @@ return [
         $quality = is_array($record['importQuality'] ?? null) ? $record['importQuality'] : [];
         $mediaGate = is_array($quality['gates']['media_imported'] ?? null) ? $quality['gates']['media_imported'] : [];
         $diagnostics = is_array($record['wpBlocks']['mediaDiagnostics'] ?? null) ? $record['wpBlocks']['mediaDiagnostics'] : [];
-        $pngMedia = array_values(array_filter($record['wpBlocks']['media'] ?? [], static function (mixed $media): bool {
-            return is_array($media) && str_ends_with((string) ($media['path'] ?? ''), '.png');
+        $webMedia = array_values(array_filter($record['wpBlocks']['media'] ?? [], static function (mixed $media): bool {
+            return is_array($media) && (string) ($media['mimeType'] ?? '') === 'image/avif';
         }));
 
         $t->same('pass', $quality['status'] ?? null, 'The scanned PDF should no longer remain a review-only import.');
         $t->same('pass', $mediaGate['status'] ?? null, 'Browser-compatible raster media should satisfy the media gate.');
-        $t->same(42, count($pngMedia), 'The important JBIG2 image objects should be represented as extracted PNG media.');
-        $t->true(in_array('extract-media-pdf-image-raster-loaded:00017:important', $diagnostics, true), 'A JBIG2Globals-backed page image should be recorded as a raster media import.');
-        $t->same(false, in_array('extract-media-pdf-image-skipped:JBIG2Decode', $diagnostics, true), 'No supported JBIG2 image should be silently skipped.');
+        $t->same(1, count($webMedia), 'The important JPEG 2000 wordmark should be represented as one extracted web image.');
+        $t->same('outputs/pdf-archive-motograph-book/media/pdf/image-00003.avif', $webMedia[0]['path'] ?? null, 'The JPX object should retain a stable web-safe media path.');
+        $t->true(in_array('extract-media-pdf-image-raster-loaded:00003:important', $diagnostics, true), 'The anchored JPEG 2000 image should be recorded as a raster media import.');
+        $t->same(false, array_filter($record['wpBlocks']['media'] ?? [], static function (mixed $media): bool {
+            return is_array($media) && str_ends_with((string) ($media['path'] ?? ''), '.jp2');
+        }) !== [], 'The generated showcase should not expose a raw JPEG 2000 image as a broken browser preview.');
     },
     'showcase manifest distinguishes source raw HTML from Custom HTML fallback' => static function (TestRunner $t) use ($showcaseManifest, $recordsById, $sourceRawHtmlBlockCount): void {
         $manifest = $showcaseManifest();
