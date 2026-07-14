@@ -21,7 +21,7 @@ final class PdfReader
     private int $lowConfidenceGeometryTableCandidates = 0;
 
     /**
-     * @param array{maxTextBytes?: int, maxPages?: int, pdfMaxPages?: int, max_pages?: int, password?: string, pdfPassword?: string, geometryTables?: bool, pdfGeometryTables?: bool, extractGeometryTables?: bool, pdfRepairProseText?: bool, repairProseText?: bool, pdfFastTextOnly?: bool, fastTextOnly?: bool, pdfFastModeBytes?: int, maxPositionedTextRuns?: int, pdfMaxPositionedTextRuns?: int, pdfCollectImagePlacements?: bool, collectPdfImagePlacements?: bool} $options
+     * @param array{maxTextBytes?: int, maxPages?: int, pdfMaxPages?: int, max_pages?: int, password?: string, pdfPassword?: string, geometryTables?: bool, pdfGeometryTables?: bool, extractGeometryTables?: bool, pdfRepairProseText?: bool, repairProseText?: bool, pdfFastTextOnly?: bool, fastTextOnly?: bool, pdfFastModeBytes?: int, maxPositionedTextRuns?: int, pdfMaxPositionedTextRuns?: int, pdfCollectImagePlacements?: bool, collectPdfImagePlacements?: bool, pdfCollectFormXObjectPlacements?: bool, collectPdfFormXObjectPlacements?: bool} $options
      */
     public function __construct(private readonly array $options = [])
     {
@@ -60,7 +60,7 @@ final class PdfReader
             $pdfBytes,
             $maxTextBytes,
             !$fastTextOnly,
-            !$fastTextOnly && ($geometryTablesEnabled || $proseRepairEnabled || $this->collectPdfImagePlacements()),
+            !$fastTextOnly && ($geometryTablesEnabled || $proseRepairEnabled || $this->collectPdfImagePlacements() || $this->collectPdfFormXObjectPlacements()),
             $geometryTablesEnabled,
             $proseRepairEnabled
         );
@@ -117,7 +117,7 @@ final class PdfReader
         // Media placement may be requested even when the caller has left
         // prose repair disabled. Retain only compact visual text lines as
         // potential anchors; the raw glyph runs are still released below.
-        $imagePlacementLayouts = $this->collectPdfImagePlacements() && $limitedPositionedRuns !== []
+        $imagePlacementLayouts = ($this->collectPdfImagePlacements() || $this->collectPdfFormXObjectPlacements()) && $limitedPositionedRuns !== []
             ? ($positionedLineItems !== []
                 ? $positionedLineItems
                 : $this->positionedProseLineItemsFromTextRuns($limitedPositionedRuns))
@@ -251,6 +251,24 @@ final class PdfReader
                 $pdfImagePlacements = [];
             }
         }
+        $pdfFormXObjectPlacements = [];
+        if (!$fastTextOnly && $this->collectPdfFormXObjectPlacements()) {
+            try {
+                // Form placements use exactly the same compact surrounding
+                // text anchors as direct images.  The consuming media pass
+                // can render the page crop in a browser, then insert that
+                // raster beside the source text instead of appending a
+                // document-wide gallery.
+                $pdfFormXObjectPlacements = $this->imagePlacementsWithTextAnchors(
+                    $extractor->extractFormXObjectPlacements($pdfBytes),
+                    $imagePlacementLayouts !== [] ? $imagePlacementLayouts : $repairSourceLayouts
+                );
+            } catch (\Throwable) {
+                // Browser-rendered Form figures are an optional enrichment.
+                // A malformed Form must never make text import fail.
+                $pdfFormXObjectPlacements = [];
+            }
+        }
         $pdfWarnings = is_array($diagnostics['warnings'] ?? null) ? array_values(array_map(static fn (mixed $warning): string => (string) $warning, $diagnostics['warnings'])) : [];
         if ($this->lowConfidenceGeometryTableCandidates > 0 && $geometryTableBlocks === []) {
             $pdfWarnings[] = 'PDF table-like geometry was preserved as text because native table confidence was low.';
@@ -311,6 +329,7 @@ final class PdfReader
             'pdfAppearanceAnnotations' => $appearanceAnnotations,
             'pdfAppliedLinkAnnotations' => $appliedLinkAnnotations,
             'pdfImagePlacements' => $pdfImagePlacements,
+            'pdfFormXObjectPlacements' => $pdfFormXObjectPlacements,
             'pdfPlacedImageCandidates' => count(array_filter(
                 $pdfImagePlacements,
                 fn (array $placement): bool => $this->pdfImagePlacementIsEligible($placement)
@@ -461,6 +480,17 @@ final class PdfReader
     private function collectPdfImagePlacements(): bool
     {
         foreach (['pdfCollectImagePlacements', 'collectPdfImagePlacements'] as $key) {
+            if (array_key_exists($key, $this->options)) {
+                return (bool) $this->options[$key];
+            }
+        }
+
+        return false;
+    }
+
+    private function collectPdfFormXObjectPlacements(): bool
+    {
+        foreach (['pdfCollectFormXObjectPlacements', 'collectPdfFormXObjectPlacements'] as $key) {
             if (array_key_exists($key, $this->options)) {
                 return (bool) $this->options[$key];
             }
@@ -669,7 +699,8 @@ final class PdfReader
     {
         return $this->geometryTablesEnabled()
             || $this->proseTextRepairEnabled()
-            || $this->collectPdfImagePlacements();
+            || $this->collectPdfImagePlacements()
+            || $this->collectPdfFormXObjectPlacements();
     }
 
     private function hasExplicitPositionedTextRunLimit(): bool

@@ -838,6 +838,336 @@ final class PdfTextExtractor
     }
 
     /**
+     * Locate direct, painted Form XObjects on a page.  A Form's /BBox is
+     * transformed through the page graphics state and the Form's own /Matrix,
+     * so callers can hand the resulting page-space rectangle to a PDF
+     * renderer and crop the rendered page without attempting to interpret the
+     * Form's drawing operators in PHP.
+     *
+     * This intentionally reports only Forms invoked directly by a page
+     * content stream.  Nested Forms are implementation details of their
+     * containing Form; rendering the page crop for the outer invocation
+     * preserves both the nested content and its graphics state.
+     *
+     * `bbox` uses the PDF page's default user space (the same coordinate
+     * system accepted by PDF.js's convertToViewportRectangle).  It is not
+     * rotated or flipped for screen coordinates.  `id` is deterministic for
+     * a given source PDF and consists of the page number, direct Form paint
+     * order, and indirect Form object number.
+     *
+     * @return list<array{
+     *     id:string,
+     *     page:int,
+     *     pageObject:int,
+     *     contentStream:int,
+     *     paintOrder:int,
+     *     object:int,
+     *     resource:string,
+     *     resourcePath:list<string>,
+     *     matrix:list<float>,
+     *     formBBox:array{x1:float,y1:float,x2:float,y2:float},
+     *     bbox:array{x1:float,y1:float,x2:float,y2:float},
+     *     visible:bool,
+     *     placementEligible:bool,
+     *     boundsClipped:bool,
+     *     confidence:string
+     * }>
+     */
+    public function extractFormXObjectPlacements(string $pdfBytes): array
+    {
+        if (!$this->canExtractEncryptedContent($pdfBytes)) {
+            return [];
+        }
+
+        $objects = $this->pdfObjects($pdfBytes);
+        if ($objects === []) {
+            return [];
+        }
+
+        $placements = [];
+        $pageNumber = 0;
+        foreach ($this->limitedPageObjectNumbers($objects, $pdfBytes) as $pageObjectNumber) {
+            $pageNumber++;
+            $pageBody = $objects[$pageObjectNumber] ?? null;
+            if (!is_string($pageBody) || !$this->isPageObjectBody($pageBody)) {
+                continue;
+            }
+
+            $resourceContext = $this->resourceContextForPage($pageObjectNumber, $objects);
+            $xObjects = $this->xObjectResourceObjectNumbers($resourceContext, $objects);
+            if ($xObjects === []) {
+                continue;
+            }
+
+            $pageContent = '';
+            foreach ($this->pageContentsReferences($pageBody) as $contentsObjectNumber) {
+                foreach ($this->resolveContentObjectNumbers($contentsObjectNumber, $objects) as $contentObjectNumber) {
+                    $decoded = isset($objects[$contentObjectNumber])
+                        ? $this->decodeStreamObject($objects[$contentObjectNumber], $objects)
+                        : null;
+                    if ($decoded !== null) {
+                        $pageContent .= "\n" . $decoded;
+                    }
+                }
+            }
+            if ($pageContent === '') {
+                continue;
+            }
+
+            foreach ($this->formXObjectPlacementsFromContentStream(
+                $pageContent,
+                $objects,
+                $xObjects,
+                $pageNumber,
+                $pageObjectNumber,
+                1,
+                $this->effectivePageVisibleBox($pageObjectNumber, $objects),
+                $this->extGStateResourceStates($resourceContext, $objects)
+            ) as $placement) {
+                $placements[] = $placement;
+            }
+        }
+
+        return $placements;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<string, int> $xObjects
+     * @param array{x1:float,y1:float,x2:float,y2:float}|null $pageVisibleBox
+     * @param array<string, array{nonStrokingAlpha: float|null, hasSoftMask: bool}> $extGStates
+     * @return list<array{
+     *     id:string,
+     *     page:int,
+     *     pageObject:int,
+     *     contentStream:int,
+     *     paintOrder:int,
+     *     object:int,
+     *     resource:string,
+     *     resourcePath:list<string>,
+     *     matrix:list<float>,
+     *     formBBox:array{x1:float,y1:float,x2:float,y2:float},
+     *     bbox:array{x1:float,y1:float,x2:float,y2:float},
+     *     visible:bool,
+     *     placementEligible:bool,
+     *     boundsClipped:bool,
+     *     confidence:string
+     * }>
+     */
+    private function formXObjectPlacementsFromContentStream(
+        string $stream,
+        array $objects,
+        array $xObjects,
+        int $page,
+        int $pageObject,
+        int $contentStream,
+        ?array $pageVisibleBox,
+        array $extGStates
+    ): array {
+        $placements = [];
+        $paintOrder = 0;
+        $graphicsState = [
+            'matrix' => $this->identityTransformationMatrix(),
+            'lowConfidence' => false,
+            'placementUnsafe' => false,
+            'boundsClipped' => false,
+            'nonStrokingAlpha' => 1.0,
+        ];
+        $graphicsStack = [];
+        $markedContentStack = [];
+        $compatibilityDepth = 0;
+        $inTextObject = false;
+        $operands = [];
+
+        foreach ($this->contentTokenIterator($stream) as $token) {
+            if ($token === 'q') {
+                $graphicsStack[] = $graphicsState;
+                $operands = [];
+                continue;
+            }
+
+            if ($token === 'Q') {
+                $restored = array_pop($graphicsStack);
+                if (is_array($restored)) {
+                    $graphicsState = $restored;
+                }
+                $operands = [];
+                continue;
+            }
+
+            if ($token === 'cm') {
+                $matrix = $this->transformationMatrixOperand($operands);
+                if ($matrix === null) {
+                    $graphicsState['lowConfidence'] = true;
+                    $graphicsState['placementUnsafe'] = true;
+                } else {
+                    $graphicsState['matrix'] = $this->concatenateTransformationMatrices($graphicsState['matrix'], $matrix);
+                }
+                $operands = [];
+                continue;
+            }
+
+            if ($token === 'BT') {
+                $inTextObject = true;
+                $operands = [];
+                continue;
+            }
+
+            if ($token === 'ET') {
+                $inTextObject = false;
+                $operands = [];
+                continue;
+            }
+
+            if ($token === 'BX') {
+                $compatibilityDepth++;
+                $operands = [];
+                continue;
+            }
+
+            if ($token === 'EX') {
+                $compatibilityDepth = max(0, $compatibilityDepth - 1);
+                $operands = [];
+                continue;
+            }
+
+            if ($token === 'BMC' || $token === 'BDC') {
+                $markedContentStack[] = $this->markedContentOperandsRequireLowConfidence($operands);
+                $operands = [];
+                continue;
+            }
+
+            if ($token === 'EMC') {
+                array_pop($markedContentStack);
+                $operands = [];
+                continue;
+            }
+
+            if (in_array($token, ['W', 'W*'], true)) {
+                // The browser renderer will honour this clip while rendering
+                // the page.  It can make the rectangle conservative, but it
+                // does not invalidate a Form crop request.
+                $graphicsState['lowConfidence'] = true;
+                $graphicsState['boundsClipped'] = true;
+                $operands = [];
+                continue;
+            }
+
+            if ($token === 'gs') {
+                $name = $this->xObjectNameOperand($operands);
+                $extGState = $name !== null ? ($extGStates[$name] ?? null) : null;
+                if (!is_array($extGState)) {
+                    $graphicsState['lowConfidence'] = true;
+                } else {
+                    $alpha = $extGState['nonStrokingAlpha'] ?? null;
+                    if (is_float($alpha) || is_int($alpha)) {
+                        $graphicsState['nonStrokingAlpha'] = max(0.0, min(1.0, (float) $alpha));
+                    }
+                    if (($extGState['hasSoftMask'] ?? false) === true) {
+                        $graphicsState['lowConfidence'] = true;
+                    }
+                }
+                $operands = [];
+                continue;
+            }
+
+            if ($token === 'Do') {
+                $resource = $this->xObjectNameOperand($operands);
+                if ($resource !== null
+                    && !$inTextObject
+                    && $compatibilityDepth === 0
+                    && isset($xObjects[$resource], $objects[$xObjects[$resource]])) {
+                    $objectNumber = $xObjects[$resource];
+                    $objectBody = $objects[$objectNumber];
+                    if ($this->isFormXObjectObject($objectBody)) {
+                        $paintOrder++;
+                        $formBBox = $this->pageRectangleFromObjectBody($objectBody, 'BBox', $objects);
+                        $formMatrix = $this->formXObjectTransformationMatrix($objectBody, $objects);
+                        if ($formBBox !== null && $formMatrix !== null) {
+                            $matrix = $this->concatenateTransformationMatrices($graphicsState['matrix'], $formMatrix);
+                            $bbox = $this->rectangleBoundingBoxInMatrix($formBBox, $matrix);
+                            if ($bbox !== null) {
+                                $intersectsPage = $pageVisibleBox === null
+                                    || $this->imageBoundingBoxIntersectsPageBox($bbox, $pageVisibleBox);
+                                $visible = $intersectsPage && (float) $graphicsState['nonStrokingAlpha'] > 0.000001;
+                                $hasMarkedContentUncertainty = in_array(true, $markedContentStack, true);
+                                $placementEligible = $visible
+                                    && !$graphicsState['placementUnsafe']
+                                    && !$hasMarkedContentUncertainty;
+                                $placements[] = [
+                                    'id' => 'pdf-form-p' . $page . '-n' . $paintOrder . '-o' . $objectNumber,
+                                    'page' => $page,
+                                    'pageObject' => $pageObject,
+                                    'contentStream' => $contentStream,
+                                    'paintOrder' => $paintOrder,
+                                    'object' => $objectNumber,
+                                    'resource' => $resource,
+                                    'resourcePath' => [$resource],
+                                    'matrix' => $this->transformationMatrixValues($matrix),
+                                    'formBBox' => $formBBox,
+                                    'bbox' => $bbox,
+                                    'visible' => $visible,
+                                    'placementEligible' => $placementEligible,
+                                    'boundsClipped' => (bool) $graphicsState['boundsClipped'],
+                                    'confidence' => ($graphicsState['lowConfidence'] || !$placementEligible) ? 'low' : 'high',
+                                ];
+                            }
+                        }
+                    }
+                }
+                $operands = [];
+                continue;
+            }
+
+            if ($this->isOperator($token)) {
+                $operands = [];
+                continue;
+            }
+
+            $operands[] = $token;
+        }
+
+        return $placements;
+    }
+
+    /**
+     * @param array{x1:float,y1:float,x2:float,y2:float} $rectangle
+     * @param array{a: float, b: float, c: float, d: float, e: float, f: float} $matrix
+     * @return array{x1:float,y1:float,x2:float,y2:float}|null
+     */
+    private function rectangleBoundingBoxInMatrix(array $rectangle, array $matrix): ?array
+    {
+        $points = [
+            $this->transformPoint($rectangle['x1'], $rectangle['y1'], $matrix),
+            $this->transformPoint($rectangle['x1'], $rectangle['y2'], $matrix),
+            $this->transformPoint($rectangle['x2'], $rectangle['y1'], $matrix),
+            $this->transformPoint($rectangle['x2'], $rectangle['y2'], $matrix),
+        ];
+        $xs = array_column($points, 0);
+        $ys = array_column($points, 1);
+        foreach (array_merge($xs, $ys) as $value) {
+            if ((!is_float($value) && !is_int($value)) || !is_finite((float) $value)) {
+                return null;
+            }
+        }
+
+        $x1 = min($xs);
+        $y1 = min($ys);
+        $x2 = max($xs);
+        $y2 = max($ys);
+        if ($x2 - $x1 <= 0.000001 || $y2 - $y1 <= 0.000001) {
+            return null;
+        }
+
+        return [
+            'x1' => (float) $x1,
+            'y1' => (float) $y1,
+            'x2' => (float) $x2,
+            'y2' => (float) $y2,
+        ];
+    }
+
+    /**
      * @param array<int, string> $objects
      * @param array<string, int> $xObjects
      * @param array{a: float, b: float, c: float, d: float, e: float, f: float} $initialMatrix

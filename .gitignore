@@ -3,4 +3,7 @@
 .upstream-cache/
 .port-libs/
 vendor/
+!pandoc-showcase/vendor/
+!pandoc-showcase/vendor/pdfjs/
+!pandoc-showcase/vendor/pdfjs/**
 composer.lock

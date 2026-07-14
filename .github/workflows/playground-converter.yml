@@ -13,9 +13,12 @@ on:
       - 'pandoc-showcase/vendor/pdfjs-jbig2/**'
       - 'pandoc-showcase/pdf-jpx-rasterizer.mjs'
       - 'pandoc-showcase/vendor/pdfjs-openjpeg/**'
+      - 'pandoc-showcase/pdfjs-form-rasterizer.mjs'
+      - 'pandoc-showcase/vendor/pdfjs/**'
       - 'pandoc-showcase/playground/**'
       - 'tools/build-pandoc-showcase.php'
       - 'tools/check-showcase-examples-page.js'
+      - 'tools/check-playground-converter-ui.js'
       - 'tools/decode-pdf-jbig2-media.mjs'
       - 'tools/check-pdf-jbig2-rasterizer.mjs'
       - 'tools/decode-pdf-jpx-media.mjs'
@@ -23,6 +26,7 @@ on:
       - 'tools/decode-pdf-raster-media.mjs'
       - 'tools/measure-pandoc-import-memory.php'
       - 'tools/build-playground-converter-plugin.php'
+      - 'tools/vendor-pdfjs.sh'
       - 'tools/playground-converter-plugin/**'
   push:
     branches:
@@ -38,9 +42,12 @@ on:
       - 'pandoc-showcase/vendor/pdfjs-jbig2/**'
       - 'pandoc-showcase/pdf-jpx-rasterizer.mjs'
       - 'pandoc-showcase/vendor/pdfjs-openjpeg/**'
+      - 'pandoc-showcase/pdfjs-form-rasterizer.mjs'
+      - 'pandoc-showcase/vendor/pdfjs/**'
       - 'pandoc-showcase/playground/**'
       - 'tools/build-pandoc-showcase.php'
       - 'tools/check-showcase-examples-page.js'
+      - 'tools/check-playground-converter-ui.js'
       - 'tools/decode-pdf-jbig2-media.mjs'
       - 'tools/check-pdf-jbig2-rasterizer.mjs'
       - 'tools/decode-pdf-jpx-media.mjs'
@@ -48,6 +55,7 @@ on:
       - 'tools/decode-pdf-raster-media.mjs'
       - 'tools/measure-pandoc-import-memory.php'
       - 'tools/build-playground-converter-plugin.php'
+      - 'tools/vendor-pdfjs.sh'
       - 'tools/playground-converter-plugin/**'
   workflow_dispatch:
 
@@ -76,7 +84,9 @@ jobs:
       - name: Lint converter files
         run: |
           php -l lanes/markerpdf/src/PdfMetadataExtractor.php
+          php -l lanes/markerpdf/src/PdfTextExtractor.php
           php -l lanes/markerpdf/tests/PdfMetadataHardeningTest.php
+          php -l lanes/markerpdf/tests/PdfFormXObjectPlacementTest.php
           php -l lanes/pandoc/src/BibtexCslParser.php
           php -l lanes/pandoc/src/BibtexCslProcessor.php
           php -l lanes/pandoc/src/EpubReader.php
@@ -90,6 +100,7 @@ jobs:
           php -l lanes/pandoc/tests/JiraReaderTest.php
           php -l tools/playground-converter-plugin/port-libs-playground-converter.php
           php -l lanes/pandoc/tests/PlaygroundConverterPluginTest.php
+          php -l lanes/pandoc/tests/PdfFormXObjectPlacementMetadataTest.php
           php -l lanes/pandoc/tests/PandocImportMemoryBudgetTest.php
           php -l lanes/pandoc/tests/PdfReaderCorpusQualityTest.php
           php -l lanes/pandoc/tests/PdfReaderTest.php
@@ -101,6 +112,8 @@ jobs:
           node --check pandoc-showcase/examples.js
           node --check pandoc-showcase/pdf-jbig2-rasterizer.mjs
           node --check pandoc-showcase/pdf-jpx-rasterizer.mjs
+          node --check pandoc-showcase/pdfjs-form-rasterizer.mjs
+          node --check tools/playground-converter-plugin/assets/admin-importer.mjs
           node --check tools/decode-pdf-jbig2-media.mjs
           node --check tools/decode-pdf-jpx-media.mjs
           node --check tools/decode-pdf-raster-media.mjs
@@ -115,12 +128,14 @@ jobs:
         run: |
           php tools/run-tests.php \
             lanes/markerpdf/tests/PdfMetadataHardeningTest.php \
+            lanes/markerpdf/tests/PdfFormXObjectPlacementTest.php \
             lanes/pandoc/tests/BibtexCslProcessorTest.php \
             lanes/pandoc/tests/EpubReaderTest.php \
             lanes/pandoc/tests/EpubXmlEncodingAndProcessingInstructionRecoveryTest.php \
             lanes/pandoc/tests/JiraReaderHardeningTest.php \
             lanes/pandoc/tests/JiraReaderTest.php \
             lanes/pandoc/tests/PlaygroundConverterPluginTest.php \
+            lanes/pandoc/tests/PdfFormXObjectPlacementMetadataTest.php \
             lanes/pandoc/tests/PandocImportMemoryBudgetTest.php \
             lanes/pandoc/tests/PdfReaderCorpusQualityTest.php \
             lanes/pandoc/tests/PdfReaderTest.php \
@@ -138,3 +153,10 @@ jobs:
           set -euo pipefail
           unzip -p pandoc-showcase/playground/port-libs-playground-converter.zip port-libs-playground-converter/port-libs-playground-converter.php | grep -q 'plpc_collection_from_zip'
           unzip -p pandoc-showcase/playground/port-libs-playground-converter.zip port-libs-playground-converter/port-libs-playground-converter.php | grep -q 'plpc_find_collection_image'
+          unzip -l pandoc-showcase/playground/port-libs-playground-converter.zip | grep -q 'assets/admin-importer.mjs'
+          unzip -l pandoc-showcase/playground/port-libs-playground-converter.zip | grep -q 'assets/pdfjs-form-rasterizer.mjs'
+          unzip -l pandoc-showcase/playground/port-libs-playground-converter.zip | grep -q 'assets/vendor/pdfjs/pdf.min.js'
+          unzip -l pandoc-showcase/playground/port-libs-playground-converter.zip | grep -q 'assets/pdf-jpx-rasterizer.mjs'
+          unzip -l pandoc-showcase/playground/port-libs-playground-converter.zip | grep -q 'assets/pdf-jbig2-rasterizer.mjs'
+          unzip -l pandoc-showcase/playground/port-libs-playground-converter.zip | grep -q 'assets/vendor/pdfjs-openjpeg/openjpeg.wasm'
+          unzip -l pandoc-showcase/playground/port-libs-playground-converter.zip | grep -q 'assets/vendor/pdfjs-jbig2/jbig2.wasm'

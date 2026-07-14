@@ -63,7 +63,11 @@ export async function decodePdfJpxRasters(input, options = {}) {
 
   let decoder;
   try {
-    decoder = await (options.decoderFactory || (() => OpenJPEG()))();
+    decoder = await (options.decoderFactory || (() => OpenJPEG({
+      // The standalone OpenJPEG wrapper shares PDF.js' identical WASM binary
+      // in the WordPress plugin package instead of shipping a second copy.
+      locateFile: (file) => new URL(`./vendor/pdfjs/wasm/${file}`, import.meta.url).href,
+    })))();
   } catch (error) {
     diagnostics.push(`pdf-jpx-raster-unavailable:${errorToken(error)}`);
     return { rasters: [], diagnostics };

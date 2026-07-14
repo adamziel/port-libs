@@ -22,19 +22,103 @@ if (!class_exists('WP_REST_Response')) {
         {
             return $this->status;
         }
+
+        public function set_status(int $status): void
+        {
+            $this->status = $status;
+        }
+
+        public function set_data(array $data): void
+        {
+            $this->data = $data;
+        }
     }
 }
 
 if (!class_exists('WP_REST_Request')) {
     class WP_REST_Request
     {
-        public function __construct(private string $body)
+        /**
+         * @param array<string, mixed> $params
+         * @param array<string, mixed> $urlParams
+         * @param array<string, string> $headers
+         */
+        public function __construct(
+            private string $body = '',
+            private array $params = [],
+            private array $urlParams = [],
+            private array $headers = [],
+        )
         {
         }
 
         public function get_body(): string
         {
             return $this->body;
+        }
+
+        /**
+         * @return array<string, mixed>
+         */
+        public function get_json_params(): array
+        {
+            $decoded = json_decode($this->body, true);
+
+            return is_array($decoded) ? $decoded : [];
+        }
+
+        public function get_param(string $key): mixed
+        {
+            if (array_key_exists($key, $this->params)) {
+                return $this->params[$key];
+            }
+            if (array_key_exists($key, $this->urlParams)) {
+                return $this->urlParams[$key];
+            }
+
+            $json = $this->get_json_params();
+
+            return $json[$key] ?? null;
+        }
+
+        /**
+         * @return array<string, mixed>
+         */
+        public function get_params(): array
+        {
+            return $this->params + $this->urlParams + $this->get_json_params();
+        }
+
+        /**
+         * @return array<string, mixed>
+         */
+        public function get_url_params(): array
+        {
+            return $this->urlParams;
+        }
+
+        public function set_param(string $key, mixed $value): void
+        {
+            $this->params[$key] = $value;
+        }
+
+        /**
+         * @param array<string, mixed> $params
+         */
+        public function set_url_params(array $params): void
+        {
+            $this->urlParams = $params;
+        }
+
+        public function get_header(string $key): string
+        {
+            foreach ($this->headers as $header => $value) {
+                if (strtolower($header) === strtolower($key)) {
+                    return $value;
+                }
+            }
+
+            return '';
         }
     }
 }
@@ -67,14 +151,164 @@ if (!class_exists('WP_Error')) {
 }
 
 if (!function_exists('add_filter')) {
-    function add_filter(string $hookName, callable $callback): void
+    function add_filter(string $hookName, mixed $callback, int $priority = 10, int $acceptedArgs = 1): bool
     {
+        $GLOBALS['plpc_test_filters'][$hookName][$priority][] = [
+            'callback' => $callback,
+            'acceptedArgs' => max(1, $acceptedArgs),
+        ];
+
+        return true;
+    }
+}
+
+if (!function_exists('apply_filters')) {
+    function apply_filters(string $hookName, mixed $value, mixed ...$args): mixed
+    {
+        $filters = $GLOBALS['plpc_test_filters'][$hookName] ?? [];
+        if (!is_array($filters)) {
+            return $value;
+        }
+        ksort($filters, SORT_NUMERIC);
+        foreach ($filters as $entries) {
+            foreach (is_array($entries) ? $entries : [] as $entry) {
+                if (!is_array($entry) || !is_callable($entry['callback'] ?? null)) {
+                    continue;
+                }
+                $acceptedArgs = max(1, (int) ($entry['acceptedArgs'] ?? 1));
+                $value = ($entry['callback'])(...array_slice([$value, ...$args], 0, $acceptedArgs));
+            }
+        }
+
+        return $value;
     }
 }
 
 if (!function_exists('add_action')) {
-    function add_action(string $hookName, callable $callback): void
+    function add_action(string $hookName, mixed $callback): void
     {
+        $GLOBALS['plpc_test_actions'][$hookName] ??= [];
+        $GLOBALS['plpc_test_actions'][$hookName][] = $callback;
+    }
+}
+
+if (!function_exists('register_rest_route')) {
+    /**
+     * @param array<string, mixed>|list<array<string, mixed>> $args
+     */
+    function register_rest_route(string $namespace, string $route, array $args): bool
+    {
+        $key = $namespace . $route;
+        $GLOBALS['plpc_test_rest_routes'][$key] ??= [];
+        $GLOBALS['plpc_test_rest_routes'][$key][] = $args;
+
+        return true;
+    }
+}
+
+/**
+ * @param mixed ...$args
+ */
+function plpc_test_do_action(string $hookName, mixed ...$args): void
+{
+    foreach ($GLOBALS['plpc_test_actions'][$hookName] ?? [] as $callback) {
+        if (!is_callable($callback)) {
+            throw new RuntimeException("Action '{$hookName}' has no callable handler.");
+        }
+        $callback(...$args);
+    }
+}
+
+if (!function_exists('get_option')) {
+    function get_option(string $option, mixed $defaultValue = false): mixed
+    {
+        return $GLOBALS['plpc_test_options'][$option] ?? $defaultValue;
+    }
+}
+
+if (!function_exists('add_option')) {
+    function add_option(string $option, mixed $value = '', mixed $deprecated = '', mixed $autoload = 'yes'): bool
+    {
+        if (array_key_exists($option, $GLOBALS['plpc_test_options'] ?? [])) {
+            return false;
+        }
+        $GLOBALS['plpc_test_options'][$option] = $value;
+
+        return true;
+    }
+}
+
+if (!function_exists('update_option')) {
+    function update_option(string $option, mixed $value, mixed $autoload = null): bool
+    {
+        $changed = !array_key_exists($option, $GLOBALS['plpc_test_options'] ?? [])
+            || $GLOBALS['plpc_test_options'][$option] !== $value;
+        $GLOBALS['plpc_test_options'][$option] = $value;
+
+        return $changed;
+    }
+}
+
+if (!function_exists('delete_option')) {
+    function delete_option(string $option): bool
+    {
+        if (!array_key_exists($option, $GLOBALS['plpc_test_options'] ?? [])) {
+            return false;
+        }
+        unset($GLOBALS['plpc_test_options'][$option]);
+
+        return true;
+    }
+}
+
+function plpc_test_import_job_upload_dir(): string
+{
+    return sys_get_temp_dir() . '/plpc-import-jobs-test';
+}
+
+if (!function_exists('wp_mkdir_p')) {
+    function wp_mkdir_p(string $target): bool
+    {
+        return is_dir($target) || mkdir($target, 0777, true);
+    }
+}
+
+if (!function_exists('wp_upload_dir')) {
+    /**
+     * @return array{path: string, url: string, subdir: string, basedir: string, baseurl: string, error: false}
+     */
+    function wp_upload_dir(?string $time = null, bool $createDir = true, bool $refreshCache = false): array
+    {
+        $directory = plpc_test_import_job_upload_dir();
+        if ($createDir && !is_dir($directory)) {
+            wp_mkdir_p($directory);
+        }
+
+        return [
+            'path' => $directory,
+            'url' => 'https://playground.test/uploads',
+            'subdir' => '',
+            'basedir' => $directory,
+            'baseurl' => 'https://playground.test/uploads',
+            'error' => false,
+        ];
+    }
+}
+
+if (!function_exists('wp_generate_uuid4')) {
+    function wp_generate_uuid4(): string
+    {
+        $sequence = ((int) ($GLOBALS['plpc_test_uuid_sequence'] ?? 0)) + 1;
+        $GLOBALS['plpc_test_uuid_sequence'] = $sequence;
+
+        return sprintf('00000000-0000-4000-8000-%012d', $sequence);
+    }
+}
+
+if (!function_exists('get_current_user_id')) {
+    function get_current_user_id(): int
+    {
+        return (int) ($GLOBALS['plpc_test_current_user_id'] ?? 1);
     }
 }
 
@@ -292,6 +526,107 @@ if (!function_exists('serialize_block')) {
     }
 }
 
+/**
+ * @param array<string, mixed> $payload
+ */
+function plpc_test_import_job_request(array $payload = [], ?string $jobId = null): WP_REST_Request
+{
+    return new WP_REST_Request(
+        $payload === [] ? '' : json_encode($payload, JSON_THROW_ON_ERROR),
+        [],
+        $jobId === null ? [] : ['jobId' => $jobId]
+    );
+}
+
+function plpc_test_reset_import_job_state(): void
+{
+    $GLOBALS['plpc_test_filters'] = [];
+    $GLOBALS['plpc_test_options'] = [];
+    $GLOBALS['plpc_test_posts'] = [];
+    $GLOBALS['plpc_test_uploads'] = [];
+    $GLOBALS['plpc_test_attachments'] = [];
+    $GLOBALS['plpc_test_attachment_metadata'] = [];
+    $GLOBALS['plpc_imported_media_by_hash'] = [];
+    $GLOBALS['plpc_test_uuid_sequence'] = 0;
+
+    $directory = plpc_test_import_job_upload_dir();
+    if (!is_dir($directory)) {
+        return;
+    }
+    $files = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($directory, FilesystemIterator::SKIP_DOTS),
+        RecursiveIteratorIterator::CHILD_FIRST
+    );
+    foreach ($files as $file) {
+        if (!$file instanceof SplFileInfo) {
+            continue;
+        }
+        if ($file->isDir()) {
+            rmdir($file->getPathname());
+        } else {
+            unlink($file->getPathname());
+        }
+    }
+    rmdir($directory);
+}
+
+function plpc_test_renderable_form_xobject_pdf(): string
+{
+    $pageContent = "q\n1 0 0 1 72 600 cm\n/Chart Do\nQ\n";
+    $formContent = "0.15 0.35 0.8 rg\n0 0 100 50 re\nf\n";
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /XObject << /Chart 5 0 R >> >> /Contents 4 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Length " . strlen($pageContent) . " >>\nstream\n{$pageContent}endstream\nendobj\n"
+        . "5 0 obj\n<< /Type /XObject /Subtype /Form /BBox [0 0 100 50] /Resources << >> /Length " . strlen($formContent) . " >>\nstream\n{$formContent}endstream\nendobj\n"
+        . "%%EOF\n";
+}
+
+/**
+ * @return list<array<string, mixed>>
+ */
+function plpc_test_rest_route_handlers(string $route): array
+{
+    $handlers = [];
+    foreach ($GLOBALS['plpc_test_rest_routes'][$route] ?? [] as $registration) {
+        $entries = array_is_list($registration) ? $registration : [$registration];
+        foreach ($entries as $entry) {
+            if (is_array($entry)) {
+                $handlers[] = $entry;
+            }
+        }
+    }
+
+    return $handlers;
+}
+
+/**
+ * @param array<string, mixed> $snapshot
+ */
+function plpc_test_assert_import_job_snapshot(TestRunner $t, array $snapshot, string $jobId): void
+{
+    $t->same(true, $snapshot['ok'] ?? null);
+    $t->same($jobId, $snapshot['jobId'] ?? null);
+    $t->true(is_string($snapshot['status'] ?? null) && $snapshot['status'] !== '', 'A job snapshot needs a status.');
+    $t->true(is_string($snapshot['stage'] ?? null) && $snapshot['stage'] !== '', 'A job snapshot needs a current stage.');
+    $t->true(is_array($snapshot['progress'] ?? null), 'A job snapshot needs progress data.');
+    $t->true(is_int($snapshot['progress']['completed'] ?? null), 'Progress needs an integer completed count.');
+    $t->true(is_int($snapshot['progress']['total'] ?? null), 'Progress needs an integer total count.');
+    $t->true(($snapshot['progress']['completed'] ?? -1) >= 0, 'Progress cannot be negative.');
+    $t->true(($snapshot['progress']['total'] ?? -1) >= ($snapshot['progress']['completed'] ?? PHP_INT_MAX), 'Progress total must cover completed work.');
+    $t->true(is_string($snapshot['progress']['label'] ?? null) && $snapshot['progress']['label'] !== '', 'Progress needs a human-readable active label.');
+    $t->true(is_array($snapshot['events'] ?? null), 'A job snapshot needs its activity log.');
+    $t->true(is_array($snapshot['renderRequests'] ?? null), 'A job snapshot needs outstanding renderer requests.');
+
+    foreach ($snapshot['events'] as $event) {
+        $t->true(is_array($event), 'Each activity entry must be structured data.');
+        $t->true(is_string($event['stage'] ?? null) && $event['stage'] !== '', 'Each activity entry needs a stage.');
+        $t->true(is_string($event['message'] ?? null) && $event['message'] !== '', 'Each activity entry needs a message for the person waiting for the import.');
+    }
+}
+
 require_once dirname(__DIR__, 3) . '/tools/playground-converter-plugin/port-libs-playground-converter.php';
 
 return [
@@ -360,6 +695,299 @@ return [
             $GLOBALS['plpc_test_current_user_caps'] = [];
         }
     },
+    'playground converter registers persisted import job endpoints' => static function (TestRunner $t): void {
+        $GLOBALS['plpc_test_rest_routes'] = [];
+        plpc_test_do_action('rest_api_init');
+
+        $createHandlers = plpc_test_rest_route_handlers('port-libs/v1/imports');
+        $jobHandlers = plpc_test_rest_route_handlers('port-libs/v1/imports/(?P<jobId>[A-Za-z0-9_-]+)');
+        $advanceHandlers = plpc_test_rest_route_handlers('port-libs/v1/imports/(?P<jobId>[A-Za-z0-9_-]+)/advance');
+        $renderHandlers = plpc_test_rest_route_handlers('port-libs/v1/imports/(?P<jobId>[A-Za-z0-9_-]+)/rendered-media');
+        $sourceHandlers = plpc_test_rest_route_handlers('port-libs/v1/imports/(?P<jobId>[A-Za-z0-9_-]+)/render-source/(?P<requestId>form-[a-f0-9]+)');
+
+        $t->same(1, count(array_filter($createHandlers, static fn (array $handler): bool => ($handler['methods'] ?? null) === 'POST' && ($handler['callback'] ?? null) === 'plpc_create_import_job')));
+        $t->same(1, count(array_filter($jobHandlers, static fn (array $handler): bool => ($handler['methods'] ?? null) === 'GET' && ($handler['callback'] ?? null) === 'plpc_import_job_status')));
+        $t->same(1, count(array_filter($advanceHandlers, static fn (array $handler): bool => ($handler['methods'] ?? null) === 'POST' && ($handler['callback'] ?? null) === 'plpc_advance_import_job')));
+        $t->same(1, count(array_filter($renderHandlers, static fn (array $handler): bool => ($handler['methods'] ?? null) === 'POST' && ($handler['callback'] ?? null) === 'plpc_submit_import_rendered_media')));
+        $t->same(1, count(array_filter($sourceHandlers, static fn (array $handler): bool => ($handler['methods'] ?? null) === 'GET' && ($handler['callback'] ?? null) === 'plpc_import_job_render_source')));
+    },
+    'playground converter persists a created import job and exposes progress before any work begins' => static function (TestRunner $t): void {
+        plpc_test_reset_import_job_state();
+
+        $response = plpc_create_import_job(plpc_test_import_job_request([
+            'filename' => 'notes.gfm',
+            'title' => 'Persisted job',
+            'imageMode' => 'important',
+            'pdfMode' => 'layout',
+            'bytes' => base64_encode("# Persisted job\n\nThe browser can poll this import.\n"),
+        ]));
+        $created = $response->get_data();
+        $jobId = $created['jobId'] ?? '';
+
+        $t->same(201, $response->get_status());
+        $t->true(is_string($jobId) && preg_match('/\A[A-Za-z0-9_-]+\z/', $jobId) === 1, 'A created import must receive a URL-safe job id.');
+        $t->same('queued', $created['status'] ?? null);
+        plpc_test_assert_import_job_snapshot($t, $created, $jobId);
+        $t->same(0, $created['progress']['completed'] ?? null);
+        $t->true(($created['events'] ?? []) !== [], 'Creating a job should immediately tell the waiting person what happened.');
+
+        $status = plpc_import_job_status(plpc_test_import_job_request([], $jobId));
+        $snapshot = $status->get_data();
+
+        $t->same(200, $status->get_status());
+        plpc_test_assert_import_job_snapshot($t, $snapshot, $jobId);
+        $t->same('queued', $snapshot['status'] ?? null);
+        $t->same($created['events'], $snapshot['events']);
+        $t->true(!array_key_exists('bytes', $snapshot), 'Status polling must never echo the uploaded source bytes back to the browser.');
+    },
+    'playground converter scopes persisted import jobs to their WordPress owner' => static function (TestRunner $t): void {
+        plpc_test_reset_import_job_state();
+        $previousHost = $_SERVER['HTTP_HOST'] ?? null;
+        $previousReferer = $_SERVER['HTTP_REFERER'] ?? null;
+        $_SERVER['HTTP_HOST'] = 'example.test';
+        unset($_SERVER['HTTP_REFERER']);
+        $GLOBALS['plpc_test_current_user_id'] = 41;
+
+        try {
+            $created = plpc_create_import_job(plpc_test_import_job_request([
+                'filename' => 'private.md',
+                'bytes' => base64_encode("# Private job\n"),
+            ]))->get_data();
+            $jobId = (string) ($created['jobId'] ?? '');
+            $GLOBALS['plpc_test_current_user_id'] = 42;
+
+            $response = plpc_import_job_status(plpc_test_import_job_request([], $jobId));
+
+            $t->same(404, $response->get_status());
+            $t->same(false, $response->get_data()['ok'] ?? null);
+            $t->contains('another wordpress user', strtolower((string) ($response->get_data()['message'] ?? '')));
+        } finally {
+            unset($GLOBALS['plpc_test_current_user_id']);
+            if ($previousHost === null) {
+                unset($_SERVER['HTTP_HOST']);
+            } else {
+                $_SERVER['HTTP_HOST'] = $previousHost;
+            }
+            if ($previousReferer === null) {
+                unset($_SERVER['HTTP_REFERER']);
+            } else {
+                $_SERVER['HTTP_REFERER'] = $previousReferer;
+            }
+        }
+    },
+    'playground converter advances an import job with visible stages through page creation' => static function (TestRunner $t): void {
+        plpc_test_reset_import_job_state();
+        $created = plpc_create_import_job(plpc_test_import_job_request([
+            'filename' => 'stages.md',
+            'title' => 'Visible stages',
+            'bytes' => base64_encode("# Visible stages\n\nA small document for the resumable job protocol.\n"),
+        ]))->get_data();
+        $jobId = (string) ($created['jobId'] ?? '');
+        $snapshot = $created;
+        $stages = [];
+
+        for ($attempt = 0; $attempt < 8 && !in_array($snapshot['status'] ?? '', ['complete', 'completed'], true); $attempt++) {
+            $response = plpc_advance_import_job(plpc_test_import_job_request([], $jobId));
+            $t->same(200, $response->get_status());
+            $snapshot = $response->get_data();
+            plpc_test_assert_import_job_snapshot($t, $snapshot, $jobId);
+            $stages[] = $snapshot['stage'] ?? '';
+        }
+
+        $t->true(in_array($snapshot['status'] ?? '', ['complete', 'completed'], true), 'An ordinary document should complete after a bounded number of job advances.');
+        $t->true(count(array_unique($stages)) >= 1, 'Advancing a job should expose its current work stage.');
+        $t->true(is_array($snapshot['result'] ?? null), 'A completed job should expose its imported page result.');
+        $postId = $snapshot['result']['postId'] ?? null;
+        $t->true(is_int($postId) && $postId > 0, 'A completed job should report its created WordPress page.');
+        $t->contains('Visible stages', $GLOBALS['plpc_test_posts'][$postId]['post_content'] ?? '');
+    },
+    'playground converter resumes a checkpoint left converting by an interrupted PHP request' => static function (TestRunner $t): void {
+        plpc_test_reset_import_job_state();
+        $created = plpc_create_import_job(plpc_test_import_job_request([
+            'filename' => 'resume.md',
+            'bytes' => base64_encode("# Resume me\n"),
+        ]))->get_data();
+        $jobId = (string) ($created['jobId'] ?? '');
+        $option = PLPC_IMPORT_JOB_OPTION_PREFIX . $jobId;
+        $job = get_option($option);
+        $job['status'] = 'converting';
+        $job['stage'] = 'inspecting';
+        $job['progress'] = ['completed' => 0, 'total' => 1, 'label' => 'Inspecting before an interruption.'];
+        update_option($option, $job, false);
+
+        $afterInspection = plpc_advance_import_job(plpc_test_import_job_request([], $jobId))->get_data();
+        $t->same('ready_to_convert', $afterInspection['status'] ?? null);
+        $t->true(in_array('resuming', array_column($afterInspection['events'] ?? [], 'stage'), true), 'An interrupted inspection should be visible in the activity log.');
+
+        $job = get_option($option);
+        $job['status'] = 'converting';
+        $job['stage'] = 'writing_blocks';
+        $job['progress'] = ['completed' => 4, 'total' => 6, 'label' => 'Writing blocks before an interruption.'];
+        update_option($option, $job, false);
+
+        $resumed = plpc_advance_import_job(plpc_test_import_job_request([], $jobId));
+        $t->same(200, $resumed->get_status());
+        $snapshot = $resumed->get_data();
+        $t->same('complete', $snapshot['status'] ?? null);
+        $t->true(is_array($snapshot['result'] ?? null), 'A retried durable document unit should still produce an import result.');
+    },
+    'playground converter yields a durable conversion checkpoint before the PHP deadline and finishes on the next request' => static function (TestRunner $t): void {
+        plpc_test_reset_import_job_state();
+        $created = plpc_create_import_job(plpc_test_import_job_request([
+            'filename' => 'deadline.md',
+            'bytes' => base64_encode("# Deadline checkpoint\n\nThis document must not spin after a server-time handoff.\n"),
+        ]))->get_data();
+        $jobId = (string) ($created['jobId'] ?? '');
+
+        $prepared = plpc_advance_import_job(plpc_test_import_job_request([], $jobId))->get_data();
+        $t->same('ready_to_convert', $prepared['status'] ?? null);
+
+        add_filter('plpc_import_request_deadline', static fn (mixed $deadline): float => microtime(true) - 1.0);
+        $yielded = plpc_advance_import_job(plpc_test_import_job_request([], $jobId));
+        $snapshot = $yielded->get_data();
+        $t->same(200, $yielded->get_status());
+        $t->same('ready_to_convert', $snapshot['status'] ?? null);
+        $t->contains('Pausing before this server reaches its execution limit', $snapshot['progress']['label'] ?? '');
+        $t->same(0, count($GLOBALS['plpc_test_posts']), 'An intentional deadline handoff must happen before a page is created.');
+        $job = get_option(PLPC_IMPORT_JOB_OPTION_PREFIX . $jobId);
+        $t->same(1, $job['checkpoint']['deadlineYields'] ?? null);
+        $t->true(in_array('checkpoint', array_column($snapshot['events'] ?? [], 'stage'), true), 'The saved handoff should be visible in the activity log.');
+
+        $GLOBALS['plpc_test_filters'] = [];
+        $completed = plpc_advance_import_job(plpc_test_import_job_request([], $jobId))->get_data();
+        $t->same('complete', $completed['status'] ?? null);
+        $t->same(1, count($GLOBALS['plpc_test_posts']), 'A fresh request should finish the same durable document unit exactly once.');
+    },
+    'playground converter stops a repeatedly interrupted durable document instead of retrying forever' => static function (TestRunner $t): void {
+        plpc_test_reset_import_job_state();
+        $created = plpc_create_import_job(plpc_test_import_job_request([
+            'filename' => 'interrupted.md',
+            'bytes' => base64_encode("# Interrupted\n"),
+        ]))->get_data();
+        $jobId = (string) ($created['jobId'] ?? '');
+        plpc_advance_import_job(plpc_test_import_job_request([], $jobId));
+
+        $option = PLPC_IMPORT_JOB_OPTION_PREFIX . $jobId;
+        $job = get_option($option);
+        $job['status'] = 'converting';
+        $job['stage'] = 'reading';
+        $job['checkpoint'] = [
+            'documentIndex' => 0,
+            'deadlineYields' => 0,
+            'interruptedRetries' => PLPC_IMPORT_JOB_MAX_INTERRUPTED_RETRIES_PER_DOCUMENT - 1,
+        ];
+        update_option($option, $job, false);
+
+        $response = plpc_advance_import_job(plpc_test_import_job_request([], $jobId));
+        $snapshot = $response->get_data();
+        $t->same(200, $response->get_status());
+        $t->same('failed', $snapshot['status'] ?? null);
+        $t->contains('stopped to avoid a retry loop', strtolower((string) ($snapshot['message'] ?? '')));
+        $t->same(0, count($GLOBALS['plpc_test_posts']), 'The retry cap must fail before duplicate page work begins.');
+    },
+    'playground converter round trips a PDF Form XObject through the browser renderer job protocol' => static function (TestRunner $t): void {
+        plpc_test_reset_import_job_state();
+        $png = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScL0oAAAAABJRU5ErkJggg==', true);
+        $t->true(is_string($png) && $png !== '', 'Expected a valid PNG payload for the browser renderer response.');
+
+        $created = plpc_create_import_job(plpc_test_import_job_request([
+            'filename' => 'chart.pdf',
+            'title' => 'Browser-rendered chart',
+            'imageMode' => 'all',
+            'pdfMode' => 'layout',
+            'bytes' => base64_encode(plpc_test_renderable_form_xobject_pdf()),
+        ]))->get_data();
+        $jobId = (string) ($created['jobId'] ?? '');
+        $snapshot = $created;
+
+        for ($attempt = 0; $attempt < 3 && ($snapshot['renderRequests'] ?? []) === []; $attempt++) {
+            $response = plpc_advance_import_job(plpc_test_import_job_request([], $jobId));
+            $t->same(200, $response->get_status());
+            $snapshot = $response->get_data();
+            plpc_test_assert_import_job_snapshot($t, $snapshot, $jobId);
+        }
+
+        $t->true(($snapshot['renderRequests'] ?? []) !== [], 'A placed Form XObject should request a browser PDF.js render rather than silently disappearing.');
+        $renderRequest = $snapshot['renderRequests'][0];
+        $t->true(is_string($renderRequest['id'] ?? null) && $renderRequest['id'] !== '', 'A renderer request needs an opaque id.');
+        $t->same(1, $renderRequest['page'] ?? null);
+        $t->true(is_array($renderRequest['bbox'] ?? null) && count($renderRequest['bbox']) === 4, 'A renderer request needs the page-space Form bounding box.');
+
+        $source = plpc_import_job_render_source(new WP_REST_Request('', [], [
+            'jobId' => $jobId,
+            'requestId' => (string) $renderRequest['id'],
+        ]));
+        $t->same(200, $source->get_status());
+        $sourceData = $source->get_data();
+        $t->same(true, $sourceData['ok'] ?? null);
+        $t->same('chart.pdf', $sourceData['path'] ?? null);
+        $t->same(plpc_test_renderable_form_xobject_pdf(), base64_decode((string) ($sourceData['bytes'] ?? ''), true));
+        $t->true(!array_key_exists('storage', $sourceData), 'The browser source handoff must not disclose a server storage path.');
+
+        $unknown = plpc_submit_import_rendered_media(plpc_test_import_job_request([
+            'requestId' => 'not-a-request-for-this-job',
+            'bytes' => base64_encode($png),
+            'mimeType' => 'image/png',
+            'width' => 1,
+            'height' => 1,
+        ], $jobId));
+        $t->true($unknown->get_status() >= 400, 'A renderer result must be tied to an outstanding request id.');
+        $t->same(false, $unknown->get_data()['ok'] ?? null);
+
+        $submitted = plpc_submit_import_rendered_media(plpc_test_import_job_request([
+            'requestId' => $renderRequest['id'],
+            'bytes' => base64_encode($png),
+            'mimeType' => 'image/png',
+            'width' => 1,
+            'height' => 1,
+        ], $jobId));
+        $t->same(200, $submitted->get_status());
+        $snapshot = $submitted->get_data();
+        plpc_test_assert_import_job_snapshot($t, $snapshot, $jobId);
+
+        $consumedSource = plpc_import_job_render_source(new WP_REST_Request('', [], [
+            'jobId' => $jobId,
+            'requestId' => (string) $renderRequest['id'],
+        ]));
+        $t->same(404, $consumedSource->get_status(), 'A PDF source handoff is available only while its render request is outstanding.');
+
+        for ($attempt = 0; $attempt < 8 && !in_array($snapshot['status'] ?? '', ['complete', 'completed'], true); $attempt++) {
+            $response = plpc_advance_import_job(plpc_test_import_job_request([], $jobId));
+            $t->same(200, $response->get_status());
+            $snapshot = $response->get_data();
+            plpc_test_assert_import_job_snapshot($t, $snapshot, $jobId);
+        }
+
+        $t->true(in_array($snapshot['status'] ?? '', ['complete', 'completed'], true), 'The job should continue after the browser returns its PDF.js render.');
+        $t->true(is_array($snapshot['result'] ?? null), 'The completed browser-rendered import needs a page result.');
+        $t->true(($snapshot['result']['imagesImported'] ?? 0) >= 1, 'The returned browser render should become imported WordPress media.');
+        $t->true(count($GLOBALS['plpc_test_uploads']) >= 1, 'The returned browser render should be written through the normal media importer.');
+        $t->same($png, $GLOBALS['plpc_test_uploads'][0]['bits'] ?? null);
+    },
+    'playground renderer rejects image dimensions that do not match the returned PNG' => static function (TestRunner $t): void {
+        $png = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScL0oAAAAABJRU5ErkJggg==', true);
+        $t->true(is_string($png) && $png !== '', 'Expected a valid one-pixel PNG fixture.');
+
+        $t->throws(RuntimeException::class, static fn (): array => plpc_import_job_rendered_image_from_payload([
+            'bytes' => base64_encode($png),
+            'mimeType' => 'image/png',
+            'width' => 2,
+            'height' => 1,
+        ]));
+    },
+    'playground import storage adds server-side web access protections' => static function (TestRunner $t): void {
+        plpc_test_reset_import_job_state();
+        plpc_create_import_job(plpc_test_import_job_request([
+            'filename' => 'private.md',
+            'bytes' => base64_encode('# Private source'),
+        ]));
+
+        $root = plpc_test_import_job_upload_dir() . '/' . PLPC_IMPORT_JOB_DIRECTORY;
+        $rules = file_get_contents($root . '/.htaccess');
+        $t->true(is_string($rules), 'Import storage should create an Apache deny rule when permitted.');
+        $t->contains('Require all denied', (string) $rules);
+        $t->true(is_file($root . '/web.config'), 'Import storage should include the IIS deny rule when permitted.');
+    },
     'playground converter only enables svg uploads in trusted contexts' => static function (TestRunner $t): void {
         $previousHost = $_SERVER['HTTP_HOST'] ?? null;
         $_SERVER['HTTP_HOST'] = 'example.test';
@@ -378,6 +1006,31 @@ return [
             $GLOBALS['plpc_test_current_user_caps'] = [];
             $playground = plpc_upload_mimes([]);
             $t->same('image/svg+xml', $playground['svg'] ?? null);
+        } finally {
+            if ($previousHost === null) {
+                unset($_SERVER['HTTP_HOST']);
+            } else {
+                $_SERVER['HTTP_HOST'] = $previousHost;
+            }
+            $GLOBALS['plpc_test_current_user_caps'] = [];
+        }
+    },
+    'playground converter does not bypass SVG trust checks while importing extracted media' => static function (TestRunner $t): void {
+        $previousHost = $_SERVER['HTTP_HOST'] ?? null;
+        $_SERVER['HTTP_HOST'] = 'example.test';
+        $GLOBALS['plpc_test_current_user_caps'] = [];
+        $GLOBALS['plpc_test_uploads'] = [];
+        $GLOBALS['plpc_test_attachments'] = [];
+        $GLOBALS['plpc_imported_media_by_hash'] = [];
+
+        try {
+            $svg = '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>';
+            $t->same(null, plpc_insert_media_attachment($svg, 'untrusted.svg', 'image/svg+xml'), 'Extracted SVG media must use the same trust gate as direct SVG uploads.');
+            $t->same([], $GLOBALS['plpc_test_uploads'], 'An untrusted SVG must not be written below public uploads.');
+
+            $GLOBALS['plpc_test_current_user_caps'] = ['unfiltered_html'];
+            $attachment = plpc_insert_media_attachment($svg, 'trusted.svg', 'image/svg+xml');
+            $t->true(is_array($attachment) && (int) ($attachment['id'] ?? 0) > 0, 'A trusted administrator may import SVG media.');
         } finally {
             if ($previousHost === null) {
                 unset($_SERVER['HTTP_HOST']);
@@ -510,6 +1163,117 @@ return [
             $t->same(false, is_file($stagedPath), 'The temporary staged source must be removed after it is read.');
         } finally {
             @unlink($stagedPath);
+            if ($previousHost === null) {
+                unset($_SERVER['HTTP_HOST']);
+            } else {
+                $_SERVER['HTTP_HOST'] = $previousHost;
+            }
+        }
+    },
+    'persisted import jobs convert an EPUB through the same advance protocol as PDFs' => static function (TestRunner $t): void {
+        plpc_test_reset_import_job_state();
+        $fixture = dirname(__DIR__, 3) . '/pandoc-showcase/samples/epub-features-features.epub';
+        $bytes = file_get_contents($fixture);
+        $t->true(is_string($bytes) && $bytes !== '', 'Expected a readable EPUB fixture.');
+
+        $created = plpc_create_import_job(plpc_test_import_job_request([
+            'filename' => 'features.epub',
+            'title' => 'Persisted EPUB',
+            'bytes' => base64_encode($bytes),
+        ]))->get_data();
+        $jobId = (string) ($created['jobId'] ?? '');
+        $storedJob = get_option(PLPC_IMPORT_JOB_OPTION_PREFIX . $jobId);
+        $preparedSources = is_array($storedJob) ? plpc_import_job_prepare_source_files($storedJob) : [];
+        $t->same('epub', $preparedSources[0]['format'] ?? null, 'A persisted EPUB should be recognized from its bounded package metadata.');
+        $t->same('', $preparedSources[0]['bytes'] ?? null, 'Preparing a persisted EPUB must not load its ZIP source into PHP memory.');
+        $snapshot = $created;
+        for ($attempt = 0; $attempt < 6 && !in_array($snapshot['status'] ?? '', ['complete', 'failed'], true); $attempt++) {
+            $snapshot = plpc_advance_import_job(plpc_test_import_job_request([], $jobId))->get_data();
+        }
+
+        $t->same('complete', $snapshot['status'] ?? null, 'The persisted-job protocol must complete an ordinary EPUB without a browser renderer round trip.');
+        $t->same('epub', $snapshot['result']['format'] ?? null);
+        $postId = (int) ($snapshot['result']['postId'] ?? 0);
+        $t->true($postId > 0, 'The persisted EPUB import should create a WordPress page.');
+        $t->contains('Persisted EPUB', $GLOBALS['plpc_test_posts'][$postId]['post_title'] ?? '');
+    },
+    'playground converter uses file backed EPUB reader and media extractor without source bytes' => static function (TestRunner $t): void {
+        $GLOBALS['plpc_test_posts'] = [];
+        $fixture = dirname(__DIR__, 3) . '/pandoc-showcase/samples/epub-features-features.epub';
+        $t->true(is_file($fixture), 'Expected a file-backed EPUB fixture.');
+
+        $result = plpc_convert_collection_file_to_page([
+            'path' => 'features.epub',
+            'format' => 'epub',
+            'sourcePath' => $fixture,
+        ], null, 'File-backed EPUB');
+
+        $t->same('epub', $result['format'] ?? null);
+        $postId = (int) ($result['postId'] ?? 0);
+        $t->true($postId > 0, 'The file-backed EPUB should create a WordPress page without a bytes payload.');
+        $t->contains('File-backed EPUB', $GLOBALS['plpc_test_posts'][$postId]['post_title'] ?? '');
+    },
+    'persisted import jobs move browser-staged sources without base64 source bodies' => static function (TestRunner $t): void {
+        plpc_test_reset_import_job_state();
+        $previousHost = $_SERVER['HTTP_HOST'] ?? null;
+        $_SERVER['HTTP_HOST'] = 'preview.playground.wordpress.net';
+        if (!is_dir(PLPC_STAGED_UPLOAD_DIRECTORY)) {
+            mkdir(PLPC_STAGED_UPLOAD_DIRECTORY, 0777, true);
+        }
+        $stagedPath = PLPC_STAGED_UPLOAD_DIRECTORY . '/' . bin2hex(random_bytes(12)) . '.upload';
+        file_put_contents($stagedPath, "# Staged import\n\nThe source never enters the JSON request body.\n");
+
+        try {
+            $created = plpc_create_import_job(plpc_test_import_job_request([
+                'filename' => 'staged-import.md',
+                'title' => 'Staged import',
+                'stagedFiles' => [[
+                    'path' => 'staged-import.md',
+                    'stagedPath' => $stagedPath,
+                ]],
+            ]));
+            $t->same(201, $created->get_status());
+            $snapshot = $created->get_data();
+            $jobId = (string) ($snapshot['jobId'] ?? '');
+            $job = get_option(PLPC_IMPORT_JOB_OPTION_PREFIX . $jobId);
+            $source = is_array($job) ? ($job['sourceFiles'][0] ?? null) : null;
+
+            $t->same(false, is_file($stagedPath), 'Creating the job should move the staged source out of temporary browser storage.');
+            $t->true(is_array($source), 'The staged source must be recorded in durable job storage.');
+            $t->same("# Staged import\n\nThe source never enters the JSON request body.\n", plpc_import_job_read_file($job, (string) ($source['storage'] ?? '')));
+
+            for ($attempt = 0; $attempt < 6 && !in_array($snapshot['status'] ?? '', ['complete', 'failed'], true); $attempt++) {
+                $snapshot = plpc_advance_import_job(plpc_test_import_job_request([], $jobId))->get_data();
+            }
+            $t->same('complete', $snapshot['status'] ?? null);
+            $t->contains('Staged import', $GLOBALS['plpc_test_posts'][(int) ($snapshot['result']['postId'] ?? 0)]['post_title'] ?? '');
+        } finally {
+            @unlink($stagedPath);
+            if ($previousHost === null) {
+                unset($_SERVER['HTTP_HOST']);
+            } else {
+                $_SERVER['HTTP_HOST'] = $previousHost;
+            }
+        }
+    },
+    'persisted import jobs reject ambiguous staged source manifests' => static function (TestRunner $t): void {
+        plpc_test_reset_import_job_state();
+        $previousHost = $_SERVER['HTTP_HOST'] ?? null;
+        $_SERVER['HTTP_HOST'] = 'preview.playground.wordpress.net';
+
+        try {
+            $response = plpc_create_import_job(plpc_test_import_job_request([
+                'filename' => 'ambiguous.md',
+                'stagedFiles' => [[
+                    'path' => 'ambiguous.md',
+                    'stagedPath' => PLPC_STAGED_UPLOAD_DIRECTORY . '/not-read.upload',
+                ]],
+                'bytes' => base64_encode('# ignored'),
+            ]));
+            $t->same(400, $response->get_status());
+            $t->same(false, $response->get_data()['ok'] ?? null);
+            $t->contains('either a staged-file manifest', strtolower((string) ($response->get_data()['message'] ?? '')));
+        } finally {
             if ($previousHost === null) {
                 unset($_SERVER['HTTP_HOST']);
             } else {

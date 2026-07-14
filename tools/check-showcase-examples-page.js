@@ -79,7 +79,8 @@ assert(js.includes('view: defaultView'), 'Expected the state to initialize to th
 assert(js.includes("const exampleUrlParameter = 'example';"), 'Expected a stable query parameter for linked examples.');
 assert(js.includes('new URL(window.location.href)'), 'Expected example links to preserve other URL state safely.');
 assert(js.includes('window.history.replaceState'), 'Expected picker navigation to keep the current URL shareable.');
-assert(js.includes("const playgroundPluginBuild = 'jp2-placeholder-20260714';"), 'Expected the own-file importer to use the current Playground plugin build.');
+assert(js.includes("import { renderPdfFormRequests } from './pdfjs-form-rasterizer.mjs';"), 'Expected own-file PDF figures to use the shared PDF.js renderer.');
+assert(js.includes("const playgroundPluginBuild = 'browser-import-jobs-staged-form-20260714';"), 'Expected the own-file importer to use the current Playground plugin build.');
 assert(js.includes("const playgroundClientModuleUrl = 'https://playground.wordpress.net/client/index.js';"), 'Expected Try your own file to use the Playground client.');
 assert(js.includes("const playgroundUploadDirectory = '/tmp/port-libs-converter';"), 'Expected own files to use Playground temporary staging.');
 assert(js.includes("php: '8.4'"), 'Expected own-file imports to use PHP 8.4 for EPUB and HTML documents.');
@@ -89,7 +90,15 @@ assert(js.includes('ownFileInput.click();'), 'Expected the Try your own file but
 assert(/ownFileInput\.addEventListener\('change',[\s\S]*?void openOwnFile\(file\);/.test(js), 'Selecting a file should open it immediately in the view area.');
 assert(js.includes('async function bootOwnFilePlayground()'), 'Expected a reusable Playground boot path for own-file imports.');
 assert(/async function bootOwnFilePlayground\(\)[\s\S]*?if \(state\.playgroundReady\)/.test(js), 'Expected a loaded Playground to be reused for another file.');
-assert(js.includes("url: '/wp-json/port-libs/v1/convert',"), 'Expected own files to use the converter REST endpoint.');
+assert(js.includes("let job = await ownFilePluginRequest(playgroundClient, '/imports', {"), 'Expected own files to create persisted import jobs.');
+assert(js.includes('`/imports/${jobId}/advance`'), 'Expected own files to advance their persisted import jobs.');
+assert(js.includes('`/imports/${encodeURIComponent(job.jobId)}/rendered-media`'), 'Expected browser-rendered PDF figures to be returned to WordPress.');
+assert(js.includes('async function advanceOwnFileImport'), 'Expected an explicit bounded import advance flow.');
+assert(js.includes('startOwnFileImportStatusPolling'), 'Expected in-flight advances to poll persisted WordPress progress.');
+assert(js.includes('`/imports/${jobId}`') && js.includes("'GET'"), 'Expected the own-file importer to read persisted import status while WordPress works.');
+assert(js.includes('ownFileImportLatestNewEvent') && js.includes('reportedEventKeys'), 'Expected status events to be deduplicated by event identity rather than array position.');
+assert(js.includes('await renderPdfFormRequests({'), 'Expected WordPress to request PDF Form figure crops from the browser.');
+assert(js.includes('`/imports/${jobId}/render-source/${requestId}`'), 'Expected ZIP-expanded PDF sources to be available to the browser renderer.');
 assert(js.includes('await playgroundClient.goTo(playgroundPath(data.pageUrl));'), 'Expected each own file conversion to open its newly created WordPress page.');
 assert(js.includes("frame.removeAttribute('sandbox');"), 'Expected Playground to use the preview iframe without the static-preview sandbox.');
 assert(js.includes("frame.setAttribute('sandbox', '');"), 'Expected static previews to restore the iframe sandbox after leaving Playground.');
@@ -105,7 +114,7 @@ assert(js.includes('maxPngBytes: remainingBytes'), 'Expected own-file PDF decode
 assert(js.includes('new Uint8Array(await file.arrayBuffer())'), 'Expected all own files to be read as transferable bytes.');
 assert(js.includes('await playgroundClient.mkdirTree(playgroundUploadDirectory);'), 'Expected own files to create their Playground staging directory.');
 assert(js.includes('await playgroundClient.writeFile(stagedPath, bytes);'), 'Expected own files to stage bytes before the REST request.');
-assert(js.includes('body: JSON.stringify({ ...prepared.payload, stagedPath })'), 'Expected the conversion request to use a compact staged-file payload.');
+assert(js.includes('...prepared.payload,\n      stagedPath,'), 'Expected import-job creation to use a compact staged-file payload.');
 assert(js.includes('await playgroundClient.unlink(stagedPath);'), 'Expected failed or cancelled own-file uploads to be cleaned up.');
 assert(!js.includes('readFileAsBase64'), 'Own-file imports must not use the fragile FileReader base64 path.');
 assert(!js.includes('readAsDataURL'), 'Own-file imports must not build a data URL before conversion.');

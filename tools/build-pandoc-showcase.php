@@ -4564,6 +4564,8 @@ CSS;
 function showcase_examples_javascript(): string
 {
     return <<<'JS'
+import { renderPdfFormRequests } from './pdfjs-form-rasterizer.mjs';
+
 const catalogUrl = 'examples-index.json';
 const viewLabels = {
   phpHtml: 'HTML',
@@ -4572,10 +4574,11 @@ const viewLabels = {
 };
 const defaultView = 'wpBlocks';
 const exampleUrlParameter = 'example';
-const playgroundPluginBuild = 'jp2-placeholder-20260714';
+const playgroundPluginBuild = 'browser-import-jobs-staged-form-20260714';
 const playgroundClientModuleUrl = 'https://playground.wordpress.net/client/index.js';
 const playgroundUploadDirectory = '/tmp/port-libs-converter';
 const playgroundPdfRasterByteLimit = 24_000_000;
+const ownFileStatusPollIntervalMs = 1_000;
 
 const examplePicker = document.getElementById('example-picker');
 const previousButton = document.getElementById('previous-example');
@@ -4937,28 +4940,82 @@ async function openOwnFile(file) {
       return;
     }
 
-    setOwnFileBusy(true, 'Converting…');
-    setStatus('Converting ' + file.name + '…', { visible: true });
-    const response = await playgroundClient.request({
-      method: 'POST',
-      url: '/wp-json/port-libs/v1/convert',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...prepared.payload, stagedPath }),
+    setOwnFileBusy(true, 'Creating import…');
+    setStatus('Creating an import job for ' + file.name + '…', { visible: true });
+    let job = await ownFilePluginRequest(playgroundClient, '/imports', {
+      ...prepared.payload,
+      stagedPath,
     });
-    const text = typeof response.text === 'function' ? await response.text() : response.text;
-    let data;
-    try {
-      data = JSON.parse(text);
-    } catch {
-      throw new Error('WordPress Playground returned an unreadable conversion response. Please try the file again.');
+    const reportedEventKeys = new Set();
+    const reportJob = (snapshot) => {
+      if (!ownFileRequestIsCurrent(token)) {
+        return;
+      }
+      const label = ownFileImportProgressLabel(snapshot);
+      const latestEvent = ownFileImportLatestNewEvent(snapshot, reportedEventKeys);
+      const message = latestEvent ? `${label} ${latestEvent}` : label;
+      setOwnFileBusy(true, message);
+      setStatus(message, { visible: true });
+    };
+    reportJob(job);
+
+    while (!['complete', 'failed'].includes(String(job.status || ''))) {
+      if (!ownFileRequestIsCurrent(token)) {
+        return;
+      }
+      if (Array.isArray(job.renderRequests) && job.renderRequests.length > 0) {
+        const rendered = await renderPdfFormRequests({
+          filesByPath: await pdfFilesForOwnFile(playgroundClient, job, file, prepared.bytes),
+          requests: job.renderRequests,
+          pdfjs: playgroundPdfJsConfig(),
+          onProgress({ completed, total, label }) {
+            if (!ownFileRequestIsCurrent(token)) {
+              return;
+            }
+            const progress = `${label} (${completed} of ${total})`;
+            setOwnFileBusy(true, progress);
+            setStatus(progress, { visible: true });
+          },
+        });
+        if (!ownFileRequestIsCurrent(token)) {
+          return;
+        }
+        for (const item of rendered) {
+          const rendererPayload = item.error
+            ? { requestId: item.requestId, error: item.error }
+            : {
+              requestId: item.requestId,
+              bytes: base64FromBytes(item.bytes),
+              mimeType: item.mimeType,
+              width: item.width,
+              height: item.height,
+            };
+          job = await ownFilePluginRequest(
+            playgroundClient,
+            `/imports/${encodeURIComponent(job.jobId)}/rendered-media`,
+            rendererPayload,
+          );
+          reportJob(job);
+          if (!ownFileRequestIsCurrent(token)) {
+            return;
+          }
+        }
+        continue;
+      }
+      if (job.status === 'awaiting_renderer') {
+        throw new Error('WordPress requested a PDF figure, but did not provide a renderable crop. Please try the file again.');
+      }
+      job = await advanceOwnFileImport(playgroundClient, job, token, reportJob);
+      reportJob(job);
     }
-    if (!data.ok) {
-      throw new Error(data.message || 'Conversion failed.');
+    if (job.status === 'failed' || !job.result) {
+      throw new Error(job.message || 'Conversion failed.');
     }
     if (!ownFileRequestIsCurrent(token)) {
       return;
     }
 
+    const data = job.result;
     await playgroundClient.goTo(playgroundPath(data.pageUrl));
     if (ownFileRequestIsCurrent(token)) {
       setStatus('Opened a new WordPress page for ' + file.name + '.', { visible: true, tone: 'success' });
@@ -4981,6 +5038,174 @@ async function openOwnFile(file) {
       setOwnFileBusy(false);
     }
   }
+}
+
+async function ownFilePluginRequest(playgroundClient, path, payload = {}, method = 'POST') {
+  const request = {
+    method,
+    url: `/wp-json/port-libs/v1${path}`,
+  };
+  if (method !== 'GET') {
+    request.headers = { 'Content-Type': 'application/json' };
+    request.body = JSON.stringify(payload);
+  }
+  const response = await playgroundClient.request(request);
+  const text = typeof response.text === 'function' ? await response.text() : response.text;
+  let data;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    throw new Error('WordPress Playground returned an unreadable import-job response. Please try the file again.');
+  }
+  if (!data.ok) {
+    throw new Error(data.message || 'Conversion failed.');
+  }
+
+  return data;
+}
+
+async function advanceOwnFileImport(playgroundClient, job, token, reportJob) {
+  const jobId = encodeURIComponent(String(job?.jobId || ''));
+  if (!jobId) {
+    throw new Error('WordPress did not return an import job identifier. Please try the file again.');
+  }
+  const stopPolling = startOwnFileImportStatusPolling(playgroundClient, jobId, token, reportJob);
+  try {
+    return await ownFilePluginRequest(playgroundClient, `/imports/${jobId}/advance`, {});
+  } finally {
+    stopPolling();
+  }
+}
+
+function startOwnFileImportStatusPolling(playgroundClient, jobId, token, reportJob) {
+  let stopped = false;
+  let timer = null;
+  const poll = async () => {
+    if (stopped || !ownFileRequestIsCurrent(token)) {
+      return;
+    }
+    try {
+      const snapshot = await ownFilePluginRequest(
+        playgroundClient,
+        `/imports/${jobId}`,
+        undefined,
+        'GET',
+      );
+      if (!stopped && ownFileRequestIsCurrent(token)) {
+        reportJob(snapshot);
+      }
+    } catch {
+      // The in-flight advance response remains authoritative. A transient
+      // status poll failure should not abandon an otherwise healthy import.
+    } finally {
+      if (!stopped && ownFileRequestIsCurrent(token)) {
+        timer = window.setTimeout(poll, ownFileStatusPollIntervalMs);
+      }
+    }
+  };
+  timer = window.setTimeout(poll, ownFileStatusPollIntervalMs);
+
+  return () => {
+    stopped = true;
+    if (timer !== null) {
+      window.clearTimeout(timer);
+    }
+  };
+}
+
+function ownFileImportProgressLabel(job) {
+  const progress = job && typeof job.progress === 'object' ? job.progress : {};
+  const label = String(progress.label || 'Import is continuing…');
+  const completed = Math.max(0, Number(progress.completed || 0));
+  const total = Math.max(1, Number(progress.total || 1));
+
+  return total > 1 ? `${label} (${completed} of ${total})` : label;
+}
+
+function ownFileImportLatestNewEvent(job, reportedEventKeys) {
+  let latestMessage = '';
+  for (const event of Array.isArray(job?.events) ? job.events : []) {
+    const key = [event?.time ?? '', event?.stage ?? '', event?.message ?? ''].join('\u001f');
+    if (reportedEventKeys.has(key)) {
+      continue;
+    }
+    reportedEventKeys.add(key);
+    const message = String(event?.message || '').trim();
+    if (message) {
+      latestMessage = message;
+    }
+  }
+
+  return latestMessage;
+}
+
+async function pdfFilesForOwnFile(playgroundClient, job, file, bytes) {
+  const files = new Map();
+  const requests = Array.isArray(job?.renderRequests) ? job.renderRequests : [];
+  if (isLikelyPdfFile(file) && bytes instanceof Uint8Array) {
+    files.set(file.name, bytes);
+  }
+  for (const request of requests) {
+    const path = String(request?.path || '');
+    if (path && isLikelyPdfFile(file) && bytes instanceof Uint8Array) {
+      // The server sanitizes upload names before it persists the job. This is
+      // a one-file import, so each requested source path refers to these
+      // browser-held PDF bytes even when its sanitized name differs locally.
+      files.set(path, bytes);
+    }
+  }
+
+  for (const request of requests) {
+    const path = String(request?.path || '');
+    if (!path || files.has(path)) {
+      continue;
+    }
+    const source = await ownFilePdfRenderSource(playgroundClient, job, request);
+    if (source) {
+      files.set(path, source);
+    }
+  }
+
+  return files;
+}
+
+async function ownFilePdfRenderSource(playgroundClient, job, request) {
+  const jobId = encodeURIComponent(String(job?.jobId || ''));
+  const requestId = encodeURIComponent(String(request?.id || ''));
+  if (!jobId || !requestId) {
+    return null;
+  }
+  try {
+    const source = await ownFilePluginRequest(
+      playgroundClient,
+      `/imports/${jobId}/render-source/${requestId}`,
+      undefined,
+      'GET',
+    );
+    const encoded = String(source.bytes || '');
+    if (!encoded) {
+      return null;
+    }
+
+    return bytesFromBase64(encoded);
+  } catch {
+    // Older plugin builds do not expose a stored ZIP member. PDF.js will
+    // report the unavailable crop to WordPress, which leaves a visible
+    // placeholder while the rest of the document is still imported.
+    return null;
+  }
+}
+
+function playgroundPdfJsConfig() {
+  const base = new URL('vendor/pdfjs/', window.location.href).href;
+
+  return {
+    pdfjsModuleUrl: new URL('pdf.min.mjs', base).href,
+    pdfjsWorkerUrl: new URL('pdf.worker.min.mjs', base).href,
+    pdfjsWasmUrl: new URL('wasm/', base).href,
+    pdfjsCMapUrl: new URL('cmaps/', base).href,
+    pdfjsStandardFontDataUrl: new URL('standard_fonts/', base).href,
+  };
 }
 
 async function payloadFromOwnFile(file, reportProgress) {
@@ -5096,6 +5321,16 @@ function base64FromBytes(bytes) {
   }
 
   return btoa(binary);
+}
+
+function bytesFromBase64(base64) {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+
+  return bytes;
 }
 
 function isLikelyPdfFile(file) {
