@@ -432,7 +432,7 @@ final class PandocMediaExtractor
         $candidatePageLimitReported = [];
         $placementPageLimitReported = [];
         foreach ($placements as $placement) {
-            if (($placement['visible'] ?? false) !== true || ($placement['confidence'] ?? '') !== 'high') {
+            if (!$this->pdfImagePlacementIsEligible($placement)) {
                 continue;
             }
             if (!is_numeric($placement['object'] ?? null)) {
@@ -503,6 +503,23 @@ final class PandocMediaExtractor
         }
 
         return $anchored;
+    }
+
+    /**
+     * The PDF reader distinguishes a safely anchored clipped image from an
+     * image whose geometry is unsafe. Keep backward compatibility with
+     * high-confidence metadata emitted before that distinction existed.
+     *
+     * @param array<string, mixed> $placement
+     */
+    private function pdfImagePlacementIsEligible(array $placement): bool
+    {
+        if (array_key_exists('placementEligible', $placement)) {
+            return $placement['placementEligible'] === true;
+        }
+
+        return ($placement['visible'] ?? false) === true
+            && ($placement['confidence'] ?? '') === 'high';
     }
 
     private function pdfImagePlacementBoundingBoxKey(mixed $bbox): string

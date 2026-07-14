@@ -16,11 +16,11 @@ function markerpdf_image_placement_image_object(bool $mask = false): string
 /**
  * @param array<int, string> $extraObjects
  */
-function markerpdf_image_placement_single_page_pdf(string $content, string $xObjects, array $extraObjects): string
+function markerpdf_image_placement_single_page_pdf(string $content, string $xObjects, array $extraObjects, string $extraResources = ''): string
 {
     $pdf = "%PDF-1.4\n"
         . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
-        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 612 792] /Resources << /XObject << {$xObjects} >> >> >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 612 792] /Resources << /XObject << {$xObjects} >> {$extraResources} >> >>\nendobj\n"
         . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
         . "4 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n";
     foreach ($extraObjects as $number => $body) {
@@ -91,7 +91,27 @@ return [
 
         $t->same(1, count($placements));
         $t->same('low', $placements[0]['confidence']);
+        $t->same(true, $placements[0]['placementEligible']);
+        $t->same(true, $placements[0]['boundsClipped']);
         $t->same([0.0, 0.0, 10.0, 10.0], array_values($placements[0]['bbox']));
+    },
+    'keeps benign graphics states placeable while excluding zero-alpha images' => static function (TestRunner $t): void {
+        $pdf = markerpdf_image_placement_single_page_pdf(
+            'q /Normal gs 10 0 0 10 10 20 cm /A Do Q q /Hidden gs 10 0 0 10 30 40 cm /B Do Q',
+            '/A 5 0 R /B 6 0 R',
+            [
+                5 => markerpdf_image_placement_image_object(),
+                6 => markerpdf_image_placement_image_object(),
+            ],
+            '/ExtGState << /Normal << /OP true /op false /OPM 1 /SM 0.001 >> /Hidden << /ca 0 >> >>'
+        );
+
+        $placements = (new PdfTextExtractor())->extractImagePlacements($pdf);
+
+        $t->same([5, 6], array_column($placements, 'object'));
+        $t->same(['high', 'low'], array_column($placements, 'confidence'));
+        $t->same([true, false], array_column($placements, 'visible'));
+        $t->same([true, false], array_column($placements, 'placementEligible'));
     },
     'keeps off-page and artifact image paintings out of automatic placement' => static function (TestRunner $t): void {
         $pdf = markerpdf_image_placement_single_page_pdf(

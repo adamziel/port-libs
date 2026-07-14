@@ -1,4 +1,4 @@
-const pluginBuild = 'pdf-link-muir-safety-20260713';
+const pluginBuild = 'pdf-image-placement-repair-20260714';
 const playgroundClientModuleUrl = 'https://playground.wordpress.net/client/index.js';
 
 const iframe = document.getElementById('wp-playground');

@@ -50,11 +50,11 @@ function pandoc_layout_fixture_image_object(int $width = 100, int $height = 100)
 /**
  * @param array<int, string> $extraObjects
  */
-function pandoc_single_page_layout_fixture(string $content, string $xObjects, array $extraObjects): string
+function pandoc_single_page_layout_fixture(string $content, string $xObjects, array $extraObjects, string $extraResources = ''): string
 {
     $pdf = "%PDF-1.4\n"
         . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
-        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 612 792] /Resources << /Font << /F1 9 0 R >> /XObject << {$xObjects} >> >> >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 612 792] /Resources << /Font << /F1 9 0 R >> /XObject << {$xObjects} >> {$extraResources} >> >>\nendobj\n"
         . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
         . "4 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n";
     foreach ($extraObjects as $number => $body) {
@@ -323,6 +323,30 @@ return [
 
         $t->true(is_array($meta));
         $t->same(2, $meta['pdfPlacedImageCandidates'] ?? null);
+    },
+    'places a clipped image under a benign graphics state through the full media path' => static function (TestRunner $t): void {
+        $content = "BT /F1 12 Tf 72 720 Td (Before) Tj ET\n"
+            . "q 72 640 120 40 re W n q /GS1 gs 120 0 0 40 72 640 cm /A Do Q Q\n"
+            . "BT /F1 12 Tf 72 580 Td (After) Tj ET";
+        $result = PandocConverter::convertWithMedia(
+            pandoc_single_page_layout_fixture(
+                $content,
+                '/A 7 0 R',
+                [7 => pandoc_layout_fixture_image_object()],
+                '/ExtGState << /GS1 << /OP true /op false /OPM 1 /SM 0.001 >> >>'
+            ),
+            'pdf',
+            'wordpress',
+            ['extractMedia' => ['destination' => 'media', 'imageMode' => 'all']]
+        );
+
+        $before = strpos($result['output'], 'Before');
+        $image = strpos($result['output'], 'media/pdf/image-7.jpg');
+        $after = strpos($result['output'], 'After');
+
+        $t->same(1, count($result['media']));
+        $t->true($before !== false && $image !== false && $after !== false);
+        $t->true($before < $image && $image < $after);
     },
     'keeps image anchors in their own visual column' => static function (TestRunner $t): void {
         $content = "BT /F1 12 Tf 72 720 Td (Before) Tj ET\n"

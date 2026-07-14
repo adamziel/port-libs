@@ -743,9 +743,10 @@ final class PdfTextExtractor
      * geometry-safe subset of page content operators needed for placement:
      * q/Q, cm, and Do (including a Form XObject's matrix and resources).
      *
-     * Inline images and graphics states which would require a full renderer
-     * are omitted or marked low confidence.  Consumers should use only high
-     * confidence entries for in-flow document content.
+     * Inline images are omitted.  Some graphics operations can make the
+     * exact displayed bounds uncertain, so their records remain low
+     * confidence; a separately explicit placementEligible flag lets callers
+     * still use a visible image when its surrounding text anchors are unique.
      *
      * @return list<array{
      *     page:int,
@@ -758,6 +759,8 @@ final class PdfTextExtractor
      *     matrix:list<float>,
      *     bbox:array{x1:float,y1:float,x2:float,y2:float},
      *     visible:bool,
+     *     placementEligible:bool,
+     *     boundsClipped:bool,
      *     confidence:string
      * }>
      */
@@ -783,6 +786,7 @@ final class PdfTextExtractor
 
             $resourceContext = $this->resourceContextForPage($pageObjectNumber, $objects);
             $xObjects = $this->xObjectResourceObjectNumbers($resourceContext, $objects);
+            $extGStates = $this->extGStateResourceStates($resourceContext, $objects);
             if ($xObjects === []) {
                 continue;
             }
@@ -822,7 +826,9 @@ final class PdfTextExtractor
                 [],
                 [],
                 false,
-                $this->effectivePageVisibleBox($pageObjectNumber, $objects)
+                $this->effectivePageVisibleBox($pageObjectNumber, $objects),
+                $extGStates,
+                1.0
             ) as $placement) {
                 $placements[] = $placement;
             }
@@ -849,6 +855,8 @@ final class PdfTextExtractor
      *     matrix:list<float>,
      *     bbox:array{x1:float,y1:float,x2:float,y2:float},
      *     visible:bool,
+     *     placementEligible:bool,
+     *     boundsClipped:bool,
      *     confidence:string
      * }>
      */
@@ -864,12 +872,20 @@ final class PdfTextExtractor
         array $activeForms,
         array $resourcePath,
         bool $inheritedLowConfidence,
-        ?array $pageVisibleBox
+        ?array $pageVisibleBox,
+        array $extGStates,
+        float $initialNonStrokingAlpha
     ): array {
         $placements = [];
         $graphicsState = [
             'matrix' => $initialMatrix,
             'lowConfidence' => $inheritedLowConfidence,
+            // Forms and malformed transforms have unsafe geometry. Clipping
+            // only affects the exact crop, not the image's document-flow
+            // identity, so it deliberately does not set this flag.
+            'placementUnsafe' => $inheritedLowConfidence,
+            'boundsClipped' => false,
+            'nonStrokingAlpha' => max(0.0, min(1.0, $initialNonStrokingAlpha)),
         ];
         $graphicsStack = [];
         $markedContentStack = [];
@@ -897,6 +913,7 @@ final class PdfTextExtractor
                 $matrix = $this->transformationMatrixOperand($operands);
                 if ($matrix === null) {
                     $graphicsState['lowConfidence'] = true;
+                    $graphicsState['placementUnsafe'] = true;
                 } else {
                     $graphicsState['matrix'] = $this->concatenateTransformationMatrices($graphicsState['matrix'], $matrix);
                 }
@@ -940,11 +957,37 @@ final class PdfTextExtractor
                 continue;
             }
 
-            if (in_array($token, ['W', 'W*', 'gs'], true)) {
-                // Exact clipping and opacity require renderer semantics. Keep
-                // scanning so a caller can review the event, but never claim
-                // that its placement is high confidence.
+            if (in_array($token, ['W', 'W*'], true)) {
+                // A clipping path makes the recorded image rectangle an
+                // approximation, but it does not make the painting or its
+                // nearby text anchors ambiguous. Preserve that distinction so
+                // normal PDF crop patterns do not erase all document images.
                 $graphicsState['lowConfidence'] = true;
+                $graphicsState['boundsClipped'] = true;
+                $operands = [];
+                continue;
+            }
+
+            if ($token === 'gs') {
+                $name = $this->xObjectNameOperand($operands);
+                $extGState = $name !== null ? ($extGStates[$name] ?? null) : null;
+                if (!is_array($extGState)) {
+                    // An unresolved graphics state may affect opacity, but it
+                    // cannot alter the image transform. Retain the placement
+                    // for unique-anchor review instead of rejecting it all.
+                    $graphicsState['lowConfidence'] = true;
+                } else {
+                    $alpha = $extGState['nonStrokingAlpha'] ?? null;
+                    if (is_float($alpha) || is_int($alpha)) {
+                        $graphicsState['nonStrokingAlpha'] = max(0.0, min(1.0, (float) $alpha));
+                    }
+                    if (($extGState['hasSoftMask'] ?? false) === true) {
+                        // A soft mask can change the visible crop, although
+                        // it does not change the transform or reading-order
+                        // anchor. Keep it placeable but mark its bounds low.
+                        $graphicsState['lowConfidence'] = true;
+                    }
+                }
                 $operands = [];
                 continue;
             }
@@ -966,6 +1009,10 @@ final class PdfTextExtractor
                         if ($bbox !== null && !$this->imageXObjectIsMask($objectBody, $objects)) {
                             $intersectsPage = $pageVisibleBox === null
                                 || $this->imageBoundingBoxIntersectsPageBox($bbox, $pageVisibleBox);
+                            $visible = $intersectsPage && (float) $graphicsState['nonStrokingAlpha'] > 0.000001;
+                            $placementEligible = $visible
+                                && !$graphicsState['placementUnsafe']
+                                && !$hasMarkedContentUncertainty;
                             $placements[] = [
                                 'page' => $page,
                                 'pageObject' => $pageObject,
@@ -981,8 +1028,14 @@ final class PdfTextExtractor
                                 // in the content stream but cannot contribute
                                 // to the page people see, so retain it only as
                                 // a non-placeable review record.
-                                'visible' => $intersectsPage,
-                                'confidence' => ($graphicsState['lowConfidence'] || $hasMarkedContentUncertainty || !$intersectsPage) ? 'low' : 'high',
+                                'visible' => $visible,
+                                // Eligibility is intentionally independent
+                                // from exact-bound confidence: a clipped image
+                                // can still be safely inserted only when the
+                                // PdfReader finds a unique surrounding anchor.
+                                'placementEligible' => $placementEligible,
+                                'boundsClipped' => (bool) $graphicsState['boundsClipped'],
+                                'confidence' => ($graphicsState['lowConfidence'] || !$placementEligible) ? 'low' : 'high',
                             ];
                         }
                     } elseif ($this->isFormXObjectObject($objectBody) && !isset($activeForms[$objectNumber])) {
@@ -991,6 +1044,7 @@ final class PdfTextExtractor
                         if ($formStream !== null && $formMatrix !== null) {
                             $formContext = $this->resourceContextForBody($objectBody, $objects);
                             $formXObjects = $this->xObjectResourceObjectNumbers($formContext, $objects) + $xObjects;
+                            $formExtGStates = $this->extGStateResourceStates($formContext, $objects) + $extGStates;
                             foreach ($this->imagePlacementsFromContentStream(
                                 $formStream,
                                 $objects,
@@ -1007,7 +1061,9 @@ final class PdfTextExtractor
                                 // not model. Its records remain useful for
                                 // review, but not automatic placement.
                                 true,
-                                $pageVisibleBox
+                                $pageVisibleBox,
+                                $formExtGStates,
+                                (float) $graphicsState['nonStrokingAlpha']
                             ) as $placement) {
                                 $placements[] = $placement;
                             }
@@ -6336,6 +6392,102 @@ final class PdfTextExtractor
         }
 
         return $xObjects;
+    }
+
+    /**
+     * Resolve the small ExtGState subset that can make an Image XObject
+     * wholly invisible. Most entries (overprint, smoothness, transfer,
+     * rendering intent, etc.) do not affect its location or visibility and
+     * must not suppress otherwise safe image placement.
+     *
+     * @param array<int, string> $objects
+     * @return array<string, array{nonStrokingAlpha: float|null, hasSoftMask: bool}>
+     */
+    private function extGStateResourceStates(string $contextBody, array $objects): array
+    {
+        $states = [];
+        $offset = 0;
+        $length = strlen($contextBody);
+
+        while ($offset < $length
+            && preg_match('/\/ExtGState(?![A-Za-z0-9_.#-])/', $contextBody, $match, PREG_OFFSET_CAPTURE, $offset) === 1) {
+            $matchStart = (int) $match[0][1];
+            $valueOffset = $matchStart + strlen((string) $match[0][0]);
+            while ($valueOffset < $length && ctype_space($contextBody[$valueOffset])) {
+                $valueOffset++;
+            }
+
+            $dictionary = null;
+            $nextOffset = $valueOffset;
+            if ($valueOffset + 1 < $length
+                && $contextBody[$valueOffset] === '<'
+                && $contextBody[$valueOffset + 1] === '<') {
+                $dictionary = $this->readDictionaryToken($contextBody, $nextOffset);
+            } elseif (preg_match('/^(\d+)\s+\d+\s+R\b/', substr($contextBody, $valueOffset), $reference) === 1) {
+                $objectNumber = (int) $reference[1];
+                $dictionary = isset($objects[$objectNumber])
+                    ? $this->dictionaryFromValue($objects[$objectNumber])
+                    : null;
+                $nextOffset = $valueOffset + strlen((string) $reference[0]);
+            }
+
+            if (is_string($dictionary)) {
+                $states = array_replace($states, $this->extGStateResourceStatesFromDictionary($dictionary, $objects));
+            }
+            $offset = max($nextOffset, $matchStart + 1);
+        }
+
+        return $states;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, array{nonStrokingAlpha: float|null, hasSoftMask: bool}>
+     */
+    private function extGStateResourceStatesFromDictionary(string $dictionary, array $objects): array
+    {
+        $states = [];
+        $tokens = $this->dictionaryTokens($dictionary);
+        for ($index = 0, $count = count($tokens); $index < $count;) {
+            $nameToken = $tokens[$index] ?? null;
+            if (!is_string($nameToken) || !str_starts_with($nameToken, '/')) {
+                $index++;
+                continue;
+            }
+
+            $name = $this->decodePdfName(substr($nameToken, 1));
+            $value = null;
+            $objectNumber = $this->indirectObjectOperand($tokens, $index + 1);
+            if ($objectNumber !== null) {
+                $value = $objects[$objectNumber] ?? null;
+                $index += 4;
+            } else {
+                $value = $tokens[$index + 1] ?? null;
+                $index += 2;
+            }
+            if (!is_string($value)) {
+                continue;
+            }
+
+            $stateDictionary = $this->dictionaryFromValue($value);
+            if ($stateDictionary === null) {
+                continue;
+            }
+            $alphaEntry = $this->dictionaryEntryValue($stateDictionary, 'ca', $objects);
+            $alpha = $alphaEntry !== null ? $this->numericOperand($alphaEntry['token']) : null;
+            if ($alpha !== null && (!is_finite($alpha) || $alpha < 0.0 || $alpha > 1.0)) {
+                $alpha = null;
+            }
+            $softMaskEntry = $this->dictionaryEntryValue($stateDictionary, 'SMask', $objects);
+            $hasSoftMask = $softMaskEntry !== null
+                && !$this->isPdfNameToken($softMaskEntry['token'], 'None');
+            $states[$name] = [
+                'nonStrokingAlpha' => $alpha,
+                'hasSoftMask' => $hasSoftMask,
+            ];
+        }
+
+        return $states;
     }
 
     private function isFormXObjectObject(string $objectBody): bool

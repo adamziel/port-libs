@@ -393,6 +393,7 @@ return [
         $t->same(80000, $options['readerOptions']['maxTextBytes'] ?? null);
         $t->same(true, $options['readerOptions']['pdfGeometryTables'] ?? null);
         $t->same(true, $options['readerOptions']['pdfRepairProseText'] ?? null);
+        $t->same(true, $options['readerOptions']['pdfCollectImagePlacements'] ?? null);
     },
     'playground pdf importer can retry in text only mode without geometry tables' => static function (TestRunner $t): void {
         $options = plpc_converter_options('pdf', 'text-only');
@@ -616,7 +617,15 @@ return [
         $png = "\x89PNG\r\n\x1a\n"
             . pack('N', 13) . 'IHDR' . pack('NNCCCCC', 100, 100, 1, 0, 0, 0, 0)
             . pack('N', 0);
+        $content = "BT /F1 12 Tf 72 720 Td (Before image) Tj ET\n"
+            . "q 100 0 0 100 72 580 cm /Image17 Do Q\n"
+            . "BT /F1 12 Tf 72 540 Td (After image) Tj ET";
         $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 612 792] /Resources << /Font << /F1 9 0 R >> /XObject << /Image17 17 0 R >> >> >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+            . "9 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
             . "00017 0 obj\n"
             . "<< /Type /XObject /Subtype /Image /Width 100 /Height 100 /BitsPerComponent 1 /Filter /JBIG2Decode /Length 3 >>\n"
             . "stream\nabc\nendstream\nendobj\n%%EOF\n";

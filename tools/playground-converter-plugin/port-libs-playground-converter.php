@@ -987,6 +987,10 @@ function plpc_converter_options(string $format, string $pdfMode = 'layout'): arr
         $readerOptions['maxTextBytes'] = 80000;
         $readerOptions['pdfGeometryTables'] = $pdfMode === 'layout';
         $readerOptions['pdfRepairProseText'] = true;
+        // The Playground invokes the reader and media extractor separately,
+        // so it must explicitly request the compact placement map that lets
+        // the media pass attach painted PDF images to nearby text.
+        $readerOptions['pdfCollectImagePlacements'] = true;
     }
     if ($canonicalFormat === 'docx') {
         $readerOptions['preserveRunStyles'] = true;

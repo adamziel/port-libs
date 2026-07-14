@@ -313,7 +313,7 @@ final class PdfReader
             'pdfImagePlacements' => $pdfImagePlacements,
             'pdfPlacedImageCandidates' => count(array_filter(
                 $pdfImagePlacements,
-                static fn (array $placement): bool => ($placement['confidence'] ?? '') === 'high'
+                fn (array $placement): bool => $this->pdfImagePlacementIsEligible($placement)
                     && (is_string($placement['precedingText'] ?? null)
                         || is_string($placement['followingText'] ?? null))
             )),
@@ -508,7 +508,7 @@ final class PdfReader
             $record['page'] = $page;
             $record['precedingText'] = null;
             $record['followingText'] = null;
-            if (($placement['confidence'] ?? '') !== 'high' || ($placement['visible'] ?? false) !== true) {
+            if (!$this->pdfImagePlacementIsEligible($placement)) {
                 $anchored[] = $record;
                 continue;
             }
@@ -557,6 +557,24 @@ final class PdfReader
         }
 
         return $anchored;
+    }
+
+    /**
+     * A clipped image can have an inexact bounding box while remaining safe
+     * to place when it has a unique surrounding-text anchor. New extractor
+     * records state that explicitly; retain the older high-confidence rule
+     * for metadata produced by previous versions.
+     *
+     * @param array<string, mixed> $placement
+     */
+    private function pdfImagePlacementIsEligible(array $placement): bool
+    {
+        if (array_key_exists('placementEligible', $placement)) {
+            return $placement['placementEligible'] === true;
+        }
+
+        return ($placement['visible'] ?? false) === true
+            && ($placement['confidence'] ?? '') === 'high';
     }
 
     /**

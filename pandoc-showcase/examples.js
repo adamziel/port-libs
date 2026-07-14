@@ -6,7 +6,7 @@ const viewLabels = {
 };
 const defaultView = 'wpBlocks';
 const exampleUrlParameter = 'example';
-const playgroundPluginBuild = 'epub-xml-recovery-20260713';
+const playgroundPluginBuild = 'pdf-image-placement-repair-20260714';
 const playgroundClientModuleUrl = 'https://playground.wordpress.net/client/index.js';
 const playgroundUploadDirectory = '/tmp/port-libs-converter';
 
