@@ -630,6 +630,49 @@ function plpc_test_assert_import_job_snapshot(TestRunner $t, array $snapshot, st
 require_once dirname(__DIR__, 3) . '/tools/playground-converter-plugin/port-libs-playground-converter.php';
 
 return [
+    'playground converter matches a visual PDF anchor across a terminal line-break hyphen' => static function (TestRunner $t): void {
+        $blocks = [
+            new \PortLibs\Pandoc\AstNode('paragraph', [
+                'text' => 'Figure 2. State machine describing the major activities of TraceMonkey.',
+            ]),
+        ];
+
+        $t->same(
+            0,
+            plpc_browser_pdf_form_anchor_index(
+                $blocks,
+                'Figure 2. State machine describing the major activities of Trace-'
+            )
+        );
+    },
+    'playground converter inserts a browser-rendered Form directly before its reflowed caption' => static function (TestRunner $t): void {
+        $document = new \PortLibs\Pandoc\AstNode('document', [
+            'meta' => [
+                'pdfFormXObjectPlacements' => [[
+                    'id' => 'pdf-form-p2-n1-o41',
+                    'page' => 2,
+                    'bbox' => ['x1' => 317.0, 'y1' => 414.0, 'x2' => 556.0, 'y2' => 601.0],
+                    'paintOrder' => 1,
+                    'followingText' => 'Figure 2. State machine describing the major activities of Trace-',
+                ]],
+            ],
+        ], [
+            new \PortLibs\Pandoc\AstNode('paragraph', ['text' => 'The overview introduces the state machine.']),
+            new \PortLibs\Pandoc\AstNode('paragraph', ['text' => 'Figure 2. State machine describing the major activities of TraceMonkey.']),
+        ]);
+
+        $placed = plpc_document_with_browser_pdf_form_renders($document, [[
+            'formId' => 'pdf-form-p2-n1-o41',
+            'contents' => "\x89PNG\r\n",
+            'mimeType' => 'image/png',
+        ]]);
+        $children = $placed->children;
+
+        $t->same(3, count($children));
+        $t->same('paragraph', $children[1]->type);
+        $t->true(in_array('pandoc-pdf-form-figure', $children[1]->attr('classes', []), true));
+        $t->same('Figure 2. State machine describing the major activities of TraceMonkey.', $children[2]->attr('text'));
+    },
     'playground converter route permits WordPress Playground hosts' => static function (TestRunner $t): void {
         $previousHost = $_SERVER['HTTP_HOST'] ?? null;
         $previousReferer = $_SERVER['HTTP_REFERER'] ?? null;

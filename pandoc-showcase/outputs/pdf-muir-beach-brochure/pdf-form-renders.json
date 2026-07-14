@@ -15,8 +15,8 @@
             "formId": "pdf-form-p1-n2-o256",
             "object": 256,
             "paintOrder": 2,
-            "precedingText": null,
-            "followingText": null,
+            "precedingText": "Muir Beach",
+            "followingText": "At Muir Beach, a complex network of freshwater wetlands, lagoon, and dunes defines the meeting",
             "label": "PDF figure on page 1"
         },
         {
@@ -66,8 +66,8 @@
             "formId": "pdf-form-p4-n4-o52",
             "object": 52,
             "paintOrder": 4,
-            "precedingText": null,
-            "followingText": null,
+            "precedingText": "Pelican Inn",
+            "followingText": "GOLDEN GATE",
             "label": "PDF figure on page 4"
         },
         {

@@ -80,7 +80,7 @@ assert(js.includes("const exampleUrlParameter = 'example';"), 'Expected a stable
 assert(js.includes('new URL(window.location.href)'), 'Expected example links to preserve other URL state safely.');
 assert(js.includes('window.history.replaceState'), 'Expected picker navigation to keep the current URL shareable.');
 assert(js.includes("import { renderPdfFormRequests } from './pdfjs-form-rasterizer.mjs';"), 'Expected own-file PDF figures to use the shared PDF.js renderer.');
-assert(js.includes("const playgroundPluginBuild = 'browser-import-jobs-staged-form-static-charts-20260714';"), 'Expected the own-file importer to use the current Playground plugin build.');
+assert(js.includes("const playgroundPluginBuild = 'browser-import-jobs-form-placement-20260714';"), 'Expected the own-file importer to use the current Playground plugin build.');
 assert(js.includes("const playgroundClientModuleUrl = 'https://playground.wordpress.net/client/index.js';"), 'Expected Try your own file to use the Playground client.');
 assert(js.includes("const playgroundUploadDirectory = '/tmp/port-libs-converter';"), 'Expected own files to use Playground temporary staging.');
 assert(js.includes("php: '8.4'"), 'Expected own-file imports to use PHP 8.4 for EPUB and HTML documents.');
@@ -105,6 +105,9 @@ assert(js.includes('staticPdfPreviewCache: new Map()')
   && js.includes('staticPdfPreviewMaxRequests = 8')
   && js.includes('staticPdfPreviewMaxTotalPixels = 8_000_000')
   && js.includes('abortStaticPdfPreview()'), 'Expected static PDF previews to inject browser-rendered Form figures without retaining an unbounded mobile gallery.');
+assert(js.includes('function normalizedPdfTextAnchor(value)')
+  && js.includes("replace(/(?:-|\\u00ad)$/u, '')")
+  && js.includes('figure.dataset.pdfFormObject = String(request.object);'), 'Expected static PDF chart placement to normalize terminal line-break hyphens and expose Form object diagnostics.');
 assert(js.includes('`/imports/${jobId}/render-source/${requestId}`'), 'Expected ZIP-expanded PDF sources to be available to the browser renderer.');
 assert(js.includes('await playgroundClient.goTo(playgroundPath(data.pageUrl));'), 'Expected each own file conversion to open its newly created WordPress page.');
 assert(js.includes("frame.removeAttribute('sandbox');"), 'Expected Playground to use the preview iframe without the static-preview sandbox.');
@@ -233,6 +236,13 @@ if (traceMonkey && traceMonkeyRecord) {
       'Every TraceMonkey PDF chart request must be bounded and address the bundled PDF.');
       assert(requests.map((request) => request.object).join(',') === '41,118,119,120,154,199,198,200',
         'TraceMonkey chart plan must retain the eight expected Form XObjects.');
+      const captionsByObject = new Map([
+        [41, 'Figure 2.'], [118, 'Figure 5.'], [119, 'Figure 6.'], [120, 'Figure 7.'],
+        [154, 'Figure 8.'], [199, 'Figure 11.'], [198, 'Figure 10.'], [200, 'Figure 12.'],
+      ]);
+      assert(requests.every((request) => String(request.followingText || '').replace(/(?:-|\u00ad)$/u, '')
+        .startsWith(captionsByObject.get(request.object) || '')),
+      'Every TraceMonkey chart request must preserve its own following figure caption as a placement anchor.');
     }
   }
 }

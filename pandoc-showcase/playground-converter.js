@@ -1,6 +1,6 @@
 import { renderPdfFormRequests } from './pdfjs-form-rasterizer.mjs';
 
-const pluginBuild = 'browser-import-jobs-staged-form-static-charts-20260714';
+const pluginBuild = 'browser-import-jobs-form-placement-20260714';
 const playgroundClientModuleUrl = 'https://playground.wordpress.net/client/index.js';
 const playgroundUploadDirectory = '/tmp/port-libs-converter';
 // Keep browser-produced PDF rasters within the exact decoded-byte limit that

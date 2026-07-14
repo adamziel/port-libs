@@ -1,5 +1,5 @@
 {
-    "generatedAt": "2026-07-14T17:51:52+00:00",
+    "generatedAt": "2026-07-14T21:24:11+00:00",
     "pandocVersion": "pandoc 3.10\nFeatures: +server +lua\nScripting engine: Lua 5.4\nUser data directory: $REPO\nCopyright (C) 2006-2025 John MacFarlane. Web:  https://pandoc.org\nThis is free software; see the source for copying conditions. There is no\nwarranty, not even for merchantability or fitness for a particular purpose.",
     "mediaImageMode": "important",
     "formats": [
@@ -16532,7 +16532,7 @@
             "pdfFormRenders": {
                 "ok": true,
                 "path": "outputs/pdf-tracemonkey/pdf-form-renders.json",
-                "bytes": 4545,
+                "bytes": 5162,
                 "count": 8
             },
             "externalReference": {
@@ -17068,7 +17068,7 @@
             "pdfFormRenders": {
                 "ok": true,
                 "path": "outputs/pdf-grand-canyon-north-rim-map/pdf-form-renders.json",
-                "bytes": 7605,
+                "bytes": 7624,
                 "count": 13
             },
             "externalReference": {
@@ -17799,7 +17799,7 @@
             "pdfFormRenders": {
                 "ok": true,
                 "path": "outputs/pdf-muir-beach-brochure/pdf-form-renders.json",
-                "bytes": 3599,
+                "bytes": 3717,
                 "count": 6
             },
             "externalReference": {

@@ -3109,7 +3109,7 @@ function plpc_browser_pdf_form_anchor_index(array $blocks, mixed $anchor): ?int
     if (!is_string($anchor)) {
         return null;
     }
-    $anchor = preg_replace('/\s+/u', ' ', trim($anchor)) ?? '';
+    $anchor = plpc_browser_pdf_form_normalize_anchor_text($anchor);
     $anchorLength = function_exists('mb_strlen') ? mb_strlen($anchor, 'UTF-8') : strlen($anchor);
     if ($anchorLength < 3) {
         return null;
@@ -3130,6 +3130,20 @@ function plpc_browser_pdf_form_anchor_index(array $blocks, mixed $anchor): ?int
     }
 
     return $found;
+}
+
+/**
+ * Positioned PDF text commonly ends an extracted visual line with a hyphen
+ * before continuing the word on the next line.  A placement anchor is a
+ * prefix used to find the final, reflowed WordPress paragraph, so discard
+ * only a terminal discretionary hyphen.  This is deliberately content
+ * agnostic: it applies equally to captions, prose, and technical labels.
+ */
+function plpc_browser_pdf_form_normalize_anchor_text(string $text): string
+{
+    $normalized = preg_replace('/\s+/u', ' ', trim($text)) ?? '';
+
+    return preg_replace('/(?:-|\x{00AD})$/u', '', $normalized) ?? $normalized;
 }
 
 /**

@@ -555,7 +555,30 @@ final class PdfReader
             }
 
             $pageLayouts = $layoutsByPage[$page] ?? [];
-            if ($pageLayouts === [] || $this->pdfImagePlacementOverlapsText($image, $pageLayouts)) {
+            if ($pageLayouts === []) {
+                $anchored[] = $record;
+                continue;
+            }
+
+            // Form XObjects often contain their own visible labels: axis
+            // ticks, legends, and flow-chart nodes are all extracted as text
+            // even though they belong to the graphic.  Treating every one of
+            // those labels as an unsafe overlap causes a perfectly ordinary
+            // chart to lose both of its surrounding anchors and get appended
+            // at the end of the imported document.  Geometry, rather than a
+            // word list, tells the two cases apart: text wholly inside the
+            // painted rectangle is part of the visual object; text which
+            // crosses its edge is document flow overlaid on it and remains
+            // unsafe.
+            $formCanContainItsOwnText = is_array($placement['formBBox'] ?? null);
+            $surroundingLayouts = [];
+            foreach ($pageLayouts as $layout) {
+                if ($formCanContainItsOwnText && $this->pdfImagePlacementContainsText($image, $layout)) {
+                    continue;
+                }
+                $surroundingLayouts[] = $layout;
+            }
+            if ($this->pdfImagePlacementOverlapsText($image, $surroundingLayouts)) {
                 $anchored[] = $record;
                 continue;
             }
@@ -564,7 +587,7 @@ final class PdfReader
             $imageCenterX = ($image['x1'] + $image['x2']) / 2.0;
             $preceding = [];
             $following = [];
-            foreach ($pageLayouts as $layout) {
+            foreach ($surroundingLayouts as $layout) {
                 // A vertically-near line in another newspaper/brochure
                 // column is not a safe document-flow anchor. Prefer losing
                 // an image to placing it inside unrelated text.
@@ -654,6 +677,25 @@ final class PdfReader
         }
 
         return false;
+    }
+
+    /**
+     * Text entirely within a painted object's rectangle belongs to that
+     * object for placement purposes.  The small tolerance accounts for PDF
+     * glyph bounds that extend a fraction beyond their advance width while
+     * keeping text that genuinely crosses an edge in the unsafe-overlap path.
+     *
+     * @param array{x1:float,y1:float,x2:float,y2:float} $image
+     * @param array{page:int,text:string,x1:float,y1:float,x2:float,y2:float} $layout
+     */
+    private function pdfImagePlacementContainsText(array $image, array $layout): bool
+    {
+        $tolerance = 1.5;
+
+        return $layout['x1'] >= $image['x1'] - $tolerance
+            && $layout['x2'] <= $image['x2'] + $tolerance
+            && $layout['y1'] >= $image['y1'] - $tolerance
+            && $layout['y2'] <= $image['y2'] + $tolerance;
     }
 
     /**

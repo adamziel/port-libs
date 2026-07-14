@@ -340,6 +340,27 @@ return [
         $t->true(is_array($meta));
         $t->same(2, $meta['pdfPlacedImageCandidates'] ?? null);
     },
+    'keeps text painted over a direct PDF image unsafe for placement' => static function (TestRunner $t): void {
+        $content = "BT /F1 12 Tf 72 720 Td (Before image) Tj ET\n"
+            . "q 120 0 0 50 72 620 cm /A Do Q\n"
+            // Unlike a Form label, this is page text over a raster image.
+            . "BT /F1 9 Tf 88 642 Td (Overlay text) Tj ET\n"
+            . "BT /F1 12 Tf 72 580 Td (After image) Tj ET";
+        $document = PandocConverter::read(
+            pandoc_single_page_layout_fixture($content, '/A 7 0 R', [7 => pandoc_layout_fixture_image_object()]),
+            'pdf',
+            [
+                'pdfCollectImagePlacements' => true,
+                'pdfGeometryTables' => false,
+                'pdfRepairProseText' => false,
+            ]
+        );
+        $placements = $document->attr('meta', [])['pdfImagePlacements'] ?? [];
+
+        $t->same(1, count($placements));
+        $t->same(null, $placements[0]['precedingText']);
+        $t->same(null, $placements[0]['followingText']);
+    },
     'places a clipped image under a benign graphics state through the full media path' => static function (TestRunner $t): void {
         $content = "BT /F1 12 Tf 72 720 Td (Before) Tj ET\n"
             . "q 72 640 120 40 re W n q /GS1 gs 120 0 0 40 72 640 cm /A Do Q Q\n"

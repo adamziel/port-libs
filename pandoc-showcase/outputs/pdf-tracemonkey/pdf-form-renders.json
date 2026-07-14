@@ -15,8 +15,8 @@
             "formId": "pdf-form-p2-n1-o41",
             "object": 41,
             "paintOrder": 1,
-            "precedingText": null,
-            "followingText": null,
+            "precedingText": "snippet.",
+            "followingText": "Figure 2. State machine describing the major activities of Trace-",
             "label": "PDF figure on page 2"
         },
         {
@@ -33,7 +33,7 @@
             "object": 118,
             "paintOrder": 1,
             "precedingText": null,
-            "followingText": null,
+            "followingText": "Figure 5. A tree with two traces, a trunk trace and one branch",
             "label": "PDF figure on page 6"
         },
         {
@@ -49,8 +49,8 @@
             "formId": "pdf-form-p6-n2-o119",
             "object": 119,
             "paintOrder": 2,
-            "precedingText": null,
-            "followingText": null,
+            "precedingText": "anchor, which is the beginning of the trace tree.",
+            "followingText": "Figure 6. We handle type-unstable loops by allowing traces to",
             "label": "PDF figure on page 6"
         },
         {
@@ -67,7 +67,7 @@
             "object": 120,
             "paintOrder": 1,
             "precedingText": null,
-            "followingText": null,
+            "followingText": "Figure 7. Control flow graph of a nested loop with an if statement",
             "label": "PDF figure on page 7"
         },
         {
@@ -84,7 +84,7 @@
             "object": 154,
             "paintOrder": 2,
             "precedingText": null,
-            "followingText": null,
+            "followingText": "Figure 8. Control flow graph of a loop with two nested loops (left)",
             "label": "PDF figure on page 7"
         },
         {
@@ -101,7 +101,7 @@
             "object": 199,
             "paintOrder": 1,
             "precedingText": null,
-            "followingText": null,
+            "followingText": "Figure 11. Fraction of dynamic bytecodes executed by inter-",
             "label": "PDF figure on page 10"
         },
         {
@@ -118,7 +118,7 @@
             "object": 198,
             "paintOrder": 1,
             "precedingText": null,
-            "followingText": null,
+            "followingText": "Figure 10. Speedup vs. a baseline JavaScript interpreter (SpiderMonkey) for our trace-based JIT compiler, Apple\u2019s SquirrelFish Extreme",
             "label": "PDF figure on page 11"
         },
         {
@@ -135,7 +135,7 @@
             "object": 200,
             "paintOrder": 1,
             "precedingText": null,
-            "followingText": null,
+            "followingText": "Figure 12. Fraction of time spent on major VM activities. The",
             "label": "PDF figure on page 13"
         }
     ]

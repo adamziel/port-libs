@@ -8,7 +8,7 @@ const viewLabels = {
 };
 const defaultView = 'wpBlocks';
 const exampleUrlParameter = 'example';
-const playgroundPluginBuild = 'browser-import-jobs-staged-form-static-charts-20260714';
+const playgroundPluginBuild = 'browser-import-jobs-form-placement-20260714';
 const playgroundClientModuleUrl = 'https://playground.wordpress.net/client/index.js';
 const playgroundUploadDirectory = '/tmp/port-libs-converter';
 const playgroundPdfRasterByteLimit = 24_000_000;
@@ -390,6 +390,13 @@ function normalizedPreviewText(value) {
   return String(value || '').replace(/\s+/g, ' ').trim();
 }
 
+function normalizedPdfTextAnchor(value) {
+  // Positioned PDF text can retain a line-ending hyphen even though the
+  // reflowed preview joins the rest of that word.  Anchors are only used as
+  // unique prefixes, so trim the terminal discretionary hyphen generically.
+  return normalizedPreviewText(value).replace(/(?:-|\u00ad)$/u, '');
+}
+
 function staticPdfUniqueTextAnchor(candidates, text) {
   if (text.length < 3) {
     return null;
@@ -400,8 +407,8 @@ function staticPdfUniqueTextAnchor(candidates, text) {
 
 function staticPdfTextAnchor(previewDocument, request) {
   const candidates = Array.from(previewDocument.body?.querySelectorAll('p, li, figcaption, h1, h2, h3, h4, h5, h6, pre, td, th') || []);
-  const preceding = normalizedPreviewText(request?.precedingText || request?.anchorBefore);
-  const following = normalizedPreviewText(request?.followingText || request?.anchorAfter);
+  const preceding = normalizedPdfTextAnchor(request?.precedingText || request?.anchorBefore);
+  const following = normalizedPdfTextAnchor(request?.followingText || request?.anchorAfter);
   const precedingAnchor = staticPdfUniqueTextAnchor(candidates, preceding);
   const followingAnchor = staticPdfUniqueTextAnchor(candidates, following);
   // Match the importer: a unique following anchor is safest when it follows
@@ -421,6 +428,9 @@ function staticPdfFormFigure(previewDocument, request, rendered, ordinal) {
   const figure = previewDocument.createElement('figure');
   figure.className = 'pandoc-pdf-form-figure wp-block-image';
   figure.dataset.pdfFormRequest = String(request?.id || ordinal + 1);
+  if (Number.isInteger(request?.object)) {
+    figure.dataset.pdfFormObject = String(request.object);
+  }
   const label = String(request?.alt || request?.label || request?.title || '').trim();
   if (rendered?.bytes instanceof Uint8Array) {
     const image = previewDocument.createElement('img');

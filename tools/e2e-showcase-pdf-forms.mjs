@@ -23,6 +23,17 @@ const defaults = {
   expectedExample: 'pdf-tracemonkey',
 };
 
+const traceMonkeyCaptionPrefixes = new Map([
+  ['41', 'Figure 2.'],
+  ['118', 'Figure 5.'],
+  ['119', 'Figure 6.'],
+  ['120', 'Figure 7.'],
+  ['154', 'Figure 8.'],
+  ['199', 'Figure 11.'],
+  ['198', 'Figure 10.'],
+  ['200', 'Figure 12.'],
+]);
+
 function parseOptions(args) {
   const options = { ...defaults };
   for (let index = 0; index < args.length; index += 1) {
@@ -201,6 +212,8 @@ function iframeSnapshotExpression() {
       'img.pandoc-pdf-form-rendered',
     ].join(',');
     const images = Array.from(document.querySelectorAll(imageSelector));
+    const bodyElements = Array.from(document.body?.children || []);
+    const formFigures = Array.from(document.querySelectorAll('figure[data-pdf-form-request]'));
     return {
       documentReady: document.readyState === 'complete' || document.readyState === 'interactive',
       bodyPresent: Boolean(document.body),
@@ -210,8 +223,39 @@ function iframeSnapshotExpression() {
       fallbackSignals: Array.from(document.querySelectorAll(fallbackSelector))
         .map((node) => text(node) || node.getAttribute('data-pandoc-pdf-form-render-status') || node.getAttribute('data-pdf-form-render-status') || node.tagName)
         .slice(0, 10),
+      formFigures: formFigures.map((figure) => {
+        const next = figure.nextElementSibling;
+        return {
+          requestId: String(figure.dataset.pdfFormRequest || ''),
+          object: String(figure.dataset.pdfFormObject || ''),
+          bodyIndex: bodyElements.indexOf(figure),
+          nextBodyIndex: bodyElements.indexOf(next),
+          nextTag: String(next?.tagName || ''),
+          nextText: text(next),
+        };
+      }),
+      trailingBodyElements: bodyElements.slice(-12).map((element) => ({
+        tag: String(element.tagName || ''),
+        text: text(element).slice(0, 180),
+      })),
     };
   })()`;
+}
+
+function traceMonkeyPlacementErrors(formFigures) {
+  const byObject = new Map(formFigures.map((figure) => [String(figure.object || ''), figure]));
+  const errors = [];
+  for (const [object, captionPrefix] of traceMonkeyCaptionPrefixes) {
+    const figure = byObject.get(object);
+    if (!figure) {
+      errors.push(`missing Form object ${object}`);
+      continue;
+    }
+    if (figure.nextTag !== 'P' || !figure.nextText.startsWith(captionPrefix)) {
+      errors.push(`Form object ${object} is not immediately before ${captionPrefix}`);
+    }
+  }
+  return errors;
 }
 
 function isRenderingFailure(snapshot) {
@@ -456,6 +500,17 @@ async function main() {
       if (selectedExampleMatches && iframeReady
         && snapshot.iframe.injectedImages >= options.expectedImages
         && snapshot.iframe.decodedImages >= options.expectedImages) {
+        const placementErrors = options.expectedExample === 'pdf-tracemonkey'
+          ? traceMonkeyPlacementErrors(snapshot.iframe.formFigures || [])
+          : [];
+        if (placementErrors.length > 0) {
+          throw new VerificationError('The charts rendered but did not keep their PDF-caption placement.', {
+            snapshot,
+            statusHistory,
+            observations,
+            placementErrors,
+          });
+        }
         const result = {
           ok: true,
           url: options.url,

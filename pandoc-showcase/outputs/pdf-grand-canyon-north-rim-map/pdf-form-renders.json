@@ -49,8 +49,8 @@
             "formId": "pdf-form-p2-n2-o58",
             "object": 58,
             "paintOrder": 2,
-            "precedingText": null,
-            "followingText": null,
+            "precedingText": "prohibited.",
+            "followingText": "nic",
             "label": "PDF figure on page 2"
         },
         {
@@ -117,7 +117,7 @@
             "formId": "pdf-form-p2-n7-o200",
             "object": 200,
             "paintOrder": 7,
-            "precedingText": null,
+            "precedingText": "prohibited.",
             "followingText": null,
             "label": "PDF figure on page 2"
         },
