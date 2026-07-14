@@ -80,7 +80,7 @@ assert(js.includes("const exampleUrlParameter = 'example';"), 'Expected a stable
 assert(js.includes('new URL(window.location.href)'), 'Expected example links to preserve other URL state safely.');
 assert(js.includes('window.history.replaceState'), 'Expected picker navigation to keep the current URL shareable.');
 assert(js.includes("import { renderPdfFormRequests } from './pdfjs-form-rasterizer.mjs';"), 'Expected own-file PDF figures to use the shared PDF.js renderer.');
-assert(js.includes("const playgroundPluginBuild = 'browser-import-jobs-staged-form-20260714';"), 'Expected the own-file importer to use the current Playground plugin build.');
+assert(js.includes("const playgroundPluginBuild = 'browser-import-jobs-staged-form-static-charts-20260714';"), 'Expected the own-file importer to use the current Playground plugin build.');
 assert(js.includes("const playgroundClientModuleUrl = 'https://playground.wordpress.net/client/index.js';"), 'Expected Try your own file to use the Playground client.');
 assert(js.includes("const playgroundUploadDirectory = '/tmp/port-libs-converter';"), 'Expected own files to use Playground temporary staging.');
 assert(js.includes("php: '8.4'"), 'Expected own-file imports to use PHP 8.4 for EPUB and HTML documents.');
@@ -98,6 +98,13 @@ assert(js.includes('startOwnFileImportStatusPolling'), 'Expected in-flight advan
 assert(js.includes('`/imports/${jobId}`') && js.includes("'GET'"), 'Expected the own-file importer to read persisted import status while WordPress works.');
 assert(js.includes('ownFileImportLatestNewEvent') && js.includes('reportedEventKeys'), 'Expected status events to be deduplicated by event identity rather than array position.');
 assert(js.includes('await renderPdfFormRequests({'), 'Expected WordPress to request PDF Form figure crops from the browser.');
+assert(js.includes('staticPdfPreviewCache: new Map()')
+  && js.includes('example.pdfFormRenders')
+  && js.includes("image.dataset.pandocPdfFormRendered = 'true';")
+  && js.includes('frame.srcdoc = preview.html;')
+  && js.includes('staticPdfPreviewMaxRequests = 8')
+  && js.includes('staticPdfPreviewMaxTotalPixels = 8_000_000')
+  && js.includes('abortStaticPdfPreview()'), 'Expected static PDF previews to inject browser-rendered Form figures without retaining an unbounded mobile gallery.');
 assert(js.includes('`/imports/${jobId}/render-source/${requestId}`'), 'Expected ZIP-expanded PDF sources to be available to the browser renderer.');
 assert(js.includes('await playgroundClient.goTo(playgroundPath(data.pageUrl));'), 'Expected each own file conversion to open its newly created WordPress page.');
 assert(js.includes("frame.removeAttribute('sandbox');"), 'Expected Playground to use the preview iframe without the static-preview sandbox.');
@@ -200,3 +207,32 @@ for (const example of index.examples || []) {
 }
 
 assert(automaticPhpExamples >= 80, 'Expected a broad set of small PHP examples for automatic mobile browsing.');
+
+const traceMonkey = index.examples.find((example) => example.id === 'pdf-tracemonkey');
+const traceMonkeyRecord = recordsById.get('pdf-tracemonkey');
+assert(traceMonkey && traceMonkeyRecord, 'Expected the bundled TraceMonkey PDF example.');
+if (traceMonkey && traceMonkeyRecord) {
+  const renderPlan = traceMonkey.pdfFormRenders;
+  const recordPlan = traceMonkeyRecord.pdfFormRenders;
+  assert(renderPlan && renderPlan.ok === true, 'TraceMonkey must expose its browser PDF figure render plan to the compact catalogue.');
+  assert(recordPlan && recordPlan.ok === true, 'TraceMonkey must retain its browser PDF figure render plan in the full manifest.');
+  if (renderPlan && recordPlan) {
+    assert(renderPlan.path === recordPlan.path, 'TraceMonkey compact/full render-plan paths diverged.');
+    assert(renderPlan.count === 8 && recordPlan.count === 8, 'TraceMonkey must retain all eight vector/Form chart placements.');
+    const renderPlanPath = siteFile(renderPlan.path);
+    assert(fs.existsSync(renderPlanPath), 'TraceMonkey PDF figure render plan is missing.');
+    if (fs.existsSync(renderPlanPath)) {
+      const payload = JSON.parse(fs.readFileSync(renderPlanPath, 'utf8'));
+      const requests = Array.isArray(payload.requests) ? payload.requests : [];
+      assert(payload.samplePath === traceMonkey.samplePath, 'TraceMonkey PDF figure render plan must point at the bundled PDF.');
+      assert(requests.length === 8, 'TraceMonkey PDF figure render plan must contain eight crop requests.');
+      assert(requests.every((request) => request.path === traceMonkey.samplePath
+        && /^form-[a-f0-9]{28}$/.test(String(request.id || ''))
+        && Number.isInteger(request.page)
+        && request.bbox && request.bbox.x2 > request.bbox.x1 && request.bbox.y2 > request.bbox.y1),
+      'Every TraceMonkey PDF chart request must be bounded and address the bundled PDF.');
+      assert(requests.map((request) => request.object).join(',') === '41,118,119,120,154,199,198,200',
+        'TraceMonkey chart plan must retain the eight expected Form XObjects.');
+    }
+  }
+}

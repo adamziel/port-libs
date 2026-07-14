@@ -1,0 +1,227 @@
+{
+    "version": 1,
+    "samplePath": "samples/pdf-grand-canyon-north-rim-map-grand-canyon-north-rim-pocket-map.pdf",
+    "requests": [
+        {
+            "id": "form-2df4390184e21c2bf1a1cd50b27f",
+            "path": "samples/pdf-grand-canyon-north-rim-map-grand-canyon-north-rim-pocket-map.pdf",
+            "page": 1,
+            "bbox": {
+                "x1": 0,
+                "y1": 0,
+                "x2": 1188,
+                "y2": 1116
+            },
+            "formId": "pdf-form-p1-n1-o599",
+            "object": 599,
+            "paintOrder": 1,
+            "precedingText": null,
+            "followingText": null,
+            "label": "PDF figure on page 1"
+        },
+        {
+            "id": "form-6d164ecdad1833c9869d31f38559",
+            "path": "samples/pdf-grand-canyon-north-rim-map-grand-canyon-north-rim-pocket-map.pdf",
+            "page": 2,
+            "bbox": {
+                "x1": 0,
+                "y1": 0,
+                "x2": 1188,
+                "y2": 1116
+            },
+            "formId": "pdf-form-p2-n1-o599",
+            "object": 599,
+            "paintOrder": 1,
+            "precedingText": null,
+            "followingText": null,
+            "label": "PDF figure on page 2"
+        },
+        {
+            "id": "form-e4c1b3e2e6f67a9923e49efe2645",
+            "path": "samples/pdf-grand-canyon-north-rim-map-grand-canyon-north-rim-pocket-map.pdf",
+            "page": 2,
+            "bbox": {
+                "x1": 23.8968,
+                "y1": 606.516,
+                "x2": 539.532,
+                "y2": 904.206
+            },
+            "formId": "pdf-form-p2-n2-o58",
+            "object": 58,
+            "paintOrder": 2,
+            "precedingText": null,
+            "followingText": null,
+            "label": "PDF figure on page 2"
+        },
+        {
+            "id": "form-3e77b4b9b204d52d5444417361ce",
+            "path": "samples/pdf-grand-canyon-north-rim-map-grand-canyon-north-rim-pocket-map.pdf",
+            "page": 2,
+            "bbox": {
+                "x1": 844.88,
+                "y1": 495.824,
+                "x2": 1162.56,
+                "y2": 662.968
+            },
+            "formId": "pdf-form-p2-n3-o92",
+            "object": 92,
+            "paintOrder": 3,
+            "precedingText": null,
+            "followingText": null,
+            "label": "PDF figure on page 2"
+        },
+        {
+            "id": "form-aa6c55db9098c6dfa82f7aa26fae",
+            "path": "samples/pdf-grand-canyon-north-rim-map-grand-canyon-north-rim-pocket-map.pdf",
+            "page": 2,
+            "bbox": {
+                "x1": 541.36,
+                "y1": 395.86,
+                "x2": 902.56,
+                "y2": 547.54
+            },
+            "formId": "pdf-form-p2-n4-o124",
+            "object": 124,
+            "paintOrder": 4,
+            "precedingText": null,
+            "followingText": null,
+            "label": "PDF figure on page 2"
+        },
+        {
+            "id": "form-c88f9219cc8c7b7bf7211de27411",
+            "path": "samples/pdf-grand-canyon-north-rim-map-grand-canyon-north-rim-pocket-map.pdf",
+            "page": 2,
+            "bbox": {
+                "x1": 328.525,
+                "y1": 669.641,
+                "x2": 399.116,
+                "y2": 731.133
+            },
+            "formId": "pdf-form-p2-n5-o146",
+            "object": 146,
+            "paintOrder": 5,
+            "precedingText": null,
+            "followingText": "Day hiking beyond Redwall",
+            "label": "PDF figure on page 2"
+        },
+        {
+            "id": "form-9bc1c104a23723d8828e7b9f04fd",
+            "path": "samples/pdf-grand-canyon-north-rim-map-grand-canyon-north-rim-pocket-map.pdf",
+            "page": 2,
+            "bbox": {
+                "x1": 7.49341,
+                "y1": -13.1145,
+                "x2": 565.253,
+                "y2": 671.365
+            },
+            "formId": "pdf-form-p2-n7-o200",
+            "object": 200,
+            "paintOrder": 7,
+            "precedingText": null,
+            "followingText": null,
+            "label": "PDF figure on page 2"
+        },
+        {
+            "id": "form-13df22b812d7227ea1c592b2d29d",
+            "path": "samples/pdf-grand-canyon-north-rim-map-grand-canyon-north-rim-pocket-map.pdf",
+            "page": 2,
+            "bbox": {
+                "x1": 878.913,
+                "y1": 161.852,
+                "x2": 1188.27,
+                "y2": 538.172
+            },
+            "formId": "pdf-form-p2-n8-o230",
+            "object": 230,
+            "paintOrder": 8,
+            "precedingText": null,
+            "followingText": null,
+            "label": "PDF figure on page 2"
+        },
+        {
+            "id": "form-9cf099ae697a1daedab3052ba40b",
+            "path": "samples/pdf-grand-canyon-north-rim-map-grand-canyon-north-rim-pocket-map.pdf",
+            "page": 2,
+            "bbox": {
+                "x1": 168.88,
+                "y1": 711.94,
+                "x2": 371.68,
+                "y2": 795.94
+            },
+            "formId": "pdf-form-p2-n9-o269",
+            "object": 269,
+            "paintOrder": 9,
+            "precedingText": "tio",
+            "followingText": "tio",
+            "label": "PDF figure on page 2"
+        },
+        {
+            "id": "form-212da34c1da45634c59e0e124f07",
+            "path": "samples/pdf-grand-canyon-north-rim-map-grand-canyon-north-rim-pocket-map.pdf",
+            "page": 2,
+            "bbox": {
+                "x1": 898,
+                "y1": 527.38,
+                "x2": 1100.8,
+                "y2": 611.14
+            },
+            "formId": "pdf-form-p2-n10-o305",
+            "object": 305,
+            "paintOrder": 10,
+            "precedingText": null,
+            "followingText": null,
+            "label": "PDF figure on page 2"
+        },
+        {
+            "id": "form-d7734bfb6359bf15a0bf025fdcbc",
+            "path": "samples/pdf-grand-canyon-north-rim-map-grand-canyon-north-rim-pocket-map.pdf",
+            "page": 2,
+            "bbox": {
+                "x1": 414.168,
+                "y1": 557.986,
+                "x2": 427.707,
+                "y2": 571.539
+            },
+            "formId": "pdf-form-p2-n76-o242",
+            "object": 242,
+            "paintOrder": 76,
+            "precedingText": null,
+            "followingText": "Day hiking beyond Redwall",
+            "label": "PDF figure on page 2"
+        },
+        {
+            "id": "form-46f162503629d2419704687e8205",
+            "path": "samples/pdf-grand-canyon-north-rim-map-grand-canyon-north-rim-pocket-map.pdf",
+            "page": 2,
+            "bbox": {
+                "x1": 174.979,
+                "y1": 344.945,
+                "x2": 196.053,
+                "y2": 358.43
+            },
+            "formId": "pdf-form-p2-n77-o245",
+            "object": 245,
+            "paintOrder": 77,
+            "precedingText": null,
+            "followingText": null,
+            "label": "PDF figure on page 2"
+        },
+        {
+            "id": "form-ad2b2278dbbcc8382f5873857afb",
+            "path": "samples/pdf-grand-canyon-north-rim-map-grand-canyon-north-rim-pocket-map.pdf",
+            "page": 2,
+            "bbox": {
+                "x1": 888.433,
+                "y1": 873.221,
+                "x2": 1184.11,
+                "y2": 1036.18
+            },
+            "formId": "pdf-form-p2-n81-o279",
+            "object": 279,
+            "paintOrder": 81,
+            "precedingText": null,
+            "followingText": null,
+            "label": "PDF figure on page 2"
+        }
+    ]
+}

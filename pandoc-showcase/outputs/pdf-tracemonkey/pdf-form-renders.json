@@ -1,0 +1,142 @@
+{
+    "version": 1,
+    "samplePath": "samples/pdf-tracemonkey-tracemonkey.pdf",
+    "requests": [
+        {
+            "id": "form-b8d2f013fa55c0161b7567e23d36",
+            "path": "samples/pdf-tracemonkey-tracemonkey.pdf",
+            "page": 2,
+            "bbox": {
+                "x1": 317.0137,
+                "y1": 414.7685,
+                "x2": 556.1188,
+                "y2": 601.31356
+            },
+            "formId": "pdf-form-p2-n1-o41",
+            "object": 41,
+            "paintOrder": 1,
+            "precedingText": null,
+            "followingText": null,
+            "label": "PDF figure on page 2"
+        },
+        {
+            "id": "form-78e9ab7d02c9d5b378d311bf4e4e",
+            "path": "samples/pdf-tracemonkey-tracemonkey.pdf",
+            "page": 6,
+            "bbox": {
+                "x1": 388.7455,
+                "y1": 583.8003,
+                "x2": 484.38291,
+                "y2": 719.99988
+            },
+            "formId": "pdf-form-p6-n1-o118",
+            "object": 118,
+            "paintOrder": 1,
+            "precedingText": null,
+            "followingText": null,
+            "label": "PDF figure on page 6"
+        },
+        {
+            "id": "form-c7e8d51e6ddf38f2428c7e69841d",
+            "path": "samples/pdf-tracemonkey-tracemonkey.pdf",
+            "page": 6,
+            "bbox": {
+                "x1": 352.8796,
+                "y1": 315.1907,
+                "x2": 520.25258,
+                "y2": 502.61114
+            },
+            "formId": "pdf-form-p6-n2-o119",
+            "object": 119,
+            "paintOrder": 2,
+            "precedingText": null,
+            "followingText": null,
+            "label": "PDF figure on page 6"
+        },
+        {
+            "id": "form-b2d4046a47b3c973875bd3a272f8",
+            "path": "samples/pdf-tracemonkey-tracemonkey.pdf",
+            "page": 7,
+            "bbox": {
+                "x1": 93.9255,
+                "y1": 581.3979,
+                "x2": 253.1755,
+                "y2": 719.9979000000001
+            },
+            "formId": "pdf-form-p7-n1-o120",
+            "object": 120,
+            "paintOrder": 1,
+            "precedingText": null,
+            "followingText": null,
+            "label": "PDF figure on page 7"
+        },
+        {
+            "id": "form-d6e43b73f5bb51eddd0654216a37",
+            "path": "samples/pdf-tracemonkey-tracemonkey.pdf",
+            "page": 7,
+            "bbox": {
+                "x1": 382.7675,
+                "y1": 600.1930000000001,
+                "x2": 490.36379999999997,
+                "y2": 720.00115
+            },
+            "formId": "pdf-form-p7-n2-o154",
+            "object": 154,
+            "paintOrder": 2,
+            "precedingText": null,
+            "followingText": null,
+            "label": "PDF figure on page 7"
+        },
+        {
+            "id": "form-20a3f28f6a060f3ba98e1496d1d5",
+            "path": "samples/pdf-tracemonkey-tracemonkey.pdf",
+            "page": 10,
+            "bbox": {
+                "x1": 317.01368899999994,
+                "y1": 506.1815,
+                "x2": 561.5050349999999,
+                "y2": 719.0030100000001
+            },
+            "formId": "pdf-form-p10-n1-o199",
+            "object": 199,
+            "paintOrder": 1,
+            "precedingText": null,
+            "followingText": null,
+            "label": "PDF figure on page 10"
+        },
+        {
+            "id": "form-0db364117e69670cb17a2b72f0d7",
+            "path": "samples/pdf-tracemonkey-tracemonkey.pdf",
+            "page": 11,
+            "bbox": {
+                "x1": 41.091769930000005,
+                "y1": 452.7684,
+                "x2": 569.0261340000001,
+                "y2": 727.336697
+            },
+            "formId": "pdf-form-p11-n1-o198",
+            "object": 198,
+            "paintOrder": 1,
+            "precedingText": null,
+            "followingText": null,
+            "label": "PDF figure on page 11"
+        },
+        {
+            "id": "form-bca19a7c7b426280dc9cf37634fc",
+            "path": "samples/pdf-tracemonkey-tracemonkey.pdf",
+            "page": 13,
+            "bbox": {
+                "x1": 53.999989,
+                "y1": 505.75930000000005,
+                "x2": 298.913625,
+                "y2": 719.0031000000001
+            },
+            "formId": "pdf-form-p13-n1-o200",
+            "object": 200,
+            "paintOrder": 1,
+            "precedingText": null,
+            "followingText": null,
+            "label": "PDF figure on page 13"
+        }
+    ]
+}

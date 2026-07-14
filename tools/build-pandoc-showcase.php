@@ -56,6 +56,11 @@ $rawBase = 'https://raw.githubusercontent.com/jgm/pandoc/' . PandocFormatRegistr
 $refreshSources = in_array('--refresh-sources', $argv, true);
 
 const SHOWCASE_EXAMPLES_AUTOMATIC_MAX_BYTES = 250000;
+// Keep the static viewer in step with the WordPress importer's bounded
+// browser-rendered Form-XObject handoff. A PDF can use Form XObjects for
+// diagrams, charts, and other complete vector scenes; they are not ordinary
+// image streams that the media extractor can write by itself.
+const SHOWCASE_PDF_FORM_RENDER_MAX_REQUESTS = 48;
 
 if (($argv[1] ?? '') === '--build-examples-page') {
     $manifestPath = $siteDir . '/manifest.json';
@@ -1275,6 +1280,122 @@ function showcase_converter_options(string $from, string $to): array
         'readerOptions' => $readerOptions,
         'writerOptions' => $writerOptions,
     ]);
+}
+
+/**
+ * Build the bounded browser-render plan consumed by the lightweight static
+ * example viewer. PDF.js paints each requested Form XObject as a clipped page
+ * crop, preserving vectors, nested Forms, clipping, and compositing that a
+ * stream-level image extractor cannot reconstruct.
+ *
+ * @return array{ok:bool,path:string,bytes:int,count:int,error?:string}|null
+ */
+function showcase_pdf_form_render_plan(string $sourcePath, string $format, string $samplePath, string $outDir): ?array
+{
+    if (PandocConverter::canonicalInputFormat($format) !== 'pdf') {
+        return null;
+    }
+
+    try {
+        $options = showcase_converter_options($format, 'wordpress');
+        $readerOptions = is_array($options['readerOptions'] ?? null) ? $options['readerOptions'] : [];
+        $readerOptions['pdfCollectFormXObjectPlacements'] = true;
+        $document = PandocConverter::readFile($sourcePath, $format, $readerOptions);
+        $metadata = $document->attr('meta', []);
+        $placements = is_array($metadata) && is_array($metadata['pdfFormXObjectPlacements'] ?? null)
+            ? $metadata['pdfFormXObjectPlacements']
+            : [];
+        $requests = [];
+        foreach ($placements as $placement) {
+            if (!is_array($placement)
+                || ($placement['visible'] ?? false) !== true
+                || ($placement['placementEligible'] ?? false) !== true) {
+                continue;
+            }
+            $bbox = showcase_pdf_form_render_bbox($placement['bbox'] ?? null);
+            if ($bbox === null) {
+                continue;
+            }
+            $width = $bbox['x2'] - $bbox['x1'];
+            $height = $bbox['y2'] - $bbox['y1'];
+            // Small decorative forms do not belong in an article preview.
+            // This matches the server-side browser-render request threshold.
+            if ($width < 12.0 || $height < 12.0 || $width > 10000.0 || $height > 10000.0) {
+                continue;
+            }
+            $formId = (string) ($placement['id'] ?? 'form');
+            $page = max(1, (int) ($placement['page'] ?? 1));
+            $requests[] = [
+                'id' => 'form-' . substr(hash('sha256', $samplePath . "\0" . $formId), 0, 28),
+                'path' => $samplePath,
+                'page' => $page,
+                'bbox' => $bbox,
+                'formId' => $formId,
+                'object' => (int) ($placement['object'] ?? 0),
+                'paintOrder' => (int) ($placement['paintOrder'] ?? 0),
+                'precedingText' => is_string($placement['precedingText'] ?? null) ? $placement['precedingText'] : null,
+                'followingText' => is_string($placement['followingText'] ?? null) ? $placement['followingText'] : null,
+                'label' => 'PDF figure on page ' . $page,
+            ];
+            if (count($requests) >= SHOWCASE_PDF_FORM_RENDER_MAX_REQUESTS) {
+                break;
+            }
+        }
+
+        if ($requests === []) {
+            return null;
+        }
+
+        $filename = 'pdf-form-renders.json';
+        $absolutePath = $outDir . '/' . $filename;
+        $encoded = json_encode([
+            'version' => 1,
+            'samplePath' => $samplePath,
+            'requests' => $requests,
+        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+        if (!is_string($encoded) || file_put_contents($absolutePath, $encoded . "\n") === false) {
+            throw new RuntimeException('Unable to write PDF Form render plan.');
+        }
+
+        return [
+            'ok' => true,
+            'path' => 'outputs/' . basename($outDir) . '/' . $filename,
+            'bytes' => (int) filesize($absolutePath),
+            'count' => count($requests),
+        ];
+    } catch (Throwable $error) {
+        return [
+            'ok' => false,
+            'path' => '',
+            'bytes' => 0,
+            'count' => 0,
+            'error' => sanitize_generated_text($error->getMessage()),
+        ];
+    }
+}
+
+/**
+ * @return array{x1:float,y1:float,x2:float,y2:float}|null
+ */
+function showcase_pdf_form_render_bbox(mixed $bbox): ?array
+{
+    if (!is_array($bbox)) {
+        return null;
+    }
+    foreach (['x1', 'y1', 'x2', 'y2'] as $coordinate) {
+        if (!is_numeric($bbox[$coordinate] ?? null) || !is_finite((float) $bbox[$coordinate])) {
+            return null;
+        }
+    }
+    $x1 = (float) $bbox['x1'];
+    $y1 = (float) $bbox['y1'];
+    $x2 = (float) $bbox['x2'];
+    $y2 = (float) $bbox['y2'];
+    if ($x2 <= $x1 || $y2 <= $y1) {
+        return null;
+    }
+
+    return compact('x1', 'y1', 'x2', 'y2');
 }
 
 /**
@@ -4226,7 +4347,7 @@ function showcase_examples_index(array $records, string $siteDir, string $genera
         if ($id === '') {
             continue;
         }
-        $examples[] = [
+        $example = [
             'id' => $id,
             'format' => (string) ($record['format'] ?? ''),
             'label' => (string) ($record['label'] ?? $id),
@@ -4241,6 +4362,18 @@ function showcase_examples_index(array $records, string $siteDir, string $genera
                 'haskell' => showcase_examples_view($record, 'haskell', $siteDir),
             ],
         ];
+        $formRenders = is_array($record['pdfFormRenders'] ?? null) ? $record['pdfFormRenders'] : [];
+        $formRenderPath = ltrim((string) ($formRenders['path'] ?? ''), '/');
+        $formRenderAbsolutePath = $formRenderPath === '' ? '' : $siteDir . '/' . $formRenderPath;
+        if (($formRenders['ok'] ?? false) === true && is_file($formRenderAbsolutePath)) {
+            $example['pdfFormRenders'] = [
+                'ok' => true,
+                'path' => $formRenderPath,
+                'bytes' => (int) filesize($formRenderAbsolutePath),
+                'count' => (int) ($formRenders['count'] ?? 0),
+            ];
+        }
+        $examples[] = $example;
     }
 
     $defaultExampleId = '';
@@ -4574,11 +4707,19 @@ const viewLabels = {
 };
 const defaultView = 'wpBlocks';
 const exampleUrlParameter = 'example';
-const playgroundPluginBuild = 'browser-import-jobs-staged-form-20260714';
+const playgroundPluginBuild = 'browser-import-jobs-staged-form-static-charts-20260714';
 const playgroundClientModuleUrl = 'https://playground.wordpress.net/client/index.js';
 const playgroundUploadDirectory = '/tmp/port-libs-converter';
 const playgroundPdfRasterByteLimit = 24_000_000;
 const ownFileStatusPollIntervalMs = 1_000;
+// The static example browser runs on the visitor's device, including phones.
+// Keep Form-XObject enrichment deliberately smaller than the importer handoff:
+// it is an optional preview, never a reason to exhaust the browser.
+const staticPdfPreviewMaxSourceBytes = 4_000_000;
+const staticPdfPreviewMaxRequests = 8;
+const staticPdfPreviewMaxPixels = 2_000_000;
+const staticPdfPreviewMaxTotalPixels = 8_000_000;
+const staticPdfPreviewMaxImageBytes = 8_000_000;
 
 const examplePicker = document.getElementById('example-picker');
 const previousButton = document.getElementById('previous-example');
@@ -4606,6 +4747,8 @@ const state = {
   startPlaygroundWeb: null,
   decodePdfJbig2Rasters: null,
   decodePdfJpxRasters: null,
+  staticPdfPreviewCache: new Map(),
+  staticPdfPreviewAbortController: null,
 };
 
 function selectedExample() {
@@ -4765,20 +4908,470 @@ function leavePlaygroundView() {
   state.playgroundBootPromise = null;
   delete frame.dataset.loadedPath;
   frame.removeAttribute('src');
+  frame.removeAttribute('srcdoc');
   frame.setAttribute('sandbox', '');
 }
 
 function unloadCurrentExample() {
+  abortStaticPdfPreview({ clearCache: true });
   state.loadToken += 1;
   delete frame.dataset.loadedPath;
+  delete frame.dataset.previewMode;
+  delete frame.dataset.previewStatus;
   frame.removeAttribute('src');
+  frame.removeAttribute('srcdoc');
   frame.hidden = true;
+}
+
+function staticPdfPreviewAbortError(signal) {
+  if (signal?.reason instanceof Error) {
+    return signal.reason;
+  }
+  const error = new Error('PDF chart preview was cancelled.');
+  error.name = 'AbortError';
+  return error;
+}
+
+function throwIfStaticPdfPreviewAborted(signal) {
+  if (signal?.aborted) {
+    throw staticPdfPreviewAbortError(signal);
+  }
+}
+
+function abortStaticPdfPreview({ clearCache = false } = {}) {
+  const controller = state.staticPdfPreviewAbortController;
+  state.staticPdfPreviewAbortController = null;
+  if (controller && !controller.signal.aborted) {
+    controller.abort();
+  }
+  for (const [key, entry] of state.staticPdfPreviewCache) {
+    if (entry?.controller === controller && entry.pending) {
+      state.staticPdfPreviewCache.delete(key);
+    }
+  }
+  if (clearCache) {
+    state.staticPdfPreviewCache.clear();
+  }
+}
+
+function rememberStaticPdfPreview(key, entry) {
+  state.staticPdfPreviewCache.delete(key);
+  state.staticPdfPreviewCache.set(key, entry);
+  // One completed srcdoc can already contain several data-URI PNGs. Keep a
+  // single LRU entry so switching through the catalogue cannot retain a
+  // growing gallery in JavaScript memory.
+  while (state.staticPdfPreviewCache.size > 1) {
+    const oldestKey = state.staticPdfPreviewCache.keys().next().value;
+    const oldest = state.staticPdfPreviewCache.get(oldestKey);
+    state.staticPdfPreviewCache.delete(oldestKey);
+    if (oldest?.pending && !oldest.controller.signal.aborted) {
+      oldest.controller.abort();
+    }
+  }
+}
+
+function isCurrentExampleLoad(token, example, view) {
+  const currentView = selectedView();
+  return token === state.loadToken
+    && state.frameMode === 'example'
+    && selectedExample()?.id === example.id
+    && currentView?.path === view.path;
+}
+
+function staticPdfFormPreviewEnabled(example, viewName) {
+  const forms = example && example.pdfFormRenders;
+  return (viewName === 'phpHtml' || viewName === 'wpBlocks')
+    && Boolean(forms && forms.ok && forms.path && Number(forms.bytes) > 0);
+}
+
+function staticPdfPreviewCacheKey(example, viewName, view) {
+  return [example.id, viewName, view.path].join('\u001f');
+}
+
+function staticPreviewUrl(path) {
+  return new URL(path, window.location.href).href;
+}
+
+async function fetchStaticPreviewText(path, label, signal) {
+  throwIfStaticPdfPreviewAborted(signal);
+  const response = await fetch(staticPreviewUrl(path), { cache: 'no-store', signal });
+  throwIfStaticPdfPreviewAborted(signal);
+  if (!response.ok) {
+    throw new Error(label + ' could not be loaded (' + response.status + ').');
+  }
+
+  const text = await response.text();
+  throwIfStaticPdfPreviewAborted(signal);
+  return { text, url: response.url || staticPreviewUrl(path) };
+}
+
+function staticPdfSourceLimitError() {
+  const error = new Error('This PDF exceeds the static preview size limit.');
+  error.code = 'static-pdf-source-limit';
+  return error;
+}
+
+function staticPdfSourceLimitExceeded(error) {
+  return error && typeof error === 'object' && error.code === 'static-pdf-source-limit';
+}
+
+async function fetchStaticPdfSource(samplePath, manifestUrl, signal) {
+  const candidates = [
+    staticPreviewUrl(samplePath),
+    new URL(samplePath, manifestUrl).href,
+  ].filter((candidate, index, all) => candidate && all.indexOf(candidate) === index);
+  let failure = null;
+  for (const url of candidates) {
+    try {
+      throwIfStaticPdfPreviewAborted(signal);
+      const response = await fetch(url, { cache: 'no-store', signal });
+      throwIfStaticPdfPreviewAborted(signal);
+      if (!response.ok) {
+        throw new Error('The original PDF could not be loaded (' + response.status + ').');
+      }
+      const announcedBytes = Number(response.headers.get('content-length'));
+      if (Number.isFinite(announcedBytes) && announcedBytes > staticPdfPreviewMaxSourceBytes) {
+        throw staticPdfSourceLimitError();
+      }
+
+      const bytes = new Uint8Array(await response.arrayBuffer());
+      throwIfStaticPdfPreviewAborted(signal);
+      if (bytes.byteLength > staticPdfPreviewMaxSourceBytes) {
+        throw staticPdfSourceLimitError();
+      }
+      return bytes;
+    } catch (error) {
+      if (signal?.aborted) {
+        throw staticPdfPreviewAbortError(signal);
+      }
+      if (staticPdfSourceLimitExceeded(error)) {
+        throw error;
+      }
+      failure = error;
+    }
+  }
+
+  throw failure || new Error('The original PDF could not be loaded.');
+}
+
+function staticPdfFilesByPath(requests, samplePath, bytes) {
+  const files = new Map();
+  if (samplePath) {
+    files.set(samplePath, bytes);
+  }
+  for (const request of requests) {
+    const path = String(request?.path || '');
+    if (path) {
+      files.set(path, bytes);
+    }
+  }
+
+  return files;
+}
+
+function rewriteStaticPreviewMediaUrls(previewDocument, viewUrl) {
+  for (const element of previewDocument.querySelectorAll('img[src], source[src], video[src], audio[src], track[src], object[data]')) {
+    const attribute = element.hasAttribute('data') ? 'data' : 'src';
+    const value = String(element.getAttribute(attribute) || '').trim();
+    if (!value || /^(?:[a-z][a-z0-9+.-]*:|#|\/\/)/i.test(value)) {
+      continue;
+    }
+    try {
+      element.setAttribute(attribute, new URL(value, viewUrl).href);
+    } catch {
+      // Keep malformed output untouched; the static preview remains safer
+      // than failing the entire enhanced view over one optional media URL.
+    }
+  }
+}
+
+function normalizedPreviewText(value) {
+  return String(value || '').replace(/\s+/g, ' ').trim();
+}
+
+function staticPdfUniqueTextAnchor(candidates, text) {
+  if (text.length < 3) {
+    return null;
+  }
+  const matches = candidates.filter((element) => normalizedPreviewText(element.textContent).includes(text));
+  return matches.length === 1 ? { element: matches[0], index: candidates.indexOf(matches[0]) } : null;
+}
+
+function staticPdfTextAnchor(previewDocument, request) {
+  const candidates = Array.from(previewDocument.body?.querySelectorAll('p, li, figcaption, h1, h2, h3, h4, h5, h6, pre, td, th') || []);
+  const preceding = normalizedPreviewText(request?.precedingText || request?.anchorBefore);
+  const following = normalizedPreviewText(request?.followingText || request?.anchorAfter);
+  const precedingAnchor = staticPdfUniqueTextAnchor(candidates, preceding);
+  const followingAnchor = staticPdfUniqueTextAnchor(candidates, following);
+  // Match the importer: a unique following anchor is safest when it follows
+  // the preceding one, and must receive the figure before its text. Ambiguous
+  // text never becomes a guessed placement in the static preview.
+  if (followingAnchor && (!precedingAnchor || precedingAnchor.index < followingAnchor.index)) {
+    return { ...followingAnchor, position: 'before' };
+  }
+  if (precedingAnchor) {
+    return { ...precedingAnchor, position: 'after' };
+  }
+
+  return null;
+}
+
+function staticPdfFormFigure(previewDocument, request, rendered, ordinal) {
+  const figure = previewDocument.createElement('figure');
+  figure.className = 'pandoc-pdf-form-figure wp-block-image';
+  figure.dataset.pdfFormRequest = String(request?.id || ordinal + 1);
+  const label = String(request?.alt || request?.label || request?.title || '').trim();
+  if (rendered?.bytes instanceof Uint8Array) {
+    const image = previewDocument.createElement('img');
+    image.alt = label || 'PDF figure ' + (ordinal + 1);
+    image.dataset.pandocPdfFormRendered = 'true';
+    image.decoding = 'async';
+    const mimeType = String(rendered.mimeType || 'image/png');
+    image.src = 'data:' + mimeType + ';base64,' + base64FromBytes(rendered.bytes);
+    figure.append(image);
+  } else {
+    figure.classList.add('pandoc-pdf-form-placeholder');
+    const message = previewDocument.createElement('p');
+    const detail = String(rendered?.error || '').replace(/\s+/g, ' ').trim().slice(0, 240);
+    message.textContent = (label || 'PDF figure ' + (ordinal + 1)) + ' could not be rendered in this browser'
+      + (detail ? ': ' + detail : '.');
+    figure.append(message);
+  }
+  const caption = String(request?.caption || request?.label || '').trim();
+  if (caption) {
+    const figcaption = previewDocument.createElement('figcaption');
+    figcaption.textContent = caption;
+    figure.append(figcaption);
+  }
+
+  return figure;
+}
+
+function injectStaticPdfFormFigures(previewDocument, requests, rendered) {
+  const requestsById = new Map(requests.map((request) => [String(request?.id || ''), request]));
+  const insertionPoints = new Map();
+  const body = previewDocument.body || previewDocument.documentElement;
+  let successful = 0;
+  let failed = 0;
+  rendered.forEach((item, ordinal) => {
+    const request = requestsById.get(String(item?.requestId || '')) || requests[ordinal] || {};
+    const figure = staticPdfFormFigure(previewDocument, request, item, ordinal);
+    const anchor = staticPdfTextAnchor(previewDocument, request);
+    const insertionPoint = anchor?.position === 'after' ? insertionPoints.get(anchor.element) || anchor.element : null;
+    if (anchor?.position === 'before' && anchor.element.parentNode) {
+      anchor.element.before(figure);
+    } else if (insertionPoint?.parentNode) {
+      insertionPoint.after(figure);
+      insertionPoints.set(anchor.element, figure);
+    } else {
+      body.append(figure);
+    }
+    if (item?.bytes instanceof Uint8Array) {
+      successful += 1;
+    } else {
+      failed += 1;
+    }
+  });
+
+  return { successful, failed };
+}
+
+function addStaticPdfFormStyles(previewDocument) {
+  if (previewDocument.getElementById('pandoc-pdf-form-preview-styles')) {
+    return;
+  }
+  const style = previewDocument.createElement('style');
+  style.id = 'pandoc-pdf-form-preview-styles';
+  style.textContent = '.pandoc-pdf-form-figure{margin:1.25em 0}.pandoc-pdf-form-figure img{display:block;max-width:100%;height:auto}.pandoc-pdf-form-figure figcaption{margin-top:.45em;color:#4b5563;font-size:.9em}.pandoc-pdf-form-placeholder{padding:1em;border:1px dashed #aeb9c7;color:#4b5563}.pandoc-pdf-form-placeholder p{margin:0}';
+  (previewDocument.head || previewDocument.documentElement).append(style);
+}
+
+function staticPdfFormPlaceholderResults(requests, message) {
+  return requests.map((request) => ({
+    requestId: String(request?.id || ''),
+    error: message,
+  }));
+}
+
+function staticPdfFormRequestPlan(requests) {
+  const renderable = requests.slice(0, staticPdfPreviewMaxRequests);
+  const skipped = staticPdfFormPlaceholderResults(
+    requests.slice(staticPdfPreviewMaxRequests),
+    'This static preview renders at most ' + staticPdfPreviewMaxRequests + ' PDF charts to keep browser memory bounded.',
+  );
+  return { renderable, skipped };
+}
+
+function staticPdfSourceIsTooLarge(example) {
+  const sourceBytes = Number(example?.sampleSize);
+  return Number.isFinite(sourceBytes) && sourceBytes > staticPdfPreviewMaxSourceBytes;
+}
+
+async function buildStaticPdfFormPreview(example, view, reportProgress, signal) {
+  const formMetadata = example.pdfFormRenders;
+  const [staticOutput, manifestOutput] = await Promise.all([
+    fetchStaticPreviewText(view.path, 'The static preview', signal),
+    fetchStaticPreviewText(formMetadata.path, 'The PDF figure manifest', signal),
+  ]);
+  throwIfStaticPdfPreviewAborted(signal);
+  let manifest;
+  try {
+    manifest = JSON.parse(manifestOutput.text);
+  } catch {
+    throw new Error('The PDF figure manifest is not valid JSON.');
+  }
+  const requests = Array.isArray(manifest?.requests) ? manifest.requests : [];
+  const samplePath = String(manifest?.samplePath || example.samplePath || '').trim();
+  if (requests.length === 0 || !samplePath) {
+    throw new Error('The PDF figure manifest has no renderable source.');
+  }
+
+  const plan = staticPdfFormRequestPlan(requests);
+  let rendered = plan.skipped;
+  if (staticPdfSourceIsTooLarge(example)) {
+    rendered = staticPdfFormPlaceholderResults(
+      requests,
+      'This PDF exceeds the static preview size limit; its chart is shown as a placeholder.',
+    );
+  } else {
+    try {
+      reportProgress('Opening the original PDF for its charts…');
+      const sourceBytes = await fetchStaticPdfSource(samplePath, manifestOutput.url, signal);
+      const renderedRequests = await renderPdfFormRequests({
+        filesByPath: staticPdfFilesByPath(plan.renderable, samplePath, sourceBytes),
+        requests: plan.renderable,
+        pdfjs: playgroundPdfJsConfig(),
+        maxPixels: staticPdfPreviewMaxPixels,
+        maxTotalPixels: staticPdfPreviewMaxTotalPixels,
+        maxTotalImageBytes: staticPdfPreviewMaxImageBytes,
+        signal,
+        onProgress({ completed, total, label }) {
+          reportProgress(total > 0 ? label + ' (' + completed + ' of ' + total + ')' : label);
+        },
+      });
+      throwIfStaticPdfPreviewAborted(signal);
+      rendered = [...renderedRequests, ...plan.skipped];
+    } catch (error) {
+      if (signal?.aborted) {
+        throw staticPdfPreviewAbortError(signal);
+      }
+      if (!staticPdfSourceLimitExceeded(error)) {
+        throw error;
+      }
+      rendered = staticPdfFormPlaceholderResults(
+        requests,
+        'This PDF exceeds the static preview size limit; its chart is shown as a placeholder.',
+      );
+    }
+  }
+  throwIfStaticPdfPreviewAborted(signal);
+  const previewDocument = new DOMParser().parseFromString(staticOutput.text, 'text/html');
+  rewriteStaticPreviewMediaUrls(previewDocument, staticOutput.url);
+  addStaticPdfFormStyles(previewDocument);
+  const counts = injectStaticPdfFormFigures(previewDocument, requests, rendered);
+  if (counts.successful === 0 && counts.failed === 0) {
+    throw new Error('The PDF figure renderer returned no chart results.');
+  }
+
+  return {
+    html: '<!doctype html>\n' + previewDocument.documentElement.outerHTML,
+    ...counts,
+  };
+}
+
+function staticPdfFormPreviewDocument(example, view, viewName, reportProgress) {
+  const key = staticPdfPreviewCacheKey(example, viewName, view);
+  const cached = state.staticPdfPreviewCache.get(key);
+  if (cached && !cached.controller.signal.aborted) {
+    rememberStaticPdfPreview(key, cached);
+    return cached.promise;
+  }
+  if (cached) {
+    state.staticPdfPreviewCache.delete(key);
+  }
+
+  const controller = new AbortController();
+  const entry = {
+    controller,
+    pending: true,
+    promise: null,
+  };
+  const preview = buildStaticPdfFormPreview(example, view, reportProgress, controller.signal);
+  entry.promise = preview;
+  state.staticPdfPreviewAbortController = controller;
+  rememberStaticPdfPreview(key, entry);
+  preview.then(
+    () => {
+      entry.pending = false;
+      if (state.staticPdfPreviewAbortController === controller) {
+        state.staticPdfPreviewAbortController = null;
+      }
+    },
+    () => {
+      entry.pending = false;
+      if (state.staticPdfPreviewAbortController === controller) {
+        state.staticPdfPreviewAbortController = null;
+      }
+      if (state.staticPdfPreviewCache.get(key) === entry) {
+        state.staticPdfPreviewCache.delete(key);
+      }
+    },
+  );
+
+  return preview;
+}
+
+function loadStaticPreviewUrl(example, view, token, warning = '') {
+  window.requestAnimationFrame(() => {
+    if (!isCurrentExampleLoad(token, example, view)) {
+      return;
+    }
+    frame.removeAttribute('srcdoc');
+    frame.dataset.previewMode = warning ? 'fallback' : 'url';
+    if (warning) {
+      frame.dataset.previewStatus = warning;
+    } else {
+      delete frame.dataset.previewStatus;
+    }
+    frame.src = view.path;
+  });
+}
+
+async function loadStaticPdfFormPreview(example, view, viewName, token) {
+  try {
+    const preview = await staticPdfFormPreviewDocument(example, view, viewName, (message) => {
+      if (isCurrentExampleLoad(token, example, view)) {
+        setStatus(message, { visible: true });
+      }
+    });
+    if (!isCurrentExampleLoad(token, example, view)) {
+      return;
+    }
+    frame.dataset.previewMode = 'pdf-forms';
+    frame.dataset.previewStatus = 'Loaded ' + example.label + ' with ' + preview.successful
+      + ' PDF chart' + (preview.successful === 1 ? '' : 's')
+      + (preview.failed > 0 ? '; ' + preview.failed + ' chart placeholder' + (preview.failed === 1 ? ' is' : 's are') + ' shown.' : '.');
+    frame.removeAttribute('src');
+    frame.srcdoc = preview.html;
+  } catch (error) {
+    if (!isCurrentExampleLoad(token, example, view)) {
+      return;
+    }
+    const detail = error instanceof Error ? error.message : String(error);
+    loadStaticPreviewUrl(
+      example,
+      view,
+      token,
+      'Could not render PDF charts here (' + detail + '). Showing the static preview instead.',
+    );
+  }
 }
 
 function loadSelectedExample() {
   if (state.ownFileBusy) {
     return;
   }
+  abortStaticPdfPreview();
   leavePlaygroundView();
   const example = selectedExample();
   const view = selectedView(example);
@@ -4790,20 +5383,23 @@ function loadSelectedExample() {
 
   const token = state.loadToken + 1;
   state.loadToken = token;
+  const viewName = state.view;
   frame.hidden = false;
   frame.loading = 'eager';
   frame.dataset.loadedPath = view.path;
+  delete frame.dataset.previewMode;
+  delete frame.dataset.previewStatus;
   frame.setAttribute('sandbox', '');
+  frame.removeAttribute('srcdoc');
   frame.removeAttribute('src');
   frame.src = 'about:blank';
-  setStatus('Loading ' + example.label + '…');
+  setStatus('Loading ' + example.label + '…', { visible: true });
 
-  window.requestAnimationFrame(() => {
-    if (token !== state.loadToken) {
-      return;
-    }
-    frame.src = view.path;
-  });
+  if (staticPdfFormPreviewEnabled(example, viewName)) {
+    void loadStaticPdfFormPreview(example, view, viewName, token);
+    return;
+  }
+  loadStaticPreviewUrl(example, view, token);
 }
 
 function moveExample(direction) {
@@ -4891,6 +5487,7 @@ async function openOwnFile(file) {
     return;
   }
 
+  abortStaticPdfPreview({ clearCache: true });
   const token = state.ownFileToken + 1;
   state.ownFileToken = token;
   const reusingPlayground = state.frameMode === 'playground'
@@ -4899,6 +5496,9 @@ async function openOwnFile(file) {
   state.frameMode = 'playground';
   state.loadToken += 1;
   delete frame.dataset.loadedPath;
+  delete frame.dataset.previewMode;
+  delete frame.dataset.previewStatus;
+  frame.removeAttribute('srcdoc');
   if (!reusingPlayground) {
     frame.removeAttribute('src');
     frame.removeAttribute('sandbox');
@@ -5428,7 +6028,18 @@ viewButtons.forEach((button) => {
 frame.addEventListener('load', () => {
   const example = selectedExample();
   const path = frame.dataset.loadedPath;
-  if (!example || !path || frame.getAttribute('src') !== path) {
+  if (!example || !path) {
+    return;
+  }
+  if (frame.dataset.previewMode === 'pdf-forms' && frame.hasAttribute('srcdoc')) {
+    setStatus(frame.dataset.previewStatus || 'Loaded ' + example.label + '.', { visible: true, tone: 'success' });
+    return;
+  }
+  if (frame.getAttribute('src') !== path) {
+    return;
+  }
+  if (frame.dataset.previewMode === 'fallback') {
+    setStatus(frame.dataset.previewStatus || 'Showing the static preview instead.', { visible: true });
     return;
   }
   setStatus('Loaded ' + example.label + '.');
@@ -5743,11 +6354,13 @@ foreach ($samples as $sample) {
     $sourcePath = is_file($target) ? $target : $target . '.download-error.txt';
     $outDir = $outputsDir . '/' . $id;
     ensure_clean_dir($outDir);
+    $samplePath = rel($sourcePath, $siteDir);
 
     $haskell = is_file($target) ? run_haskell_pandoc($target, $format, $outDir) : ['ok' => false, 'error' => $downloadError ?? 'missing source file'];
     $externalReference = is_file($target) ? run_external_reference($target, $format, $outDir) : null;
     $phpHtml = is_file($target) ? write_output_from_process($outDir, 'php.html', $target, $format, 'html') : ['ok' => false, 'error' => $downloadError ?? 'missing source file'];
     $wpBlocks = is_file($target) ? write_output_from_process($outDir, 'wordpress-blocks.html', $target, $format, 'wordpress') : ['ok' => false, 'error' => $downloadError ?? 'missing source file'];
+    $pdfFormRenders = is_file($target) ? showcase_pdf_form_render_plan($target, $format, $samplePath, $outDir) : null;
     $wpBlockCounts = (($wpBlocks['ok'] ?? false) === true && isset($wpBlocks['path']))
         ? wordpress_block_counts($siteDir . '/' . $wpBlocks['path'])
         : [];
@@ -5767,7 +6380,7 @@ foreach ($samples as $sample) {
         'description' => (string) ($sample['description'] ?? ''),
         'source' => (string) $sample['source'],
         'sourceUrl' => (string) ($sample['url'] ?? ''),
-        'samplePath' => rel($sourcePath, $siteDir),
+        'samplePath' => $samplePath,
         'sampleSize' => is_file($target) ? filesize($target) : 0,
         'preview' => $preview,
         'support' => $support[$format] ?? ['status' => 'partial', 'implementation' => 'unknown', 'notes' => ''],
@@ -5779,6 +6392,9 @@ foreach ($samples as $sample) {
         'bibliographySource' => $bibliographySource,
         'importSemantics' => $importSemantics,
     ];
+    if ($pdfFormRenders !== null) {
+        $record['pdfFormRenders'] = $pdfFormRenders;
+    }
     if ($externalReference !== null) {
         $record['externalReference'] = $externalReference;
     }

@@ -83,6 +83,9 @@ assert(plugin.includes('PLPC_IMPORT_JOB_MAX_DEADLINE_YIELDS_PER_DOCUMENT'), 'Exp
 assert(plugin.includes('function plpc_import_job_recover_interrupted_document('), 'Expected hard worker terminations to have a bounded durable recovery path.');
 assert(pdfFormRasterizer.includes('const DEFAULT_MAX_SOURCE_BYTES = 24 * 1024 * 1024;'), 'Expected PDF.js figure rendering to cap source bytes before copying a large PDF in the browser.');
 assert(pdfFormRasterizer.includes('pdfBytes(filesByPath.get(path), maxSourceBytes)'), 'Expected the PDF.js figure renderer to enforce its source-byte cap for every requested crop.');
+assert(pdfFormRasterizer.includes('maxTotalPixels = Number.POSITIVE_INFINITY') && pdfFormRasterizer.includes('totalPixelsLimit - renderedPixels'), 'Expected callers to be able to bound aggregate PDF figure pixels without changing the importer default.');
+assert(pdfFormRasterizer.includes('maxTotalImageBytes = Number.POSITIVE_INFINITY') && pdfFormRasterizer.includes('totalImageBytesLimit - renderedImageBytes'), 'Expected callers to be able to bound aggregate PDF figure bytes without changing the importer default.');
+assert(pdfFormRasterizer.includes('throwIfAborted(signal)'), 'Expected static preview cancellation to release PDF.js work between figure crops.');
 assert(pdfFormRasterizer.includes('The PDF is too large to render figures safely in this browser.'), 'Expected an over-limit PDF figure to fall back to the text import instead of crashing the browser.');
 assert(pdfFormRasterizer.includes("typeof viewport.convertToViewportRectangle === 'function'"), 'Expected PDF.js Form cropping to retain compatibility with PDF.js versions that removed rectangle conversion.');
 assert(pdfFormRasterizer.includes('viewport.convertToViewportPoint(bbox.x1, bbox.y1)'), 'Expected PDF.js Form cropping to fall back to point conversion on current PDF.js releases.');

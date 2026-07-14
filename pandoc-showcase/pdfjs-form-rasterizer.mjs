@@ -22,7 +22,10 @@ let pdfjsModulePromise = null;
  * @param {{pdfjsModuleUrl:string,pdfjsWorkerUrl:string,pdfjsWasmUrl?:string,pdfjsCMapUrl?:string,pdfjsStandardFontDataUrl?:string}} options.pdfjs
  * @param {(progress:{completed:number,total:number,label:string}) => void} [options.onProgress]
  * @param {number} [options.maxPixels]
+ * @param {number} [options.maxTotalPixels]
+ * @param {number} [options.maxTotalImageBytes]
  * @param {number} [options.maxSourceBytes]
+ * @param {AbortSignal} [options.signal]
  * @returns {Promise<Array<{requestId:string,bytes?:Uint8Array,mimeType?:string,width?:number,height?:number,error?:string}>>}
  */
 export async function renderPdfFormRequests({
@@ -31,11 +34,15 @@ export async function renderPdfFormRequests({
   pdfjs,
   onProgress = () => {},
   maxPixels = DEFAULT_MAX_PIXELS,
+  maxTotalPixels = Number.POSITIVE_INFINITY,
+  maxTotalImageBytes = Number.POSITIVE_INFINITY,
   maxSourceBytes = DEFAULT_MAX_SOURCE_BYTES,
+  signal,
 }) {
   if (!Array.isArray(requests) || requests.length === 0) {
     return [];
   }
+  throwIfAborted(signal);
   // Loading PDF.js itself is an optional browser-assisted enhancement.  A
   // missing worker, a CSP/module policy, or an unsupported browser must not
   // strand the server-side import in `awaiting_renderer`: report every
@@ -44,7 +51,11 @@ export async function renderPdfFormRequests({
   let module;
   try {
     module = await loadPdfJs(pdfjs);
+    throwIfAborted(signal);
   } catch (error) {
+    if (signal?.aborted) {
+      throw abortError(signal);
+    }
     const message = errorMessage(error);
     const results = requests.map((request) => ({
       requestId: String(request?.id || ''),
@@ -60,8 +71,13 @@ export async function renderPdfFormRequests({
   }
   const documents = new Map();
   const results = [];
+  const totalPixelsLimit = nonNegativeRenderLimit(maxTotalPixels);
+  const totalImageBytesLimit = nonNegativeRenderLimit(maxTotalImageBytes);
+  let renderedPixels = 0;
+  let renderedImageBytes = 0;
   try {
     for (let index = 0; index < requests.length; index += 1) {
+      throwIfAborted(signal);
       const request = requests[index];
       const requestId = String(request?.id || '');
       const path = String(request?.path || '');
@@ -77,6 +93,7 @@ export async function renderPdfFormRequests({
         let document = documents.get(path);
         if (!document) {
           const data = await pdfBytes(filesByPath.get(path), maxSourceBytes);
+          throwIfAborted(signal);
           const loadingTask = module.getDocument({
             data,
             cMapUrl: pdfjs.pdfjsCMapUrl || undefined,
@@ -90,10 +107,35 @@ export async function renderPdfFormRequests({
           });
           document = await loadingTask.promise;
           documents.set(path, document);
+          throwIfAborted(signal);
         }
-        const rendered = await renderRequest(module, document, request, maxPixels);
+        const remainingPixels = totalPixelsLimit - renderedPixels;
+        if (remainingPixels <= 0) {
+          throw new Error('The PDF figure renderer reached its total pixel budget.');
+        }
+        const rendered = await renderRequest(
+          module,
+          document,
+          request,
+          Math.min(maxPixels, remainingPixels),
+          signal,
+        );
+        throwIfAborted(signal);
+        const pixelCount = rendered.width * rendered.height;
+        if (pixelCount > remainingPixels) {
+          throw new Error('The PDF figure renderer reached its total pixel budget.');
+        }
+        const remainingImageBytes = totalImageBytesLimit - renderedImageBytes;
+        if (rendered.bytes.length > remainingImageBytes) {
+          throw new Error('The PDF figure renderer reached its total image-byte budget.');
+        }
+        renderedPixels += pixelCount;
+        renderedImageBytes += rendered.bytes.length;
         results.push({ requestId, ...rendered });
       } catch (error) {
+        if (signal?.aborted) {
+          throw abortError(signal);
+        }
         results.push({ requestId, error: errorMessage(error) });
       }
     }
@@ -107,6 +149,7 @@ export async function renderPdfFormRequests({
       }
     }
   }
+  throwIfAborted(signal);
   onProgress({ completed: requests.length, total: requests.length, label: 'PDF figure rendering complete.' });
 
   return results;
@@ -120,6 +163,11 @@ async function loadPdfJs(pdfjs) {
     pdfjsModulePromise = import(pdfjs.pdfjsModuleUrl).then((module) => {
       module.GlobalWorkerOptions.workerSrc = pdfjs.pdfjsWorkerUrl;
       return module;
+    }).catch((error) => {
+      // Do not turn a transient module/worker failure into a permanent
+      // failure for every later static preview or Playground import.
+      pdfjsModulePromise = null;
+      throw error;
     });
   }
 
@@ -153,7 +201,8 @@ async function pdfBytes(file, maxSourceBytes) {
   throw new Error('The selected PDF could not be read in this browser.');
 }
 
-async function renderRequest(module, pdfDocument, request, maxPixels) {
+async function renderRequest(module, pdfDocument, request, maxPixels, signal) {
+  throwIfAborted(signal);
   const pageNumber = Number(request?.page);
   const bbox = normalizeBBox(request?.bbox);
   if (!Number.isInteger(pageNumber) || pageNumber < 1 || pageNumber > pdfDocument.numPages || !bbox) {
@@ -201,8 +250,10 @@ async function renderRequest(module, pdfDocument, request, maxPixels) {
       intent: 'display',
     });
     await renderTask.promise;
+    throwIfAborted(signal);
     const blob = await canvasBlob(canvas, 'image/png');
     const bytes = new Uint8Array(await blob.arrayBuffer());
+    throwIfAborted(signal);
     if (bytes.length === 0) {
       throw new Error('The PDF figure rendered as an empty image.');
     }
@@ -210,6 +261,27 @@ async function renderRequest(module, pdfDocument, request, maxPixels) {
     return { bytes, mimeType: 'image/png', width, height };
   } finally {
     page.cleanup?.();
+  }
+}
+
+function nonNegativeRenderLimit(value) {
+  return Number.isFinite(value) && value >= 0
+    ? Math.floor(value)
+    : Number.POSITIVE_INFINITY;
+}
+
+function abortError(signal) {
+  if (signal?.reason instanceof Error) {
+    return signal.reason;
+  }
+  const error = new Error('PDF figure rendering was cancelled.');
+  error.name = 'AbortError';
+  return error;
+}
+
+function throwIfAborted(signal) {
+  if (signal?.aborted) {
+    throw abortError(signal);
   }
 }
 
