@@ -283,14 +283,6 @@ jmp epilog             // jump to ret statement</code></pre>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p>1</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
-<p>Arrays are actually worse than this: if the index value is a number, it must be converted from a double to a string for the property access operator, and then to an integer internally to the array implementation.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:paragraph -->
 <p>Starting a tree. Tree trees always start at loop headers, because they are a natural place to look for hot paths. In TraceMonkey, loop headers are easy to detect–the bytecode compiler ensures that a bytecode is a loop header iff it is the target of a backward branch. TraceMonkey starts a tree when a given loop header has been executed a certain number of times (2 in the current implementation). Starting a tree just means starting recording a trace for the current point and type map and marking the trace as the root of a tree. Each tree is associated with a loop header and type map, so there may be several trees for a given loop header.</p>
 <!-- /wp:paragraph -->
 
@@ -320,6 +312,10 @@ jmp epilog             // jump to ret statement</code></pre>
 
 <!-- wp:paragraph -->
 <p>Extending a tree. Side exits lead to different paths through the loop, or paths with different types or representations. Thus, to completely cover the loop, the VM must record traces starting at all side exits. These traces are recorded much like root traces: there is a counter for each side exit, and when the counter reaches a hotness threshold, recording starts. Recording stops exactly as for the root trace, using the loop header of the root trace as the target to reach.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>Arrays are actually worse than this: if the index value is a number, it must be converted from a double to a string for the property access operator, and then to an integer internally to the array implementation.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
@@ -411,7 +407,7 @@ jmp epilog             // jump to ret statement</code></pre>
 <!-- /wp:list -->
 
 <!-- wp:paragraph -->
-<p>If all the loops in a nest are type-stable, then loop nesting creates no duplication. Otherwise, if loops are nested to a depth k, and each 2 loop is entered with m different type maps (on geometric average), then we compile O(m k)copies of the innermost loop. As long as m is close to 1, the resulting trace trees will be tractable.</p>
+<p>If all the loops in a nest are type-stable, then loop nesting creates no duplication. Otherwise, if loops are nested to a depth k, and each loop is entered with m different type maps (on geometric average), then we compile O(m k)copies of the innermost loop. As long as m is close to 1, the resulting trace trees will be tractable.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
