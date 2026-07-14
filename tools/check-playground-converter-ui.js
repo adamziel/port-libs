@@ -27,6 +27,11 @@ if (pluginBuildMatch) {
   assert(html.includes(`playground-converter.js?v=${pluginBuildMatch[1]}`), 'Expected the page script URL to use the current Playground plugin build identifier.');
 }
 assert(js.includes('pdf-jbig2-rasterizer.mjs'), 'Expected the browser JBIG2 rasterizer to be loaded for PDF imports.');
+assert(js.includes('pdf-jpx-rasterizer.mjs'), 'Expected the browser JPEG 2000 rasterizer to be loaded for PDF imports.');
+assert(js.includes('decodePdfJpxRasters'), 'Expected browser JPEG 2000 rasters to be prepared for PDF imports.');
+assert(js.includes('Promise.allSettled'), 'A JPEG 2000 decoder failure must not discard usable JBIG2 rasters.');
+assert(js.includes('const pdfRasterPayloadByteLimit = 24_000_000;'), 'Expected browser PDF rasters to honor the Playground decoded-byte limit.');
+assert(js.includes('maxPngBytes: remainingBytes'), 'Expected browser PDF decoders to share one raster byte budget.');
 assert(js.includes('pdfRasterImages'), 'Expected browser-decoded PDF rasters to be included in the import payload.');
 assert(js.includes("php: '8.4'"), 'Expected Playground to use PHP 8.4 for EPUB and HTML imports that need Dom\\HTMLDocument.');
 assert(!html.includes('id="format-input"'), 'Document type must not be exposed as a client-side form field.');

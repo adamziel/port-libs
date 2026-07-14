@@ -1,5 +1,5 @@
 {
-    "generatedAt": "2026-07-14T00:55:09+00:00",
+    "generatedAt": "2026-07-14T11:53:59+00:00",
     "pandocVersion": "pandoc 3.10\nFeatures: +server +lua\nScripting engine: Lua 5.4\nUser data directory: $REPO\nCopyright (C) 2006-2025 John MacFarlane. Web:  https://pandoc.org\nThis is free software; see the source for copying conditions. There is no\nwarranty, not even for merchantability or fitness for a particular purpose.",
     "mediaImageMode": "important",
     "formats": [
@@ -16686,33 +16686,33 @@
                         "mimeRepairSummary": "declared-mime-matches-path"
                     },
                     {
-                        "path": "outputs/pdf-cdc-hand-hygiene-brochure/media/pdf/image-227.jp2",
-                        "mediaPath": "pdf/image-227.jp2",
-                        "mimeType": "image/jp2",
-                        "byteLength": 8487,
-                        "sha1": "6a1e2ce0b8d124a17aee99ec12ed2176a007d458",
-                        "source": "pdf/image-227.jp2",
-                        "canonicalSource": "pdf/image-227.jp2",
-                        "sourcePath": "pdf/image-227.jp2",
+                        "path": "outputs/pdf-cdc-hand-hygiene-brochure/media/pdf/image-227.png",
+                        "mediaPath": "pdf/image-227.png",
+                        "mimeType": "image/png",
+                        "byteLength": 7935,
+                        "sha1": "e77ada7069afef5cef9f7ca8cb17a8403177757b",
+                        "source": "pdf/image-227.png",
+                        "canonicalSource": "pdf/image-227.png",
+                        "sourcePath": "pdf/image-227.png",
                         "pathRepairSummary": "safe-relative-path",
                         "extractionPathRepairSummary": "safe-relative-path",
                         "mimeTypeSource": "declared",
-                        "inferredMimeType": "application/octet-stream",
+                        "inferredMimeType": "image/png",
                         "mimeRepairSummary": "declared-mime-matches-path"
                     },
                     {
-                        "path": "outputs/pdf-cdc-hand-hygiene-brochure/media/pdf/image-241.jp2",
-                        "mediaPath": "pdf/image-241.jp2",
-                        "mimeType": "image/jp2",
-                        "byteLength": 441,
-                        "sha1": "97ba8f221730b536f4da7ab51fd21c2e31c16525",
-                        "source": "pdf/image-241.jp2",
-                        "canonicalSource": "pdf/image-241.jp2",
-                        "sourcePath": "pdf/image-241.jp2",
+                        "path": "outputs/pdf-cdc-hand-hygiene-brochure/media/pdf/image-241.png",
+                        "mediaPath": "pdf/image-241.png",
+                        "mimeType": "image/png",
+                        "byteLength": 137,
+                        "sha1": "90428e1a4dc874435330c39d28997f2087396c27",
+                        "source": "pdf/image-241.png",
+                        "canonicalSource": "pdf/image-241.png",
+                        "sourcePath": "pdf/image-241.png",
                         "pathRepairSummary": "safe-relative-path",
                         "extractionPathRepairSummary": "safe-relative-path",
                         "mimeTypeSource": "declared",
-                        "inferredMimeType": "application/octet-stream",
+                        "inferredMimeType": "image/png",
                         "mimeRepairSummary": "declared-mime-matches-path"
                     }
                 ],
@@ -16746,12 +16746,14 @@
                     "extract-media-pdf-image-unanchored:239",
                     "extract-media-pdf-image-loaded:211:important",
                     "extract-media-pdf-image-loaded:215:important",
+                    "extract-media-pdf-image-raster-loaded:227:important",
                     "extract-media-pdf-image-loaded:227:important",
+                    "extract-media-pdf-image-raster-loaded:241:important",
                     "extract-media-pdf-image-loaded:241:important",
-                    "media-resource-mapped:pdf/image-241.jp2",
+                    "media-resource-mapped:pdf/image-241.png",
                     "media-resource-mapped:pdf/image-211.jpg",
                     "media-resource-mapped:pdf/image-215.jpg",
-                    "media-resource-mapped:pdf/image-227.jp2"
+                    "media-resource-mapped:pdf/image-227.png"
                 ]
             },
             "wpBlocks": {
@@ -16789,33 +16791,33 @@
                         "mimeRepairSummary": "declared-mime-matches-path"
                     },
                     {
-                        "path": "outputs/pdf-cdc-hand-hygiene-brochure/media/pdf/image-227.jp2",
-                        "mediaPath": "pdf/image-227.jp2",
-                        "mimeType": "image/jp2",
-                        "byteLength": 8487,
-                        "sha1": "6a1e2ce0b8d124a17aee99ec12ed2176a007d458",
-                        "source": "pdf/image-227.jp2",
-                        "canonicalSource": "pdf/image-227.jp2",
-                        "sourcePath": "pdf/image-227.jp2",
+                        "path": "outputs/pdf-cdc-hand-hygiene-brochure/media/pdf/image-227.png",
+                        "mediaPath": "pdf/image-227.png",
+                        "mimeType": "image/png",
+                        "byteLength": 7935,
+                        "sha1": "e77ada7069afef5cef9f7ca8cb17a8403177757b",
+                        "source": "pdf/image-227.png",
+                        "canonicalSource": "pdf/image-227.png",
+                        "sourcePath": "pdf/image-227.png",
                         "pathRepairSummary": "safe-relative-path",
                         "extractionPathRepairSummary": "safe-relative-path",
                         "mimeTypeSource": "declared",
-                        "inferredMimeType": "application/octet-stream",
+                        "inferredMimeType": "image/png",
                         "mimeRepairSummary": "declared-mime-matches-path"
                     },
                     {
-                        "path": "outputs/pdf-cdc-hand-hygiene-brochure/media/pdf/image-241.jp2",
-                        "mediaPath": "pdf/image-241.jp2",
-                        "mimeType": "image/jp2",
-                        "byteLength": 441,
-                        "sha1": "97ba8f221730b536f4da7ab51fd21c2e31c16525",
-                        "source": "pdf/image-241.jp2",
-                        "canonicalSource": "pdf/image-241.jp2",
-                        "sourcePath": "pdf/image-241.jp2",
+                        "path": "outputs/pdf-cdc-hand-hygiene-brochure/media/pdf/image-241.png",
+                        "mediaPath": "pdf/image-241.png",
+                        "mimeType": "image/png",
+                        "byteLength": 137,
+                        "sha1": "90428e1a4dc874435330c39d28997f2087396c27",
+                        "source": "pdf/image-241.png",
+                        "canonicalSource": "pdf/image-241.png",
+                        "sourcePath": "pdf/image-241.png",
                         "pathRepairSummary": "safe-relative-path",
                         "extractionPathRepairSummary": "safe-relative-path",
                         "mimeTypeSource": "declared",
-                        "inferredMimeType": "application/octet-stream",
+                        "inferredMimeType": "image/png",
                         "mimeRepairSummary": "declared-mime-matches-path"
                     }
                 ],
@@ -16849,12 +16851,14 @@
                     "extract-media-pdf-image-unanchored:239",
                     "extract-media-pdf-image-loaded:211:important",
                     "extract-media-pdf-image-loaded:215:important",
+                    "extract-media-pdf-image-raster-loaded:227:important",
                     "extract-media-pdf-image-loaded:227:important",
+                    "extract-media-pdf-image-raster-loaded:241:important",
                     "extract-media-pdf-image-loaded:241:important",
-                    "media-resource-mapped:pdf/image-241.jp2",
+                    "media-resource-mapped:pdf/image-241.png",
                     "media-resource-mapped:pdf/image-211.jpg",
                     "media-resource-mapped:pdf/image-215.jpg",
-                    "media-resource-mapped:pdf/image-227.jp2"
+                    "media-resource-mapped:pdf/image-227.png"
                 ]
             },
             "wpBlockCounts": {
@@ -17182,18 +17186,18 @@
                 "path": "outputs/pdf-archive-motograph-book/php.html",
                 "media": [
                     {
-                        "path": "outputs/pdf-archive-motograph-book/media/pdf/image-00003.jp2",
-                        "mediaPath": "pdf/image-00003.jp2",
-                        "mimeType": "image/jp2",
-                        "byteLength": 28923,
-                        "sha1": "d20f39b80aeb0c08b49b6224f5bba82159c73d6a",
-                        "source": "pdf/image-00003.jp2",
-                        "canonicalSource": "pdf/image-00003.jp2",
-                        "sourcePath": "pdf/image-00003.jp2",
+                        "path": "outputs/pdf-archive-motograph-book/media/pdf/image-00003.avif",
+                        "mediaPath": "pdf/image-00003.avif",
+                        "mimeType": "image/avif",
+                        "byteLength": 28048,
+                        "sha1": "c2ebfa52340c885490b959e3db14e2c32ba7d02d",
+                        "source": "pdf/image-00003.avif",
+                        "canonicalSource": "pdf/image-00003.avif",
+                        "sourcePath": "pdf/image-00003.avif",
                         "pathRepairSummary": "safe-relative-path",
                         "extractionPathRepairSummary": "safe-relative-path",
                         "mimeTypeSource": "declared",
-                        "inferredMimeType": "application/octet-stream",
+                        "inferredMimeType": "image/avif",
                         "mimeRepairSummary": "declared-mime-matches-path"
                     }
                 ],
@@ -17265,8 +17269,9 @@
                     "extract-media-pdf-image-unanchored:205",
                     "extract-media-pdf-image-unanchored:209",
                     "extract-media-pdf-image-unanchored:213",
+                    "extract-media-pdf-image-raster-loaded:00003:important",
                     "extract-media-pdf-image-loaded:00003:important",
-                    "media-resource-mapped:pdf/image-00003.jp2"
+                    "media-resource-mapped:pdf/image-00003.avif"
                 ]
             },
             "wpBlocks": {
@@ -17274,18 +17279,18 @@
                 "path": "outputs/pdf-archive-motograph-book/wordpress-blocks.html",
                 "media": [
                     {
-                        "path": "outputs/pdf-archive-motograph-book/media/pdf/image-00003.jp2",
-                        "mediaPath": "pdf/image-00003.jp2",
-                        "mimeType": "image/jp2",
-                        "byteLength": 28923,
-                        "sha1": "d20f39b80aeb0c08b49b6224f5bba82159c73d6a",
-                        "source": "pdf/image-00003.jp2",
-                        "canonicalSource": "pdf/image-00003.jp2",
-                        "sourcePath": "pdf/image-00003.jp2",
+                        "path": "outputs/pdf-archive-motograph-book/media/pdf/image-00003.avif",
+                        "mediaPath": "pdf/image-00003.avif",
+                        "mimeType": "image/avif",
+                        "byteLength": 28048,
+                        "sha1": "c2ebfa52340c885490b959e3db14e2c32ba7d02d",
+                        "source": "pdf/image-00003.avif",
+                        "canonicalSource": "pdf/image-00003.avif",
+                        "sourcePath": "pdf/image-00003.avif",
                         "pathRepairSummary": "safe-relative-path",
                         "extractionPathRepairSummary": "safe-relative-path",
                         "mimeTypeSource": "declared",
-                        "inferredMimeType": "application/octet-stream",
+                        "inferredMimeType": "image/avif",
                         "mimeRepairSummary": "declared-mime-matches-path"
                     }
                 ],
@@ -17357,8 +17362,9 @@
                     "extract-media-pdf-image-unanchored:205",
                     "extract-media-pdf-image-unanchored:209",
                     "extract-media-pdf-image-unanchored:213",
+                    "extract-media-pdf-image-raster-loaded:00003:important",
                     "extract-media-pdf-image-loaded:00003:important",
-                    "media-resource-mapped:pdf/image-00003.jp2"
+                    "media-resource-mapped:pdf/image-00003.avif"
                 ]
             },
             "wpBlockCounts": {

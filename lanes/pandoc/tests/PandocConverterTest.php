@@ -47,6 +47,22 @@ function pandoc_layout_fixture_image_object(int $width = 100, int $height = 100)
         . $jpeg . "\nendstream";
 }
 
+function pandoc_avif_raster_fixture(int $width, int $height): string
+{
+    // A minimal bounded AVIF container for media-path verification. The
+    // extractor only needs the ftyp brand and ispe dimensions; browser
+    // decoding remains the final validation boundary for real raster bytes.
+    return pack('N', 20) . 'ftyp' . 'avif' . pack('N', 0) . 'avif'
+        . pack('N', 20) . 'ispe' . pack('N', 0) . pack('N', $width) . pack('N', $height);
+}
+
+function pandoc_png_raster_fixture(int $width, int $height): string
+{
+    return "\x89PNG\r\n\x1a\n"
+        . pack('N', 13) . 'IHDR' . pack('NNCCCCC', $width, $height, 8, 2, 0, 0, 0)
+        . pack('N', 0);
+}
+
 /**
  * @param array<int, string> $extraObjects
  */
@@ -347,6 +363,66 @@ return [
         $t->same(1, count($result['media']));
         $t->true($before !== false && $image !== false && $after !== false);
         $t->true($before < $image && $image < $after);
+    },
+    'uses a dimension-validated AVIF supplemental raster for a painted PDF image' => static function (TestRunner $t): void {
+        $content = "BT /F1 12 Tf 72 720 Td (Before) Tj ET\n"
+            . "q 100 0 0 100 72 580 cm /A Do Q\n"
+            . "BT /F1 12 Tf 72 440 Td (After) Tj ET";
+        $result = PandocConverter::convertWithMedia(
+            pandoc_single_page_layout_fixture($content, '/A 7 0 R', [7 => pandoc_layout_fixture_image_object()]),
+            'pdf',
+            'wordpress',
+            [
+                'extractMedia' => [
+                    'destination' => 'media',
+                    'imageMode' => 'all',
+                    'pdfRasterImages' => [[
+                        'object' => '7',
+                        'contents' => pandoc_avif_raster_fixture(100, 100),
+                        'mimeType' => 'image/avif',
+                        'width' => 100,
+                        'height' => 100,
+                    ]],
+                ],
+            ]
+        );
+
+        $t->same(1, count($result['media']));
+        $t->same('image/avif', $result['media'][0]['mimeType'] ?? null);
+        $t->same('media/pdf/image-7.avif', $result['media'][0]['path'] ?? null);
+        $t->contains('src="media/pdf/image-7.avif"', $result['output']);
+        $t->true(in_array('extract-media-pdf-image-raster-loaded:7:important', $result['diagnostics'], true));
+    },
+    'keeps source-important PDF images when a replacement raster is smaller' => static function (TestRunner $t): void {
+        $content = "BT /F1 12 Tf 72 720 Td (Before) Tj ET\n"
+            . "q 146 0 0 68 72 580 cm /A Do Q\n"
+            . "BT /F1 12 Tf 72 480 Td (After) Tj ET";
+        $jpx = str_repeat('J', 8500);
+        $image = '<< /Type /XObject /Subtype /Image /Width 146 /Height 68 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /JPXDecode /Length '
+            . strlen($jpx) . " >>\nstream\n" . $jpx . "\nendstream";
+        $result = PandocConverter::convertWithMedia(
+            pandoc_single_page_layout_fixture($content, '/A 7 0 R', [7 => $image]),
+            'pdf',
+            'wordpress',
+            [
+                'extractMedia' => [
+                    'destination' => 'media',
+                    'imageMode' => 'important',
+                    'pdfRasterImages' => [[
+                        'object' => '7',
+                        'contents' => pandoc_png_raster_fixture(146, 68),
+                        'mimeType' => 'image/png',
+                        'width' => 146,
+                        'height' => 68,
+                    ]],
+                ],
+            ]
+        );
+
+        $t->same(1, count($result['media']));
+        $t->same('media/pdf/image-7.png', $result['media'][0]['path'] ?? null);
+        $t->contains('src="media/pdf/image-7.png"', $result['output']);
+        $t->true(in_array('extract-media-pdf-image-raster-loaded:7:important', $result['diagnostics'], true));
     },
     'keeps image anchors in their own visual column' => static function (TestRunner $t): void {
         $content = "BT /F1 12 Tf 72 720 Td (Before) Tj ET\n"

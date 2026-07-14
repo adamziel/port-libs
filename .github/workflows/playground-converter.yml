@@ -11,11 +11,16 @@ on:
       - 'pandoc-showcase/examples-index.json'
       - 'pandoc-showcase/pdf-jbig2-rasterizer.mjs'
       - 'pandoc-showcase/vendor/pdfjs-jbig2/**'
+      - 'pandoc-showcase/pdf-jpx-rasterizer.mjs'
+      - 'pandoc-showcase/vendor/pdfjs-openjpeg/**'
       - 'pandoc-showcase/playground/**'
       - 'tools/build-pandoc-showcase.php'
       - 'tools/check-showcase-examples-page.js'
       - 'tools/decode-pdf-jbig2-media.mjs'
       - 'tools/check-pdf-jbig2-rasterizer.mjs'
+      - 'tools/decode-pdf-jpx-media.mjs'
+      - 'tools/check-pdf-jpx-rasterizer.mjs'
+      - 'tools/decode-pdf-raster-media.mjs'
       - 'tools/measure-pandoc-import-memory.php'
       - 'tools/build-playground-converter-plugin.php'
       - 'tools/playground-converter-plugin/**'
@@ -31,11 +36,16 @@ on:
       - 'pandoc-showcase/examples-index.json'
       - 'pandoc-showcase/pdf-jbig2-rasterizer.mjs'
       - 'pandoc-showcase/vendor/pdfjs-jbig2/**'
+      - 'pandoc-showcase/pdf-jpx-rasterizer.mjs'
+      - 'pandoc-showcase/vendor/pdfjs-openjpeg/**'
       - 'pandoc-showcase/playground/**'
       - 'tools/build-pandoc-showcase.php'
       - 'tools/check-showcase-examples-page.js'
       - 'tools/decode-pdf-jbig2-media.mjs'
       - 'tools/check-pdf-jbig2-rasterizer.mjs'
+      - 'tools/decode-pdf-jpx-media.mjs'
+      - 'tools/check-pdf-jpx-rasterizer.mjs'
+      - 'tools/decode-pdf-raster-media.mjs'
       - 'tools/measure-pandoc-import-memory.php'
       - 'tools/build-playground-converter-plugin.php'
       - 'tools/playground-converter-plugin/**'
@@ -90,12 +100,16 @@ jobs:
           node --check pandoc-showcase/playground-converter.js
           node --check pandoc-showcase/examples.js
           node --check pandoc-showcase/pdf-jbig2-rasterizer.mjs
+          node --check pandoc-showcase/pdf-jpx-rasterizer.mjs
           node --check tools/decode-pdf-jbig2-media.mjs
+          node --check tools/decode-pdf-jpx-media.mjs
+          node --check tools/decode-pdf-raster-media.mjs
           node tools/check-playground-converter-ui.js
           php tools/build-pandoc-showcase.php --build-examples-page
           node tools/check-showcase-examples-page.js
           git diff --exit-code -- pandoc-showcase/examples.html pandoc-showcase/examples.css pandoc-showcase/examples.js pandoc-showcase/examples-index.json
           node tools/check-pdf-jbig2-rasterizer.mjs
+          node tools/check-pdf-jpx-rasterizer.mjs
 
       - name: Run converter tests
         run: |

@@ -129,7 +129,7 @@ final class PandocMediaExtractor
     }
 
     /**
-     * Accept browser or host supplied PNG rasters for PDF image XObjects.
+     * Accept browser or host supplied web-safe rasters for PDF image XObjects.
      * A decoder remains outside this class, but the PDF object and intrinsic
      * dimensions are checked again before a raster can become document media.
      *
@@ -155,13 +155,13 @@ final class PandocMediaExtractor
             $width = $image['width'] ?? null;
             $height = $image['height'] ?? null;
             if (!is_string($contents) || $contents === '' || strlen($contents) > self::MAX_PDF_RASTER_IMAGE_BYTES
-                || $mimeType !== 'image/png' || !is_numeric($width) || !is_numeric($height)) {
+                || !in_array($mimeType, ['image/png', 'image/avif'], true) || !is_numeric($width) || !is_numeric($height)) {
                 continue;
             }
             $width = (int) $width;
             $height = (int) $height;
             if ($width <= 0 || $height <= 0 || $width * $height > self::MAX_PDF_RASTER_IMAGE_PIXELS
-                || !$this->pngHasDimensions($contents, $width, $height)) {
+                || !$this->pdfRasterHasDimensions($contents, $mimeType, $width, $height)) {
                 continue;
             }
 
@@ -648,7 +648,12 @@ final class PandocMediaExtractor
                 $diagnostics[] = 'extract-media-pdf-image-raster-skipped:dimensions:' . $objectNumber;
                 $raster = null;
             }
-            $importance = $this->pdfImageImportance($width, $height, $raster === null ? strlen($stream) : strlen($raster['contents']), false);
+            // Selection describes the image painted by the PDF, not the
+            // compression ratio of a browser-supplied replacement raster.
+            // A lossless PNG can be smaller than its JPX stream (or larger
+            // than a JBIG2 stream) without changing whether the source image
+            // is an important document asset.
+            $importance = $this->pdfImageImportance($width, $height, strlen($stream), false);
             if ($imageMode === 'important' && $importance !== 'important') {
                 $diagnostics[] = 'extract-media-pdf-image-unimportant:' . $objectNumber . ':' . $importance;
                 continue;
@@ -656,7 +661,7 @@ final class PandocMediaExtractor
 
             if ($raster !== null) {
                 $mimeType = $raster['mimeType'];
-                $extension = '.png';
+                $extension = $this->pdfRasterExtension($mimeType);
                 $imageBytes = $raster['contents'];
                 $diagnostics[] = 'extract-media-pdf-image-raster-loaded:' . $objectNumber . ':' . $importance;
             } else {
@@ -1025,6 +1030,91 @@ final class PandocMediaExtractor
         return is_array($dimensions)
             && (int) ($dimensions['width'] ?? 0) === $width
             && (int) ($dimensions['height'] ?? 0) === $height;
+    }
+
+    private function pdfRasterHasDimensions(string $bytes, string $mimeType, int $width, int $height): bool
+    {
+        return match ($mimeType) {
+            'image/png' => $this->pngHasDimensions($bytes, $width, $height),
+            'image/avif' => $this->avifHasDimensions($bytes, $width, $height),
+            default => false,
+        };
+    }
+
+    private function pdfRasterExtension(string $mimeType): string
+    {
+        return match ($mimeType) {
+            'image/avif' => '.avif',
+            default => '.png',
+        };
+    }
+
+    /**
+     * Verify the minimal AVIF container structure needed to bind a supplied
+     * browser/build raster to the PDF Image XObject dimensions. The decoder
+     * remains external, but requiring an AVIF brand and an ispe image-spatial
+     * extent avoids accepting a mislabeled opaque byte string.
+     */
+    private function avifHasDimensions(string $bytes, int $width, int $height): bool
+    {
+        $length = strlen($bytes);
+        if ($length < 24) {
+            return false;
+        }
+
+        $hasAvifBrand = false;
+        $offset = 0;
+        while ($offset + 8 <= $length) {
+            $header = unpack('Nsize', substr($bytes, $offset, 4));
+            $boxLength = is_array($header) ? (int) ($header['size'] ?? 0) : 0;
+            if ($boxLength === 0) {
+                $boxLength = $length - $offset;
+            }
+            // Extended-length ISO BMFF boxes are not needed for bounded image
+            // rasters. Reject them rather than risk an integer-width error.
+            if ($boxLength === 1 || $boxLength < 8 || $boxLength > $length - $offset) {
+                return false;
+            }
+
+            $type = substr($bytes, $offset + 4, 4);
+            if ($type === 'ftyp' && $boxLength >= 16) {
+                for ($brandOffset = $offset + 8; $brandOffset + 4 <= $offset + $boxLength; $brandOffset += 4) {
+                    $brand = substr($bytes, $brandOffset, 4);
+                    if ($brand === 'avif' || $brand === 'avis') {
+                        $hasAvifBrand = true;
+                        break;
+                    }
+                }
+            }
+            $offset += $boxLength;
+        }
+        if (!$hasAvifBrand) {
+            return false;
+        }
+
+        // `ispe` lives below the meta/iprp/ipco hierarchy. Looking for a
+        // bounded complete box is deliberately enough here: dimensions bind
+        // this media to an already validated PDF object and the browser still
+        // performs the definitive AVIF decode when it displays it.
+        $search = 0;
+        while (($typeOffset = strpos($bytes, 'ispe', $search)) !== false) {
+            $boxOffset = $typeOffset - 4;
+            if ($boxOffset >= 0 && $boxOffset + 20 <= $length) {
+                $header = unpack('Nsize', substr($bytes, $boxOffset, 4));
+                $boxLength = is_array($header) ? (int) ($header['size'] ?? 0) : 0;
+                if ($boxLength >= 20 && $boxLength <= $length - $boxOffset) {
+                    $dimensions = unpack('Nwidth/Nheight', substr($bytes, $boxOffset + 12, 8));
+                    if (is_array($dimensions)
+                        && (int) ($dimensions['width'] ?? 0) === $width
+                        && (int) ($dimensions['height'] ?? 0) === $height) {
+                        return true;
+                    }
+                }
+            }
+            $search = $typeOffset + 4;
+        }
+
+        return false;
     }
 
     private function pngEncodeGrayscale8(int $width, int $height, string $pixels): string
