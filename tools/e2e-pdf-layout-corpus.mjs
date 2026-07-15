@@ -7,7 +7,8 @@
  *
  * Usage:
  *   node tools/e2e-pdf-layout-corpus.mjs
- *   node tools/e2e-pdf-layout-corpus.mjs --url http://127.0.0.1:4174/examples.html
+ *   node tools/e2e-pdf-layout-corpus.mjs --url http://127.0.0.1:4174/examples.html \
+ *     --review-url http://127.0.0.1:4174/pdf-layout-corpus.html
  */
 
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
@@ -17,10 +18,12 @@ import process from 'node:process';
 const defaults = {
   chrome: 'http://127.0.0.1:9222',
   url: 'http://127.0.0.1:4174/examples.html',
+  reviewUrl: 'http://127.0.0.1:4174/pdf-layout-corpus.html',
   manifest: 'tools/pdf-layout-corpus-manifest.json',
   output: 'artifacts/pdf-layout-screenshots',
   timeoutMs: 60_000,
   pollMs: 150,
+  reviewOnly: false,
 };
 
 const viewports = {
@@ -39,6 +42,9 @@ function parseOptions(args) {
     } else if (argument === '--url') {
       options.url = value || options.url;
       index += 1;
+    } else if (argument === '--review-url') {
+      options.reviewUrl = value || options.reviewUrl;
+      index += 1;
     } else if (argument === '--manifest') {
       options.manifest = value || options.manifest;
       index += 1;
@@ -51,8 +57,10 @@ function parseOptions(args) {
     } else if (argument === '--poll-ms') {
       options.pollMs = Math.max(50, Number(value) || options.pollMs);
       index += 1;
+    } else if (argument === '--review-only') {
+      options.reviewOnly = true;
     } else if (argument === '--help' || argument === '-h') {
-      console.log('Usage: node tools/e2e-pdf-layout-corpus.mjs [--url URL] [--chrome URL] [--manifest FILE] [--output DIR]');
+      console.log('Usage: node tools/e2e-pdf-layout-corpus.mjs [--url URL] [--review-url URL] [--review-only] [--chrome URL] [--manifest FILE] [--output DIR]');
       process.exit(0);
     } else {
       throw new Error(`Unknown argument: ${argument}`);
@@ -299,6 +307,14 @@ function criterionErrors(criteria, snapshot) {
       errors.push(`requiredText: missing ${JSON.stringify(requiredText)}`);
     }
   }
+  let orderedOffset = -1;
+  for (const orderedText of Array.isArray(criteria.orderedText) ? criteria.orderedText : []) {
+    orderedOffset = snapshot.bodyText.indexOf(String(orderedText), orderedOffset + 1);
+    if (orderedOffset < 0) {
+      errors.push(`orderedText: missing or out of order ${JSON.stringify(orderedText)}`);
+      break;
+    }
+  }
   return errors;
 }
 
@@ -328,6 +344,143 @@ function layoutErrors(snapshot) {
   }
   if (snapshot.previousLabel.toLowerCase() !== 'previous example' || snapshot.nextLabel.toLowerCase() !== 'next example') {
     errors.push('previous/next accessible labels are missing');
+  }
+  return errors;
+}
+
+const reviewerSnapshotExpression = `(() => {
+  const root = document.querySelector('.reviewer');
+  const picker = document.querySelector('#review-picker');
+  const previous = document.querySelector('#review-previous');
+  const next = document.querySelector('#review-next');
+  const download = document.querySelector('#review-download');
+  const detail = document.querySelector('#review-detail');
+  const original = document.querySelector('#original-viewer');
+  const converted = document.querySelector('#converted-frame');
+  const activeView = String(root?.dataset?.activeView || '');
+  const criteria = Array.from(document.querySelectorAll('#quality-criteria li'));
+  const visible = (node) => {
+    if (!node) return false;
+    const style = getComputedStyle(node);
+    const rect = node.getBoundingClientRect();
+    return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
+  };
+  const rect = (node) => {
+    const value = node?.getBoundingClientRect();
+    return value ? { left: value.left, top: value.top, right: value.right, bottom: value.bottom, width: value.width, height: value.height } : null;
+  };
+  const pendingCriteria = criteria.filter((node) => node.dataset.status === 'pending').map((node) => node.textContent.trim());
+  const failingCriteria = criteria.filter((node) => node.dataset.status === 'fail').map((node) => node.textContent.trim());
+  const originalLoadedPath = String(original?.dataset?.loadedPath || '');
+  const originalRequestedPath = String(original?.dataset?.requestedPath || '');
+  const originalStatus = String(document.querySelector('#original-status')?.textContent || '').replace(/\s+/g, ' ').trim();
+  const originalPageCount = document.querySelectorAll('#original-pages canvas.original-page').length;
+  const convertedLoadedPath = String(converted?.dataset?.loadedPath || '');
+  const originalRequired = activeView !== 'converted';
+  return {
+    ready: Boolean(
+      picker
+      && picker.options.length > 0
+      && convertedLoadedPath
+      && converted?.contentDocument
+      && ['complete', 'interactive'].includes(converted.contentDocument.readyState)
+      && criteria.length > 0
+      && pendingCriteria.length === 0
+      && (!originalRequired || (originalLoadedPath && originalPageCount > 0 && originalStatus.startsWith('Original loaded')))
+    ),
+    selectedExample: String(picker?.value || ''),
+    urlExample: new URL(location.href).searchParams.get('example') || '',
+    urlView: new URL(location.href).searchParams.get('view') || '',
+    activeView,
+    optionCount: picker?.options?.length || 0,
+    viewButtonCount: document.querySelectorAll('[data-review-view]').length,
+    verdict: String(document.querySelector('[data-verdict][aria-pressed="true"]')?.dataset?.verdict || ''),
+    qualitySummary: String(document.querySelector('#quality-summary')?.textContent || '').replace(/\\s+/g, ' ').trim(),
+    pendingCriteria,
+    failingCriteria,
+    criteriaCount: criteria.length,
+    originalLoadedPath,
+    originalRequestedPath,
+    originalStatus,
+    originalPageCount,
+    convertedLoadedPath,
+    downloadPath: String(download?.getAttribute('href') || ''),
+    detailPath: String(detail?.getAttribute('href') || ''),
+    previousLabel: String(previous?.getAttribute('aria-label') || ''),
+    nextLabel: String(next?.getAttribute('aria-label') || ''),
+    originalVisible: visible(original?.closest('[data-pane="original"]')),
+    convertedVisible: visible(converted?.closest('[data-pane="converted"]')),
+    originalPane: rect(original?.closest('[data-pane="original"]')),
+    convertedPane: rect(converted?.closest('[data-pane="converted"]')),
+    documentOverflow: document.documentElement
+      ? Math.max(0, document.documentElement.scrollWidth - window.innerWidth)
+      : 0,
+    viewport: { width: innerWidth, height: innerHeight },
+  };
+})()`;
+
+async function waitForReviewer(page, options, expectedId, expectedView) {
+  const startedAt = Date.now();
+  let last = null;
+  while (Date.now() - startedAt < options.timeoutMs) {
+    last = await evaluate(page, reviewerSnapshotExpression);
+    if (last?.ready
+      && last.selectedExample === expectedId
+      && last.urlExample === expectedId
+      && last.activeView === expectedView
+      && last.urlView === expectedView) {
+      return last;
+    }
+    await sleep(options.pollMs);
+  }
+  throw new VerificationError(`Timed out waiting for reviewer example ${expectedId} in ${expectedView} view.`, last);
+}
+
+async function selectReviewerExample(page, id) {
+  return evaluate(page, `(() => {
+    const picker = document.querySelector('#review-picker');
+    if (!picker || !Array.from(picker.options).some((option) => option.value === ${JSON.stringify(id)})) return false;
+    picker.value = ${JSON.stringify(id)};
+    picker.dispatchEvent(new Event('change', { bubbles: true }));
+    return true;
+  })()`);
+}
+
+function reviewerErrors(snapshot, manifestLength, expectedId, expectedView) {
+  const errors = [];
+  if (!snapshot.ready) errors.push('reviewer did not become ready');
+  if (snapshot.selectedExample !== expectedId || snapshot.urlExample !== expectedId) {
+    errors.push(`reviewer selection/URL diverged from ${expectedId}`);
+  }
+  if (snapshot.activeView !== expectedView || snapshot.urlView !== expectedView) {
+    errors.push(`reviewer view/URL diverged from ${expectedView}`);
+  }
+  if (snapshot.optionCount !== manifestLength) errors.push(`expected ${manifestLength} reviewer options, observed ${snapshot.optionCount}`);
+  if (snapshot.viewButtonCount !== 3) errors.push(`expected 3 reviewer view buttons, observed ${snapshot.viewButtonCount}`);
+  if (snapshot.criteriaCount < 3) errors.push('reviewer did not render its automatic criteria');
+  if (snapshot.pendingCriteria.length > 0) errors.push(`pending criteria remain: ${snapshot.pendingCriteria.join(' | ')}`);
+  if (snapshot.failingCriteria.length > 0) errors.push(`criteria failed: ${snapshot.failingCriteria.join(' | ')}`);
+  if (snapshot.qualitySummary !== 'All automatic checks pass') errors.push(`unexpected quality summary: ${snapshot.qualitySummary}`);
+  if (!/wordpress-blocks-preview\.html(?:$|[?#])/.test(snapshot.convertedLoadedPath)) {
+    errors.push(`unexpected converted preview path ${snapshot.convertedLoadedPath}`);
+  }
+  if (!/\.pdf(?:$|[?#])/.test(snapshot.downloadPath)) errors.push(`unexpected original download path ${snapshot.downloadPath}`);
+  if (!snapshot.detailPath.includes(`example=${encodeURIComponent(expectedId)}`)) errors.push(`unexpected detail URL ${snapshot.detailPath}`);
+  if (snapshot.previousLabel !== 'Previous document' || snapshot.nextLabel !== 'Next document') {
+    errors.push('reviewer previous/next accessible labels are missing');
+  }
+  if (snapshot.documentOverflow > 2) errors.push(`reviewer overflows by ${snapshot.documentOverflow}px`);
+  if (!snapshot.convertedVisible) errors.push('converted pane is not visible');
+  if (expectedView === 'converted') {
+    if (snapshot.originalLoadedPath || snapshot.originalRequestedPath || snapshot.originalPageCount > 0) errors.push('converted-only view eagerly loaded the original PDF');
+    if (snapshot.originalVisible) errors.push('converted-only view left the original pane visible');
+  } else if (expectedView === 'compare') {
+    if (!/\.pdf(?:$|[?#])/.test(snapshot.originalLoadedPath)) errors.push('compare view did not load the original PDF');
+    if (snapshot.originalPageCount < 1 || !snapshot.originalStatus.startsWith('Original loaded')) errors.push('compare view did not render an original PDF page');
+    if (!snapshot.originalVisible) errors.push('compare view did not expose the original pane');
+    if (!snapshot.originalPane || !snapshot.convertedPane || snapshot.originalPane.width < 300 || snapshot.convertedPane.width < 300) {
+      errors.push('compare view did not allocate useful width to both panes');
+    }
   }
   return errors;
 }
@@ -381,6 +534,11 @@ async function captureScreenshot(page, filename) {
     captureBeyondViewport: false,
   });
   await writeFile(filename, Buffer.from(capture.data, 'base64'));
+}
+
+async function settleVisualPaint(page, milliseconds = 250) {
+  await evaluate(page, `new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))`);
+  await sleep(milliseconds);
 }
 
 function attachObservationLog(page) {
@@ -493,16 +651,15 @@ async function main() {
       page.call('DOM.enable'),
       page.call('Network.enable'),
     ]);
-    await setViewport(page, viewports.mobile);
-
-    const firstId = `pdf-layout-${manifest[0].id}`;
-    const initialUrl = new URL(options.url);
-    initialUrl.searchParams.set('example', firstId);
-    initialUrl.searchParams.set('e2e', `pdf-layout-${Date.now()}`);
-    await page.call('Page.navigate', { url: initialUrl.href });
-
     const results = [];
-    for (let index = 0; index < manifest.length; index += 1) {
+    if (!options.reviewOnly) {
+      await setViewport(page, viewports.mobile);
+      const firstId = `pdf-layout-${manifest[0].id}`;
+      const initialUrl = new URL(options.url);
+      initialUrl.searchParams.set('example', firstId);
+      initialUrl.searchParams.set('e2e', `pdf-layout-${Date.now()}`);
+      await page.call('Page.navigate', { url: initialUrl.href });
+      for (let index = 0; index < manifest.length; index += 1) {
       const document = manifest[index];
       const expectedId = `pdf-layout-${document.id}`;
       if (index > 0 && !(await selectExample(page, expectedId))) {
@@ -544,8 +701,101 @@ async function main() {
       const frameSummary = { ...snapshot.frame };
       delete frameSummary.bodyText;
       results.push({ id: expectedId, outer: snapshot.outer, frame: frameSummary, screenshots, navigation });
-      console.log(`PASS ${expectedId}: ${snapshot.frame.textBytes} text bytes, ${snapshot.frame.paragraphs} paragraphs`);
+        console.log(`PASS ${expectedId}: ${snapshot.frame.textBytes} text bytes, ${snapshot.frame.paragraphs} paragraphs`);
+      }
     }
+
+    const multicolumnDocument = manifest.find((document) => document.id === 'unstructured-multicolumn');
+    const formulaDocument = manifest.find((document) => document.id === 'docling-code-formula');
+    if (!multicolumnDocument || !formulaDocument) {
+      throw new VerificationError('The reviewer E2E requires the multicolumn and code/formula corpus documents.');
+    }
+    const multicolumnId = `pdf-layout-${multicolumnDocument.id}`;
+    const formulaId = `pdf-layout-${formulaDocument.id}`;
+    const reviewer = { screenshots: {}, navigation: {}, verdictPersistence: false };
+
+    await setViewport(page, viewports.desktop);
+    const reviewerUrl = new URL(options.reviewUrl);
+    reviewerUrl.searchParams.set('example', multicolumnId);
+    reviewerUrl.searchParams.set('view', 'converted');
+    reviewerUrl.searchParams.set('e2e', `pdf-reviewer-${Date.now()}`);
+    await page.call('Page.navigate', { url: reviewerUrl.href });
+    let reviewerSnapshot = await waitForReviewer(page, options, multicolumnId, 'converted');
+    let reviewerFailures = reviewerErrors(reviewerSnapshot, manifest.length, multicolumnId, 'converted');
+    if (reviewerFailures.length > 0) {
+      throw new VerificationError(`The desktop converted reviewer failed: ${reviewerFailures.join('; ')}`, reviewerSnapshot);
+    }
+    reviewer.screenshots.multicolumnDesktop = path.join(options.output, 'reviewer-multicolumn-desktop.png');
+    await settleVisualPaint(page);
+    await captureScreenshot(page, reviewer.screenshots.multicolumnDesktop);
+
+    if (!(await selectReviewerExample(page, formulaId))) {
+      throw new VerificationError(`The reviewer picker does not contain ${formulaId}.`);
+    }
+    reviewerSnapshot = await waitForReviewer(page, options, formulaId, 'converted');
+    reviewerFailures = reviewerErrors(reviewerSnapshot, manifest.length, formulaId, 'converted');
+    if (reviewerFailures.length > 0) {
+      throw new VerificationError(`The formula reviewer failed: ${reviewerFailures.join('; ')}`, reviewerSnapshot);
+    }
+    const formulaUrl = new URL(options.reviewUrl);
+    formulaUrl.searchParams.set('example', formulaId);
+    formulaUrl.searchParams.set('view', 'converted');
+    formulaUrl.searchParams.set('e2e', `pdf-reviewer-formula-${Date.now()}`);
+    await page.call('Page.navigate', { url: formulaUrl.href });
+    reviewerSnapshot = await waitForReviewer(page, options, formulaId, 'converted');
+    reviewerFailures = reviewerErrors(reviewerSnapshot, manifest.length, formulaId, 'converted');
+    if (reviewerFailures.length > 0) {
+      throw new VerificationError(`The formula reviewer deep link failed: ${reviewerFailures.join('; ')}`, reviewerSnapshot);
+    }
+    reviewer.screenshots.formulaDesktop = path.join(options.output, 'reviewer-formula-desktop.png');
+    await settleVisualPaint(page, 500);
+    await captureScreenshot(page, reviewer.screenshots.formulaDesktop);
+
+    let verdictSnapshot = await evaluate(page, reviewerSnapshotExpression);
+    if (verdictSnapshot.verdict !== 'pass'
+      && !(await clickControl(page, '[data-verdict="pass"]'))) {
+      throw new VerificationError('The reviewer verdict control could not be activated.');
+    }
+    verdictSnapshot = await evaluate(page, reviewerSnapshotExpression);
+    if (verdictSnapshot.verdict !== 'pass') throw new VerificationError('The reviewer did not retain the selected verdict.', verdictSnapshot);
+    const formulaIndex = manifest.findIndex((document) => document.id === formulaDocument.id);
+    const nextDocument = manifest[(formulaIndex + 1) % manifest.length];
+    const nextId = `pdf-layout-${nextDocument.id}`;
+    if (!(await clickControl(page, '#review-next'))) throw new VerificationError('The reviewer next control could not be activated.');
+    reviewer.navigation.next = (await waitForReviewer(page, options, nextId, 'converted')).selectedExample;
+    if (!(await clickControl(page, '#review-previous'))) throw new VerificationError('The reviewer previous control could not be activated.');
+    verdictSnapshot = await waitForReviewer(page, options, formulaId, 'converted');
+    reviewer.navigation.previous = verdictSnapshot.selectedExample;
+    reviewer.verdictPersistence = verdictSnapshot.verdict === 'pass';
+    if (!reviewer.verdictPersistence) throw new VerificationError('The reviewer verdict did not persist after navigation.', verdictSnapshot);
+
+    if (!(await selectReviewerExample(page, multicolumnId))) {
+      throw new VerificationError(`The reviewer picker does not contain ${multicolumnId}.`);
+    }
+    await setViewport(page, viewports.mobile);
+    reviewerSnapshot = await waitForReviewer(page, options, multicolumnId, 'converted');
+    reviewerFailures = reviewerErrors(reviewerSnapshot, manifest.length, multicolumnId, 'converted');
+    if (reviewerFailures.length > 0) {
+      throw new VerificationError(`The mobile reviewer failed: ${reviewerFailures.join('; ')}`, reviewerSnapshot);
+    }
+    reviewer.screenshots.multicolumnMobile = path.join(options.output, 'reviewer-multicolumn-mobile.png');
+    await settleVisualPaint(page);
+    await captureScreenshot(page, reviewer.screenshots.multicolumnMobile);
+
+    await setViewport(page, viewports.desktop);
+    if (!(await clickControl(page, '[data-review-view="compare"]'))) {
+      throw new VerificationError('The reviewer compare control could not be activated.');
+    }
+    reviewerSnapshot = await waitForReviewer(page, options, multicolumnId, 'compare');
+    reviewerFailures = reviewerErrors(reviewerSnapshot, manifest.length, multicolumnId, 'compare');
+    if (reviewerFailures.length > 0) {
+      throw new VerificationError(`The compare reviewer failed: ${reviewerFailures.join('; ')}`, reviewerSnapshot);
+    }
+    reviewer.screenshots.multicolumnCompareDesktop = path.join(options.output, 'reviewer-multicolumn-compare-desktop.png');
+    await settleVisualPaint(page, 2_000);
+    await captureScreenshot(page, reviewer.screenshots.multicolumnCompareDesktop);
+    reviewer.finalSnapshot = reviewerSnapshot;
+    console.log(`PASS PDF layout reviewer: ${manifest.length} public documents, deep links, mobile safety, and comparison view`);
 
     const errors = [
       ...observations.consoleErrors.map((message) => `console: ${message}`),
@@ -559,14 +809,16 @@ async function main() {
     const report = {
       ok: true,
       url: options.url,
+      reviewUrl: options.reviewUrl,
       manifest: options.manifest,
       documents: results.length,
       viewports,
       results,
+      reviewer,
       observations,
     };
     await writeFile(path.join(options.output, 'report.json'), `${JSON.stringify(report, null, 2)}\n`);
-    console.log(`Verified ${results.length} PDF layout documents; screenshots are in ${options.output}.`);
+    console.log(`${options.reviewOnly ? 'Verified the PDF layout reviewer' : `Verified ${results.length} PDF layout documents`}; screenshots are in ${options.output}.`);
   } finally {
     for (const client of iframeClients.values()) await client.close().catch(() => {});
     await page?.close().catch(() => {});

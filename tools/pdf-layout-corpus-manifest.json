@@ -17,7 +17,19 @@
     "source": "Unstructured example-docs/pdf/multi-column-2p.pdf",
     "filename": "multi-column-2p.pdf",
     "notes": "Two-column article pages that exercise column order and paragraph continuation.",
-    "success": {"minTextBytes": 1500, "minParagraphs": 4, "maxSingleGlyphParagraphs": 0}
+    "success": {
+      "minTextBytes": 1500,
+      "minParagraphs": 4,
+      "maxSingleGlyphParagraphs": 0,
+      "requiredText": ["Vladimir Karpukhin", "sewoncs.washington.edu", "Abstract"],
+      "orderedText": [
+        "Dense Passage Retrieval for Open-Domain Question Answering",
+        "Vladimir Karpukhin",
+        "Abstract",
+        "Open-domain question answering relies",
+        "1 Introduction"
+      ]
+    }
   },
   {
     "id": "unstructured-lists",
@@ -57,7 +69,12 @@
     "source": "docling-project/docling tests/data/pdf/sources/code_and_formula.pdf",
     "filename": "code_and_formula.pdf",
     "notes": "Two pages mixing prose, source code, and mathematical formula layout.",
-    "success": {"minTextBytes": 500, "minCodeBlocks": 1, "maxSingleGlyphParagraphs": 0}
+    "success": {
+      "minTextBytes": 500,
+      "minCodeBlocks": 1,
+      "maxSingleGlyphParagraphs": 0,
+      "requiredText": ["a2 + 8 = 12"]
+    }
   },
   {
     "id": "docling-right-to-left",

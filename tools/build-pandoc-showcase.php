@@ -4599,10 +4599,11 @@ function showcase_write_examples_page(string $siteDir, array $records, string $g
     file_put_contents($siteDir . '/examples.html', rtrim($page) . "\n");
     file_put_contents($siteDir . '/examples.css', rtrim($css) . "\n");
     file_put_contents($siteDir . '/examples.js', rtrim($javascript) . "\n");
-    showcase_write_pdf_layout_corpus_review_page($siteDir);
+    showcase_write_pdf_layout_corpus_review_page($siteDir, $index);
 }
 
-function showcase_write_pdf_layout_corpus_review_page(string $siteDir): void
+/** @param array<string,mixed> $examplesIndex */
+function showcase_write_pdf_layout_corpus_review_page(string $siteDir, array $examplesIndex): void
 {
     $manifestPath = __DIR__ . '/pdf-layout-corpus-manifest.json';
     $entries = json_decode((string) file_get_contents($manifestPath), true);
@@ -4610,28 +4611,507 @@ function showcase_write_pdf_layout_corpus_review_page(string $siteDir): void
         throw new RuntimeException("Unable to read PDF layout corpus manifest at {$manifestPath}.");
     }
 
-    $items = '';
+    $examplesById = [];
+    foreach ($examplesIndex['examples'] ?? [] as $example) {
+        if (is_array($example) && is_string($example['id'] ?? null)) {
+            $examplesById[$example['id']] = $example;
+        }
+    }
+
+    $reviewEntries = [];
     foreach ($entries as $entry) {
         if (!is_array($entry) || !is_string($entry['id'] ?? null) || !is_string($entry['label'] ?? null)) {
             continue;
         }
         $exampleId = 'pdf-layout-' . $entry['id'];
-        $items .= '<li><a href="examples.html?example=' . rawurlencode($exampleId) . '">'
-            . h($entry['label']) . '</a><span>' . h((string) ($entry['kind'] ?? 'PDF layout')) . '</span><p>'
-            . h((string) ($entry['notes'] ?? '')) . '</p></li>';
+        $example = $examplesById[$exampleId] ?? null;
+        $previewPath = is_array($example['views']['wpBlocks'] ?? null)
+            && ($example['views']['wpBlocks']['ok'] ?? false) === true
+            ? (string) ($example['views']['wpBlocks']['path'] ?? '')
+            : '';
+        $samplePath = is_array($example) ? (string) ($example['samplePath'] ?? '') : '';
+        if ($previewPath === '' || $samplePath === '') {
+            throw new RuntimeException("PDF layout reviewer is missing generated paths for {$exampleId}.");
+        }
+        $reviewEntries[] = [
+            'id' => $exampleId,
+            'label' => $entry['label'],
+            'kind' => (string) ($entry['kind'] ?? 'PDF layout'),
+            'notes' => (string) ($entry['notes'] ?? ''),
+            'source' => (string) ($entry['source'] ?? ''),
+            'sourceUrl' => (string) ($entry['url'] ?? ''),
+            'samplePath' => $samplePath,
+            'previewPath' => $previewPath,
+            'success' => is_array($entry['success'] ?? null) ? $entry['success'] : [],
+        ];
+    }
+    if (count($reviewEntries) < 10) {
+        throw new RuntimeException('PDF layout reviewer requires at least 10 generated corpus entries.');
     }
 
+    $payload = json_encode([
+        'generatedAt' => (string) ($examplesIndex['generatedAt'] ?? gmdate('c')),
+        'examples' => $reviewEntries,
+    ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
+    if (!is_string($payload)) {
+        throw new RuntimeException('Unable to encode PDF layout reviewer data.');
+    }
+    $css = showcase_pdf_layout_reviewer_css();
+    $javascript = showcase_pdf_layout_reviewer_javascript();
+    $version = substr(hash('sha256', $payload . "\n" . $css . "\n" . $javascript), 0, 12);
+
     $page = '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
-        . '<title>PDF layout review corpus</title><style>'
-        . '*{box-sizing:border-box}body{margin:0;background:#f4f7fb;color:#18212b;font:16px/1.5 system-ui,sans-serif}'
-        . 'main{width:min(1100px,100%);margin:auto;padding:clamp(18px,4vw,48px)}h1{margin:0 0 8px;font-size:clamp(28px,5vw,46px)}'
-        . '.lead{max-width:76ch;margin:0 0 28px;color:#475569}ul{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:14px;padding:0;list-style:none}'
-        . 'li{min-width:0;padding:18px;border:1px solid #d6dee8;border-radius:12px;background:#fff}a{color:#165dcc;font-size:18px;font-weight:750}'
-        . 'span{display:block;margin-top:5px;color:#64748b;font-size:13px;text-transform:uppercase;letter-spacing:.04em}p{margin:10px 0 0}'
-        . '</style></head><body><main><h1>PDF layout review corpus</h1><p class="lead">'
-        . count($entries) . ' diverse PDFs converted by the current branch. Open any item in the mobile-safe example browser; use its arrows to continue through the corpus.</p><ul>'
-        . $items . '</ul></main></body></html>';
+        . '<title>PDF layout reviewer</title><link rel="stylesheet" href="pdf-layout-review.css?v=' . h($version) . '"></head><body>'
+        . '<main class="reviewer" data-active-view="compare"><header class="review-header">'
+        . '<div class="review-heading"><div><h1>PDF layout reviewer</h1><p id="review-position">Loading the public test corpus…</p></div>'
+        . '<div class="review-verdict" role="group" aria-label="Your review"><button type="button" data-verdict="pass">Looks good</button>'
+        . '<button type="button" data-verdict="fail">Needs work</button></div></div>'
+        . '<div class="review-toolbar"><button id="review-previous" class="review-arrow" type="button" aria-label="Previous document">←</button>'
+        . '<label class="screen-reader-text" for="review-picker">PDF document</label><select id="review-picker"></select>'
+        . '<a id="review-download" class="review-action" href="" download>Download original</a>'
+        . '<a id="review-detail" class="review-action" href="examples.html">Open detail tabs</a>'
+        . '<button id="review-next" class="review-arrow" type="button" aria-label="Next document">→</button></div>'
+        . '<div class="review-context"><div><strong id="review-kind"></strong><span id="review-notes"></span><small id="review-source"></small></div>'
+        . '<div class="view-switcher" role="group" aria-label="Reviewer view"><button type="button" data-review-view="compare" aria-pressed="true">Compare</button>'
+        . '<button type="button" data-review-view="converted" aria-pressed="false">Converted</button><button type="button" data-review-view="original" aria-pressed="false">Original</button></div></div>'
+        . '<details class="quality-panel" open><summary><span>Automatic success criteria</span><strong id="quality-summary">Waiting for preview</strong></summary>'
+        . '<ul id="quality-criteria" aria-live="polite"></ul></details></header>'
+        . '<section class="review-workspace" aria-label="PDF conversion comparison">'
+        . '<article class="review-pane original-pane" data-pane="original"><div class="pane-title"><h2>Original PDF</h2><span id="original-status">Not loaded</span></div>'
+        . '<div id="original-viewer" class="original-frame" role="document" aria-label="Original PDF document"><div id="original-pages"></div></div></article>'
+        . '<article class="review-pane converted-pane" data-pane="converted"><div class="pane-title"><h2>Converted WordPress preview</h2><span id="converted-status">Loading</span></div>'
+        . '<iframe id="converted-frame" title="Converted WordPress preview" sandbox="allow-same-origin"></iframe></article></section></main>'
+        . '<script id="pdf-layout-review-data" type="application/json">' . $payload . '</script>'
+        . '<script type="module" src="pdf-layout-review.js?v=' . h($version) . '"></script></body></html>';
     file_put_contents($siteDir . '/pdf-layout-corpus.html', $page . "\n");
+    file_put_contents($siteDir . '/pdf-layout-review.css', rtrim($css) . "\n");
+    file_put_contents($siteDir . '/pdf-layout-review.js', rtrim($javascript) . "\n");
+}
+
+function showcase_pdf_layout_reviewer_css(): string
+{
+    return <<<'CSS'
+:root {
+  color-scheme: light;
+  --ink: #17212b;
+  --muted: #5d6875;
+  --line: #cfd8e3;
+  --paper: #fff;
+  --wash: #edf2f7;
+  --accent: #1559c5;
+  --ok: #08783f;
+  --bad: #b12626;
+}
+* { box-sizing: border-box; }
+html, body { min-width: 0; min-height: 100%; margin: 0; }
+body { overflow: hidden; background: var(--wash); color: var(--ink); font: 14px/1.4 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+button, select, a { font: inherit; }
+button, select, .review-action { min-height: 42px; border: 1px solid var(--line); border-radius: 7px; background: var(--paper); color: var(--ink); }
+button, .review-action { cursor: pointer; }
+button:hover, .review-action:hover { border-color: var(--accent); background: #eef5ff; }
+button:focus-visible, select:focus-visible, a:focus-visible { outline: 3px solid color-mix(in srgb, var(--accent) 32%, transparent); outline-offset: 1px; }
+.screen-reader-text { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
+.reviewer { display: grid; grid-template-rows: auto minmax(0, 1fr); width: 100%; height: 100svh; }
+.review-header { position: relative; z-index: 10; isolation: isolate; transform: translateZ(0); display: grid; gap: 9px; padding: 12px clamp(12px, 2vw, 24px); border-bottom: 1px solid var(--line); background: var(--paper); box-shadow: 0 2px 10px rgba(23, 33, 43, .08); }
+.review-heading, .review-context { display: flex; align-items: center; justify-content: space-between; gap: 18px; min-width: 0; }
+.review-heading h1 { margin: 0; font-size: clamp(20px, 2.1vw, 28px); line-height: 1.05; }
+.review-heading p { margin: 3px 0 0; color: var(--muted); }
+.review-verdict, .view-switcher { display: flex; gap: 5px; flex: none; }
+.review-verdict button, .view-switcher button { min-height: 34px; padding: 5px 11px; }
+.review-verdict button[aria-pressed="true"][data-verdict="pass"] { border-color: var(--ok); background: #e6f6ed; color: #04572d; }
+.review-verdict button[aria-pressed="true"][data-verdict="fail"] { border-color: var(--bad); background: #fff0f0; color: #8d1717; }
+.review-toolbar { display: grid; grid-template-columns: 54px minmax(220px, 1fr) auto auto 54px; gap: 7px; min-width: 0; }
+.review-toolbar select { width: 100%; min-width: 0; padding: 0 34px 0 12px; font-weight: 650; }
+.review-arrow { padding: 0; font-size: 26px; line-height: 1; }
+.review-action { display: inline-flex; align-items: center; justify-content: center; padding: 0 13px; text-decoration: none; white-space: nowrap; }
+.review-context > div:first-child { display: flex; align-items: baseline; gap: 9px; min-width: 0; overflow: hidden; }
+.review-context strong { flex: none; color: var(--accent); font-size: 12px; letter-spacing: .05em; text-transform: uppercase; }
+.review-context span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.review-context small { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.view-switcher button[aria-pressed="true"] { border-color: var(--accent); background: var(--accent); color: #fff; }
+.quality-panel { min-width: 0; border-top: 1px solid #e2e8f0; padding-top: 7px; }
+.quality-panel summary { display: flex; align-items: center; gap: 8px; cursor: pointer; color: var(--muted); }
+.quality-panel summary strong { margin-left: auto; font-size: 12px; }
+.quality-panel ul { display: flex; flex-wrap: wrap; gap: 5px; margin: 7px 0 0; padding: 0; list-style: none; }
+.quality-panel li { padding: 3px 8px; border: 1px solid var(--line); border-radius: 999px; background: #f8fafc; font-size: 12px; }
+.quality-panel li[data-status="pass"] { border-color: #8ac7a6; background: #edf9f2; color: #075b31; }
+.quality-panel li[data-status="fail"] { border-color: #e1a0a0; background: #fff1f1; color: #8d1717; }
+.quality-panel li[data-status="pending"] { color: var(--muted); }
+.review-workspace { position: relative; z-index: 0; isolation: isolate; contain: paint; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1px; min-width: 0; min-height: 0; background: var(--line); }
+.review-pane { display: grid; grid-template-rows: auto minmax(0, 1fr); min-width: 0; min-height: 0; background: var(--paper); }
+.pane-title { display: flex; justify-content: space-between; align-items: center; gap: 12px; min-height: 34px; padding: 6px 12px; border-bottom: 1px solid var(--line); }
+.pane-title h2 { margin: 0; font-size: 13px; }
+.pane-title span { color: var(--muted); font-size: 12px; }
+.review-pane iframe { display: block; width: 100%; height: 100%; min-width: 0; min-height: 0; border: 0; background: #fff; }
+.original-frame { width: 100%; height: 100%; min-width: 0; min-height: 0; overflow: auto; padding: 18px; background: #343a40; }
+#original-pages { display: grid; justify-items: center; gap: 18px; min-width: 0; }
+.original-page { display: block; max-width: 100%; height: auto; background: #fff; box-shadow: 0 3px 16px rgba(0, 0, 0, .34); }
+.original-error { align-self: start; max-width: 560px; margin: 12px auto; padding: 14px; border-radius: 8px; background: #fff0f0; color: var(--bad); }
+.reviewer[data-active-view="converted"] .review-workspace, .reviewer[data-active-view="original"] .review-workspace { grid-template-columns: minmax(0, 1fr); }
+.reviewer[data-active-view="converted"] [data-pane="original"], .reviewer[data-active-view="original"] [data-pane="converted"] { display: none; }
+@media (max-width: 820px) {
+  body { overflow: auto; }
+  .reviewer { height: auto; min-height: 100svh; grid-template-rows: auto minmax(70svh, 1fr); }
+  .review-header { position: sticky; top: 0; padding: 9px; }
+  .review-heading { align-items: flex-start; }
+  .review-heading h1 { font-size: 18px; }
+  .review-heading p { font-size: 12px; }
+  .review-verdict button { min-height: 32px; padding: 4px 8px; font-size: 12px; }
+  .review-toolbar { grid-template-columns: 48px minmax(0, 1fr) 48px; }
+  .review-toolbar .review-action { min-height: 36px; }
+  #review-download { grid-column: 1 / span 2; }
+  #review-detail { grid-column: 3; padding: 0 8px; font-size: 0; }
+  #review-detail::after { content: "Tabs"; font-size: 12px; }
+  #review-next { grid-column: 3; grid-row: 1; }
+  .review-context { align-items: flex-start; }
+  .review-context > div:first-child { display: grid; gap: 1px; }
+  .review-context small { display: none; }
+  .view-switcher button { padding: 4px 8px; font-size: 12px; }
+  .quality-panel:not([open]) { padding-bottom: 0; }
+  .review-workspace { min-height: 70svh; }
+  .reviewer[data-active-view="compare"] .review-workspace { grid-template-columns: 1fr; grid-template-rows: minmax(55svh, 1fr) minmax(55svh, 1fr); }
+}
+CSS;
+}
+
+function showcase_pdf_layout_reviewer_javascript(): string
+{
+    return <<<'JS'
+const payload = JSON.parse(document.querySelector('#pdf-layout-review-data')?.textContent || '{}');
+const examples = Array.isArray(payload.examples) ? payload.examples : [];
+if (examples.length < 1) throw new Error('The PDF layout reviewer has no examples.');
+
+const root = document.querySelector('.reviewer');
+const picker = document.querySelector('#review-picker');
+const previous = document.querySelector('#review-previous');
+const next = document.querySelector('#review-next');
+const download = document.querySelector('#review-download');
+const detail = document.querySelector('#review-detail');
+const position = document.querySelector('#review-position');
+const kind = document.querySelector('#review-kind');
+const notes = document.querySelector('#review-notes');
+const source = document.querySelector('#review-source');
+const originalFrame = document.querySelector('#original-viewer');
+const originalPages = document.querySelector('#original-pages');
+const convertedFrame = document.querySelector('#converted-frame');
+const originalStatus = document.querySelector('#original-status');
+const convertedStatus = document.querySelector('#converted-status');
+const criteriaList = document.querySelector('#quality-criteria');
+const qualitySummary = document.querySelector('#quality-summary');
+const viewButtons = [...document.querySelectorAll('[data-review-view]')];
+const verdictButtons = [...document.querySelectorAll('[data-verdict]')];
+const storagePrefix = 'port-libs:pdf-layout-review:';
+let pdfjsLibraryPromise = null;
+let originalLoadingTask = null;
+let originalDocument = null;
+let originalRenderGeneration = 0;
+let activeIndex = 0;
+let activeView = new URL(location.href).searchParams.get('view');
+if (!['compare', 'converted', 'original'].includes(activeView)) {
+  activeView = matchMedia('(max-width: 820px)').matches ? 'converted' : 'compare';
+}
+
+for (const example of examples) {
+  const option = document.createElement('option');
+  option.value = example.id;
+  option.textContent = example.label;
+  picker.append(option);
+}
+
+function selectedExample() { return examples[activeIndex]; }
+function updateUrl() {
+  const url = new URL(location.href);
+  url.searchParams.set('example', selectedExample().id);
+  url.searchParams.set('view', activeView);
+  history.replaceState(null, '', url);
+}
+function setFramePath(frame, path) {
+  if (frame.dataset.loadedPath === path) return;
+  frame.dataset.loadedPath = path;
+  frame.src = path;
+}
+function pdfjsLibrary() {
+  if (!pdfjsLibraryPromise) {
+    pdfjsLibraryPromise = import('./vendor/pdfjs/pdf.min.mjs').then((library) => {
+      library.GlobalWorkerOptions.workerSrc = new URL('./vendor/pdfjs/pdf.worker.min.mjs', location.href).href;
+      return library;
+    });
+  }
+  return pdfjsLibraryPromise;
+}
+function cancelOriginalRender(clear = true) {
+  originalRenderGeneration += 1;
+  const loadingTask = originalLoadingTask;
+  const pdfDocument = originalDocument;
+  originalLoadingTask = null;
+  originalDocument = null;
+  if (loadingTask?.destroy) void loadingTask.destroy().catch(() => {});
+  if (pdfDocument?.destroy) void pdfDocument.destroy().catch(() => {});
+  delete originalFrame.dataset.requestedPath;
+  delete originalFrame.dataset.loadedPath;
+  if (clear) originalPages.replaceChildren();
+}
+async function renderOriginalPdf(example) {
+  const path = example.samplePath;
+  if (originalFrame.dataset.loadedPath === path && originalPages.querySelector('canvas')) return;
+  if (originalFrame.dataset.requestedPath === path) return;
+  cancelOriginalRender();
+  const generation = originalRenderGeneration;
+  originalFrame.dataset.requestedPath = path;
+  originalStatus.textContent = 'Loading original';
+  try {
+    const library = await pdfjsLibrary();
+    if (generation !== originalRenderGeneration) return;
+    const base = new URL('.', location.href);
+    const task = library.getDocument({
+      url: new URL(path, base).href,
+      cMapUrl: new URL('vendor/pdfjs/cmaps/', base).href,
+      cMapPacked: true,
+      standardFontDataUrl: new URL('vendor/pdfjs/standard_fonts/', base).href,
+      wasmUrl: new URL('vendor/pdfjs/wasm/', base).href,
+    });
+    originalLoadingTask = task;
+    const pdfDocument = await task.promise;
+    if (generation !== originalRenderGeneration) {
+      await pdfDocument.destroy();
+      return;
+    }
+    originalLoadingTask = null;
+    originalDocument = pdfDocument;
+    for (let pageNumber = 1; pageNumber <= pdfDocument.numPages; pageNumber += 1) {
+      if (generation !== originalRenderGeneration) return;
+      originalStatus.textContent = `Rendering original page ${pageNumber} of ${pdfDocument.numPages}`;
+      const page = await pdfDocument.getPage(pageNumber);
+      const baseViewport = page.getViewport({ scale: 1 });
+      const availableWidth = Math.max(240, originalFrame.clientWidth - 36);
+      const cssScale = Math.min(1.45, availableWidth / Math.max(1, baseViewport.width));
+      const outputScale = Math.min(2, Math.max(1, devicePixelRatio || 1));
+      const viewport = page.getViewport({ scale: cssScale * outputScale });
+      const canvas = document.createElement('canvas');
+      canvas.className = 'original-page';
+      canvas.width = Math.max(1, Math.ceil(viewport.width));
+      canvas.height = Math.max(1, Math.ceil(viewport.height));
+      canvas.style.width = `${viewport.width / outputScale}px`;
+      canvas.style.height = `${viewport.height / outputScale}px`;
+      canvas.setAttribute('aria-label', `Original PDF page ${pageNumber}`);
+      originalPages.append(canvas);
+      const context = canvas.getContext('2d', { alpha: false });
+      if (!context) throw new Error('Canvas rendering is unavailable.');
+      context.fillStyle = '#fff';
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      await page.render({ canvasContext: context, viewport }).promise;
+      page.cleanup();
+    }
+    if (generation !== originalRenderGeneration) return;
+    originalFrame.dataset.loadedPath = path;
+    originalStatus.textContent = `Original loaded · ${pdfDocument.numPages} page${pdfDocument.numPages === 1 ? '' : 's'}`;
+  } catch (error) {
+    if (generation !== originalRenderGeneration) return;
+    delete originalFrame.dataset.requestedPath;
+    delete originalFrame.dataset.loadedPath;
+    originalPages.replaceChildren();
+    const message = document.createElement('p');
+    message.className = 'original-error';
+    message.textContent = error instanceof Error ? error.message : String(error);
+    originalPages.append(message);
+    originalStatus.textContent = 'Could not render original';
+  }
+}
+function unloadOriginalWhenHidden() {
+  if (activeView !== 'converted') return;
+  cancelOriginalRender();
+  originalStatus.textContent = 'Not loaded in converted-only view';
+}
+function renderVerdict() {
+  let verdict = '';
+  try { verdict = localStorage.getItem(storagePrefix + selectedExample().id) || ''; } catch {}
+  for (const button of verdictButtons) button.setAttribute('aria-pressed', String(button.dataset.verdict === verdict));
+}
+function setView(view, updateHistory = true) {
+  if (!['compare', 'converted', 'original'].includes(view)) return;
+  activeView = view;
+  root.dataset.activeView = view;
+  for (const button of viewButtons) button.setAttribute('aria-pressed', String(button.dataset.reviewView === view));
+  const example = selectedExample();
+  if (view !== 'converted') {
+    void renderOriginalPdf(example);
+  } else {
+    unloadOriginalWhenHidden();
+  }
+  if (view !== 'original') setFramePath(convertedFrame, example.previewPath);
+  if (updateHistory) updateUrl();
+}
+function criterionLabel(key, expected) {
+  const labels = {
+    minTextBytes: `At least ${expected} visible-text bytes`,
+    minParagraphs: `At least ${expected} paragraphs`,
+    minHeadings: `At least ${expected} headings`,
+    minTables: `At least ${expected} tables`,
+    maxTables: `No more than ${expected} tables`,
+    minLists: `At least ${expected} lists`,
+    minCodeBlocks: `At least ${expected} code blocks`,
+    minLineOrientedBlocks: `At least ${expected} line-oriented blocks`,
+    maxSingleGlyphParagraphs: `No more than ${expected} single-glyph paragraphs`,
+    requiredText: `Required text: ${(Array.isArray(expected) ? expected : [expected]).join(' · ')}`,
+    orderedText: `Reading order: ${(Array.isArray(expected) ? expected : [expected]).join(' → ')}`,
+    allowNoText: 'Image-only source may have no extracted text',
+  };
+  return labels[key] || `${key}: ${JSON.stringify(expected)}`;
+}
+function renderCriteria(results = null) {
+  const success = selectedExample().success || {};
+  criteriaList.replaceChildren();
+  const entries = Object.entries(success);
+  entries.push(['noSpacedGlyphRuns', true], ['noHorizontalOverflow', true], ['readablePdfFills', true]);
+  const extraLabels = {
+    noSpacedGlyphRuns: 'No sustained inter-glyph spacing',
+    noHorizontalOverflow: 'No horizontal overflow',
+    readablePdfFills: 'Readable text on PDF-derived fills',
+  };
+  for (const [key, expected] of entries) {
+    const item = document.createElement('li');
+    item.textContent = extraLabels[key] || criterionLabel(key, expected);
+    item.dataset.status = results ? (results[key] ? 'pass' : 'fail') : 'pending';
+    criteriaList.append(item);
+  }
+  if (!results) {
+    qualitySummary.textContent = 'Waiting for preview';
+    return;
+  }
+  const failed = Object.values(results).filter((passed) => !passed).length;
+  qualitySummary.textContent = failed === 0 ? 'All automatic checks pass' : `${failed} automatic check${failed === 1 ? '' : 's'} need attention`;
+  qualitySummary.style.color = failed === 0 ? 'var(--ok)' : 'var(--bad)';
+}
+function iframeMetrics(documentNode) {
+  const bodyText = String(documentNode.body?.innerText || '').replace(/\s+/g, ' ').trim();
+  const paragraphs = [...documentNode.querySelectorAll('p')];
+  const compactLength = (value) => Array.from(String(value || '').replace(/\s+/gu, '')).length;
+  const singleGlyphParagraphs = paragraphs.filter((node) => compactLength(node.textContent) === 1).length;
+  const spacedGlyphPattern = /(?:^|[^\p{L}\p{M}])(?:[\p{L}\p{M}]\s+){4,}[\p{L}\p{M}](?=$|[^\p{L}\p{M}])/gu;
+  let spacedGlyphRuns = 0;
+  for (const node of documentNode.querySelectorAll('p,h1,h2,h3,h4,h5,h6,li,pre,td,th')) {
+    spacedGlyphRuns += [...String(node.textContent || '').matchAll(spacedGlyphPattern)].length;
+  }
+  const rgb = (value) => {
+    const match = String(value || '').match(/^rgba?\(\s*(\d+(?:\.\d+)?)\D+(\d+(?:\.\d+)?)\D+(\d+(?:\.\d+)?)/i);
+    return match ? match.slice(1, 4).map(Number) : null;
+  };
+  const luminance = (channels) => channels.map((channel) => channel / 255).map((channel) => channel <= .04045 ? channel / 12.92 : ((channel + .055) / 1.055) ** 2.4).reduce((sum, channel, index) => sum + channel * [.2126, .7152, .0722][index], 0);
+  let lowContrastPdfFills = 0;
+  for (const node of documentNode.querySelectorAll('[data-pdf-fill-color]')) {
+    if (!String(node.textContent || '').trim()) continue;
+    const style = documentNode.defaultView?.getComputedStyle(node);
+    if (!style) continue;
+    const foreground = rgb(style.color);
+    const background = rgb(style.backgroundColor);
+    if (!foreground || !background) continue;
+    const ratio = (Math.max(luminance(foreground), luminance(background)) + .05) / (Math.min(luminance(foreground), luminance(background)) + .05);
+    if (ratio < 4.5) lowContrastPdfFills += 1;
+  }
+  return {
+    bodyText,
+    textBytes: new TextEncoder().encode(bodyText).length,
+    paragraphs: paragraphs.length,
+    headings: documentNode.querySelectorAll('h1,h2,h3,h4,h5,h6').length,
+    tables: documentNode.querySelectorAll('table').length,
+    lists: documentNode.querySelectorAll('ul,ol').length,
+    codeBlocks: documentNode.querySelectorAll('pre.wp-block-code,.wp-block-code pre').length,
+    lineOrientedBlocks: documentNode.querySelectorAll('pre.wp-block-verse,.wp-block-verse').length,
+    singleGlyphParagraphs,
+    spacedGlyphRuns,
+    lowContrastPdfFills,
+    horizontalOverflow: Math.max(0, (documentNode.documentElement?.scrollWidth || 0) - (documentNode.documentElement?.clientWidth || 0)),
+  };
+}
+function evaluateCriteria(metrics) {
+  const criteria = selectedExample().success || {};
+  const result = {};
+  const comparisons = {
+    minTextBytes: (value) => metrics.textBytes >= value,
+    minParagraphs: (value) => metrics.paragraphs >= value,
+    minHeadings: (value) => metrics.headings >= value,
+    minTables: (value) => metrics.tables >= value,
+    maxTables: (value) => metrics.tables <= value,
+    minLists: (value) => metrics.lists >= value,
+    minCodeBlocks: (value) => metrics.codeBlocks >= value,
+    minLineOrientedBlocks: (value) => metrics.lineOrientedBlocks >= value,
+    maxSingleGlyphParagraphs: (value) => metrics.singleGlyphParagraphs <= value,
+    allowNoText: () => true,
+    requiredText: (values) => values.every((value) => metrics.bodyText.includes(String(value))),
+    orderedText: (values) => {
+      let offset = -1;
+      return values.every((value) => {
+        offset = metrics.bodyText.indexOf(String(value), offset + 1);
+        return offset >= 0;
+      });
+    },
+  };
+  for (const [key, expected] of Object.entries(criteria)) result[key] = comparisons[key] ? comparisons[key](expected) : true;
+  result.noSpacedGlyphRuns = metrics.spacedGlyphRuns === 0;
+  result.noHorizontalOverflow = metrics.horizontalOverflow <= 2;
+  result.readablePdfFills = metrics.lowContrastPdfFills === 0;
+  return result;
+}
+function selectExample(index, updateHistory = true) {
+  activeIndex = (index + examples.length) % examples.length;
+  const example = selectedExample();
+  picker.value = example.id;
+  position.textContent = `${activeIndex + 1} of ${examples.length} public corpus documents`;
+  kind.textContent = example.kind;
+  notes.textContent = example.notes;
+  source.textContent = example.source;
+  download.href = example.samplePath;
+  download.download = example.samplePath.split('/').pop() || 'original.pdf';
+  detail.href = `examples.html?example=${encodeURIComponent(example.id)}`;
+  document.title = `${example.label} · PDF layout reviewer`;
+  convertedStatus.textContent = 'Loading conversion';
+  renderCriteria();
+  setFramePath(convertedFrame, example.previewPath);
+  if (activeView !== 'converted') {
+    void renderOriginalPdf(example);
+  } else {
+    unloadOriginalWhenHidden();
+  }
+  renderVerdict();
+  if (updateHistory) updateUrl();
+}
+
+picker.addEventListener('change', () => selectExample(examples.findIndex((example) => example.id === picker.value)));
+previous.addEventListener('click', () => selectExample(activeIndex - 1));
+next.addEventListener('click', () => selectExample(activeIndex + 1));
+for (const button of viewButtons) button.addEventListener('click', () => setView(button.dataset.reviewView));
+for (const button of verdictButtons) button.addEventListener('click', () => {
+  const selected = button.getAttribute('aria-pressed') === 'true' ? '' : button.dataset.verdict;
+  try {
+    if (selected) localStorage.setItem(storagePrefix + selectedExample().id, selected);
+    else localStorage.removeItem(storagePrefix + selectedExample().id);
+  } catch {}
+  renderVerdict();
+});
+convertedFrame.addEventListener('load', () => {
+  if (convertedFrame.dataset.loadedPath !== selectedExample().previewPath) return;
+  try {
+    const metrics = iframeMetrics(convertedFrame.contentDocument);
+    renderCriteria(evaluateCriteria(metrics));
+    convertedStatus.textContent = `${metrics.textBytes.toLocaleString()} text bytes`;
+  } catch (error) {
+    convertedStatus.textContent = 'Could not inspect preview';
+    qualitySummary.textContent = error instanceof Error ? error.message : String(error);
+    qualitySummary.style.color = 'var(--bad)';
+  }
+});
+addEventListener('keydown', (event) => {
+  if (event.target instanceof HTMLInputElement || event.target instanceof HTMLSelectElement || event.target instanceof HTMLTextAreaElement) return;
+  if (event.key === 'ArrowLeft') selectExample(activeIndex - 1);
+  if (event.key === 'ArrowRight') selectExample(activeIndex + 1);
+});
+
+const requestedId = new URL(location.href).searchParams.get('example');
+const requestedIndex = examples.findIndex((example) => example.id === requestedId);
+activeIndex = requestedIndex >= 0 ? requestedIndex : 0;
+setView(activeView, false);
+selectExample(activeIndex);
+JS;
 }
 
 function showcase_examples_css(): string

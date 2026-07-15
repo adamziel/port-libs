@@ -9,6 +9,7 @@ on:
       - 'pandoc-showcase/playground-converter.*'
       - 'pandoc-showcase/examples.*'
       - 'pandoc-showcase/examples-index.json'
+      - 'pandoc-showcase/pdf-layout-*'
       - 'pandoc-showcase/pdf-jbig2-rasterizer.mjs'
       - 'pandoc-showcase/vendor/pdfjs-jbig2/**'
       - 'pandoc-showcase/pdf-jpx-rasterizer.mjs'
@@ -20,6 +21,7 @@ on:
       - 'tools/build-pandoc-showcase.php'
       - 'tools/pdf-layout-corpus-manifest.json'
       - 'tools/e2e-pdf-layout-corpus.mjs'
+      - 'tools/check-pdf-layout-reviewer.mjs'
       - 'tools/check-showcase-examples-page.js'
       - 'tools/check-playground-converter-ui.js'
       - 'tools/check-pdfjs-facts-provider.mjs'
@@ -42,6 +44,7 @@ on:
       - 'pandoc-showcase/playground-converter.*'
       - 'pandoc-showcase/examples.*'
       - 'pandoc-showcase/examples-index.json'
+      - 'pandoc-showcase/pdf-layout-*'
       - 'pandoc-showcase/pdf-jbig2-rasterizer.mjs'
       - 'pandoc-showcase/vendor/pdfjs-jbig2/**'
       - 'pandoc-showcase/pdf-jpx-rasterizer.mjs'
@@ -53,6 +56,7 @@ on:
       - 'tools/build-pandoc-showcase.php'
       - 'tools/pdf-layout-corpus-manifest.json'
       - 'tools/e2e-pdf-layout-corpus.mjs'
+      - 'tools/check-pdf-layout-reviewer.mjs'
       - 'tools/check-showcase-examples-page.js'
       - 'tools/check-playground-converter-ui.js'
       - 'tools/check-pdfjs-facts-provider.mjs'
@@ -148,6 +152,7 @@ jobs:
           php -l tools/build-pandoc-showcase.php
           node --check pandoc-showcase/playground-converter.js
           node --check pandoc-showcase/examples.js
+          node --check pandoc-showcase/pdf-layout-review.js
           node --check pandoc-showcase/pdf-jbig2-rasterizer.mjs
           node --check pandoc-showcase/pdf-jpx-rasterizer.mjs
           node --check pandoc-showcase/pdfjs-form-rasterizer.mjs
@@ -157,11 +162,13 @@ jobs:
           node --check tools/decode-pdf-jpx-media.mjs
           node --check tools/decode-pdf-raster-media.mjs
           node --check tools/e2e-pdf-layout-corpus.mjs
+          node --check tools/check-pdf-layout-reviewer.mjs
           node tools/check-playground-converter-ui.js
           node tools/check-pdfjs-facts-provider.mjs
           php tools/build-pandoc-showcase.php --build-examples-page
           node tools/check-showcase-examples-page.js
-          git diff --exit-code -- pandoc-showcase/examples.html pandoc-showcase/examples.css pandoc-showcase/examples.js pandoc-showcase/examples-index.json
+          node tools/check-pdf-layout-reviewer.mjs
+          git diff --exit-code -- pandoc-showcase/examples.html pandoc-showcase/examples.css pandoc-showcase/examples.js pandoc-showcase/examples-index.json pandoc-showcase/pdf-layout-corpus.html pandoc-showcase/pdf-layout-review.css pandoc-showcase/pdf-layout-review.js
           node tools/check-pdf-jbig2-rasterizer.mjs
           node tools/check-pdf-jpx-rasterizer.mjs
 
@@ -243,6 +250,7 @@ jobs:
           curl --silent --fail http://127.0.0.1:9222/json/version >/dev/null
           node tools/e2e-pdf-layout-corpus.mjs \
             --url http://127.0.0.1:4174/examples.html \
+            --review-url http://127.0.0.1:4174/pdf-layout-corpus.html \
             --output artifacts/pdf-layout-screenshots
 
       - name: Upload PDF layout screenshots
