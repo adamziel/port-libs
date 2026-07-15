@@ -9,11 +9,13 @@ const htmlPath = path.join(root, 'pandoc-showcase', 'playground-converter.html')
 const adminImporterPath = path.join(root, 'tools', 'playground-converter-plugin', 'assets', 'admin-importer.mjs');
 const pluginPath = path.join(root, 'tools', 'playground-converter-plugin', 'port-libs-playground-converter.php');
 const pdfFormRasterizerPath = path.join(root, 'pandoc-showcase', 'pdfjs-form-rasterizer.mjs');
+const pdfFactsProviderPath = path.join(root, 'pandoc-showcase', 'pdfjs-facts-provider.mjs');
 const js = fs.readFileSync(jsPath, 'utf8');
 const html = fs.readFileSync(htmlPath, 'utf8');
 const adminImporter = fs.readFileSync(adminImporterPath, 'utf8');
 const plugin = fs.readFileSync(pluginPath, 'utf8');
 const pdfFormRasterizer = fs.readFileSync(pdfFormRasterizerPath, 'utf8');
+const pdfFactsProvider = fs.readFileSync(pdfFactsProviderPath, 'utf8');
 
 function assert(condition, message) {
   if (!condition) {
@@ -40,6 +42,8 @@ assert(js.includes('const pdfRasterPayloadByteLimit = 24_000_000;'), 'Expected b
 assert(js.includes('maxPngBytes: remainingBytes'), 'Expected browser PDF decoders to share one raster byte budget.');
 assert(js.includes('pdfRasterImages'), 'Expected browser-decoded PDF rasters to be included in the import payload.');
 assert(js.includes("import { renderPdfFormRequests } from './pdfjs-form-rasterizer.mjs';"), 'Expected the shared PDF.js Form renderer to be loaded by the Playground importer.');
+assert(js.includes("import { collectPdfJsFacts } from './pdfjs-facts-provider.mjs';"), 'Expected bounded PDF.js text and structure facts in the Playground importer.');
+assert(js.includes('pdfBrowserFacts[entry.path] = facts;'), 'Expected Playground PDF.js facts to be associated with their source path.');
 assert(js.includes("playgroundPluginRequest('/imports', stagedUpload.payload)"), 'Expected imports to start through the persisted import-job endpoint.');
 assert(js.includes('function stageUploadInPlayground(client, upload, reportProgress = () => {})'), 'Expected Playground sources to be staged instead of base64-encoded into the REST body.');
 assert(js.includes('stagedFiles,'), 'Expected folder imports to send a staged-file manifest rather than a JSON byte collection.');
@@ -57,6 +61,8 @@ assert(js.includes('function isLikelyPdfFile(file)'), 'Expected PDF-only browser
 assert(!js.includes('unsupportedMessage'), 'Supported document formats must not carry a client-side blanket rejection.');
 
 assert(adminImporter.includes("new URL('./pdf-jbig2-rasterizer.mjs', import.meta.url)"), 'Expected the WordPress admin importer to load the bundled JBIG2 rasterizer relative to its module.');
+assert(adminImporter.includes("import { collectPdfJsFacts } from './pdfjs-facts-provider.mjs';"), 'Expected the WordPress admin importer to load the bundled PDF.js facts provider.');
+assert(adminImporter.includes('pdfBrowserFacts[entry.path] = facts;'), 'Expected admin PDF.js facts to be associated with their source path.');
 assert(adminImporter.includes("new URL('./pdf-jpx-rasterizer.mjs', import.meta.url)"), 'Expected the WordPress admin importer to load the bundled JPEG 2000 rasterizer relative to its module.');
 assert(adminImporter.includes('const pdfRasterPayloadByteLimit = 24_000_000;'), 'Expected WordPress admin PDF rasters to share the server-side per-import byte limit.');
 assert(adminImporter.includes('const pdfRasterSourceByteLimit = 24 * 1024 * 1024;'), 'Expected WordPress admin PDF decoding to skip over-limit sources before duplicating them in browser memory.');
@@ -80,6 +86,8 @@ assert(!plugin.includes('@set_time_limit(120)'), 'The plugin must not override a
 assert(plugin.includes('function plpc_import_request_deadline(): ?float'), 'Expected the server to reserve time for a durable import checkpoint before PHP reaches its limit.');
 assert(plugin.includes('function plpc_import_job_checkpoint_for_deadline('), 'Expected conversion phase progress to yield safely before the server execution deadline.');
 assert(plugin.includes('PLPC_IMPORT_JOB_MAX_DEADLINE_YIELDS_PER_DOCUMENT'), 'Expected deadline handoffs to be capped instead of spinning forever.');
+assert(plugin.includes('function plpc_import_job_store_browser_facts('), 'Expected browser PDF facts to be stored outside the WordPress options table.');
+assert(plugin.includes('function plpc_import_job_load_browser_facts('), 'Expected durable browser PDF facts to be available to resumed imports.');
 assert(plugin.includes('function plpc_import_job_recover_interrupted_document('), 'Expected hard worker terminations to have a bounded durable recovery path.');
 assert(pdfFormRasterizer.includes('const DEFAULT_MAX_SOURCE_BYTES = 24 * 1024 * 1024;'), 'Expected PDF.js figure rendering to cap source bytes before copying a large PDF in the browser.');
 assert(pdfFormRasterizer.includes('pdfBytes(filesByPath.get(path), maxSourceBytes)'), 'Expected the PDF.js figure renderer to enforce its source-byte cap for every requested crop.');
@@ -89,3 +97,8 @@ assert(pdfFormRasterizer.includes('throwIfAborted(signal)'), 'Expected static pr
 assert(pdfFormRasterizer.includes('The PDF is too large to render figures safely in this browser.'), 'Expected an over-limit PDF figure to fall back to the text import instead of crashing the browser.');
 assert(pdfFormRasterizer.includes("typeof viewport.convertToViewportRectangle === 'function'"), 'Expected PDF.js Form cropping to retain compatibility with PDF.js versions that removed rectangle conversion.');
 assert(pdfFormRasterizer.includes('viewport.convertToViewportPoint(bbox.x1, bbox.y1)'), 'Expected PDF.js Form cropping to fall back to point conversion on current PDF.js releases.');
+assert(pdfFactsProvider.includes("provider: 'pdfjs-v1'"), 'Expected a versioned PDF.js facts handoff provider.');
+assert(pdfFactsProvider.includes('sourceSha256 = await sha256Hex(bytes)'), 'Expected browser facts to be cryptographically tied to their source PDF.');
+assert(pdfFactsProvider.includes('includeMarkedContent: true'), 'Expected marked-content boundaries to be retained alongside browser text spans.');
+assert(pdfFactsProvider.includes('page.getStructTree()'), 'Expected PDF.js tagged structure observations when available.');
+assert(pdfFactsProvider.includes('DEFAULT_MAX_HANDOFF_BYTES'), 'Expected browser PDF facts to have a bounded serialized handoff.');

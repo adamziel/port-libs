@@ -1,6 +1,7 @@
 import { renderPdfFormRequests } from './pdfjs-form-rasterizer.mjs';
+import { collectPdfJsFacts } from './pdfjs-facts-provider.mjs';
 
-const pluginBuild = 'browser-import-jobs-form-placement-20260714';
+const pluginBuild = 'pdfjs-page-facts-20260715';
 const playgroundClientModuleUrl = 'https://playground.wordpress.net/client/index.js';
 const playgroundUploadDirectory = '/tmp/port-libs-converter';
 // Keep browser-produced PDF rasters within the exact decoded-byte limit that
@@ -657,6 +658,7 @@ async function stageUploadInPlayground(client, upload, reportProgress = () => {}
   const paths = [];
   const stagedFiles = [];
   const pdfRasterImages = {};
+  const pdfBrowserFacts = {};
   const imageMode = selectedImageMode();
 
   try {
@@ -670,13 +672,27 @@ async function stageUploadInPlayground(client, upload, reportProgress = () => {}
       paths.push(stagedPath);
       stagedFiles.push({ path: entry.path, stagedPath });
 
-      if (isLikelyPdfFile(entry.file) && imageMode !== 'none') {
+      if (isLikelyPdfFile(entry.file)) {
         if (bytes.length > pdfRasterSourceByteLimit) {
-          reportProgress(`Skipping optional browser PDF image decoding for ${entry.file.name}; it is over the 24 MiB safety limit. The import will keep original-file placeholders where needed.`);
+          reportProgress(`Skipping optional PDF.js facts and image decoding for ${entry.file.name}; it is over the 24 MiB browser safety limit. Native PHP extraction will continue.`);
         } else {
-          const rasters = await browserPdfRasterImages(bytes, imageMode, reportProgress);
-          if (rasters.length > 0) {
-            pdfRasterImages[entry.path] = rasters;
+          try {
+            const facts = await collectPdfJsFacts({
+              source: bytes,
+              pdfjs: playgroundPdfJsConfig(),
+              onProgress({ label }) { reportProgress(label); },
+            });
+            if (facts.pages.length > 0) {
+              pdfBrowserFacts[entry.path] = facts;
+            }
+          } catch (error) {
+            reportProgress(`Optional PDF.js text and structure facts are unavailable for ${entry.file.name} (${errorMessage(error)}). Native PHP extraction will continue.`);
+          }
+          if (imageMode !== 'none') {
+            const rasters = await browserPdfRasterImages(bytes, imageMode, reportProgress);
+            if (rasters.length > 0) {
+              pdfRasterImages[entry.path] = rasters;
+            }
           }
         }
       }
@@ -693,6 +709,7 @@ async function stageUploadInPlayground(client, upload, reportProgress = () => {}
         imageMode,
         pdfMode: selectedPdfMode(),
         stagedFiles,
+        ...(Object.keys(pdfBrowserFacts).length > 0 ? { pdfBrowserFacts } : {}),
         ...(Object.keys(pdfRasterImages).length > 0 ? { pdfRasterImages } : {}),
       },
     };
