@@ -96,17 +96,27 @@ jobs:
 
       - name: Lint converter files
         run: |
+          php -l lanes/markerpdf/src/BrowserPdfFactsProvider.php
+          php -l lanes/markerpdf/src/NativePdfFactsProvider.php
+          php -l lanes/markerpdf/src/PdfDocumentFacts.php
+          php -l lanes/markerpdf/src/PdfDocumentFactsMerger.php
+          php -l lanes/markerpdf/src/PdfFactsProvider.php
           php -l lanes/markerpdf/src/PdfMetadataExtractor.php
+          php -l lanes/markerpdf/src/PdfPageFacts.php
           php -l lanes/markerpdf/src/PdfTextExtractor.php
+          php -l lanes/markerpdf/tests/BrowserPdfFactsProviderTest.php
           php -l lanes/markerpdf/tests/PdfDecodeParmsTest.php
+          php -l lanes/markerpdf/tests/PdfDocumentFactsMergerTest.php
           php -l lanes/markerpdf/tests/PdfMetadataHardeningTest.php
           php -l lanes/markerpdf/tests/PdfFormXObjectPlacementTest.php
+          php -l lanes/markerpdf/tests/PdfPageFactsTest.php
           php -l lanes/pandoc/src/BibtexCslParser.php
           php -l lanes/pandoc/src/BibtexCslProcessor.php
           php -l lanes/pandoc/src/EpubReader.php
           php -l lanes/pandoc/src/JiraInlineSpanIndex.php
           php -l lanes/pandoc/src/JiraReader.php
           php -l lanes/pandoc/src/PdfReader.php
+          php -l lanes/pandoc/src/PdfTextFidelityLedger.php
           php -l lanes/pandoc/tests/BibtexCslProcessorTest.php
           php -l lanes/pandoc/tests/EpubReaderTest.php
           php -l lanes/pandoc/tests/EpubXmlEncodingAndProcessingInstructionRecoveryTest.php
@@ -117,9 +127,11 @@ jobs:
           php -l lanes/pandoc/tests/PdfFormXObjectPlacementMetadataTest.php
           php -l lanes/pandoc/tests/PandocImportMemoryBudgetTest.php
           php -l lanes/pandoc/tests/PdfImportCompletenessTest.php
+          php -l lanes/pandoc/tests/PdfReaderDocumentFactsTest.php
           php -l lanes/pandoc/tests/PdfReaderCorpusQualityTest.php
           php -l lanes/pandoc/tests/PdfRegionAwareLayoutTest.php
           php -l lanes/pandoc/tests/PdfReaderTest.php
+          php -l lanes/pandoc/tests/PdfTextFidelityLedgerTest.php
           php -l lanes/pandoc/tests/ShowcaseHaskellReferenceTimeoutTest.php
           php -l lanes/pandoc/tests/ShowcaseImportQualityManifestTest.php
           php -l lanes/pandoc/tests/ShowcaseQualitySignatureTest.php
@@ -146,9 +158,12 @@ jobs:
       - name: Run converter tests
         run: |
           php tools/run-tests.php \
+            lanes/markerpdf/tests/BrowserPdfFactsProviderTest.php \
             lanes/markerpdf/tests/PdfDecodeParmsTest.php \
+            lanes/markerpdf/tests/PdfDocumentFactsMergerTest.php \
             lanes/markerpdf/tests/PdfMetadataHardeningTest.php \
             lanes/markerpdf/tests/PdfFormXObjectPlacementTest.php \
+            lanes/markerpdf/tests/PdfPageFactsTest.php \
             lanes/pandoc/tests/BibtexCslProcessorTest.php \
             lanes/pandoc/tests/EpubReaderTest.php \
             lanes/pandoc/tests/EpubXmlEncodingAndProcessingInstructionRecoveryTest.php \
@@ -158,9 +173,11 @@ jobs:
             lanes/pandoc/tests/PdfFormXObjectPlacementMetadataTest.php \
             lanes/pandoc/tests/PandocImportMemoryBudgetTest.php \
             lanes/pandoc/tests/PdfImportCompletenessTest.php \
+            lanes/pandoc/tests/PdfReaderDocumentFactsTest.php \
             lanes/pandoc/tests/PdfReaderCorpusQualityTest.php \
             lanes/pandoc/tests/PdfRegionAwareLayoutTest.php \
             lanes/pandoc/tests/PdfReaderTest.php \
+            lanes/pandoc/tests/PdfTextFidelityLedgerTest.php \
             lanes/pandoc/tests/ShowcaseHaskellReferenceTimeoutTest.php \
             lanes/pandoc/tests/ShowcaseImportQualityManifestTest.php \
             lanes/pandoc/tests/ShowcaseQualitySignatureTest.php

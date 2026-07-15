@@ -88,6 +88,13 @@ assert(plugin.includes('function plpc_import_job_checkpoint_for_deadline('), 'Ex
 assert(plugin.includes('PLPC_IMPORT_JOB_MAX_DEADLINE_YIELDS_PER_DOCUMENT'), 'Expected deadline handoffs to be capped instead of spinning forever.');
 assert(plugin.includes('function plpc_import_job_store_browser_facts('), 'Expected browser PDF facts to be stored outside the WordPress options table.');
 assert(plugin.includes('function plpc_import_job_load_browser_facts('), 'Expected durable browser PDF facts to be available to resumed imports.');
+assert(plugin.includes('function plpc_import_job_store_pdf_chunk('), 'Expected every PDF page range to become a durable facts checkpoint.');
+assert(plugin.includes('function plpc_import_job_load_pdf_chunk('), 'Expected resumed imports to verify and load durable page facts.');
+assert(plugin.includes('function plpc_import_job_merge_pdf_document_facts('), 'Expected page facts to be integrity-checked into one complete document snapshot.');
+assert(plugin.includes('function plpc_import_job_load_pdf_document_facts('), 'Expected global PDF semantics to consume the durable complete-document facts snapshot.');
+assert(plugin.includes('function plpc_import_job_prepare_pdf_final_bundle('), 'Expected one whole-document semantic pass before WordPress publication.');
+assert(plugin.includes('function plpc_import_job_store_pdf_final_bundle('), 'Expected the globally finalized private block and media bundle to be durable.');
+assert(plugin.includes('function plpc_import_job_load_pdf_final_bundle('), 'Expected publication retries to reuse the durable final PDF bundle.');
 assert(plugin.includes('function plpc_import_job_recover_interrupted_document('), 'Expected hard worker terminations to have a bounded durable recovery path.');
 assert(pdfFormRasterizer.includes('const DEFAULT_MAX_SOURCE_BYTES = 24 * 1024 * 1024;'), 'Expected PDF.js figure rendering to cap source bytes before copying a large PDF in the browser.');
 assert(pdfFormRasterizer.includes('pdfBytes(filesByPath.get(path), maxSourceBytes)'), 'Expected the PDF.js figure renderer to enforce its source-byte cap for every requested crop.');

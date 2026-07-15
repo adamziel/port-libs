@@ -120,7 +120,10 @@ final class NativePdfFactsProvider implements PdfFactsProvider
         }
 
         $imageIndexes = [];
-        foreach ($extractor->extractImagePlacements($pdfBytes) as $image) {
+        $images = $this->optionEnabled($options, ['pdfCollectImagePlacements', 'collectPdfImagePlacements'], true)
+            ? $extractor->extractImagePlacements($pdfBytes)
+            : [];
+        foreach ($images as $image) {
             $pageNumber = $image['page'];
             if (!isset($pageRows[$pageNumber])) {
                 continue;
@@ -138,7 +141,10 @@ final class NativePdfFactsProvider implements PdfFactsProvider
             );
         }
         $formIndexes = [];
-        foreach ($extractor->extractFormXObjectPlacements($pdfBytes) as $form) {
+        $forms = $this->optionEnabled($options, ['pdfCollectFormXObjectPlacements', 'collectPdfFormXObjectPlacements'], true)
+            ? $extractor->extractFormXObjectPlacements($pdfBytes)
+            : [];
+        foreach ($forms as $form) {
             $pageNumber = $form['page'];
             if (!isset($pageRows[$pageNumber])) {
                 continue;
@@ -319,5 +325,20 @@ final class NativePdfFactsProvider implements PdfFactsProvider
         }
 
         return $taken;
+    }
+
+    /**
+     * @param array<string, mixed> $options
+     * @param list<string> $keys
+     */
+    private function optionEnabled(array $options, array $keys, bool $default): bool
+    {
+        foreach ($keys as $key) {
+            if (array_key_exists($key, $options)) {
+                return (bool) $options[$key];
+            }
+        }
+
+        return $default;
     }
 }
