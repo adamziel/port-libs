@@ -37,6 +37,29 @@ return [
         $t->true(in_array('=', $missingCharacters, true));
     },
 
+    'pdf fidelity ledger streams source lines and nested AST text without changing its audit result' => static function (TestRunner $t): void {
+        $blocks = [
+            new AstNode('paragraph', [], [
+                new AstNode('text', ['text' => 'Café Alpha']),
+                new AstNode('strong', [], [new AstNode('text', ['text' => 'Beta'])]),
+                new AstNode('text', ['text' => 'Your article']),
+            ]),
+        ];
+
+        $streamed = PdfTextFidelityLedger::fromSourceLineItems([
+            ['page' => 1, 'stream' => 1, 'text' => 'Café Alpha'],
+            ['page' => 1, 'stream' => 1, 'text' => 'Beta Your article'],
+        ], $blocks);
+        $joined = PdfTextFidelityLedger::fromText(
+            "Café Alpha\nBeta Your article",
+            'Café Alpha Beta Your article'
+        );
+
+        $t->same($joined, $streamed);
+        $t->same(true, $streamed['exactProjection']);
+        $t->same(5, $streamed['sourceTokenCount']);
+    },
+
     'pdf reader exposes semantic fidelity separately from stream completeness' => static function (TestRunner $t): void {
         $content = 'BT /F1 12 Tf 72 720 Td (Complete source sentence.) Tj ET';
         $pdf = "%PDF-1.4\n1 0 obj\n<< /Length " . strlen($content) . ">>\nstream\n{$content}\nendstream\nendobj\n%%EOF";

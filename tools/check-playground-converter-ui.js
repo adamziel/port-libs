@@ -90,10 +90,12 @@ assert(plugin.includes('function plpc_import_job_store_browser_facts('), 'Expect
 assert(plugin.includes('function plpc_import_job_load_browser_facts('), 'Expected durable browser PDF facts to be available to resumed imports.');
 assert(plugin.includes('function plpc_import_job_store_pdf_chunk('), 'Expected every PDF page range to become a durable facts checkpoint.');
 assert(plugin.includes('function plpc_import_job_load_pdf_chunk('), 'Expected resumed imports to verify and load durable page facts.');
-assert(plugin.includes('function plpc_import_job_merge_pdf_document_facts('), 'Expected page facts to be integrity-checked into one complete document snapshot.');
-assert(plugin.includes('function plpc_import_job_load_pdf_document_facts('), 'Expected global PDF semantics to consume the durable complete-document facts snapshot.');
-assert(plugin.includes('function plpc_import_job_prepare_pdf_final_bundle('), 'Expected one whole-document semantic pass before WordPress publication.');
-assert(plugin.includes('function plpc_import_job_store_pdf_final_bundle('), 'Expected the globally finalized private block and media bundle to be durable.');
+assert(plugin.includes('PLPC_IMPORT_JOB_PDF_SEGMENT_MAX_FACT_BYTES'), 'Expected dense PDF finalization to use an explicit serialized-facts memory budget.');
+assert(plugin.includes('function plpc_import_job_plan_pdf_segments('), 'Expected finalization ranges to be planned from durable fact sizes.');
+assert(plugin.includes('function plpc_import_job_merge_pdf_segment_facts('), 'Expected page facts to be integrity-checked into bounded contiguous ranges.');
+assert(plugin.includes('->mergeRange($ranges, $startPage, $endPage)'), 'Expected dense facts to avoid rebuilding every PDF page in one worker.');
+assert(plugin.includes('function plpc_import_job_prepare_pdf_final_bundle('), 'Expected each bounded semantic pass to become durable before WordPress publication.');
+assert(plugin.includes('function plpc_import_job_store_pdf_final_bundle('), 'Expected private block and media bundles to be durable.');
 assert(plugin.includes('function plpc_import_job_load_pdf_final_bundle('), 'Expected publication retries to reuse the durable final PDF bundle.');
 assert(plugin.includes('function plpc_import_job_recover_interrupted_document('), 'Expected hard worker terminations to have a bounded durable recovery path.');
 assert(pdfFormRasterizer.includes('const DEFAULT_MAX_SOURCE_BYTES = 24 * 1024 * 1024;'), 'Expected PDF.js figure rendering to cap source bytes before copying a large PDF in the browser.');

@@ -1,7 +1,7 @@
 import { renderPdfFormRequests } from './pdfjs-form-rasterizer.mjs';
 import { collectPdfJsFacts } from './pdfjs-facts-provider.mjs';
 
-const pluginBuild = 'pdfjs-page-facts-20260715';
+const pluginBuild = 'pdf-memory-safe-finalization-20260715';
 const playgroundClientModuleUrl = 'https://playground.wordpress.net/client/index.js';
 const playgroundUploadDirectory = '/tmp/port-libs-converter';
 // Keep browser-produced PDF rasters within the exact decoded-byte limit that

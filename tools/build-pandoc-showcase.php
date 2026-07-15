@@ -5371,11 +5371,12 @@ const viewLabels = {
 };
 const defaultView = 'wpBlocks';
 const exampleUrlParameter = 'example';
-const playgroundPluginBuild = 'pdf-page-checkpoints-20260715';
+const playgroundPluginBuild = 'pdf-memory-safe-finalization-20260715';
 const playgroundClientModuleUrl = 'https://playground.wordpress.net/client/index.js';
 const playgroundUploadDirectory = '/tmp/port-libs-converter';
 const playgroundPdfRasterByteLimit = 24_000_000;
 const ownFileStatusPollIntervalMs = 1_000;
+const ownFileAdvanceRecoveryAttempts = 3;
 // The static example browser runs on the visitor's device, including phones.
 // Keep Form-XObject enrichment deliberately smaller than the importer handoff:
 // it is an optional preview, never a reason to exhaust the browser.
@@ -6290,7 +6291,24 @@ async function openOwnFile(file) {
     }
 
     const data = job.result;
-    await playgroundClient.goTo(playgroundPath(data.pageUrl));
+    try {
+      await playgroundClient.goTo(playgroundPath(data.pageUrl));
+    } catch (pageError) {
+      // Conversion and publication have already committed at this point. A
+      // very large front-end render must not be reported as if 200+ pages of
+      // saved import work disappeared; try the editor and retain success even
+      // if this particular Playground view cannot render the result.
+      try {
+        await playgroundClient.goTo(playgroundPath(data.editUrl));
+      } catch {
+        const detail = pageError instanceof Error ? pageError.message : String(pageError);
+        setStatus(
+          'The import completed and the WordPress page was saved, but Playground could not display it: ' + detail,
+          { visible: true, tone: 'success' },
+        );
+        return;
+      }
+    }
     if (ownFileRequestIsCurrent(token)) {
       setStatus('Opened a new WordPress page for ' + file.name + '.', { visible: true, tone: 'success' });
     }
@@ -6343,12 +6361,39 @@ async function advanceOwnFileImport(playgroundClient, job, token, reportJob) {
   if (!jobId) {
     throw new Error('WordPress did not return an import job identifier. Please try the file again.');
   }
-  const stopPolling = startOwnFileImportStatusPolling(playgroundClient, jobId, token, reportJob);
-  try {
-    return await ownFilePluginRequest(playgroundClient, `/imports/${jobId}/advance`, {});
-  } finally {
-    stopPolling();
+  let lastError = null;
+  for (let attempt = 0; attempt <= ownFileAdvanceRecoveryAttempts; attempt += 1) {
+    const stopPolling = startOwnFileImportStatusPolling(playgroundClient, jobId, token, reportJob);
+    try {
+      return await ownFilePluginRequest(playgroundClient, `/imports/${jobId}/advance`, {});
+    } catch (error) {
+      lastError = error;
+    } finally {
+      stopPolling();
+    }
+    if (attempt >= ownFileAdvanceRecoveryAttempts || !ownFileRequestIsCurrent(token)) {
+      break;
+    }
+    const retry = attempt + 1;
+    const recoveryLabel = `The server request ended unexpectedly. Checking saved progress (${retry} of ${ownFileAdvanceRecoveryAttempts})…`;
+    setOwnFileBusy(true, recoveryLabel);
+    setStatus(recoveryLabel, { visible: true });
+    await new Promise((resolve) => window.setTimeout(resolve, 400 * retry));
+    try {
+      const recovered = await ownFilePluginRequest(playgroundClient, `/imports/${jobId}`, undefined, 'GET');
+      reportJob(recovered);
+      // A completed checkpoint, a renderer handoff, or a finished import is
+      // safe for the outer state machine. Only a worker left mid-transition
+      // needs another bounded /advance attempt.
+      if (String(recovered.status || '') !== 'converting') {
+        return recovered;
+      }
+    } catch (statusError) {
+      lastError = statusError;
+    }
   }
+  const detail = lastError instanceof Error ? lastError.message : String(lastError || 'Unknown server error');
+  throw new Error(`${detail} The completed page checkpoints remain saved in this Playground, but automatic recovery stopped to avoid a retry loop.`);
 }
 
 function startOwnFileImportStatusPolling(playgroundClient, jobId, token, reportJob) {

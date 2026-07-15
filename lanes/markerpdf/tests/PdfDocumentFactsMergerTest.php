@@ -44,6 +44,26 @@ return [
         $t->same($first->source(), $merged->source());
         $t->same($merged->toArray(), \PortLibs\MarkerPDF\PdfDocumentFacts::fromJson($merged->toJson())->toArray());
     },
+    'merges a bounded contiguous range without losing the source page inventory' => static function (
+        TestRunner $t
+    ) use ($mergeFactsPdf): void {
+        $pdf = $mergeFactsPdf();
+        $provider = new NativePdfFactsProvider();
+        $first = $provider->extract($pdf, ['startPage' => 1, 'maxPages' => 1]);
+        $second = $provider->extract($pdf, ['startPage' => 2, 'maxPages' => 1]);
+        $merged = (new PdfDocumentFactsMerger())->mergeRange([$first, $second], 1, 2);
+
+        $t->same(3, $merged->inventory()['totalPages']);
+        $t->same(1, $merged->inventory()['startPage']);
+        $t->same(2, $merged->inventory()['endPage']);
+        $t->same([1, 2], $merged->inventory()['pageNumbers']);
+        $t->same(true, $merged->inventory()['hasMorePages']);
+        $t->same(3, $merged->inventory()['nextPage']);
+        $t->same(['Alpha'], array_column($merged->page(1)->text()['lines'], 'text'));
+        $t->same(['Beta'], array_column($merged->page(2)->text()['lines'], 'text'));
+        $t->same(null, $merged->page(3));
+        $t->same($first->source(), $merged->source());
+    },
     'rejects missing overlapping and cross-source page facts' => static function (
         TestRunner $t
     ) use ($mergeFactsPdf): void {
@@ -57,5 +77,7 @@ return [
         $t->throws(RuntimeException::class, static fn () => $merger->mergeComplete([$first]));
         $t->throws(RuntimeException::class, static fn () => $merger->mergeComplete([$first, $second]));
         $t->throws(RuntimeException::class, static fn () => $merger->mergeComplete([$first, $other]));
+        $t->throws(RuntimeException::class, static fn () => $merger->mergeRange([$first], 0, 1));
+        $t->throws(RuntimeException::class, static fn () => $merger->mergeRange([$first], 1, 4));
     },
 ];

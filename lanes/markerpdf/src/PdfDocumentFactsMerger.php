@@ -14,6 +14,27 @@ final class PdfDocumentFactsMerger
      */
     public function mergeComplete(array $ranges): PdfDocumentFacts
     {
+        if ($ranges === [] || !$ranges[0] instanceof PdfDocumentFacts) {
+            throw new RuntimeException('No PDF page facts were available to merge.');
+        }
+        $totalPages = max(0, (int) ($ranges[0]->inventory()['totalPages'] ?? 0));
+        if ($totalPages < 1) {
+            throw new RuntimeException('PDF page facts did not declare a complete page inventory.');
+        }
+
+        return $this->mergeRange($ranges, 1, $totalPages);
+    }
+
+    /**
+     * Merge one verified contiguous page range while retaining the source
+     * document's complete inventory. This lets a bounded WordPress request
+     * resolve layout for a long-document part without pretending the part is
+     * a different PDF or loading every page fact into memory at once.
+     *
+     * @param list<PdfDocumentFacts> $ranges
+     */
+    public function mergeRange(array $ranges, int $startPage, int $endPage): PdfDocumentFacts
+    {
         if ($ranges === []) {
             throw new RuntimeException('No PDF page facts were available to merge.');
         }
@@ -25,6 +46,9 @@ final class PdfDocumentFactsMerger
         $totalPages = max(0, (int) ($first->inventory()['totalPages'] ?? 0));
         if ($totalPages < 1) {
             throw new RuntimeException('PDF page facts did not declare a complete page inventory.');
+        }
+        if ($startPage < 1 || $endPage < $startPage || $endPage > $totalPages) {
+            throw new RuntimeException('The requested PDF facts range was outside the source page inventory.');
         }
 
         $pages = [];
@@ -75,8 +99,8 @@ final class PdfDocumentFactsMerger
             }
         }
         ksort($pages, SORT_NUMERIC);
-        if (array_keys($pages) !== range(1, $totalPages)) {
-            throw new RuntimeException('PDF page facts ranges were not a complete contiguous document.');
+        if (array_keys($pages) !== range($startPage, $endPage)) {
+            throw new RuntimeException('PDF page facts ranges were not the requested contiguous page range.');
         }
 
         $diagnostics['warnings'] = array_keys($warnings);
@@ -91,13 +115,14 @@ final class PdfDocumentFactsMerger
             }
         }
         $diagnostics['pagesWithExtractionIssues'] = $pagesWithIssues;
+        $rangePageCount = $endPage - $startPage + 1;
         if (isset($providerParts['pdfjs-v1']) || isset($diagnostics['browserFacts'])) {
             $diagnostics['browserFacts'] = [
                 'provider' => 'pdfjs-v1',
-                'status' => $browserPages === 0 ? 'unavailable' : ($browserPages === $totalPages ? 'applied' : 'partial'),
-                'reason' => $browserPages === $totalPages
-                    ? 'Browser text and structure facts were attached to every page.'
-                    : 'Native facts cover every page; browser facts were attached only where available.',
+                'status' => $browserPages === 0 ? 'unavailable' : ($browserPages === $rangePageCount ? 'applied' : 'partial'),
+                'reason' => $browserPages === $rangePageCount
+                    ? 'Browser text and structure facts were attached to every page in this range.'
+                    : 'Native facts cover every page in this range; browser facts were attached only where available.',
                 'providedPages' => $browserPages,
                 'appliedPages' => $browserPages,
                 'failures' => array_values($browserFailures),
@@ -109,11 +134,11 @@ final class PdfDocumentFactsMerger
             $source,
             [
                 'totalPages' => $totalPages,
-                'startPage' => 1,
-                'endPage' => $totalPages,
-                'pageNumbers' => range(1, $totalPages),
-                'hasMorePages' => false,
-                'nextPage' => null,
+                'startPage' => $startPage,
+                'endPage' => $endPage,
+                'pageNumbers' => range($startPage, $endPage),
+                'hasMorePages' => $endPage < $totalPages,
+                'nextPage' => $endPage < $totalPages ? $endPage + 1 : null,
             ],
             array_values($pages),
             $structure,

@@ -30,18 +30,16 @@ final class PdfTextFidelityLedger
      */
     public static function fromSourceLineItems(array $sourceLineItems, array $blocks): array
     {
-        $sourceLines = [];
-        foreach ($sourceLineItems as $item) {
-            $text = is_array($item) ? ($item['text'] ?? '') : $item;
-            if (is_string($text) && $text !== '') {
-                $sourceLines[] = $text;
+        $sourceChunks = static function () use ($sourceLineItems): iterable {
+            foreach ($sourceLineItems as $item) {
+                $text = is_array($item) ? ($item['text'] ?? '') : $item;
+                if (is_string($text) && $text !== '') {
+                    yield $text;
+                }
             }
-        }
+        };
 
-        return self::fromText(
-            implode("\n", $sourceLines),
-            self::textFromNodes($blocks)
-        );
+        return self::fromChunkStreams($sourceChunks(), self::textChunksFromNodes($blocks));
     }
 
     /**
@@ -52,47 +50,43 @@ final class PdfTextFidelityLedger
      */
     public static function fromText(string $sourceText, string $emittedText): array
     {
-        $sourceText = self::normalizeText($sourceText);
-        $emittedText = self::normalizeText($emittedText);
-        $sourceTokens = self::tokensFromNormalizedText($sourceText);
-        $emittedTokens = self::tokensFromNormalizedText($emittedText);
-        $sourceTokenCounts = array_count_values($sourceTokens);
-        $emittedTokenCounts = array_count_values($emittedTokens);
-        $unresolvedTokens = self::positiveDifference($sourceTokenCounts, $emittedTokenCounts);
-        $addedTokens = self::positiveDifference($emittedTokenCounts, $sourceTokenCounts);
-        $sourceAdjacencyCounts = self::tokenAdjacencyCounts($sourceTokens);
-        $emittedAdjacencyCounts = self::tokenAdjacencyCounts($emittedTokens);
-        $unresolvedAdjacencies = self::positiveDifference($sourceAdjacencyCounts, $emittedAdjacencyCounts);
-        $sourceTokenCount = count($sourceTokens);
-        $emittedTokenCount = count($emittedTokens);
+        return self::fromChunkStreams([$sourceText], [$emittedText]);
+    }
+
+    /**
+     * The PDF reader already holds positioned facts and the constructed AST.
+     * Building two more document-sized strings and two token lists here can
+     * exhaust a normal 128 MiB WordPress worker at the very end of an import.
+     * Accumulate the same ledger one source line / AST text node at a time.
+     *
+     * @param iterable<string> $sourceChunks
+     * @param iterable<string> $emittedChunks
+     * @return array<string, mixed>
+     */
+    private static function fromChunkStreams(iterable $sourceChunks, iterable $emittedChunks): array
+    {
+        $source = self::inventoryFromChunks($sourceChunks);
+        $emitted = self::inventoryFromChunks($emittedChunks);
+        $unresolvedTokens = self::positiveDifference($source['tokenCounts'], $emitted['tokenCounts']);
+        $addedTokens = self::positiveDifference($emitted['tokenCounts'], $source['tokenCounts']);
+        $unresolvedAdjacencies = self::positiveDifference($source['adjacencyCounts'], $emitted['adjacencyCounts']);
+        $sourceTokenCount = $source['tokenCount'];
+        $emittedTokenCount = $emitted['tokenCount'];
         $unresolvedTokenCount = array_sum($unresolvedTokens);
         $sourceAdjacencyCount = max(0, $sourceTokenCount - 1);
         $unresolvedAdjacencyCount = array_sum($unresolvedAdjacencies);
-        $sourceTokenDigest = hash('sha256', implode("\0", $sourceTokens));
-        $emittedTokenDigest = hash('sha256', implode("\0", $emittedTokens));
         $unresolvedTokenSample = self::sampleCounts($unresolvedTokens);
         $addedTokenSample = self::sampleCounts($addedTokens);
-        unset(
-            $sourceTokens,
-            $emittedTokens,
-            $sourceTokenCounts,
-            $emittedTokenCounts,
-            $sourceAdjacencyCounts,
-            $emittedAdjacencyCounts
-        );
-
-        $sourceCharacterInventory = self::significantCharacterInventory($sourceText);
-        $emittedCharacterInventory = self::significantCharacterInventory($emittedText);
         $unresolvedCharacters = self::positiveDifference(
-            $sourceCharacterInventory['counts'],
-            $emittedCharacterInventory['counts']
+            $source['characterCounts'],
+            $emitted['characterCounts']
         );
         $addedCharacters = self::positiveDifference(
-            $emittedCharacterInventory['counts'],
-            $sourceCharacterInventory['counts']
+            $emitted['characterCounts'],
+            $source['characterCounts']
         );
-        $sourceCharacterCount = $sourceCharacterInventory['total'];
-        $emittedCharacterCount = $emittedCharacterInventory['total'];
+        $sourceCharacterCount = $source['characterCount'];
+        $emittedCharacterCount = $emitted['characterCount'];
         $unresolvedCharacterCount = array_sum($unresolvedCharacters);
         $sourceAccounted = $unresolvedTokenCount === 0 && $unresolvedCharacterCount === 0;
 
@@ -122,45 +116,86 @@ final class PdfTextFidelityLedger
             'unresolvedTokenSample' => $unresolvedTokenSample,
             'addedTokenSample' => $addedTokenSample,
             'unresolvedCharacterSample' => self::sampleCharacterCounts($unresolvedCharacters),
-            'sourceTokenDigest' => $sourceTokenDigest,
-            'emittedTokenDigest' => $emittedTokenDigest,
+            'sourceTokenDigest' => $source['tokenDigest'],
+            'emittedTokenDigest' => $emitted['tokenDigest'],
         ];
     }
 
     /**
      * @param list<AstNode> $nodes
+     * @return iterable<string>
      */
-    private static function textFromNodes(array $nodes): string
+    private static function textChunksFromNodes(array $nodes): iterable
     {
-        $parts = [];
         foreach ($nodes as $node) {
             if (!$node instanceof AstNode) {
                 continue;
             }
-            $text = self::textFromNode($node);
-            if ($text !== '') {
-                $parts[] = $text;
-            }
+            yield from self::textChunksFromNode($node);
         }
-
-        return implode("\n", $parts);
     }
 
-    private static function textFromNode(AstNode $node): string
+    /** @return iterable<string> */
+    private static function textChunksFromNode(AstNode $node): iterable
     {
         if ($node->type === 'text') {
-            return (string) $node->attr('text', '');
+            $text = (string) $node->attr('text', '');
+            if ($text !== '') {
+                yield $text;
+            }
+
+            return;
         }
 
-        $parts = [];
         foreach ($node->children() as $child) {
-            $text = self::textFromNode($child);
-            if ($text !== '') {
-                $parts[] = $text;
+            yield from self::textChunksFromNode($child);
+        }
+    }
+
+    /**
+     * @param iterable<string> $chunks
+     * @return array{tokenCounts:array<string,int>,adjacencyCounts:array<string,int>,tokenCount:int,tokenDigest:string,characterCounts:array<string,int>,characterCount:int}
+     */
+    private static function inventoryFromChunks(iterable $chunks): array
+    {
+        $tokenCounts = [];
+        $adjacencyCounts = [];
+        $tokenCount = 0;
+        $previousToken = null;
+        $tokenHash = hash_init('sha256');
+        $characterCounts = [];
+        $characterCount = 0;
+        foreach ($chunks as $chunk) {
+            if (!is_string($chunk) || $chunk === '') {
+                continue;
+            }
+            $normalized = self::normalizeText($chunk);
+            foreach (self::tokensFromNormalizedText($normalized) as $token) {
+                $tokenCounts[$token] = ($tokenCounts[$token] ?? 0) + 1;
+                if ($previousToken !== null) {
+                    $adjacency = $previousToken . "\0" . $token;
+                    $adjacencyCounts[$adjacency] = ($adjacencyCounts[$adjacency] ?? 0) + 1;
+                    hash_update($tokenHash, "\0");
+                }
+                hash_update($tokenHash, $token);
+                $previousToken = $token;
+                $tokenCount++;
+            }
+            $characters = self::significantCharacterInventory($normalized);
+            $characterCount += $characters['total'];
+            foreach ($characters['counts'] as $character => $count) {
+                $characterCounts[$character] = ($characterCounts[$character] ?? 0) + $count;
             }
         }
 
-        return implode(' ', $parts);
+        return [
+            'tokenCounts' => $tokenCounts,
+            'adjacencyCounts' => $adjacencyCounts,
+            'tokenCount' => $tokenCount,
+            'tokenDigest' => hash_final($tokenHash),
+            'characterCounts' => $characterCounts,
+            'characterCount' => $characterCount,
+        ];
     }
 
     /** @return list<string> */
@@ -214,22 +249,6 @@ final class PdfTextFidelityLedger
         }
 
         return function_exists('mb_strtolower') ? mb_strtolower($text, 'UTF-8') : strtolower($text);
-    }
-
-    /**
-     * @param list<string> $tokens
-     * @return array<string,int>
-     */
-    private static function tokenAdjacencyCounts(array $tokens): array
-    {
-        $adjacencies = [];
-        $count = count($tokens);
-        for ($index = 1; $index < $count; $index++) {
-            $adjacency = $tokens[$index - 1] . "\0" . $tokens[$index];
-            $adjacencies[$adjacency] = ($adjacencies[$adjacency] ?? 0) + 1;
-        }
-
-        return $adjacencies;
     }
 
     /**

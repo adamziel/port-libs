@@ -1104,6 +1104,112 @@ return [
         $t->same(1, count($GLOBALS['plpc_test_posts']), 'Final-page retry must not publish a duplicate page.');
     },
 
+    'playground pdf segment planner uses durable fact bytes instead of upload size or document special cases' => static function (TestRunner $t): void {
+        plpc_test_reset_import_job_state();
+        add_filter('plpc_pdf_segment_max_fact_bytes', static fn (mixed $bytes): int => 300000);
+        $segments = plpc_import_job_plan_pdf_segments([
+            'pdfPageCount' => 4,
+            'pdfChunks' => [
+                ['startPage' => 1, 'endPage' => 1, 'bytes' => 100000],
+                ['startPage' => 2, 'endPage' => 2, 'bytes' => 100000],
+                ['startPage' => 3, 'endPage' => 3, 'bytes' => 100000],
+                ['startPage' => 4, 'endPage' => 4, 'bytes' => 100000],
+            ],
+        ]);
+
+        $t->same(2, count($segments));
+        $t->same([1, 3, 300000], [
+            $segments[0]['startPage'],
+            $segments[0]['endPage'],
+            $segments[0]['factsBytes'],
+        ]);
+        $t->same([4, 4, 100000], [
+            $segments[1]['startPage'],
+            $segments[1]['endPage'],
+            $segments[1]['factsBytes'],
+        ]);
+    },
+
+    'playground pdf jobs finalize dense saved facts as resumable linked ranges without losing pages' => static function (TestRunner $t): void {
+        plpc_test_reset_import_job_state();
+        add_filter('plpc_pdf_pages_per_request', static fn (mixed $pages): int => 1);
+        add_filter('plpc_pdf_segment_max_pages', static fn (mixed $pages): int => 2);
+        $sentinels = [
+            'SEGMENTED PAGE ONE SENTINEL',
+            'SEGMENTED PAGE TWO SENTINEL',
+            'SEGMENTED PAGE THREE SENTINEL',
+            'SEGMENTED PAGE FOUR SENTINEL',
+            'SEGMENTED PAGE FIVE SENTINEL',
+            'SEGMENTED PAGE SIX SENTINEL',
+        ];
+        $pdf = plpc_test_multipage_pdf($sentinels);
+        $created = plpc_create_import_job(plpc_test_import_job_request([
+            'filename' => 'dense-checkpointed.pdf',
+            'title' => 'Dense checkpointed PDF',
+            'imageMode' => 'none',
+            'pdfMode' => 'layout',
+            'bytes' => base64_encode($pdf),
+        ]))->get_data();
+        $jobId = (string) ($created['jobId'] ?? '');
+        $snapshot = $created;
+        $jobBeforeFinalPublication = null;
+
+        for ($attempt = 0; $attempt < 24 && ($snapshot['status'] ?? '') !== 'complete'; $attempt++) {
+            $response = plpc_advance_import_job(plpc_test_import_job_request([], $jobId));
+            $t->same(200, $response->get_status());
+            $snapshot = $response->get_data();
+            $currentJob = get_option(PLPC_IMPORT_JOB_OPTION_PREFIX . $jobId);
+            $currentSegments = is_array($currentJob['documents'][0]['pdfSegments'] ?? null)
+                ? $currentJob['documents'][0]['pdfSegments']
+                : [];
+            $nextSegment = max(0, (int) ($currentJob['documents'][0]['pdfNextSegment'] ?? 0));
+            if (($snapshot['status'] ?? '') !== 'complete'
+                && isset($currentSegments[$nextSegment]['finalBundle'])
+                && !isset($currentSegments[$nextSegment]['result'])
+                && $nextSegment === count($currentSegments) - 1
+            ) {
+                $jobBeforeFinalPublication = $currentJob;
+            }
+        }
+
+        $t->same('complete', $snapshot['status'] ?? null);
+        $t->same(true, $snapshot['result']['batch'] ?? null);
+        $t->same(3, $snapshot['result']['postCount'] ?? null);
+        $t->same(4, count($GLOBALS['plpc_test_posts']), 'Three bounded range pages and one index should be published.');
+        $job = get_option(PLPC_IMPORT_JOB_OPTION_PREFIX . $jobId);
+        $segments = $job['documents'][0]['pdfSegments'] ?? [];
+        $t->same(3, count($segments));
+        $t->same([[1, 2], [3, 4], [5, 6]], array_map(
+            static fn (array $segment): array => [$segment['startPage'], $segment['endPage']],
+            $segments
+        ));
+
+        $rangeContent = '';
+        foreach ($snapshot['result']['posts'] ?? [] as $index => $result) {
+            $postId = (int) ($result['postId'] ?? 0);
+            $rangeContent .= (string) ($GLOBALS['plpc_test_posts'][$postId]['post_content'] ?? '');
+            $t->same($index, $GLOBALS['plpc_test_posts'][$postId]['meta_input']['_plpc_import_segment_index'] ?? null);
+        }
+        foreach ($sentinels as $sentinel) {
+            $t->same(1, substr_count($rangeContent, $sentinel), $sentinel . ' must survive exactly once across the bounded results.');
+        }
+        $indexId = (int) ($snapshot['result']['postId'] ?? 0);
+        $indexBlocks = (string) ($GLOBALS['plpc_test_posts'][$indexId]['post_content'] ?? '');
+        foreach ($snapshot['result']['posts'] ?? [] as $result) {
+            $t->contains((string) ($result['pageUrl'] ?? ''), $indexBlocks);
+        }
+
+        // Model the last range page and index committing immediately before
+        // PHP disappears. Both public posts must be rediscovered by durable
+        // import identities when the saved job resumes.
+        $t->true(is_array($jobBeforeFinalPublication), 'The final range should have a durable private bundle before publication.');
+        update_option(PLPC_IMPORT_JOB_OPTION_PREFIX . $jobId, $jobBeforeFinalPublication, false);
+        $recovered = plpc_advance_import_job(plpc_test_import_job_request([], $jobId))->get_data();
+        $t->same('complete', $recovered['status'] ?? null);
+        $t->same($indexId, $recovered['result']['postId'] ?? null);
+        $t->same(4, count($GLOBALS['plpc_test_posts']), 'A final retry must not duplicate the last range page or its index.');
+    },
+
     'playground media attachment retries deduplicate across PHP requests' => static function (TestRunner $t): void {
         plpc_test_reset_import_job_state();
         $first = plpc_insert_media_attachment('same durable image bytes', 'first.png', 'image/png');

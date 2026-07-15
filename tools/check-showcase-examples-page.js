@@ -80,7 +80,7 @@ assert(js.includes("const exampleUrlParameter = 'example';"), 'Expected a stable
 assert(js.includes('new URL(window.location.href)'), 'Expected example links to preserve other URL state safely.');
 assert(js.includes('window.history.replaceState'), 'Expected picker navigation to keep the current URL shareable.');
 assert(js.includes("import { renderPdfFormRequests } from './pdfjs-form-rasterizer.mjs';"), 'Expected own-file PDF figures to use the shared PDF.js renderer.');
-assert(js.includes("const playgroundPluginBuild = 'pdf-page-checkpoints-20260715';"), 'Expected the own-file importer to use the current Playground plugin build.');
+assert(js.includes("const playgroundPluginBuild = 'pdf-memory-safe-finalization-20260715';"), 'Expected the own-file importer to use the current Playground plugin build.');
 assert(js.includes("const playgroundClientModuleUrl = 'https://playground.wordpress.net/client/index.js';"), 'Expected Try your own file to use the Playground client.');
 assert(js.includes("const playgroundUploadDirectory = '/tmp/port-libs-converter';"), 'Expected own files to use Playground temporary staging.');
 assert(js.includes("php: '8.4'"), 'Expected own-file imports to use PHP 8.4 for EPUB and HTML documents.');
@@ -95,6 +95,9 @@ assert(js.includes('`/imports/${jobId}/advance`'), 'Expected own files to advanc
 assert(js.includes('`/imports/${encodeURIComponent(job.jobId)}/rendered-media`'), 'Expected browser-rendered PDF figures to be returned to WordPress.');
 assert(js.includes('async function advanceOwnFileImport'), 'Expected an explicit bounded import advance flow.');
 assert(js.includes('startOwnFileImportStatusPolling'), 'Expected in-flight advances to poll persisted WordPress progress.');
+assert(js.includes('const ownFileAdvanceRecoveryAttempts = 3;'), 'Expected bounded recovery after a Playground PHP worker ends unexpectedly.');
+assert(js.includes('The completed page checkpoints remain saved in this Playground'), 'Expected an interrupted large import to explain that completed PDF work remains durable.');
+assert(js.includes('The import completed and the WordPress page was saved, but Playground could not display it'), 'A failed result navigation must not be reported as a lost conversion.');
 assert(js.includes('`/imports/${jobId}`') && js.includes("'GET'"), 'Expected the own-file importer to read persisted import status while WordPress works.');
 assert(js.includes('ownFileImportLatestNewEvent') && js.includes('reportedEventKeys'), 'Expected status events to be deduplicated by event identity rather than array position.');
 assert(js.includes('await renderPdfFormRequests({'), 'Expected WordPress to request PDF Form figure crops from the browser.');
