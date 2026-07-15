@@ -1,4 +1,5 @@
 import { renderPdfFormRequests } from './pdfjs-form-rasterizer.mjs';
+import { collectPdfJsFacts } from './pdfjs-facts-provider.mjs';
 
 // This matches the server-side per-import cap. Keep the decoded image bytes
 // in multipart fields, not JSON/base64, so a regular WordPress upload does
@@ -323,18 +324,35 @@ if (root) {
     const pdfMode = checkedValue('plpc-pdf-mode', 'layout');
     const body = new FormData();
     const pdfRasterImages = [];
+    const pdfBrowserFacts = {};
     let remainingRasterBytes = pdfRasterPayloadByteLimit;
     for (let index = 0; index < upload.entries.length; index += 1) {
       const entry = upload.entries[index];
-      if (!isPdf(entry.file) || imageMode === 'none' || remainingRasterBytes <= 0) {
+      if (!isPdf(entry.file)) {
         continue;
       }
       if (entry.file.size > pdfRasterSourceByteLimit) {
-        reportProgress(`Skipping optional browser PDF image decoding for ${entry.file.name}; it is over the 24 MiB safety limit. The import will keep original-file placeholders where needed.`);
+        reportProgress(`Skipping optional PDF.js facts and image decoding for ${entry.file.name}; it is over the 24 MiB browser safety limit. Native PHP extraction will continue.`);
+        continue;
+      }
+      reportProgress(`Reading PDF.js text and structure facts from ${entry.file.name} (${index + 1} of ${upload.entries.length})…`);
+      const bytes = new Uint8Array(await entry.file.arrayBuffer());
+      try {
+        const facts = await collectPdfJsFacts({
+          source: bytes,
+          pdfjs: config,
+          onProgress({ label }) { reportProgress(label); },
+        });
+        if (facts.pages.length > 0) {
+          pdfBrowserFacts[entry.path] = facts;
+        }
+      } catch (error) {
+        reportProgress(`Optional PDF.js text and structure facts are unavailable for ${entry.file.name} (${errorMessage(error)}). Native PHP extraction will continue.`);
+      }
+      if (imageMode === 'none' || remainingRasterBytes <= 0) {
         continue;
       }
       reportProgress(`Checking PDF images in ${entry.file.name} (${index + 1} of ${upload.entries.length})…`);
-      const bytes = new Uint8Array(await entry.file.arrayBuffer());
       const rasters = await browserPdfRasterImages(bytes, imageMode, remainingRasterBytes, reportProgress);
       for (const raster of rasters) {
         if (!(raster.bytes instanceof Uint8Array) || raster.bytes.length > remainingRasterBytes) {
@@ -374,6 +392,7 @@ if (root) {
       imageMode,
       pdfMode,
       entries: upload.entries.map(({ path, file }) => ({ path, filename: file.name })),
+      pdfBrowserFacts,
       pdfRasterImages: rasterDescriptors,
     }));
     upload.entries.forEach(({ file }, index) => {

@@ -6,6 +6,7 @@ $root = dirname(__DIR__);
 $sourcePlugin = $root . '/tools/playground-converter-plugin/port-libs-playground-converter.php';
 $sourceAssets = $root . '/tools/playground-converter-plugin/assets';
 $sourcePdfJsRasterizer = $root . '/pandoc-showcase/pdfjs-form-rasterizer.mjs';
+$sourcePdfJsFactsProvider = $root . '/pandoc-showcase/pdfjs-facts-provider.mjs';
 $sourcePdfJs = $root . '/pandoc-showcase/vendor/pdfjs';
 $sourcePdfJpxRasterizer = $root . '/pandoc-showcase/pdf-jpx-rasterizer.mjs';
 $sourcePdfJbig2Rasterizer = $root . '/pandoc-showcase/pdf-jbig2-rasterizer.mjs';
@@ -23,7 +24,7 @@ if (!is_file($sourcePlugin)) {
     fwrite(STDERR, "Missing plugin source: {$sourcePlugin}\n");
     exit(1);
 }
-if (!is_dir($sourceAssets) || !is_file($sourcePdfJsRasterizer) || !is_dir($sourcePdfJs)
+if (!is_dir($sourceAssets) || !is_file($sourcePdfJsRasterizer) || !is_file($sourcePdfJsFactsProvider) || !is_dir($sourcePdfJs)
     || !is_file($sourcePdfJpxRasterizer) || !is_file($sourcePdfJbig2Rasterizer)
     || !is_dir($sourcePdfOpenJpeg) || !is_dir($sourcePdfJbig2)) {
     fwrite(STDERR, "Missing browser importer assets. Restore the PDF.js, OpenJPEG, and JBIG2 vendor assets before building the plugin.\n");
@@ -56,6 +57,7 @@ try {
     add_tree_to_zip($zip, $root . '/lanes/markerpdf/src', 'port-libs-playground-converter/lanes/markerpdf/src');
     add_tree_to_zip($zip, $sourceAssets, 'port-libs-playground-converter/assets');
     add_file_to_zip($zip, $sourcePdfJsRasterizer, 'port-libs-playground-converter/assets/pdfjs-form-rasterizer.mjs');
+    add_file_to_zip($zip, $sourcePdfJsFactsProvider, 'port-libs-playground-converter/assets/pdfjs-facts-provider.mjs');
     add_tree_to_zip(
         $zip,
         $sourcePdfJs,

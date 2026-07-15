@@ -14,6 +14,7 @@ on:
       - 'pandoc-showcase/pdf-jpx-rasterizer.mjs'
       - 'pandoc-showcase/vendor/pdfjs-openjpeg/**'
       - 'pandoc-showcase/pdfjs-form-rasterizer.mjs'
+      - 'pandoc-showcase/pdfjs-facts-provider.mjs'
       - 'pandoc-showcase/vendor/pdfjs/**'
       - 'pandoc-showcase/playground/**'
       - 'tools/build-pandoc-showcase.php'
@@ -21,6 +22,7 @@ on:
       - 'tools/e2e-pdf-layout-corpus.mjs'
       - 'tools/check-showcase-examples-page.js'
       - 'tools/check-playground-converter-ui.js'
+      - 'tools/check-pdfjs-facts-provider.mjs'
       - 'tools/decode-pdf-jbig2-media.mjs'
       - 'tools/check-pdf-jbig2-rasterizer.mjs'
       - 'tools/decode-pdf-jpx-media.mjs'
@@ -45,6 +47,7 @@ on:
       - 'pandoc-showcase/pdf-jpx-rasterizer.mjs'
       - 'pandoc-showcase/vendor/pdfjs-openjpeg/**'
       - 'pandoc-showcase/pdfjs-form-rasterizer.mjs'
+      - 'pandoc-showcase/pdfjs-facts-provider.mjs'
       - 'pandoc-showcase/vendor/pdfjs/**'
       - 'pandoc-showcase/playground/**'
       - 'tools/build-pandoc-showcase.php'
@@ -52,6 +55,7 @@ on:
       - 'tools/e2e-pdf-layout-corpus.mjs'
       - 'tools/check-showcase-examples-page.js'
       - 'tools/check-playground-converter-ui.js'
+      - 'tools/check-pdfjs-facts-provider.mjs'
       - 'tools/decode-pdf-jbig2-media.mjs'
       - 'tools/check-pdf-jbig2-rasterizer.mjs'
       - 'tools/decode-pdf-jpx-media.mjs'
@@ -125,12 +129,14 @@ jobs:
           node --check pandoc-showcase/pdf-jbig2-rasterizer.mjs
           node --check pandoc-showcase/pdf-jpx-rasterizer.mjs
           node --check pandoc-showcase/pdfjs-form-rasterizer.mjs
+          node --check pandoc-showcase/pdfjs-facts-provider.mjs
           node --check tools/playground-converter-plugin/assets/admin-importer.mjs
           node --check tools/decode-pdf-jbig2-media.mjs
           node --check tools/decode-pdf-jpx-media.mjs
           node --check tools/decode-pdf-raster-media.mjs
           node --check tools/e2e-pdf-layout-corpus.mjs
           node tools/check-playground-converter-ui.js
+          node tools/check-pdfjs-facts-provider.mjs
           php tools/build-pandoc-showcase.php --build-examples-page
           node tools/check-showcase-examples-page.js
           git diff --exit-code -- pandoc-showcase/examples.html pandoc-showcase/examples.css pandoc-showcase/examples.js pandoc-showcase/examples-index.json
@@ -174,6 +180,7 @@ jobs:
           grep -q 'plpc_find_collection_image' "$RUNNER_TEMP/port-libs-playground-converter.php"
           grep -q 'assets/admin-importer.js' "$RUNNER_TEMP/port-libs-playground-converter-files.txt"
           grep -q 'assets/pdfjs-form-rasterizer.js' "$RUNNER_TEMP/port-libs-playground-converter-files.txt"
+          grep -q 'assets/pdfjs-facts-provider.js' "$RUNNER_TEMP/port-libs-playground-converter-files.txt"
           grep -q 'assets/vendor/pdfjs/pdf.min.js' "$RUNNER_TEMP/port-libs-playground-converter-files.txt"
           grep -q 'assets/pdf-jpx-rasterizer.js' "$RUNNER_TEMP/port-libs-playground-converter-files.txt"
           grep -q 'assets/pdf-jbig2-rasterizer.js' "$RUNNER_TEMP/port-libs-playground-converter-files.txt"

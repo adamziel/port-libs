@@ -882,6 +882,61 @@ return [
         $t->same($created['events'], $snapshot['events']);
         $t->true(!array_key_exists('bytes', $snapshot), 'Status polling must never echo the uploaded source bytes back to the browser.');
     },
+    'persisted import jobs store bounded PDF js facts privately with native fallback evidence' => static function (TestRunner $t): void {
+        plpc_test_reset_import_job_state();
+        $pdf = plpc_test_multipage_pdf(['Native browser handoff']);
+        $browserFacts = [
+            'schemaVersion' => 1,
+            'provider' => 'pdfjs-v1',
+            'sourceSha256' => hash('sha256', $pdf),
+            'pageCount' => 1,
+            'pages' => [[
+                'pageNumber' => 1,
+                'viewport' => ['width' => 612.0, 'height' => 792.0, 'rotation' => 0, 'viewBox' => [0.0, 0.0, 612.0, 792.0]],
+                'spans' => [[
+                    'text' => 'Browser handoff',
+                    'direction' => 'ltr',
+                    'transform' => [12.0, 0.0, 0.0, 12.0, 72.0, 720.0],
+                    'width' => 95.0,
+                    'height' => 12.0,
+                    'fontName' => 'f1',
+                    'hasEol' => true,
+                ]],
+                'markedContent' => [],
+                'styles' => ['f1' => ['fontFamily' => 'Helvetica', 'vertical' => false]],
+                'structure' => ['role' => 'Document', 'children' => [['role' => 'P']]],
+            ]],
+            'failures' => [],
+        ];
+        $response = plpc_create_import_job(plpc_test_import_job_request([
+            'filename' => 'browser.pdf',
+            'bytes' => base64_encode($pdf),
+            'pdfBrowserFacts' => ['browser.pdf' => $browserFacts],
+        ]));
+        $snapshot = $response->get_data();
+        $jobId = (string) ($snapshot['jobId'] ?? '');
+        $job = get_option(PLPC_IMPORT_JOB_OPTION_PREFIX . $jobId);
+        $record = is_array($job) ? ($job['browserFacts']['browser.pdf'] ?? null) : null;
+
+        $t->same(201, $response->get_status());
+        $t->true(is_array($record), 'The job should retain only a private browser-facts descriptor.');
+        $t->true(str_starts_with((string) ($record['storage'] ?? ''), 'facts/'));
+        $t->same(1, $record['pages'] ?? null);
+        $t->true(!array_key_exists('pages', $record) || is_int($record['pages']), 'Browser page payloads must not be stored in the WordPress option.');
+        $loaded = plpc_import_job_load_browser_facts($job, 'browser.pdf');
+        $t->same(json_decode(json_encode($browserFacts, JSON_THROW_ON_ERROR), true, 512, JSON_THROW_ON_ERROR), $loaded);
+
+        $merged = (new \PortLibs\MarkerPDF\BrowserPdfFactsProvider())->extract($pdf, ['browserFacts' => $loaded]);
+        $t->same('applied', $merged->diagnostics()['browserFacts']['status'] ?? null);
+        $t->same('Browser handoff', $merged->page(1)?->text()['browser']['spans'][0]['text'] ?? null);
+        $t->same(['Native browser handoff'], array_column($merged->page(1)?->text()['lines'] ?? [], 'text'));
+
+        $prepared = plpc_advance_import_job(plpc_test_import_job_request([], $jobId));
+        $t->same(200, $prepared->get_status());
+        $preparedJob = get_option(PLPC_IMPORT_JOB_OPTION_PREFIX . $jobId);
+        $t->true(is_array($preparedJob['documents'][0]['pdfBrowserFacts'] ?? null), 'Prepared PDF documents should retain their browser-facts descriptor for resumed chunks.');
+        $t->true(!array_key_exists('pdfBrowserFacts', $prepared->get_data()), 'Job snapshots must not expose browser text or structure facts.');
+    },
     'playground converter scopes persisted import jobs to their WordPress owner' => static function (TestRunner $t): void {
         plpc_test_reset_import_job_state();
         $previousHost = $_SERVER['HTTP_HOST'] ?? null;

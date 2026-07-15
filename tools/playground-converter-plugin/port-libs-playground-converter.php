@@ -1,8 +1,8 @@
 <?php
 /**
  * Plugin Name: Port Libs Document Importer
- * Description: Imports uploaded documents into WordPress block markup, with browser-assisted PDF figure rendering.
- * Version: 0.4.0
+ * Description: Imports uploaded documents into WordPress block markup, with optional browser-assisted PDF facts and figure rendering.
+ * Version: 0.5.0
  */
 
 declare(strict_types=1);
@@ -25,6 +25,8 @@ const PLPC_STAGED_UPLOAD_DIRECTORY = '/tmp/port-libs-converter';
 const PLPC_MAX_PDF_RASTER_IMAGES = 96;
 const PLPC_MAX_PDF_RASTER_BYTES = 24000000;
 const PLPC_MAX_PDF_RASTER_IMAGE_BYTES = 16777216;
+const PLPC_MAX_PDF_BROWSER_FACTS_BYTES = 4194304;
+const PLPC_MAX_PDF_BROWSER_FACTS_TOTAL_BYTES = 8388608;
 const PLPC_IMPORT_JOB_OPTION_PREFIX = 'plpc_import_job_';
 const PLPC_IMPORT_JOB_DIRECTORY = 'port-libs-import-jobs';
 const PLPC_IMPORT_JOB_MAX_EVENTS = 80;
@@ -33,7 +35,7 @@ const PLPC_IMPORT_JOB_MAX_FORM_RENDER_BYTES = 24000000;
 const PLPC_IMPORT_JOB_MAX_FORM_RENDER_IMAGE_BYTES = 16777216;
 const PLPC_IMPORT_JOB_MAX_FORM_RENDER_PIXELS = 48000000;
 const PLPC_IMPORT_JOB_MAX_RENDER_SOURCE_BYTES = 25000000;
-const PLPC_IMPORT_JOB_VERSION = 1;
+const PLPC_IMPORT_JOB_VERSION = 2;
 // Leave enough time to write the durable job option and JSON response before
 // a normal shared host's max_execution_time terminates the PHP worker.
 const PLPC_IMPORT_REQUEST_DEFAULT_RESERVE_SECONDS = 3.0;
@@ -460,6 +462,7 @@ function plpc_create_import_job(WP_REST_Request $request): WP_REST_Response
             'sourceLabel' => $filename,
             'sourceFiles' => [],
             'pdfRasters' => [],
+            'browserFacts' => [],
             'documents' => [],
             'nextDocument' => 0,
             'renderRequests' => [],
@@ -816,6 +819,10 @@ function plpc_import_job_prepare(array &$job): void
             $record['pdfNextPage'] = 1;
             $record['pdfPagesPerRequest'] = plpc_pdf_pages_per_request($pageCount);
             $record['pdfChunks'] = [];
+            $browserFacts = is_array($job['browserFacts'][$path] ?? null) ? $job['browserFacts'][$path] : null;
+            if ($browserFacts !== null) {
+                $record['pdfBrowserFacts'] = $browserFacts;
+            }
         }
         $job['documents'][] = $record;
     }
@@ -1249,6 +1256,7 @@ function plpc_import_job_multipart_payload(WP_REST_Request $request, array $file
         'pdfMode' => $metadata['pdfMode'] ?? 'layout',
         'uploadedFiles' => $uploads,
         'uploadedPdfRasters' => $uploadedPdfRasters,
+        'pdfBrowserFacts' => is_array($metadata['pdfBrowserFacts'] ?? null) ? $metadata['pdfBrowserFacts'] : [],
     ];
 }
 
@@ -1806,6 +1814,11 @@ function plpc_import_job_store_payload(array &$job, array $payload, string $dire
         throw new RuntimeException('No readable files were found in the selected upload.');
     }
     $job['sourceFiles'] = $sourceFiles;
+    $job['browserFacts'] = plpc_import_job_store_browser_facts(
+        $directory,
+        is_array($payload['pdfBrowserFacts'] ?? null) ? $payload['pdfBrowserFacts'] : [],
+        $sourceFiles
+    );
     $job['pdfRasters'] = is_array($storedPdfRasters)
         ? $storedPdfRasters
         : plpc_import_job_store_pdf_rasters($directory, $pdfRastersByPath);
@@ -1822,6 +1835,93 @@ function plpc_import_job_store_payload(array &$job, array $payload, string $dire
             'Saved ' . $rasterCount . ' browser-decoded PDF image' . ($rasterCount === 1 ? '.' : 's.')
         );
     }
+    if (($job['browserFacts'] ?? []) !== []) {
+        plpc_import_job_add_event(
+            $job,
+            'browser_facts',
+            'Saved optional PDF.js text and structure facts for ' . count($job['browserFacts']) . ' document' . (count($job['browserFacts']) === 1 ? '.' : 's.')
+        );
+    }
+}
+
+/**
+ * Store bounded browser observations outside the WordPress options table.
+ * Source hashes are verified again by BrowserPdfFactsProvider before use.
+ *
+ * @param array<string, mixed> $factsByPath
+ * @param list<array{path:string,storage:string,size:int}> $sourceFiles
+ * @return array<string, array{storage:string,bytes:int,provider:string,sourceSha256:string,pageCount:int,pages:int}>
+ */
+function plpc_import_job_store_browser_facts(string $directory, array $factsByPath, array $sourceFiles): array
+{
+    if ($factsByPath === []) {
+        return [];
+    }
+    $sourcePaths = [];
+    foreach ($sourceFiles as $source) {
+        if (is_array($source)) {
+            $sourcePaths[strtolower((string) ($source['path'] ?? ''))] = (string) ($source['path'] ?? '');
+        }
+    }
+    $stored = [];
+    $totalBytes = 0;
+    foreach ($factsByPath as $path => $facts) {
+        $normalizedPath = plpc_normalize_collection_path((string) $path);
+        $sourcePath = $sourcePaths[strtolower($normalizedPath)] ?? '';
+        if ($sourcePath === '' || !is_array($facts)) {
+            continue;
+        }
+        $encoded = function_exists('wp_json_encode')
+            ? wp_json_encode($facts, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRESERVE_ZERO_FRACTION)
+            : json_encode($facts, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRESERVE_ZERO_FRACTION | JSON_THROW_ON_ERROR);
+        if (!is_string($encoded) || strlen($encoded) > PLPC_MAX_PDF_BROWSER_FACTS_BYTES) {
+            continue;
+        }
+        $totalBytes += strlen($encoded);
+        if ($totalBytes > PLPC_MAX_PDF_BROWSER_FACTS_TOTAL_BYTES) {
+            break;
+        }
+        if (($facts['schemaVersion'] ?? null) !== 1 || ($facts['provider'] ?? null) !== 'pdfjs-v1'
+            || !is_string($facts['sourceSha256'] ?? null) || preg_match('/\A[a-f0-9]{64}\z/', $facts['sourceSha256']) !== 1
+            || !is_int($facts['pageCount'] ?? null) || $facts['pageCount'] < 1
+            || !is_array($facts['pages'] ?? null)
+        ) {
+            continue;
+        }
+        $relative = 'facts/' . substr(sha1($sourcePath . "\0" . $facts['sourceSha256']), 0, 28) . '.json';
+        plpc_import_job_write_file($directory, $relative, $encoded);
+        $stored[$sourcePath] = [
+            'storage' => $relative,
+            'bytes' => strlen($encoded),
+            'provider' => 'pdfjs-v1',
+            'sourceSha256' => $facts['sourceSha256'],
+            'pageCount' => $facts['pageCount'],
+            'pages' => count($facts['pages']),
+        ];
+    }
+
+    return $stored;
+}
+
+/** @param array<string, mixed> $job */
+function plpc_import_job_load_browser_facts(array $job, string $path): ?array
+{
+    $record = $job['browserFacts'][$path] ?? null;
+    if (!is_array($record)) {
+        return null;
+    }
+    $storage = (string) ($record['storage'] ?? '');
+    $expectedBytes = max(0, (int) ($record['bytes'] ?? 0));
+    if ($storage === '' || $expectedBytes < 1 || $expectedBytes > PLPC_MAX_PDF_BROWSER_FACTS_BYTES) {
+        return null;
+    }
+    $encoded = plpc_import_job_read_file($job, $storage);
+    if (strlen($encoded) !== $expectedBytes) {
+        return null;
+    }
+    $facts = json_decode($encoded, true);
+
+    return is_array($facts) ? $facts : null;
 }
 
 /**
@@ -2069,7 +2169,7 @@ function plpc_import_job_write_file(string $directory, string $relative, string 
 
 function plpc_import_job_storage_target(string $directory, string $relative): string
 {
-    if (!preg_match('#\A(?:source|expanded|rasters|rendered|chunks)/[A-Za-z0-9._-]+\z#', $relative)) {
+    if (!preg_match('#\A(?:source|expanded|rasters|rendered|chunks|facts)/[A-Za-z0-9._-]+\z#', $relative)) {
         throw new RuntimeException('The import storage path was invalid.');
     }
 
@@ -2085,7 +2185,7 @@ function plpc_import_job_storage_target(string $directory, string $relative): st
  */
 function plpc_import_job_storage_path(array $job, string $relative): string
 {
-    if (!preg_match('#\A(?:source|expanded|rasters|rendered|chunks)/[A-Za-z0-9._-]+\z#', $relative)) {
+    if (!preg_match('#\A(?:source|expanded|rasters|rendered|chunks|facts)/[A-Za-z0-9._-]+\z#', $relative)) {
         throw new RuntimeException('The saved import file path was invalid.');
     }
     $path = plpc_import_job_directory($job) . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $relative);
