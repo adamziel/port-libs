@@ -364,6 +364,12 @@ final class PdfReader
             && $pageInventory['startPage'] === 1
             && !$pageInventory['hasMorePages']
             && count($pageInventory['pageNumbers']) === $pageInventory['totalPages'];
+        // Extraction completeness only proves that the requested source facts
+        // were decoded.  Keep a separate semantic ledger so later layout and
+        // cleanup stages cannot silently equate "read every stream" with
+        // "accounted for every source token".
+        $pdfTextFidelity = PdfTextFidelityLedger::fromSourceLineItems($limitedTextLineItems, $blocks);
+        $this->releaseTransientPdfMemory();
         $effectivePdfMaxPages = $this->pdfMaxPagesFromOptions($extractorOptions);
         $metadata = array_replace($structuralMetadata, [
             'pdfExtractor' => PdfTextExtractor::class,
@@ -380,6 +386,8 @@ final class PdfReader
             'pdfGeometryComplete' => $pdfGeometryComplete,
             'pdfRangeComplete' => $pdfRangeComplete,
             'pdfDocumentComplete' => $pdfDocumentComplete,
+            'pdfSemanticTextComplete' => $pdfTextFidelity['sourceAccounted'],
+            'pdfTextFidelity' => $pdfTextFidelity,
             'pdfLimitReasons' => array_values(array_unique($pdfLimitReasons)),
             'pdfPageCount' => $pageInventory['totalPages'],
             'pdfPageStart' => $pageInventory['startPage'],
