@@ -16,6 +16,7 @@ final class PdfReader
     private const PDF_MAP_LABEL_PREFIX = "\x1EPDF-MAP-LABEL\x1F";
     private const PDF_NUMBERED_HEADING_PREFIX = "\x1EPDF-NUMBERED-HEADING\x1F";
     private const PDF_DISPLAY_HEADING_PREFIX = "\x1EPDF-DISPLAY-HEADING\x1F";
+    private const PDF_FRONT_MATTER_PREFIX = "\x1EPDF-FRONT-MATTER\x1F";
     private const PDF_LINE_BLOCK_PREFIX = "\x1EPDF-LINE-BLOCK\x1F";
     private const PDF_RTL_SHAPING_CLUSTER_START = "\u{F0000}";
     private const PDF_RTL_SHAPING_CLUSTER_END = "\u{F0001}";
@@ -26,8 +27,12 @@ final class PdfReader
     private int $lineOrientedRegionCount = 0;
     private int $interGlyphSpacingRepairCount = 0;
     private int $inferredHeadingBoundaryCount = 0;
+    private int $frontMatterRecordCount = 0;
+    private int $formulaRegionCount = 0;
     /** @var array<string, true> */
     private array $interGlyphSpacingRepairKeys = [];
+    /** @var list<array{run:int,stages:list<array<string,mixed>>}> */
+    private array $semanticPipelineTrace = [];
 
     /**
      * @param array{maxTextBytes?: int, startPage?: int, pdfStartPage?: int, start_page?: int, maxPages?: int, pdfMaxPages?: int, max_pages?: int, password?: string, pdfPassword?: string, geometryTables?: bool, pdfGeometryTables?: bool, extractGeometryTables?: bool, pdfRepairProseText?: bool, repairProseText?: bool, pdfFastTextOnly?: bool, fastTextOnly?: bool, pdfFastModeBytes?: int, pdfFastMaxPages?: int, maxPositionedTextRuns?: int, pdfMaxPositionedTextRuns?: int, pdfCollectImagePlacements?: bool, collectPdfImagePlacements?: bool, pdfCollectFormXObjectPlacements?: bool, collectPdfFormXObjectPlacements?: bool, pdfDocumentFacts?: PdfDocumentFacts|array<string,mixed>} $options
@@ -42,7 +47,10 @@ final class PdfReader
         $this->lineOrientedRegionCount = 0;
         $this->interGlyphSpacingRepairCount = 0;
         $this->inferredHeadingBoundaryCount = 0;
+        $this->frontMatterRecordCount = 0;
+        $this->formulaRegionCount = 0;
         $this->interGlyphSpacingRepairKeys = [];
+        $this->semanticPipelineTrace = [];
 
         if (!class_exists(PdfTextExtractor::class)) {
             throw new \RuntimeException('PDF reading needs PortLibs\\MarkerPDF\\PdfTextExtractor.');
@@ -430,6 +438,9 @@ final class PdfReader
             'pdfLineOrientedRegions' => $this->lineOrientedRegionCount,
             'pdfInterGlyphSpacingRepairs' => $this->interGlyphSpacingRepairCount,
             'pdfInferredHeadingBoundaries' => $this->inferredHeadingBoundaryCount,
+            'pdfFrontMatterRecords' => $this->frontMatterRecordCount,
+            'pdfFormulaRegions' => $this->formulaRegionCount,
+            'pdfSemanticPipeline' => $this->semanticPipelineTrace,
             'pdfGeometryTables' => $geometryTableCount,
             'pdfGeometryTablesEnabled' => $geometryTablesEnabled,
             'pdfGeometryTableLowConfidenceCandidates' => $this->lowConfidenceGeometryTableCandidates,
@@ -1530,6 +1541,8 @@ final class PdfReader
             return ['items' => [], 'geometryPages' => 0];
         }
 
+        $positionedItems = $this->classifyPdfFrontMatterItems($positionedItems);
+
         $sourceByPage = [];
         foreach ($sourceItems as $item) {
             $sourceByPage[$item['page']][] = $item;
@@ -1631,6 +1644,35 @@ final class PdfReader
             'items' => $ordered,
             'geometryPages' => $geometryPages,
         ];
+    }
+
+    /**
+     * Apply the same semantic processor before layout ordering and after text
+     * cleaning. Keeping one classifier prevents those two phases from
+     * drifting into different definitions of a front-matter region.
+     *
+     * @param list<array<string,mixed>> $items
+     * @return list<array<string,mixed>>
+     */
+    private function classifyPdfFrontMatterItems(array $items): array
+    {
+        $processor = new PdfFrontMatterSemanticProcessor();
+        $records = array_map(
+            static fn (array $item): array => [
+                'text' => (string) ($item['text'] ?? ''),
+                'layout' => $item,
+            ],
+            $items
+        );
+        $processed = $processor->process($records);
+        $this->frontMatterRecordCount = max($this->frontMatterRecordCount, $processor->recordCount());
+
+        return array_map(static function (array $record): array {
+            $layout = is_array($record['layout'] ?? null) ? $record['layout'] : [];
+            $layout['text'] = (string) ($record['text'] ?? '');
+
+            return $layout;
+        }, $processed);
     }
 
     /**
@@ -2827,14 +2869,17 @@ final class PdfReader
         $locallyBoundShortSequence = $this->positionedPdfItemHasLocallyBoundShortSourceSequence(
             $positionedItem
         );
+        $formulaProcessor = new PdfFormulaSemanticProcessor();
+        $formulaSequence = $formulaProcessor->positionedItemLooksLikeFormula($positionedItem);
         if ($this->length($positionedKey) < 16
             && !$shortInlineContinuation
-            && !$locallyBoundShortSequence) {
+            && !$locallyBoundShortSequence
+            && !$formulaSequence) {
             return [];
         }
 
         $prefix = substr($positionedKey, 0, 8);
-        $startIndexes = ($shortInlineContinuation || $locallyBoundShortSequence)
+        $startIndexes = ($shortInlineContinuation || $locallyBoundShortSequence || $formulaSequence)
             ? array_keys($sourceItems)
             : ($sourceIndexesByComparablePrefix[$prefix] ?? []);
         if ($startIndexes === [] && !$shortInlineContinuation && $this->length($positionedKey) >= 24) {
@@ -2876,6 +2921,12 @@ final class PdfReader
                         || $this->sourcePdfShortFragmentSequenceMatchesPositionedLine($sourceItems, $indexes, $positionedKey)
                         || ($locallyBoundShortSequence
                             && $this->sourcePdfLocallyBoundShortFragmentSequenceMatchesPositionedLine(
+                                $sourceItems,
+                                $indexes,
+                                $positionedItem
+                            ))
+                        || ($formulaSequence
+                            && $formulaProcessor->sourceFragmentsMatchPositionedFormula(
                                 $sourceItems,
                                 $indexes,
                                 $positionedItem
@@ -2962,7 +3013,11 @@ final class PdfReader
 
         return $text !== ''
             && $this->length($text) <= 3
-            && preg_match('/^[\p{M}\p{Sk}]+$/u', $text) === 1;
+            // Fonts often isolate contribution marks, math accents, and
+            // other inline symbols into their own text-showing operators.
+            // This method only keeps them inside a longer sequence whose
+            // complete source text must still match one positioned line.
+            && preg_match('/^[\p{M}\p{S}]+$/u', $text) === 1;
     }
 
     /**
@@ -5777,8 +5832,16 @@ final class PdfReader
      */
     private function orderSourcePdfItemsWithinStableColumns(array $items): array
     {
-        $geometryItems = array_values(array_filter(
+        $frontMatter = array_values(array_filter(
             $items,
+            static fn (array $item): bool => ($item['sourcePdfFrontMatter'] ?? false) === true
+        ));
+        $flowItems = $frontMatter === [] ? $items : array_values(array_filter(
+            $items,
+            static fn (array $item): bool => ($item['sourcePdfFrontMatter'] ?? false) !== true
+        ));
+        $geometryItems = array_values(array_filter(
+            $flowItems,
             fn (array $item): bool => $this->pdfLayoutHasGeometry($item)
         ));
         if (count($geometryItems) < 20) {
@@ -5795,7 +5858,7 @@ final class PdfReader
         // with a body line in the same column. Compose that proven visual
         // line before column assignment so the trailing fragment is not
         // mistaken for detached geometry.
-        $items = $this->composePositionedPdfInlineFragmentsWithinStableColumns($items, $columns);
+        $flowItems = $this->composePositionedPdfInlineFragmentsWithinStableColumns($flowItems, $columns);
 
         $columnItems = array_fill(0, count($columns), []);
         $floating = [];
@@ -5805,7 +5868,7 @@ final class PdfReader
             static fn (array $item): float => max(1.0, (float) $item['fontSize']),
             $geometryItems
         ));
-        foreach ($items as $item) {
+        foreach ($flowItems as $item) {
             if (!$this->pdfLayoutHasGeometry($item)) {
                 $floating[] = $item;
                 continue;
@@ -5814,7 +5877,7 @@ final class PdfReader
             $columnIndex = $this->sourcePdfColumnIndexForItem($item, $columns);
             if ($columnIndex === null
                 && ($item['sourceFootnotePrefixedGeometry'] ?? false) === true) {
-                $columnIndex = $this->sourcePdfFootnotePrefixedGeometryColumnIndex($item, $items, $columns);
+                $columnIndex = $this->sourcePdfFootnotePrefixedGeometryColumnIndex($item, $flowItems, $columns);
             }
             if ($columnIndex === null) {
                 $item['sourceFloatingGeometry'] = true;
@@ -5845,7 +5908,7 @@ final class PdfReader
                 && !$this->sourcePdfFloatingItemCanStandAlone($item, $medianFontSize)
         ));
 
-        $ordered = [];
+        $ordered = $frontMatter;
         $previousColumnEntries = null;
         $deferredMinorFontEntries = [];
         foreach ($columnItems as $columnIndex => $entries) {
@@ -6341,9 +6404,14 @@ final class PdfReader
 
         $ordered = [];
         foreach ($pages as $pageItems) {
+            $frontMatter = [];
             $columns = [];
             $other = [];
             foreach ($pageItems as $item) {
+                if (($item['sourcePdfFrontMatter'] ?? false) === true) {
+                    $frontMatter[] = $item;
+                    continue;
+                }
                 if (($item['sourceStructuredGeometry'] ?? false) === true
                     && isset($item['sourceGeometryColumn'])
                     && ($item['sourceMinorFontFlow'] ?? false) !== true) {
@@ -6353,7 +6421,10 @@ final class PdfReader
                 $other[] = $item;
             }
             if (count($columns) < 2) {
-                foreach ($pageItems as $item) {
+                foreach (array_merge($frontMatter, array_values(array_filter(
+                    $pageItems,
+                    static fn (array $item): bool => ($item['sourcePdfFrontMatter'] ?? false) !== true
+                ))) as $item) {
                     $ordered[] = $item;
                 }
                 continue;
@@ -6414,12 +6485,18 @@ final class PdfReader
                 $previousColumn = $columnIndex;
             }
             if (!$changed) {
-                foreach ($pageItems as $item) {
+                foreach (array_merge($frontMatter, array_values(array_filter(
+                    $pageItems,
+                    static fn (array $item): bool => ($item['sourcePdfFrontMatter'] ?? false) !== true
+                ))) as $item) {
                     $ordered[] = $item;
                 }
                 continue;
             }
 
+            foreach ($frontMatter as $item) {
+                $ordered[] = $item;
+            }
             foreach ($orderedColumns as $item) {
                 $ordered[] = $item;
             }
@@ -7504,7 +7581,26 @@ final class PdfReader
         ];
         if ($positionedItem !== null) {
             $item['positionedTextCandidate'] = (string) ($positionedItem['text'] ?? '');
-            foreach (['x1', 'y1', 'x2', 'y2', 'fontSize', 'code', 'codeText', 'sourceOrderStart', 'sourceOrderEnd', 'sourceCompositePositionedFragments', 'visualRtlOrder', 'visualRtlProtectedClusters', 'logicalRtlTextCandidate'] as $key) {
+            foreach ([
+                'x1',
+                'y1',
+                'x2',
+                'y2',
+                'fontSize',
+                'code',
+                'codeText',
+                'sourceOrderStart',
+                'sourceOrderEnd',
+                'sourceCompositePositionedFragments',
+                'visualRtlOrder',
+                'visualRtlProtectedClusters',
+                'logicalRtlTextCandidate',
+                'sourcePdfFrontMatter',
+                'sourcePdfProtectedSemanticContent',
+                'sourcePdfFrontMatterRole',
+                'sourcePdfDisplayHeading',
+                'forceBlockBreakBefore',
+            ] as $key) {
                 if (array_key_exists($key, $positionedItem)) {
                     $item[$key] = $positionedItem[$key];
                 }
@@ -9743,22 +9839,36 @@ final class PdfReader
                 }
             }
         }
-        $cleaned = $this->removeRepeatedPdfPageNumberRecords($cleaned);
-        $cleaned = $this->markPdfDisplayHeadingRecords($cleaned);
-        $cleaned = $this->removeLowConfidencePdfReferenceEntries($cleaned);
-        $cleaned = $this->removeLowCoherencePdfMapRegions($cleaned);
-        $cleaned = $this->removeLowCoherencePdfFloatingRegions($cleaned);
-        $cleaned = $this->removeLowCoherencePdfDiagramLabelRegions($cleaned);
-        $cleaned = $this->removeLowCoherencePdfStructuredFloatingFragments($cleaned);
-        $cleaned = $this->removeSourcePdfOrphanedInferredContinuations($cleaned);
-        $cleaned = $this->removeLowCoherencePdfUnpositionedLabelRegions($cleaned);
-        $cleaned = $this->removeIncompletePdfComplexColumnSegments($cleaned);
-        $cleaned = $this->removeIncompletePdfInterruptedFlowSegments($cleaned);
-        $cleaned = $this->trimIncompletePdfInterruptedSentenceTails($cleaned);
-        $cleaned = $this->trimIncompletePdfSupplementalSegmentTails($cleaned);
-        $cleaned = $this->trimIncompletePdfUnstructuredFragments($cleaned);
-        $cleaned = $this->removeOrphanedPdfPageOpeningFragments($cleaned);
-        $cleaned = $this->removeIsolatedPdfDiagramFlowFragments($cleaned);
+        $frontMatterProcessor = new PdfFrontMatterSemanticProcessor();
+        $formulaProcessor = new PdfFormulaSemanticProcessor();
+        $pipeline = new PdfSemanticRecordPipeline([
+            $frontMatterProcessor,
+            new PdfCallableSemanticRecordProcessor('repeated-page-furniture', $this->removeRepeatedPdfPageNumberRecords(...)),
+            new PdfCallableSemanticRecordProcessor('display-headings', $this->markPdfDisplayHeadingRecords(...)),
+            new PdfCallableSemanticRecordProcessor('reference-confidence', $this->removeLowConfidencePdfReferenceEntries(...)),
+            new PdfCallableSemanticRecordProcessor('map-regions', $this->removeLowCoherencePdfMapRegions(...)),
+            new PdfCallableSemanticRecordProcessor('floating-regions', $this->removeLowCoherencePdfFloatingRegions(...)),
+            new PdfCallableSemanticRecordProcessor('diagram-label-regions', $this->removeLowCoherencePdfDiagramLabelRegions(...)),
+            new PdfCallableSemanticRecordProcessor('structured-floating-fragments', $this->removeLowCoherencePdfStructuredFloatingFragments(...)),
+            new PdfCallableSemanticRecordProcessor('orphaned-source-continuations', $this->removeSourcePdfOrphanedInferredContinuations(...)),
+            new PdfCallableSemanticRecordProcessor('unpositioned-label-regions', $this->removeLowCoherencePdfUnpositionedLabelRegions(...)),
+            new PdfCallableSemanticRecordProcessor('complex-column-segments', $this->removeIncompletePdfComplexColumnSegments(...)),
+            new PdfCallableSemanticRecordProcessor('interrupted-flow-segments', $this->removeIncompletePdfInterruptedFlowSegments(...)),
+            new PdfCallableSemanticRecordProcessor('interrupted-sentence-tails', $this->trimIncompletePdfInterruptedSentenceTails(...)),
+            new PdfCallableSemanticRecordProcessor('supplemental-segment-tails', $this->trimIncompletePdfSupplementalSegmentTails(...)),
+            new PdfCallableSemanticRecordProcessor('unstructured-fragments', $this->trimIncompletePdfUnstructuredFragments(...)),
+            new PdfCallableSemanticRecordProcessor('orphaned-page-openings', $this->removeOrphanedPdfPageOpeningFragments(...)),
+            new PdfCallableSemanticRecordProcessor('isolated-diagram-flows', $this->removeIsolatedPdfDiagramFlowFragments(...)),
+            $formulaProcessor,
+        ]);
+        $pipelineResult = $pipeline->run($cleaned);
+        $cleaned = $pipelineResult['records'];
+        $this->frontMatterRecordCount = max($this->frontMatterRecordCount, $frontMatterProcessor->recordCount());
+        $this->formulaRegionCount = max($this->formulaRegionCount, $formulaProcessor->regionCount());
+        $this->semanticPipelineTrace[] = [
+            'run' => count($this->semanticPipelineTrace) + 1,
+            'stages' => $pipelineResult['trace'],
+        ];
         // Infer line-oriented roles only after the conservative fragment
         // filters have finished. Otherwise a role marker can accidentally
         // turn extraction noise into content merely by making it look
@@ -9772,6 +9882,13 @@ final class PdfReader
         foreach ($merged as $line) {
             if (str_starts_with($line, self::PDF_CODE_BLOCK_PREFIX)) {
                 $repaired[] = $line;
+                continue;
+            }
+            if (str_starts_with($line, PdfFormulaSemanticProcessor::LINE_PREFIX)) {
+                $formula = trim(substr($line, strlen(PdfFormulaSemanticProcessor::LINE_PREFIX)));
+                if ($formula !== '') {
+                    $repaired[] = PdfFormulaSemanticProcessor::LINE_PREFIX . $formula;
+                }
                 continue;
             }
             if (str_starts_with($line, self::PDF_LINE_BLOCK_PREFIX)) {
@@ -9797,6 +9914,13 @@ final class PdfReader
                     : trim($label);
                 if ($label !== '') {
                     $repaired[] = self::PDF_MAP_LABEL_PREFIX . $label;
+                }
+                continue;
+            }
+            if (str_starts_with($line, self::PDF_FRONT_MATTER_PREFIX)) {
+                $credit = trim(substr($line, strlen(self::PDF_FRONT_MATTER_PREFIX)));
+                if ($credit !== '') {
+                    $repaired[] = self::PDF_FRONT_MATTER_PREFIX . $credit;
                 }
                 continue;
             }
@@ -10223,8 +10347,10 @@ final class PdfReader
                 && $this->stackedTableRowsAt($lines, $index + 1)['rows'] !== [];
             if (!$followingTable
                 || str_starts_with($line, self::PDF_CODE_BLOCK_PREFIX)
+                || str_starts_with($line, PdfFormulaSemanticProcessor::LINE_PREFIX)
                 || str_starts_with($line, self::PDF_LINE_BLOCK_PREFIX)
                 || str_starts_with($line, self::PDF_MAP_LABEL_PREFIX)
+                || str_starts_with($line, self::PDF_FRONT_MATTER_PREFIX)
                 || $this->lineHasPdfListBlockEvidence($line)
                 || $this->lineLooksLikeUrlOnly($line)
                 || $this->repairedLineLooksLikeSectionLabel($line)
@@ -10263,8 +10389,10 @@ final class PdfReader
         $trimmed = [];
         foreach ($lines as $line) {
             if (str_starts_with($line, self::PDF_CODE_BLOCK_PREFIX)
+                || str_starts_with($line, PdfFormulaSemanticProcessor::LINE_PREFIX)
                 || str_starts_with($line, self::PDF_LINE_BLOCK_PREFIX)
                 || str_starts_with($line, self::PDF_MAP_LABEL_PREFIX)
+                || str_starts_with($line, self::PDF_FRONT_MATTER_PREFIX)
                 || preg_match('/[-\x{2010}]\s*$/u', rtrim($line)) !== 1) {
                 $trimmed[] = $line;
                 continue;
@@ -10450,6 +10578,9 @@ final class PdfReader
                 $pageRecords
             ));
             foreach ($indexes as $index) {
+                if (($records[$index]['layout']['sourcePdfProtectedSemanticContent'] ?? false) === true) {
+                    continue;
+                }
                 if ($this->pdfUnstructuredDisplayFragmentLooksIncomplete($records[$index], $medianFontSize)) {
                     $drop[$index] = true;
                 }
@@ -10472,7 +10603,8 @@ final class PdfReader
                 $record = $records[$index];
                 $layout = $record['layout'];
                 $line = trim($record['text']);
-                if (str_starts_with($line, self::PDF_MAP_LABEL_PREFIX)
+                if (($layout['sourcePdfProtectedSemanticContent'] ?? false) === true
+                    || str_starts_with($line, self::PDF_MAP_LABEL_PREFIX)
                     || ($layout['code'] ?? false) === true
                     || ($layout['sourceFootnotePrefixedGeometry'] ?? false) === true
                     || $this->lineHasPdfListBlockEvidence($line)
@@ -13755,6 +13887,7 @@ final class PdfReader
         $merged = [];
         $prose = [];
         $code = [];
+        $formula = [];
         $lineBlock = [];
         $lineBlockGroup = null;
         $flushProse = function () use (&$merged, &$prose): void {
@@ -13786,6 +13919,16 @@ final class PdfReader
             }
             $code = [];
         };
+        $flushFormula = function () use (&$merged, &$formula): void {
+            if ($formula === []) {
+                return;
+            }
+            $text = trim(implode(' ', $formula));
+            if ($text !== '') {
+                $merged[] = PdfFormulaSemanticProcessor::LINE_PREFIX . $text;
+            }
+            $formula = [];
+        };
         $flushLineBlock = function () use (&$merged, &$lineBlock, &$lineBlockGroup): void {
             if ($lineBlock !== []) {
                 $merged[] = $this->encodePdfLineBlock($lineBlock);
@@ -13799,7 +13942,28 @@ final class PdfReader
             if (($layout['code'] ?? false) === true) {
                 $flushProse();
                 $flushLineBlock();
+                $flushFormula();
                 $code[] = (string) ($layout['codeText'] ?? $record['text']);
+                continue;
+            }
+
+            if (($layout['sourcePdfRegionRole'] ?? null) === 'formula') {
+                $flushProse();
+                $flushCode();
+                $flushLineBlock();
+                $formula[] = (string) ($layout['sourcePdfFormulaText'] ?? $record['text']);
+                continue;
+            }
+
+            if (($layout['sourcePdfFrontMatterRole'] ?? null) === 'credits') {
+                $flushProse();
+                $flushCode();
+                $flushLineBlock();
+                $flushFormula();
+                $credit = trim((string) ($record['text'] ?? ''));
+                if ($credit !== '') {
+                    $merged[] = self::PDF_FRONT_MATTER_PREFIX . $credit;
+                }
                 continue;
             }
 
@@ -13809,6 +13973,7 @@ final class PdfReader
             if ($group !== null) {
                 $flushCode();
                 $flushProse();
+                $flushFormula();
                 if ($lineBlockGroup !== null && $lineBlockGroup !== $group) {
                     $flushLineBlock();
                 }
@@ -13838,9 +14003,11 @@ final class PdfReader
 
             $flushCode();
             $flushLineBlock();
+            $flushFormula();
             $prose[] = $record;
         }
         $flushCode();
+        $flushFormula();
         $flushLineBlock();
         $flushProse();
 
@@ -14943,6 +15110,19 @@ final class PdfReader
                 $index++;
                 continue;
             }
+            if (str_starts_with($line, PdfFormulaSemanticProcessor::LINE_PREFIX)) {
+                $flushList();
+                $formula = trim(substr($line, strlen(PdfFormulaSemanticProcessor::LINE_PREFIX)));
+                if ($formula !== '') {
+                    $blocks[] = new AstNode(
+                        'paragraph',
+                        ['classes' => ['pdf-formula'], 'sourceRole' => 'formula'],
+                        [new AstNode('text', ['text' => $formula])]
+                    );
+                }
+                $index++;
+                continue;
+            }
             if (str_starts_with($line, self::PDF_LINE_BLOCK_PREFIX)) {
                 $flushList();
                 $lineBlock = $this->decodePdfLineBlock($line);
@@ -14968,6 +15148,19 @@ final class PdfReader
                 $label = trim(substr($line, strlen(self::PDF_MAP_LABEL_PREFIX)));
                 if ($label !== '') {
                     $blocks[] = $this->paragraph($label);
+                }
+                $index++;
+                continue;
+            }
+            if (str_starts_with($line, self::PDF_FRONT_MATTER_PREFIX)) {
+                $flushList();
+                $credit = trim(substr($line, strlen(self::PDF_FRONT_MATTER_PREFIX)));
+                if ($credit !== '') {
+                    $blocks[] = new AstNode(
+                        'paragraph',
+                        ['classes' => ['pdf-front-matter'], 'sourceRole' => 'credits'],
+                        $this->inlines($credit)
+                    );
                 }
                 $index++;
                 continue;

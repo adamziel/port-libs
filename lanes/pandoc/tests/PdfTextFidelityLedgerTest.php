@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\Pandoc\AstNode;
+use PortLibs\Pandoc\PandocConverter;
 use PortLibs\Pandoc\PdfReader;
 use PortLibs\Pandoc\PdfTextFidelityLedger;
 
@@ -49,7 +50,7 @@ return [
         $t->same(true, $meta['pdfTextFidelity']['sourceAccounted']);
     },
 
-    'pdf fidelity ledger makes the current multicolumn semantic loss machine readable' => static function (TestRunner $t): void {
+    'pdf reader conserves multicolumn front matter while reporting remaining semantic loss' => static function (TestRunner $t): void {
         $path = dirname(__DIR__, 3) . '/pandoc-showcase/samples/pdf-layout-unstructured-multicolumn-multi-column-2p.pdf';
         $document = (new PdfReader([
             'pdfGeometryTables' => true,
@@ -57,14 +58,25 @@ return [
         ]))->read((string) file_get_contents($path));
         $meta = $document->attr('meta');
         $ledger = $meta['pdfTextFidelity'];
+        $plain = PandocConverter::write($document, 'plain');
+        $summaryPosition = strpos($plain, 'Open-domain question answering relies');
+        $introductionPosition = strpos($plain, '1 Introduction');
 
         $t->same(true, $meta['pdfTextComplete']);
         $t->same(false, $meta['pdfSemanticTextComplete']);
-        $t->true($ledger['tokenCoverage'] < 0.90, 'The known abstract/author loss must not remain invisible behind extraction completeness.');
-        $t->true($ledger['unresolvedTokenCount'] > 100);
+        $t->true($meta['pdfFrontMatterRecords'] >= 20);
+        $t->contains('Dense Passage Retrieval for Open-Domain Question Answering', $plain);
+        $t->contains('Vladimir Karpukhin', $plain);
+        $t->contains('sewoncs.washington.edu', $plain);
+        $t->contains('danqiccs.princeton.edu', $plain);
+        $t->contains('Abstract', $plain);
+        $t->true(is_int($summaryPosition) && is_int($introductionPosition) && $summaryPosition < $introductionPosition);
+        $t->true($ledger['tokenCoverage'] > 0.855);
+        $t->true($ledger['unresolvedTokenCount'] < 225);
+        $t->true($ledger['unresolvedTokenCount'] > 0, 'Remaining body and diagram loss must stay visible in the ledger.');
     },
 
-    'pdf fidelity ledger makes the current formula loss machine readable' => static function (TestRunner $t): void {
+    'pdf reader conserves a split formula through exact source and geometry reconciliation' => static function (TestRunner $t): void {
         $path = dirname(__DIR__, 3) . '/pandoc-showcase/samples/pdf-layout-docling-code-formula-code_and_formula.pdf';
         $document = (new PdfReader([
             'pdfGeometryTables' => true,
@@ -72,10 +84,22 @@ return [
         ]))->read((string) file_get_contents($path));
         $meta = $document->attr('meta');
         $ledger = $meta['pdfTextFidelity'];
+        $unresolvedCharacters = array_column($ledger['unresolvedCharacterSample'], 'character');
+        $changedFormulaStages = [];
+        foreach ($meta['pdfSemanticPipeline'] as $run) {
+            foreach ($run['stages'] as $stage) {
+                if ($stage['processor'] === 'formula-regions' && $stage['changed']) {
+                    $changedFormulaStages[] = $stage;
+                }
+            }
+        }
 
         $t->same(true, $meta['pdfTextComplete']);
         $t->same(false, $meta['pdfSemanticTextComplete']);
-        $t->true($ledger['unresolvedSignificantCharacterCount'] > 0);
-        $t->true($ledger['significantCharacterCoverage'] < 1.0);
+        $t->same(1, $meta['pdfFormulaRegions']);
+        $t->contains('a2 + 8 = 12', PandocConverter::write($document, 'plain'));
+        $t->true($ledger['significantCharacterCoverage'] > 0.98);
+        $t->same(false, in_array('=', $unresolvedCharacters, true));
+        $t->same(1, count($changedFormulaStages));
     },
 ];
