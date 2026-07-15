@@ -990,6 +990,7 @@ function plpc_import_job_convert_next_pdf_chunk(
             'format' => (string) ($document['format'] ?? 'pdf'),
             'pdfRasterImages' => plpc_import_job_load_pdf_rasters($job, $path),
             'pdfFormRenders' => plpc_import_job_load_rendered_forms($job, $path),
+            'pdfBrowserFacts' => plpc_import_job_load_browser_facts($job, $path),
         ];
         $chunk = plpc_convert_pdf_page_chunk(
             $file,
@@ -1024,22 +1025,87 @@ function plpc_import_job_convert_next_pdf_chunk(
         return;
     }
 
+    if (!is_array($document['pdfDocumentFacts'] ?? null)) {
+        plpc_import_job_set_progress(
+            $job,
+            'converting',
+            min($total - 1, $before + $pageCount),
+            $total,
+            'All PDF page facts are durable. Verifying one complete document snapshot.'
+        );
+        plpc_import_job_add_event($job, 'merging_facts', 'Merging contiguous page facts before any document semantics run.');
+        plpc_import_job_save($job);
+        plpc_import_job_checkpoint_for_deadline($job, $deadline, $index, 'merging_facts', 'Merging complete PDF facts.');
+        $document['pdfDocumentFacts'] = plpc_import_job_merge_pdf_document_facts($job, $index, $document);
+        $job['documents'][$index] = $document;
+        plpc_import_job_clear_document_checkpoint($job, $index);
+        plpc_import_job_set_progress(
+            $job,
+            'ready_to_convert',
+            min($total - 1, $before + $pageCount + 1),
+            $total,
+            'Complete PDF facts are saved. The next request will resolve document-wide layout and reading order.'
+        );
+        plpc_import_job_add_event($job, 'checkpoint', 'Saved one verified, complete PDF facts snapshot.');
+
+        return;
+    }
+
+    if (!is_array($document['pdfFinalBundle'] ?? null)) {
+        plpc_import_job_set_progress(
+            $job,
+            'converting',
+            min($total - 1, $before + $pageCount + 1),
+            $total,
+            'Resolving reading order and document structure across every PDF page.'
+        );
+        plpc_import_job_add_event($job, 'global_semantics', 'Running one document-level semantic pass from the verified page facts.');
+        plpc_import_job_save($job);
+        plpc_import_job_checkpoint_for_deadline($job, $deadline, $index, 'global_semantics', 'Resolving complete PDF document semantics.');
+        $semanticProgress = static function (string $stage, string $label) use (&$job, $total, $before, $pageCount): void {
+            plpc_import_job_set_progress($job, 'converting', min($total - 1, $before + $pageCount + 1), $total, $label);
+            plpc_import_job_add_event($job, $stage, $label, false);
+            plpc_import_job_save($job);
+        };
+        $document['pdfFinalBundle'] = plpc_import_job_prepare_pdf_final_bundle(
+            $job,
+            $index,
+            $document,
+            $bytes,
+            (string) ($job['imageMode'] ?? 'important'),
+            (string) ($job['pdfMode'] ?? 'layout'),
+            $semanticProgress
+        );
+        $job['documents'][$index] = $document;
+        plpc_import_job_clear_document_checkpoint($job, $index);
+        plpc_import_job_set_progress(
+            $job,
+            'ready_to_convert',
+            min($total - 1, $before + $pageCount + 2),
+            $total,
+            'The complete PDF conversion is saved. The next request will upload media and publish the page.'
+        );
+        plpc_import_job_add_event($job, 'checkpoint', 'Saved the globally finalized PDF block and media bundle.');
+
+        return;
+    }
+
     plpc_import_job_set_progress(
         $job,
         'converting',
-        min($total - 1, $before + $pageCount),
+        min($total - 1, $before + $pageCount + 2),
         $total,
-        'All ' . $pageCount . ' PDF pages are converted. Preparing the final WordPress page.'
+        'Uploading media and publishing the globally finalized PDF page.'
     );
-    plpc_import_job_add_event($job, 'finalizing', 'All PDF page chunks are durable; public media and the page can now be created.');
+    plpc_import_job_add_event($job, 'finalizing', 'The complete semantic result is durable; public media and the page can now be created.');
     plpc_import_job_save($job);
-    plpc_import_job_checkpoint_for_deadline($job, $deadline, $index, 'finalizing', 'Preparing the complete PDF page.');
+    plpc_import_job_checkpoint_for_deadline($job, $deadline, $index, 'finalizing', 'Publishing the complete PDF page.');
 
     $collection = ($job['sourceKind'] ?? '') === 'collection'
         ? ['label' => (string) ($job['sourceLabel'] ?? $job['title'] ?? 'Import'), 'files' => plpc_import_job_load_source_files($job)]
         : null;
     $finalProgress = static function (string $stage, string $label) use (&$job, $total, $before, $pageCount): void {
-        plpc_import_job_set_progress($job, 'converting', min($total - 1, $before + $pageCount + 1), $total, $label);
+        plpc_import_job_set_progress($job, 'converting', min($total - 1, $before + $pageCount + 2), $total, $label);
         plpc_import_job_add_event($job, $stage, $label, false);
         plpc_import_job_save($job);
     };
@@ -1644,7 +1710,7 @@ function plpc_import_job_progress_total(array $job): int
             continue;
         }
         $pdfPageCount = max(0, (int) ($document['pdfPageCount'] ?? 0));
-        $units += $pdfPageCount > 0 ? $pdfPageCount + 2 : 6;
+        $units += $pdfPageCount > 0 ? $pdfPageCount + 3 : 6;
     }
 
     return max(6, $units);
@@ -1672,7 +1738,7 @@ function plpc_import_job_progress_before_document(array $job, int $documentIndex
             continue;
         }
         $pdfPageCount = max(0, (int) ($document['pdfPageCount'] ?? 0));
-        $completed += $pdfPageCount > 0 ? $pdfPageCount + 2 : 6;
+        $completed += $pdfPageCount > 0 ? $pdfPageCount + 3 : 6;
     }
 
     return $completed;
@@ -3167,12 +3233,12 @@ function plpc_convertible_collection_files(array $collection): array
 }
 
 /**
- * Convert one original PDF page range without creating WordPress posts or
- * attachments. The returned block/media bundle is safe to persist in the
- * job's private directory and replay after an interrupted PHP worker.
+ * Extract one original PDF page range without deciding reading order or
+ * creating output blocks. Semantic work is deliberately deferred until every
+ * page fact is durable and can be considered in one document-wide pass.
  *
- * @param array{path:string,bytes:string,format:string,pdfRasterImages?:list<array<string,mixed>>,pdfFormRenders?:list<array<string,mixed>>} $file
- * @return array{blocks:string,entries:list<array<string,mixed>>,diagnostics:list<string>,imageTagCount:int,startPage:int,endPage:int,pageNumbers:list<int>}
+ * @param array{path:string,bytes:string,format:string,pdfBrowserFacts?:array<string,mixed>|null} $file
+ * @return array{facts:\PortLibs\MarkerPDF\PdfDocumentFacts,startPage:int,endPage:int,pageNumbers:list<int>}
  */
 function plpc_convert_pdf_page_chunk(
     array $file,
@@ -3189,58 +3255,47 @@ function plpc_convert_pdf_page_chunk(
         throw new RuntimeException('A non-PDF document cannot be converted as a PDF page chunk.');
     }
 
-    $options = plpc_converter_options($format, $pdfMode);
-    $options['readerOptions']['pdfStartPage'] = max(1, $startPage);
-    $options['readerOptions']['pdfMaxPages'] = max(1, $maxPages);
+    $options = plpc_converter_options($format, $pdfMode)['readerOptions'];
+    $options['pdfStartPage'] = max(1, $startPage);
+    $options['pdfMaxPages'] = max(1, $maxPages);
+    $options['pdfMaxPositionedTextRuns'] = max(20_000, min(250_000, max(1, $maxPages) * 1_000));
     if ($imageMode === 'none') {
-        $options['readerOptions']['pdfCollectImagePlacements'] = false;
-        $options['readerOptions']['pdfCollectFormXObjectPlacements'] = false;
+        $options['pdfCollectImagePlacements'] = false;
+        $options['pdfCollectFormXObjectPlacements'] = false;
     }
-    plpc_conversion_progress($reportProgress, 'reading', 'Reading the selected PDF page range.');
-    $document = PandocConverter::read($bytes, $format, $options['readerOptions']);
-    $metadata = $document->attr('meta', []);
-    $metadata = is_array($metadata) ? $metadata : [];
-    $pageNumbers = array_values(array_map('intval', is_array($metadata['pdfProcessedPageNumbers'] ?? null)
-        ? $metadata['pdfProcessedPageNumbers']
-        : []));
+    if (is_array($file['pdfBrowserFacts'] ?? null)) {
+        $options['browserFacts'] = $file['pdfBrowserFacts'];
+    }
+    plpc_conversion_progress($reportProgress, 'reading', 'Extracting lossless facts from the selected PDF page range.');
+    $facts = (new \PortLibs\MarkerPDF\BrowserPdfFactsProvider())->extract($bytes, $options);
+    $pageNumbers = array_values(array_map('intval', $facts->inventory()['pageNumbers'] ?? []));
     $expectedEndPage = max(1, $startPage) + max(1, $maxPages) - 1;
     $expectedPageNumbers = range(max(1, $startPage), $expectedEndPage);
-    if ($pageNumbers !== $expectedPageNumbers
-        || ($metadata['pdfTextComplete'] ?? false) !== true
-        || ($metadata['pdfRangeComplete'] ?? false) !== true
+    $issues = [];
+    $positionedRunsLimited = false;
+    foreach ($facts->pages() as $page) {
+        array_push($issues, ...$page->issues());
+        $positionedRunsLimited = $positionedRunsLimited
+            || (($page->text()['positionedRunsLimited'] ?? false) === true);
+    }
+    if ($pageNumbers !== $expectedPageNumbers || $issues !== []
+        || ($pdfMode === 'layout' && $positionedRunsLimited)
     ) {
-        $reasons = is_array($metadata['pdfLimitReasons'] ?? null)
-            ? implode(', ', array_map('strval', $metadata['pdfLimitReasons']))
-            : '';
+        $reasons = [];
+        if ($issues !== []) {
+            $reasons[] = 'page extraction';
+        }
+        if ($positionedRunsLimited) {
+            $reasons[] = 'positioned text limit';
+        }
         throw new RuntimeException(
-            'PDF pages ' . max(1, $startPage) . '–' . $expectedEndPage
-            . ' could not be converted completely' . ($reasons === '' ? '.' : ' (' . $reasons . ').')
+            'PDF pages ' . max(1, $startPage) . '–' . $expectedEndPage . ' could not be extracted completely'
+            . ($reasons === [] ? '.' : ' (' . implode(', ', $reasons) . ').')
         );
     }
 
-    if (($file['pdfFormRenders'] ?? []) !== []) {
-        plpc_conversion_progress($reportProgress, 'extracting_media', 'Placing browser-rendered PDF figures near their text.');
-        $document = plpc_document_with_browser_pdf_form_renders($document, $file['pdfFormRenders']);
-    }
-    plpc_conversion_progress($reportProgress, 'extracting_media', 'Extracting media from this PDF page range.');
-    $media = (new PandocMediaExtractor())->extract($document, $bytes, $format, [
-        'destination' => 'media',
-        'imageMode' => $imageMode,
-        'pdfRasterImages' => is_array($file['pdfRasterImages'] ?? null) ? $file['pdfRasterImages'] : [],
-    ]);
-    $document = $media['document'];
-    plpc_conversion_progress($reportProgress, 'writing_blocks', 'Writing WordPress blocks for this PDF page range.');
-    $blocks = PandocConverter::write($document, 'wordpress', $options['writerOptions']);
-    $diagnostics = array_values(array_unique(array_merge(
-        plpc_document_diagnostics($document, $format),
-        is_array($media['diagnostics'] ?? null) ? $media['diagnostics'] : []
-    )));
-
     return [
-        'blocks' => $blocks,
-        'entries' => is_array($media['entries'] ?? null) ? array_values($media['entries']) : [],
-        'diagnostics' => $diagnostics,
-        'imageTagCount' => count(plpc_rendered_image_sources($blocks)),
+        'facts' => $facts,
         'startPage' => max(1, $startPage),
         'endPage' => $expectedEndPage,
         'pageNumbers' => $pageNumbers,
@@ -3249,67 +3304,230 @@ function plpc_convert_pdf_page_chunk(
 
 /**
  * @param array<string, mixed> $job
- * @param array{blocks:string,entries:list<array<string,mixed>>,diagnostics:list<string>,imageTagCount:int,startPage:int,endPage:int,pageNumbers:list<int>} $chunk
- * @return array{startPage:int,endPage:int,manifest:string}
+ * @param array{facts:\PortLibs\MarkerPDF\PdfDocumentFacts,startPage:int,endPage:int,pageNumbers:list<int>} $chunk
+ * @return array{startPage:int,endPage:int,facts:string,sha256:string,bytes:int}
  */
 function plpc_import_job_store_pdf_chunk(array $job, int $documentIndex, array $chunk): array
 {
     $startPage = max(1, (int) ($chunk['startPage'] ?? 1));
     $endPage = max($startPage, (int) ($chunk['endPage'] ?? $startPage));
-    $base = sprintf('pdf-%03d-pages-%06d-%06d', $documentIndex, $startPage, $endPage);
-    $blocksStorage = 'chunks/' . $base . '.blocks';
-    $manifestStorage = 'chunks/' . $base . '.json';
-    $directory = plpc_import_job_directory($job);
-    plpc_import_job_write_file($directory, $blocksStorage, (string) ($chunk['blocks'] ?? ''));
-
-    $entryRecords = [];
-    foreach ($chunk['entries'] ?? [] as $entry) {
-        if (!is_array($entry)) {
-            continue;
-        }
-        $contents = is_string($entry['contents'] ?? null) ? $entry['contents'] : '';
-        if ($contents === '') {
-            continue;
-        }
-        $sha1 = sha1($contents);
-        $storage = 'chunks/pdf-media-' . $sha1 . '.bin';
-        plpc_import_job_write_file($directory, $storage, $contents);
-        unset($entry['contents']);
-        $entry['sha1'] = $sha1;
-        $entry['storage'] = $storage;
-        $entryRecords[] = $entry;
+    $facts = $chunk['facts'] ?? null;
+    if (!$facts instanceof \PortLibs\MarkerPDF\PdfDocumentFacts) {
+        throw new RuntimeException('A PDF page chunk did not contain serializable facts.');
     }
+    $base = sprintf('pdf-%03d-pages-%06d-%06d', $documentIndex, $startPage, $endPage);
+    $factsStorage = 'facts/' . $base . '.json';
+    $directory = plpc_import_job_directory($job);
+    $json = $facts->toJson();
+    plpc_import_job_write_file($directory, $factsStorage, $json);
 
-    $manifest = [
-        'version' => 1,
-        'startPage' => $startPage,
-        'endPage' => $endPage,
-        'pageNumbers' => array_values(array_map('intval', $chunk['pageNumbers'] ?? [])),
-        'blocksStorage' => $blocksStorage,
-        'entries' => $entryRecords,
-        'diagnostics' => array_values(array_map('strval', $chunk['diagnostics'] ?? [])),
-        'imageTagCount' => max(0, (int) ($chunk['imageTagCount'] ?? 0)),
+    return compact('startPage', 'endPage') + [
+        'facts' => $factsStorage,
+        'sha256' => hash('sha256', $json),
+        'bytes' => strlen($json),
     ];
-    plpc_import_job_write_file(
-        $directory,
-        $manifestStorage,
-        json_encode($manifest, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR)
-    );
-
-    return compact('startPage', 'endPage') + ['manifest' => $manifestStorage];
 }
 
 /**
  * @param array<string, mixed> $job
- * @param array{startPage:int,endPage:int,manifest:string} $record
- * @return array{blocks:string,entries:list<array<string,mixed>>,diagnostics:list<string>,imageTagCount:int,startPage:int,endPage:int,pageNumbers:list<int>}
+ * @param array{startPage:int,endPage:int,facts:string,sha256:string,bytes:int} $record
+ * @return array{facts:\PortLibs\MarkerPDF\PdfDocumentFacts,startPage:int,endPage:int,pageNumbers:list<int>}
  */
 function plpc_import_job_load_pdf_chunk(array $job, array $record): array
 {
-    $manifestBytes = plpc_import_job_read_file($job, (string) ($record['manifest'] ?? ''));
-    $manifest = json_decode($manifestBytes, true, 512, JSON_THROW_ON_ERROR);
+    $json = plpc_import_job_read_file($job, (string) ($record['facts'] ?? ''));
+    if ((int) ($record['bytes'] ?? -1) !== strlen($json)
+        || !hash_equals((string) ($record['sha256'] ?? ''), hash('sha256', $json))) {
+        throw new RuntimeException('A saved PDF page facts chunk failed its integrity check.');
+    }
+    $facts = \PortLibs\MarkerPDF\PdfDocumentFacts::fromJson($json);
+    $pageNumbers = array_values(array_map('intval', $facts->inventory()['pageNumbers'] ?? []));
+
+    return [
+        'facts' => $facts,
+        'startPage' => max(1, (int) ($record['startPage'] ?? 1)),
+        'endPage' => max(1, (int) ($record['endPage'] ?? 1)),
+        'pageNumbers' => $pageNumbers,
+    ];
+}
+
+/**
+ * @param array<string, mixed> $job
+ * @param array<string, mixed> $document
+ * @return array{storage:string,sha256:string,bytes:int,provider:string,pages:int}
+ */
+function plpc_import_job_merge_pdf_document_facts(array $job, int $documentIndex, array $document): array
+{
+    $records = is_array($document['pdfChunks'] ?? null) ? array_values($document['pdfChunks']) : [];
+    usort($records, static fn (array $left, array $right): int => ((int) ($left['startPage'] ?? 0)) <=> ((int) ($right['startPage'] ?? 0)));
+    $pageCount = max(1, (int) ($document['pdfPageCount'] ?? 0));
+    $expectedPage = 1;
+    $ranges = [];
+    foreach ($records as $record) {
+        if (!is_array($record)) {
+            continue;
+        }
+        $chunk = plpc_import_job_load_pdf_chunk($job, $record);
+        if ($chunk['startPage'] !== $expectedPage
+            || $chunk['pageNumbers'] !== range($chunk['startPage'], $chunk['endPage'])) {
+            throw new RuntimeException('The saved PDF page facts were not contiguous.');
+        }
+        $expectedPage = $chunk['endPage'] + 1;
+        $ranges[] = $chunk['facts'];
+    }
+    if ($expectedPage !== $pageCount + 1) {
+        throw new RuntimeException('The PDF cannot be finalized until every page fact is present.');
+    }
+    $facts = (new \PortLibs\MarkerPDF\PdfDocumentFactsMerger())->mergeComplete($ranges);
+    $json = $facts->toJson();
+    $storage = 'facts/' . sprintf('pdf-%03d-document.json', max(0, $documentIndex));
+    plpc_import_job_write_file(plpc_import_job_directory($job), $storage, $json);
+
+    return [
+        'storage' => $storage,
+        'sha256' => hash('sha256', $json),
+        'bytes' => strlen($json),
+        'provider' => $facts->provider(),
+        'pages' => count($facts->pages()),
+    ];
+}
+
+/** @param array<string, mixed> $job @param array<string, mixed> $document */
+function plpc_import_job_load_pdf_document_facts(array $job, array $document): \PortLibs\MarkerPDF\PdfDocumentFacts
+{
+    $record = $document['pdfDocumentFacts'] ?? null;
+    if (!is_array($record)) {
+        throw new RuntimeException('The complete PDF facts snapshot is not available.');
+    }
+    $json = plpc_import_job_read_file($job, (string) ($record['storage'] ?? ''));
+    if ((int) ($record['bytes'] ?? -1) !== strlen($json)
+        || !hash_equals((string) ($record['sha256'] ?? ''), hash('sha256', $json))) {
+        throw new RuntimeException('The complete PDF facts snapshot failed its integrity check.');
+    }
+    $facts = \PortLibs\MarkerPDF\PdfDocumentFacts::fromJson($json);
+    if (count($facts->pages()) !== max(1, (int) ($document['pdfPageCount'] ?? 0))) {
+        throw new RuntimeException('The complete PDF facts snapshot did not cover every page.');
+    }
+
+    return $facts;
+}
+
+/**
+ * Run the existing reader semantics once from the complete facts snapshot,
+ * then persist the private block/media bundle before any public side effect.
+ *
+ * @param array<string, mixed> $job
+ * @param array<string, mixed> $document
+ * @return array{manifest:string,sha256:string,bytes:int}
+ */
+function plpc_import_job_prepare_pdf_final_bundle(
+    array $job,
+    int $documentIndex,
+    array $document,
+    string $pdfBytes,
+    string $imageMode,
+    string $pdfMode,
+    ?callable $reportProgress = null
+): array {
+    $format = (string) ($document['format'] ?? 'pdf');
+    $path = (string) ($document['path'] ?? 'document.pdf');
+    $facts = plpc_import_job_load_pdf_document_facts($job, $document);
+    $options = plpc_converter_options($format, $pdfMode);
+    $options['readerOptions']['pdfDocumentFacts'] = $facts;
+    if ($imageMode === 'none') {
+        $options['readerOptions']['pdfCollectImagePlacements'] = false;
+        $options['readerOptions']['pdfCollectFormXObjectPlacements'] = false;
+    }
+    plpc_conversion_progress($reportProgress, 'reading', 'Resolving complete PDF reading order from durable page facts.');
+    $ast = PandocConverter::read($pdfBytes, $format, $options['readerOptions']);
+    $formRenders = plpc_import_job_load_rendered_forms($job, $path);
+    if ($formRenders !== []) {
+        plpc_conversion_progress($reportProgress, 'extracting_media', 'Placing browser-rendered PDF figures in the globally resolved document.');
+        $ast = plpc_document_with_browser_pdf_form_renders($ast, $formRenders);
+    }
+    plpc_conversion_progress($reportProgress, 'extracting_media', 'Extracting media after complete PDF semantics are resolved.');
+    $media = (new PandocMediaExtractor())->extract($ast, $pdfBytes, $format, [
+        'destination' => 'media',
+        'imageMode' => $imageMode,
+        'pdfRasterImages' => plpc_import_job_load_pdf_rasters($job, $path),
+    ]);
+    $ast = $media['document'];
+    plpc_conversion_progress($reportProgress, 'writing_blocks', 'Writing one complete WordPress block document.');
+    $blocks = PandocConverter::write($ast, 'wordpress', $options['writerOptions']);
+    $diagnostics = array_values(array_unique(array_merge(
+        plpc_document_diagnostics($ast, $format),
+        is_array($media['diagnostics'] ?? null) ? $media['diagnostics'] : []
+    )));
+
+    return plpc_import_job_store_pdf_final_bundle($job, $documentIndex, [
+        'blocks' => $blocks,
+        'entries' => is_array($media['entries'] ?? null) ? array_values($media['entries']) : [],
+        'diagnostics' => $diagnostics,
+        'imageTagCount' => count(plpc_rendered_image_sources($blocks)),
+    ]);
+}
+
+/**
+ * @param array<string, mixed> $job
+ * @param array{blocks:string,entries:list<array<string,mixed>>,diagnostics:list<string>,imageTagCount:int} $bundle
+ * @return array{manifest:string,sha256:string,bytes:int}
+ */
+function plpc_import_job_store_pdf_final_bundle(array $job, int $documentIndex, array $bundle): array
+{
+    $base = sprintf('pdf-%03d-final', max(0, $documentIndex));
+    $blocksStorage = 'chunks/' . $base . '.blocks';
+    $manifestStorage = 'chunks/' . $base . '.json';
+    $directory = plpc_import_job_directory($job);
+    plpc_import_job_write_file($directory, $blocksStorage, (string) ($bundle['blocks'] ?? ''));
+    $entries = [];
+    foreach ($bundle['entries'] ?? [] as $entry) {
+        if (!is_array($entry) || !is_string($entry['contents'] ?? null) || $entry['contents'] === '') {
+            continue;
+        }
+        $contents = $entry['contents'];
+        $sha1 = sha1($contents);
+        $storage = 'chunks/pdf-final-media-' . $sha1 . '.bin';
+        plpc_import_job_write_file($directory, $storage, $contents);
+        unset($entry['contents']);
+        $entries[] = $entry + ['sha1' => $sha1, 'storage' => $storage];
+    }
+    $manifest = [
+        'version' => 1,
+        'blocksStorage' => $blocksStorage,
+        'blocksSha256' => hash('sha256', (string) ($bundle['blocks'] ?? '')),
+        'entries' => $entries,
+        'diagnostics' => array_values(array_map('strval', $bundle['diagnostics'] ?? [])),
+        'imageTagCount' => max(0, (int) ($bundle['imageTagCount'] ?? 0)),
+    ];
+    $json = json_encode($manifest, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+    plpc_import_job_write_file($directory, $manifestStorage, $json);
+
+    return ['manifest' => $manifestStorage, 'sha256' => hash('sha256', $json), 'bytes' => strlen($json)];
+}
+
+/**
+ * @param array<string, mixed> $job
+ * @param array<string, mixed> $document
+ * @return array{blocks:string,entries:list<array<string,mixed>>,diagnostics:list<string>,imageTagCount:int}
+ */
+function plpc_import_job_load_pdf_final_bundle(array $job, array $document): array
+{
+    $record = $document['pdfFinalBundle'] ?? null;
+    if (!is_array($record)) {
+        throw new RuntimeException('The globally finalized PDF bundle is not available.');
+    }
+    $json = plpc_import_job_read_file($job, (string) ($record['manifest'] ?? ''));
+    if ((int) ($record['bytes'] ?? -1) !== strlen($json)
+        || !hash_equals((string) ($record['sha256'] ?? ''), hash('sha256', $json))) {
+        throw new RuntimeException('The globally finalized PDF bundle failed its integrity check.');
+    }
+    $manifest = json_decode($json, true, 512, JSON_THROW_ON_ERROR);
     if (!is_array($manifest) || (int) ($manifest['version'] ?? 0) !== 1) {
-        throw new RuntimeException('A saved PDF page chunk was invalid.');
+        throw new RuntimeException('The globally finalized PDF bundle manifest was invalid.');
+    }
+    $blocks = plpc_import_job_read_file($job, (string) ($manifest['blocksStorage'] ?? ''));
+    if (!hash_equals((string) ($manifest['blocksSha256'] ?? ''), hash('sha256', $blocks))) {
+        throw new RuntimeException('The globally finalized PDF blocks failed their integrity check.');
     }
     $entries = [];
     foreach ($manifest['entries'] ?? [] as $entry) {
@@ -3318,7 +3536,7 @@ function plpc_import_job_load_pdf_chunk(array $job, array $record): array
         }
         $contents = plpc_import_job_read_file($job, (string) ($entry['storage'] ?? ''));
         if (!hash_equals((string) ($entry['sha1'] ?? ''), sha1($contents))) {
-            throw new RuntimeException('A saved PDF media chunk failed its integrity check.');
+            throw new RuntimeException('The globally finalized PDF media failed its integrity check.');
         }
         unset($entry['storage']);
         $entry['contents'] = $contents;
@@ -3326,19 +3544,16 @@ function plpc_import_job_load_pdf_chunk(array $job, array $record): array
     }
 
     return [
-        'blocks' => plpc_import_job_read_file($job, (string) ($manifest['blocksStorage'] ?? '')),
+        'blocks' => $blocks,
         'entries' => $entries,
         'diagnostics' => array_values(array_map('strval', is_array($manifest['diagnostics'] ?? null) ? $manifest['diagnostics'] : [])),
         'imageTagCount' => max(0, (int) ($manifest['imageTagCount'] ?? 0)),
-        'startPage' => max(1, (int) ($manifest['startPage'] ?? 1)),
-        'endPage' => max(1, (int) ($manifest['endPage'] ?? 1)),
-        'pageNumbers' => array_values(array_map('intval', is_array($manifest['pageNumbers'] ?? null) ? $manifest['pageNumbers'] : [])),
     ];
 }
 
 /**
- * Combine already durable PDF chunks, perform public media side effects,
- * and publish one page only after the complete page sequence is verified.
+ * Replay the already durable global block/media bundle, perform public media
+ * side effects, and publish exactly one page.
  *
  * @param array<string, mixed> $job
  * @param array<string, mixed> $document
@@ -3365,30 +3580,12 @@ function plpc_import_job_finalize_pdf_document(
         return $existingResult;
     }
 
-    $records = is_array($document['pdfChunks'] ?? null) ? array_values($document['pdfChunks']) : [];
-    usort($records, static fn (array $left, array $right): int => ((int) ($left['startPage'] ?? 0)) <=> ((int) ($right['startPage'] ?? 0)));
-    $pageCount = max(1, (int) ($document['pdfPageCount'] ?? 0));
-    $expectedPage = 1;
-    $blocks = [];
-    $entries = [];
-    $diagnostics = [];
-    foreach ($records as $record) {
-        $chunk = plpc_import_job_load_pdf_chunk($job, $record);
-        if ($chunk['startPage'] !== $expectedPage || $chunk['pageNumbers'] !== range($chunk['startPage'], $chunk['endPage'])) {
-            throw new RuntimeException('The saved PDF page chunks were not contiguous.');
-        }
-        $expectedPage = $chunk['endPage'] + 1;
-        $blocks[] = $chunk['blocks'];
-        array_push($entries, ...$chunk['entries']);
-        array_push($diagnostics, ...$chunk['diagnostics']);
-    }
-    if ($expectedPage !== $pageCount + 1) {
-        throw new RuntimeException('The PDF cannot be published until every page chunk is present.');
-    }
-
-    $blockMarkup = implode("\n\n", array_filter($blocks, static fn (string $value): bool => trim($value) !== ''));
+    $bundle = plpc_import_job_load_pdf_final_bundle($job, $document);
+    $blockMarkup = $bundle['blocks'];
+    $entries = $bundle['entries'];
+    $diagnostics = $bundle['diagnostics'];
     $imageSources = plpc_rendered_image_sources($blockMarkup);
-    plpc_conversion_progress($reportProgress, 'uploading_media', 'Uploading media after all PDF pages were converted.');
+    plpc_conversion_progress($reportProgress, 'uploading_media', 'Uploading media from the durable complete-document bundle.');
     $mediaResult = plpc_import_extracted_media_entries($blockMarkup, $imageSources, $entries);
     $remainingSources = array_values(array_filter(
         $imageSources,

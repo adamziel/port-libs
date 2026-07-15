@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PortLibs\Pandoc;
 
 use PortLibs\MarkerPDF\PdfMetadataExtractor;
+use PortLibs\MarkerPDF\PdfDocumentFacts;
 use PortLibs\MarkerPDF\PdfTextExtractor;
 
 final class PdfReader
@@ -29,7 +30,7 @@ final class PdfReader
     private array $interGlyphSpacingRepairKeys = [];
 
     /**
-     * @param array{maxTextBytes?: int, startPage?: int, pdfStartPage?: int, start_page?: int, maxPages?: int, pdfMaxPages?: int, max_pages?: int, password?: string, pdfPassword?: string, geometryTables?: bool, pdfGeometryTables?: bool, extractGeometryTables?: bool, pdfRepairProseText?: bool, repairProseText?: bool, pdfFastTextOnly?: bool, fastTextOnly?: bool, pdfFastModeBytes?: int, pdfFastMaxPages?: int, maxPositionedTextRuns?: int, pdfMaxPositionedTextRuns?: int, pdfCollectImagePlacements?: bool, collectPdfImagePlacements?: bool, pdfCollectFormXObjectPlacements?: bool, collectPdfFormXObjectPlacements?: bool} $options
+     * @param array{maxTextBytes?: int, startPage?: int, pdfStartPage?: int, start_page?: int, maxPages?: int, pdfMaxPages?: int, max_pages?: int, password?: string, pdfPassword?: string, geometryTables?: bool, pdfGeometryTables?: bool, extractGeometryTables?: bool, pdfRepairProseText?: bool, repairProseText?: bool, pdfFastTextOnly?: bool, fastTextOnly?: bool, pdfFastModeBytes?: int, pdfFastMaxPages?: int, maxPositionedTextRuns?: int, pdfMaxPositionedTextRuns?: int, pdfCollectImagePlacements?: bool, collectPdfImagePlacements?: bool, pdfCollectFormXObjectPlacements?: bool, collectPdfFormXObjectPlacements?: bool, pdfDocumentFacts?: PdfDocumentFacts|array<string,mixed>} $options
      */
     public function __construct(private readonly array $options = [])
     {
@@ -47,13 +48,20 @@ final class PdfReader
             throw new \RuntimeException('PDF reading needs PortLibs\\MarkerPDF\\PdfTextExtractor.');
         }
 
+        $suppliedDocumentFacts = $this->suppliedDocumentFacts($pdfBytes);
         $structuralMetadata = $this->structuralMetadata($pdfBytes);
-        $fastTextOnly = $this->fastTextOnlyMode($pdfBytes, $structuralMetadata);
+        if ($suppliedDocumentFacts !== null) {
+            $structuralMetadata['pdfFactsProvider'] = $suppliedDocumentFacts->provider();
+            $structuralMetadata['pdfFactsSourceSha256'] = $suppliedDocumentFacts->source()['sha256'];
+        }
+        $fastTextOnly = $suppliedDocumentFacts === null
+            && $this->fastTextOnlyMode($pdfBytes, $structuralMetadata);
         if (!$fastTextOnly) {
             $structuralMetadata = $this->withReaderMetadata($structuralMetadata, $pdfBytes);
         }
         $maxTextBytes = max(0, (int) ($this->options['maxTextBytes'] ?? self::DEFAULT_MAX_TEXT_BYTES));
         $extractorOptions = $this->options;
+        unset($extractorOptions['pdfDocumentFacts']);
         if ($fastTextOnly
             && $this->pdfMaxPages() === null
             && array_key_exists('pdfFastMaxPages', $this->options)
@@ -73,22 +81,35 @@ final class PdfReader
             );
         }
         $extractor = new PdfTextExtractor($extractorOptions);
-        $pageInventory = $this->pdfPageInventory($extractor, $pdfBytes, $structuralMetadata, $extractorOptions);
+        $pageInventory = $suppliedDocumentFacts !== null
+            ? $suppliedDocumentFacts->inventory()
+            : $this->pdfPageInventory($extractor, $pdfBytes, $structuralMetadata, $extractorOptions);
         $geometryTablesEnabled = !$fastTextOnly && $this->geometryTablesEnabled();
         $proseRepairEnabled = !$fastTextOnly && $this->proseTextRepairEnabled();
         // Complete object-graph-heavy diagnostics before retaining import
         // facts, so its allocator pages do not overlap geometry records.
-        $diagnostics = $fastTextOnly ? $this->fastTextOnlyDiagnostics() : $extractor->diagnostics($pdfBytes);
+        $diagnostics = $suppliedDocumentFacts !== null
+            ? $this->diagnosticsFromDocumentFacts($suppliedDocumentFacts)
+            : ($fastTextOnly ? $this->fastTextOnlyDiagnostics() : $extractor->diagnostics($pdfBytes));
         $this->releaseTransientPdfMemory();
-        $importFacts = $this->collectPdfImportFacts(
-            $extractor,
-            $pdfBytes,
-            $maxTextBytes,
-            !$fastTextOnly,
-            !$fastTextOnly && ($geometryTablesEnabled || $proseRepairEnabled || $this->collectPdfImagePlacements() || $this->collectPdfFormXObjectPlacements()),
-            $geometryTablesEnabled,
-            $proseRepairEnabled
-        );
+        $importFacts = $suppliedDocumentFacts !== null
+            ? $this->collectPdfImportFactsFromDocumentFacts(
+                $suppliedDocumentFacts,
+                $maxTextBytes,
+                !$fastTextOnly,
+                !$fastTextOnly && ($geometryTablesEnabled || $proseRepairEnabled || $this->collectPdfImagePlacements() || $this->collectPdfFormXObjectPlacements()),
+                $geometryTablesEnabled,
+                $proseRepairEnabled
+            )
+            : $this->collectPdfImportFacts(
+                $extractor,
+                $pdfBytes,
+                $maxTextBytes,
+                !$fastTextOnly,
+                !$fastTextOnly && ($geometryTablesEnabled || $proseRepairEnabled || $this->collectPdfImagePlacements() || $this->collectPdfFormXObjectPlacements()),
+                $geometryTablesEnabled,
+                $proseRepairEnabled
+            );
         $limitedTextLineItems = $importFacts['limitedTextLineItems'];
         $limitedLines = array_column($limitedTextLineItems, 'text');
         $pdfTextLineCount = $importFacts['textLineCount'];
@@ -298,7 +319,9 @@ final class PdfReader
         if (!$fastTextOnly && $this->collectPdfImagePlacements()) {
             try {
                 $pdfImagePlacements = $this->imagePlacementsWithTextAnchors(
-                    $extractor->extractImagePlacements($pdfBytes),
+                    $suppliedDocumentFacts !== null
+                        ? $this->graphicFacts($suppliedDocumentFacts, 'images')
+                        : $extractor->extractImagePlacements($pdfBytes),
                     $imagePlacementLayouts !== [] ? $imagePlacementLayouts : $repairSourceLayouts
                 );
             } catch (\Throwable) {
@@ -316,7 +339,9 @@ final class PdfReader
                 // raster beside the source text instead of appending a
                 // document-wide gallery.
                 $pdfFormXObjectPlacements = $this->imagePlacementsWithTextAnchors(
-                    $extractor->extractFormXObjectPlacements($pdfBytes),
+                    $suppliedDocumentFacts !== null
+                        ? $this->graphicFacts($suppliedDocumentFacts, 'forms')
+                        : $extractor->extractFormXObjectPlacements($pdfBytes),
                     $imagePlacementLayouts !== [] ? $imagePlacementLayouts : $repairSourceLayouts
                 );
             } catch (\Throwable) {
@@ -578,6 +603,198 @@ final class PdfReader
                 && $positionedTextRunCount > count($limitedPositionedTextRuns),
             'filledRectangles' => $filledRectangles,
         ];
+    }
+
+    private function suppliedDocumentFacts(string $pdfBytes): ?PdfDocumentFacts
+    {
+        $value = $this->options['pdfDocumentFacts'] ?? null;
+        if ($value === null) {
+            return null;
+        }
+        $facts = $value instanceof PdfDocumentFacts
+            ? $value
+            : (is_array($value) ? PdfDocumentFacts::fromArray($value) : null);
+        if ($facts === null || !hash_equals($facts->source()['sha256'], hash('sha256', $pdfBytes))) {
+            throw new \RuntimeException('Supplied PDF document facts did not match the source PDF.');
+        }
+
+        return $facts;
+    }
+
+    /**
+     * Rehydrate the exact extraction-shaped inputs consumed by the existing
+     * document-level semantic pipeline. Browser observations remain attached
+     * to PdfDocumentFacts for later processors; native facts preserve current
+     * output while avoiding a second page-parser pass at finalization.
+     *
+     * @return array{
+     *     limitedTextLineItems: list<array{page: int, stream: int, text: string}>,
+     *     textLineCount: int,
+     *     textBytes: int,
+     *     rawRuns: list<string>,
+     *     textRunCount: int,
+     *     limitedPositionedTextRuns: list<array<string, mixed>>,
+     *     positionedTextRunCount: int,
+     *     positionedTextRunsLimited: bool,
+     *     positionedTextBytesLimited: bool,
+     *     filledRectangles: list<array<string, mixed>>
+     * }
+     */
+    private function collectPdfImportFactsFromDocumentFacts(
+        PdfDocumentFacts $documentFacts,
+        int $maxTextBytes,
+        bool $includeTextRuns,
+        bool $includePositionedTextRuns,
+        bool $includeFilledRectangles,
+        bool $retainRawRuns
+    ): array {
+        $limitedTextLineItems = [];
+        $textLineCount = 0;
+        $textBytes = 0;
+        $textSourceIndex = 0;
+        $limitedTextBytes = 0;
+        $textLimitReached = $maxTextBytes <= 0;
+        $rawRuns = [];
+        $textRunCount = 0;
+        $limitedPositionedTextRuns = [];
+        $positionedTextRunCount = 0;
+        $positionedBytes = 0;
+        $positionedLimitReached = $maxTextBytes <= 0;
+        $positionedTextRunsLimited = false;
+        $filledRectangles = [];
+
+        foreach ($documentFacts->pages() as $page) {
+            $text = $page->text();
+            foreach ($text['lines'] ?? [] as $item) {
+                if (!is_array($item)) {
+                    continue;
+                }
+                $normalizedItem = $this->normalizePdfTextLineItem($item, $textSourceIndex);
+                $textSourceIndex++;
+                if ($normalizedItem === null) {
+                    continue;
+                }
+                $textBytes += strlen($normalizedItem['text']) + ($textLineCount === 0 ? 0 : 1);
+                $textLineCount++;
+                if (!$textLimitReached && !$this->appendLimitedPdfTextLineItem(
+                    $limitedTextLineItems,
+                    $limitedTextBytes,
+                    $normalizedItem,
+                    $maxTextBytes
+                )) {
+                    $textLimitReached = true;
+                }
+            }
+            if ($includeTextRuns) {
+                foreach ($text['runs'] ?? [] as $run) {
+                    if (!is_array($run) || !is_string($run['text'] ?? null) || $run['text'] === '') {
+                        continue;
+                    }
+                    $textRunCount++;
+                    if ($retainRawRuns) {
+                        $rawRuns[] = $run['text'];
+                    }
+                }
+            }
+            if ($includePositionedTextRuns) {
+                foreach ($text['spans'] ?? [] as $run) {
+                    if (!is_array($run) || !is_string($run['text'] ?? null) || $run['text'] === '') {
+                        continue;
+                    }
+                    $positionedTextRunCount++;
+                    if (!$positionedLimitReached && !$this->appendLimitedPositionedTextRun(
+                        $limitedPositionedTextRuns,
+                        $positionedBytes,
+                        $run,
+                        $maxTextBytes
+                    )) {
+                        $positionedLimitReached = true;
+                    }
+                }
+                $positionedTextRunsLimited = $positionedTextRunsLimited
+                    || (($text['positionedRunsLimited'] ?? false) === true);
+            }
+            if ($includeFilledRectangles) {
+                foreach ($page->graphics()['filledRectangles'] ?? [] as $rectangle) {
+                    if (is_array($rectangle)) {
+                        $filledRectangles[] = $rectangle;
+                    }
+                }
+            }
+        }
+
+        return [
+            'limitedTextLineItems' => $limitedTextLineItems,
+            'textLineCount' => $textLineCount,
+            'textBytes' => $textBytes,
+            'rawRuns' => $rawRuns,
+            'textRunCount' => $textRunCount,
+            'limitedPositionedTextRuns' => $limitedPositionedTextRuns,
+            'positionedTextRunCount' => $positionedTextRunCount,
+            'positionedTextRunsLimited' => $positionedTextRunsLimited,
+            'positionedTextBytesLimited' => $positionedLimitReached
+                && $positionedTextRunCount > count($limitedPositionedTextRuns),
+            'filledRectangles' => $filledRectangles,
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    private function diagnosticsFromDocumentFacts(PdfDocumentFacts $documentFacts): array
+    {
+        $data = $documentFacts->toArray();
+        $defaults = $this->fastTextOnlyDiagnostics();
+        $defaults['warnings'] = [];
+        $diagnostics = array_replace(
+            $defaults,
+            is_array($data['diagnostics'] ?? null) ? $data['diagnostics'] : [],
+            is_array($data['structure'] ?? null) ? $data['structure'] : []
+        );
+        $annotationKeys = [
+            'links' => 'linkAnnotations',
+            'text' => 'textAnnotations',
+            'fileAttachments' => 'fileAttachmentAnnotations',
+            'popups' => 'popupAnnotations',
+            'appearances' => 'appearanceAnnotations',
+        ];
+        $issues = [];
+        foreach ($documentFacts->pages() as $page) {
+            foreach ($annotationKeys as $pageKey => $diagnosticKey) {
+                foreach ($page->annotations()[$pageKey] ?? [] as $annotation) {
+                    if (is_array($annotation)) {
+                        $diagnostics[$diagnosticKey][] = $annotation;
+                    }
+                }
+            }
+            array_push($issues, ...$page->issues());
+        }
+        $diagnostics['pageExtractionIssues'] = $issues;
+        $diagnostics['pagesWithExtractionIssues'] = count(array_unique(array_map(
+            static fn (array $issue): int => max(1, (int) ($issue['page'] ?? 1)),
+            $issues
+        )));
+
+        return $diagnostics;
+    }
+
+    /** @return list<array<string, mixed>> */
+    private function graphicFacts(PdfDocumentFacts $documentFacts, string $key): array
+    {
+        $facts = [];
+        foreach ($documentFacts->pages() as $page) {
+            foreach ($page->graphics()[$key] ?? [] as $fact) {
+                if (!is_array($fact)) {
+                    continue;
+                }
+                $nativeId = $fact['provenance']['nativeId'] ?? null;
+                if (is_string($nativeId) && $nativeId !== '') {
+                    $fact['factId'] = $fact['id'] ?? null;
+                    $fact['id'] = $nativeId;
+                }
+                $facts[] = $fact;
+            }
+        }
+
+        return $facts;
     }
 
     private function geometryTablesEnabled(): bool

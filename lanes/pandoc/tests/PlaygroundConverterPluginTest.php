@@ -936,6 +936,13 @@ return [
         $preparedJob = get_option(PLPC_IMPORT_JOB_OPTION_PREFIX . $jobId);
         $t->true(is_array($preparedJob['documents'][0]['pdfBrowserFacts'] ?? null), 'Prepared PDF documents should retain their browser-facts descriptor for resumed chunks.');
         $t->true(!array_key_exists('pdfBrowserFacts', $prepared->get_data()), 'Job snapshots must not expose browser text or structure facts.');
+
+        plpc_advance_import_job(plpc_test_import_job_request([], $jobId));
+        plpc_advance_import_job(plpc_test_import_job_request([], $jobId));
+        $mergedJob = get_option(PLPC_IMPORT_JOB_OPTION_PREFIX . $jobId);
+        $mergedFacts = plpc_import_job_load_pdf_document_facts($mergedJob, $mergedJob['documents'][0]);
+        $t->same('native-php-v1+pdfjs-v1', $mergedFacts->provider());
+        $t->same('Browser handoff', $mergedFacts->page(1)?->text()['browser']['spans'][0]['text'] ?? null);
     },
     'playground converter scopes persisted import jobs to their WordPress owner' => static function (TestRunner $t): void {
         plpc_test_reset_import_job_state();
@@ -1028,6 +1035,8 @@ return [
         $t->contains('page 1 of 3', strtolower((string) ($first['progress']['label'] ?? '')));
         $t->same(2, $jobAfterFirst['documents'][0]['pdfNextPage'] ?? null);
         $t->same(1, count($jobAfterFirst['documents'][0]['pdfChunks'] ?? []));
+        $t->true(isset($jobAfterFirst['documents'][0]['pdfChunks'][0]['facts']), 'A PDF page checkpoint must persist facts, not already-decided blocks.');
+        $t->true(!isset($jobAfterFirst['documents'][0]['pdfChunks'][0]['manifest']), 'Page checkpoints must not contain a block/media manifest.');
         $t->same(0, count($GLOBALS['plpc_test_posts']), 'A persisted first-page chunk must not create a partial WordPress page.');
 
         // Model a worker dying after the deterministic chunk files reached
@@ -1057,6 +1066,23 @@ return [
         $t->same(3, count($jobAfterThird['documents'][0]['pdfChunks'] ?? []));
         $t->same(0, count($GLOBALS['plpc_test_posts']), 'All chunks must be durable before the final page is published.');
 
+        $merged = plpc_advance_import_job(plpc_test_import_job_request([], $jobId))->get_data();
+        $jobAfterMerge = get_option($option);
+        $t->same('ready_to_convert', $merged['status'] ?? null);
+        $t->true(is_array($jobAfterMerge['documents'][0]['pdfDocumentFacts'] ?? null), 'All page facts should merge into one durable document snapshot before semantics run.');
+        $t->same(0, count($GLOBALS['plpc_test_posts']));
+
+        $semantics = plpc_advance_import_job(plpc_test_import_job_request([], $jobId))->get_data();
+        $jobAfterSemantics = get_option($option);
+        $t->same('ready_to_convert', $semantics['status'] ?? null);
+        $t->true(is_array($jobAfterSemantics['documents'][0]['pdfFinalBundle'] ?? null), 'The one global semantic pass should become a durable private bundle before publication.');
+        $t->same(0, count($GLOBALS['plpc_test_posts']));
+        $durableBundle = plpc_import_job_load_pdf_final_bundle($jobAfterSemantics, $jobAfterSemantics['documents'][0]);
+        foreach (['FIRST', 'SECOND', 'THIRD'] as $ordinal) {
+            $sentinel = $ordinal . ' PAGE CHECKPOINT SENTINEL';
+            $t->same(1, substr_count($durableBundle['blocks'], $sentinel), $sentinel . ' should occur exactly once after global semantics.');
+        }
+
         $completed = plpc_advance_import_job(plpc_test_import_job_request([], $jobId))->get_data();
         $t->same('complete', $completed['status'] ?? null);
         $t->same(1, count($GLOBALS['plpc_test_posts']), 'Finalization must publish exactly one page.');
@@ -1070,7 +1096,7 @@ return [
         // Model a worker dying after wp_insert_post() committed but before
         // the completed job option was saved. A fresh request must discover
         // and reuse that page by its durable job/document identity.
-        update_option($option, $jobAfterThird, false);
+        update_option($option, $jobAfterSemantics, false);
         $GLOBALS['plpc_imported_media_by_hash'] = [];
         $recovered = plpc_advance_import_job(plpc_test_import_job_request([], $jobId))->get_data();
         $t->same('complete', $recovered['status'] ?? null);
