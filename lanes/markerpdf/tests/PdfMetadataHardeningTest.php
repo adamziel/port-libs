@@ -139,7 +139,7 @@ return [
         $t->same([], $metadata['info']);
         $t->true(!isset($metadata['title']));
     },
-    'uses the bounded direct reader preflight for the TraceMonkey PDF' => static function (TestRunner $t): void {
+    'uses the exact active page tree with bounded TraceMonkey reader metadata' => static function (TestRunner $t): void {
         $sample = dirname(__DIR__, 3) . '/pandoc-showcase/samples/pdf-tracemonkey-tracemonkey.pdf';
         if (!is_file($sample)) {
             throw new RuntimeException('TraceMonkey PDF sample is required for reader preflight coverage.');
@@ -154,8 +154,9 @@ return [
         $metadata = (new PdfMetadataExtractor())->extractReaderStructuralMetadata($bytes);
         $elapsed = microtime(true) - $startedAt;
 
-        $t->same(5, $metadata['page_count']);
+        $t->same(14, $metadata['page_count']);
+        $t->true(!isset($metadata['page_count_limited']));
         $t->same(568, $metadata['object_count']);
-        $t->true($elapsed < 8.0, 'Reader structural preflight must not rebuild TraceMonkey xref state before import-mode selection.');
+        $t->true($elapsed < 8.0, 'Exact page inventory must remain bounded enough for import-mode selection.');
     },
 ];

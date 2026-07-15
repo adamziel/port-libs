@@ -9,8 +9,8 @@ use PortLibs\MarkerPDF\PdfTextExtractor;
 
 final class PdfReader
 {
-    private const DEFAULT_MAX_TEXT_BYTES = 120000;
-    private const DEFAULT_FAST_MODE_BYTES = 5_000_000;
+    private const DEFAULT_MAX_TEXT_BYTES = PHP_INT_MAX;
+    private const DEFAULT_FAST_MODE_BYTES = 0;
     private const PDF_CODE_BLOCK_PREFIX = "\x1EPDF-CODE\x1F";
     private const PDF_MAP_LABEL_PREFIX = "\x1EPDF-MAP-LABEL\x1F";
     private const PDF_NUMBERED_HEADING_PREFIX = "\x1EPDF-NUMBERED-HEADING\x1F";
@@ -29,7 +29,7 @@ final class PdfReader
     private array $interGlyphSpacingRepairKeys = [];
 
     /**
-     * @param array{maxTextBytes?: int, maxPages?: int, pdfMaxPages?: int, max_pages?: int, password?: string, pdfPassword?: string, geometryTables?: bool, pdfGeometryTables?: bool, extractGeometryTables?: bool, pdfRepairProseText?: bool, repairProseText?: bool, pdfFastTextOnly?: bool, fastTextOnly?: bool, pdfFastModeBytes?: int, maxPositionedTextRuns?: int, pdfMaxPositionedTextRuns?: int, pdfCollectImagePlacements?: bool, collectPdfImagePlacements?: bool, pdfCollectFormXObjectPlacements?: bool, collectPdfFormXObjectPlacements?: bool} $options
+     * @param array{maxTextBytes?: int, startPage?: int, pdfStartPage?: int, start_page?: int, maxPages?: int, pdfMaxPages?: int, max_pages?: int, password?: string, pdfPassword?: string, geometryTables?: bool, pdfGeometryTables?: bool, extractGeometryTables?: bool, pdfRepairProseText?: bool, repairProseText?: bool, pdfFastTextOnly?: bool, fastTextOnly?: bool, pdfFastModeBytes?: int, pdfFastMaxPages?: int, maxPositionedTextRuns?: int, pdfMaxPositionedTextRuns?: int, pdfCollectImagePlacements?: bool, collectPdfImagePlacements?: bool, pdfCollectFormXObjectPlacements?: bool, collectPdfFormXObjectPlacements?: bool} $options
      */
     public function __construct(private readonly array $options = [])
     {
@@ -54,13 +54,26 @@ final class PdfReader
         }
         $maxTextBytes = max(0, (int) ($this->options['maxTextBytes'] ?? self::DEFAULT_MAX_TEXT_BYTES));
         $extractorOptions = $this->options;
-        if ($fastTextOnly && $this->pdfMaxPages() === null) {
-            $extractorOptions['pdfMaxPages'] = (int) ($this->options['pdfFastMaxPages'] ?? 2);
+        if ($fastTextOnly
+            && $this->pdfMaxPages() === null
+            && array_key_exists('pdfFastMaxPages', $this->options)
+            && (int) $this->options['pdfFastMaxPages'] > 0
+        ) {
+            $extractorOptions['pdfMaxPages'] = (int) $this->options['pdfFastMaxPages'];
         }
         if (!$fastTextOnly && $this->needsPositionedPdfText() && !$this->hasExplicitPositionedTextRunLimit()) {
-            $extractorOptions['pdfMaxPositionedTextRuns'] = $this->automaticPositionedTextRunLimit($maxTextBytes);
+            $resolvedPages = max(0, (int) ($structuralMetadata['pdfEstimatedPages'] ?? 0));
+            $selectedPageLimit = $this->pdfMaxPagesFromOptions($extractorOptions);
+            $pageBudget = $selectedPageLimit === null
+                ? $resolvedPages
+                : min($resolvedPages > 0 ? $resolvedPages : $selectedPageLimit, $selectedPageLimit);
+            $extractorOptions['pdfMaxPositionedTextRuns'] = $this->automaticPositionedTextRunLimit(
+                $maxTextBytes,
+                $pageBudget
+            );
         }
         $extractor = new PdfTextExtractor($extractorOptions);
+        $pageInventory = $this->pdfPageInventory($extractor, $pdfBytes, $structuralMetadata, $extractorOptions);
         $geometryTablesEnabled = !$fastTextOnly && $this->geometryTablesEnabled();
         $proseRepairEnabled = !$fastTextOnly && $this->proseTextRepairEnabled();
         // Complete object-graph-heavy diagnostics before retaining import
@@ -87,6 +100,8 @@ final class PdfReader
         $limitedPositionedRuns = $importFacts['limitedPositionedTextRuns'];
         $pdfPositionedTextRunCount = $importFacts['positionedTextRunCount'];
         $pdfPositionedTextInsertedRunCount = count($limitedPositionedRuns);
+        $pdfPositionedTextRunsLimited = $importFacts['positionedTextRunsLimited'];
+        $pdfPositionedTextBytesLimited = $importFacts['positionedTextBytesLimited'];
         $filledRectangles = $importFacts['filledRectangles'];
         $pdfFilledRectangleCount = count($filledRectangles);
         unset($importFacts);
@@ -97,16 +112,22 @@ final class PdfReader
         $popupAnnotations = is_array($diagnostics['popupAnnotations'] ?? null) ? $diagnostics['popupAnnotations'] : [];
         $appearanceAnnotations = is_array($diagnostics['appearanceAnnotations'] ?? null) ? $diagnostics['appearanceAnnotations'] : [];
 
+        // Tagged structure is document-global and many StructElem nodes omit
+        // an unambiguous /Pg reference. Using it for a resumed page slice can
+        // therefore duplicate content from pages outside that slice. Partial
+        // ranges deliberately use page-scoped text/geometry instead.
+        $partialPageRange = $pageInventory['startPage'] !== 1
+            || count($pageInventory['pageNumbers']) !== $pageInventory['totalPages'];
         $taggedStructureBlocks = $this->blocksFromTaggedStructureBlocks(
-            is_array($diagnostics['taggedStructureBlocks'] ?? null) ? $diagnostics['taggedStructureBlocks'] : [],
+            !$partialPageRange && is_array($diagnostics['taggedStructureBlocks'] ?? null) ? $diagnostics['taggedStructureBlocks'] : [],
             $limitedLines
         );
         $taggedTableBlocks = $taggedStructureBlocks !== [] ? $taggedStructureBlocks : $this->blocksFromTaggedTables(
-            is_array($diagnostics['taggedTables'] ?? null) ? $diagnostics['taggedTables'] : [],
+            !$partialPageRange && is_array($diagnostics['taggedTables'] ?? null) ? $diagnostics['taggedTables'] : [],
             $limitedLines
         );
         $taggedBlocks = $taggedTableBlocks !== [] ? $taggedTableBlocks : $this->blocksFromTaggedStructureItems(
-            is_array($diagnostics['taggedStructureItems'] ?? null) ? $diagnostics['taggedStructureItems'] : [],
+            !$partialPageRange && is_array($diagnostics['taggedStructureItems'] ?? null) ? $diagnostics['taggedStructureItems'] : [],
             $limitedLines
         );
         $geometryTableBlocksByPage = [];
@@ -308,6 +329,42 @@ final class PdfReader
         if ($this->lowConfidenceGeometryTableCandidates > 0 && $geometryTableBlocks === []) {
             $pdfWarnings[] = 'PDF table-like geometry was preserved as text because native table confidence was low.';
         }
+        $pdfTextLimited = $pdfTextInsertedBytes < $pdfTextBytes;
+        $pdfPageExtractionIssues = is_array($diagnostics['pageExtractionIssues'] ?? null)
+            ? $diagnostics['pageExtractionIssues']
+            : [];
+        $pdfTextComplete = !$pdfTextLimited && $pdfPageExtractionIssues === [];
+        $pdfGeometryRequested = !$fastTextOnly && ($geometryTablesEnabled
+            || $proseRepairEnabled
+            || $this->collectPdfImagePlacements()
+            || $this->collectPdfFormXObjectPlacements());
+        $pdfGeometryComplete = !$pdfGeometryRequested
+            || (!$pdfPositionedTextRunsLimited && !$pdfPositionedTextBytesLimited);
+        $pdfLimitReasons = [];
+        if ($pdfTextLimited) {
+            $pdfLimitReasons[] = 'text-bytes';
+        }
+        if ($pdfPositionedTextRunsLimited) {
+            $pdfLimitReasons[] = 'positioned-text-runs';
+        }
+        if ($pdfPositionedTextBytesLimited) {
+            $pdfLimitReasons[] = 'positioned-text-bytes';
+        }
+        if ($fastTextOnly) {
+            $pdfLimitReasons[] = 'fast-text-only';
+        }
+        if ($pdfPageExtractionIssues !== []) {
+            $pdfLimitReasons[] = 'page-extraction';
+        }
+        $pdfRangeComplete = $pdfTextComplete
+            && $pdfGeometryComplete
+            && !$fastTextOnly
+            && ($pageInventory['pageNumbers'] !== [] || $pageInventory['totalPages'] === 0);
+        $pdfDocumentComplete = $pdfRangeComplete
+            && $pageInventory['startPage'] === 1
+            && !$pageInventory['hasMorePages']
+            && count($pageInventory['pageNumbers']) === $pageInventory['totalPages'];
+        $effectivePdfMaxPages = $this->pdfMaxPagesFromOptions($extractorOptions);
         $metadata = array_replace($structuralMetadata, [
             'pdfExtractor' => PdfTextExtractor::class,
             'pdfFastTextOnly' => $fastTextOnly,
@@ -318,8 +375,21 @@ final class PdfReader
             'pdfFilledRectangles' => $pdfFilledRectangleCount,
             'pdfTextBytes' => $pdfTextBytes,
             'pdfTextInsertedBytes' => $pdfTextInsertedBytes,
-            'pdfTextLimited' => $pdfTextInsertedBytes < $pdfTextBytes,
-            'pdfMaxPages' => $this->pdfMaxPages(),
+            'pdfTextLimited' => $pdfTextLimited,
+            'pdfTextComplete' => $pdfTextComplete,
+            'pdfGeometryComplete' => $pdfGeometryComplete,
+            'pdfRangeComplete' => $pdfRangeComplete,
+            'pdfDocumentComplete' => $pdfDocumentComplete,
+            'pdfLimitReasons' => array_values(array_unique($pdfLimitReasons)),
+            'pdfPageCount' => $pageInventory['totalPages'],
+            'pdfPageStart' => $pageInventory['startPage'],
+            'pdfPageEnd' => $pageInventory['endPage'],
+            'pdfPagesProcessed' => count($pageInventory['pageNumbers']),
+            'pdfProcessedPageNumbers' => $pageInventory['pageNumbers'],
+            'pdfHasMorePages' => $pageInventory['hasMorePages'],
+            'pdfNextPage' => $pageInventory['nextPage'],
+            'pdfPageLimitApplied' => $effectivePdfMaxPages !== null,
+            'pdfMaxPages' => $effectivePdfMaxPages,
             'pdfTextRepair' => $repairedLines !== $limitedLines,
             'pdfTextRepairSource' => $repairedLines !== $limitedLines ? $repairSource : null,
             'pdfDetectedTables' => $this->countNodesOfType($blocks, 'table'),
@@ -407,6 +477,8 @@ final class PdfReader
      *     textRunCount: int,
      *     limitedPositionedTextRuns: list<array<string, mixed>>,
      *     positionedTextRunCount: int,
+     *     positionedTextRunsLimited: bool,
+     *     positionedTextBytesLimited: bool,
      *     filledRectangles: list<array<string, mixed>>
      * }
      */
@@ -431,6 +503,7 @@ final class PdfReader
         $positionedTextRunCount = 0;
         $positionedBytes = 0;
         $positionedLimitReached = $maxTextBytes <= 0;
+        $positionedTextRunsLimited = false;
         $filledRectangles = [];
 
         foreach ($extractor->streamImportFacts(
@@ -439,6 +512,8 @@ final class PdfReader
             $includePositionedTextRuns,
             $includeFilledRectangles
         ) as $facts) {
+            $positionedTextRunsLimited = $positionedTextRunsLimited
+                || (($facts['positionedTextRunsLimited'] ?? false) === true);
             foreach ($facts['textLineItems'] as $item) {
                 $normalizedItem = $this->normalizePdfTextLineItem($item, $textSourceIndex);
                 $textSourceIndex++;
@@ -490,6 +565,9 @@ final class PdfReader
             'textRunCount' => $textRunCount,
             'limitedPositionedTextRuns' => $limitedPositionedTextRuns,
             'positionedTextRunCount' => $positionedTextRunCount,
+            'positionedTextRunsLimited' => $positionedTextRunsLimited,
+            'positionedTextBytesLimited' => $positionedLimitReached
+                && $positionedTextRunCount > count($limitedPositionedTextRuns),
             'filledRectangles' => $filledRectangles,
         ];
     }
@@ -795,26 +873,88 @@ final class PdfReader
         return false;
     }
 
-    private function automaticPositionedTextRunLimit(int $maxTextBytes): int
+    private function automaticPositionedTextRunLimit(int $maxTextBytes, int $pageCount): int
     {
-        // Geometry is only retained for the bounded text payload. The cap keeps
-        // glyph-heavy PDFs from turning a prose-order repair into an unbounded
-        // memory allocation while still covering normal multi-page documents.
-        return min(20_000, max(5_000, intdiv(max(1, $maxTextBytes), 4)));
+        // Bound geometry by the resolved page range, not by compressed source
+        // bytes. A fixed whole-document cap clipped ordinary long PDFs, while
+        // 1,000 runs per selected page comfortably covers glyph-fragmented
+        // prose without making a pathological page unbounded.
+        $pageBound = max(20_000, min(250_000, max(1, $pageCount) * 1_000));
+        if ($maxTextBytes === PHP_INT_MAX) {
+            return $pageBound;
+        }
+
+        return min($pageBound, max(5_000, intdiv(max(1, $maxTextBytes), 4)));
     }
 
     private function pdfMaxPages(): ?int
     {
+        return $this->pdfMaxPagesFromOptions($this->options);
+    }
+
+    /** @param array<string, mixed> $options */
+    private function pdfMaxPagesFromOptions(array $options): ?int
+    {
         foreach (['pdfMaxPages', 'maxPages', 'max_pages'] as $key) {
-            if (!array_key_exists($key, $this->options) || $this->options[$key] === null || $this->options[$key] === '') {
+            if (!array_key_exists($key, $options) || $options[$key] === null || $options[$key] === '') {
                 continue;
             }
-            $value = (int) $this->options[$key];
+            $value = (int) $options[$key];
 
             return $value > 0 ? $value : null;
         }
 
         return null;
+    }
+
+    /** @param array<string, mixed> $options */
+    private function pdfStartPageFromOptions(array $options): int
+    {
+        foreach (['pdfStartPage', 'startPage', 'start_page'] as $key) {
+            if (!array_key_exists($key, $options) || $options[$key] === null || $options[$key] === '') {
+                continue;
+            }
+
+            return max(1, (int) $options[$key]);
+        }
+
+        return 1;
+    }
+
+    /**
+     * @param array<string, mixed> $structuralMetadata
+     * @param array<string, mixed> $extractorOptions
+     * @return array{totalPages: int, startPage: int, endPage: int|null, pageNumbers: list<int>, hasMorePages: bool, nextPage: int|null}
+     */
+    private function pdfPageInventory(
+        PdfTextExtractor $extractor,
+        string $pdfBytes,
+        array $structuralMetadata,
+        array $extractorOptions
+    ): array {
+        try {
+            return $extractor->extractPageInventory($pdfBytes);
+        } catch (\Throwable) {
+            $totalPages = max(0, (int) ($structuralMetadata['pdfEstimatedPages'] ?? 0));
+            $startPage = $this->pdfStartPageFromOptions($extractorOptions);
+            $maxPages = $this->pdfMaxPagesFromOptions($extractorOptions);
+            $availablePages = $totalPages >= $startPage ? $totalPages - $startPage + 1 : 0;
+            $selectedCount = $maxPages === null ? $availablePages : min($availablePages, $maxPages);
+            $pageNumbers = $selectedCount > 0
+                ? range($startPage, $startPage + $selectedCount - 1)
+                : [];
+            $endPage = $pageNumbers === [] ? null : $pageNumbers[count($pageNumbers) - 1];
+            $hasMorePages = $endPage !== null && $endPage < $totalPages;
+
+            return [
+                'totalPages' => $totalPages,
+                'startPage' => $startPage,
+                'endPage' => $endPage,
+                'pageNumbers' => $pageNumbers,
+                'hasMorePages' => $hasMorePages,
+                'nextPage' => $hasMorePages ? $endPage + 1 : null,
+            ];
+        }
     }
 
     /**
@@ -833,11 +973,7 @@ final class PdfReader
             return true;
         }
 
-        $maxPages = $this->pdfMaxPages();
-        $estimatedPages = (int) ($structuralMetadata['pdfEstimatedPages'] ?? 0);
-
-        return $maxPages !== null
-            && (($structuralMetadata['pdfPageCountLimited'] ?? false) === true || $estimatedPages > $maxPages * 2);
+        return false;
     }
 
     /**
@@ -1081,12 +1217,6 @@ final class PdfReader
         $line = $item['text'];
         $nextBytes = strlen($line) + ($items === [] ? 0 : 1);
         if ($bytes + $nextBytes > $maxBytes) {
-            $remaining = $maxBytes - $bytes - ($items === [] ? 0 : 1);
-            $line = $remaining > 0 ? trim(substr($line, 0, $remaining)) : '';
-            if ($line !== '') {
-                $items[] = array_replace($item, ['text' => $line]);
-            }
-
             return false;
         }
 

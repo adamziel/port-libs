@@ -627,7 +627,7 @@ final class PdfTextExtractor
     ];
 
     /**
-     * @param array{password?: string, pdfPassword?: string, maxPages?: int, pdfMaxPages?: int, max_pages?: int, maxDecodedStreamBytes?: int, pdfMaxDecodedStreamBytes?: int, maxTokenizedContentStreamBytes?: int, pdfMaxTokenizedContentStreamBytes?: int, maxContentTokens?: int, pdfMaxContentTokens?: int, maxPositionedTextRuns?: int, pdfMaxPositionedTextRuns?: int} $options
+     * @param array{password?: string, pdfPassword?: string, startPage?: int, pdfStartPage?: int, start_page?: int, maxPages?: int, pdfMaxPages?: int, max_pages?: int, maxDecodedStreamBytes?: int, pdfMaxDecodedStreamBytes?: int, maxTokenizedContentStreamBytes?: int, pdfMaxTokenizedContentStreamBytes?: int, maxContentTokens?: int, pdfMaxContentTokens?: int, maxPositionedTextRuns?: int, pdfMaxPositionedTextRuns?: int} $options
      */
     public function __construct(private readonly array $options = [])
     {
@@ -690,6 +690,40 @@ final class PdfTextExtractor
         }
 
         return $runs;
+    }
+
+    /**
+     * Resolve the current Catalog page tree through the active xref chain.
+     * Page ranges retain their one-based document page numbers so a caller
+     * can checkpoint and later combine independently converted chunks.
+     *
+     * @return array{
+     *     totalPages: int,
+     *     startPage: int,
+     *     endPage: int|null,
+     *     pageNumbers: list<int>,
+     *     hasMorePages: bool,
+     *     nextPage: int|null
+     * }
+     */
+    public function extractPageInventory(string $pdfBytes): array
+    {
+        $objects = $this->pdfObjects($pdfBytes);
+        $allPageObjectNumbers = $this->pageObjectNumbers($objects, $pdfBytes);
+        $totalPages = count($allPageObjectNumbers);
+        $selectedPages = array_keys($this->limitedPageObjectNumbers($objects, $pdfBytes));
+        $startPage = $selectedPages[0] ?? $this->startPage();
+        $endPage = $selectedPages === [] ? null : $selectedPages[count($selectedPages) - 1];
+        $hasMorePages = $endPage !== null && $endPage < $totalPages;
+
+        return [
+            'totalPages' => $totalPages,
+            'startPage' => $startPage,
+            'endPage' => $endPage,
+            'pageNumbers' => array_values($selectedPages),
+            'hasMorePages' => $hasMorePages,
+            'nextPage' => $hasMorePages ? $endPage + 1 : null,
+        ];
     }
 
     /**
@@ -776,9 +810,7 @@ final class PdfTextExtractor
         }
 
         $placements = [];
-        $pageNumber = 0;
-        foreach ($this->limitedPageObjectNumbers($objects, $pdfBytes) as $pageObjectNumber) {
-            $pageNumber++;
+        foreach ($this->limitedPageObjectNumbers($objects, $pdfBytes) as $pageNumber => $pageObjectNumber) {
             $pageBody = $objects[$pageObjectNumber] ?? null;
             if (!is_string($pageBody) || !$this->isPageObjectBody($pageBody)) {
                 continue;
@@ -885,9 +917,7 @@ final class PdfTextExtractor
         }
 
         $placements = [];
-        $pageNumber = 0;
-        foreach ($this->limitedPageObjectNumbers($objects, $pdfBytes) as $pageObjectNumber) {
-            $pageNumber++;
+        foreach ($this->limitedPageObjectNumbers($objects, $pdfBytes) as $pageNumber => $pageObjectNumber) {
             $pageBody = $objects[$pageObjectNumber] ?? null;
             if (!is_string($pageBody) || !$this->isPageObjectBody($pageBody)) {
                 continue;
@@ -1686,7 +1716,8 @@ final class PdfTextExtractor
      *     textLineItems: list<array{page: int, stream: int, text: string}>,
      *     textRuns: list<string>,
      *     positionedTextRuns: list<array{page: int, stream: int, text: string, x1: float, y1: float, x2: float, y2: float, textX1: float, textY1: float, textX2: float, textY2: float, fontSize: float, pageObject?: int}>,
-     *     filledRectangles: list<array{page: int, stream: int, x1: float, y1: float, x2: float, y2: float, fillColor: string, pageObject?: int}>
+     *     filledRectangles: list<array{page: int, stream: int, x1: float, y1: float, x2: float, y2: float, fillColor: string, pageObject?: int}>,
+     *     positionedTextRunsLimited: bool
      * }>
      */
     public function streamImportFacts(
@@ -1701,6 +1732,7 @@ final class PdfTextExtractor
 
         $streamNumber = 0;
         $positionedRunCount = 0;
+        $positionedTextRunsLimited = false;
         $maxPositionedRuns = $this->maxPositionedTextRuns();
         foreach ($this->limitedStreamContextIterator($pdfBytes) as $context) {
             $streamNumber++;
@@ -1741,17 +1773,23 @@ final class PdfTextExtractor
             }
 
             $positionedTextRuns = [];
-            if ($includePositionedTextRuns && $positionedRunCount < $maxPositionedRuns) {
+            if ($includePositionedTextRuns && !$positionedTextRunsLimited) {
                 foreach ($this->positionedTextRunsFromContentStream(
                     $context['stream'],
                     $context['fontToUnicodeMaps'],
                     $context['fontEncodings'],
                     $context['propertyActualTexts'],
                     $context['mcidActualTexts'],
-                    $context['propertyMcids']
+                    $context['propertyMcids'],
+                    max(1, $maxPositionedRuns - $positionedRunCount + 1)
                 ) as $run) {
                     if ($run['text'] === '') {
                         continue;
+                    }
+
+                    if ($positionedRunCount >= $maxPositionedRuns) {
+                        $positionedTextRunsLimited = true;
+                        break;
                     }
 
                     $positionedRun = [
@@ -1763,9 +1801,6 @@ final class PdfTextExtractor
                     }
                     $positionedTextRuns[] = $positionedRun;
                     $positionedRunCount++;
-                    if ($positionedRunCount >= $maxPositionedRuns) {
-                        break;
-                    }
                 }
             }
 
@@ -1792,6 +1827,7 @@ final class PdfTextExtractor
                 'textRuns' => $textRuns,
                 'positionedTextRuns' => $positionedTextRuns,
                 'filledRectangles' => $filledRectangles,
+                'positionedTextRunsLimited' => $positionedTextRunsLimited,
             ];
         }
     }
@@ -2282,10 +2318,7 @@ final class PdfTextExtractor
         $runsByPageObject = $this->positionedTextRunsByPageObject($objects);
         $pageNumberByObject = $this->pageNumberByObjectNumber($objects);
         $annotations = [];
-        $pageNumber = 0;
-
-        foreach ($this->limitedPageObjectNumbers($objects) as $pageObjectNumber) {
-            $pageNumber++;
+        foreach ($this->limitedPageObjectNumbers($objects) as $pageNumber => $pageObjectNumber) {
             $pageObjectBody = $objects[$pageObjectNumber] ?? null;
             if (!is_string($pageObjectBody) || !$this->isPageObjectBody($pageObjectBody)) {
                 continue;
@@ -2359,10 +2392,7 @@ final class PdfTextExtractor
     private function textAnnotations(array $objects): array
     {
         $annotations = [];
-        $pageNumber = 0;
-
-        foreach ($this->limitedPageObjectNumbers($objects) as $pageObjectNumber) {
-            $pageNumber++;
+        foreach ($this->limitedPageObjectNumbers($objects) as $pageNumber => $pageObjectNumber) {
             $pageObjectBody = $objects[$pageObjectNumber] ?? null;
             if (!is_string($pageObjectBody) || !$this->isPageObjectBody($pageObjectBody)) {
                 continue;
@@ -2392,10 +2422,7 @@ final class PdfTextExtractor
     private function fileAttachmentAnnotations(array $objects): array
     {
         $annotations = [];
-        $pageNumber = 0;
-
-        foreach ($this->limitedPageObjectNumbers($objects) as $pageObjectNumber) {
-            $pageNumber++;
+        foreach ($this->limitedPageObjectNumbers($objects) as $pageNumber => $pageObjectNumber) {
             $pageObjectBody = $objects[$pageObjectNumber] ?? null;
             if (!is_string($pageObjectBody) || !$this->isPageObjectBody($pageObjectBody)) {
                 continue;
@@ -2425,10 +2452,7 @@ final class PdfTextExtractor
     private function popupAnnotations(array $objects): array
     {
         $annotations = [];
-        $pageNumber = 0;
-
-        foreach ($this->limitedPageObjectNumbers($objects) as $pageObjectNumber) {
-            $pageNumber++;
+        foreach ($this->limitedPageObjectNumbers($objects) as $pageNumber => $pageObjectNumber) {
             $pageObjectBody = $objects[$pageObjectNumber] ?? null;
             if (!is_string($pageObjectBody) || !$this->isPageObjectBody($pageObjectBody)) {
                 continue;
@@ -2458,10 +2482,7 @@ final class PdfTextExtractor
     private function appearanceAnnotations(array $objects): array
     {
         $annotations = [];
-        $pageNumber = 0;
-
-        foreach ($this->limitedPageObjectNumbers($objects) as $pageObjectNumber) {
-            $pageNumber++;
+        foreach ($this->limitedPageObjectNumbers($objects) as $pageNumber => $pageObjectNumber) {
             $pageObjectBody = $objects[$pageObjectNumber] ?? null;
             if (!is_string($pageObjectBody) || !$this->isPageObjectBody($pageObjectBody)) {
                 continue;
@@ -5955,6 +5976,19 @@ final class PdfTextExtractor
         return null;
     }
 
+    private function startPage(): int
+    {
+        foreach (['pdfStartPage', 'startPage', 'start_page'] as $key) {
+            if (!array_key_exists($key, $this->options) || $this->options[$key] === null || $this->options[$key] === '') {
+                continue;
+            }
+
+            return max(1, (int) $this->options[$key]);
+        }
+
+        return 1;
+    }
+
     /**
      * @return \Generator<int, array{
      *     stream: string,
@@ -5976,6 +6010,12 @@ final class PdfTextExtractor
             yield $context;
         }
         if ($hasPageContexts) {
+            return;
+        }
+        // A selected page can legitimately contain no decodable content
+        // stream. Once a real page tree exists, falling back to every visible
+        // stream would leak text from pages outside the requested range.
+        if ($this->pageObjectNumbers($objects, $pdfBytes) !== []) {
             return;
         }
         if ($this->xrefTrailerRootObjectNumber($pdfBytes) !== null
@@ -6119,9 +6159,7 @@ final class PdfTextExtractor
      */
     private function pageContentStreamContextIterator(array $objects, ?string $pdfBytes = null): \Generator
     {
-        $pageNumber = 0;
-        foreach ($this->limitedPageObjectNumbers($objects, $pdfBytes) as $objectNumber) {
-            $pageNumber++;
+        foreach ($this->limitedPageObjectNumbers($objects, $pdfBytes) as $pageNumber => $objectNumber) {
             $body = $objects[$objectNumber] ?? null;
             if (!is_string($body) || !$this->isPageObjectBody($body)) {
                 continue;
@@ -6193,22 +6231,34 @@ final class PdfTextExtractor
         }
 
         $pageObjectNumbers = array_values(array_unique($pageObjectNumbers));
-        return $pageObjectNumbers === [] ? $this->allPageObjectNumbers($objects) : $pageObjectNumbers;
+        if ($catalogPagesRootObjectNumbers !== []) {
+            return $pageObjectNumbers;
+        }
+
+        return $this->allPageObjectNumbers($objects);
     }
 
     /**
      * @param array<int, string> $objects
-     * @return list<int>
+     * @return array<int, int> Map of one-based original page number to object number.
      */
     private function limitedPageObjectNumbers(array $objects, ?string $pdfBytes = null): array
     {
         $pageObjectNumbers = $this->pageObjectNumbers($objects, $pdfBytes);
-        $maxPages = $this->maxPages();
-        if ($maxPages === null) {
-            return $pageObjectNumbers;
+        $numberedPageObjectNumbers = [];
+        foreach ($pageObjectNumbers as $index => $pageObjectNumber) {
+            $numberedPageObjectNumbers[$index + 1] = $pageObjectNumber;
         }
 
-        return array_slice($pageObjectNumbers, 0, $maxPages);
+        $startPage = $this->startPage();
+        $maxPages = $this->maxPages();
+
+        return array_slice(
+            $numberedPageObjectNumbers,
+            $startPage - 1,
+            $maxPages,
+            true
+        );
     }
 
     /**
@@ -6263,7 +6313,7 @@ final class PdfTextExtractor
         }
 
         $pages = [];
-        foreach ($this->kidObjectNumbers($body) as $kidObjectNumber) {
+        foreach ($this->kidObjectNumbers($body, $objects) as $kidObjectNumber) {
             foreach ($this->pageObjectNumbersFromTree($kidObjectNumber, $objects, $seen) as $pageObjectNumber) {
                 $pages[] = $pageObjectNumber;
             }
@@ -6275,20 +6325,31 @@ final class PdfTextExtractor
     /**
      * @return list<int>
      */
-    private function kidObjectNumbers(string $objectBody): array
+    private function kidObjectNumbers(string $objectBody, array $objects): array
     {
-        if (preg_match('/\/Kids\s*\[(.*?)\]/s', $objectBody, $match) !== 1) {
+        $kidsToken = $this->dictionaryArrayTokenFromTokens(
+            $this->dictionaryTokens($objectBody),
+            'Kids',
+            $objects
+        );
+        if ($kidsToken === null) {
             return [];
         }
 
         $kids = [];
-        if (preg_match_all('/(\d+)\s+\d+\s+R\b/', $match[1], $matches)) {
-            foreach ($matches[1] as $objectNumber) {
-                $kids[] = (int) $objectNumber;
+        $tokens = $this->arrayTokens($kidsToken);
+        for ($index = 0, $count = count($tokens); $index < $count;) {
+            $objectNumber = $this->indirectObjectOperand($tokens, $index);
+            if ($objectNumber !== null) {
+                $kids[] = $objectNumber;
+                $index += 3;
+                continue;
             }
+
+            $index++;
         }
 
-        return $kids;
+        return array_values(array_unique($kids));
     }
 
     /**
@@ -6894,14 +6955,12 @@ final class PdfTextExtractor
     private function pageExtractionIssues(array $objects): array
     {
         $issues = [];
-        $page = 0;
-        foreach ($this->limitedPageObjectNumbers($objects) as $pageObjectNumber) {
+        foreach ($this->limitedPageObjectNumbers($objects) as $page => $pageObjectNumber) {
             $body = $objects[$pageObjectNumber] ?? null;
             if (!is_string($body) || !$this->isPageObjectBody($body)) {
                 continue;
             }
 
-            $page++;
             $resourceContext = $this->resourceContextForPage($pageObjectNumber, $objects);
             $xObjects = $this->xObjectResourceObjectNumbers($resourceContext, $objects);
             foreach ($this->pageContentsReferences($body) as $contentsObjectNumber) {
@@ -16743,7 +16802,8 @@ final class PdfTextExtractor
         array $fontEncodings,
         array $propertyActualTexts,
         array $mcidActualTexts,
-        array $propertyMcids
+        array $propertyMcids,
+        ?int $maxRunsOverride = null
     ): array
     {
         $runs = [];
@@ -16774,7 +16834,7 @@ final class PdfTextExtractor
         $artifactStack = [];
         $pendingTextPositionBoundary = false;
         $currentTransformationMatrix = $this->identityTransformationMatrix();
-        $maxRuns = $this->maxPositionedTextRuns();
+        $maxRuns = $maxRunsOverride ?? $this->maxPositionedTextRuns();
 
         foreach ($this->contentTokenIterator($stream) as $token) {
             if ($token === 'BDC') {

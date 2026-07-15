@@ -368,6 +368,56 @@ if (!function_exists('wp_insert_post')) {
     }
 }
 
+if (!function_exists('get_posts')) {
+    function get_posts(array $args = []): array
+    {
+        $postType = (string) ($args['post_type'] ?? 'post');
+        $fields = (string) ($args['fields'] ?? 'all');
+        $matches = [];
+        $sources = $postType === 'attachment'
+            ? ($GLOBALS['plpc_test_attachments'] ?? [])
+            : ($GLOBALS['plpc_test_posts'] ?? []);
+        foreach ($sources as $id => $post) {
+            if (!is_array($post)) {
+                continue;
+            }
+            $actualType = $postType === 'attachment' ? 'attachment' : (string) ($post['post_type'] ?? 'post');
+            if ($actualType !== $postType) {
+                continue;
+            }
+            $meta = is_array($post['meta_input'] ?? null) ? $post['meta_input'] : [];
+            if (isset($args['meta_key']) && ($meta[(string) $args['meta_key']] ?? null) !== ($args['meta_value'] ?? null)) {
+                continue;
+            }
+            foreach (is_array($args['meta_query'] ?? null) ? $args['meta_query'] : [] as $query) {
+                if (!is_array($query) || !isset($query['key'])) {
+                    continue;
+                }
+                if ((string) ($meta[(string) $query['key']] ?? '') !== (string) ($query['value'] ?? '')) {
+                    continue 2;
+                }
+            }
+            $matches[] = $fields === 'ids' ? (int) $id : (object) (['ID' => (int) $id] + $post);
+        }
+
+        return array_slice($matches, 0, max(1, (int) ($args['posts_per_page'] ?? $args['numberposts'] ?? 5)));
+    }
+}
+
+if (!function_exists('get_post_meta')) {
+    function get_post_meta(int $postId, string $key = '', bool $single = false): mixed
+    {
+        $post = $GLOBALS['plpc_test_posts'][$postId] ?? $GLOBALS['plpc_test_attachments'][$postId] ?? [];
+        $meta = is_array($post['meta_input'] ?? null) ? $post['meta_input'] : [];
+        if ($key === '') {
+            return $meta;
+        }
+        $value = $meta[$key] ?? '';
+
+        return $single ? $value : [$value];
+    }
+}
+
 if (!function_exists('wp_upload_bits')) {
     function wp_upload_bits(string $filename, mixed $deprecated, string $bits): array
     {
@@ -582,6 +632,55 @@ function plpc_test_renderable_form_xobject_pdf(): string
         . "4 0 obj\n<< /Length " . strlen($pageContent) . " >>\nstream\n{$pageContent}endstream\nendobj\n"
         . "5 0 obj\n<< /Type /XObject /Subtype /Form /BBox [0 0 100 50] /Resources << >> /Length " . strlen($formContent) . " >>\nstream\n{$formContent}endstream\nendobj\n"
         . "%%EOF\n";
+}
+
+/** @param list<string> $pageTexts */
+function plpc_test_multipage_pdf(array $pageTexts): string
+{
+    $catalogObject = 1;
+    $pagesObject = 2;
+    $fontObject = 3;
+    $pageObjects = [];
+    $contentObjects = [];
+    $nextObject = 4;
+    foreach ($pageTexts as $_pageText) {
+        $pageObjects[] = $nextObject++;
+        $contentObjects[] = $nextObject++;
+    }
+
+    $objects = [
+        $catalogObject => "<< /Type /Catalog /Pages {$pagesObject} 0 R >>",
+        $pagesObject => '<< /Type /Pages /Kids ['
+            . implode(' ', array_map(static fn (int $object): string => "{$object} 0 R", $pageObjects))
+            . '] /Count ' . count($pageObjects) . ' >>',
+        $fontObject => '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>',
+    ];
+    foreach ($pageTexts as $index => $pageText) {
+        $escaped = str_replace(['\\', '(', ')'], ['\\\\', '\\(', '\\)'], $pageText);
+        $content = "BT /F1 12 Tf 72 720 Td ({$escaped}) Tj ET";
+        $pageObject = $pageObjects[$index];
+        $contentObject = $contentObjects[$index];
+        $objects[$pageObject] = "<< /Type /Page /Parent {$pagesObject} 0 R /MediaBox [0 0 612 792]"
+            . " /Resources << /Font << /F1 {$fontObject} 0 R >> >> /Contents {$contentObject} 0 R >>";
+        $objects[$contentObject] = '<< /Length ' . strlen($content) . ">>\nstream\n{$content}\nendstream";
+    }
+
+    ksort($objects, SORT_NUMERIC);
+    $pdf = "%PDF-1.4\n";
+    $offsets = [];
+    foreach ($objects as $objectNumber => $body) {
+        $offsets[$objectNumber] = strlen($pdf);
+        $pdf .= "{$objectNumber} 0 obj\n{$body}\nendobj\n";
+    }
+    $xrefOffset = strlen($pdf);
+    $size = max(array_keys($objects)) + 1;
+    $pdf .= "xref\n0 {$size}\n0000000000 65535 f \n";
+    for ($objectNumber = 1; $objectNumber < $size; $objectNumber++) {
+        $pdf .= sprintf("%010d 00000 n \n", $offsets[$objectNumber]);
+    }
+    $pdf .= "trailer\n<< /Size {$size} /Root {$catalogObject} 0 R >>\nstartxref\n{$xrefOffset}\n%%EOF\n";
+
+    return $pdf;
 }
 
 /**
@@ -844,6 +943,96 @@ return [
         $t->true(is_int($postId) && $postId > 0, 'A completed job should report its created WordPress page.');
         $t->contains('Visible stages', $GLOBALS['plpc_test_posts'][$postId]['post_content'] ?? '');
     },
+    'playground pdf jobs checkpoint page chunks without publishing partial documents and resume idempotently' => static function (TestRunner $t): void {
+        plpc_test_reset_import_job_state();
+        add_filter('plpc_pdf_pages_per_request', static fn (mixed $pages): int => 1);
+        $pdf = plpc_test_multipage_pdf([
+            'FIRST PAGE CHECKPOINT SENTINEL',
+            'SECOND PAGE CHECKPOINT SENTINEL',
+            'THIRD PAGE CHECKPOINT SENTINEL',
+        ]);
+        $created = plpc_create_import_job(plpc_test_import_job_request([
+            'filename' => 'checkpointed.pdf',
+            'title' => 'Checkpointed PDF',
+            'imageMode' => 'none',
+            'pdfMode' => 'layout',
+            'bytes' => base64_encode($pdf),
+        ]))->get_data();
+        $jobId = (string) ($created['jobId'] ?? '');
+        $option = PLPC_IMPORT_JOB_OPTION_PREFIX . $jobId;
+
+        $prepared = plpc_advance_import_job(plpc_test_import_job_request([], $jobId))->get_data();
+        $t->same('ready_to_convert', $prepared['status'] ?? null);
+        $job = get_option($option);
+        $t->same(3, $job['documents'][0]['pdfPageCount'] ?? null);
+        $t->same(1, $job['documents'][0]['pdfNextPage'] ?? null);
+
+        $first = plpc_advance_import_job(plpc_test_import_job_request([], $jobId))->get_data();
+        $jobAfterFirst = get_option($option);
+        $t->same('ready_to_convert', $first['status'] ?? null);
+        $t->contains('page 1 of 3', strtolower((string) ($first['progress']['label'] ?? '')));
+        $t->same(2, $jobAfterFirst['documents'][0]['pdfNextPage'] ?? null);
+        $t->same(1, count($jobAfterFirst['documents'][0]['pdfChunks'] ?? []));
+        $t->same(0, count($GLOBALS['plpc_test_posts']), 'A persisted first-page chunk must not create a partial WordPress page.');
+
+        // Model a worker dying after the deterministic chunk files reached
+        // disk but before the cursor-bearing option was saved. Replaying the
+        // same page must overwrite that chunk, not append duplicate content.
+        $replay = $jobAfterFirst;
+        $replay['documents'][0]['pdfNextPage'] = 1;
+        $replay['documents'][0]['pdfChunks'] = [];
+        update_option($option, $replay, false);
+        plpc_advance_import_job(plpc_test_import_job_request([], $jobId));
+        $jobAfterReplay = get_option($option);
+        $t->same(2, $jobAfterReplay['documents'][0]['pdfNextPage'] ?? null);
+        $t->same(1, count($jobAfterReplay['documents'][0]['pdfChunks'] ?? []));
+        $t->same(0, count($GLOBALS['plpc_test_posts']));
+
+        $second = plpc_advance_import_job(plpc_test_import_job_request([], $jobId))->get_data();
+        $jobAfterSecond = get_option($option);
+        $t->contains('page 2 of 3', strtolower((string) ($second['progress']['label'] ?? '')));
+        $t->same(3, $jobAfterSecond['documents'][0]['pdfNextPage'] ?? null);
+        $t->same(2, count($jobAfterSecond['documents'][0]['pdfChunks'] ?? []));
+        $t->same(0, count($GLOBALS['plpc_test_posts']));
+
+        $third = plpc_advance_import_job(plpc_test_import_job_request([], $jobId))->get_data();
+        $jobAfterThird = get_option($option);
+        $t->contains('page 3 of 3', strtolower((string) ($third['progress']['label'] ?? '')));
+        $t->same(4, $jobAfterThird['documents'][0]['pdfNextPage'] ?? null);
+        $t->same(3, count($jobAfterThird['documents'][0]['pdfChunks'] ?? []));
+        $t->same(0, count($GLOBALS['plpc_test_posts']), 'All chunks must be durable before the final page is published.');
+
+        $completed = plpc_advance_import_job(plpc_test_import_job_request([], $jobId))->get_data();
+        $t->same('complete', $completed['status'] ?? null);
+        $t->same(1, count($GLOBALS['plpc_test_posts']), 'Finalization must publish exactly one page.');
+        $postId = (int) ($completed['result']['postId'] ?? 0);
+        $blocks = (string) ($GLOBALS['plpc_test_posts'][$postId]['post_content'] ?? '');
+        foreach (['FIRST', 'SECOND', 'THIRD'] as $ordinal) {
+            $sentinel = $ordinal . ' PAGE CHECKPOINT SENTINEL';
+            $t->same(1, substr_count($blocks, $sentinel), $sentinel . ' should occur exactly once after a replay.');
+        }
+
+        // Model a worker dying after wp_insert_post() committed but before
+        // the completed job option was saved. A fresh request must discover
+        // and reuse that page by its durable job/document identity.
+        update_option($option, $jobAfterThird, false);
+        $GLOBALS['plpc_imported_media_by_hash'] = [];
+        $recovered = plpc_advance_import_job(plpc_test_import_job_request([], $jobId))->get_data();
+        $t->same('complete', $recovered['status'] ?? null);
+        $t->same($postId, $recovered['result']['postId'] ?? null);
+        $t->same(1, count($GLOBALS['plpc_test_posts']), 'Final-page retry must not publish a duplicate page.');
+    },
+
+    'playground media attachment retries deduplicate across PHP requests' => static function (TestRunner $t): void {
+        plpc_test_reset_import_job_state();
+        $first = plpc_insert_media_attachment('same durable image bytes', 'first.png', 'image/png');
+        $GLOBALS['plpc_imported_media_by_hash'] = [];
+        $second = plpc_insert_media_attachment('same durable image bytes', 'second.png', 'image/png');
+
+        $t->same($first, $second);
+        $t->same(1, count($GLOBALS['plpc_test_uploads']), 'A retry in a new PHP request must reuse the existing upload.');
+        $t->same(1, count($GLOBALS['plpc_test_attachments']), 'A retry in a new PHP request must reuse the existing attachment.');
+    },
     'playground converter resumes a checkpoint left converting by an interrupted PHP request' => static function (TestRunner $t): void {
         plpc_test_reset_import_job_state();
         $created = plpc_create_import_job(plpc_test_import_job_request([
@@ -1086,7 +1275,8 @@ return [
     'playground pdf importer keeps geometry table reconstruction enabled with prose repair by default' => static function (TestRunner $t): void {
         $options = plpc_converter_options('pdf');
 
-        $t->same(80000, $options['readerOptions']['maxTextBytes'] ?? null);
+        $t->same(PHP_INT_MAX, $options['readerOptions']['maxTextBytes'] ?? null);
+        $t->same(false, $options['readerOptions']['pdfFastTextOnly'] ?? null);
         $t->same(true, $options['readerOptions']['pdfGeometryTables'] ?? null);
         $t->same(true, $options['readerOptions']['pdfRepairProseText'] ?? null);
         $t->same(true, $options['readerOptions']['pdfCollectImagePlacements'] ?? null);
@@ -1094,7 +1284,8 @@ return [
     'playground pdf importer can retry in text only mode without geometry tables' => static function (TestRunner $t): void {
         $options = plpc_converter_options('pdf', 'text-only');
 
-        $t->same(80000, $options['readerOptions']['maxTextBytes'] ?? null);
+        $t->same(PHP_INT_MAX, $options['readerOptions']['maxTextBytes'] ?? null);
+        $t->same(false, $options['readerOptions']['pdfFastTextOnly'] ?? null);
         $t->same(false, $options['readerOptions']['pdfGeometryTables'] ?? null);
         $t->same(true, $options['readerOptions']['pdfRepairProseText'] ?? null);
     },
