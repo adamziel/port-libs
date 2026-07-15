@@ -346,7 +346,7 @@ final class PdfMetadataExtractor
             $metadata['encryption'] = ['is_encrypted' => true];
         }
 
-        return $metadata;
+        return $this->withExactReaderPageCount($metadata, $pdfBytes);
     }
 
     /**
@@ -407,6 +407,34 @@ final class PdfMetadataExtractor
 
         foreach ($summary as $key => $value) {
             $metadata[$key] = $value;
+        }
+
+        return $this->withExactReaderPageCount($metadata, $pdfBytes);
+    }
+
+    /**
+     * The bounded metadata prefix is useful for cheap Info/XMP discovery, but
+     * it cannot establish a document's pages: a large image may precede the
+     * Catalog, object streams may hide pages, and orphaned /Page objects are
+     * not members of the current document. Resolve the active xref and page
+     * tree with the text engine before exposing a count to import policy.
+     *
+     * @param array<string, mixed> $metadata
+     * @return array<string, mixed>
+     */
+    private function withExactReaderPageCount(array $metadata, string $pdfBytes): array
+    {
+        if (!class_exists(PdfTextExtractor::class)) {
+            return $metadata;
+        }
+
+        try {
+            $inventory = (new PdfTextExtractor())->extractPageInventory($pdfBytes);
+            $metadata['page_count'] = max(0, (int) ($inventory['totalPages'] ?? 0));
+            unset($metadata['page_count_limited']);
+        } catch (\Throwable) {
+            // Retain the bounded result and its limited flag when the active
+            // object graph is malformed beyond what the text engine accepts.
         }
 
         return $metadata;

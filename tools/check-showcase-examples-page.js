@@ -80,7 +80,7 @@ assert(js.includes("const exampleUrlParameter = 'example';"), 'Expected a stable
 assert(js.includes('new URL(window.location.href)'), 'Expected example links to preserve other URL state safely.');
 assert(js.includes('window.history.replaceState'), 'Expected picker navigation to keep the current URL shareable.');
 assert(js.includes("import { renderPdfFormRequests } from './pdfjs-form-rasterizer.mjs';"), 'Expected own-file PDF figures to use the shared PDF.js renderer.');
-assert(js.includes("const playgroundPluginBuild = 'browser-import-jobs-form-placement-20260714';"), 'Expected the own-file importer to use the current Playground plugin build.');
+assert(js.includes("const playgroundPluginBuild = 'pdf-page-checkpoints-20260715';"), 'Expected the own-file importer to use the current Playground plugin build.');
 assert(js.includes("const playgroundClientModuleUrl = 'https://playground.wordpress.net/client/index.js';"), 'Expected Try your own file to use the Playground client.');
 assert(js.includes("const playgroundUploadDirectory = '/tmp/port-libs-converter';"), 'Expected own files to use Playground temporary staging.');
 assert(js.includes("php: '8.4'"), 'Expected own-file imports to use PHP 8.4 for EPUB and HTML documents.');

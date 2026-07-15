@@ -112,6 +112,7 @@ jobs:
           php -l lanes/pandoc/tests/PlaygroundConverterPluginTest.php
           php -l lanes/pandoc/tests/PdfFormXObjectPlacementMetadataTest.php
           php -l lanes/pandoc/tests/PandocImportMemoryBudgetTest.php
+          php -l lanes/pandoc/tests/PdfImportCompletenessTest.php
           php -l lanes/pandoc/tests/PdfReaderCorpusQualityTest.php
           php -l lanes/pandoc/tests/PdfRegionAwareLayoutTest.php
           php -l lanes/pandoc/tests/PdfReaderTest.php
@@ -150,6 +151,7 @@ jobs:
             lanes/pandoc/tests/PlaygroundConverterPluginTest.php \
             lanes/pandoc/tests/PdfFormXObjectPlacementMetadataTest.php \
             lanes/pandoc/tests/PandocImportMemoryBudgetTest.php \
+            lanes/pandoc/tests/PdfImportCompletenessTest.php \
             lanes/pandoc/tests/PdfReaderCorpusQualityTest.php \
             lanes/pandoc/tests/PdfRegionAwareLayoutTest.php \
             lanes/pandoc/tests/PdfReaderTest.php \

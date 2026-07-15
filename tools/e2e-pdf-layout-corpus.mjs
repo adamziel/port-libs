@@ -223,6 +223,7 @@ const iframeSnapshotExpression = `(() => {
   }
   return {
     ready: document.readyState === 'complete' || document.readyState === 'interactive',
+    bodyText,
     textBytes: new TextEncoder().encode(bodyText).length,
     paragraphs: paragraphs.length,
     headings: document.querySelectorAll('h1, h2, h3, h4, h5, h6').length,
@@ -292,6 +293,11 @@ function criterionErrors(criteria, snapshot) {
   }
   if (!criteria.allowNoText && snapshot.textBytes === 0) {
     errors.push('the preview is unexpectedly empty');
+  }
+  for (const requiredText of Array.isArray(criteria.requiredText) ? criteria.requiredText : []) {
+    if (!snapshot.bodyText.includes(String(requiredText))) {
+      errors.push(`requiredText: missing ${JSON.stringify(requiredText)}`);
+    }
   }
   return errors;
 }
@@ -535,7 +541,9 @@ async function main() {
         const previousSnapshot = await waitForExample(page, options, manifest[0], iframeClients, parentFrameContexts);
         navigation.previous = previousSnapshot.outer.selectedExample;
       }
-      results.push({ id: expectedId, outer: snapshot.outer, frame: snapshot.frame, screenshots, navigation });
+      const frameSummary = { ...snapshot.frame };
+      delete frameSummary.bodyText;
+      results.push({ id: expectedId, outer: snapshot.outer, frame: frameSummary, screenshots, navigation });
       console.log(`PASS ${expectedId}: ${snapshot.frame.textBytes} text bytes, ${snapshot.frame.paragraphs} paragraphs`);
     }
 
