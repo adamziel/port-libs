@@ -28,12 +28,14 @@ ensure_dir($workDir . '/outputs');
 
 $modes = [
     'geometry-on' => [
+        'pdfFastTextOnly' => false,
         'pdfGeometryTables' => true,
         'pdfRepairProseText' => true,
         'maxTextBytes' => 90000,
         'pdfMaxPages' => 8,
     ],
     'repair-only' => [
+        'pdfFastTextOnly' => false,
         'pdfGeometryTables' => false,
         'pdfRepairProseText' => true,
         'maxTextBytes' => 90000,
@@ -229,6 +231,10 @@ function convert_pdf_for_review(string $bytes, array $entry, string $outDir, str
             'tableCount' => count_nodes($document, 'table'),
             'listCount' => count_nodes($document, 'bullet_list') + count_nodes($document, 'ordered_list'),
             'paragraphCount' => count_nodes($document, 'paragraph'),
+            'headingCount' => count_nodes($document, 'heading'),
+            'codeBlockCount' => count_nodes($document, 'code_block'),
+            'lineOrientedBlockCount' => count_nodes($document, 'line_block'),
+            'singleGlyphParagraphCount' => count_single_glyph_paragraphs($document),
             'textBytes' => strlen($plainText),
             'htmlTableTags' => substr_count(strtolower($html), '<table'),
             'wordpressTableBlocks' => substr_count($wordpress, '<!-- wp:table'),
@@ -239,6 +245,9 @@ function convert_pdf_for_review(string $bytes, array $entry, string $outDir, str
                 'pdfTableReconstruction' => $meta['pdfTableReconstruction'] ?? null,
                 'pdfTextRepair' => $meta['pdfTextRepair'] ?? null,
                 'pdfTextRepairSource' => $meta['pdfTextRepairSource'] ?? null,
+                'pdfLineOrientedRegions' => $meta['pdfLineOrientedRegions'] ?? null,
+                'pdfInterGlyphSpacingRepairs' => $meta['pdfInterGlyphSpacingRepairs'] ?? null,
+                'pdfInferredHeadingBoundaries' => $meta['pdfInferredHeadingBoundaries'] ?? null,
                 'pdfMaxPages' => $meta['pdfMaxPages'] ?? null,
                 'pdfTextLines' => $meta['pdfTextLines'] ?? null,
                 'pdfPositionedTextRuns' => $meta['pdfPositionedTextRuns'] ?? null,
@@ -296,6 +305,22 @@ function count_nodes(AstNode $node, string $type): int
     return $count;
 }
 
+function count_single_glyph_paragraphs(AstNode $document): int
+{
+    $count = 0;
+    walk_node($document, static function (AstNode $node) use (&$count): void {
+        if ($node->type !== 'paragraph') {
+            return;
+        }
+        $text = preg_replace('/\s+/u', '', plain_text($node)) ?? '';
+        if ($text !== '' && preg_match('/^[\p{L}\p{N}]$/u', $text) === 1) {
+            $count++;
+        }
+    });
+
+    return $count;
+}
+
 function walk_node(AstNode $node, callable $callback): void
 {
     $callback($node);
@@ -338,14 +363,14 @@ function collect_plain_text(AstNode $node, array &$parts): void
     }
     foreach ($node->children as $child) {
         collect_plain_text($child, $parts);
-        if (in_array($child->type, ['paragraph', 'heading', 'code_block', 'table_row', 'list_item'], true)) {
+        if (in_array($child->type, ['paragraph', 'heading', 'code_block', 'table_row', 'list_item', 'line'], true)) {
             $parts[] = "\n";
         }
         if ($child->type === 'table_cell') {
             $parts[] = "\t";
         }
     }
-    if (in_array($node->type, ['paragraph', 'heading', 'table_row', 'table', 'bullet_list', 'ordered_list'], true)) {
+    if (in_array($node->type, ['paragraph', 'heading', 'table_row', 'table', 'bullet_list', 'ordered_list', 'line_block'], true)) {
         $parts[] = "\n";
     }
 }
@@ -417,9 +442,58 @@ function review_status(array $entry, AstNode $document, string $plainText): arra
         $issues[] = 'missing-space-after-punctuation';
     }
 
+    $criteria = is_array($entry['success'] ?? null) ? $entry['success'] : [];
+    $metrics = [
+        'textBytes' => strlen($plainText),
+        'paragraphs' => count_nodes($document, 'paragraph'),
+        'headings' => count_nodes($document, 'heading'),
+        'tables' => $tableCount,
+        'lists' => count_nodes($document, 'bullet_list') + count_nodes($document, 'ordered_list'),
+        'codeBlocks' => count_nodes($document, 'code_block'),
+        'lineOrientedBlocks' => count_nodes($document, 'line_block'),
+        'singleGlyphParagraphs' => count_single_glyph_paragraphs($document),
+    ];
+    $checks = [];
+    $minimums = [
+        'minTextBytes' => 'textBytes',
+        'minParagraphs' => 'paragraphs',
+        'minHeadings' => 'headings',
+        'minTables' => 'tables',
+        'minLists' => 'lists',
+        'minCodeBlocks' => 'codeBlocks',
+        'minLineOrientedBlocks' => 'lineOrientedBlocks',
+    ];
+    foreach ($minimums as $criterion => $metric) {
+        if (!array_key_exists($criterion, $criteria)) {
+            continue;
+        }
+        $passed = $metrics[$metric] >= (int) $criteria[$criterion];
+        $checks[$criterion] = $passed;
+        if (!$passed) {
+            $issues[] = 'criterion-' . $criterion;
+        }
+    }
+    $maximums = [
+        'maxTables' => 'tables',
+        'maxSingleGlyphParagraphs' => 'singleGlyphParagraphs',
+    ];
+    foreach ($maximums as $criterion => $metric) {
+        if (!array_key_exists($criterion, $criteria)) {
+            continue;
+        }
+        $passed = $metrics[$metric] <= (int) $criteria[$criterion];
+        $checks[$criterion] = $passed;
+        if (!$passed) {
+            $issues[] = 'criterion-' . $criterion;
+        }
+    }
+
     return [
         'approvedByHeuristic' => $issues === [],
         'issues' => $issues,
+        'criteria' => $criteria,
+        'metrics' => $metrics,
+        'checks' => $checks,
     ];
 }
 

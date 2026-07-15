@@ -1,0 +1,142 @@
+[
+  {
+    "id": "unstructured-header-footer",
+    "label": "Unstructured header and footer fixture",
+    "kind": "running-header-footer",
+    "url": "https://raw.githubusercontent.com/Unstructured-IO/unstructured/main/example-docs/pdf/header-test-doc.pdf",
+    "source": "Unstructured example-docs/pdf/header-test-doc.pdf",
+    "filename": "header-test-doc.pdf",
+    "notes": "Short prose document with page-furniture text that must not be merged into the body.",
+    "success": {"minTextBytes": 60, "maxTables": 0, "maxSingleGlyphParagraphs": 0}
+  },
+  {
+    "id": "unstructured-multicolumn",
+    "label": "Unstructured two-page multicolumn fixture",
+    "kind": "multicolumn-article",
+    "url": "https://raw.githubusercontent.com/Unstructured-IO/unstructured/main/example-docs/pdf/multi-column-2p.pdf",
+    "source": "Unstructured example-docs/pdf/multi-column-2p.pdf",
+    "filename": "multi-column-2p.pdf",
+    "notes": "Two-column article pages that exercise column order and paragraph continuation.",
+    "success": {"minTextBytes": 1500, "minParagraphs": 4, "maxSingleGlyphParagraphs": 0}
+  },
+  {
+    "id": "unstructured-lists",
+    "label": "Unstructured list fixture",
+    "kind": "lists",
+    "url": "https://raw.githubusercontent.com/Unstructured-IO/unstructured/main/example-docs/pdf/list-item-example.pdf",
+    "source": "Unstructured example-docs/pdf/list-item-example.pdf",
+    "filename": "list-item-example.pdf",
+    "notes": "Mixed bullet and numbered list material with wrapped item text.",
+    "success": {"minTextBytes": 300, "minLists": 1, "maxSingleGlyphParagraphs": 0}
+  },
+  {
+    "id": "unstructured-korean-table",
+    "label": "Unstructured Korean table fixture",
+    "kind": "non-latin-table",
+    "url": "https://raw.githubusercontent.com/Unstructured-IO/unstructured/main/example-docs/pdf/korean-text-with-tables.pdf",
+    "source": "Unstructured example-docs/pdf/korean-text-with-tables.pdf",
+    "filename": "korean-text-with-tables.pdf",
+    "notes": "Korean text and tabular material that exercise CMaps, non-Latin spacing, and geometry tables.",
+    "success": {"minTextBytes": 100, "minTables": 1, "maxSingleGlyphParagraphs": 0}
+  },
+  {
+    "id": "unstructured-ocr-overlay",
+    "label": "Unstructured OCR text-layer fixture",
+    "kind": "ocr-overlay",
+    "url": "https://raw.githubusercontent.com/Unstructured-IO/unstructured/main/example-docs/pdf/pdf-with-ocr-text.pdf",
+    "source": "Unstructured example-docs/pdf/pdf-with-ocr-text.pdf",
+    "filename": "pdf-with-ocr-text.pdf",
+    "notes": "Image-backed page with an OCR text layer; duplicate overlay text must not leak into body flow.",
+    "success": {"minTextBytes": 100, "maxSingleGlyphParagraphs": 0}
+  },
+  {
+    "id": "docling-code-formula",
+    "label": "Docling code and formula fixture",
+    "kind": "code-and-formula",
+    "url": "https://raw.githubusercontent.com/docling-project/docling/main/tests/data/pdf/sources/code_and_formula.pdf",
+    "source": "docling-project/docling tests/data/pdf/sources/code_and_formula.pdf",
+    "filename": "code_and_formula.pdf",
+    "notes": "Two pages mixing prose, source code, and mathematical formula layout.",
+    "success": {"minTextBytes": 500, "minCodeBlocks": 1, "maxSingleGlyphParagraphs": 0}
+  },
+  {
+    "id": "docling-right-to-left",
+    "label": "Docling right-to-left fixture",
+    "kind": "right-to-left",
+    "url": "https://raw.githubusercontent.com/docling-project/docling/main/tests/data/pdf/sources/right_to_left_01.pdf",
+    "source": "docling-project/docling tests/data/pdf/sources/right_to_left_01.pdf",
+    "filename": "right_to_left_01.pdf",
+    "notes": "Arabic right-to-left prose and headings with mixed numeric content.",
+    "success": {"minTextBytes": 100, "maxSingleGlyphParagraphs": 0}
+  },
+  {
+    "id": "docling-pictures-captions",
+    "label": "Docling picture classification fixture",
+    "kind": "pictures-and-captions",
+    "url": "https://raw.githubusercontent.com/docling-project/docling/main/tests/data/pdf/sources/picture_classification.pdf",
+    "source": "docling-project/docling tests/data/pdf/sources/picture_classification.pdf",
+    "filename": "picture_classification.pdf",
+    "notes": "Picture regions, captions, and adjacent explanatory prose.",
+    "success": {"minTextBytes": 300, "maxSingleGlyphParagraphs": 0}
+  },
+  {
+    "id": "docling-aircraft-handbook",
+    "label": "Docling aircraft handbook sample",
+    "kind": "technical-manual",
+    "url": "https://raw.githubusercontent.com/docling-project/docling/main/tests/data/pdf/sources/amt_handbook_sample.pdf",
+    "source": "docling-project/docling tests/data/pdf/sources/amt_handbook_sample.pdf",
+    "filename": "amt_handbook_sample.pdf",
+    "notes": "Technical manual pages with headings, figures, labels, columns, and running page furniture.",
+    "success": {"minTextBytes": 1500, "minHeadings": 1, "maxSingleGlyphParagraphs": 0}
+  },
+  {
+    "id": "docling-table-picture-boundary",
+    "label": "Docling table mislabeled as picture fixture",
+    "kind": "table-picture-boundary",
+    "url": "https://raw.githubusercontent.com/docling-project/docling/main/tests/data/pdf/sources/table_mislabeled_as_picture.pdf",
+    "source": "docling-project/docling tests/data/pdf/sources/table_mislabeled_as_picture.pdf",
+    "filename": "table_mislabeled_as_picture.pdf",
+    "notes": "Compact regression page where a table-like region can be confused with a figure.",
+    "success": {"minTextBytes": 100, "minLists": 1, "maxSingleGlyphParagraphs": 0}
+  },
+  {
+    "id": "mineru-small-ocr",
+    "label": "MinerU small OCR document",
+    "kind": "scanned-ocr",
+    "url": "https://raw.githubusercontent.com/opendatalab/MinerU/master/demo/pdfs/small_ocr.pdf",
+    "source": "opendatalab/MinerU demo/pdfs/small_ocr.pdf",
+    "filename": "small_ocr.pdf",
+    "notes": "Eight scanned pages used by MinerU to demonstrate OCR fallback behavior.",
+    "success": {"allowNoText": true, "maxSingleGlyphParagraphs": 0}
+  },
+  {
+    "id": "vdl-theatre-script",
+    "label": "Theatre script formatting example",
+    "kind": "theatre-dialogue",
+    "url": "https://vdl.org.au/wp-content/uploads/2021/09/ASC_script_format_example.pdf",
+    "source": "Victorian Drama League / Australian Script Centre script format example",
+    "filename": "ASC_script_format_example.pdf",
+    "notes": "A real theatre-format sample with character cues, dialogue, hanging continuations, and stage directions.",
+    "success": {"minTextBytes": 700, "minLineOrientedBlocks": 3, "maxSingleGlyphParagraphs": 0}
+  },
+  {
+    "id": "unstructured-rotated-page",
+    "label": "Unstructured rotated-page fixture",
+    "kind": "rotated-page",
+    "url": "https://raw.githubusercontent.com/Unstructured-IO/unstructured/main/example-docs/rotated-page-90.pdf",
+    "source": "Unstructured example-docs/rotated-page-90.pdf",
+    "filename": "rotated-page-90.pdf",
+    "notes": "Minimal page-rotation fixture exercising transformed text coordinates.",
+    "success": {"minTextBytes": 5, "maxSingleGlyphParagraphs": 0}
+  },
+  {
+    "id": "unstructured-emphasis",
+    "label": "Unstructured emphasis fixture",
+    "kind": "inline-style-fragments",
+    "url": "https://raw.githubusercontent.com/Unstructured-IO/unstructured/main/example-docs/pdf/emphasis-text.pdf",
+    "source": "Unstructured example-docs/pdf/emphasis-text.pdf",
+    "filename": "emphasis-text.pdf",
+    "notes": "Inline bold and italic runs that must not create false word spaces or paragraph boundaries.",
+    "success": {"minTextBytes": 35, "minParagraphs": 2, "maxSingleGlyphParagraphs": 0}
+  }
+]

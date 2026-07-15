@@ -126,13 +126,19 @@ return [
         $coveredFormats = is_array($manifest['coveredFormats'] ?? null) ? $manifest['coveredFormats'] : [];
         $qualitySummary = is_array($manifest['importQualitySummary'] ?? null) ? $manifest['importQualitySummary'] : [];
         $qualityGate = is_array($manifest['importQualityGate'] ?? null) ? $manifest['importQualityGate'] : [];
+        $expectedReviewIds = [
+            'pdf-layout-docling-right-to-left',
+            'pdf-layout-mineru-small-ocr',
+            'pdf-layout-unstructured-ocr-overlay',
+            'pdf-muir-beach-brochure',
+        ];
 
         $t->same([], $manifest['missingFormats'] ?? null);
         $t->same($formats, $coveredFormats);
         $t->true(count($records) >= 95, 'The complete supported-format corpus should not shrink.');
         $t->same(count($records), $qualitySummary['samples'] ?? null);
-        $t->same(count($records) - 1, $qualitySummary['pass'] ?? null);
-        $t->same(1, $qualitySummary['review'] ?? null);
+        $t->same(count($records) - count($expectedReviewIds), $qualitySummary['pass'] ?? null);
+        $t->same(count($expectedReviewIds), $qualitySummary['review'] ?? null);
         $t->same(0, $qualitySummary['fail'] ?? null);
         $t->same(0, $qualitySummary['unbenchmarked'] ?? null);
         $t->same('pass', $qualityGate['status'] ?? null);
@@ -146,7 +152,7 @@ return [
             $t->same(true, $record['phpHtml']['ok'] ?? null, "{$id} should convert to PHP HTML.");
             $t->same(true, $record['wpBlocks']['ok'] ?? null, "{$id} should convert to WordPress blocks.");
             $quality = is_array($record['importQuality'] ?? null) ? $record['importQuality'] : [];
-            $expectedQualityStatus = $id === 'pdf-muir-beach-brochure' ? 'review' : 'pass';
+            $expectedQualityStatus = in_array($id, $expectedReviewIds, true) ? 'review' : 'pass';
             $t->same($expectedQualityStatus, $quality['status'] ?? null, "{$id} should retain its measured import-quality status.");
             $anchor = is_array($quality['gates']['anchor_validity'] ?? null)
                 ? $quality['gates']['anchor_validity']

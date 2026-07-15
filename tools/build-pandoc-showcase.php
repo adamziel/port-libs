@@ -199,6 +199,39 @@ function remote_sample(string $id, string $format, string $url, string $filename
     ];
 }
 
+/** @return list<array<string, mixed>> */
+function pdf_layout_corpus_samples(): array
+{
+    $path = __DIR__ . '/pdf-layout-corpus-manifest.json';
+    $decoded = json_decode((string) file_get_contents($path), true);
+    if (!is_array($decoded)) {
+        throw new RuntimeException("Unable to read PDF layout corpus manifest at {$path}.");
+    }
+
+    $samples = [];
+    foreach ($decoded as $entry) {
+        if (!is_array($entry)) {
+            continue;
+        }
+        foreach (['id', 'label', 'url', 'filename', 'source'] as $required) {
+            if (!is_string($entry[$required] ?? null) || $entry[$required] === '') {
+                throw new RuntimeException("PDF layout corpus entry is missing {$required}.");
+            }
+        }
+        $samples[] = remote_sample(
+            'pdf-layout-' . $entry['id'],
+            'pdf',
+            $entry['url'],
+            $entry['filename'],
+            $entry['label'],
+            $entry['source'],
+            (string) ($entry['notes'] ?? '')
+        );
+    }
+
+    return $samples;
+}
+
 /**
  * @return list<array<string, mixed>>
  */
@@ -1083,6 +1116,7 @@ RST;
             inline_sample('xml-outline-generic', 'xml', 'generic-outline.xml', 'Generic XML outline', "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<document><title>Generic XML outline</title><section><heading>Inventory</heading><p>Plain XML read through the generic XML path.</p></section></document>\n", 'Inline generic XML document.'),
         ],
         'pdf' => [
+            ...pdf_layout_corpus_samples(),
             [
                 'id' => 'pdf-irs-w4',
                 'format' => 'pdf',
@@ -3076,12 +3110,19 @@ function showcase_pdf_geometry_reference_gate(array $metrics): array
     $pages = max(0, (int) ($metrics['pageCount'] ?? 0));
     $textPages = max(0, (int) ($metrics['textPageCount'] ?? 0));
     $lines = max(0, (int) ($metrics['lineCount'] ?? 0));
+    $scanWithoutTextLayer = $pages > 0 && $textPages === 0 && $lines === 0;
 
     return [
-        'status' => $pages > 0 && $textPages > 0 && $lines > 0 ? 'pass' : 'fail',
-        'expected' => 'native PDF page and line geometry',
+        'status' => $pages > 0 && $textPages > 0 && $lines > 0
+            ? 'pass'
+            : ($scanWithoutTextLayer ? 'review' : 'fail'),
+        'expected' => $scanWithoutTextLayer
+            ? 'page geometry plus browser or server OCR'
+            : 'native PDF page and line geometry',
         'actual' => ['pages' => $pages, 'textPages' => $textPages, 'lines' => $lines],
-        'detail' => 'macOS PDFKit independently exposed source page boundaries and visual text lines; untagged PDFs do not expose an HTML heading/list/table/image tree.',
+        'detail' => $scanWithoutTextLayer
+            ? 'PDFKit exposed scanned pages but no native text layer; this fixture requires the explicit OCR continuation path.'
+            : 'macOS PDFKit independently exposed source page boundaries and visual text lines; untagged PDFs do not expose an HTML heading/list/table/image tree.',
     ];
 }
 
@@ -3093,6 +3134,8 @@ function showcase_pdf_geometry_reference_gate(array $metrics): array
 function showcase_pdf_paragraph_geometry_gate(array $metrics, array $wpVisual): array
 {
     $sourceLines = max(0, (int) ($metrics['lineCount'] ?? 0));
+    $sourcePages = max(0, (int) ($metrics['pageCount'] ?? 0));
+    $sourceTextPages = max(0, (int) ($metrics['textPageCount'] ?? 0));
     $textPages = max(1, (int) ($metrics['textPageCount'] ?? 0));
     $paragraphs = max(0, (int) ($wpVisual['p'] ?? 0));
     $textBlocks = $paragraphs
@@ -3104,17 +3147,24 @@ function showcase_pdf_paragraph_geometry_gate(array $metrics, array $wpVisual): 
         + max(0, (int) ($wpVisual['linegroup'] ?? 0));
     $maxParagraphs = $sourceLines < 20 ? PHP_INT_MAX : max(1, (int) floor($sourceLines * 0.90));
 
-    $status = $textBlocks < $textPages
-        ? 'fail'
-        : ($paragraphs > $maxParagraphs ? 'review' : 'pass');
+    $scanWithoutTextLayer = $sourcePages > 0 && $sourceTextPages === 0 && $sourceLines === 0;
+    $status = $scanWithoutTextLayer
+        ? 'review'
+        : ($textBlocks < $textPages
+            ? 'fail'
+            : ($paragraphs > $maxParagraphs ? 'review' : 'pass'));
 
     return [
         'status' => $status,
-        'expected' => $sourceLines < 20
+        'expected' => $scanWithoutTextLayer
+            ? 'semantic text blocks after OCR continuation'
+            : ($sourceLines < 20
             ? 'at least ' . $textPages . ' semantic text blocks'
-            : 'at least ' . $textPages . ' semantic text blocks and no more than 90% of ' . $sourceLines . ' visual lines as paragraphs',
+            : 'at least ' . $textPages . ' semantic text blocks and no more than 90% of ' . $sourceLines . ' visual lines as paragraphs'),
         'actual' => ['textBlocks' => $textBlocks, 'paragraphs' => $paragraphs, 'sourceLines' => $sourceLines],
-        'detail' => 'native line geometry guards against collapsing a multi-page source or emitting one paragraph for every visual line.',
+        'detail' => $scanWithoutTextLayer
+            ? 'A page-only scan cannot be scored for paragraph reconstruction until OCR supplies text.'
+            : 'native line geometry guards against collapsing a multi-page source or emitting one paragraph for every visual line.',
     ];
 }
 
@@ -3945,6 +3995,98 @@ function haskell_pandoc_timeout_seconds(string $path): int
     return ShowcaseHaskellReferenceTimeout::secondsFor($path);
 }
 
+/**
+ * Keep a successful external reference reusable when neither its source nor
+ * the installed Haskell Pandoc changed. This prevents a pathological office
+ * reader from replacing a known-good baseline with a timeout artifact during
+ * an otherwise unrelated showcase rebuild.
+ *
+ * @return array{html:string,sourceSha256:string,pandocVersion:string,renderedWithCiteproc:bool}|null
+ */
+function cached_haskell_pandoc_reference(string $dir, string $path, string $format): ?array
+{
+    if (haskell_pandoc_timeout_seconds($path) <= 300) {
+        return null;
+    }
+    $htmlPath = $dir . '/haskell.html';
+    if (!is_file($htmlPath) || !is_file($path)) {
+        return null;
+    }
+    $html = file_get_contents($htmlPath);
+    $sourceSha256 = hash_file('sha256', $path);
+    if (!is_string($html) || $html === '' || !is_string($sourceSha256) || $sourceSha256 === '') {
+        return null;
+    }
+
+    $pandocVersion = haskell_pandoc_version_signature();
+    $metadataPath = $dir . '/haskell.cache.json';
+    if (is_file($metadataPath)) {
+        $metadata = json_decode((string) file_get_contents($metadataPath), true);
+        if (!is_array($metadata)
+            || ($metadata['sourceSha256'] ?? null) !== $sourceSha256
+            || ($metadata['pandocVersion'] ?? null) !== $pandocVersion
+            || ($metadata['format'] ?? null) !== $format) {
+            return null;
+        }
+    }
+
+    return [
+        'html' => $html,
+        'sourceSha256' => $sourceSha256,
+        'pandocVersion' => $pandocVersion,
+        'renderedWithCiteproc' => showcase_bibliography_input_format($format),
+    ];
+}
+
+function haskell_pandoc_version_signature(): string
+{
+    static $signature = null;
+    if (is_string($signature)) {
+        return $signature;
+    }
+    $result = run_process(['pandoc', '--version'], 10);
+    $firstLine = strtok(trim((string) ($result['stdout'] ?? '')), "\r\n");
+    $signature = is_string($firstLine) && $firstLine !== ''
+        ? sanitize_generated_text($firstLine)
+        : 'pandoc-version-unavailable';
+
+    return $signature;
+}
+
+/** @param array{html:string,sourceSha256:string,pandocVersion:string,renderedWithCiteproc:bool} $cached */
+function restore_cached_haskell_pandoc_reference(string $dir, string $format, array $cached): array
+{
+    file_put_contents($dir . '/haskell.html', $cached['html']);
+    file_put_contents($dir . '/haskell.cache.json', json_encode([
+        'sourceSha256' => $cached['sourceSha256'],
+        'pandocVersion' => $cached['pandocVersion'],
+        'format' => $format,
+    ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n");
+
+    return [
+        'ok' => true,
+        'path' => 'outputs/' . basename($dir) . '/haskell.html',
+        'renderedWithCiteproc' => $cached['renderedWithCiteproc'],
+        'cached' => true,
+    ];
+}
+
+function write_haskell_pandoc_cache_metadata(string $dir, string $path, string $format): void
+{
+    if (haskell_pandoc_timeout_seconds($path) <= 300) {
+        return;
+    }
+    $sourceSha256 = is_file($path) ? hash_file('sha256', $path) : false;
+    if (!is_string($sourceSha256) || $sourceSha256 === '') {
+        return;
+    }
+    file_put_contents($dir . '/haskell.cache.json', json_encode([
+        'sourceSha256' => $sourceSha256,
+        'pandocVersion' => haskell_pandoc_version_signature(),
+        'format' => $format,
+    ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n");
+}
+
 function run_haskell_pandoc(string $path, string $format, string $dir): array
 {
     $out = $dir . '/haskell.html';
@@ -3985,6 +4127,7 @@ function run_haskell_pandoc(string $path, string $format, string $dir): array
         $body,
         $renderedWithCiteproc ? 'Haskell Pandoc Citeproc HTML output' : 'Haskell Pandoc HTML output'
     ));
+    write_haskell_pandoc_cache_metadata($dir, $path, $format);
 
     return [
         'ok' => true,
@@ -4455,6 +4598,39 @@ function showcase_write_examples_page(string $siteDir, array $records, string $g
     file_put_contents($siteDir . '/examples.html', rtrim($page) . "\n");
     file_put_contents($siteDir . '/examples.css', rtrim($css) . "\n");
     file_put_contents($siteDir . '/examples.js', rtrim($javascript) . "\n");
+    showcase_write_pdf_layout_corpus_review_page($siteDir);
+}
+
+function showcase_write_pdf_layout_corpus_review_page(string $siteDir): void
+{
+    $manifestPath = __DIR__ . '/pdf-layout-corpus-manifest.json';
+    $entries = json_decode((string) file_get_contents($manifestPath), true);
+    if (!is_array($entries)) {
+        throw new RuntimeException("Unable to read PDF layout corpus manifest at {$manifestPath}.");
+    }
+
+    $items = '';
+    foreach ($entries as $entry) {
+        if (!is_array($entry) || !is_string($entry['id'] ?? null) || !is_string($entry['label'] ?? null)) {
+            continue;
+        }
+        $exampleId = 'pdf-layout-' . $entry['id'];
+        $items .= '<li><a href="examples.html?example=' . rawurlencode($exampleId) . '">'
+            . h($entry['label']) . '</a><span>' . h((string) ($entry['kind'] ?? 'PDF layout')) . '</span><p>'
+            . h((string) ($entry['notes'] ?? '')) . '</p></li>';
+    }
+
+    $page = '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
+        . '<title>PDF layout review corpus</title><style>'
+        . '*{box-sizing:border-box}body{margin:0;background:#f4f7fb;color:#18212b;font:16px/1.5 system-ui,sans-serif}'
+        . 'main{width:min(1100px,100%);margin:auto;padding:clamp(18px,4vw,48px)}h1{margin:0 0 8px;font-size:clamp(28px,5vw,46px)}'
+        . '.lead{max-width:76ch;margin:0 0 28px;color:#475569}ul{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:14px;padding:0;list-style:none}'
+        . 'li{min-width:0;padding:18px;border:1px solid #d6dee8;border-radius:12px;background:#fff}a{color:#165dcc;font-size:18px;font-weight:750}'
+        . 'span{display:block;margin-top:5px;color:#64748b;font-size:13px;text-transform:uppercase;letter-spacing:.04em}p{margin:10px 0 0}'
+        . '</style></head><body><main><h1>PDF layout review corpus</h1><p class="lead">'
+        . count($entries) . ' diverse PDFs converted by the current branch. Open any item in the mobile-safe example browser; use its arrows to continue through the corpus.</p><ul>'
+        . $items . '</ul></main></body></html>';
+    file_put_contents($siteDir . '/pdf-layout-corpus.html', $page . "\n");
 }
 
 function showcase_examples_css(): string
@@ -6363,10 +6539,17 @@ foreach ($samples as $sample) {
     }
     $sourcePath = is_file($target) ? $target : $target . '.download-error.txt';
     $outDir = $outputsDir . '/' . $id;
+    $cachedHaskell = is_file($target)
+        ? cached_haskell_pandoc_reference($outDir, $target, $format)
+        : null;
     ensure_clean_dir($outDir);
     $samplePath = rel($sourcePath, $siteDir);
 
-    $haskell = is_file($target) ? run_haskell_pandoc($target, $format, $outDir) : ['ok' => false, 'error' => $downloadError ?? 'missing source file'];
+    $haskell = is_array($cachedHaskell)
+        ? restore_cached_haskell_pandoc_reference($outDir, $format, $cachedHaskell)
+        : (is_file($target)
+            ? run_haskell_pandoc($target, $format, $outDir)
+            : ['ok' => false, 'error' => $downloadError ?? 'missing source file']);
     $externalReference = is_file($target) ? run_external_reference($target, $format, $outDir) : null;
     $phpHtml = is_file($target) ? write_output_from_process($outDir, 'php.html', $target, $format, 'html') : ['ok' => false, 'error' => $downloadError ?? 'missing source file'];
     $wpBlocks = is_file($target) ? write_output_from_process($outDir, 'wordpress-blocks.html', $target, $format, 'wordpress') : ['ok' => false, 'error' => $downloadError ?? 'missing source file'];

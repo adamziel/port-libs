@@ -1,0 +1,40 @@
+{
+    "version": 1,
+    "samplePath": "samples/pdf-layout-docling-table-picture-boundary-table_mislabeled_as_picture.pdf",
+    "requests": [
+        {
+            "id": "form-1c0889814d8a15ade5312ae442e3",
+            "path": "samples/pdf-layout-docling-table-picture-boundary-table_mislabeled_as_picture.pdf",
+            "page": 1,
+            "bbox": {
+                "x1": 0,
+                "y1": 0,
+                "x2": 1224,
+                "y2": 792
+            },
+            "formId": "pdf-form-p1-n1-o38",
+            "object": 38,
+            "paintOrder": 1,
+            "precedingText": null,
+            "followingText": null,
+            "label": "PDF figure on page 1"
+        },
+        {
+            "id": "form-dbae4bfd7c39908525bf2f1ccdc8",
+            "path": "samples/pdf-layout-docling-table-picture-boundary-table_mislabeled_as_picture.pdf",
+            "page": 1,
+            "bbox": {
+                "x1": 0,
+                "y1": 0,
+                "x2": 1224,
+                "y2": 792
+            },
+            "formId": "pdf-form-p1-n2-o39",
+            "object": 39,
+            "paintOrder": 2,
+            "precedingText": null,
+            "followingText": null,
+            "label": "PDF figure on page 1"
+        }
+    ]
+}
