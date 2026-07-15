@@ -1713,6 +1713,9 @@ final class PdfTextExtractor
      * page-context and token arrays for each extraction mode.
      *
      * @return \Generator<int, array{
+     *     page: int,
+     *     pageObject: int|null,
+     *     stream: int,
      *     textLineItems: list<array{page: int, stream: int, text: string}>,
      *     textRuns: list<string>,
      *     positionedTextRuns: list<array{page: int, stream: int, text: string, x1: float, y1: float, x2: float, y2: float, textX1: float, textY1: float, textX2: float, textY2: float, fontSize: float, pageObject?: int}>,
@@ -1823,6 +1826,9 @@ final class PdfTextExtractor
             }
 
             yield [
+                'page' => $page,
+                'pageObject' => $pageObject,
+                'stream' => $streamNumber,
                 'textLineItems' => $textLineItems,
                 'textRuns' => $textRuns,
                 'positionedTextRuns' => $positionedTextRuns,

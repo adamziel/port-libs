@@ -29,6 +29,9 @@ return [
         $rectangles = [];
 
         foreach ($extractor->streamImportFacts($pdf) as $facts) {
+            $t->same(1, $facts['page']);
+            $t->same(3, $facts['pageObject']);
+            $t->same(1, $facts['stream']);
             array_push($lines, ...$facts['textLineItems']);
             array_push($runs, ...$facts['textRuns']);
             array_push($positionedRuns, ...$facts['positionedTextRuns']);
