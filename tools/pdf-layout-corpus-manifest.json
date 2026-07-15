@@ -134,7 +134,13 @@
     "source": "Victorian Drama League / Australian Script Centre script format example",
     "filename": "ASC_script_format_example.pdf",
     "notes": "A real theatre-format sample with character cues, dialogue, hanging continuations, and stage directions.",
-    "success": {"minTextBytes": 700, "minLineOrientedBlocks": 3, "maxSingleGlyphParagraphs": 0}
+    "success": {
+      "minTextBytes": 700,
+      "minDialogueParagraphs": 3,
+      "maxCodeBlocks": 0,
+      "maxLineOrientedBlocks": 0,
+      "maxSingleGlyphParagraphs": 0
+    }
   },
   {
     "id": "unstructured-rotated-page",

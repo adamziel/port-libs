@@ -1,5 +1,5 @@
 {
-    "generatedAt": "2026-07-15T16:15:16+00:00",
+    "generatedAt": "2026-07-15T17:30:57+00:00",
     "pandocVersion": "pandoc 3.10\nFeatures: +server +lua\nScripting engine: Lua 5.4\nUser data directory: $REPO\nCopyright (C) 2006-2025 John MacFarlane. Web:  https://pandoc.org\nThis is free software; see the source for copying conditions. There is no\nwarranty, not even for merchantability or fitness for a particular purpose.",
     "mediaImageMode": "important",
     "formats": [
@@ -881,11 +881,11 @@
             "html": 52,
             "image": 130,
             "list": 1409,
-            "paragraph": 23490,
+            "paragraph": 23502,
             "quote": 56,
             "separator": 66,
             "table": 586,
-            "verse": 14
+            "verse": 2
         },
         "sampleCount": 108
     },
@@ -18023,8 +18023,7 @@
             },
             "wpBlockCounts": {
                 "heading": 6,
-                "paragraph": 5,
-                "verse": 12
+                "paragraph": 17
             },
             "sourceRawHtmlBlockCount": null,
             "bibliographySource": null,
@@ -18099,7 +18098,7 @@
                         "expected": "at least 3 semantic text blocks and no more than 90% of 75 visual lines as paragraphs",
                         "actual": {
                             "textBlocks": 23,
-                            "paragraphs": 5,
+                            "paragraphs": 17,
                             "sourceLines": 75
                         },
                         "detail": "native line geometry guards against collapsing a multi-page source or emitting one paragraph for every visual line."

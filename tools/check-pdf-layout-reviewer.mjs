@@ -106,9 +106,18 @@ assert(js.includes('noSpacedGlyphRuns') && js.includes('readablePdfFills'), 'Rev
 
 const multicolumn = manifest.find((entry) => entry.id === 'unstructured-multicolumn');
 const formula = manifest.find((entry) => entry.id === 'docling-code-formula');
+const theatre = manifest.find((entry) => entry.id === 'vdl-theatre-script');
 assert(multicolumn?.success?.orderedText?.includes('1 Introduction'), 'Multicolumn review must pin front-matter-to-introduction reading order.');
 assert(multicolumn?.success?.requiredText?.includes('Abstract'), 'Multicolumn review must require its abstract.');
 assert(formula?.success?.requiredText?.includes('a2 + 8 = 12'), 'Formula review must require its real formula text.');
+assert(theatre?.success?.minDialogueParagraphs >= 3, 'Theatre review must require editable dialogue paragraphs.');
+assert(theatre?.success?.maxCodeBlocks === 0, 'Theatre review must reject code blocks.');
+assert(theatre?.success?.maxLineOrientedBlocks === 0, 'Theatre review must reject preformatted verse blocks.');
+if (theatre) {
+  const theatrePreview = fs.readFileSync(siteFile(`outputs/pdf-layout-${theatre.id}/wordpress-blocks-preview.html`), 'utf8');
+  assert(theatrePreview.includes('<strong>CHARACTER 1</strong><br/>'), 'Theatre preview must keep speaker cues above dialogue text.');
+  assert(!theatrePreview.includes('<!-- wp:verse -->') && !theatrePreview.includes('<!-- wp:code -->') && !theatrePreview.includes('<pre'), 'Theatre preview must not contain code-like preformatted blocks.');
+}
 
 if (errors.length > 0) {
   for (const error of errors) console.error(`FAIL: ${error}`);

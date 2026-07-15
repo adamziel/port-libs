@@ -239,6 +239,7 @@ const iframeSnapshotExpression = `(() => {
     lists: document.querySelectorAll('ul, ol').length,
     codeBlocks: document.querySelectorAll('pre.wp-block-code, .wp-block-code pre').length,
     lineOrientedBlocks: document.querySelectorAll('pre.wp-block-verse, .wp-block-verse').length,
+    dialogueParagraphs: document.querySelectorAll('p > strong:first-child + br').length,
     singleGlyphParagraphs,
     spacedGlyphRuns,
     lowContrastPdfFillCells,
@@ -287,7 +288,10 @@ function criterionErrors(criteria, snapshot) {
     maxTables: ['tables', (actual, expected) => actual <= expected],
     minLists: ['lists', (actual, expected) => actual >= expected],
     minCodeBlocks: ['codeBlocks', (actual, expected) => actual >= expected],
+    maxCodeBlocks: ['codeBlocks', (actual, expected) => actual <= expected],
     minLineOrientedBlocks: ['lineOrientedBlocks', (actual, expected) => actual >= expected],
+    maxLineOrientedBlocks: ['lineOrientedBlocks', (actual, expected) => actual <= expected],
+    minDialogueParagraphs: ['dialogueParagraphs', (actual, expected) => actual >= expected],
     maxSingleGlyphParagraphs: ['singleGlyphParagraphs', (actual, expected) => actual.length <= expected],
   };
   const errors = [];
@@ -707,11 +711,13 @@ async function main() {
 
     const multicolumnDocument = manifest.find((document) => document.id === 'unstructured-multicolumn');
     const formulaDocument = manifest.find((document) => document.id === 'docling-code-formula');
-    if (!multicolumnDocument || !formulaDocument) {
-      throw new VerificationError('The reviewer E2E requires the multicolumn and code/formula corpus documents.');
+    const theatreDocument = manifest.find((document) => document.id === 'vdl-theatre-script');
+    if (!multicolumnDocument || !formulaDocument || !theatreDocument) {
+      throw new VerificationError('The reviewer E2E requires the multicolumn, code/formula, and theatre corpus documents.');
     }
     const multicolumnId = `pdf-layout-${multicolumnDocument.id}`;
     const formulaId = `pdf-layout-${formulaDocument.id}`;
+    const theatreId = `pdf-layout-${theatreDocument.id}`;
     const reviewer = { screenshots: {}, navigation: {}, verdictPersistence: false };
 
     await setViewport(page, viewports.desktop);
@@ -750,6 +756,23 @@ async function main() {
     reviewer.screenshots.formulaDesktop = path.join(options.output, 'reviewer-formula-desktop.png');
     await settleVisualPaint(page, 500);
     await captureScreenshot(page, reviewer.screenshots.formulaDesktop);
+
+    if (!(await selectReviewerExample(page, theatreId))) {
+      throw new VerificationError(`The reviewer picker does not contain ${theatreId}.`);
+    }
+    reviewerSnapshot = await waitForReviewer(page, options, theatreId, 'converted');
+    reviewerFailures = reviewerErrors(reviewerSnapshot, manifest.length, theatreId, 'converted');
+    if (reviewerFailures.length > 0) {
+      throw new VerificationError(`The theatre reviewer failed: ${reviewerFailures.join('; ')}`, reviewerSnapshot);
+    }
+    reviewer.screenshots.theatreDesktop = path.join(options.output, 'reviewer-theatre-desktop.png');
+    await settleVisualPaint(page, 500);
+    await captureScreenshot(page, reviewer.screenshots.theatreDesktop);
+
+    if (!(await selectReviewerExample(page, formulaId))) {
+      throw new VerificationError(`The reviewer picker does not contain ${formulaId}.`);
+    }
+    reviewerSnapshot = await waitForReviewer(page, options, formulaId, 'converted');
 
     let verdictSnapshot = await evaluate(page, reviewerSnapshotExpression);
     if (verdictSnapshot.verdict !== 'pass'

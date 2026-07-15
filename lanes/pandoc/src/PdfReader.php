@@ -15131,19 +15131,20 @@ final class PdfReader
             }
             if (str_starts_with($line, self::PDF_LINE_BLOCK_PREFIX)) {
                 $flushList();
-                $lineBlock = $this->decodePdfLineBlock($line);
-                if ($lineBlock !== []) {
+                $dialogueLines = $this->decodePdfLineBlock($line);
+                if ($dialogueLines !== []) {
+                    $cue = array_shift($dialogueLines);
+                    $inlines = [
+                        new AstNode('strong', ['sourceRole' => 'speaker'], $this->inlines($cue)),
+                    ];
+                    foreach ($dialogueLines as $dialogueLine) {
+                        $inlines[] = new AstNode('linebreak');
+                        array_push($inlines, ...$this->inlines($dialogueLine));
+                    }
                     $blocks[] = new AstNode(
-                        'line_block',
-                        ['classes' => ['pdf-line-oriented']],
-                        array_map(
-                            fn (string $blockLine): AstNode => new AstNode(
-                                'line',
-                                ['text' => $blockLine],
-                                $this->inlines($blockLine)
-                            ),
-                            $lineBlock
-                        )
+                        'paragraph',
+                        ['sourceRole' => 'dialogue'],
+                        $inlines
                     );
                 }
                 $index++;

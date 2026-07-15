@@ -23,12 +23,17 @@ $layout = static function (int $index, float $x1 = 72.0, int $page = 1): array {
     ];
 };
 
-$lineBlocks = static function (array $records) use ($invoke): array {
+$dialogueBlocks = static function (array $records) use ($invoke): array {
     $reader = new PdfReader();
     $marked = $invoke($reader, 'markPdfLineOrientedRegionRecords', $records);
     $merged = $invoke($reader, 'mergeRepairedPdfRecords', $marked);
     return $invoke($reader, 'blocksFromLines', $merged);
 };
+
+$dialogueBlockCount = static fn (array $blocks): int => count(array_filter(
+    $blocks,
+    static fn (AstNode $node): bool => $node->type === 'paragraph' && $node->attr('sourceRole') === 'dialogue'
+));
 
 $dialogueRecords = static function (array $lines, float $x1 = 72.0, int $page = 1) use ($layout): array {
     $records = [];
@@ -39,20 +44,24 @@ $dialogueRecords = static function (array $lines, float $x1 = 72.0, int $page = 
 };
 
 return [
-    'turns recurring numbered character cues into separate line-oriented blocks' => static function (TestRunner $t) use ($lineBlocks, $dialogueRecords): void {
-        $blocks = $lineBlocks($dialogueRecords([
+    'turns recurring numbered character cues into editable dialogue paragraphs' => static function (TestRunner $t) use ($dialogueBlocks, $dialogueRecords): void {
+        $blocks = $dialogueBlocks($dialogueRecords([
             'CHARACTER 1 First spoken sentence.',
             'CHARACTER 2 A second spoken sentence.',
             'CHARACTER 1 Another spoken sentence.',
             'CHARACTER 2 The final spoken sentence.',
         ]));
 
-        $t->same(['line_block', 'line_block', 'line_block', 'line_block'], array_map(static fn (AstNode $node): string => $node->type, $blocks));
-        $t->same(['CHARACTER 1', 'First spoken sentence.'], array_map(static fn (AstNode $line): string => (string) $line->attr('text'), $blocks[0]->children));
+        $t->same(['paragraph', 'paragraph', 'paragraph', 'paragraph'], array_map(static fn (AstNode $node): string => $node->type, $blocks));
+        $t->same('dialogue', $blocks[0]->attr('sourceRole'));
+        $t->same('strong', $blocks[0]->children[0]->type);
+        $t->same('CHARACTER 1', $blocks[0]->children[0]->children[0]->attr('text'));
+        $t->same('linebreak', $blocks[0]->children[1]->type);
+        $t->same('First spoken sentence.', $blocks[0]->children[2]->attr('text'));
     },
 
-    'recognizes recurring named speakers without a character-name dictionary' => static function (TestRunner $t) use ($lineBlocks, $dialogueRecords): void {
-        $blocks = $lineBlocks($dialogueRecords([
+    'recognizes recurring named speakers without a character-name dictionary' => static function (TestRunner $t) use ($dialogueBlocks, $dialogueRecords): void {
+        $blocks = $dialogueBlocks($dialogueRecords([
             'ALICE Where should we begin?',
             'BOB We can begin right here.',
             'ALICE Then let us continue.',
@@ -60,11 +69,12 @@ return [
         ]));
 
         $t->same(4, count($blocks));
-        $t->same('line_block', $blocks[0]->type);
-        $t->same('ALICE', $blocks[0]->children[0]->attr('text'));
+        $t->same('paragraph', $blocks[0]->type);
+        $t->same('dialogue', $blocks[0]->attr('sourceRole'));
+        $t->same('ALICE', $blocks[0]->children[0]->children[0]->attr('text'));
     },
 
-    'joins an indented visual continuation to the dialogue body rather than the speaker cue' => static function (TestRunner $t) use ($lineBlocks, $layout): void {
+    'joins an indented visual continuation to the dialogue body rather than the speaker cue' => static function (TestRunner $t) use ($dialogueBlocks, $layout): void {
         $records = [
             ['text' => 'SPEAKER 1 This sentence begins here', 'layout' => $layout(0)],
             ['text' => 'and wraps on an indented line.', 'layout' => $layout(1, 100.0)],
@@ -72,54 +82,54 @@ return [
             ['text' => 'SPEAKER 1 Here is another turn.', 'layout' => $layout(3)],
             ['text' => 'SPEAKER 2 Here is the last turn.', 'layout' => $layout(4)],
         ];
-        $blocks = $lineBlocks($records);
+        $blocks = $dialogueBlocks($records);
 
         $t->same(4, count($blocks));
-        $t->same('This sentence begins here and wraps on an indented line.', $blocks[0]->children[1]->attr('text'));
+        $t->same('This sentence begins here and wraps on an indented line.', $blocks[0]->children[2]->attr('text'));
     },
 
-    'does not infer a line-oriented region from only three cue-shaped records' => static function (TestRunner $t) use ($lineBlocks, $dialogueRecords): void {
-        $blocks = $lineBlocks($dialogueRecords([
+    'does not infer a dialogue region from only three cue-shaped records' => static function (TestRunner $t) use ($dialogueBlocks, $dialogueBlockCount, $dialogueRecords): void {
+        $blocks = $dialogueBlocks($dialogueRecords([
             'ALICE One sentence.',
             'BOB Another sentence.',
             'ALICE A third sentence.',
         ]));
 
-        $t->true(!in_array('line_block', array_map(static fn (AstNode $node): string => $node->type, $blocks), true));
+        $t->same(0, $dialogueBlockCount($blocks));
     },
 
-    'does not combine cue-like labels from separate visual columns' => static function (TestRunner $t) use ($lineBlocks, $layout): void {
+    'does not combine cue-like labels from separate visual columns' => static function (TestRunner $t) use ($dialogueBlocks, $dialogueBlockCount, $layout): void {
         $records = [
             ['text' => 'LEFT 1 First panel sentence.', 'layout' => $layout(0, 72.0)],
             ['text' => 'LEFT 1 Second panel sentence.', 'layout' => $layout(1, 72.0)],
             ['text' => 'RIGHT 1 First other-panel sentence.', 'layout' => $layout(2, 330.0)],
             ['text' => 'RIGHT 1 Second other-panel sentence.', 'layout' => $layout(3, 330.0)],
         ];
-        $blocks = $lineBlocks($records);
+        $blocks = $dialogueBlocks($records);
 
-        $t->true(!in_array('line_block', array_map(static fn (AstNode $node): string => $node->type, $blocks), true));
+        $t->same(0, $dialogueBlockCount($blocks));
     },
 
-    'does not treat ordinary all-capital headings and prose as theatre dialogue' => static function (TestRunner $t) use ($lineBlocks, $dialogueRecords): void {
-        $blocks = $lineBlocks($dialogueRecords([
+    'does not treat ordinary all-capital headings and prose as theatre dialogue' => static function (TestRunner $t) use ($dialogueBlocks, $dialogueBlockCount, $dialogueRecords): void {
+        $blocks = $dialogueBlocks($dialogueRecords([
             'ACT ONE',
             'This is ordinary introductory prose.',
             'SCENE TWO',
             'This is another ordinary paragraph.',
         ]));
 
-        $t->true(!in_array('line_block', array_map(static fn (AstNode $node): string => $node->type, $blocks), true));
+        $t->same(0, $dialogueBlockCount($blocks));
     },
 
-    'does not treat tabular uppercase labels with numeric values as dialogue' => static function (TestRunner $t) use ($lineBlocks, $dialogueRecords): void {
-        $blocks = $lineBlocks($dialogueRecords([
+    'does not treat tabular uppercase labels with numeric values as dialogue' => static function (TestRunner $t) use ($dialogueBlocks, $dialogueBlockCount, $dialogueRecords): void {
+        $blocks = $dialogueBlocks($dialogueRecords([
             'REVENUE 1200',
             'EXPENSES 900',
             'REVENUE 1400',
             'EXPENSES 800',
         ]));
 
-        $t->true(!in_array('line_block', array_map(static fn (AstNode $node): string => $node->type, $blocks), true));
+        $t->same(0, $dialogueBlockCount($blocks));
     },
 
     'repairs arbitrary inter-glyph spaces only when the positioned candidate proves identical characters' => static function (TestRunner $t) use ($invoke): void {
@@ -476,8 +486,8 @@ return [
         $t->same(false, $invoke($reader, 'positionedBandLooksLikeCode', $signatures));
     },
 
-    'renders inferred dialogue as a WordPress verse block with a cue line and body line' => static function (TestRunner $t) use ($lineBlocks, $dialogueRecords): void {
-        $blocks = $lineBlocks($dialogueRecords([
+    'renders inferred dialogue as a WordPress paragraph instead of a preformatted block' => static function (TestRunner $t) use ($dialogueBlocks, $dialogueRecords): void {
+        $blocks = $dialogueBlocks($dialogueRecords([
             'NARRATOR First line.',
             'CHORUS Second line.',
             'NARRATOR Third line.',
@@ -485,7 +495,10 @@ return [
         ]));
         $wordpress = PandocConverter::write(new AstNode('document', [], $blocks), 'wordpress');
 
-        $t->contains('<!-- wp:verse -->', $wordpress);
-        $t->contains("NARRATOR\nFirst line.", $wordpress);
+        $t->contains('<!-- wp:paragraph -->', $wordpress);
+        $t->contains('<strong>NARRATOR</strong><br/>First line.', $wordpress);
+        $t->true(!str_contains($wordpress, '<!-- wp:verse -->'));
+        $t->true(!str_contains($wordpress, '<!-- wp:code -->'));
+        $t->true(!str_contains($wordpress, '<pre'));
     },
 ];

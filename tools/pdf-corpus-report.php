@@ -234,6 +234,7 @@ function convert_pdf_for_review(string $bytes, array $entry, string $outDir, str
             'headingCount' => count_nodes($document, 'heading'),
             'codeBlockCount' => count_nodes($document, 'code_block'),
             'lineOrientedBlockCount' => count_nodes($document, 'line_block'),
+            'dialogueParagraphCount' => count_dialogue_paragraphs($document),
             'singleGlyphParagraphCount' => count_single_glyph_paragraphs($document),
             'textBytes' => strlen($plainText),
             'htmlTableTags' => substr_count(strtolower($html), '<table'),
@@ -298,6 +299,18 @@ function count_nodes(AstNode $node, string $type): int
     $count = 0;
     walk_node($node, static function (AstNode $node) use ($type, &$count): void {
         if ($node->type === $type) {
+            $count++;
+        }
+    });
+
+    return $count;
+}
+
+function count_dialogue_paragraphs(AstNode $document): int
+{
+    $count = 0;
+    walk_node($document, static function (AstNode $node) use (&$count): void {
+        if ($node->type === 'paragraph' && $node->attr('sourceRole') === 'dialogue') {
             $count++;
         }
     });
@@ -451,6 +464,7 @@ function review_status(array $entry, AstNode $document, string $plainText): arra
         'lists' => count_nodes($document, 'bullet_list') + count_nodes($document, 'ordered_list'),
         'codeBlocks' => count_nodes($document, 'code_block'),
         'lineOrientedBlocks' => count_nodes($document, 'line_block'),
+        'dialogueParagraphs' => count_dialogue_paragraphs($document),
         'singleGlyphParagraphs' => count_single_glyph_paragraphs($document),
     ];
     $checks = [];
@@ -462,6 +476,7 @@ function review_status(array $entry, AstNode $document, string $plainText): arra
         'minLists' => 'lists',
         'minCodeBlocks' => 'codeBlocks',
         'minLineOrientedBlocks' => 'lineOrientedBlocks',
+        'minDialogueParagraphs' => 'dialogueParagraphs',
     ];
     foreach ($minimums as $criterion => $metric) {
         if (!array_key_exists($criterion, $criteria)) {
@@ -475,6 +490,8 @@ function review_status(array $entry, AstNode $document, string $plainText): arra
     }
     $maximums = [
         'maxTables' => 'tables',
+        'maxCodeBlocks' => 'codeBlocks',
+        'maxLineOrientedBlocks' => 'lineOrientedBlocks',
         'maxSingleGlyphParagraphs' => 'singleGlyphParagraphs',
     ];
     foreach ($maximums as $criterion => $metric) {
