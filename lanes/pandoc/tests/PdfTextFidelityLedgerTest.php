@@ -59,6 +59,7 @@ return [
         $meta = $document->attr('meta');
         $ledger = $meta['pdfTextFidelity'];
         $plain = PandocConverter::write($document, 'plain');
+        $wordpress = PandocConverter::write($document, 'wordpress');
         $summaryPosition = strpos($plain, 'Open-domain question answering relies');
         $introductionPosition = strpos($plain, '1 Introduction');
 
@@ -70,6 +71,9 @@ return [
         $t->contains('sewoncs.washington.edu', $plain);
         $t->contains('danqiccs.princeton.edu', $plain);
         $t->contains('Abstract', $plain);
+        $t->contains('benchmarks.1', $plain);
+        $t->true(!str_contains($wordpress, '<p>1</p>'), 'A detached superscript marker must not become a standalone paragraph.');
+        $t->true($meta['pdfInlineMarkerRecords'] >= 1);
         $t->true(is_int($summaryPosition) && is_int($introductionPosition) && $summaryPosition < $introductionPosition);
         $t->true($ledger['tokenCoverage'] > 0.855);
         $t->true($ledger['unresolvedTokenCount'] < 225);

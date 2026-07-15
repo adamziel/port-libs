@@ -28,6 +28,7 @@ final class PdfReader
     private int $interGlyphSpacingRepairCount = 0;
     private int $inferredHeadingBoundaryCount = 0;
     private int $frontMatterRecordCount = 0;
+    private int $inlineMarkerRecordCount = 0;
     private int $formulaRegionCount = 0;
     /** @var array<string, true> */
     private array $interGlyphSpacingRepairKeys = [];
@@ -48,6 +49,7 @@ final class PdfReader
         $this->interGlyphSpacingRepairCount = 0;
         $this->inferredHeadingBoundaryCount = 0;
         $this->frontMatterRecordCount = 0;
+        $this->inlineMarkerRecordCount = 0;
         $this->formulaRegionCount = 0;
         $this->interGlyphSpacingRepairKeys = [];
         $this->semanticPipelineTrace = [];
@@ -439,6 +441,7 @@ final class PdfReader
             'pdfInterGlyphSpacingRepairs' => $this->interGlyphSpacingRepairCount,
             'pdfInferredHeadingBoundaries' => $this->inferredHeadingBoundaryCount,
             'pdfFrontMatterRecords' => $this->frontMatterRecordCount,
+            'pdfInlineMarkerRecords' => $this->inlineMarkerRecordCount,
             'pdfFormulaRegions' => $this->formulaRegionCount,
             'pdfSemanticPipeline' => $this->semanticPipelineTrace,
             'pdfGeometryTables' => $geometryTableCount,
@@ -9840,9 +9843,11 @@ final class PdfReader
             }
         }
         $frontMatterProcessor = new PdfFrontMatterSemanticProcessor();
+        $inlineMarkerProcessor = new PdfInlineMarkerSemanticProcessor();
         $formulaProcessor = new PdfFormulaSemanticProcessor();
         $pipeline = new PdfSemanticRecordPipeline([
             $frontMatterProcessor,
+            $inlineMarkerProcessor,
             new PdfCallableSemanticRecordProcessor('repeated-page-furniture', $this->removeRepeatedPdfPageNumberRecords(...)),
             new PdfCallableSemanticRecordProcessor('display-headings', $this->markPdfDisplayHeadingRecords(...)),
             new PdfCallableSemanticRecordProcessor('reference-confidence', $this->removeLowConfidencePdfReferenceEntries(...)),
@@ -9864,6 +9869,7 @@ final class PdfReader
         $pipelineResult = $pipeline->run($cleaned);
         $cleaned = $pipelineResult['records'];
         $this->frontMatterRecordCount = max($this->frontMatterRecordCount, $frontMatterProcessor->recordCount());
+        $this->inlineMarkerRecordCount = max($this->inlineMarkerRecordCount, $inlineMarkerProcessor->markerCount());
         $this->formulaRegionCount = max($this->formulaRegionCount, $formulaProcessor->regionCount());
         $this->semanticPipelineTrace[] = [
             'run' => count($this->semanticPipelineTrace) + 1,
