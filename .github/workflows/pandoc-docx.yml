@@ -401,8 +401,21 @@ jobs:
           STATUS_STATE: ${{ job.status == 'success' && 'success' || job.status == 'cancelled' && 'error' || 'failure' }}
           STATUS_TARGET_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          gh api repos/${{ github.repository }}/statuses/"$STATUS_SHA" \
-            -f state="$STATUS_STATE" \
-            -f context='Pandoc DOCX parity / evidence' \
-            -f target_url="$STATUS_TARGET_URL" \
-            -f description="$STATUS_DESCRIPTION"
+          for attempt in 1 2 3 4 5; do
+            if gh api repos/${{ github.repository }}/statuses/"$STATUS_SHA" \
+              -f state="$STATUS_STATE" \
+              -f context='Pandoc DOCX parity / evidence' \
+              -f target_url="$STATUS_TARGET_URL" \
+              -f description="$STATUS_DESCRIPTION" \
+              >/dev/null 2>&1; then
+              exit 0
+            fi
+
+            if [ "$attempt" -lt 5 ]; then
+              delay=$((attempt * 2))
+              echo "::warning::GitHub status API attempt ${attempt} failed; retrying in ${delay}s"
+              sleep "$delay"
+            fi
+          done
+
+          echo "::warning::Could not publish the advisory DOCX commit status after five attempts; the job result remains authoritative"
